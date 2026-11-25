@@ -33,6 +33,7 @@ suite('Cloud automation task conversations', () => {
 	const resource = URI.from({ scheme: SessionType.CopilotCloud, path: '/task/original' });
 	const date = '2026-01-01T00:00:00Z';
 	const user = (id: string, type: string, content: string): TaskEvent => ({ id, parentId: null, timestamp: date, type, data: { content } });
+	const start = (sessionId: string): TaskEvent => ({ id: `start-${sessionId}`, parentId: null, timestamp: date, type: 'session.start', data: { sessionId } });
 	const original: GetTaskResponse = { id: 'original', automation_id: 'automation', created_at: date, remote_steerable: true, state: 'completed', sessions: [{ id: 'first', created_at: date, state: 'completed', prompt: 'Execution instructions', event_content: 'Review' }] };
 	type Tasks = Pick<ITasksClient, 'get' | 'getEvents' | 'steer'>;
 	const request = upcastPartial<IChatAgentRequest>({ sessionResource: resource, message: 'Continue', variables: { variables: [] } });
@@ -44,7 +45,7 @@ suite('Cloud automation task conversations', () => {
 	test('reopens the original task, deduplicates paged history, and steers it only on an explicit reply', async () => {
 		const calls: string[] = [];
 		let replied = false;
-		const responses = [user('request', 'user.message', 'Review'), user('answer', 'assistant.message', 'Done')];
+		const responses = [start('first'), user('request', 'user.message', 'Review'), user('answer', 'assistant.message', 'Done')];
 		const { controller } = setup({
 			get: async id => {
 				calls.push(`read:${id}`);
@@ -114,7 +115,7 @@ suite('Cloud automation task conversations', () => {
 
 	test('a pending user message does not take output from the confirmed turn', async () => {
 		const pending = { ...user('queued', 'user.message', 'Next'), pending: true };
-		const events = [user('first', 'user.message', 'First'), pending, user('answer', 'assistant.message', 'Still answering First')];
+		const events = [start('first'), user('first', 'user.message', 'First'), pending, user('answer', 'assistant.message', 'Still answering First')];
 		const { controller } = setup({
 			get: async () => ({ ...original, sessions: [{ ...original.sessions![0], event_content: 'First' }] }), getEvents: async () => ({ data: { events, total: events.length } }), steer: async () => assert.fail('Unexpected write'),
 		});
@@ -154,6 +155,32 @@ suite('Cloud automation task conversations', () => {
 			{ lookups: 1, turns: [['Recorded revision', false], ['Done'], ['Explain', false], []] },
 			{ lookups: 1, turns: [['', true], ['Done'], ['Explain', false], []] },
 			{ lookups: 1, turns: [['Recorded revision', false], []] },
+		]);
+	});
+
+	test('the recorded opening never takes a follow-up from a partial log, even one repeating the execution prompt', async () => {
+		const repeated = user('repeated', 'user.message', 'Execution instructions');
+		const setupOutput: TaskEvent = { ...user('setup', 'assistant.message', 'Cloning'), data: { content: 'Cloning', toolRequests: [{ toolCallId: 'clone', name: 'clone' }] } };
+		const rendered = async (events: TaskEvent[], laterSession = false) => {
+			const { controller } = setup({
+				get: async () => laterSession ? { ...original, sessions: [original.sessions![0], { id: 'second', created_at: date, state: 'completed' }] } : original,
+				getEvents: async () => ({ data: { events, total: events.length } }), steer: async () => assert.fail('Opening must not steer'),
+			});
+			const { history } = disposables.add(await controller.provideChatSessionContent(resource, CancellationToken.None));
+			return history.map(turn => turn.type === 'request' ? turn.prompt : turn.parts.map(part => part.kind === 'markdownContent' && part.content.value));
+		};
+		assert.deepStrictEqual([
+			await rendered([start('second'), repeated, user('answer', 'assistant.message', 'Follow-up answer')], true),
+			await rendered([repeated, user('answer', 'assistant.message', 'Follow-up answer')], true),
+			await rendered([{ ...repeated, id: 'input', data: { content: 'Execution instructions', source: 'automation' } }, user('opening', 'assistant.message', 'Opening'), repeated, user('next', 'assistant.message', 'Next')]),
+			await rendered([start('first'), user('opening', 'assistant.message', 'Opening'), user('reply', 'user.message', 'Continue'), user('next', 'assistant.message', 'Next')]),
+			await rendered([start('first'), setupOutput, repeated, user('answer', 'assistant.message', 'Done')]),
+		], [
+			['Review', [], 'Execution instructions', ['Follow-up answer']],
+			['Review', [], 'Execution instructions', ['Follow-up answer']],
+			['Review', ['Opening'], 'Execution instructions', ['Next']],
+			['Review', ['Opening'], 'Continue', ['Next']],
+			['Review', ['Done']],
 		]);
 	});
 

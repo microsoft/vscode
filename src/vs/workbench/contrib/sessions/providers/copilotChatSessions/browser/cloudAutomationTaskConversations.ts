@@ -72,58 +72,68 @@ function historyPollRetryDelay(error: unknown, failures: number): number | undef
 	return undefined;
 }
 
+function isTopLevelReply(event: TaskEvent): boolean {
+	return event.type === 'assistant.message' && !!eventContent(event) && isEventObject(event.data) && !(Array.isArray(event.data.toolRequests) && event.data.toolRequests.length);
+}
+
+/** Renders the run's opening from its recorded session, separately from the user messages that follow it. */
 function turnHistory({ task, events }: ITaskSnapshot, configuredPrompt: string | undefined): IChatSessionHistoryItem[] {
 	const firstSession = task.sessions?.[0];
-	const initialPrompt = firstSession?.event_content?.trim() ? firstSession.event_content : configuredPrompt;
-	const turns: { id: string; prompt: string; parts: IChatProgress[] }[] = [];
-	const leadingParts: IChatProgress[] = [];
-	let parts = leadingParts;
+	const opening = { id: firstSession?.id ?? task.id, prompt: (firstSession?.event_content?.trim() ? firstSession.event_content : configuredPrompt) ?? '', parts: [] as IChatProgress[] };
+	const turns = [opening];
+	// Without a matching start, a partial log can begin at a follow-up, even one
+	// identical to the execution prompt. Never use request text to identify it.
+	let openingInput: 'unmarked' | 'started' | undefined = 'unmarked';
 	let bootstrap = false;
 	for (const event of events) {
-		if (event.agentId || event.dismissed) {
+		if (event.agentId || event.dismissed || event.pending) {
 			continue;
 		}
+		const data = isEventObject(event.data) ? event.data : undefined;
 		if (event.type === 'session.start' || event.type === 'session.requested') {
-			if (event.type === 'session.start' && !turns.length && firstSession && isEventObject(event.data)) {
-				const sessionId = event.data.sessionId;
-				if (task.sessions?.slice(1).some(session => session.id === sessionId)) {
-					turns.push({ id: firstSession.id, prompt: '', parts: leadingParts });
-				}
+			if (openingInput) {
+				const sessionId = event.type === 'session.start' ? data?.sessionId : undefined;
+				openingInput = typeof sessionId === 'string' && sessionId && firstSession ? (sessionId === firstSession.id ? 'started' : undefined) : 'unmarked';
 			}
-			bootstrap = true;
+			bootstrap = !openingInput;
+			continue;
 		}
 		const content = eventContent(event);
-		if (!content || !isEventObject(event.data)) {
+		if (event.type === 'user.message' && content && data) {
+			if (openingInput && (openingInput === 'started' || data.source === 'automation')) {
+				// Only now do we know that the earlier output was bootstrap,
+				// not the opening's reply in a log missing its input.
+				opening.parts.length = 0;
+				openingInput = undefined;
+			} else if (data.transformedContent !== content) {
+				openingInput = undefined;
+				bootstrap = false;
+				turns.push({ id: event.id, prompt: content, parts: [] });
+			} else if (!openingInput) {
+				// Later verbatim prompts are runtime-injected.
+				bootstrap = true;
+			}
 			continue;
 		}
-		if (event.type === 'user.message') {
-			// The first automation message can be verbatim; later verbatim prompts are runtime-injected.
-			const initialExecution = !turns.length && (!firstSession?.prompt || content === firstSession.prompt);
-			bootstrap = event.data.transformedContent === content && !initialExecution;
-			if (!bootstrap) {
-				parts = [];
-				turns.push({ id: event.id, prompt: content, parts });
-			}
-		} else if (!bootstrap && event.type === 'assistant.message') {
-			parts.push({ kind: 'markdownContent', content: new MarkdownString(content) });
+		if (event.type === 'session.idle' || event.type === 'session.shutdown') {
+			openingInput = undefined;
+		} else if (openingInput === 'started' && isTopLevelReply(event)) {
+			// This could already be the answer. Require an explicit source from here
+			// rather than consuming the next user message on the strength of the start.
+			openingInput = 'unmarked';
+		}
+		if (!bootstrap && event.type === 'assistant.message' && content) {
+			turns[turns.length - 1].parts.push({ kind: 'markdownContent', content: new MarkdownString(content) });
 		}
 	}
-	if (!turns.length) {
-		for (const session of task.sessions ?? []) {
+	if (!events.length) {
+		for (const session of task.sessions?.slice(1) ?? []) {
 			turns.push({ id: session.id, prompt: session.prompt ?? '', parts: [] });
 		}
-		if (!turns.length) {
-			turns.push({ id: task.id, prompt: '', parts: [] });
-		}
-		turns[turns.length - 1].parts = leadingParts;
-	} else if (firstSession && firstSession.prompt !== turns[0].prompt && task.sessions?.slice(1).some(session => session.prompt === turns[0].prompt)) {
-		// The log may contain the follow-up's user event but not the initial automation request.
-		turns.unshift({ id: firstSession.id, prompt: '', parts: leadingParts });
 	}
 	const history: IChatSessionHistoryItem[] = [];
 	for (const [index, turn] of turns.entries()) {
-		const prompt = index === 0 ? initialPrompt : turn.prompt;
-		history.push({ type: 'request', participant, id: turn.id, prompt: prompt ?? '', ...(index === 0 && !prompt && { isRequestHidden: true }) });
+		history.push({ type: 'request', participant, id: turn.id, prompt: turn.prompt, ...(turn === opening && !turn.prompt && { isRequestHidden: true }) });
 		history.push({
 			type: 'response', participant, parts: turn.parts,
 			...(index === turns.length - 1 && stopped(task) ? { errorDetails: { message: localize('cloudAutomationTask.stopped', "The GitHub task stopped: {0}.", task.state) } } : {}),
