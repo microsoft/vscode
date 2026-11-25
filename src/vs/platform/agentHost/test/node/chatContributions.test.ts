@@ -90,6 +90,7 @@ import { constObservable } from '../../../../base/common/observable.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
+import { gitLfsPointerFilesInstruction } from '../../node/chatContributions/worktreeGitLfs/worktreeGitLfsContribution.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence, createTestSessionStateStore, seedSessionAdditionalWorktrees, createTestChatRows } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
@@ -1014,7 +1015,8 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(IAgentHostArtifactIntegrationDirectory, artifactIntegrationDirectory);
 	const telemetryReporter = new AgentHostTelemetryReporter(new CapturingTelemetryService());
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
-	services.set(IAgentHostTurnTracker, disposables.add(instantiationService.createInstance(AgentHostTurnTracker)));
+	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
+	services.set(IAgentHostTurnTracker, turnTracker);
 	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
@@ -1024,7 +1026,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory, providerService };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory, providerService, turnTracker };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -3517,6 +3519,54 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(observed, ['persistedTurnUsage', 'persistedFailedTurns']);
 		assert.deepStrictEqual(calls, ['beforeSideChat:seed', 'afterSideChat:plain']);
 		assert.deepStrictEqual(turns.map(turn => [turn.id, turn.message.text]), [['built-in-hydration-order', 'side question']]);
+	});
+
+	test('tells each chat in a worktree with Git LFS pointer files until the provider receives it, and warns once where the worktree is announced', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const defaultChat = buildDefaultChatUri(contributions.session);
+		const peerChat = buildChatUri(contributions.session, 'peer');
+		const restoredChat = buildChatUri(contributions.session, 'restored');
+		const folder = URI.file('/workspace/repository');
+		const worktreeDirectory = URI.file('/workspace/repository.worktrees/feature');
+		for (const chat of [peerChat, restoredChat]) {
+			contributions.stateManager.addChat(contributions.session, chat, creationTimeChatStorageResource(contributions.session, chat, defaultChat), {
+				title: 'Peer Chat',
+				origin: { kind: ChatOriginKind.User },
+				workingDirectories: [worktreeDirectory.toString()],
+			});
+		}
+		contributions.worktree.metadata.set(URI.parse(contributions.session).toString(), { branchName: 'agents/feature', worktreePath: worktreeDirectory, gitLfsPointerFiles: true });
+		const warnings: string[] = [];
+		disposables.add(contributions.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatResponsePart && envelope.action.part.kind === ResponsePartKind.SystemNotification) {
+				warnings.push(envelope.channel);
+			}
+		}));
+		await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, restoredChat, defaultChat) }, [hydrationTurn('restored-turn')]);
+		contributions.stateManager.dispatchServerAction(defaultChat, chatTurnStarted('default-turn', 'Fix it', '2025-01-01T00:00:00.000Z'));
+		const instructed = async (chat: string, workingDirectory: URI) => {
+			const result = await contributions.service.outgoingTurn({ session: contributions.session, chat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId: 'default-turn', workingDirectories: [workingDirectory] });
+			return result.instructions?.includes(gitLfsPointerFilesInstruction) ?? false;
+		};
+		// The first send is cancelled before the provider receives it, so the retry needs the instruction again.
+		const defaultFirst = await instructed(defaultChat, worktreeDirectory);
+		const defaultRetry = await instructed(defaultChat, worktreeDirectory);
+		contributions.turnTracker.markSendDispatched(defaultChat, 'default-turn');
+
+		assert.deepStrictEqual({
+			instructed: {
+				defaultFirst,
+				defaultRetry,
+				defaultAfterDispatch: await instructed(defaultChat, worktreeDirectory),
+				peerInFolder: await instructed(peerChat, folder),
+				peerConvertedToWorktree: await instructed(peerChat, URI.joinPath(worktreeDirectory, 'src')),
+				restored: await instructed(restoredChat, worktreeDirectory),
+			},
+			warnings,
+		}, {
+			instructed: { defaultFirst: true, defaultRetry: true, defaultAfterDispatch: false, peerInFolder: false, peerConvertedToWorktree: true, restored: false },
+			warnings: [defaultChat],
+		});
 	});
 
 	test('shows the created worktree announcement in its owning peer chat', async () => {

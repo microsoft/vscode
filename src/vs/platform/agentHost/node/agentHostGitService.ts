@@ -21,7 +21,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, BaseBranch, parseBaseBranchRef, WorktreeAddError } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, BaseBranch, parseBaseBranchRef, WorktreeAddError, IAddWorktreeResult } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
@@ -369,7 +369,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		return parseGitWorktrees(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain', '-z'], { throwOnError: true }) ?? '');
 	}
 
-	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
+	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<IAddWorktreeResult> {
 		const getArgs = (newBranchOption: '-b' | '-B') => {
 			const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
 
@@ -398,7 +398,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 
 		// Git creates the new branch before the checkout and keeps it when the
 		// checkout fails, so a retry resets that branch rather than creating it.
-		await this._runWorktreeAdd(repositoryRoot, options.path, getArgs('-b'), getArgs('-B'), {
+		return this._runWorktreeAdd(repositoryRoot, options.path, getArgs('-b'), getArgs('-B'), {
 			timeout: 180_000,
 			throwOnError: true,
 			...(progressParser ? { env: { GIT_PROGRESS_DELAY: '0' }, onStderr: chunk => progressParser.push(chunk) } : {}),
@@ -410,12 +410,12 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 	 * {@link WorktreeAddError}. When `git-lfs` is missing, it checks Git LFS
 	 * files out as their pointer files instead of failing.
 	 */
-	private async _runWorktreeAdd(repositoryRoot: URI, worktree: URI, args: readonly string[], retryArgs: readonly string[], options: IRunGitOptions): Promise<void> {
+	private async _runWorktreeAdd(repositoryRoot: URI, worktree: URI, args: readonly string[], retryArgs: readonly string[], options: IRunGitOptions): Promise<IAddWorktreeResult> {
 		// The C locale keeps git's messages in English, which the failure and progress patterns match.
 		options = { ...options, env: { ...options.env, LANG: 'C', LC_ALL: 'C' } };
 		try {
 			await this._runGit(repositoryRoot, args, options);
-			return;
+			return { gitLfsPointerFiles: false };
 		} catch (error) {
 			if (!isGitLfsMissingError(error)) {
 				throw toWorktreeAddError(error);
@@ -439,6 +439,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		// the index is rewritten, without the filter, in a later second.
 		await timeout(1000 - Date.now() % 1000);
 		await this._runGit(worktree, [...GIT_LFS_DISABLED_CONFIG, 'update-index', '-q', '--refresh']);
+		return { gitLfsPointerFiles: true };
 	}
 
 	private _isCreatedWorktree(worktree: URI): Promise<boolean> {
@@ -523,13 +524,13 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		}
 	}
 
-	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
+	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<IAddWorktreeResult> {
 		// `-f` (force) so recreation succeeds even when the worktree directory was
 		// deleted out-of-band but git still has it registered ("missing but
 		// already registered worktree"). This is our own managed per-session
 		// worktree/branch, so overriding git's safeguards here is safe.
 		const args = ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', '--', worktree.fsPath, branchName];
-		await this._runWorktreeAdd(repositoryRoot, worktree, args, args, { timeout: 180_000, throwOnError: true });
+		return this._runWorktreeAdd(repositoryRoot, worktree, args, args, { timeout: 180_000, throwOnError: true });
 	}
 
 	/**

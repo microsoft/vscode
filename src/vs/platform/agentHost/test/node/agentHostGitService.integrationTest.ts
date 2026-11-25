@@ -31,7 +31,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType, type IAddWorktreeResult } from '../../common/agentHostGitService.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 import { parseGitBlobUri } from '../../node/gitDiffContent.js';
@@ -1955,13 +1955,19 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
 		const wtPath = join(dir, '..', `wt-${Date.now()}`);
 		try {
-			await svc!.addWorktree(URI.file(dir), {
+			const result = await svc!.addWorktree(URI.file(dir), {
 				path: URI.file(wtPath),
 				commitish: 'feature',
 				track: false,
 			});
 
-			assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(), 'feature');
+			assert.deepStrictEqual({
+				result,
+				branch: cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+			}, {
+				result: { gitLfsPointerFiles: false },
+				branch: 'feature',
+			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
@@ -2017,20 +2023,20 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		run('config', 'filter.lfs.required', 'true');
 		writeFileSync(join(dir, '.git', 'hooks', 'post-checkout'), '#!/bin/sh\nprintf >&2 "\\n%s\\n\\n" "This repository is configured for Git LFS but \'git-lfs\' was not found on your path."\nexit 2\n', { mode: 0o755 });
 		const wtPath = join(dir, '..', `wt-lfs-${Date.now()}`);
-		const readWorktree = () => ({
+		const readWorktree = (result: IAddWorktreeResult) => ({
+			result,
 			pointer: readFileSync(join(wtPath, 'large.bin'), 'utf8'),
 			status: cp.execFileSync('git', ['status', '--porcelain'], { cwd: wtPath, env, encoding: 'utf8' }),
 		});
 
 		try {
-			await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/lfs', track: false });
-			const created = readWorktree();
+			const created = readWorktree(await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/lfs', track: false }));
 			await rmDirWithRetry(wtPath);
-			await svc!.addExistingWorktree(URI.file(dir), URI.file(wtPath), 'agents/lfs');
+			const recreated = readWorktree(await svc!.addExistingWorktree(URI.file(dir), URI.file(wtPath), 'agents/lfs'));
 
-			assert.deepStrictEqual({ created, recreated: readWorktree() }, {
-				created: { pointer, status: '' },
-				recreated: { pointer, status: '' },
+			assert.deepStrictEqual({ created, recreated }, {
+				created: { result: { gitLfsPointerFiles: true }, pointer, status: '' },
+				recreated: { result: { gitLfsPointerFiles: true }, pointer, status: '' },
 			});
 		} finally {
 			await rmDirWithRetry(wtPath);

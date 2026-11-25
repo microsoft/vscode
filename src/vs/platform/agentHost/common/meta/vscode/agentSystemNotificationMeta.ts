@@ -7,6 +7,8 @@ export const enum AgentSystemNotificationKind {
 	/** A content-free milestone in a HydraFusion workflow. */
 	FusionProgress = 'fusionProgress',
 	WorktreeCreationFailure = 'worktreeCreationFailure',
+	/** The session's worktree was checked out with Git LFS pointer files, because `git-lfs` could not be run. */
+	WorktreeGitLfsUnavailable = 'worktreeGitLfsUnavailable',
 	/** The session successfully changed to a requested workspace. */
 	WorkspaceTransition = 'workspaceTransition',
 	/** An automatic approval review did not finish before its deadline. */
@@ -82,6 +84,7 @@ const VSCODE_FUSION_MODEL_META_KEY = 'vscode.chat.fusionModel';
 const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.FusionProgress,
 	AgentSystemNotificationKind.WorktreeCreationFailure,
+	AgentSystemNotificationKind.WorktreeGitLfsUnavailable,
 	AgentSystemNotificationKind.WorkspaceTransition,
 	AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut,
 	AgentSystemNotificationKind.AutomaticApprovalReviewAborted,

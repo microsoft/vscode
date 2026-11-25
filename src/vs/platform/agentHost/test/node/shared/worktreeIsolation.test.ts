@@ -149,6 +149,7 @@ suite('WorktreeIsolation', () => {
 				addWorktreeCalls.push(options);
 				mkdirSync(options.path.fsPath, { recursive: true });
 				writeFileSync(join(options.path.fsPath, '.git'), 'gitdir: fake');
+				return { gitLfsPointerFiles: false };
 			},
 			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs, sessionId, _onProgress, excludedFolders = []) => {
 				worktreeSetupCalls.push('includeFiles');
@@ -169,6 +170,7 @@ suite('WorktreeIsolation', () => {
 				addExistingCalls.push({ worktree, branchName: branch });
 				mkdirSync(worktree.fsPath, { recursive: true });
 				writeFileSync(join(worktree.fsPath, '.git'), 'gitdir: fake');
+				return { gitLfsPointerFiles: false };
 			},
 			removeWorktree: async (_root, worktree, options) => {
 				removeCalls.push({ worktree, force: options?.force === true });
@@ -945,6 +947,7 @@ suite('WorktreeIsolation', () => {
 			operations.push(`add:${options.commitish}`);
 			addWorktreeCalls.push(options);
 			mkdirSync(options.path.fsPath, { recursive: true });
+			return { gitLfsPointerFiles: false };
 		};
 		const isolation = createIsolation(disposables, { gitService });
 		await isolation.resolveWorkingDirectory({
@@ -989,6 +992,7 @@ suite('WorktreeIsolation', () => {
 			operations.push(`add:${options.commitish}`);
 			addWorktreeCalls.push(options);
 			mkdirSync(options.path.fsPath, { recursive: true });
+			return { gitLfsPointerFiles: false };
 		};
 		const isolation = createIsolation(disposables, { gitService, logService });
 
@@ -1300,6 +1304,7 @@ suite('WorktreeIsolation', () => {
 			if (addWorktreeCalls.length === 1) {
 				throw new Error('transient git failure');
 			}
+			return { gitLfsPointerFiles: false };
 		};
 		const isolation = createIsolation(disposables, { gitService });
 		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
@@ -1854,6 +1859,7 @@ suite('WorktreeIsolation', () => {
 			addWorktreeRoot = repositoryRoot;
 			addWorktreeCalls.push(options);
 			mkdirSync(options.path.fsPath, { recursive: true });
+			return { gitLfsPointerFiles: false };
 		};
 		const isolation = createIsolation(disposables, { gitService });
 		const includeFiles = ['.env'];
@@ -1970,6 +1976,7 @@ suite('WorktreeIsolation', () => {
 			options.onProgress?.({ filesDone: 100, filesTotal: 800 });
 			await timeout(50);
 			options.onProgress?.({ filesDone: 800, filesTotal: 800 });
+			return { gitLfsPointerFiles: false };
 		};
 		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, _sessionId, onProgress) => {
 			onProgress?.({ filesDone: 1, filesTotal: 4 });
@@ -2086,6 +2093,7 @@ suite('WorktreeIsolation', () => {
 			}
 			mkdirSync(options.path.fsPath, { recursive: true });
 			activeAddWorktrees--;
+			return { gitLfsPointerFiles: false };
 		};
 		const isolation = createIsolation(disposables, {
 			branchNameGenerator: new AgentBranchNameGenerator(createNullCopilotApiService(), new NullLogService()),
@@ -2571,6 +2579,36 @@ suite('WorktreeIsolation', () => {
 			},
 			copiedPartCount: 0,
 			emptyTurnCount: 0,
+		});
+	});
+
+	test('applyRestoreAnnouncement warns about Git LFS pointer files after the announcement until a recreated worktree has their contents', async () => {
+		const gitService = createGitService();
+		const addWorktree = gitService.addWorktree;
+		gitService.addWorktree = async (root, options) => ({ ...await addWorktree(root, options), gitLfsPointerFiles: true });
+		const isolation = createIsolation(disposables, { gitService });
+		const turn: Turn = {
+			id: 't1',
+			message: { text: 'hi', origin: { kind: MessageKind.User } },
+			responseParts: [],
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+		const restoredParts = async () => (await isolation.applyRestoreAnnouncement(sessionUri, [turn]))[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.kind : part);
+
+		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		const created = await restoredParts();
+		await archiveThroughCleanup(isolation, 'synced');
+		await isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
+		const recreated = await restoredParts();
+
+		assert.deepStrictEqual({ created, recreated }, {
+			created: [ResponsePartKind.Markdown, {
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Git LFS isn\'t installed or can\'t be found on the PATH, so files stored with Git LFS are pointer files in this worktree. Changes to those files can\'t be committed. Install Git LFS, then run `git lfs checkout` in the worktree to get their contents.',
+				_meta: { kind: 'worktreeGitLfsUnavailable', severity: 'warning' },
+			}],
+			recreated: [ResponsePartKind.Markdown],
 		});
 	});
 
