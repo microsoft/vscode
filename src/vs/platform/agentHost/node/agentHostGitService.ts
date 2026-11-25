@@ -396,7 +396,8 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 	/** Runs `git worktree add`, replacing a failure with a well-known cause by a {@link WorktreeAddError}. */
 	private async _runWorktreeAdd(repositoryRoot: URI, args: readonly string[], options: IRunGitOptions): Promise<void> {
 		try {
-			await this._runGit(repositoryRoot, args, options);
+			// The C locale keeps git's messages in English, which the failure and progress patterns match.
+			await this._runGit(repositoryRoot, args, { ...options, env: { ...options.env, LANG: 'C', LC_ALL: 'C' } });
 		} catch (error) {
 			const message = error instanceof GitCommandError ? getWorktreeAddFailureMessage(error.stderr) : undefined;
 			throw message ? new WorktreeAddError(message, { cause: error }) : error;
@@ -2318,7 +2319,7 @@ export function getWorktreeAddFailureMessage(stderr: string): string | undefined
 	// "File name too long" on macOS and Linux, "Filename too long" in Git for Windows.
 	if (/\bfile ?name too long\b/i.test(stderr)) {
 		return isWindows
-			? localize('agentHostGit.worktreeAdd.pathTooLongWindows', "A file path in the worktree is too long for Windows. To allow long paths in Git, run `git config --global core.longpaths true`.")
+			? localize('agentHostGit.worktreeAdd.pathTooLongWindows', "A file path in the worktree is too long for Windows. If the full path is longer than 260 characters, run `git config --global core.longpaths true` to allow long paths in Git. If a file or folder name is longer than 255 characters, shorten it in the repository.")
 			: localize('agentHostGit.worktreeAdd.pathTooLong', "A file path in the worktree is too long for the file system.");
 	}
 	if (stderr.split(/[\r\n]+/).some(isGitLfsMissing)) {

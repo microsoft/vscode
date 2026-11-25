@@ -977,7 +977,7 @@ suite('AgentHostGitService', () => {
 			'Preparing worktree (new branch \'agents/a\')\nerror: unable to write file \'big.bin\'\nfatal: Could not reset index file to revision \'HEAD\'.\n',
 		].map(getWorktreeAddFailureMessage), [
 			isWindows
-				? 'A file path in the worktree is too long for Windows. To allow long paths in Git, run `git config --global core.longpaths true`.'
+				? 'A file path in the worktree is too long for Windows. If the full path is longer than 260 characters, run `git config --global core.longpaths true` to allow long paths in Git. If a file or folder name is longer than 255 characters, shorten it in the repository.'
 				: 'A file path in the worktree is too long for the file system.',
 			gitLfsMissing,
 			gitLfsMissing,
