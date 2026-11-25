@@ -526,7 +526,7 @@ export class AgentHostModelSourceRegistrar extends Disposable implements IWorkbe
 }
 
 interface IDesiredModelSource {
-	readonly modelSource: ModelSource;
+	readonly modelSource: ModelSource & { readonly nonce: string };
 	readonly definition: IByokEndpointsDefinition;
 	readonly source: IByokModelSource;
 }

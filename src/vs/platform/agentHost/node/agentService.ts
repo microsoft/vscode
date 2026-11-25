@@ -1360,7 +1360,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._localTurns = collaborators.localTurns;
 		this._sideEffects = collaborators.sideEffects;
 		this._modelSourceRegistry = this._register(new AgentHostModelSourceRegistry(this._stateManager, provider => this._providerService.getProvider(provider), this._logService));
-		this._register(this._modelSourceRegistry.onDidChange(() => this._sideEffects.republishAgentInfos()));
 		this._serverToolHost = collaborators.serverToolHost;
 		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._sessionStateStore, this._logService);
 		this._sessionPrewarmer = this._register(instantiationService.createInstance(AgentHostSessionPrewarmer, {

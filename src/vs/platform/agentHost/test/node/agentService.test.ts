@@ -24903,13 +24903,11 @@ suite('AgentService (node dispatcher)', () => {
 				result,
 				state: stateManager.rootState.modelSources?.[0].state,
 				served,
-				modelSources: agentInfo?.modelSources,
 				models: agentInfo?.models.map(model => ({ id: model.id, modelSourceId: model.modelSourceId })),
 			}, {
 				result: { authenticated: true },
 				state: { kind: 'ready' },
 				served: [[], ['secret']],
-				modelSources: [{ id: 'source', displayName: 'Example' }],
 				models: [{ id: 'source/model', modelSourceId: 'source' }],
 			});
 		});

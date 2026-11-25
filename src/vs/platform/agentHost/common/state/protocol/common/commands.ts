@@ -1467,7 +1467,9 @@ export interface McpServerAuthenticateTarget {
 }
 
 /**
- * A registered model source.
+ * A registered model source. The host applies the credential only to that
+ * source, and publishes the request's `accountId` as the source's
+ * `ModelSource.accountId`.
  *
  * @category Commands
  * @stability 1.0
@@ -1475,7 +1477,7 @@ export interface McpServerAuthenticateTarget {
  */
 export interface ModelSourceAuthenticateTarget {
 	kind: AuthenticateTargetKind.ModelSource;
-	/** The registration's `ModelSource.id`. */
+	/** The source's `ModelSource.id`. */
 	modelSourceId: string;
 }
 
@@ -1490,7 +1492,7 @@ export type AuthenticateTarget =
 	| ModelSourceAuthenticateTarget;
 
 /**
- * Pushes a credential for a protected resource. The `resource` field MUST
+ * Pushes a Bearer token for a protected resource. The `resource` field MUST
  * match a protected-resource identifier the client has discovered from the
  * server — whether declared statically in `AgentInfo.protectedResources`,
  * or discovered dynamically from a live `McpServerAuthRequiredState.resource`
@@ -1499,14 +1501,13 @@ export type AuthenticateTarget =
  * from a registered model source's `ModelSource.credentialResource`.
  * Servers MUST accept any `resource` value they have themselves advertised
  * through one of these mechanisms, subject to the `target` rules. A
- * `modelSource` target takes only the registration's current
+ * `modelSource` target takes only the source's current
  * `credentialResource.resource`.
  *
  * Tokens are delivered using [RFC 6750](https://datatracker.ietf.org/doc/html/rfc6750)
  * (Bearer Token Usage) semantics. The client obtains the token from the
  * authorization server(s) listed in the resource's metadata and pushes it
- * to the server via this command. A model source's token is instead an
- * opaque secret, such as an API key.
+ * to the server via this command.
  *
  * @category Commands
  * @method authenticate
@@ -1538,10 +1539,7 @@ export interface AuthenticateParams extends BaseParams {
 	 * or `ModelSource.credentialResource`.
 	 */
 	resource: string;
-	/**
-	 * Bearer token obtained from the resource's authorization server, or an
-	 * opaque secret for a model source. An empty string revokes the credential.
-	 */
+	/** Bearer token obtained from the resource's authorization server */
 	token: string;
 	/**
 	 * The access token's remaining lifetime, in seconds, when this
@@ -1552,8 +1550,6 @@ export interface AuthenticateParams extends BaseParams {
 	 * elapsed time before forwarding this value. Omit this field when the
 	 * authorization server did not supply an expiry or the expiry is otherwise
 	 * unknown. When supplied, the value MUST be a positive integer.
-	 *
-	 * An API key omits this field.
 	 *
 	 * This field is irrelevant when `token` is empty to revoke authentication
 	 * and SHOULD be omitted in that case.
@@ -1568,7 +1564,7 @@ export interface AuthenticateParams extends BaseParams {
 	 * `McpServerAuthRequiredState` or `ToolCallAuthRequiredState.auth` — is
 	 * satisfied without decoding the (opaque, server-specific) token itself.
 	 * Omit when the client doesn't track granted scopes separately from the
-	 * token. Scopes apply to OAuth-issued tokens only.
+	 * token.
 	 */
 	scopes?: string[];
 	/**
@@ -1588,10 +1584,8 @@ export interface AuthenticateParams extends BaseParams {
 	 *
 	 * A registered model source takes its credential only through a
 	 * `modelSource` target, and the host rejects an untargeted `resource` that
-	 * matches only model source challenges with `InvalidParams` (-32602). A
-	 * delivery replaces whatever credential the host holds for the source. See
-	 * [Model source credentials](/specification/authentication#model-source-credentials)
-	 * for its rules.
+	 * matches only model source challenges with `InvalidParams` (-32602). See
+	 * [Model source credentials](/specification/authentication#model-source-credentials).
 	 *
 	 * Without a target, resource/scope matching is unchanged; the token may
 	 * satisfy every matching pending challenge. Older hosts ignore this field.
@@ -1602,12 +1596,6 @@ export interface AuthenticateParams extends BaseParams {
 	 * Hosts can compare `accountId` values to detect when the underlying account has changed.
 	 * Hosts MUST treat `accountId` as an opaque string.
 	 * see {@link /specification/authentication#account-selection-hints | Account selection hints}.
-	 *
-	 * With a `modelSource` target, clients SHOULD include it when delivering a
-	 * credential and omit it when revoking one, and the host publishes it as
-	 * the source's `ModelSource.accountId`. It MUST NOT be derived from the
-	 * secret. For an API key with no account of its own, a client uses an ID
-	 * that changes whenever the user replaces the key.
 	 *
 	 * @minLength 1
 	 */

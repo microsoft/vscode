@@ -97,7 +97,7 @@ class FakeConnection extends mock<IAgentConnection>() {
 	}
 
 	/** The definitions this window registered. */
-	get definitions(): Record<string, unknown>[] {
+	get definitions(): (Record<string, unknown> | undefined)[] {
 		return this.actions.flatMap(action => action.type === ActionType.RootModelSourceSet ? [action.modelSource.definition] : []);
 	}
 }
@@ -243,7 +243,7 @@ suite('AgentHostModelSourceRegistrar', () => {
 		await setEnabled(false);
 
 		assert.deepStrictEqual({
-			registered: { ...registered, nonce: registered.nonce.startsWith('sha1-') },
+			registered: { ...registered, nonce: registered.nonce?.startsWith('sha1-') },
 			served,
 			keysBeforeReplacement,
 			keys: connection.keys.map(key => ({ ...key, accountId: key.accountId === first ? 'first' : key.accountId ? 'replaced' : undefined })),

@@ -81,20 +81,18 @@ export interface RootConfigChangedAction {
  *   host-reported fields are absent until the host reports again with
  *   {@link RootModelSourceStateChangedAction}.
  *
- * A client dispatches this without any host-reported field. The host learns
- * which client registered the source from the envelope's `origin`.
+ * A client registers a source with its `format`, `definition`, and `nonce`,
+ * and without any host-reported field. The host learns which client
+ * registered it from the envelope's `origin`.
  *
  * @category Root Actions
  * @stability 1.0
  * @clientDispatchable
- * @see {@link /specification/root-channel#model-source-registry | Model source registry}
+ * @see {@link /specification/root-channel#registering-sources | Registering sources}
  */
 export interface RootModelSourceSetAction {
 	type: ActionType.RootModelSourceSet;
-	/**
-	 * The model source to add or update, matched by `id`, including its
-	 * `definition`, without host-reported fields.
-	 */
+	/** The model source to add or update, matched by `id`. */
 	modelSource: ModelSource;
 }
 
@@ -105,7 +103,7 @@ export interface RootModelSourceSetAction {
  * @category Root Actions
  * @stability 1.0
  * @clientDispatchable
- * @see {@link /specification/root-channel#model-source-registry | Model source registry}
+ * @see {@link /specification/root-channel#registering-sources | Registering sources}
  */
 export interface RootModelSourceRemovedAction {
 	type: ActionType.RootModelSourceRemoved;
@@ -120,7 +118,7 @@ export interface RootModelSourceRemovedAction {
  *
  * @category Root Actions
  * @stability 1.0
- * @see {@link /specification/root-channel#model-source-registry | Model source registry}
+ * @see {@link /specification/root-channel#status-and-catalog | Status and catalog}
  */
 export interface RootModelSourceStateChangedAction {
 	type: ActionType.RootModelSourceStateChanged;

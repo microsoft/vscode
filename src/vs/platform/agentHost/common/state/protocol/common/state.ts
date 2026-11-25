@@ -196,8 +196,6 @@ export interface ProtectedResourceMetadata {
 	/**
 	 * REQUIRED. The protected resource's resource identifier, a URL using the
 	 * `https` scheme with no fragment component (e.g. `"https://api.github.com"`).
-	 * A registered model source's endpoint may use any scheme the agent
-	 * supports, because nothing fetches it.
 	 */
 	resource: string;
 
@@ -441,11 +439,9 @@ export interface ErrorInfo {
 	/**
 	 * Error type identifier. Well-known values:
 	 *
-	 * - `modelSourceUnavailable`: a registered model source the turn uses
-	 *   can't serve it, for example because its credential is missing,
-	 *   expired, rejected, or revoked, or the source was removed. The error
-	 *   part is resumable. See
-	 *   [Model source credentials](/specification/authentication#model-source-credentials).
+	 * - `modelSourceUnavailable`: a turn's registered model source can't serve
+	 *   it, the turn-level counterpart of `AhpErrorCodes.ModelSourceUnavailable`.
+	 *   See [Model source credentials](/specification/authentication#model-source-credentials).
 	 */
 	errorType: string;
 	/** Human-readable error message */

@@ -39,12 +39,12 @@ export interface RootState {
 	/** Agent host configuration schema and current values */
 	config?: RootConfigState;
 	/**
-	 * Model sources registered on this host, keyed by `id`. When one is
-	 * ready, it also appears in its agent's {@link AgentInfo.modelSources}
-	 * catalog.
+	 * Model sources on this host, keyed by `id`: the sources agents offer
+	 * models from, including ones clients registered. Clients use them to
+	 * label and group each agent's {@link AgentInfo.models}.
 	 *
 	 * @stability 1.0
-	 * @see {@link /specification/root-channel#model-source-registry | Model source registry}
+	 * @see {@link /specification/root-channel#model-sources | Model sources}
 	 */
 	modelSources?: ModelSource[];
 	/**
@@ -99,13 +99,6 @@ export interface AgentInfo {
 	 * id.
 	 */
 	capabilities?: AgentCapabilities;
-	/**
-	 * Sources this agent offers models from. Clients use them to label and
-	 * group {@link models}. A source may have no models.
-	 *
-	 * @see {@link /specification/root-channel#model-sources | Model sources}
-	 */
-	modelSources?: ModelSourceInfo[];
 }
 
 /**
@@ -143,7 +136,7 @@ export interface AgentCapabilities {
 	 * definition formats.
 	 *
 	 * @stability 1.0
-	 * @see {@link /specification/root-channel#model-source-registry | Model source registry}
+	 * @see {@link /specification/root-channel#registering-sources | Registering sources}
 	 */
 	modelSourceRegistration?: ModelSourceRegistrationCapability;
 }
@@ -216,25 +209,6 @@ export interface MultipleWorkingDirectoriesCapability {
 }
 
 /**
- * A source that an agent provider offers models from, such as a service or
- * subscription.
- *
- * @category Root State
- */
-export interface ModelSourceInfo {
-	/**
-	 * Model source identifier, unique within the agent's
-	 * {@link AgentInfo.modelSources}. For a registered model source, this is
-	 * the {@link ModelSource.id}. A source is registered when
-	 * {@link RootState.modelSources} has an entry with this `id`
-	 * whose `provider` is the agent.
-	 */
-	id: string;
-	/** Human-readable name */
-	displayName: string;
-}
-
-/**
  * @category Root State
  */
 export interface SessionModelInfo {
@@ -244,7 +218,7 @@ export interface SessionModelInfo {
 	 * each entry its own ID. A host SHOULD keep a model's ID across catalog
 	 * updates and MUST NOT reuse an ID for a different source or upstream model.
 	 *
-	 * @see {@link /specification/root-channel#reserved-model-ids | Reserved model IDs}
+	 * @see {@link /specification/root-channel#model-sources | Model sources}
 	 */
 	id: string;
 	/** Agent provider that owns this model. Matches {@link AgentInfo.provider}. */
@@ -285,11 +259,9 @@ export interface SessionModelInfo {
 	 */
 	vendor?: string;
 	/**
-	 * The source this model comes from. MUST match a {@link ModelSourceInfo.id}
-	 * in the agent's {@link AgentInfo.modelSources}. For a model from a
-	 * registered model source, this is the {@link ModelSource.id}.
-	 * An agent's own sources use it too, so it doesn't by itself mark a
-	 * registered source.
+	 * The source this model comes from: the {@link ModelSource.id} of an entry
+	 * in {@link RootState.modelSources} whose `provider` is this model's
+	 * {@link provider}.
 	 */
 	modelSourceId?: string;
 }
@@ -313,14 +285,13 @@ export interface ModelSelection {
 	config?: Record<string, JsonPrimitive>;
 }
 
-// ─── Model Source Registry ───────────────────────────────────────────────────
+// ─── Model Sources ───────────────────────────────────────────────────────────
 
 /**
  * Options for the {@link AgentCapabilities.modelSourceRegistration} capability.
  *
  * @category Root State
  * @stability 1.0
- * @preserveUnknownMembers
  */
 export interface ModelSourceRegistrationCapability {
 	/** Definition formats the agent reads, most preferred first. */
@@ -333,80 +304,70 @@ export interface ModelSourceRegistrationCapability {
  *
  * @category Root State
  * @stability 1.0
- * @preserveUnknownMembers
  */
 export interface ModelSourceFormatInfo {
-	/**
-	 * A recognized {@link ModelSource.format} value, or a namespaced name for
-	 * a format the agent defines itself.
-	 */
+	/** A {@link ModelSource.format} value. */
 	format: string;
 }
 
 /**
- * A model source registered on this host by a client, or by the host itself.
- * Nothing here is a credential.
+ * A source that an agent provider offers models from, such as a service,
+ * subscription, or endpoint. The host lists the sources an agent provides
+ * itself, and clients can register more with a definition. Nothing here is
+ * a credential.
  *
  * @category Root State
  * @stability 1.0
  * @preserveUnknownMembers
- * @see {@link /specification/root-channel#model-source-registry | Model source registry}
+ * @see {@link /specification/root-channel#model-sources | Model sources}
  */
 export interface ModelSource {
 	/**
 	 * Host-unique ID, chosen by whoever registers the source. Also the
-	 * source's {@link ModelSourceInfo.id} in the agent's catalog, and the
 	 * {@link SessionModelInfo.modelSourceId} of its models.
 	 */
 	id: string;
-	/** Agent provider whose agent reads the definition and serves the models. */
+	/** Agent provider whose agent serves the source's models. */
 	provider: string;
-	/** Human-readable name, published as {@link ModelSourceInfo.displayName}. */
+	/** Human-readable name. */
 	displayName: string;
 	/** Icons for UI display. */
 	icons?: Icon[];
 	/**
-	 * The definition's format: the `format` of one of the agent's
-	 * {@link ModelSourceRegistrationCapability.formats}. Recognized values
-	 * include:
+	 * The format of `definition`: the `format` of one of the agent's
+	 * {@link ModelSourceRegistrationCapability.formats}. Present on a
+	 * registered source.
 	 *
-	 * - `'openaiCompatible'`: an endpoint that implements OpenAI's API, such as
-	 *   OpenAI, OpenRouter, xAI, or a local server like Ollama or LM Studio.
+	 * Agents choose the formats they read. Some may read these common names:
+	 *
+	 * - `'openaiCompatible'`: an endpoint that implements OpenAI's API.
 	 * - `'anthropic'`: an endpoint that implements Anthropic's Messages API.
 	 * - `'azureOpenai'`: an Azure OpenAI deployment.
 	 * - `'gemini'`: Google's Gemini API.
 	 *
-	 * Agents MAY read other formats, named with a namespace such as
-	 * `example.com/model-source@1` so they don't collide.
+	 * Other formats are named with a namespace, such as
+	 * `example.com/model-source@1`, so they don't collide.
 	 */
-	format: string;
+	format?: string;
 	/**
 	 * How to reach the source, in `format`: endpoint, wire API, models, and so
-	 * on. The agent reads it, and AHP doesn't validate it. Every client can
-	 * read it, so it MUST NOT contain a credential.
+	 * on. The agent reads it. Every client can read it, so it MUST NOT contain
+	 * a credential. Present on a registered source.
 	 *
-	 * Suggested shapes for the recognized formats. Agents MAY read more
-	 * members, and MAY discover models when `models` is absent.
-	 *
-	 * - `openaiCompatible`: `{ endpoint, wireApi?: 'chatCompletions' | 'responses', models? }`
-	 * - `anthropic`: `{ endpoint, models? }`
-	 * - `azureOpenai`: `{ endpoint, apiVersion?, models? }`, with each
-	 *   deployment name as a model `id`
-	 * - `gemini`: `{ endpoint, models? }`
-	 *
-	 * `endpoint` is the API's base URI, such as `https://api.example.com/v1`.
-	 * Each `models` entry is `{ id, name?, maxContextWindow?, maxOutputTokens?,
-	 * supportsVision?, supportsTools? }`, named as in {@link SessionModelInfo},
-	 * where `id` is the endpoint's own model identifier.
+	 * An agent that reads one of the common format names might expect a shape
+	 * like `{ endpoint, wireApi?, apiVersion?, models? }`, where `endpoint` is
+	 * the API's base URI and each `models` entry is `{ id, name?,
+	 * maxContextWindow?, maxOutputTokens?, supportsVision?, supportsTools? }`,
+	 * named as in {@link SessionModelInfo}.
 	 */
-	definition: Record<string, unknown>;
+	definition?: Record<string, unknown>;
 	/**
 	 * Opaque version token for `definition`, such as a hash of it, chosen by
-	 * whoever registers the source. Reducers compare it, instead of the
-	 * definition, to tell an update from a re-registration of the same
-	 * definition.
+	 * whoever registers the source. Present on a registered source. Reducers
+	 * compare it, instead of the definition, to tell an update from a
+	 * re-registration of the same definition.
 	 */
-	nonce: string;
+	nonce?: string;
 	/** What happens when the last contributing client leaves. Absent means `contributingClient`. */
 	retention?: ModelSourceRetentionPolicy;
 	/**
@@ -416,29 +377,21 @@ export interface ModelSource {
 	 */
 	state?: ModelSourceState;
 	/**
-	 * RFC 9728 metadata for the endpoint the credential is for. Present
-	 * whenever the source takes a credential, in every state, so any client
-	 * can deliver, rotate, or revoke one. Absent for a source that needs no
-	 * credential. Set with `state`.
+	 * RFC 9728 metadata for the endpoint a registered source's credential is
+	 * for. Present whenever the source takes a credential, in every state, so
+	 * any client can deliver or rotate one. Set with `state`.
 	 *
 	 * `credentialResource.resource` is the endpoint URL as the definition
 	 * names it, in any scheme the agent supports (for example
 	 * `http://localhost:11434/v1`). It's the value a client passes back as
 	 * `authenticate({ resource })`, and nothing fetches it.
-	 * `credentialResource.resource_name` labels the prompt (for example
-	 * "OpenRouter API key"). A source that accepts OAuth access tokens
-	 * advertises `authorization_servers` and `scopes_supported`. A source that
-	 * takes a user-supplied secret omits them.
 	 *
 	 * @see {@link /specification/authentication#model-source-credentials | Model source credentials}
 	 */
 	credentialResource?: ProtectedResourceMetadata;
 	/**
-	 * The {@link AuthenticateParams.accountId} the client sent with the
-	 * credential the host most recently accepted. While the state is
-	 * `starting` or `ready`, the host holds that credential. While it's
-	 * `authRequired`, the `reason` says what happened to it. Absent until the
-	 * host accepts a credential sent with an `accountId`. Set with `state`.
+	 * The {@link AuthenticateParams.accountId} sent with the credential the
+	 * host most recently accepted. Set with `state`.
 	 *
 	 * @see {@link /specification/authentication#model-source-credentials | Model source credentials}
 	 */
@@ -489,7 +442,6 @@ export const enum ModelSourceStatus {
  *
  * @category Root State
  * @stability 1.0
- * @preserveUnknownMembers
  */
 export interface ModelSourceStartingState {
 	kind: ModelSourceStatus.Starting;
@@ -502,7 +454,6 @@ export interface ModelSourceStartingState {
  *
  * @category Root State
  * @stability 1.0
- * @preserveUnknownMembers
  */
 export interface ModelSourceReadyState {
 	kind: ModelSourceStatus.Ready;
@@ -538,7 +489,6 @@ export const enum ModelSourceAuthRequiredReason {
  *
  * @category Root State
  * @stability 1.0
- * @preserveUnknownMembers
  */
 export interface ModelSourceAuthRequirement {
 	/** Why a credential is needed. */
@@ -557,7 +507,6 @@ export interface ModelSourceAuthRequirement {
  *
  * @category Root State
  * @stability 1.0
- * @preserveUnknownMembers
  * @see {@link /specification/authentication#model-source-credentials | Model source credentials}
  */
 export interface ModelSourceAuthRequiredState extends ModelSourceAuthRequirement {
@@ -569,7 +518,6 @@ export interface ModelSourceAuthRequiredState extends ModelSourceAuthRequirement
  *
  * @category Root State
  * @stability 1.0
- * @preserveUnknownMembers
  */
 export interface ModelSourceErrorState {
 	kind: ModelSourceStatus.Error;

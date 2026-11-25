@@ -56,7 +56,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
-import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentModelSourceUnavailableError, AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
@@ -1457,6 +1457,17 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 	}
+
+	test('reports a request that selects an unavailable model source\'s model with ModelSourceUnavailable', async () => {
+		const failed = sinon.stub(agentService, 'createSession').rejects(new AgentModelSourceUnavailableError('The model is unavailable.'));
+		disposables.add(toDisposable(() => failed.restore()));
+		const transport = connectClient('model-source-client');
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'createSession', { channel: sessionUri, provider: 'copilotcli' }));
+		const result = await response;
+		assert.ok(hasKey(result, { error: true }));
+		assert.deepStrictEqual(JSON.parse(JSON.stringify(result.error)), { code: AhpErrorCodes.ModelSourceUnavailable, message: 'The model is unavailable.' });
+	});
 
 	test('handshake with initialSubscriptions returns snapshots', () => {
 		stateManager.createSession(makeSessionSummary());

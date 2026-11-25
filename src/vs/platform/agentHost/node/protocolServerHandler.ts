@@ -235,6 +235,9 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 	if (err instanceof Error && getErrorCode(err) === 'policyResolutionFailed') {
 		return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, err.message, toPolicyResolutionErrorData());
 	}
+	if (err instanceof Error && getErrorCode(err) === 'modelSourceUnavailable') {
+		return jsonRpcError(id, AhpErrorCodes.ModelSourceUnavailable, err.message);
+	}
 	const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
 	return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, message);
 }
@@ -2535,7 +2538,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					...(this._config.scopedRelayCredentials ? { credentials: this._getScopedAuthentication(_client) } : {}),
 				});
 			} catch (err) {
-				if (err instanceof ProtocolError || getErrorCode(err) === 'policyResolutionFailed') {
+				if (err instanceof ProtocolError || getErrorCode(err) === 'policyResolutionFailed' || getErrorCode(err) === 'modelSourceUnavailable') {
 					throw err;
 				}
 				throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, err instanceof Error ? err.message : String(err));

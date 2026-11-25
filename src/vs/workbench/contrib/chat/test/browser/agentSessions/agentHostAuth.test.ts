@@ -11,7 +11,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type ModelSource, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AuthenticateTargetKind, type McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -2383,6 +2383,20 @@ suite('modelRequiresAgentAuthentication', () => {
 			optionalResourceWithoutByok: false,
 			noProtectedResource: false,
 		});
+	});
+
+	test('bypasses it for a registered model source\'s model, but not for a model of the agent\'s own source', () => {
+		const sources: ModelSource[] = [
+			{ id: 'registered', provider: 'copilotcli', displayName: 'Mine', format: 'example.test/source@1', definition: {}, nonce: 'v1' },
+			// The agent's own sources have no definition.
+			{ id: 'built-in', provider: 'copilotcli', displayName: 'Copilot' },
+		];
+		const withSources = { ...agent, provider: 'copilotcli', models: [{ id: 'mine', modelSourceId: 'registered' }, { id: 'own', modelSourceId: 'built-in' }] } as AgentInfo;
+
+		assert.deepStrictEqual({
+			registered: modelRequiresAgentAuthentication(withSources, { id: 'mine' }, sources),
+			builtIn: modelRequiresAgentAuthentication(withSources, { id: 'own' }, sources),
+		}, { registered: false, builtIn: true });
 	});
 });
 

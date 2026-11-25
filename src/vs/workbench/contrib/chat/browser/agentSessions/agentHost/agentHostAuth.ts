@@ -69,9 +69,9 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 		return false;
 	}
 	const requiresAuthentication = agent.protectedResources.some(resource => resource.required !== false);
-	// Only a registered source's models are the user's own; the agent's own model sources group its models.
+	// Only a registered source's models are the user's own: a registered source has a definition, and the agent's own sources don't.
 	const isUserProvided = (candidate: SessionModelInfo) => readAgentModelByokIdentifier(candidate) !== undefined
-		|| (candidate.modelSourceId !== undefined && registered.some(source => source.id === candidate.modelSourceId && source.provider === agent.provider));
+		|| (candidate.modelSourceId !== undefined && registered.some(source => source.id === candidate.modelSourceId && source.provider === agent.provider && source.definition !== undefined));
 	if (!agent.models.some(isUserProvided)) {
 		return requiresAuthentication;
 	}

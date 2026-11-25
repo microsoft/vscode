@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Emitter } from '../../../base/common/event.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
@@ -29,6 +28,9 @@ export interface IAgentHostModelSourceRegistryState {
 
 /** The host-reported fields of a model source, which a client never sends. */
 const HOST_REPORTED_FIELDS = ['state', 'credentialResource', 'accountId'] as const;
+
+/** A model source a client registered: unlike an agent's own, it has a format, a definition, and a nonce. */
+type RegisteredModelSource = ModelSource & { readonly format: string; readonly definition: Record<string, unknown>; readonly nonce: string };
 
 /** What the host knows about a model source beyond root state. Never published: it holds the credential. */
 interface IModelSourceEntry {
@@ -68,10 +70,6 @@ export class AgentHostModelSourceRegistry extends Disposable {
 
 	private readonly _entries = new Map<string, IModelSourceEntry>();
 
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	/** Fires when the sources an agent serves, or their registrations, change. */
-	readonly onDidChange = this._onDidChange.event;
-
 	constructor(
 		private readonly _state: IAgentHostModelSourceRegistryState,
 		private readonly _getAgent: (provider: string) => IAgent | undefined,
@@ -102,7 +100,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 					return;
 				}
 				this._state.dispatchClientAction(ROOT_STATE_URI, action, origin, clientContext);
-				this._apply(action.modelSource, validation, clientId);
+				this._apply(validation.modelSource, validation.description, clientId);
 				return;
 			}
 		}
@@ -196,14 +194,13 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		}, error => this._logService.warn(`[AgentHostModelSourceRegistry] Failed to wait for the turns on model source ${id}: ${toErrorMessage(error)}`));
 	}
 
-	/** What the agent read from the action's definition, or why the host declines the action. */
-	private _validate(action: Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceSet }>): IAgentModelSourceDescription | string {
+	/** The registration and what the agent read from its definition, or why the host declines the action. */
+	private _validate(action: Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceSet }>): { readonly modelSource: RegisteredModelSource; readonly description: IAgentModelSourceDescription } | string {
 		const { modelSource } = action;
-		const definition = modelSource?.definition;
-		if (typeof modelSource?.id !== 'string' || !modelSource.id || typeof modelSource.nonce !== 'string' || !modelSource.nonce
-			|| typeof definition !== 'object' || definition === null || Array.isArray(definition)) {
-			return 'A model source needs an id, a nonce, and a definition object';
+		if (!isRegisteredModelSource(modelSource)) {
+			return 'A model source a client registers needs an id, a format, a nonce, and a definition object';
 		}
+		const { definition } = modelSource;
 		const agent = this._getAgent(modelSource.provider);
 		const formats = agent?.getDescriptor().capabilities?.modelSourceRegistration?.formats;
 		if (!agent?.describeModelSource || !agent.setModelSources || !formats?.some(info => info.format === modelSource.format)) {
@@ -222,7 +219,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		}
 		// Every client reads root state, so a definition the agent can't serve isn't stored there.
 		try {
-			return agent.describeModelSource({ id: modelSource.id, format: modelSource.format, definition });
+			return { modelSource, description: agent.describeModelSource({ id: modelSource.id, format: modelSource.format, definition }) };
 		} catch (error) {
 			return toErrorMessage(error);
 		}
@@ -232,7 +229,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		return entry.provider === modelSource.provider && entry.format === modelSource.format && entry.nonce === modelSource.nonce;
 	}
 
-	private _apply(modelSource: ModelSource, description: IAgentModelSourceDescription, clientId: string): void {
+	private _apply(modelSource: RegisteredModelSource, description: IAgentModelSourceDescription, clientId: string): void {
 		const { definition } = modelSource;
 		const previous = this._entries.get(modelSource.id);
 		if (previous && this._isReregistration(previous, modelSource)) {
@@ -243,9 +240,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 				previous.drain.value.cancel();
 				previous.drain.clear();
 				this._syncAgent(previous.provider);
-				return;
 			}
-			this._onDidChange.fire();
 			return;
 		}
 		if (previous) {
@@ -319,10 +314,15 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			}
 		}
 		this._getAgent(provider)?.setModelSources?.(sources);
-		this._onDidChange.fire();
 	}
 
 	private _findModelSource(id: string): ModelSource | undefined {
 		return this._state.rootState.modelSources?.find(modelSource => modelSource.id === id);
 	}
+}
+
+function isRegisteredModelSource(modelSource: ModelSource | undefined): modelSource is RegisteredModelSource {
+	const definition = modelSource?.definition;
+	return typeof modelSource?.id === 'string' && !!modelSource.id && typeof modelSource.format === 'string' && typeof modelSource.nonce === 'string' && !!modelSource.nonce
+		&& typeof definition === 'object' && definition !== null && !Array.isArray(definition);
 }
