@@ -1086,6 +1086,84 @@ suite('ChatMarkdownContentPart', () => {
 		});
 	});
 
+	test('preserves the numbers of out of order ordered list items in a request', () => {
+		const request = {
+			...createRenderContext(),
+			element: upcastPartial<IChatRequestViewModel>({
+				id: 'request',
+				sessionResource: URI.parse('chat-session://test/session1'),
+				message: { text: '', parts: [] },
+				contentReferences: [],
+			}),
+		};
+		const values = (context: IChatContentPartRenderContext) => Array.from(createMarkdownPart('1. Yes\n4. No', context).domNode.querySelectorAll('li'), li => li.value);
+
+		assert.deepStrictEqual(values(request), [1, 4]);
+		assert.deepStrictEqual(values(createRenderContext()), [0, 0]);
+	});
+
+	test('preserves sequential numbering in ordered lists in a request', () => {
+		const request = {
+			...createRenderContext(),
+			element: upcastPartial<IChatRequestViewModel>({
+				id: 'request',
+				sessionResource: URI.parse('chat-session://test/session1'),
+				message: { text: '', parts: [] },
+				contentReferences: [],
+			}),
+		};
+		const values = Array.from(createMarkdownPart('1. Yes\n2. No', request).domNode.querySelectorAll('li'), li => li.value);
+
+		assert.deepStrictEqual(values, [1, 2]);
+	});
+
+	test('preserves the starting number of an ordered list in a request', () => {
+		const request = {
+			...createRenderContext(),
+			element: upcastPartial<IChatRequestViewModel>({
+				id: 'request',
+				sessionResource: URI.parse('chat-session://test/session1'),
+				message: { text: '', parts: [] },
+				contentReferences: [],
+			}),
+		};
+		const values = Array.from(createMarkdownPart('4. Yes\n5. No', request).domNode.querySelectorAll('li'), li => li.value);
+
+		assert.deepStrictEqual(values, [4, 5]);
+	});
+
+	test('does not add explicit values to unordered list items in a request', () => {
+		const request = {
+			...createRenderContext(),
+			element: upcastPartial<IChatRequestViewModel>({
+				id: 'request',
+				sessionResource: URI.parse('chat-session://test/session1'),
+				message: { text: '', parts: [] },
+				contentReferences: [],
+			}),
+		};
+		const part = createMarkdownPart('- Yes\n- No', request);
+
+		assert.strictEqual(part.domNode.querySelectorAll('ul > li').length, 2);
+		assert.strictEqual(part.domNode.querySelectorAll('ol').length, 0);
+		assert.strictEqual(part.domNode.querySelectorAll('li[value]').length, 0);
+	});
+
+	test('preserves numbering in nested ordered lists in a request', () => {
+		const request = {
+			...createRenderContext(),
+			element: upcastPartial<IChatRequestViewModel>({
+				id: 'request',
+				sessionResource: URI.parse('chat-session://test/session1'),
+				message: { text: '', parts: [] },
+				contentReferences: [],
+			}),
+		};
+		const values = Array.from(createMarkdownPart('1. First\n4. Second\n   1. Nested a\n   3. Nested b', request).domNode.querySelectorAll('li'), li => li.value);
+
+		assert.deepStrictEqual(values, [1, 4, 1, 3]);
+	});
+
 	test('renders a single code block and passes text to CodeBlockPart', () => {
 		const part = createMarkdownPart('```javascript\nconsole.log("hello");\n```');
 
