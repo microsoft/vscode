@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IDebugSession, IExpressionValue } from '../common/debug.js';
 import { Expression, ExpressionContainer, Variable } from '../common/debugModel.js';
+import { truncateLongLines } from '../common/debugUtils.js';
 import { ReplEvaluationResult } from '../common/replModel.js';
 import { IVariableTemplateData, splitExpressionOrScopeHighlights } from './baseDebugView.js';
 import { handleANSIOutput } from './debugANSIHandling.js';
@@ -29,6 +30,8 @@ export interface IValueHoverOptions {
 export interface IRenderValueOptions {
 	showChanged?: boolean;
 	maxValueLength?: number;
+	/** Truncates each line of the value that is longer than this, since rendering a huge line can run text shaping out of memory. */
+	maxLineLength?: number;
 	/** If not false, a rich hover will be shown on the element. */
 	hover?: false | IValueHoverOptions;
 	colorize?: boolean;
@@ -170,6 +173,9 @@ export class DebugExpressionRenderer {
 
 		if (options.maxValueLength && value && value.length > options.maxValueLength) {
 			value = value.substring(0, options.maxValueLength) + '...';
+		}
+		if (options.maxLineLength && value) {
+			value = truncateLongLines(value, options.maxLineLength);
 		}
 		if (!value) {
 			value = '';

@@ -8,7 +8,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfig, IDebugSession } from '../../common/debug.js';
-import { formatPII, getEffectiveConfigForPlatform, getEffectivePresentationForConfig, getExactExpressionStartAndEnd, getVisibleAndSorted, stopSessionsAndWaitForEnd } from '../../common/debugUtils.js';
+import { formatPII, getEffectiveConfigForPlatform, getEffectivePresentationForConfig, getExactExpressionStartAndEnd, getVisibleAndSorted, stopSessionsAndWaitForEnd, truncateLongLines } from '../../common/debugUtils.js';
 
 function platformSection(os: OperatingSystem, value: NonNullable<IConfig['windows']>): Pick<IConfig, 'windows' | 'osx' | 'linux'> {
 	switch (os) {
@@ -247,5 +247,16 @@ suite('Debug - Utils', () => {
 			const { session, onDidEndSession, hasEnded } = setup();
 			await assert.rejects(() => stopSessionsAndWaitForEnd([session], async () => { throw new Error('cannot stop'); }, onDidEndSession.event, hasEnded), /cannot stop/);
 		});
+	});
+
+	test('truncateLongLines', () => {
+		const long = 'x'.repeat(20);
+		assert.deepStrictEqual([
+			truncateLongLines('short', 10),
+			truncateLongLines(long, 10),
+			truncateLongLines(`ab\n${long}\ncd`, 10),
+			truncateLongLines(`${long}\n${long}`, 10),
+			truncateLongLines('aaaaa\nbbbbb\nccccc', 10),
+		], ['short', 'xxxxxxxxxx\u2026', 'ab\nxxxxxxxxxx\u2026\ncd', 'xxxxxxxxxx\u2026\nxxxxxxxxxx\u2026', 'aaaaa\nbbbbb\nccccc']);
 	});
 });
