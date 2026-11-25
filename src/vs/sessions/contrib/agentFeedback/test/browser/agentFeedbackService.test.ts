@@ -83,7 +83,9 @@ suite('AgentFeedbackService - Ordering', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		onDidDeleteSession = store.add(new Emitter<ISession>());
 
-		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
+		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
+			override editingSessionsObs = constObservable([]);
+		});
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override onDidVisibleEditorsChange = Event.None;
@@ -405,6 +407,32 @@ suite('AgentFeedbackService - Ordering', () => {
 		}, {
 			visibleResolved: [],
 			anchoredIdx: -1,
+		});
+	});
+
+	test('deleting a session drops its in-memory feedback', () => {
+		const other = URI.parse('test://session/2');
+		service.addFeedback(other, fileB, r(5), 'kept session comment');
+		service.addFeedback(session, fileA, r(10), 'deleted session comment');
+		let changes = 0;
+		store.add(service.onDidChangeFeedback(e => {
+			if (e.sessionResource.toString() === session.toString()) {
+				changes++;
+			}
+		}));
+
+		onDidDeleteSession.fire({ resource: session } as ISession);
+
+		assert.deepStrictEqual({
+			deleted: service.getFeedback(session).map(f => f.text),
+			kept: service.getFeedback(other).map(f => f.text),
+			mostRecentForFile: service.getMostRecentSessionForResource(fileA)?.toString(),
+			changes,
+		}, {
+			deleted: [],
+			kept: ['kept session comment'],
+			mostRecentForFile: undefined,
+			changes: 1,
 		});
 	});
 });

@@ -171,11 +171,13 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	/**
-	 * Drops this service's per-session bookkeeping for a deleted session. The
-	 * backend is left alone: its channel is already released with the session,
-	 * and clearing it would write to a store that no longer exists.
+	 * Drops the comments and this service's per-session bookkeeping for a
+	 * deleted session. Only the in-memory backend is cleared: the annotations
+	 * backend releases its channel with the session, and clearing it would write
+	 * to a store that no longer exists.
 	 */
 	private _forgetSession(sessionResource: URI): void {
+		this._inMemoryBackend.clear(sessionResource);
 		const key = sessionResource.toString();
 		if (this._lastResolvedSession && isEqual(this._lastResolvedSession.sessionResource, sessionResource)) {
 			this._lastResolvedSession = undefined;
