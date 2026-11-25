@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Queue } from '../../../../base/common/async.js';
-import { removeTrailingPathSeparator } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
-import { getWorkspaceIdentifier } from '../../../../platform/workspaces/common/workspaceIdentifier.js';
-import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Queue } from '../../../../../base/common/async.js';
+import { removeTrailingPathSeparator } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
+import { getWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
+import { IWorkspaceEditingService } from '../../../workspaces/common/workspaceEditing.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 
-import { localize } from '../../../../nls.js';
+import { localize } from '../../../../../nls.js';
 
-export class SessionsWorkspaceContextService extends Disposable implements IWorkspaceContextService, IWorkspaceEditingService {
+export class AgentsWorkspaceContextService extends Disposable implements IWorkspaceContextService, IWorkspaceEditingService {
 
 	declare readonly _serviceBrand: undefined;
 
