@@ -721,6 +721,8 @@ export interface IAgentHostAuthenticateRequest {
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
 	readonly accountId?: string;
+	/** The ID Token the provider issued with the access token, forwarded unchanged. */
+	readonly idToken?: string;
 	readonly _meta?: Record<string, unknown>;
 }
 
@@ -749,6 +751,7 @@ interface IForwardedAuthenticationSession {
 	readonly id?: string;
 	readonly account?: AuthenticationSession['account'];
 	readonly authorizationServer?: URI;
+	readonly idToken?: string;
 }
 
 function resolveAuthenticationOptions(accessor: ServicesAccessor, options: IAgentHostAuthenticationOptions): IResolvedAgentHostAuthenticationOptions {
@@ -825,6 +828,7 @@ export function toAuthenticateRequest(
 		token: session?.accessToken ?? '',
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
 		...(accountId !== undefined ? { accountId } : {}),
+		...(session?.idToken ? { idToken: session.idToken } : {}),
 		...(entitlement ? { _meta: agentEntitlementHintMeta(entitlement) } : {}),
 	};
 }

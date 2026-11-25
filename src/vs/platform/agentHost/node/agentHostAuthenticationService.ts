@@ -28,6 +28,8 @@ export interface IAgentHostAuthCredential {
 	readonly token: string;
 	readonly scopes: readonly string[];
 	readonly accountId?: string;
+	/** The ID Token the client sent with this token, for reading identity claims the access token keeps opaque. */
+	readonly idToken?: string;
 	readonly expiresAt: number | undefined;
 }
 
@@ -172,6 +174,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				resource: credential.resource, token: credential.token,
 				scopes: normalizeAuthenticationScopes(credential.scopes ?? metadata.scopes_supported),
 				expiresAt, accountId: credential.accountId,
+				...(credential.idToken !== undefined ? { idToken: credential.idToken } : {}),
 			});
 		}
 		this._hostExecutionCredentials = stored;
@@ -185,6 +188,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult> {
 		if (params.accountId !== undefined && (typeof params.accountId !== 'string' || params.accountId.length === 0)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'accountId must be a nonempty string');
+		}
+		if (params.idToken !== undefined && (typeof params.idToken !== 'string' || params.idToken.length === 0)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'idToken must be a nonempty string');
 		}
 		const providerList = [...providers];
 		if (scope) {
@@ -305,6 +311,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			this._tokens.set(key, {
 				resource: params.resource, scopes, token: params.token, expiresAt, accountId: params.accountId,
 				clientId, ...selection, ...(params.target ? { target: params.target } : {}),
+				...(params.idToken !== undefined ? { idToken: params.idToken } : {}),
 			});
 		}
 		if (!params.target && this.useLocalCredentials) {
@@ -366,6 +373,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn,
 				...(stored.target ? { target: stored.target } : {}),
 				...(stored.accountId !== undefined ? { accountId: stored.accountId } : {}),
+				...(stored.idToken !== undefined ? { idToken: stored.idToken } : {}),
 			};
 			if (!stored.target && protectedResources.has(stored.resource)) {
 				try {
