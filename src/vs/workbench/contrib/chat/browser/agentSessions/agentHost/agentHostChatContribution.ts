@@ -38,7 +38,7 @@ import { ChatAgentLocation } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
-import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
 import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpServerSupportScope.js';
@@ -408,7 +408,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const modelCatalogueStatus = observableFromEvent(this, this._agentHostService.rootState.onDidChange, () =>
 			readAgentModelCatalogStatus(this._agentHostService.rootState.value, agent.provider));
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, undefined));
+		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
 		// Local mode IDs keep the ambient wrapping that predates connection resource mappers.
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, { clientId: ahService.clientId, resourceUris: this._isLocalAgentHost ? createAgentHostResourceUriMapper(LOCAL_AGENT_HOST_AUTHORITY) : ahService.resourceUris }, undefined,
@@ -445,6 +445,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			// The Tools section is surfaced for the Copilot CLI agent host only.
 			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
+			showGenerateButtonFor: agent.provider === 'copilotcli' ? [PromptsType.hook] : undefined,
 			syncProvider,
 			itemProvider,
 			hiddenMcpServerCollectionIds: agentHostProviderHasBuiltInGitHubMcpServer(agent.provider) ? [COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID] : undefined,

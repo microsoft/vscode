@@ -351,7 +351,7 @@ suite('FolderLocationStatusBarContribution', () => {
 			let workspace = new Workspace('id', [new WorkspaceFolder({ uri: atPrimary ? primary : alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 			const accessor = {
 				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
-					: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => atPrimary ? undefined : { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch, group: 'Worktrees', providerId: 'worktrees' }, getLocationGroups: async () => { await lookup; return [{ providerId: 'worktrees', label: 'Worktrees', locations: [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }] }]; } }
+					: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => atPrimary ? undefined : { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch, group: 'Worktrees', providerId: 'worktrees' }, getLocationGroups: async () => { await lookup; return [{ providerId: 'worktrees', label: 'Worktrees', locations: [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other', icon: Codicon.folder }] }]; } }
 						: id === IUriIdentityService ? { extUri }
 							: id === IQuickInputService ? {
 								createQuickPick: () => {
@@ -390,7 +390,7 @@ suite('FolderLocationStatusBarContribution', () => {
 				shown: [
 					{ uri: primary.toString(), label: 'project', iconClass: 'codicon codicon-folder', description: undefined },
 					{ uri: alternate.toString(), label: 'Alternate', iconClass: 'codicon codicon-git-branch', description: 'feature/x (Current)' },
-					{ uri: URI.file('/work/other').toString(), label: 'Other', iconClass: 'codicon codicon-git-branch-checkout', description: undefined }
+					{ uri: URI.file('/work/other').toString(), label: 'Other', iconClass: 'codicon codicon-folder', description: undefined }
 				],
 				active: alternate.toString(),
 				calls: []
@@ -514,7 +514,7 @@ suite('FolderLocationStatusBarContribution', () => {
 					};
 					const accessor = {
 						get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
-							: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => extUri.isEqual(folder, primary) ? undefined : ({ uri: alternate, label: 'Alternate', group: 'Worktrees', providerId: 'worktrees' }), getLocationGroups: async () => locations.length ? [{ providerId: 'worktrees', label: 'Worktrees', locations }] : [] }
+							: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => extUri.isEqual(folder, primary) ? undefined : ({ uri: alternate, label: 'Alternate', icon: Codicon.folder, group: 'Worktrees', providerId: 'worktrees' }), getLocationGroups: async () => locations.length ? [{ providerId: 'worktrees', label: 'Worktrees', locations }] : [] }
 								: id === IUriIdentityService ? { extUri }
 									: id === IActionWidgetService ? widget
 										: id === IWorkspaceEditingService ? { setFolderLocation: async (l: URI) => { calls.push(l.toString()); } } : undefined
@@ -522,7 +522,7 @@ suite('FolderLocationStatusBarContribution', () => {
 					await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor, 'status.workspace.folderLocation');
 					return { calls, seededRows, rows: shownItems.length, focused, updateOptions };
 				};
-				const worktrees = [{ uri: alternate, label: 'Alternate' }, { uri: other, label: 'Other' }];
+				const worktrees = [{ uri: alternate, label: 'Alternate', icon: Codicon.folder }, { uri: other, label: 'Other', icon: Codicon.folder }];
 				const chooseWorktree = (label: string) => (items: ListItem[]) => {
 					// As the submenu runs its action, then selects its row
 					const row = items.find(item => item.submenuActions)!;
@@ -560,7 +560,7 @@ suite('FolderLocationStatusBarContribution', () => {
 				};
 				const accessor = {
 					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
-						: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => undefined, getLocationGroups: async () => [{ providerId: 'worktrees', label: 'Worktrees', locations: [{ uri: alternate, label: 'Alternate' }] }, { providerId: 'cloud', label: undefined, locations: [{ uri: URI.file('/work/cloud'), label: 'Cloud', icon: Codicon.cloud }] }] }
+						: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => undefined, getLocationGroups: async () => [{ providerId: 'worktrees', label: 'Worktrees', locations: [{ uri: alternate, label: 'Alternate', icon: Codicon.folder }] }, { providerId: 'cloud', label: undefined, locations: [{ uri: URI.file('/work/cloud'), label: 'Cloud', icon: Codicon.cloud }] }] }
 							: id === IUriIdentityService ? { extUri }
 								: id === IActionWidgetService ? widget
 									: id === IWorkspaceEditingService ? { setFolderLocation: async () => { } } : undefined
@@ -595,8 +595,8 @@ suite('FolderLocationStatusBarContribution', () => {
 					provideLocations: async () => locations,
 					resolveLocation: async (_primary, uri) => locations.find(candidate => extUri.isEqual(candidate.uri, uri)),
 				});
-				ds.add(folderLocationService.registerProvider(provider('worktrees', 'Worktrees', [{ uri: alternate, label: 'Alternate' }])));
-				ds.add(folderLocationService.registerProvider(provider('copies', 'Cloud Copies', [{ uri: URI.file('/work/copy'), label: 'Copy' }])));
+				ds.add(folderLocationService.registerProvider(provider('worktrees', 'Worktrees', [{ uri: alternate, label: 'Alternate', icon: Codicon.folder }])));
+				ds.add(folderLocationService.registerProvider(provider('copies', 'Cloud Copies', [{ uri: URI.file('/work/copy'), label: 'Copy', icon: Codicon.folder }])));
 				let rows: ListItem[] = [];
 				let delegate!: { onSelect(item: unknown): void; onHide(): void };
 				const widget = {
@@ -654,8 +654,8 @@ suite('FolderLocationStatusBarContribution', () => {
 					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
 						: id === IWorkspaceFolderLocationService ? {
 							...identityFake(() => workspace),
-							getLocation: () => ({ uri: alternate, label: 'Alternate', group: 'Worktrees', providerId: 'two' }),
-							getLocationGroups: async () => [{ providerId: 'one', label: 'Worktrees', locations: [{ uri: first, label: 'First' }] }, { providerId: 'two', label: 'Worktrees', locations: [{ uri: alternate, label: 'Alternate' }, { uri: second, label: 'Second' }] }]
+							getLocation: () => ({ uri: alternate, label: 'Alternate', icon: Codicon.folder, group: 'Worktrees', providerId: 'two' }),
+							getLocationGroups: async () => [{ providerId: 'one', label: 'Worktrees', locations: [{ uri: first, label: 'First', icon: Codicon.folder }] }, { providerId: 'two', label: 'Worktrees', locations: [{ uri: alternate, label: 'Alternate', icon: Codicon.folder }, { uri: second, label: 'Second', icon: Codicon.folder }] }]
 						}
 							: id === IUriIdentityService ? { extUri }
 								: id === IActionWidgetService ? widget

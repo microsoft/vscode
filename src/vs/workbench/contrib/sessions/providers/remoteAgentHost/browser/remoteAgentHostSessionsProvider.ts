@@ -964,6 +964,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return this._unpublished ? [] : super.getAllSessions();
 	}
 
+	override getSession(resource: URI): ISession | undefined {
+		return this._unpublished ? undefined : super.getSession(resource);
+	}
+
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
 		const ownsResource = [...this._sessionCache.values()].some(session => isEqual(session.resource, resource));
 		if (ownsResource) {

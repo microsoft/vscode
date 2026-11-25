@@ -1,5 +1,5 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"927e3a5f5048e46a88d4f22632a86b5bf16e0b224e623287f61233088c52dea1","body_hash":"4059efdc5f1604e22e596f4c2301392758cc2626d144b3fd7361be282086cf6a","compiler_version":"v0.89.21","strict":true,"agent_id":"copilot","agent_model":"gpt-5.6-sol","detection_agent_id":"copilot","detection_agent_model":"gpt-5.6-sol","engine_versions":{"copilot":"1.0.87"}}
-# gh-aw-manifest: {"version":1,"secrets":["GH_AW_DEFAULT_OTLP_ENDPOINT","GH_AW_DEFAULT_OTLP_HEADERS","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"3d3c42e5aac5ba805825da76410c181273ba90b1","version":"v7.0.1"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"373c709c69115d41ff229c7e5df9f8788daa9553","version":"v9"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"820762786026740c76f36085b0efc47a31fe5020","version":"v7.0.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"924af5fdc64061cfbf66fb584c8b07e2ac230c60","version":"924af5fdc64061cfbf66fb584c8b07e2ac230c60"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.28.27","digest":"sha256:8d14865f96d57d9b4f22b30b3e148d2d926384f0aa543a139f15593e450f0e90","pinned_image":"ghcr.io/github/gh-aw-firewall/agent:0.28.27@sha256:8d14865f96d57d9b4f22b30b3e148d2d926384f0aa543a139f15593e450f0e90"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.28.27","digest":"sha256:b767b95ad787fae126e0224e547e31daa22950aaa4f03c34e1224f3ce80f314e","pinned_image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.28.27@sha256:b767b95ad787fae126e0224e547e31daa22950aaa4f03c34e1224f3ce80f314e"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.28.27","digest":"sha256:c89d35cbc15c1c8614cc01da321a26a0685a71b51858965ce6fdd78252df64a9","pinned_image":"ghcr.io/github/gh-aw-firewall/squid:0.28.27@sha256:c89d35cbc15c1c8614cc01da321a26a0685a71b51858965ce6fdd78252df64a9"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.4.25","digest":"sha256:9be0a86220e807a0ecc89e53d7453468f7a53fbc6b3d1efd2299025ffe01d086","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.4.25@sha256:9be0a86220e807a0ecc89e53d7453468f7a53fbc6b3d1efd2299025ffe01d086"},{"image":"ghcr.io/github/gh-aw-node","digest":"sha256:11c2c544876cdbaffefe0f7f1283b74838c209654b4934a78e23ed11f750490f","pinned_image":"ghcr.io/github/gh-aw-node@sha256:11c2c544876cdbaffefe0f7f1283b74838c209654b4934a78e23ed11f750490f"},{"image":"ghcr.io/github/github-mcp-server:v1.12.2","digest":"sha256:508a0857ec762b1ab1cece29193345b501fab1dd9d1228a7b617062954cecac6","pinned_image":"ghcr.io/github/github-mcp-server:v1.12.2@sha256:508a0857ec762b1ab1cece29193345b501fab1dd9d1228a7b617062954cecac6"}],"mcp_servers":[{"name":"github","tools":["issue_read","search_issues"]},{"name":"mcpscripts","tools":["check-team-members"]},{"name":"safeoutputs","tools":["add_labels","assign_owner","missing_data","missing_tool","noop","publish_translation","remove_labels","suggest_area"]}]}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"03eb0798f3021d3d09655d2e2d55df4f55ef3f866b61beebd3f7040a55c35573","body_hash":"4059efdc5f1604e22e596f4c2301392758cc2626d144b3fd7361be282086cf6a","compiler_version":"v0.89.21","strict":true,"agent_id":"copilot","agent_model":"gpt-5.6-sol","detection_agent_id":"copilot","detection_agent_model":"gpt-5.6-sol","engine_versions":{"copilot":"1.0.87"}}
+# gh-aw-manifest: {"version":1,"secrets":["GH_AW_DEFAULT_OTLP_ENDPOINT","GH_AW_DEFAULT_OTLP_HEADERS","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"3d3c42e5aac5ba805825da76410c181273ba90b1","version":"v7.0.1"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"820762786026740c76f36085b0efc47a31fe5020","version":"v7.0.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"924af5fdc64061cfbf66fb584c8b07e2ac230c60","version":"924af5fdc64061cfbf66fb584c8b07e2ac230c60"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.28.27","digest":"sha256:8d14865f96d57d9b4f22b30b3e148d2d926384f0aa543a139f15593e450f0e90","pinned_image":"ghcr.io/github/gh-aw-firewall/agent:0.28.27@sha256:8d14865f96d57d9b4f22b30b3e148d2d926384f0aa543a139f15593e450f0e90"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.28.27","digest":"sha256:b767b95ad787fae126e0224e547e31daa22950aaa4f03c34e1224f3ce80f314e","pinned_image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.28.27@sha256:b767b95ad787fae126e0224e547e31daa22950aaa4f03c34e1224f3ce80f314e"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.28.27","digest":"sha256:c89d35cbc15c1c8614cc01da321a26a0685a71b51858965ce6fdd78252df64a9","pinned_image":"ghcr.io/github/gh-aw-firewall/squid:0.28.27@sha256:c89d35cbc15c1c8614cc01da321a26a0685a71b51858965ce6fdd78252df64a9"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.4.25","digest":"sha256:9be0a86220e807a0ecc89e53d7453468f7a53fbc6b3d1efd2299025ffe01d086","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.4.25@sha256:9be0a86220e807a0ecc89e53d7453468f7a53fbc6b3d1efd2299025ffe01d086"},{"image":"ghcr.io/github/gh-aw-node","digest":"sha256:11c2c544876cdbaffefe0f7f1283b74838c209654b4934a78e23ed11f750490f","pinned_image":"ghcr.io/github/gh-aw-node@sha256:11c2c544876cdbaffefe0f7f1283b74838c209654b4934a78e23ed11f750490f"},{"image":"ghcr.io/github/github-mcp-server:v1.12.2","digest":"sha256:508a0857ec762b1ab1cece29193345b501fab1dd9d1228a7b617062954cecac6","pinned_image":"ghcr.io/github/github-mcp-server:v1.12.2@sha256:508a0857ec762b1ab1cece29193345b501fab1dd9d1228a7b617062954cecac6"}],"mcp_servers":[{"name":"github","tools":["issue_read","search_issues"]},{"name":"mcpscripts","tools":["check-team-members"]},{"name":"safeoutputs","tools":["add_labels","assign_owner","missing_data","missing_tool","noop","publish_translation","remove_labels","suggest_area"]}]}
 # This file was automatically generated by gh-aw (v0.89.21). DO NOT EDIT. To debug this workflow, load the skill at https://github.com/github/gh-aw/blob/main/debug.md
 #
 #    ___                   _   _
@@ -44,8 +44,8 @@
 # Custom actions used:
 #   - actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 #   - actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-#   - actions/github-script@373c709c69115d41ff229c7e5df9f8788daa9553 # v9
 #   - actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+#   - actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (source v9)
 #   - actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
 #   - actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
 #   - github/gh-aw-actions/setup@924af5fdc64061cfbf66fb584c8b07e2ac230c60 # 924af5fdc64061cfbf66fb584c8b07e2ac230c60
@@ -510,7 +510,7 @@ jobs:
         run: bash "${RUNNER_TEMP}/gh-aw/actions/install_awf_binary.sh" v0.28.27 --rootless
       - name: Determine automatic lockdown mode for GitHub MCP Server
         id: determine-automatic-lockdown
-        uses: actions/github-script@373c709c69115d41ff229c7e5df9f8788daa9553 # v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (source v9)
         env:
           GH_AW_GITHUB_TOKEN: ${{ secrets.GH_AW_GITHUB_TOKEN }}
           GH_AW_GITHUB_MCP_SERVER_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN }}
@@ -1414,7 +1414,6 @@ jobs:
     runs-on: ubuntu-slim
     permissions:
       issues: write
-      pull-requests: write
     concurrency:
       group: "gh-aw-conclusion-issue-triage-${{ github.event.issue.number || inputs.issue_number }}"
       cancel-in-progress: false
@@ -2011,7 +2010,6 @@ jobs:
     runs-on: ubuntu-slim
     permissions:
       issues: write
-      pull-requests: write
     timeout-minutes: 45
     env:
       GH_AW_AGENT_AIC: ${{ needs.agent.outputs.aic }}

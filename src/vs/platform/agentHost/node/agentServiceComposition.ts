@@ -186,7 +186,7 @@ export function createAgentServiceComposition(
 		const reviewService = accessor.get(IAgentHostReviewService);
 		const changesets = accessor.get(IAgentHostChangesetService);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
-		owned.add(stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session, event.active)));
+		owned.add(stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session)));
 
 		const completions = accessor.get(IAgentHostCompletions);
 

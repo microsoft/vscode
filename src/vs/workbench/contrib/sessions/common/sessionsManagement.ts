@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, isSessionCreated, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionWorkspaceConfig, ISessionType, ISessionWorkspace, ISideChatSelection, isSessionCreated, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
 import type { ICanvasOpenOptions, ICanvasReference } from '../../../common/canvasReference.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, type ISessionReplacedEvent, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions, ISessionDraftConfiguration } from './sessionsProvider.js';
 
@@ -93,6 +93,16 @@ export interface ICreateNewSessionOptions {
 	readonly metadata?: Record<string, unknown>;
 	/** Session that created this session, when it should be presented as a child. */
 	readonly createdBySession?: ISessionCreationReference;
+	/**
+	 * The workspace configuration (a `.code-workspace` file) to create the session in. Without {@link folders}, its default folder must be the folder the
+	 * session is created for. See {@link ISessionsProviderCreateSessionOptions.workspaceConfig}.
+	 */
+	readonly workspaceConfig?: ISessionWorkspaceConfig;
+	/**
+	 * The folders the session works in, the default folder first, which must be the folder the session is created for.
+	 * See {@link ISessionsProviderCreateSessionOptions.folders}.
+	 */
+	readonly folders?: readonly URI[];
 	/**
 	 * Optional model identifier to apply to the new session via
 	 * {@link ISessionsProvider.setModel}. If the provider throws, the
@@ -754,6 +764,15 @@ export interface ISessionsManagementService {
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
+
+	/**
+	 * Adds a folder for a chat to work in. Rejects with {@link WorkspaceNotTrustedError} when the session's workspace
+	 * requires trust and the folder is not trusted. See {@link ISessionsProvider.addChatFolder}.
+	 */
+	addChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void>;
+
+	/** Removes a folder a chat works in; rejects for the chat's default folder. See {@link ISessionsProvider.removeChatFolder}. */
+	removeChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void>;
 
 	/** Rename a session, independently of its chats. */
 	renameSession(session: ISession, title: string): Promise<void>;

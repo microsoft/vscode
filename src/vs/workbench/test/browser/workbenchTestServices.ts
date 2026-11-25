@@ -200,7 +200,8 @@ import { InMemoryWorkingCopyBackupService } from '../../services/workingCopy/com
 import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../services/workingCopy/common/workingCopyEditorService.js';
 import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
-import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+import { IActivityService } from '../../services/activity/common/activity.js';
+import { TestActivityService, TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../services/accounts/browser/defaultAccount.js';
 import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
 
@@ -336,6 +337,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());
 	instantiationService.stub(ILanguageFeatureDebounceService, instantiationService.createInstance(LanguageFeatureDebounceService));
 	instantiationService.stub(IHistoryService, new TestHistoryService());
+	instantiationService.stub(IActivityService, new TestActivityService());
 	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	const themeService = new TestThemeService();

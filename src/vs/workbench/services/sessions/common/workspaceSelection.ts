@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { ISessionWorkspaceConfig } from './session.js';
 
 export const enum WorkspaceSelectionOrigin {
 	None = 'none',
@@ -26,6 +27,16 @@ export interface ISelectWorkspaceOptions {
 	readonly selectionOrigin?: WorkspaceSelectionOrigin;
 	/** Only replace an automatic default in a fresh, empty composer. */
 	readonly isDefault?: boolean;
+	/**
+	 * The workspace configuration (a `.code-workspace` file) to select. The session works in its folders, whose default (first) folder is the selected folder,
+	 * unless {@link folders} are given. Without a workspace or folders, the selected folder is selected on its own.
+	 */
+	readonly workspaceConfig?: ISessionWorkspaceConfig;
+	/**
+	 * The folders the session works in, the selected folder first. They replace the {@link workspaceConfig}'s folders, whose
+	 * default folder then need not be the selected folder.
+	 */
+	readonly folders?: readonly URI[];
 }
 
 export interface ISelectNoWorkspaceOptions {

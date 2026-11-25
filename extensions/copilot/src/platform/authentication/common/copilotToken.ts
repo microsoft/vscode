@@ -281,6 +281,14 @@ export class CopilotToken {
 	isSn(): boolean {
 		return this.tokenMap.get('sn') === '1';
 	}
+
+	/**
+	 * Whether the token stamp identifies a Proxima (data-residency) deployment
+	 */
+	isProxima(): boolean {
+		const stamp = this.tokenMap.get('st');
+		return !!stamp && stamp !== 'dotcom';
+	}
 }
 
 /**

@@ -36,6 +36,9 @@ import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_RULES_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSkill, ICustomAgent, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { ChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsServiceImpl.js';
+import { IChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { IAgenticSkillsService, NullAgenticSkillsService } from '../../../common/promptSyntax/service/agenticSkillsService.js';
 import { PromptsService } from '../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles, TestInMemoryFileSystemProviderWithRealPath } from './testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -207,6 +210,8 @@ suite('ComputeAutomaticInstructions', () => {
 			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, readProfileEnabled: () => true, setEnabled: () => { }, remove: () => { } },
 		});
 
+		instaService.stub(IAgenticSkillsService, new NullAgenticSkillsService());
+		instaService.stub(IChatExtensionCustomizationsService, disposables.add(instaService.createInstance(ChatExtensionCustomizationsService)));
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
 	});

@@ -5,6 +5,7 @@
 
 import { hostname, release } from 'os';
 import { Emitter, Event } from '../../base/common/event.js';
+import { CancellationError } from '../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import * as path from '../../base/common/path.js';
@@ -85,6 +86,7 @@ import { readLocalAgentHostEndpoint } from '../../platform/agentHost/node/localA
 import { formatAgentHostUrlHost } from '../../platform/agentHost/node/sshRemoteAgentHostHelpers.js';
 import '../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { readGithubEnvironmentOptions, ServerAgentHostManager } from './serverAgentHostManager.js';
+import { ServerAgentHostEnvironment } from './serverAgentHostEnvironment.js';
 import { AgentHostChannel, UnavailableAgentHostChannel } from './agentHostChannel.js';
 import { AgentHostIpcChannels } from '../../platform/agentHost/common/agentService.js';
 import { IServerLifetimeService, ServerLifetimeService } from './serverLifetimeService.js';
@@ -317,14 +319,21 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 				agentHostStarter,
 				{ startMode: 'lazy' },
 			));
+			const environment = disposables.add(new ServerAgentHostEnvironment((env, debugEnv) => agentHostStarter.setEnvironment(env, debugEnv), logService));
+			// Forwarding belongs to the management connection, not the upstream WebSocket that closes on a host crash.
+			disposables.add(socketServer.onDidRemoveConnection(({ ctx }) => {
+				void environment.remove(ctx).catch(error => logService.error('[AgentHostChannel] Failed to release disconnected renderer environment', error));
+			}));
 			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
 				socketServer,
-				async options => {
+				async (options, ctx) => {
 					const sharedEndpoint = await readLocalAgentHostEndpoint(registryUserDataPath, productService.quality, options?.preferredAgentLocation, logService).catch(error => {
 						logService.warn('[AgentHostChannel] Failed to read the agent host endpoint registry; starting our own agent host', error);
 						return undefined;
 					});
-					if (sharedEndpoint) {
+					// Our lazy host also publishes in the registry, using this server's unique connection token.
+					if (sharedEndpoint && sharedEndpoint.connectionToken !== connectionToken) {
+						await environment.remove(ctx);
 						if (options?.env || options?.debugEnv) {
 							logService.trace('[AgentHostChannel] Ignoring renderer environment overrides for a shared agent host');
 						}
@@ -342,9 +351,10 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 						return port;
 					});
 					const port = await ownPort;
-					if (options?.env || options?.debugEnv) {
-						agentHostStarter.setEnvironment(options.env ?? {}, options.debugEnv);
+					if (!socketServer.connections.some(connection => connection.ctx === ctx)) {
+						throw new CancellationError();
 					}
+					await environment.update(ctx, options);
 					await agentHostManager.ensureStarted();
 					return { host, port, connectionToken };
 				},

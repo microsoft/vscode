@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, derivedObservableWithCache, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -18,13 +20,15 @@ import { NullCommandService } from '../../../../../platform/commands/test/common
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionListDelegate, IActionListItem, IActionListUpdateOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context, ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { INotificationHandle, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -52,7 +56,7 @@ import { createTestActiveSession } from '../../../../test/browser/sessionViewTes
 import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, stubSessionHosts, stubSessionHostsFromSessionsService, testGridPanes, withCreatedStatus, testPaneContentOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetBaseBranchCandidates, ISessionChangesetBaseBranchSelection, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService, NoChangesEditorScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
@@ -374,7 +378,7 @@ suite('Changes View Actions', () => {
 		});
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService, new NoChangesEditorScope())).render(container);
+			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService, new NoChangesEditorScope(), new TestNotificationService())).render(container);
 			return container;
 		};
 		const snapshot = (container: HTMLElement) => ({
@@ -427,7 +431,7 @@ suite('Changes View Actions', () => {
 		const contextKeyService = new MockContextKeyService();
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
 		const container = document.createElement('div');
-		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope())).render(container);
+		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), new TestNotificationService())).render(container);
 		const snapshot = () => {
 			const label = container.querySelector('.changes-picker-label');
 			return {
@@ -505,7 +509,7 @@ suite('Changes View Actions', () => {
 			override getTooltip(): string {
 				return super.getTooltip();
 			}
-		}(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope()));
+		}(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), new TestNotificationService()));
 		picker.render(container);
 		const snapshot = () => ({
 			label: container.querySelector('.changes-picker-label')?.textContent,
@@ -560,6 +564,291 @@ suite('Changes View Actions', () => {
 		});
 	});
 
+	/** Renders the picker of Branch and Session changes, Branch compared against `refs/remotes/origin/feature`, recording the lists it shows and the errors it reports. */
+	function renderBaseBranchPicker(baseBranchSelection: IObservable<ISessionChangesetBaseBranchSelection | undefined>) {
+		const branch = upcastPartial<ISessionChangeset>({ id: 'branch', label: 'Branch', isEnabled: constObservable(true), isDefault: constObservable(true), baseBranchSelection });
+		const session = upcastPartial<ISessionChangeset>({ id: 'session', label: 'Session', isEnabled: constObservable(true), isDefault: constObservable(false) });
+		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', branch);
+		const baseBranchRef = observableValue<string | undefined>('picker.baseBranchRef', 'refs/remotes/origin/feature');
+		const loading = observableValue('picker.loading', false);
+		const resource = observableValue('picker.resource', URI.parse('test-session:/session'));
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([branch, session]);
+			override readonly activeSessionChangesetsLoadingObs = loading;
+			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionBaseBranchRefObs = baseBranchRef;
+			override readonly activeSessionResourceObs = resource;
+		}();
+		const lists: (readonly IActionListItem<unknown>[])[] = [];
+		const updates: (IActionListUpdateOptions | undefined)[] = [];
+		let visible: IActionListDelegate<unknown> | undefined;
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override show(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<unknown>[], delegate: IActionListDelegate<unknown>): void {
+				lists.push(items);
+				visible = delegate;
+			}
+			override updateItems(items: readonly IActionListItem<unknown>[], _focusItemId?: string, options?: IActionListUpdateOptions): void {
+				lists.push(items);
+				updates.push(options);
+			}
+			override hide(): void {
+				const hidden = visible;
+				visible = undefined;
+				hidden?.onHide();
+			}
+		}();
+		const errors: string[] = [];
+		const notificationService = new class extends TestNotificationService {
+			override error(error: NotificationMessage): INotificationHandle {
+				errors.push(error instanceof Error ? error.message : String(error));
+				return super.error(error);
+			}
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const container = document.createElement('div');
+		const picker = disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), notificationService));
+		picker.render(container);
+		return { picker, container, lists, updates, selected, baseBranchRef, loading, resource, session, errors };
+	}
+
+	/** The submenus of the rows of `items` by row: group labels as `[label]`, the checked row marked ✓ and disabled rows marked so. */
+	function listSubmenus(items: readonly IActionListItem<unknown>[]): Record<string, string[]> {
+		const describe = (actions: readonly IAction[]): string[] => actions.flatMap(action => action instanceof SubmenuAction
+			? [...(action.label ? [`[${action.label}]`] : []), ...describe(action.actions)]
+			: [`${action.label}${action.checked ? ' ✓' : ''}${action.enabled ? '' : ' (disabled)'}`]);
+		return Object.fromEntries(items.flatMap(item => item.submenuActions ? [[item.label ?? '', describe(item.submenuActions)]] : []));
+	}
+
+	/** Runs the action labeled `label` in the submenu of the Branch row of `items`. */
+	async function runBranchSubmenuAction(items: readonly IActionListItem<unknown>[], label: string): Promise<void> {
+		const actions = items.find(item => item.label === 'Branch')?.submenuActions?.flatMap(action => action instanceof SubmenuAction ? action.actions : [action]);
+		await actions?.find(action => action.label === label)?.run();
+	}
+
+	test('the label names the base branch without a pen, and only the Branch row offers its base branches in a submenu while its base can change', () => {
+		const selection = upcastPartial<ISessionChangesetBaseBranchSelection>({ getCandidates: () => new DeferredPromise<ISessionChangesetBaseBranchCandidates>().p });
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', selection);
+		const { picker, container, lists, selected, baseBranchRef, session } = renderBaseBranchPicker(selectionObs);
+		const open = () => {
+			picker.show();
+			picker.hide();
+			return listSubmenus(lists.at(-1)!);
+		};
+
+		const label = { text: container.querySelector('.action-label')?.textContent, children: [...container.querySelector('.action-label')?.children ?? []].map(child => child.className) };
+		const branchSelected = open();
+		selected.set(session, undefined);
+		const sessionSelected = open();
+		baseBranchRef.set(undefined, undefined);
+		const withoutBase = open();
+		baseBranchRef.set('refs/remotes/origin/feature', undefined);
+		selectionObs.set(undefined, undefined);
+		const withoutSelection = open();
+
+		assert.deepStrictEqual({ label, branchSelected, sessionSelected, withoutBase, withoutSelection }, {
+			label: { text: 'Branch → origin/feature', children: ['changes-picker-label', 'codicon codicon-chevron-down-compact'] },
+			branchSelected: { Branch: ['Loading branches… (disabled)'] },
+			sessionSelected: { Branch: ['Loading branches… (disabled)'] },
+			withoutBase: {},
+			withoutSelection: {},
+		});
+	});
+
+	test('a Change Base Branch pen on the Branch row opens its submenu, which focuses its filter, and the row offers neither while the catalogue loads', () => {
+		const selection = upcastPartial<ISessionChangesetBaseBranchSelection>({ getCandidates: () => new DeferredPromise<ISessionChangesetBaseBranchCandidates>().p });
+		const { picker, lists, loading } = renderBaseBranchPicker(constObservable(selection));
+		const open = () => {
+			picker.show();
+			picker.hide();
+			const branch = lists.at(-1)!.find(item => item.label === 'Branch');
+			return { submenuButton: branch?.submenuButton, focusFilterOnOpen: branch?.submenuOptions?.focusFilterOnOpen, hasSubmenu: !!branch?.submenuActions };
+		};
+
+		const loaded = open();
+		loading.set(true, undefined);
+		const catalogueLoading = open();
+
+		assert.deepStrictEqual({ loaded, catalogueLoading }, {
+			loaded: { submenuButton: { icon: Codicon.editCompact, label: 'Change Base Branch...' }, focusFilterOnOpen: true, hasSubmenu: true },
+			catalogueLoading: { submenuButton: undefined, focusFilterOnOpen: undefined, hasSubmenu: false },
+		});
+	});
+
+	test('the Branch submenu shows a loading row, then the branches grouped as they load, with the current base checked', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: () => candidates.p,
+			setBaseBranch: async () => { },
+		};
+		const { picker, lists, updates } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		candidates.complete({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature', 'refs/remotes/origin/release'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ lists: lists.map(listSubmenus), updates }, {
+			lists: [
+				{ Branch: ['Loading branches… (disabled)'] },
+				{ Branch: ['[Current Base]', 'origin/feature ✓', '[Default Branch]', 'origin/main', '[Branches]', 'origin/release'] },
+			],
+			updates: [{ preserveHover: true, preserveScrollPosition: true }],
+		});
+	});
+
+	test('a branch of the Branch submenu changes the base to its full ref, unless it is the current base or Branch carries another selection by then', async () => {
+		const sets: string[] = [];
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => ({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature', 'refs/remotes/origin/release'], defaultRef: 'refs/remotes/origin/main' }),
+			setBaseBranch: async ref => { sets.push(ref); },
+		};
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', selection);
+		const { picker, lists } = renderBaseBranchPicker(selectionObs);
+
+		picker.show();
+		await timeout(0);
+		const items = lists.at(-1)!;
+		await runBranchSubmenuAction(items, 'origin/release');
+		await runBranchSubmenuAction(items, 'origin/feature');
+		const picked = [...sets];
+		// Another session, whose Branch changeset has a selection of its own, becomes active.
+		selectionObs.set(upcastPartial<ISessionChangesetBaseBranchSelection>({ getCandidates: () => new DeferredPromise<ISessionChangesetBaseBranchCandidates>().p }), undefined);
+		await runBranchSubmenuAction(items, 'origin/main');
+
+		assert.deepStrictEqual({ picked, sets }, {
+			picked: ['refs/remotes/origin/release'],
+			sets: ['refs/remotes/origin/release'],
+		});
+	});
+
+	test('a pick from an open Branch submenu changes no base while the catalogue loads, or once the list shows another session', async () => {
+		const sets: string[] = [];
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => ({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature', 'refs/remotes/origin/release'], defaultRef: 'refs/remotes/origin/main' }),
+			setBaseBranch: async ref => { sets.push(ref); },
+		};
+		const { picker, lists, loading, resource } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		await timeout(0);
+		const items = lists.at(-1)!;
+		// Another session is shown, and its catalogue loads while the previous one's changesets, and selection, are still listed.
+		loading.set(true, undefined);
+		await runBranchSubmenuAction(items, 'origin/release');
+		loading.set(false, undefined);
+		resource.set(URI.parse('test-session:/other'), undefined);
+		await runBranchSubmenuAction(items, 'origin/main');
+
+		assert.deepStrictEqual(sets, []);
+	});
+
+	test('the Branch row drops the branches that load for a selection it no longer carries, and loads those of the new one', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		const sets: string[] = [];
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', {
+			getCandidates: () => candidates.p,
+			setBaseBranch: async ref => { sets.push(ref); },
+		});
+		const { picker, lists } = renderBaseBranchPicker(selectionObs);
+
+		picker.show();
+		// Another session, whose Branch changeset has a selection of its own, becomes active while the branches load.
+		selectionObs.set({
+			getCandidates: () => new DeferredPromise<ISessionChangesetBaseBranchCandidates>().p,
+			setBaseBranch: async ref => { sets.push(`other session: ${ref}`); },
+		}, undefined);
+		candidates.complete({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+		await runBranchSubmenuAction(lists.at(-1)!, 'origin/main');
+
+		assert.deepStrictEqual({ lists: lists.map(listSubmenus), sets }, {
+			lists: [{ Branch: ['Loading branches… (disabled)'] }, { Branch: ['Loading branches… (disabled)'] }],
+			sets: [],
+		});
+	});
+
+	test('the Branch submenu lists a local branch beside its remote twin and a base that is no candidate by their labels, and records the full ref picked', async () => {
+		const sets: string[] = [];
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => ({ refs: ['refs/remotes/origin/main', 'refs/heads/main'], defaultRef: 'refs/remotes/origin/main' }),
+			setBaseBranch: async ref => { sets.push(ref); },
+		};
+		const { picker, lists } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		await timeout(0);
+		await runBranchSubmenuAction(lists.at(-1)!, 'main');
+
+		assert.deepStrictEqual({ submenus: listSubmenus(lists.at(-1)!), sets }, {
+			submenus: { Branch: ['[Current Base]', 'origin/feature ✓', '[Default Branch]', 'origin/main', '[Branches]', 'main'] },
+			sets: ['refs/heads/main'],
+		});
+	});
+
+	test('the Branch row drops its submenu and the error is reported when its branches fail to load', async () => {
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => { throw new Error('Git failed'); },
+			setBaseBranch: async () => { },
+		};
+		const { picker, lists, errors } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		await timeout(0);
+
+		assert.deepStrictEqual({ lists: lists.map(listSubmenus), errors }, {
+			lists: [{ Branch: ['Loading branches… (disabled)'] }, {}],
+			errors: ['Git failed'],
+		});
+	});
+
+	test('an open list of changesets loads the Branch changeset while another is selected, and gives the Branch row its submenu once its base can change', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: () => candidates.p,
+			setBaseBranch: async () => { },
+		};
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', undefined);
+		const { picker, lists, selected, session } = renderBaseBranchPicker(selectionObs);
+		selected.set(session, undefined);
+
+		picker.show();
+		// The Branch changeset's state, which no one else loads, arrives while the list is open.
+		selectionObs.set(selection, undefined);
+		candidates.complete({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+
+		assert.deepStrictEqual(lists.map(listSubmenus), [
+			{},
+			{ Branch: ['Loading branches… (disabled)'] },
+			{ Branch: ['[Current Base]', 'origin/feature ✓', '[Default Branch]', 'origin/main'] },
+		]);
+	});
+
+	test('closing the list of changesets stops loading the branches of the Branch submenu', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		let token: CancellationToken | undefined;
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: requestToken => {
+				token = requestToken;
+				return candidates.p;
+			},
+			setBaseBranch: async () => { },
+		};
+		const { picker, lists } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		const cancelledWhileOpen = token?.isCancellationRequested;
+		picker.hide();
+		candidates.complete({ refs: ['refs/remotes/origin/main'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ cancelledWhileOpen, cancelled: token?.isCancellationRequested, lists: lists.map(listSubmenus) }, {
+			cancelledWhileOpen: false,
+			cancelled: true,
+			lists: [{ Branch: ['Loading branches… (disabled)'] }],
+		});
+	});
+
 	test('renders the changes summary with the shared stats widget and updates it in place', async () => {
 		const changeset = upcastPartial<ISessionChangeset>({
 			id: 'branch',
@@ -584,7 +873,7 @@ suite('Changes View Actions', () => {
 		instantiationService.stub(IChangesViewService, changesViewService);
 		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
 		const container = document.createElement('div');
-		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope())).render(container);
+		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), new TestNotificationService())).render(container);
 
 		const summaryElement = container.querySelector<HTMLElement>('.changes-picker-summary');
 		const snapshot = () => ({
@@ -652,7 +941,7 @@ suite('Changes View Actions', () => {
 			}
 			override hide(): void { }
 		}();
-		const picker = disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, scope, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(), new NoChangesEditorScope()));
+		const picker = disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, scope, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(), new NoChangesEditorScope(), new TestNotificationService()));
 		picker.render(container);
 		picker.show();
 		await items[0].run();
@@ -694,7 +983,7 @@ suite('Changes View Actions', () => {
 		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope());
+			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), new TestNotificationService());
 			picker.render(container);
 			return { picker, summary: container.querySelector<HTMLElement>('.changes-picker-summary') };
 		};

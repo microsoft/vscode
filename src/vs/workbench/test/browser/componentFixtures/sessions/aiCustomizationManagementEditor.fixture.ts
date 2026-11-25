@@ -1088,7 +1088,7 @@ const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 		icon: URI.parse(connectorIconDataUri),
 		version: '1.0.0',
 		author: { name: 'Microsoft', url: URI.parse('https://www.microsoft.com') },
-		homepage: URI.parse('https://github.com/features/copilot'),
+		homepage: 'https://github.com/features/copilot',
 		releaseTag: 'Preview',
 		tags: ['mail', 'productivity'],
 		keywords: ['outlook', 'messages'],
@@ -1996,6 +1996,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
+				override readonly onDidRunOperation = Event.None;
 				override async exists(resource: URI) {
 					if (fileContents.has(resource) || createdFolders.has(resource)) {
 						return true;
@@ -5391,6 +5392,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			mcpSearchQuery: 'workiq',
 			openFirstItem: true,
 			openItemLabel: 'Work IQ Mail',
+		}),
+	}),
+
+	ConnectorDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The connector name and connection action remain within the detail header at a narrow width, with the homepage link in the Details table.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			copilotConnectorsEnabled: true,
+			mcpSearchQuery: 'workiq',
+			openFirstItem: true,
+			openItemLabel: 'workiq-mail-mcp',
+			width: 550,
+			height: 500,
 		}),
 	}),
 

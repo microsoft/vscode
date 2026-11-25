@@ -46,7 +46,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { DialogService } from '../../../../../workbench/services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { NewWorktreeChoice } from '../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
 import { IChatSubmitRequest } from '../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
@@ -96,7 +96,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IWorktreeSendChoiceTargetService, WorktreeSendChoiceTargetService } from '../../../../../workbench/contrib/chat/browser/agentSessions/worktreeSendChoiceTarget.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
-import { SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -114,6 +114,7 @@ import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -5816,11 +5817,12 @@ suite('NewChatWidget', () => {
 							store.add(new InMemoryStorageService()), contextKeyService, configuration, store.add(new TestLifecycleService()),
 							new NullWorkbenchAssignmentService(), NullTelemetryService,
 							store.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+							new TestQuickInputService(),
 						));
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
-						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService))));
+						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()))));
 						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
 						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 						store.add(worktreeSendChoiceService.registerProvider(provider));
@@ -5918,11 +5920,12 @@ suite('NewChatWidget', () => {
 							store.add(new InMemoryStorageService()), contextKeyService, configuration, store.add(new TestLifecycleService()),
 							new NullWorkbenchAssignmentService(), NullTelemetryService,
 							store.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+							new TestQuickInputService(),
 						));
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
-						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService))));
+						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()))));
 						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
 						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 						store.add(worktreeSendChoiceService.registerProvider(provider));

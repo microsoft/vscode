@@ -28,8 +28,8 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
 import { ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from './sessionTaskRunner.js';
-import { AgenticPromptsService } from './promptsService.js';
-import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { AgenticSkillsService } from './agenticSkillsService.js';
+import { IAgenticSkillsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/agenticSkillsService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { SessionsAICustomizationWorkspaceService } from './aiCustomizationWorkspaceService.js';
@@ -350,7 +350,7 @@ registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandbo
 registerWorkbenchContribution2(ActiveSessionChatRevealerContribution.ID, ActiveSessionChatRevealerContribution, WorkbenchPhase.AfterRestored);
 
 // register services
-registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
+registerSingleton(IAgenticSkillsService, AgenticSkillsService, InstantiationType.Delayed);
 registerSingleton(ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry, InstantiationType.Delayed);
 registerSingleton(ISessionsTasksService, SessionsTasksService, InstantiationType.Delayed);
 registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, InstantiationType.Delayed);

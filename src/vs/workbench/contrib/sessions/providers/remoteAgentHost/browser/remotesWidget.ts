@@ -530,6 +530,8 @@ export class RemotesWidget extends Disposable {
 				void this.notifyOnFailure(this.showExtension(entry.remote.contributedBy.extensionId));
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote, 'updateServer');
+			} else if (action === 'restartDistribution' && entry.remote.kind === 'wsl') {
+				void this.manageRemote(entry.remote, 'restartDistribution');
 			} else if (action === 'createDevContainer' && entry.remote.canCreateDevContainer) {
 				void this.createDevContainer(entry.remote.id);
 			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh' || entry.remote.kind === 'devContainer') && entry.remote.canDelete)) {
@@ -793,7 +795,8 @@ export class RemotesWidget extends Disposable {
 				if (this.sortBy === 'availability') {
 					const rank = (remote: ICustomizationRemote) => {
 						const group = getRemoteStatusGroup(remote);
-						return group === 'ready' ? 0 : group === 'available' ? 1 : group === 'offline' ? 2 : 3;
+						const index = statusGroups.findIndex(candidate => candidate.key === group);
+						return index < 0 ? statusGroups.length : index;
 					};
 					const difference = rank(a) - rank(b);
 					if (difference) {
@@ -1086,7 +1089,7 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async manageRemote(remote: ICustomizationRemote, action: 'rename' | 'githubEnvironment' | 'updateServer'): Promise<void> {
+	private async manageRemote(remote: ICustomizationRemote, action: 'rename' | 'githubEnvironment' | 'updateServer' | 'restartDistribution'): Promise<void> {
 		const { id } = remote;
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
@@ -1100,6 +1103,8 @@ export class RemotesWidget extends Disposable {
 				await this.model.setSharedAsGitHubEnvironment(id, !remote.gitHubEnvironment);
 			} else if (action === 'updateServer') {
 				await this.model.updateServer(id);
+			} else if (action === 'restartDistribution') {
+				await this.model.restartWSLDistribution(id);
 			} else {
 				await this.model.rename(id);
 			}

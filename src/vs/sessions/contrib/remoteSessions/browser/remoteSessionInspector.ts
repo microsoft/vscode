@@ -14,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
-import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -62,7 +62,7 @@ export class RemoteSessionInspector {
 		const target = {
 			session: sessionResource.toString(),
 			chat: resource.toString(),
-			openLink: buildOpenSessionLinkUri(sessionResource, resource.fragment),
+			openLink: buildOpenSessionLinkUri(identity.backendSession, resource.fragment, undefined, identity.connectionAuthority),
 			host: { id: provider.id, label: provider.label },
 		};
 		const connection = this.connectionsService.getConnectionByAuthority(identity.connectionAuthority);
@@ -100,6 +100,19 @@ export class RemoteSessionInspector {
 			checkConnection();
 			const session = store.add(connection.getSubscription(StateComponents.Session, identity.backendSession, 'RemoteSessionInspector'));
 			const sessionState = await readRemoteSessionState(session.object, cancellation.token, true);
+			const chats = sessionState.chats
+				.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool && chat.interactivity !== ChatInteractivity.Hidden)
+				.map(chat => {
+					const main = sessionState.defaultChat !== undefined && isEqual(URI.parse(chat.resource), URI.parse(sessionState.defaultChat));
+					const chatId = getAgentHostChatId(chat.resource);
+					const resolvedChat = getSessionChatResource(sessionState, chatId, sessionState.defaultChat);
+					const chatReference = resolvedChat !== undefined && isEqual(URI.parse(resolvedChat), URI.parse(chat.resource)) ? chatId : chat.resource;
+					return {
+						title: chat.title,
+						openLink: buildOpenSessionLinkUri(identity.backendSession, main ? undefined : chatReference, undefined, identity.connectionAuthority),
+						...(main ? { main: true as const } : {}),
+					};
+				});
 			this.checkEnabled();
 			checkConnection();
 			if (cancellation.token.isCancellationRequested) {
@@ -120,7 +133,7 @@ export class RemoteSessionInspector {
 			if (cancellation.token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			return { ...target, ...remoteSessionSnapshot(chatState) };
+			return { ...target, ...(chats.some(chat => !chat.main) ? { chats } : {}), ...remoteSessionSnapshot(chatState) };
 		} catch (error) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();

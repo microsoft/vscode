@@ -117,7 +117,7 @@ import { filterConfigurationToSchema } from '../../../chat/browser/widget/input/
 import { createSessionComparisonHarness } from '../sessionComparisonConfiguration.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { SessionsView, SessionsViewId } from '../views/sessionsView.js';
-import { SessionsGrouping } from '../views/sessionsList.js';
+import { SessionsGrouping } from '../views/sessionsListCommon.js';
 
 // #region --- New Chat Widget ---
 
