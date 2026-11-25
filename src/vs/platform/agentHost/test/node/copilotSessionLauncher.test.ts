@@ -4711,6 +4711,28 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('offers run_program only when client-side programmatic tool calling is opted in', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launch = async (values: Record<string, unknown>) => {
+			const config = await buildResumeConfig(createLauncher(store, values), { id: 'gpt-5' });
+			const flags = config.experiments?.flags;
+			return { flags: { local: flags?.CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING, guidance: flags?.CLIENT_SIDE_PTC_GUIDANCE }, tools: config.tools?.availableTools };
+		};
+
+		assert.deepStrictEqual({
+			disabled: await launch({}),
+			enabled: await launch({ [CopilotCliConfigKey.ProgrammaticToolCalling]: true }),
+			enabledWithModelFilter: await launch({
+				[CopilotCliConfigKey.ProgrammaticToolCalling]: true,
+				[CopilotCliConfigKey.ModelCapabilityOverrides]: { '*': { availableTools: ['custom:*'] } },
+			}),
+		}, {
+			disabled: { flags: { local: undefined, guidance: undefined }, tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS] },
+			enabled: { flags: { local: true, guidance: true }, tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS, 'builtin:run_program'] },
+			enabledWithModelFilter: { flags: { local: true, guidance: true }, tools: ['custom:*'] },
+		});
+	});
+
 	test('sends the security-review secret detection flag when opted in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const flag = async (values: Record<string, unknown>) =>
