@@ -54,19 +54,37 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 		}
 		const viewsService = accessor.get(IViewsService);
 		const inEditor = isHTMLElement(focusedElement) && !!focusedElement.closest('.session-changes-editor');
+		// Where the Changes editor draws its own header, such as in an editor window, there are no Changes view, Details and
+		// Run Code Review, and its header row offers its actions.
+		const inEditorWindow = isHTMLElement(focusedElement) && !!focusedElement.closest('.session-changes-editor.offers-header-actions');
 
 		const content: string[] = [];
 		content.push(inEditor
 			? localize('sessionsChanges.editorOverview', "You are in the Changes editor. It shows the changed files and their diffs for the current session.")
 			: localize('sessionsChanges.overview', "You are in the Changes view. It shows the files changed by the current session as a tree, followed by a collapsible Checks section."));
 		content.push(localize('sessionsChanges.empty', "When there are no changed files, use Tab to reach Open Files and Search in Files. Use Up Arrow and Down Arrow to move between those actions, and Enter or Space to run one."));
+		if (inEditorWindow) {
+			content.push(localize('sessionsChanges.editorWindowActions', "The Changes editor shows its actions on the right of its header row: the session's changeset operations, such as Commit, when available, Toggle Files, which shows or hides the list of changed files beside the diffs, and More Actions with the diff actions, such as Diff View and Word Wrap. Use the dropdown beside Toggle Files to switch between View as List and View as Tree, and to put the list on the left or right of the diffs."));
+			content.push(localize('sessionsChanges.editorWindowOperations', "When available, a changed file's toolbar provides actions such as Open File, Viewed, and Discard Changes. Destructive actions ask for confirmation and are disabled while the agent is working. Use Tab and Shift+Tab to move between the diffs and toolbar actions."));
+			content.push(localize('sessionsChanges.editorWindowDiffView', "The Toggle Preferred Diff View command switches the diffs between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>'));
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.SessionsChanges,
+				{ type: AccessibleViewType.Help },
+				() => content.join('\n'),
+				() => {
+					if (isHTMLElement(focusedElement) && focusedElement.isConnected) {
+						focusedElement.focus();
+					}
+				},
+				AccessibilityVerbositySettingId.SessionsChanges,
+			);
+		}
 		if (!inEditor) {
 			content.push(localize('sessionsChanges.tree', "Use the up and down arrow keys to move between changed files, and the left and right arrow keys to collapse or expand folders. Press Enter to open the selected file's diff."));
 			content.push(localize('sessionsChanges.checks', "The Checks section lists the continuous integration checks for the session's pull request. Its header is a button: press Enter or Space to collapse or expand it{0}.", '<keybinding:sessions.action.revealCIChecks>'));
 		}
 		content.push(localize('sessionsChanges.viewMode', "The Changes view can show files as a tree or a flat list. Use the dropdown beside Toggle Details in the editor toolbar of the Changes editor, Files View in the More Actions menu of the editor title area, or the view's toolbar actions, to switch between View as List and View as Tree. These menus show both options and mark the active one as selected."));
 		content.push(localize('sessionsChanges.editorActions', "Run Code Review and the diff actions of the Changes editor are on the right of its header row, above the diffs. Use its More Actions menu for diff actions. Commit, when available, is in the toolbar beside the editor tabs. In the desktop Agents window, a new session shows Commit on the right of the header row instead, in the same row as the changeset picker."));
-		content.push(localize('sessionsChanges.editorWindowActions', "In an editor window, the Changes editor shows its actions on the right of its header row: Commit when available, Toggle Files, which shows or hides the list of changed files beside the diffs, and More Actions with the diff actions. Use the dropdown beside Toggle Files to switch between View as List and View as Tree, and to put the list on the left or right of the diffs."));
 		content.push(localize('sessionsChanges.operations', "When available, a changed file's toolbar provides actions such as Discard Changes. Destructive actions ask for confirmation and are disabled while the agent is working. The Changes toolbar or editor title bar also provides actions to commit, merge, sync, or create a pull request. When Agent Merge is the primary action, activate it to toggle Agent Merge and use its dropdown to configure it. Use Tab and Shift+Tab to move between the file list and toolbar actions."));
 		content.push(localize('sessionsChanges.createPR', "For Agent Host sessions, Create PR opens a form with generated, editable title and description, a draft checkbox, and merge options. The form appears while generation is in progress and preserves anything you type. Use Tab to navigate and Escape to dismiss while keeping your text. Cancel discards your text."));
 		content.push(localize('sessionsChanges.diffView', "Use Diff View in the editor title area's More Actions menu to select inline, side-by-side, or automatic layout. The Toggle Preferred Diff View command switches between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>'));

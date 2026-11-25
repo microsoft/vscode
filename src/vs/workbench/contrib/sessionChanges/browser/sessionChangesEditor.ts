@@ -384,6 +384,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService], [IChangesEditorScope, { _serviceBrand: undefined, scope: this._scope, changesPendingObs: this._changesPendingObs } satisfies IChangesEditorScope])));
 		this._scopedInstantiationService = scopedInstantiationService;
+		if (this.hostLayoutService.editorsBindSessionContext) {
+			// The keys of its session, for the actions of its header and of its files: the window binds none for the sessions its
+			// editors show.
+			this._register(bindSessionScopeContextKeys(this.instantiationService, this._scope, scopedContextKeyService));
+			root.classList.add('offers-header-actions');
+		}
 
 		// In the Agents window's desktop layout, the header (Branch Changes dropdown, diff stats and primary
 		// actions) is hosted by the editor part's full-width header instead of inside
@@ -403,8 +409,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// so its own multiDiffEditor* context keys (all-collapsed, render-side-by-side)
 		// are visible to the EditorTitle menu that drives the collapse/expand-all and
 		// inline-view toggle actions.
+		// Where the editor draws its header itself and binds the keys of its session, in its own context instead, which its header
+		// and the toolbars of its files read.
 		const paneInstantiationService = this._register(this.instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, this.contextKeyService])));
+			new ServiceCollection([IContextKeyService, this.hostLayoutService.editorsBindSessionContext ? scopedContextKeyService : this.contextKeyService])));
 		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
 		// The changed files list shows beside the diffs when the host enables it, unless the user hides it with Toggle Files.
 		this.fileListWidget = this._register(this.createFileListWidget(
@@ -416,15 +424,6 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			},
 		));
 		this.widget = this.fileListWidget.multiDiffEditorWidget;
-		if (this.hostLayoutService.editorsBindSessionContext) {
-			// The keys of its session, for the actions of its header and of its files, on the context of its group while it shows
-			// there: the window binds none for the sessions its editors show.
-			this._register(autorun(reader => {
-				if (this._paneVisible.read(reader)) {
-					reader.store.add(bindSessionScopeContextKeys(this.instantiationService, this._scope, this.contextKeyService));
-				}
-			}));
-		}
 		const fileListWidget = this.fileListWidget;
 		this._register(autorun(reader => this.bodyContainer?.classList.toggle('file-list-visible', fileListWidget.isFileListVisible.read(reader))));
 		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
@@ -553,7 +552,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}));
 
 		// Create Pull Request (and related) actions render on the right of the header row.
-		store.add(instantiationService.createInstance(ChangesActionsBar, right, this._scope, new Set<string>()));
+		store.add(instantiationService.createInstance(ChangesActionsBar, append(right, $('.session-changes-editor-header-operations')), this._scope, new Set<string>()));
 
 		// Where no editor part offers them, the diff actions of the header row of the Agents window follow, with its More Actions.
 		if (this.hostLayoutService.editorsBindSessionContext) {

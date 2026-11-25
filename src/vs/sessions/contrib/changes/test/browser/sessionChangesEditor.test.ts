@@ -64,6 +64,9 @@ import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
 // The changeset picker, as the Agents window registers it; the editor window registers the same
 import '../../browser/changesView.contribution.js';
+import '../../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
+import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 suite('SessionChangesEditor empty state layout', () => {
@@ -337,12 +340,13 @@ suite('SessionChangesEditor changed files list', () => {
 suite('SessionChangesEditor header', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function headerOf(host: Partial<ISessionsHostLayoutService>, aiEnabled: boolean) {
+	function createHeader(host: Partial<ISessionsHostLayoutService>, aiEnabled: boolean): HTMLElement {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const parent = append(mainWindow.document.body, $('.editor-instance'));
 		store.add(toDisposable(() => parent.remove()));
 		const hostContextKeyService = store.add(store.add(new ContextKeyService(instantiationService.get(IConfigurationService))).createScoped(parent));
 		hostContextKeyService.createKey(ChatContextKeys.enabled.key, aiEnabled);
+		hostContextKeyService.createKey(ActiveEditorContext.key, SessionChangesEditor.ID);
 		instantiationService.stub(IContextKeyService, hostContextKeyService);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
@@ -371,6 +375,9 @@ suite('SessionChangesEditor header', () => {
 		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, ...host });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			getSessionPullRequest: () => upcastPartial<ReturnType<IGitHubService['getSessionPullRequest']>>({ pullRequestCIObs: constObservable(undefined) }),
+		}));
 		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
 			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
 			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
@@ -384,9 +391,17 @@ suite('SessionChangesEditor header', () => {
 			layout() { },
 			dispose() { },
 		});
+		instantiationService.stubInstance(MultiDiffEditorFileList, {
+			layout() { },
+			dispose() { },
+		});
 		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 		editor.create(parent);
-		const header = parent.querySelector('.session-changes-editor-header-left');
+		return parent;
+	}
+
+	function headerOf(host: Partial<ISessionsHostLayoutService>, aiEnabled: boolean) {
+		const header = createHeader(host, aiEnabled).querySelector('.session-changes-editor-header-left');
 		return header ? [...header.querySelectorAll('.action-label')].map(label => label.getAttribute('aria-label')) : 'none';
 	}
 
@@ -400,6 +415,18 @@ suite('SessionChangesEditor header', () => {
 			editorWindow: ['Versions'],
 			editorWindowWithoutAI: [],
 		});
+	});
+
+	test('in an editor window, the right of its header shows its More Actions beside the operations of its changeset, also while its changeset has no operations', () => {
+		const right = createHeader({ editorPartDrawsEditorHeaders: false, editorsBindSessionContext: true }, true).querySelector('.session-changes-editor-header-right')!;
+		assert.deepStrictEqual([...right.children].map(child => ({
+			className: child.className,
+			hidden: (child as HTMLElement).style.display === 'none',
+			actions: [...child.querySelectorAll('.action-label')].map(label => label.getAttribute('aria-label')),
+		})), [
+			{ className: 'session-changes-editor-header-operations changes-actions-bar', hidden: true, actions: [] },
+			{ className: 'session-changes-editor-header-actions', hidden: false, actions: ['More Actions...'] },
+		]);
 	});
 });
 

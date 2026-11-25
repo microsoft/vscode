@@ -14,7 +14,7 @@ import { ActiveCustomEditorDiffCanToggleLayoutContext } from '../../../common/co
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { EditorResourceAccessor, IEditorPane, isDiffEditorInput, IUntypedEditorInput, SideBySideEditor } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorPane, isDiffEditorInput, isEditorCommandsContext, IUntypedEditorInput, SideBySideEditor } from '../../../common/editor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
 
 interface IDiffEditorWidthBasedLayoutReset {
@@ -246,12 +246,18 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 		], activeGroup);
 	}
 
-	/** The active editor when it lays out its diffs by its own view mode, unless the command targets the diff of a resource. */
+	/**
+	 * The editor that lays out its diffs by its own view mode that the command targets: that of the editor group it is invoked
+	 * from, else the active editor. None when the command targets the diff of a resource.
+	 */
 	private getActiveDiffEditorViewModeOwner(args: unknown[]): IDiffEditorViewModeOwner | undefined {
 		if (args[0] instanceof URI) {
 			return undefined;
 		}
-		const pane = this.editorService.activeEditorPane;
+		const context = args.find(isEditorCommandsContext);
+		const pane = context
+			? this.editorService.visibleEditorPanes.find(candidate => candidate.group.id === context.groupId)
+			: this.editorService.activeEditorPane;
 		return isDiffEditorViewModeOwner(pane) ? pane : undefined;
 	}
 

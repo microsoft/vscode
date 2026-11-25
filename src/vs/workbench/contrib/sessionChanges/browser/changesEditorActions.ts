@@ -145,6 +145,12 @@ const editorWindowChangesEditorHeader = ContextKeyExpr.and(
 
 const changesEditorHeaderVisible = ContextKeyExpr.or(desktopChangesEditorTitleVisible, editorWindowChangesEditorHeader);
 
+/**
+ * The actions of the files of the Changes editor show while chat is enabled where the editor draws its header itself and its
+ * files read its context, such as in an editor window; the Agents window shows them as ever.
+ */
+const changesEditorFileActionsAvailable = ContextKeyExpr.or(SessionChangesEditorDrawsHeaderContext.negate(), ChatContextKeys.enabled);
+
 export function wordWrapToggled(settingId: string) {
 	return ContextKeyExpr.or(
 		ContextKeyExpr.equals(`config.${settingId}`, 'on'),
@@ -481,7 +487,7 @@ class OpenChangedFileAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.MultiDiffEditorFileToolbar,
-				when: ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
+				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(SessionChangesEditor.ID), changesEditorFileActionsAvailable),
 				group: 'navigation',
 				order: 22,
 			},
@@ -560,7 +566,8 @@ class ExpandFullFileAction extends Action2 {
 				id: MenuId.MultiDiffEditorFileToolbar,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
-					EditorContextKeys.multiDiffEditorItemAllUnchangedRegionsShown.toNegated()),
+					EditorContextKeys.multiDiffEditorItemAllUnchangedRegionsShown.toNegated(),
+					changesEditorFileActionsAvailable),
 				group: 'navigation',
 				order: 21,
 			},
@@ -601,7 +608,8 @@ class CollapseUnchangedRegionsAction extends Action2 {
 				id: MenuId.MultiDiffEditorFileToolbar,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
-					EditorContextKeys.multiDiffEditorItemAllUnchangedRegionsShown),
+					EditorContextKeys.multiDiffEditorItemAllUnchangedRegionsShown,
+					changesEditorFileActionsAvailable),
 				group: 'navigation',
 				order: 21,
 			},
@@ -754,7 +762,7 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 						when: shown,
 					}, {
 						id: MenuId.MultiDiffEditorFileToolbar,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'), shown),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'), shown, changesEditorFileActionsAvailable),
 						group: 'navigation',
 						order,
 					}]
@@ -786,7 +794,7 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 				icon: operation.icon,
 				precondition,
 				f1: false,
-				menu: [...operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID ? [{
+				menu: operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID ? [{
 					id: Menus.SessionsEditorTitle,
 					group: 'navigation',
 					order,
@@ -796,17 +804,12 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 					group: 'navigation',
 					order,
 					when: ContextKeyExpr.and(shownInChangesEditor, commitInEditorHeader),
-				}] : [{
+				}] : {
 					id: Menus.SessionsEditorTitle,
 					group: 'navigation',
 					order,
 					when: shownInChangesEditor,
-				}], {
-					id: Menus.SessionsEditorHeaderSecondary,
-					group: 'navigation',
-					order,
-					when: ContextKeyExpr.and(shownInChangesEditor, editorWindowChangesEditorHeader),
-				}]
+				}
 			});
 		}
 
@@ -925,7 +928,8 @@ export class ChangesetReviewAction extends Action2 {
 				id: MenuId.MultiDiffEditorFileToolbar,
 				when: ContextKeyExpr.and(
 					ChangesetReviewSupportContext.isEqualTo(true),
-					ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source')
+					ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+					changesEditorFileActionsAvailable,
 				),
 				group: 'navigation',
 				order: 100

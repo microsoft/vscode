@@ -4,26 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../base/common/observable.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MenuId, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ActiveEditorContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { SessionsDiffViewModeContext } from '../../../../services/editor/common/diffEditorOptionsService.js';
-import { ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext } from '../../../multiDiffEditor/common/multiDiffEditor.js';
 import { Menus } from '../../../sessions/browser/menus.js';
 import { SessionChangesEditorDrawsHeaderContext } from '../../../sessions/common/contextkeys.js';
-import { bindChangesetOperations } from '../../browser/changesEditorActions.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
+import '../../browser/changesEditorActions.js';
 
 suite('Changes editor actions', () => {
 
@@ -86,23 +82,18 @@ suite('Changes editor actions', () => {
 		});
 	});
 
-	test('the files of the Changes editor of an editor window offer to expand the full file and to open it', () => {
+	test('the files of the Changes editor of an editor window offer to expand the full file and to open it, and nothing while chat is disabled', () => {
 		const menuService = disposables.add(new MenuService(NullCommandService, new MockKeybindingService(), disposables.add(new TestStorageService())));
 
-		assert.deepStrictEqual(getLabels(menuService, MenuId.MultiDiffEditorFileToolbar, createContext(editorWindowHeader)), [
-			['navigation', ['Expand Full File', 'Open File']],
-		]);
+		assert.deepStrictEqual({
+			editorWindow: getLabels(menuService, MenuId.MultiDiffEditorFileToolbar, createContext(editorWindowHeader)),
+			aiDisabled: getLabels(menuService, MenuId.MultiDiffEditorFileToolbar, createContext({ ...editorWindowHeader, [ChatContextKeys.enabled.key]: false })),
+			agentsWindowAiDisabled: getLabels(menuService, MenuId.MultiDiffEditorFileToolbar, createContext({ ...editorWindowHeader, [IsSessionsWindowContext.key]: true, [SessionChangesEditorDrawsHeaderContext.key]: false, [ChatContextKeys.enabled.key]: false })),
+		}, {
+			editorWindow: [['navigation', ['Expand Full File', 'Open File']]],
+			aiDisabled: [],
+			agentsWindowAiDisabled: [['navigation', ['Expand Full File', 'Open File']]],
+		});
 	});
 
-	test('the header row that the Changes editor of an editor window draws offers the changeset operations of its title, such as Commit, first', () => {
-		const menuService = disposables.add(new MenuService(NullCommandService, new MockKeybindingService(), disposables.add(new TestStorageService())));
-		const commit = upcastPartial<ISessionChangesetOperation>({ id: AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, label: 'Commit', scopes: [SessionChangesetOperationScope.Changeset], status: SessionChangesetOperationStatus.Idle });
-		const contextKeyService = createContext(editorWindowHeader);
-		disposables.add(bindChangesetOperations({
-			session: constObservable(upcastPartial<ISession>({ status: constObservable(SessionStatus.Completed) })),
-			changes: { changesetObs: constObservable(upcastPartial<ISessionChangeset>({ operations: constObservable([]) })), changesetOperationsObs: constObservable([commit]) },
-		}, contextKeyService));
-
-		assert.deepStrictEqual(getLabels(menuService, Menus.SessionsEditorHeaderSecondary, contextKeyService)[0], ['navigation', ['Commit', 'Files View & Position']]);
-	});
 });
