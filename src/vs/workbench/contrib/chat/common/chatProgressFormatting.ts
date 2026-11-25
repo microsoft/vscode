@@ -38,16 +38,21 @@ export interface IFormattedChatRequestTimestamp {
 
 /**
  * Format a millisecond duration as a human-readable elapsed time string.
- * Examples: "0s", "45s", "1m 23s", "12m 5s"
+ * Examples: "0s", "45s", "1m 23s", "12m 5s", "1h 0m 5s", "205h 49m 8s"
  */
 export function formatElapsedTime(ms: number): string {
 	const totalSeconds = Math.floor(ms / 1000);
 	if (totalSeconds < 60) {
 		return localize('seconds', "{0}s", totalSeconds);
 	}
-	const minutes = Math.floor(totalSeconds / 60);
+	const totalMinutes = Math.floor(totalSeconds / 60);
 	const seconds = totalSeconds % 60;
-	return localize('minutesSeconds', "{0}m {1}s", minutes, seconds);
+	if (totalMinutes < 60) {
+		return localize('minutesSeconds', "{0}m {1}s", totalMinutes, seconds);
+	}
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+	return localize('hoursMinutesSeconds', "{0}h {1}m {2}s", hours, minutes, seconds);
 }
 
 export function formatChatResponseElapsedTime(elapsedMs: number | undefined): string | undefined {

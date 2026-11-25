@@ -871,6 +871,13 @@ suite('ChatListRenderer', () => {
 			]);
 		});
 
+		test('formats elapsed time of an hour or more with hours', () => {
+			assert.deepStrictEqual(
+				[59_999, 3_599_999, 3_600_000, 3_605_000, (12_349 * 60 + 8) * 1000].map(formatElapsedTime),
+				['59s', '59m 59s', '1h 0m 0s', '1h 0m 5s', '205h 49m 8s'],
+			);
+		});
+
 		test('renders completion time with elapsed-time alternate only in verbose mode', () => {
 			const container = document.createElement('div');
 			container.className = 'chat-footer-details';
