@@ -64,6 +64,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		const createDraftAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, true, getSessionState, resolveBaseBranch, onCreated);
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR, createPrHandler));
 		store.add(registry.registerChangesetOperationHandler(PREPARE_PULL_REQUEST_OPERATION_ID, {
+			changesGitState: false,
 			captureCredentialSource: (params, source) => createPrHandler.captureCredentialSource(params, source),
 			invoke: (params, token, source) => createPrHandler.prepare(params, token, source),
 		}));
@@ -312,7 +313,6 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		await this._gitStateService.setSessionGitHubState(event.ownerUri, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
 
 		this._registry?.onDidChangeOperations(sessionKey);
-		void this._registry?.refreshSessionGitState(event.ownerUri, event.credentialSource);
 		return artifact.id;
 	}
 }

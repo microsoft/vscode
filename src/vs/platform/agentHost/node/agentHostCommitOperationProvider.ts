@@ -12,11 +12,8 @@ import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperat
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 export class AgentHostCommitOperationContribution extends Disposable implements IChangesetOperationContribution {
-
-	private _registry: IChangesetOperationRegistry | undefined;
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -26,12 +23,10 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 	}
 
 	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
-		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const handler = this._instantiationService.createInstance(AgentHostCommitOperationHandler, getSessionState, (sessionKey: string, source?: IAgentHostCredentialSource) => this._onCommitted(sessionKey, source));
+		const handler = this._instantiationService.createInstance(AgentHostCommitOperationHandler, getSessionState);
 		store.add(registry.registerChangesetOperationHandler(AgentHostCommitOperationHandler.OPERATION_COMMIT, handler));
-		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
 	}
 
@@ -62,11 +57,6 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation];
-	}
-
-	private async _onCommitted(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void> {
-		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey, source);
 	}
 }
 

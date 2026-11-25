@@ -61,7 +61,6 @@ type AutopilotOutcome = ({ readonly kind: 'enabled' } & IPullRequestAutopilotRes
 type RepositoryMergeSettings = Pick<IPullRequestDetails, 'autoMergeAllowed' | 'mergeMethods'>;
 
 export interface PullRequestCreatedEvent {
-	readonly credentialSource?: IAgentHostCredentialSource;
 	readonly sessionKey: string;
 	/** The changeset owner the pull request was created from; resolves the folder that owns it. */
 	readonly ownerUri: string;
@@ -108,6 +107,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	public static readonly OPERATION_CREATE_PR_AUTO_REBASE = AgentHostCreatePullRequestOperationId.CreateAutoRebase;
 	public static readonly OPERATION_CREATE_PR_AGENT_MERGE = AgentHostCreatePullRequestOperationId.CreateAgentMerge;
 	public static readonly OPERATION_CREATE_DRAFT_PR_AGENT_MERGE = AgentHostCreatePullRequestOperationId.CreateDraftAgentMerge;
+
+	readonly changesGitState = true;
 
 	constructor(
 		private readonly _draft: boolean,
@@ -604,7 +605,6 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	/** Records the pull request and applies the chosen automation, returning the outcome of Autopilot when it was chosen. */
 	private async _completePullRequestOperation(sessionUri: string, ownerUri: string, conversationChat: string | undefined, pullRequest: PullRequestSummary, branchName: string, options: PullRequestCreationConfiguration, source?: IAgentHostCredentialSource): Promise<AutopilotOutcome | undefined> {
 		const artifactId = await this._onPullRequestCreated({
-			credentialSource: source,
 			sessionKey: sessionUri,
 			ownerUri,
 			...(conversationChat ? { conversationChat } : {}),
