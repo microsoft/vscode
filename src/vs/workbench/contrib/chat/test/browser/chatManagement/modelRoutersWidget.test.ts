@@ -68,14 +68,19 @@ suite('ModelRoutersWidget', () => {
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		const instantiationService = workbenchInstantiationService({ fileService: () => fileService }, store);
 		const onDidListModels = store.add(new Emitter<string>());
-		const listModels = () => {
+		const laterModels = new Map<string, ILanguageModelChatMetadata>();
+		/** The agent lists its models, with `another` that it did not have before. */
+		const listModels = (another?: ILanguageModelChatMetadata) => {
 			hasListedModels = true;
+			if (another) {
+				laterModels.set(another.id, another);
+			}
 			onDidListModels.fire(harnessId);
 		};
 		instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 			override readonly onDidChangeLanguageModels = onDidListModels.event;
-			override getLanguageModelIds() { return hasListedModels ? [...models.keys()] : []; }
-			override lookupLanguageModel(id: string) { return models.get(id); }
+			override getLanguageModelIds() { return hasListedModels ? [...models.keys(), ...laterModels.keys()] : []; }
+			override lookupLanguageModel(id: string) { return models.get(id) ?? laterModels.get(id); }
 		}());
 		instantiationService.stub(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return hasUnsavedChanges; }
@@ -270,25 +275,27 @@ suite('ModelRoutersWidget', () => {
 		});
 	});
 
-	test('a form opened before the agent lists its models gets them without taking the focus from the field being typed in', () => {
+	test('a form follows the agent\'s models as they are listed, without taking the focus from the field that has it', () => {
 		const { container, button, type, listModels } = createWidget(false, false);
 		button('Add Router').click();
 		const name = () => container.querySelector<HTMLInputElement>('[aria-label="Route 1 name"]')!;
-		const offered = () => [...container.querySelector('.model-router-form-route select')!.querySelectorAll('option')].map(option => option.textContent);
+		const selects = () => [...container.querySelectorAll('.model-router-form-route')].map(route => route.querySelector('select')!);
+		const offered = () => [...selects()[0].querySelectorAll('option')].map(option => option.textContent);
 		type('Route 1 name', 'feature');
 		name().focus();
 		name().setSelectionRange(2, 4);
 		const before = offered();
 		listModels();
+		const typing = { offered: offered(), focused: mainWindow.document.activeElement === name(), value: name().value, selection: [name().selectionStart, name().selectionEnd] };
 		// The two routes start on different models, which routes without a name need.
-		const chosen = [...container.querySelectorAll('.model-router-form-route')].map(route => route.querySelector('select')!.selectedOptions[0]?.textContent);
-		assert.deepStrictEqual({ before, after: offered(), chosen, focused: mainWindow.document.activeElement === name(), value: name().value, selection: [name().selectionStart, name().selectionEnd] }, {
+		const chosen = selects().map(select => select.selectedOptions[0]?.textContent);
+		selects()[1].focus();
+		listModels(model('claude-sonnet', 'Sonnet'));
+		assert.deepStrictEqual({ before, typing, chosen, choosing: { offered: offered(), focused: mainWindow.document.activeElement === selects()[1], chosen: selects().map(select => select.selectedOptions[0]?.textContent) } }, {
 			before: [],
-			after: ['Opus', 'Haiku'],
+			typing: { offered: ['Opus', 'Haiku'], focused: true, value: 'feature', selection: [2, 4] },
 			chosen: ['Opus', 'Haiku'],
-			focused: true,
-			value: 'feature',
-			selection: [2, 4],
+			choosing: { offered: ['Opus', 'Haiku', 'Sonnet'], focused: true, chosen: ['Opus', 'Haiku'] },
 		});
 	});
 
