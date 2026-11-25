@@ -14456,9 +14456,11 @@ export class CopilotAgentSession extends Disposable {
 		if (!turn) {
 			return;
 		}
-		if (update.part) {
-			this._beginToolCallRound(undefined);
-			this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part: update.part }, undefined, trustedRootTurn);
+		for (const part of [update.passModel, update.part]) {
+			if (part) {
+				this._beginToolCallRound(undefined);
+				this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part }, undefined, trustedRootTurn);
+			}
 		}
 		if (update.phase) {
 			const { toolCall, isNew, presentation } = update.phase;

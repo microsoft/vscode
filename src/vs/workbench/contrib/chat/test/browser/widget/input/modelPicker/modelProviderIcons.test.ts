@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
-import { getCompactModelPickerIcon, getModelPickerIcon, getModelProviderIcon } from '../../../../../browser/widget/input/modelPicker/modelProviderIcons.js';
+import { getCompactModelPickerIcon, getModelPickerIcon, getModelProviderIcon, getModelProviderLogo } from '../../../../../browser/widget/input/modelPicker/modelProviderIcons.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
 function createModel(id: string, name: string, vendor = 'copilot', metadata?: Partial<ILanguageModelChatMetadata>): ILanguageModelChatMetadataAndIdentifier {
@@ -65,6 +65,27 @@ suite('ModelProviderIcons', () => {
 			'chat-model-provider-generic',
 			'chat-model-provider-generic',
 			'chat-model-provider-generic',
+		]);
+	});
+
+	test('resolves the provider logo of a model reported by name', () => {
+		const registered = createModel('claude-fable-5.2', 'Fable 5.2', 'agent-host-copilotcli');
+		const byok = createModel('claude-sonnet-5', 'Claude Sonnet 5', 'anthropic', { isBYOK: true });
+
+		assert.deepStrictEqual([
+			getModelProviderLogo('Fable 5.2', registered.identifier, registered.metadata)?.id,
+			getModelProviderLogo('Claude Sonnet 5', byok.identifier, byok.metadata)?.id,
+			getModelProviderLogo('Fable 5.2', 'agent-host-copilotcli:claude-fable-5.2', undefined)?.id,
+			getModelProviderLogo('MAI-DS-R1', undefined, undefined)?.id,
+			getModelProviderLogo('DeepSeek V4 Pro', 'agent-host-copilotcli:deepseek-v4-pro', undefined)?.id,
+			getModelProviderLogo('Copilot Fusion', 'agent-host-copilotcli:fusion', undefined)?.id,
+		], [
+			'chat-model-provider-claude',
+			undefined,
+			'chat-model-provider-claude',
+			'chat-model-provider-microsoft',
+			undefined,
+			'chat-model-provider-copilot',
 		]);
 	});
 

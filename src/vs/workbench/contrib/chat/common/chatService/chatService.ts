@@ -368,6 +368,8 @@ export interface IChatSystemNotificationPart {
 	workspaceName?: string;
 	/** Complete accessible description for non-visual presentation and announcements. */
 	accessibilityLabel?: string;
+	/** The model the notification names. Its name is part of the content, where the logo of its provider can lead it. */
+	model?: { readonly id: string; readonly name: string };
 }
 
 export interface IChatTask extends IChatTaskDto {

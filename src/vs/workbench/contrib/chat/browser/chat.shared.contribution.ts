@@ -2604,6 +2604,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.subagents.showCreditUsage', "Controls whether AI credit usage is shown next to the duration for subagents."),
 			default: false,
 		},
+		[ChatConfiguration.ModelLogos]: {
+			type: 'boolean',
+			description: nls.localize('chat.modelLogos.enabled', "Controls whether chat shows the logo of a model's provider where it names the model at work: on subagents, and when Auto, Copilot Fusion or a model router picks a model. When enabled, Copilot Fusion also names the model it picks at High and Max effort."),
+			default: product.quality !== 'stable',
+			tags: ['experimental'],
+		},
 		[ChatConfiguration.TerminalAgentHostEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.terminal.agentHost.enabled', "Controls whether Terminal Chat is backed by the Agent Host instead of the extension host. Applied on startup."),

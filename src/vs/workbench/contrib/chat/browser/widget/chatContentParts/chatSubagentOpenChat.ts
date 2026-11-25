@@ -45,6 +45,8 @@ import { AUTO_RAW_MODEL_ID, ILanguageModelsService } from '../../../common/langu
 import { IChatWidgetService } from '../../chat.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import { getModelConfigDisplayValues, getModelConfigProperty, getModelConfigValueLabel, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from '../input/modelPicker/modelPickerModelConfig.js';
+import { getModelProviderLogo } from '../input/modelPicker/modelProviderIcons.js';
+import { createModelProviderLogo, observeModelLogosEnabled, setModelProviderLogo } from './chatModelProviderLogo.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { getCompactCodicon } from '../../chatIcons.js';
@@ -347,6 +349,10 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	private _agentTypeElement: HTMLElement | undefined;
 	private _pillContentElement: HTMLElement | undefined;
 	private _modelElement: HTMLElement | undefined;
+	private _modelIconElement: HTMLElement | undefined;
+	private _modelNameElement: HTMLElement | undefined;
+	private _renderedModelLogo: ThemeIcon | undefined;
+	private readonly _modelLogosEnabled: IObservable<boolean>;
 	private _creditsElement: HTMLElement | undefined;
 	private _durationElement: HTMLElement | undefined;
 	private _activeToolElement: HTMLElement | undefined;
@@ -408,9 +414,12 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		const modelsChanged = OpenSubagentChatActionViewItem.modelChanges.get(languageModelsService)
 			?? observableSignalFromEvent('subagentModelsChanged', languageModelsService.onDidChangeLanguageModels);
 		OpenSubagentChatActionViewItem.modelChanges.set(languageModelsService, modelsChanged);
+		this._modelLogosEnabled = observeModelLogosEnabled(configurationService);
 		this._register(autorun(reader => {
 			modelsChanged.read(reader);
+			this._modelLogosEnabled.read(reader);
 			this._updateModelConfiguration();
+			this._updateModelLogo();
 			this.updateTooltip();
 		}));
 	}
@@ -426,6 +435,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._agentTypeElement = $('span.chat-subagent-pill-agent-type.hidden');
 		this._labelElement = $('span.chat-subagent-pill-label');
 		this._modelElement = $('span.chat-subagent-pill-model.hidden');
+		this._modelIconElement = createModelProviderLogo();
+		this._modelNameElement = $('span.chat-subagent-pill-model-name');
+		this._modelElement.append(this._modelIconElement, this._modelNameElement);
 		this._failureLabelElement = $('span.chat-subagent-pill-failure.hidden');
 		this._failureLabelElement.textContent = localize('chat.subagent.failed', "Failed");
 		this._failureLabelElement.setAttribute('aria-hidden', 'true');
@@ -599,10 +611,28 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 
 	private _setModelName(modelName: string | undefined): void {
-		if (this._modelElement) {
-			this._modelElement.textContent = modelName ?? '';
+		if (this._modelElement && this._modelNameElement) {
+			this._modelNameElement.textContent = modelName ?? '';
 			this._modelElement.classList.toggle('hidden', !modelName);
 		}
+		this._updateModelLogo();
+	}
+
+	/** Shows the logo of the model's provider beside the model's name, when the provider has one and chat shows model logos. */
+	private _updateModelLogo(): void {
+		if (!this._modelIconElement) {
+			return;
+		}
+		const modelName = this._reportedModelName;
+		const modelId = this.pillContext?.modelId;
+		const logo = modelName && this._modelLogosEnabled.get()
+			? getModelProviderLogo(modelName, modelId, modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined)
+			: undefined;
+		if (logo?.id === this._renderedModelLogo?.id) {
+			return;
+		}
+		this._renderedModelLogo = logo;
+		setModelProviderLogo(this._modelIconElement, logo);
 	}
 
 	private _updateModelConfiguration(): void {

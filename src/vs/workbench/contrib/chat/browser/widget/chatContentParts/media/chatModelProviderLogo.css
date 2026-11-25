@@ -1,0 +1,72 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The logo of a model's provider, beside the model's name. It keeps its full strength beside muted text.
+	The element is named as well to outrank `.monaco-workbench .codicon[class*='codicon-']`, which
+	otherwise resets the logo to the workbench's base codicon size. */
+.monaco-workbench span.chat-model-provider-logo.codicon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size120);
+	height: var(--vscode-spacing-size120);
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-icon-foreground);
+}
+
+.chat-model-provider-logo.hidden {
+	display: none;
+}
+
+/* Providers whose brand has colors show their logo artwork in place of the single-color glyph. */
+.monaco-workbench .chat-model-provider-logo:is(.codicon-chat-model-provider-claude, .codicon-chat-model-provider-gemini, .codicon-chat-model-provider-microsoft) {
+	background: center / contain no-repeat;
+}
+
+.monaco-workbench .chat-model-provider-logo:is(.codicon-chat-model-provider-claude, .codicon-chat-model-provider-gemini, .codicon-chat-model-provider-microsoft)::before {
+	visibility: hidden;
+}
+
+.monaco-workbench .chat-model-provider-logo.codicon-chat-model-provider-claude {
+	background-image: url('./model-provider-claude.svg');
+}
+
+.monaco-workbench .chat-model-provider-logo.codicon-chat-model-provider-gemini {
+	background-image: url('./model-provider-gemini.svg');
+}
+
+.monaco-workbench .chat-model-provider-logo.codicon-chat-model-provider-microsoft {
+	background-image: url('./model-provider-microsoft.svg');
+}
+
+/* High contrast themes keep the glyph, which takes the theme's icon color. */
+.monaco-workbench:is(.hc-black, .hc-light) .chat-model-provider-logo:is(.codicon-chat-model-provider-claude, .codicon-chat-model-provider-gemini, .codicon-chat-model-provider-microsoft) {
+	background-image: none;
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .chat-model-provider-logo:is(.codicon-chat-model-provider-claude, .codicon-chat-model-provider-gemini, .codicon-chat-model-provider-microsoft)::before {
+	visibility: visible;
+}
+
+/* A routing row leads with the logo of the model it names, on the row's first line. */
+.interactive-session .chat-used-context-label .monaco-button > .chat-model-provider-logo {
+	align-self: flex-start;
+	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size40) 0 0;
+}
+
+/* The row already spaces its items once it shows its checkmark. */
+.interactive-session .chat-used-context.show-checkmarks .chat-used-context-label .monaco-button > .chat-model-provider-logo {
+	margin-right: 0;
+}
+
+/* Inside a sentence, the logo leads the model's name, and the two stay on one line. */
+.interactive-session .chat-model-provider-name {
+	white-space: nowrap;
+}
+
+.interactive-session .chat-model-provider-name > span.chat-model-provider-logo.codicon {
+	margin: 0 var(--vscode-spacing-size40) 0 0;
+}

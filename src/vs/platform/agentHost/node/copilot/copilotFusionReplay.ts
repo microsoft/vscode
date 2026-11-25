@@ -125,6 +125,9 @@ export class FusionReplayState {
 		const update = this._progress.accept(event);
 		if (!event.ephemeral) {
 			this._append(update);
+		} else if (update?.passModel) {
+			// A pass is named once, so a start record that names it is kept: its durable completion will not name it again.
+			this._append({ activity: undefined, passModel: update.passModel });
 		}
 	}
 
@@ -152,6 +155,9 @@ export class FusionReplayState {
 			return false;
 		}
 		for (const update of this._updates.splice(0)) {
+			if (update.passModel) {
+				parts.push(update.passModel);
+			}
 			if (update.part) {
 				parts.push(update.part);
 			}
@@ -170,7 +176,7 @@ export class FusionReplayState {
 	}
 
 	private _append(update: ICopilotFusionProgressUpdate | undefined): void {
-		if (update && (update.part || update.phase)) {
+		if (update && (update.part || update.passModel || update.phase)) {
 			this._updates.push(update);
 		}
 	}

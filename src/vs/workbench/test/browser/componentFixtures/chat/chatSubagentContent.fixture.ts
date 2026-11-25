@@ -37,9 +37,12 @@ import { registerChatFixtureServices, registerSubagentFixtureServices } from './
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
-type FusionFixtureState = 'fusion-routing' | 'fusion-single' | 'fusion-cascade' | 'fusion-critique' | 'fusion-failed' | 'fusion-cancelled' | 'fusion-permission';
+/** One model per provider logo, and a provider that has none. */
+const providerModels = ['GPT-5.6 Sol', 'Claude Sonnet 4.6', 'Gemini 3.1 Pro', 'MAI-DS-R1', 'Grok 4.5', 'Kimi K2.5', 'DeepSeek V4 Pro'];
 
-async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | 'inline' | 'inline-expanded' | 'nested' | 'nested-unavailable' | 'references' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
+type FusionFixtureState = 'fusion-routing' | 'fusion-single' | 'fusion-cascade' | 'fusion-cascade-logos' | 'fusion-critique' | 'fusion-failed' | 'fusion-cancelled' | 'fusion-permission';
+
+async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'models' | 'thinking' | 'parent-complete' | 'inline' | 'inline-expanded' | 'nested' | 'nested-unavailable' | 'references' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = 620;
 	const instantiationService = createEditorServices(disposableStore, {
@@ -87,6 +90,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, thinkingStyle);
 	}
 	configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+	configurationService.setUserConfiguration(ChatConfiguration.ModelLogos, state === 'models' || state === 'fusion-cascade-logos');
 	const action = instantiationService.createInstance(
 		MenuItemAction,
 		{ id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, title: 'Open Subagent' },
@@ -155,10 +159,18 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			publisher.publish([{ kind: 'progressMessage', content: new MarkdownString('Choosing a HydraFusion workflow...') }]);
 			return;
 		}
-		const pattern = state === 'fusion-cascade' ? 'Cascade' : state === 'fusion-critique' ? 'Critique' : 'Single';
+		const pattern = state === 'fusion-cascade' || state === 'fusion-cascade-logos' ? 'Cascade' : state === 'fusion-critique' ? 'Critique' : 'Single';
 		const phases = pattern === 'Cascade' ? ['Main pass', 'Review pass', 'Fix-up pass']
 			: pattern === 'Critique' ? ['First pass', 'Critique pass', 'Revision pass'] : ['Main pass'];
+		if (state === 'fusion-cascade-logos') {
+			// The main pass writes into the chat, so a routing row names its model in place of a pill.
+			publisher.publish([{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' }, fusion: true }]);
+			publisher.publish([{ kind: 'markdownContent', content: new MarkdownString('I refactored the retry loop.') }]);
+		}
 		for (const [index, label] of phases.entries()) {
+			if (state === 'fusion-cascade-logos' && index === 0) {
+				continue;
+			}
 			const status = state === 'fusion-failed' ? 'failed' : state === 'fusion-cancelled' ? 'cancelled'
 				: index === phases.length - 1 ? 'running' : 'succeeded';
 			const phaseModel = index === 1 || pattern === 'Cascade' && index === 2 ? 'Claude Sonnet 4.6' : 'GPT-5.6 Sol';
@@ -230,9 +242,10 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		}
 		return;
 	}
-	publisher.publish([{ kind: 'markdownContent', content: new MarkdownString('Starting two read-only reviews. Other work can continue while they initialize.') }]);
+	publisher.publish([{ kind: 'markdownContent', content: new MarkdownString(state === 'models' ? 'Starting one read-only review per model.' : 'Starting two read-only reviews. Other work can continue while they initialize.') }]);
 	const launches: ChatToolInvocation[] = [];
-	for (const [index, description] of ['Review child chat lifecycle', 'Review state and history'].entries()) {
+	const descriptions = state === 'models' ? providerModels.map(() => 'Review the changes') : ['Review child chat lifecycle', 'Review state and history'];
+	for (const [index, description] of descriptions.entries()) {
 		const data: IChatSubagentToolInvocationData = {
 			kind: 'subagent',
 			hasStarted: false,
@@ -241,6 +254,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			agentName: 'code-review',
 			isChatAvailable: state === 'initializing',
 			isActive: false,
+			modelName: state === 'models' ? providerModels[index] : undefined,
 		};
 		const invocation = new ChatToolInvocation(
 			{ invocationMessage: 'Delegating review', toolSpecificData: data },
@@ -326,6 +340,10 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			`search-${invocation.toolCallId}`, invocation.toolCallId, undefined,
 		)]);
 	};
+	if (state === 'models') {
+		launches.forEach(start);
+		return;
+	}
 	const controls = dom.append(container, dom.$('.subagent-startup-controls'));
 	for (const [index, invocation] of launches.entries()) {
 		const button = disposableStore.add(new Button(controls, defaultButtonStyles));
@@ -348,6 +366,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	FusionRouting: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-routing') }),
 	FusionSingle: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-single') }),
 	FusionCascade: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-cascade') }),
+	FusionCascadeModelLogos: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-cascade-logos') }),
 	FusionCritique: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-critique') }),
 	FusionFailed: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-failed') }),
 	FusionCancelled: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-cancelled') }),
@@ -355,6 +374,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Pending: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'pending') }),
 	Initializing: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'initializing') }),
 	Running: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'running') }),
+	ProviderModels: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'models') }),
 	NestedSubagent: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'nested') }),
 	NestedSubagentUnavailable: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'nested-unavailable') }),
 	Inline: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'inline') }),

@@ -78,6 +78,7 @@ export const enum AgentSystemNotificationSeverity {
 export type AgentFusionProgressStatus = 'selected' | 'completed' | 'failed' | 'cancelled' | 'degraded';
 const fusionStatuses: ReadonlySet<string> = new Set(['selected', 'completed', 'failed', 'cancelled', 'degraded']);
 const VSCODE_FUSION_MODEL_META_KEY = 'vscode.chat.fusionModel';
+const VSCODE_FUSION_PASS_MODEL_META_KEY = 'vscode.chat.fusionPassModel';
 
 const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.FusionProgress,
@@ -110,6 +111,11 @@ export interface IAgentSystemNotificationMeta {
 	readonly fusionStatus?: AgentFusionProgressStatus;
 	/** The HydraFusion model that ran the workflow, e.g. HydraFusion Max, for turns that don't name it themselves. */
 	readonly fusionModel?: string;
+	/**
+	 * The concrete model that runs the workflow's own pass, the one that writes into the chat, from this milestone on.
+	 * A `selected` milestone only announces the model. A `degraded` one reports that routing failed and fell back to it.
+	 */
+	readonly fusionPassModel?: string;
 	/** The hook a {@link AgentSystemNotificationKind.Hook} notification reports. */
 	readonly hook?: IAgentSystemNotificationHookMeta;
 }
@@ -130,6 +136,7 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 	const workspaceKind = meta.workspaceKind;
 	const fusionStatus = meta.fusionStatus;
 	const fusionModel = meta[VSCODE_FUSION_MODEL_META_KEY];
+	const fusionPassModel = meta[VSCODE_FUSION_PASS_MODEL_META_KEY];
 	const hook = readHookMeta(meta.hook);
 	return {
 		kind: typeof kind === 'string' && knownKinds.has(kind) ? kind as AgentSystemNotificationKind : undefined,
@@ -138,6 +145,7 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 		workspaceName: typeof meta.workspaceName === 'string' ? meta.workspaceName : undefined,
 		fusionStatus: typeof fusionStatus === 'string' && fusionStatuses.has(fusionStatus) ? fusionStatus as AgentFusionProgressStatus : undefined,
 		...(typeof fusionModel === 'string' && fusionModel ? { fusionModel } : {}),
+		...(typeof fusionPassModel === 'string' && fusionPassModel ? { fusionPassModel } : {}),
 		...(hook ? { hook } : {}),
 	};
 }
@@ -160,10 +168,11 @@ function readHookMeta(value: unknown): IAgentSystemNotificationHookMeta | undefi
 
 /** Serializes Agent Host system-notification metadata for the open protocol bag. */
 export function toAgentSystemNotificationMeta(meta: IAgentSystemNotificationMeta): Record<string, unknown> {
-	const { fusionModel, ...rest } = meta;
+	const { fusionModel, fusionPassModel, ...rest } = meta;
 	return {
 		...rest,
 		...(fusionModel !== undefined ? { [VSCODE_FUSION_MODEL_META_KEY]: fusionModel } : {}),
+		...(fusionPassModel !== undefined ? { [VSCODE_FUSION_PASS_MODEL_META_KEY]: fusionPassModel } : {}),
 	};
 }
 

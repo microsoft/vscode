@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { autorun } from '../../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -10,7 +11,9 @@ import { autoModeRoutingHover, autoModeRoutingTitle } from '../../../common/chat
 import { IChatAutoModeResolutionPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
+import { getModelProviderLogo } from '../input/modelPicker/modelProviderIcons.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
+import { createModelProviderLogo, observeModelLogosEnabled } from './chatModelProviderLogo.js';
 import { ChatThinkingStyleContentPart } from './chatThinkingStyleContentPart.js';
 
 /**
@@ -46,8 +49,22 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 		if (this.isRouting) {
 			this.setShimmerTitle(autoModeRoutingTitle(content));
 		}
+		const collapseButton = this._collapseButton;
+		const logo = content.resolved && getModelProviderLogo(content.resolved.name, content.resolved.id, undefined);
+		if (logo && collapseButton) {
+			// The logo leads the row, because the routing service can write the sentence that names the model.
+			const logoElement = createModelProviderLogo(logo);
+			const logosEnabled = observeModelLogosEnabled(configurationService);
+			this._register(autorun(reader => {
+				if (logosEnabled.read(reader)) {
+					collapseButton.element.insertBefore(logoElement, collapseButton.labelElement);
+				} else {
+					logoElement.remove();
+				}
+			}));
+		}
 		const reason = autoModeRoutingHover(content);
-		const button = this._collapseButton?.element;
+		const button = collapseButton?.element;
 		if (reason && button) {
 			// The hover holds the reason, so the line joins the tab order and Enter or Space can show it.
 			button.tabIndex = 0;

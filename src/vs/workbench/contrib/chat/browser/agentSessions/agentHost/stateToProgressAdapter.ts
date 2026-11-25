@@ -711,7 +711,7 @@ export function isSubagentToolName(toolName: string): boolean {
  * retry path, the failure is shown without a Retry link.
  * @param showHookFailures Whether hook failures are shown, from `chat.hooks.showWarnings`.
  */
-export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget, showHookFailures = false): IChatProgress | undefined {
+export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget, showHookFailures = false, lookup?: Pick<TurnModelLookup, 'toFusionPassResolution'>): IChatProgress | undefined {
 	const meta = readAgentSystemNotificationMeta({ _meta });
 	if (meta.kind === AgentSystemNotificationKind.ResponseRoundEnded) {
 		// The chat model already treats an empty thinking chunk as the end of a thinking section.
@@ -744,17 +744,22 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	}
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
-			// The workflow selection only names the HydraFusion model for the response footer; it is not shown.
+			// A selection names the HydraFusion model for the response footer and the model of the workflow's own pass for its routing row; it is not shown itself.
 			if (meta.fusionStatus === 'selected') {
 				return undefined;
 			}
+			// The host names the fallback of a failed routing by its id. Where the chat names models, the notice reads with the model's name.
+			const fallback = meta.fusionStatus === 'degraded' && meta.fusionPassModel ? lookup?.toFusionPassResolution?.(meta.fusionPassModel)?.resolved : undefined;
 			return {
 				kind: 'systemNotification',
-				content: markdown,
+				content: fallback
+					? new MarkdownString(escapeHostText(localize('agentHost.fusionRouteFailed', "Copilot Fusion routing failed; continuing with {0}", fallback.name)))
+					: markdown,
 				collapsible: true,
 				icon: meta.fusionStatus === 'failed' ? Codicon.error
 					: meta.fusionStatus === 'cancelled' ? Codicon.circleSlash
 						: meta.fusionStatus === 'degraded' ? Codicon.warning : Codicon.check,
+				...(fallback ? { model: { id: fallback.id, name: fallback.name } } : {}),
 			};
 		}
 		case AgentSystemNotificationKind.ByokToolLimitExceeded:
@@ -961,6 +966,11 @@ export interface TurnModelLookup {
 	 */
 	toAutoModeResolution?(usage: UsageInfo | undefined, settlesPendingRow?: boolean, previousRouted?: IModelRoutedInfo): IChatAutoModeResolutionPart | undefined;
 	/**
+	 * Returns the routing part for a model that a Copilot Fusion workflow runs its own pass on,
+	 * or none where the chat does not name that model.
+	 */
+	toFusionPassResolution?(rawModelId: string): IChatAutoModeResolutionPart | undefined;
+	/**
 	 * Returns the identity and display name of the model a turn bills to, reading Auto's pick
 	 * when it routed and folding back to "Auto" while explainability is hidden.
 	 */
@@ -1046,6 +1056,48 @@ export function previousModelRouted(turns: readonly Turn[], turnId: string): IMo
 		}
 	}
 	return undefined;
+}
+
+/**
+ * The models that a turn's Copilot Fusion milestones name for the workflow's own pass, the one that
+ * writes into the chat. `rows` are the models a routing row has to name: each model once per change,
+ * counted from `previousModel`, the model the turn before ended on. A model that a notice of its own
+ * names, such as the fallback of a failed routing, needs no row. `last` is the model the turn ended on.
+ */
+export function fusionPassModels(parts: readonly ResponsePart[], previousModel?: string): { readonly rows: readonly string[]; readonly last: string | undefined } {
+	const rows: string[] = [];
+	let current = previousModel;
+	let last: string | undefined;
+	for (const part of parts) {
+		if (part.kind !== ResponsePartKind.SystemNotification) {
+			continue;
+		}
+		const meta = readAgentSystemNotificationMeta(part);
+		const model = meta.kind === AgentSystemNotificationKind.FusionProgress ? meta.fusionPassModel : undefined;
+		if (!model) {
+			continue;
+		}
+		last = model;
+		if (model !== current) {
+			current = model;
+			if (meta.fusionStatus === 'selected') {
+				rows.push(model);
+			}
+		}
+	}
+	return { rows, last };
+}
+
+/** The model that the turn before `turnId` ended its Copilot Fusion workflow on. */
+export function previousFusionPassModel(turns: readonly Turn[], turnId: string): string | undefined {
+	const index = turns.findIndex(turn => turn.id === turnId);
+	const previous = turns.at((index < 0 ? turns.length : index) - 1);
+	return index === 0 ? undefined : previous && fusionPassModels(previous.responseParts).last;
+}
+
+/** The routing parts for the models a turn's Copilot Fusion workflow ran its own passes on. */
+export function fusionPassResolutions(parts: readonly ResponsePart[], previousModel: string | undefined, lookup: TurnModelLookup | undefined): IChatAutoModeResolutionPart[] {
+	return fusionPassModels(parts, previousModel).rows.flatMap(model => lookup?.toFusionPassResolution?.(model) ?? []);
 }
 
 /**
@@ -1421,6 +1473,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage, managedPluginRetry?: IAgentHostManagedPluginRetryTarget, showHookFailures = false): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	let previousRouted: IModelRoutedInfo | undefined;
+	let previousFusionPass: string | undefined;
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
 		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId);
@@ -1469,6 +1522,8 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			parts.push(autoModeResolution);
 		}
 		previousRouted = readUsageInfoMeta(turn.usage).modelRouted ?? previousRouted;
+		parts.push(...fusionPassResolutions(turn.responseParts, previousFusionPass, turnLookup));
+		previousFusionPass = fusionPassModels(turn.responseParts).last;
 
 		const usage = usageInfoToChatUsage(turn.usage, turnLookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
 		if (usage) {
@@ -1508,7 +1563,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					break;
 				case ResponsePartKind.SystemNotification:
 					{
-						const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry, showHookFailures);
+						const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry, showHookFailures, turnLookup);
 						if (progress) {
 							parts.push(progress);
 						}
@@ -1985,7 +2040,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 			}
 			case ResponsePartKind.SystemNotification:
 				{
-					const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry, showHookFailures);
+					const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry, showHookFailures, lookup);
 					if (progress) {
 						parts.push(progress);
 					}

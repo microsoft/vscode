@@ -10909,6 +10909,55 @@ suite('AgentHostChatContribution', () => {
 			});
 		}));
 
+		test('a Copilot Fusion workflow names the model of its own pass once per change, above its activity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+				['agent-host-copilot:gpt-5.5', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.5' })],
+			]);
+			const runTurn = async (showModelLogos: boolean, hideAutoExplainability: boolean) => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels, hideAutoExplainability, configOverrides: { [ChatConfiguration.ModelLogos]: showModelLogos } });
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				const milestone = (fusionStatus: 'selected' | 'degraded', fusionPassModel: string) => fire({
+					type: 'chat/responsePart', session, turnId,
+					part: {
+						kind: ResponsePartKind.SystemNotification, content: 'Routing failed',
+						_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus, fusionPassModel }),
+					},
+				} as ChatAction);
+				fire({ type: 'chat/activityChanged', activity: 'Choosing a workflow' } as ChatAction);
+				milestone('selected', 'gpt-5.4-mini');
+				// The pass that follows runs on the model the workflow chose.
+				milestone('selected', 'gpt-5.4-mini');
+				fire({ type: 'chat/activityChanged', activity: 'Main pass running' } as ChatAction);
+				milestone('degraded', 'gpt-5.5');
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+				const shown = collected.flat().flatMap(part => part.kind === 'autoModeResolution' ? [autoModeRoutingTitle(part)]
+					: part.kind === 'progressMessage' ? [part.remove ? 'activity removed' : `activity: ${textOf(part.content)?.replaceAll('&nbsp;', ' ')}`]
+						: part.kind === 'systemNotification' ? [`notice: ${part.content.value}`] : []);
+				// The activity row is updated in place whenever the response changes.
+				return shown.filter((entry, index) => entry !== shown[index - 1]);
+			};
+
+			assert.deepStrictEqual({
+				shown: await runTurn(true, false),
+				withoutModelLogos: await runTurn(false, false),
+				withoutAutoExplainability: await runTurn(true, true),
+			}, {
+				shown: [
+					'activity: Choosing a workflow',
+					'activity removed',
+					'Copilot Fusion routed task to GPT-5.4 mini',
+					'activity: Choosing a workflow',
+					'activity: Main pass running',
+					'notice: Copilot Fusion routing failed; continuing with GPT-5.5',
+					'activity: Main pass running',
+				],
+				withoutModelLogos: ['activity: Choosing a workflow', 'activity: Main pass running', 'notice: Routing failed', 'activity: Main pass running'],
+				withoutAutoExplainability: ['activity: Choosing a workflow', 'activity: Main pass running', 'notice: Routing failed', 'activity: Main pass running'],
+			});
+		}));
+
 		test('Auto routing does not show an unresolved part for a host-handled slash command', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Auto' })],
@@ -21247,6 +21296,37 @@ suite('AgentHostChatContribution', () => {
 			const notifications = (session.progressObs?.get() ?? []).filter(part => part.kind === 'systemNotification');
 			assert.deepStrictEqual(notifications.map(part => part.content.value), ['Background command completed']);
 		});
+
+		test('names the model of a Copilot Fusion pass once when reconnecting, and again when the pass moves to another model', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+				['agent-host-copilot:gpt-5.5', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.5' })],
+			]);
+			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, configOverrides: { [ChatConfiguration.ModelLogos]: true } });
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-fusion-pass');
+			const selected = (fusionPassModel: string) => ({
+				kind: ResponsePartKind.SystemNotification as const, content: 'Selected Cascade workflow',
+				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected', fusionPassModel }),
+			});
+			const state = makeSessionStateWithActiveTurn(sessionUri.toString());
+			agentHostService.sessionStates.set(sessionUri.toString(), { ...state, activeTurn: { ...state.activeTurn!, responseParts: [selected('gpt-5.4-mini'), ...state.activeTurn!.responseParts] } });
+
+			const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-fusion-pass' }), CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			const rows = () => (session.progressObs?.get() ?? []).flatMap(part => part.kind === 'autoModeResolution' ? [autoModeRoutingTitle(part)] : []);
+			const joined = rows();
+			agentHostService.fireAction({
+				channel: sessionUri.toString(), action: { type: 'chat/responsePart', turnId: 'turn-active', part: selected('gpt-5.5') } as ChatAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual({ joined, moved: rows() }, {
+				joined: ['Copilot Fusion routed task to GPT-5.4 mini'],
+				moved: ['Copilot Fusion routed task to GPT-5.4 mini', 'Copilot Fusion routed task to GPT-5.5'],
+			});
+		}));
 
 		test('provides interruptActiveResponseCallback when reconnecting', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);

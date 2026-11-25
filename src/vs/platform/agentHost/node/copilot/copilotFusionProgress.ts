@@ -104,6 +104,8 @@ export function isProvisionalFusionConversationEvent(event: SessionEvent): boole
 
 export interface ICopilotFusionProgressUpdate {
 	readonly activity: string | undefined;
+	/** Names the model of the pass that now writes into the chat. It goes before {@link part}. */
+	readonly passModel?: SystemNotificationResponsePart;
 	readonly part?: SystemNotificationResponsePart;
 	readonly phase?: {
 		readonly toolCall: ToolCallRunningState | ToolCallCompletedState;
@@ -135,7 +137,7 @@ function phaseLabel(kind: FusionPhase['phaseKind'], pattern: FusionPhase['patter
 	}
 }
 
-function milestone(summary: string, status: AgentFusionProgressStatus, fusionModel: string | undefined, details?: string): SystemNotificationResponsePart {
+function milestone(summary: string, status: AgentFusionProgressStatus, fusionModel: string | undefined, details?: string, fusionPassModel?: string): SystemNotificationResponsePart {
 	const content = new MarkdownString().appendText(summary);
 	if (details) {
 		content.appendMarkdown('\n\n').appendText(details);
@@ -147,6 +149,7 @@ function milestone(summary: string, status: AgentFusionProgressStatus, fusionMod
 			kind: AgentSystemNotificationKind.FusionProgress,
 			fusionStatus: status,
 			fusionModel,
+			fusionPassModel,
 		}),
 	};
 }
@@ -159,6 +162,8 @@ export class CopilotFusionProgress {
 	private _fusionId: string | undefined;
 	/** The HydraFusion model the runtime routed with, kept for milestones whose event doesn't name it. */
 	private _syntheticModel: string | undefined;
+	/** The model last named for the pass that writes into the chat, so that each change is named once. */
+	private _passModel: string | undefined;
 	private _phase: FusionPhase | undefined;
 	private _activity: string | undefined;
 	private _inFlight = false;
@@ -188,7 +193,7 @@ export class CopilotFusionProgress {
 	reset(): void {
 		this._milestones.clear();
 		this._finishedFusions.clear();
-		this._attemptId = this._fusionId = this._syntheticModel = undefined;
+		this._attemptId = this._fusionId = this._syntheticModel = this._passModel = undefined;
 		this._phase = undefined;
 		this._activity = undefined;
 		this._inFlight = false;
@@ -234,6 +239,7 @@ export class CopilotFusionProgress {
 			return undefined;
 		}
 		let part: SystemNotificationResponsePart | undefined;
+		let passModel: SystemNotificationResponsePart | undefined;
 		let phase: ICopilotFusionProgressUpdate['phase'];
 		switch (event.type) {
 			case 'session.fusion_route_started':
@@ -253,8 +259,9 @@ export class CopilotFusionProgress {
 				this._fusionId = d.fusionId;
 				this._syntheticModel = d.syntheticModel;
 				this._patterns.set(d.fusionId, d.pattern);
-				// The runtime's workflow hint (e.g. "Using Single: ...") is not shown; the milestone only names the HydraFusion model.
-				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', d.syntheticModel);
+				this._passModel = d.primaryModel;
+				// The runtime's workflow hint (e.g. "Using Single: ...") is not shown; the milestone names the HydraFusion model and the model of the workflow's own pass.
+				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', d.syntheticModel, undefined, d.primaryModel);
 				const streamsAsOrdinaryTurn = d.pattern === 'single' && Array.isArray(d.phasePlan) && d.phasePlan.length === 0;
 				this._activity = streamsAsOrdinaryTurn ? undefined : localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
 				break;
@@ -270,6 +277,7 @@ export class CopilotFusionProgress {
 				this._phase = d;
 				this._activity = localize('copilot.fusion.phaseRunning', "{0} running", phaseLabel(d.phaseKind, d.pattern));
 				phase = this._updatePhase(d, 'running', event.timestamp);
+				passModel = this._namePassModel(d);
 				break;
 			}
 			case 'assistant.fusion_phase_activity': {
@@ -294,6 +302,8 @@ export class CopilotFusionProgress {
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				phase = this._updatePhase(d, d.status, event.timestamp, d.durationMs, d.verdict);
+				// A replayed workflow has no start record, so its pass is named here.
+				passModel = this._namePassModel(d);
 				part = phase.outcome;
 				this._phase = undefined;
 				this._activity = d.status === 'succeeded' ? localize('copilot.fusion.continuing', "Continuing the Copilot Fusion workflow...") : undefined;
@@ -307,6 +317,7 @@ export class CopilotFusionProgress {
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				phase = this._updatePhase(d, d.status, event.timestamp, d.durationMs);
+				passModel = this._namePassModel(d);
 				part = phase.outcome;
 				this._phase = undefined;
 				this._activity = d.degradedToPhaseId ? localize('copilot.fusion.fallback', "Continuing with a fallback phase...") : undefined;
@@ -317,7 +328,8 @@ export class CopilotFusionProgress {
 					return undefined;
 				}
 				this._inFlight = true;
-				part = milestone(localize('copilot.fusion.routeFailed', "Copilot Fusion routing failed; continuing with {0}", event.data.fallbackModel), 'degraded', event.data.syntheticModel);
+				this._passModel = event.data.fallbackModel;
+				part = milestone(localize('copilot.fusion.routeFailed', "Copilot Fusion routing failed; continuing with {0}", event.data.fallbackModel), 'degraded', event.data.syntheticModel, undefined, event.data.fallbackModel);
 				this._activity = undefined;
 				break;
 			case 'session.fusion_completed': {
@@ -336,7 +348,17 @@ export class CopilotFusionProgress {
 				break;
 			}
 		}
-		return { part, phase, activity: this._activity };
+		return { part, passModel, phase, activity: this._activity };
+	}
+
+	/** Names the model of a pass that writes into the chat, unless the turn already named that model for the pass before it. */
+	private _namePassModel(data: Pick<FusionPhase, 'fusionId' | 'phaseKind' | 'model'>): SystemNotificationResponsePart | undefined {
+		if (getFusionPhasePresentation(data.phaseKind) !== 'inline' || !data.model || data.model === this._passModel) {
+			return undefined;
+		}
+		this._passModel = data.model;
+		const label = phaseLabel(data.phaseKind, this._patterns.get(data.fusionId));
+		return milestone(localize('copilot.fusion.phaseStarted', "{0} started", label), 'selected', this._syntheticModel, undefined, data.model);
 	}
 
 	private _updatePhase(data: Pick<FusionPhase, 'fusionId' | 'phaseId' | 'phaseKind' | 'model'>, status: IFusionPhaseMeta['status'], timestamp: string | undefined, duration?: number, verdict?: string | null): NonNullable<ICopilotFusionProgressUpdate['phase']> {
