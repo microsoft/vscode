@@ -1571,32 +1571,35 @@ suite('MultiEditorTabsControl', () => {
 
 	test('connected fit tabs reallocate filename width to transient actions', async () => {
 		const group = connectedGroup();
-		openNamedEditors(['a-natural-width-label-longer-than-the-short-fit-minimum.ts', 'another-natural-width-label-longer-than-the-short-fit-minimum.ts']);
-		model.openEditor(model.getEditorByIndex(0)!, { active: true });
-		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 		const oldOptions = partOptions;
 		partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: false };
 		control.updateOptions(oldOptions, partOptions);
-		await layoutConnectedGroup(group, 400);
+		const results = [];
+		for (const [name, capped] of [['natural-width-label.ts', false], [`long-label-${'details-'.repeat(20)}.ts`, true]] as const) {
+			openNamedEditors(['short.ts', name]);
+			model.openEditor(model.getEditorByIndex(0)!, { active: true });
+			control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+			await layoutConnectedGroup(group, 1000);
 
-		const tab = container.querySelectorAll<HTMLElement>('.tab')[1];
-		const label = tab.querySelector<HTMLElement>('.tab-label')!;
-		const action = tab.querySelector<HTMLElement>('.action-label')!;
-		tab.style.removeProperty('--tab-sizing-fit-width');
-		const resting = { tab: tab.getBoundingClientRect().width, label: label.getBoundingClientRect().width };
-		hoverTab(1);
-		action.focus();
-		const focused = { tab: tab.getBoundingClientRect().width, label: label.getBoundingClientRect().width };
-
-		assert.deepStrictEqual({
-			stableTabWidth: Math.abs(focused.tab - resting.tab) < 1 / 32,
-			labelYieldedSpace: focused.label < resting.label,
-			fitWidthMatches: Math.abs(parseFloat(tab.style.getPropertyValue('--tab-sizing-fit-width')) - resting.tab) < 1 / 32,
-		}, {
-			stableTabWidth: true,
-			labelYieldedSpace: true,
-			fitWidthMatches: true,
-		}, JSON.stringify({ resting, focused, cache: tab.style.getPropertyValue('--tab-sizing-fit-width') }));
+			const tab = container.querySelectorAll<HTMLElement>('.tab')[1];
+			const label = tab.querySelector<HTMLElement>('.tab-label')!;
+			const action = tab.querySelector<HTMLElement>('.action-label')!;
+			tab.style.removeProperty('--tab-sizing-fit-width');
+			const resting = { tab: tab.getBoundingClientRect().width, label: label.getBoundingClientRect().width };
+			hoverTab(1);
+			action.focus();
+			const focused = { tab: tab.getBoundingClientRect().width, label: label.getBoundingClientRect().width };
+			const cachedWidth = parseFloat(tab.style.getPropertyValue('--tab-sizing-fit-width'));
+			results.push({
+				capped,
+				cacheExceedsCap: cachedWidth > 400,
+				stableTabWidth: Math.abs(focused.tab - resting.tab) < 1 / 32,
+				labelYieldedSpace: focused.label < resting.label,
+				fitWidthMatches: Math.abs(Math.min(cachedWidth, 400) - resting.tab) < 1 / 32,
+			});
+			action.blur();
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, cacheExceedsCap: result.capped, stableTabWidth: true, labelYieldedSpace: true, fitWidthMatches: true })));
 	});
 
 	function openNamedEditors(names: string[]): TestFileEditorInput[] {
