@@ -23,7 +23,7 @@ import { ModelIdentifierResolution } from '../../chat/common/modelSelection.js';
 import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionProject, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
 import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 
 /**
@@ -258,6 +258,19 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 	/** Ordinary saved-draft choices, independent of Automation availability. */
 	readonly draftConfiguration?: ISessionDraftConfiguration;
+	/**
+	 * The workspace to create the session in. Its default folder (the first) must equal the folder the session is
+	 * created for, unless {@link folders} are given. The provider records it on the session's workspace (see
+	 * {@link ISessionWorkspace.project}).
+	 */
+	readonly project?: ISessionProject;
+	/**
+	 * The folders the session works in, the default folder first, which must equal the folder the session is created
+	 * for. The session runs in the default folder, or in its worktree, and the others stay attached as they are. Without
+	 * them, the session works in the {@link project}'s folders, or in its folder alone. A provider whose agent cannot
+	 * work in several folders creates the session in the default folder only.
+	 */
+	readonly folders?: readonly URI[];
 }
 
 /** A detached configuration snapshot with provider-neutral properties and the full provider-specific values. */
@@ -692,6 +705,21 @@ export interface ISessionsProvider {
 	 * @param title The new title for the chat.
 	 */
 	renameChat(sessionId: string, chatUri: URI, title: string): Promise<void>;
+
+	/**
+	 * Adds a folder for a chat to work in, next to the folders it works in already. Only that chat gets the folder; the
+	 * session's other chats keep theirs. Takes effect from the chat's next request. Supported when
+	 * {@link ISessionCapabilities.supportsChatFolders} is set; rejects otherwise, or when the provider refuses the folder.
+	 * @param folder The folder, in the client's URI space.
+	 */
+	addChatFolder?(sessionId: string, chatUri: URI, folder: URI): Promise<void>;
+
+	/**
+	 * Removes a folder a chat works in. The chat's default folder (its first) cannot be removed. Supported when
+	 * {@link ISessionCapabilities.supportsChatFolders} is set.
+	 * @param folder The folder, in the client's URI space.
+	 */
+	removeChatFolder?(sessionId: string, chatUri: URI, folder: URI): Promise<void>;
 
 	/**
 	 * Rename the session itself, independently of its chats. Single-chat

@@ -7610,6 +7610,69 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(activeSessionOf(view), undefined);
 	});
 
+	test('createAndSendNewChatRequest creates a session of several folders in a workspace, after checking every folder is trusted and that the session folder is the default one', async () => {
+		const main = URI.file('/work/vscode');
+		const docs = URI.file('/work/vscode-docs');
+		const project = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [main, docs] };
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const created: (ISessionsProviderCreateSessionOptions | undefined)[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
+				return { uri: folderUri, label: 'vscode', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: true, isVirtualWorkspace: false };
+			}
+			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				created.push(options);
+				return session;
+			}
+			override async sendRequest(): Promise<ISession> { return session; }
+		}(session);
+		const trusted = new Set([main.toString(), docs.toString()]);
+		const trust = new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: trusted.has(uri.toString()) }; }
+		};
+		const { service } = createSessionsManagementService(session, disposables, provider, trust);
+		const outcome = (promise: Promise<unknown>) => promise.then(() => 'created', (error: Error) => error instanceof WorkspaceNotTrustedError ? 'untrusted' : error.message);
+
+		const results = {
+			inWorkspace: await outcome(service.createAndSendNewChatRequest(main, { query: 'hi' }, { project })),
+			someFolders: await outcome(service.createAndSendNewChatRequest(docs, { query: 'hi' }, { project, folders: [docs] })),
+			notDefault: await outcome(service.createAndSendNewChatRequest(docs, { query: 'hi' }, { project })),
+			untrusted: await outcome(service.createAndSendNewChatRequest(main, { query: 'hi' }, { folders: [main, URI.file('/elsewhere')] })),
+		};
+
+		assert.deepStrictEqual({ results, created: created.map(options => ({ project: options?.project?.name, folders: options?.folders?.map(folder => folder.path) })) }, {
+			results: {
+				inWorkspace: 'created',
+				someFolders: 'created',
+				notDefault: `The session folder ${docs.toString()} is not the default folder of the session's folders.`,
+				untrusted: 'untrusted',
+			},
+			created: [
+				{ project: 'Agents', folders: undefined },
+				{ project: 'Agents', folders: ['/work/vscode-docs'] },
+			],
+		});
+	});
+
+	test('adding and removing a chat\'s folders goes to the provider only for a session that supports chat folders', async () => {
+		const chat = URI.parse('test:///chat');
+		const folder = URI.file('/work/vscode-docs');
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async addChatFolder(sessionId: string, _chat: URI, added: URI): Promise<void> { calls.push(`add ${sessionId} ${added.path}`); }
+			override async removeChatFolder(sessionId: string, _chat: URI, removed: URI): Promise<void> { calls.push(`remove ${sessionId} ${removed.path}`); }
+		}(stubSession({ sessionId: 'unused', providerId: 'test' }));
+		const supported = stubSession({ sessionId: 'supported', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: false, supportsChatFolders: true }) });
+		const unsupported = stubSession({ sessionId: 'unsupported', providerId: 'test' });
+		const { service } = createSessionsManagementService(supported, disposables, provider);
+
+		await service.addChatFolder(supported, chat, folder);
+		await service.removeChatFolder(supported, chat, folder);
+		const rejected = await service.addChatFolder(unsupported, chat, folder).then(() => false, () => true);
+
+		assert.deepStrictEqual({ calls, rejected }, { calls: ['add supported /work/vscode-docs', 'remove supported /work/vscode-docs'], rejected: true });
+	});
+
 	test('createAndSendNewChatRequest publishes the session while its first request is in flight', async () => {
 		const session = stubSession({
 			sessionId: 's1',
