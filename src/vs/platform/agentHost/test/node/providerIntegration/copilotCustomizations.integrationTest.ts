@@ -603,7 +603,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				uri: pluginUri,
 				children: [
 					{ type: CustomizationType.Agent, name: 'Plugin Agent' },
-					{ type: CustomizationType.Rule, name: 'plugin' },
+					{ type: CustomizationType.Rule, name: 'Plugin Instruction' },
 					{ type: CustomizationType.Skill, name: 'plugin-skill' },
 				].sort((a, b) => a.name.localeCompare(b.name)),
 			},

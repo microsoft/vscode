@@ -289,7 +289,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			(loaded?.children ?? []).map(child => ({ type: child.type, name: child.name })).sort((a, b) => a.name.localeCompare(b.name)),
 			[
 				{ type: CustomizationType.Agent, name: 'Plugin Agent' },
-				{ type: CustomizationType.Rule, name: 'plugin' },
+				{ type: CustomizationType.Rule, name: 'Plugin Rule' },
 				{ type: CustomizationType.Skill, name: 'plugin-skill' },
 			].sort((a, b) => a.name.localeCompare(b.name)),
 		);
