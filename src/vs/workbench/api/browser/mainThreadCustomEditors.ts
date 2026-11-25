@@ -106,6 +106,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -260,9 +261,15 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					readonlyListener.value = resolvedModelRef.object.onDidChangeReadonly(updateReadonly);
 				};
 				watchModelReadonly();
+				const providerCapabilitiesListener = this._fileService.onDidChangeFileSystemProviderCapabilities(e => {
+					if (e.scheme === resolvedModelRef.object.resource.scheme) {
+						updateReadonly();
+					}
+				});
 
 				const disposeModelRefs = () => {
 					readonlyListener.dispose();
+					providerCapabilitiesListener.dispose();
 					additionalModelRefs.dispose();
 
 					// If the model is still dirty, make sure we have time to save it
@@ -339,6 +346,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					onUnexpectedError(error);
 					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
 					readonlyListener.dispose();
+					providerCapabilitiesListener.dispose();
 					additionalModelRefs.dispose();
 					resolvedModelRef.dispose();
 					return;

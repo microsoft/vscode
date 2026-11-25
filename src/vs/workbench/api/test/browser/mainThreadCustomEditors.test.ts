@@ -15,7 +15,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { IFileService, IFileSystemProviderCapabilitiesChangeEvent } from '../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -178,7 +178,8 @@ suite('MainThreadCustomEditors', () => {
 		instantiationService.stub(IEditorService, { activeEditor: undefined });
 		instantiationService.stub(IUriIdentityService, { asCanonicalUri: (uri: URI) => uri });
 		instantiationService.stub(IUntitledTextEditorService, { get: () => undefined });
-		instantiationService.stub(IFileService, { onDidFilesChange: Event.None, onDidChangeFileSystemProviderRegistrations: Event.None, onDidChangeFileSystemProviderCapabilities: Event.None });
+		const onDidChangeCapabilities = store.add(new Emitter<IFileSystemProviderCapabilitiesChangeEvent>());
+		instantiationService.stub(IFileService, { onDidFilesChange: Event.None, onDidChangeFileSystemProviderRegistrations: Event.None, onDidChangeFileSystemProviderCapabilities: onDidChangeCapabilities.event });
 		instantiationService.stub(ILabelService, { onDidChangeFormatters: Event.None, getUriLabel: (uri: URI) => uri.path });
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(IFilesConfigurationService, { onDidChangeReadonly: Event.None, isReadonly: () => false });
@@ -254,8 +255,43 @@ suite('MainThreadCustomEditors', () => {
 			return { input };
 		}
 
-		return { calls, readonlyUpdates, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
+		return { calls, readonlyUpdates, onDidChangeCapabilities, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
 	}
+
+	test('refreshes panel read-only state when filesystem provider capabilities change', async () => {
+		const onDidChange = store.add(new Emitter<void>());
+		const readonlyState = { value: false, onDidChange };
+		const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, readonlyState });
+		const { input } = fixture.createInput();
+		await input.resolve();
+
+		// Unrelated scheme should be ignored even if readonlyState flipped.
+		readonlyState.value = true;
+		fixture.onDidChangeCapabilities.fire({ scheme: 'other', provider: {} as never });
+
+		// Matching scheme flips writable -> readonly.
+		fixture.onDidChangeCapabilities.fire({ scheme: resource.scheme, provider: {} as never });
+
+		// Matching scheme flips readonly -> writable.
+		readonlyState.value = false;
+		fixture.onDidChangeCapabilities.fire({ scheme: resource.scheme, provider: {} as never });
+
+		input.dispose();
+		await timeout(0);
+
+		// Capability changes after disposal should not fire.
+		readonlyState.value = true;
+		fixture.onDidChangeCapabilities.fire({ scheme: resource.scheme, provider: {} as never });
+
+		assert.deepStrictEqual({ readonlyUpdates: fixture.readonlyUpdates, unexpectedErrors }, {
+			readonlyUpdates: [
+				{ handle: 'webview#1', readonly: false, kind: 'init' },
+				{ handle: 'webview#1', readonly: true, kind: 'change' },
+				{ handle: 'webview#1', readonly: false, kind: 'change' },
+			],
+			unexpectedErrors: [],
+		});
+	});
 
 	test('propagates initial and dynamic read-only state for custom text editors', async () => {
 		const onDidChange = store.add(new Emitter<void>());

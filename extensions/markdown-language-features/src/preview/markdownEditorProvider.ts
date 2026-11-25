@@ -622,7 +622,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				// chord cannot race a pending edit or land on a different document.
 				await sync.drain();
 				signal.throwIfAborted();
-				if (webviewPanel.active && !resolveCancellation.token.isCancellationRequested) {
+				if (!documentReadonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested) {
 					await vscode.commands.executeCommand(message.command);
 				}
 			},
