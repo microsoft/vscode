@@ -26,6 +26,8 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -40,7 +42,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 	readonly when = AutomationsCustomViewFocusContext;
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const automationService = accessor.get(IAutomationService);
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const configurationService = accessor.get(IConfigurationService);
@@ -53,8 +55,12 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		);
 		const builtInTemplatesVisible = hasEmptyAutomationSection(automations) && templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
+		const panelAvailable = layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && layoutService.viewportClass.get() !== 'phone';
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
+			...(panelAvailable ? [
+				localize('automationsCustomView.help.panel', "Use {0} to open or close the Terminal below Automations. Use {1} to open or close Output. New local terminals start in your user profile because this view has no active session workspace.", '<keybinding:workbench.action.terminal.toggleTerminal>', '<keybinding:workbench.action.output.toggleOutput>'),
+			] : []),
 			localize('automationsCustomView.help.settings', "By default, Shared automations and run history only include shared automations you created. When cloud automations are enabled, the View options menu in the view header offers Refresh cloud automations to reload definitions and history. When shared automations created by others or with unknown creators are discovered, this menu also offers Show automations created by others to include their automations and runs. This preference is remembered on this machine. Use the arrow keys to reach View options, Enter or Space to open its menu, and Escape to close it."),
 			localize('automationsCustomView.help.manageRemotes', "When a dev tunnel is disconnected and remote management is enabled, the unavailable message shows how many dev tunnels are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage dev tunnels. GitHub Environments do not appear in Automations warnings or this count."),
 			localize('automationsCustomView.help.disabled', "Disabled automations are shown by default and sort last within Your automations or Shared automations. The View options menu always offers Show disabled automations, even when cloud automations are disabled. Activate it to show or hide disabled automations in both sections. Your choice is remembered on this machine. Shared automations is hidden when none of its cards remain visible; use View options to reveal disabled shared automations. Empty states offer Show disabled at the end of the description only when they represent automations hidden by this filter. Tab to this text action and press Enter or Space to reveal them. The empty state and Built-in Templates are shown when no cards remain visible. Run history and the Accessible View are not filtered."),
