@@ -73,14 +73,14 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		const gitState = await this._gitService.getSessionGitState(worktreeRoot, recordedBaseBranch) ?? storedGitState;
 		// Like Create PR, a session that recorded no base merges into the base its fresh Git state compares against.
 		const baseBranchRef = recordedBaseBranch ?? gitState?.baseBranchRef;
-		const baseBranch = baseBranchRef ? await this._gitService.resolveBaseBranch(repositoryRoot, baseBranchRef) : undefined;
-		const targetBranch = baseBranch ? await this._gitService.resolveMergeTargetBranch(repositoryRoot, baseBranch) : undefined;
-		if (!targetBranch) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.targetBranchMissing', "Could not determine the branch to merge into."));
-		}
 		const sourceBranch = gitState?.branchName ?? await this._gitService.getCurrentBranch(worktreeRoot);
 		if (!sourceBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.sourceBranchMissing', "Could not determine the worktree branch."));
+		}
+		const baseBranch = baseBranchRef ? await this._gitService.resolveBaseBranch(repositoryRoot, baseBranchRef) : undefined;
+		const targetBranch = baseBranch ? await this._gitService.resolveMergeTargetBranch(repositoryRoot, baseBranch, sourceBranch) : undefined;
+		if (!targetBranch) {
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.targetBranchMissing', "Could not determine the branch to merge into."));
 		}
 		if (sourceBranch === targetBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.merge.sameBranch', "The worktree is already on the target branch '{0}'.", targetBranch));

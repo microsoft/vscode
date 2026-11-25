@@ -665,6 +665,45 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('getBranchBase returns an existing upstream that tracks a different branch', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-branch-base-'));
+		const origin = join(tmpRoot, 'origin.git');
+		const clone = join(tmpRoot, 'clone');
+		mkdirSync(origin);
+		mkdirSync(clone);
+		const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+		const run = (cwd: string, ...args: string[]) => cp.execFileSync('git', args, { cwd, env, stdio: 'pipe' });
+		run(origin, 'init', '-q', '--bare', '-b', 'main');
+		run(clone, 'init', '-q', '-b', 'main');
+		run(clone, 'commit', '-q', '--allow-empty', '-m', 'initial');
+		run(clone, 'remote', 'add', 'origin', origin);
+		run(clone, 'push', '-q', 'origin', 'main', 'main:dev', 'main:own', 'main:gone');
+		run(clone, 'fetch', '-q', 'origin');
+		const baseOf = async (...checkout: string[]) => {
+			run(clone, 'checkout', '-q', ...checkout);
+			return (await svc!.getBranchBase(URI.file(clone)))?.name;
+		};
+
+		const differentUpstream = await baseOf('-b', 'feat/test', '--track', 'origin/dev');
+		run(clone, 'checkout', '-q', '-b', 'feat/gone', '--track', 'origin/gone');
+		run(clone, 'update-ref', '-d', 'refs/remotes/origin/gone');
+		const missingUpstreamRef = await baseOf('feat/gone');
+
+		assert.deepStrictEqual({
+			differentUpstream,
+			missingUpstreamRef,
+			sameNameUpstream: await baseOf('-b', 'own', '--track', 'origin/own'),
+			noUpstream: await baseOf('-b', 'local'),
+			detached: await baseOf('--detach'),
+		}, {
+			differentUpstream: 'origin/dev',
+			missingUpstreamRef: undefined,
+			sameNameUpstream: undefined,
+			noUpstream: undefined,
+			detached: undefined,
+		});
+	});
+
 	(hasGit ? test : test.skip)('getCurrentBranchName throws on failed strict lookup without changing best-effort callers', async () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-nongit-'));
 		const directory = URI.file(tmpRoot);
@@ -883,11 +922,11 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		const fullRemote = await resolve('refs/remotes/fork/me/release/1.90');
 		const pruned = await resolve('origin/gone');
 		// `main` does not track `origin/main`, but has its name.
-		const sameNamedTarget = await svc!.resolveMergeTargetBranch(directory, originMain);
+		const sameNamedTarget = await svc!.resolveMergeTargetBranch(directory, originMain, 'feature');
 		run('branch', '--no-track', 'dev');
 		run('branch', '--set-upstream-to', 'origin/main', 'dev');
-		const trackingTarget = await svc!.resolveMergeTargetBranch(directory, originMain);
-		const missingTarget = await svc!.resolveMergeTargetBranch(directory, forkRelease);
+		const trackingTarget = await svc!.resolveMergeTargetBranch(directory, originMain, 'feature');
+		const missingTarget = await svc!.resolveMergeTargetBranch(directory, forkRelease, 'feature');
 		// Like git, a local branch shadows the remote-tracking branch of the same short name.
 		run('update-ref', 'refs/heads/origin/main', 'HEAD');
 		const ambiguous = await resolve('origin/main');
@@ -1009,6 +1048,32 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			main: { baseBranchName: 'main', outgoingChanges: 2, hasBaseBranchChanges: true },
 			legacyOriginMain: { baseBranchName: 'main', outgoingChanges: 1, hasBaseBranchChanges: true },
 			afterLocalMerge: { baseBranchName: 'main', outgoingChanges: 1, hasBaseBranchChanges: false },
+		});
+	});
+
+	(hasGit ? test : test.skip)('a branch that tracks its remote base is not its own merge target', async () => {
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
+		const directory = URI.file(dir);
+		const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, stdio: 'pipe' });
+		run('remote', 'add', 'upstream', 'https://github.com/upstream/vscode.git');
+		run('update-ref', 'refs/remotes/upstream/dev', 'HEAD');
+		// Like `git worktree add -b feat/test <path> upstream/dev`: the branch tracks the base it started from (#337971).
+		run('checkout', '-q', '--track', '-b', 'feat/test', 'upstream/dev');
+		run('commit', '-q', '--allow-empty', '-m', 'feature');
+		const upstreamDev = { kind: 'remote', ref: 'refs/remotes/upstream/dev', remote: 'upstream', branch: 'dev' } as const;
+		const mergeState = async () => ({
+			hasBaseBranchChanges: (await svc!.getSessionGitState(directory, upstreamDev.ref))?.hasBaseBranchChanges,
+			mergeTarget: await svc!.resolveMergeTargetBranch(directory, upstreamDev, 'feat/test'),
+		});
+
+		const noLocalBase = await mergeState();
+		run('branch', '--no-track', 'dev', 'upstream/dev');
+		const untrackedLocalBase = await mergeState();
+
+		assert.deepStrictEqual({ noLocalBase, untrackedLocalBase }, {
+			noLocalBase: { hasBaseBranchChanges: true, mergeTarget: undefined },
+			untrackedLocalBase: { hasBaseBranchChanges: true, mergeTarget: 'dev' },
 		});
 	});
 });

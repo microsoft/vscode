@@ -68,7 +68,7 @@ import { CompletionItemKind } from '../../common/state/protocol/channels-session
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
-import { GitRefType, META_DIFF_BASE_BRANCH, type Branch, type IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { GitRefType, META_DIFF_BASE_BRANCH, type Branch, type IAgentHostGitService, type IRemoteBranch } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
 import { readChatUsage } from '../../common/meta/agentUsageMeta.js';
@@ -9127,20 +9127,22 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('createSession', () => {
-		for (const { name, defaultBranch, branch, repository, expected } of [
+		for (const { name, branchBase, defaultBranch, branch, repository, expected } of [
+			{ name: 'checked-out branch base', branchBase: { kind: GitRefType.RemoteHead, name: 'origin/dev', ref: 'refs/remotes/origin/dev', remote: 'origin' }, defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main', upstream: { name: 'origin/main', ref: 'refs/remotes/origin/main', remote: 'origin' } }, repository: true, expected: 'refs/remotes/origin/dev' },
 			{ name: 'default branch upstream', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main', upstream: { name: 'origin/main', ref: 'refs/remotes/origin/main', remote: 'origin' } }, repository: true, expected: 'refs/remotes/origin/main' },
 			{ name: 'remote default branch', defaultBranch: { kind: GitRefType.RemoteHead, name: 'upstream/main', ref: 'refs/remotes/upstream/main', remote: 'upstream' }, repository: true, expected: 'refs/remotes/upstream/main' },
 			{ name: 'local default branch', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' }, repository: true, expected: 'refs/heads/main' },
 			{ name: 'selected branch fallback', defaultBranch: undefined, branch: { kind: GitRefType.Head, name: 'feature', ref: 'refs/heads/feature' }, repository: true, expected: 'refs/heads/feature' },
 			{ name: 'unborn selected branch fallback', defaultBranch: undefined, branch: undefined, repository: true, expected: 'feature' },
 			{ name: 'non-Git folder', defaultBranch: undefined, repository: false, expected: undefined },
-		] satisfies { name: string; defaultBranch: Branch | undefined; branch?: Branch; repository: boolean; expected: string | undefined }[]) {
+		] satisfies { name: string; branchBase?: IRemoteBranch; defaultBranch: Branch | undefined; branch?: Branch; repository: boolean; expected: string | undefined }[]) {
 			for (const provisional of [false, true]) {
 				test(`records the ${name} diff base on folder session send, not draft creation (provisional: ${provisional})`, async () => {
 					const db = new TestSessionDatabase();
 					const directory = URI.file('/workspace/repo');
 					const git = createNoopGitService();
 					git.getRepositoryRoot = async () => repository ? directory : undefined;
+					git.getBranchBase = async () => branchBase;
 					git.getDefaultBranch2 = async () => defaultBranch;
 					git.getCurrentBranch = async () => 'feature';
 					git.getBranch = async (_directory, branchName) => branchName === 'feature' ? branch : undefined;
@@ -24044,6 +24046,7 @@ suite('AgentService (node dispatcher)', () => {
 				getHEAD: async () => undefined,
 				getDefaultBranch: async () => undefined,
 				getDefaultBranch2: async () => undefined,
+				getBranchBase: async () => undefined,
 				getBranch: async () => undefined,
 				getRefs: async () => [],
 				getBranches: async () => [],
@@ -24166,6 +24169,7 @@ suite('AgentService (node dispatcher)', () => {
 				getHEAD: async () => undefined,
 				getDefaultBranch: async () => undefined,
 				getDefaultBranch2: async () => undefined,
+				getBranchBase: async () => undefined,
 				getBranch: async () => undefined,
 				getRefs: async () => [],
 				getBranches: async () => [],
