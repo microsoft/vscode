@@ -74,7 +74,7 @@ import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEdi
 import { IMultiDiffEditorWidgetOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { ChangesEmptyState } from './changesEmptyState.js';
 import { IDiffEditorViewModeOwner } from '../../../browser/parts/editor/diffEditorCommandsService.js';
-import { bindSessionScopeContextKeys } from './sessionActionsHost.js';
+import { SessionScopeContextKeys } from './sessionActionsHost.js';
 
 const HEADER_HEIGHT = 35;
 
@@ -388,7 +388,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		if (this.hostLayoutService.editorsBindSessionContext) {
 			// The keys of its session, for the actions of its header and of its files: the window binds none for the sessions its
 			// editors show.
-			this._register(bindSessionScopeContextKeys(this.instantiationService, this._scope, scopedContextKeyService));
+			this._register(this.instantiationService.createInstance(SessionScopeContextKeys, this._scope, { contextKeyService: scopedContextKeyService }));
 			root.classList.add('offers-header-actions');
 		}
 

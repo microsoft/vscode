@@ -163,8 +163,8 @@ export function createChangesSessionScope(changesViewService: IChangesViewServic
  * of that chat, as are its diffs, whichever chat its window shows; otherwise it is the scope of the window of `host`.
  *
  * With `followsInput`, as in an editor window, whose window neither mounts the workspace of its session nor binds its keys,
- * it is the scope of the session of `source` in any window: of the chat the window shows of that session, else of the chat it
- * last showed of it, as the diffs of the editor are, else of its main chat.
+ * it is the scope of the session of `source` in any window: of the chat it names, else of the chat the window shows of that
+ * session, as are its diffs, while the window shows it.
  */
 export function createChangesEditorScope(changesViewService: IChangesViewService, sessionsManagementService: ISessionsManagementService, host: ISessionHost, source: IObservable<{ readonly session: URI; readonly chat: URI | undefined } | undefined>, followsInput = false): IChangesSessionScope {
 	const windowHost = getWindowHost(host);
@@ -178,25 +178,22 @@ export function createChangesEditorScope(changesViewService: IChangesViewService
 			sessionsChangedOfInput.read(reader);
 			return sessionsManagementService.getSession(value.session);
 		});
-		const session = derived(reader => source.read(reader) ? inputSession.read(reader) : windowHost.session.read(reader));
-		// Of a session the window no longer shows, the chat it last showed: whose changes the editor keeps showing too.
-		const chat = derivedObservableWithCache<IChat | undefined>(undefined, (reader, lastValue) => {
+		// One that names no chat shows the changes of the chat the window shows of its session, and keeps those it last showed
+		// once the window shows another session (see `getChangesEditorChanges`): then it has no session to act on, rather than
+		// act on changes other than those it shows.
+		const shown = derived(reader => {
 			const value = source.read(reader);
 			if (!value) {
-				return windowHost.chat.read(reader);
+				return { session: windowHost.session.read(reader), chat: windowHost.chat.read(reader) };
 			}
 			const ofInput = inputSession.read(reader);
 			if (value.chat) {
-				return ofInput?.chats.read(reader).find(candidate => isEqual(candidate.resource, value.chat));
+				return { session: ofInput, chat: ofInput?.chats.read(reader).find(candidate => isEqual(candidate.resource, value.chat)) };
 			}
-			if (!ofInput) {
-				return undefined;
-			}
-			if (windowHost.session.read(reader) === ofInput) {
-				return windowHost.chat.read(reader);
-			}
-			return lastValue && ofInput.chats.read(reader).includes(lastValue) ? lastValue : ofInput.mainChat.read(reader);
+			return ofInput && windowHost.session.read(reader) === ofInput ? { session: ofInput, chat: windowHost.chat.read(reader) } : undefined;
 		});
+		const session = derived(reader => shown.read(reader)?.session);
+		const chat = derived(reader => shown.read(reader)?.chat);
 		return { session, chat, isMainWindow: false, hostCommandContext: windowHost.commandContext, changes: changesViewService.getSessionChanges(session, chat) };
 	}
 	if (windowHost.kind === SessionHostKind.MainWindow) {

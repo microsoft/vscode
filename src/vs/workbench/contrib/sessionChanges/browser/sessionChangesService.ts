@@ -169,7 +169,12 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 			const { changesetSelection: _, chatResource: __, ...optionsWithoutSelection } = options;
 			editorOptions = optionsWithoutSelection;
 		}
-		const multiDiffSource = this.getChangesEditorResource(sessionResource, options?.chatResource);
+		// Where its editors follow their own session, as in an editor window, the editor names the chat whose changes it opens
+		// with, so that its diffs and actions keep to that chat whichever session or chat the window shows later.
+		const chatResource = options?.chatResource ?? (this.layoutService.editorsBindSessionContext
+			? getHostOfSession(this.sessionHostService, this.sessionsService, sessionResource, getMainWindowHost(this.sessionHostService))?.chat.get()?.resource
+			: undefined);
+		const multiDiffSource = this.getChangesEditorResource(sessionResource, chatResource);
 
 		if (this.layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
 			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);

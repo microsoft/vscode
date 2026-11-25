@@ -223,6 +223,37 @@ suite('SessionChangesService', () => {
 		});
 	});
 
+	test('where its editors follow their own session, as in an editor window, opens the Changes editor of the chat the window shows of the session, which it then keeps to', async () => {
+		const opened: URI[] = [];
+		const sessionResource = URI.parse('agent-host:test-session');
+		const shownChat = upcastPartial<IChat>({ resource: URI.parse('agent-host:test-session/shown') });
+		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource: sessionResource, activeChat: constObservable(shownChat) });
+		const service = disposables.add(new SessionChangesService(
+			new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<undefined> {
+					opened.push((args[0] as { readonly multiDiffSource: URI }).multiDiffSource);
+					return undefined;
+				}
+			}(),
+			disposables.add(new TestInstantiationService()),
+			new class extends mock<IAgentWorkbenchLayoutService>() {
+				override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile;
+				readonly editorsBindSessionContext = true;
+			}(),
+			new class extends mock<IChangesViewService>() {
+				override readonly activeSessionResourceObs = noActiveSessionResource;
+				override readonly activeSessionChangesObs = noChanges;
+			}(),
+			...hostsOf(disposables, noSessions(session)),
+			emptyDecorationsService,
+			new NullLogService(),
+		));
+
+		await service.openChangesEditor(sessionResource);
+
+		assert.deepStrictEqual(opened.map(resource => service.getChatResource(resource)?.toString()), [shownChat.resource.toString()]);
+	});
+
 	test('selects the changeset on the chat its editor names, also while only another chat of its session shows', async () => {
 		const selections: { readonly changesetId: string | undefined; readonly chat: string | undefined }[] = [];
 		const sessionResource = URI.parse('agent-host:test-session');

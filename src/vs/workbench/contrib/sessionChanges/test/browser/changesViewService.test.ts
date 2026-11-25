@@ -318,7 +318,7 @@ suite('ChangesViewService', () => {
 		});
 	});
 
-	test('a Changes editor that follows its input, as in an editor window, is of the session of its input whichever session the window shows, of the chat the window shows of it, else of the chat it last showed of it, as its diffs are, and is not of the main window, whose workspace is the one mounted', () => {
+	test('a Changes editor that follows its input, as in an editor window, is of the session of its input whichever session the window shows, of the chat it names, else of the chat the window shows of it while it shows it, as are its diffs, and is not of the main window, whose workspace is the one mounted', () => {
 		const createChat = (id: string) => upcastPartial<IChat>({
 			resource: URI.from({ scheme: 'test-chat', path: `/${id}` }),
 			changes: constObservable([]),
@@ -335,21 +335,24 @@ suite('ChangesViewService', () => {
 		const windowSession = observableValue<ITestSessionWithChat | undefined>('windowSession', sessionA);
 		const windowChat = observableValue<IChat | undefined>('windowChat', chatA2);
 		const mainWindowHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: windowSession, chat: windowChat, contextKeyService: upcastPartial<IContextKeyService>({}) });
-		const scope = createChangesEditorScope(service, sessionsManagementService, mainWindowHost, constObservable({ session: sessionA.resource, chat: undefined }), true);
-		const describe = () => ({ session: scope.session.get()?.resource.path, chat: scope.chat.get()?.resource.path, isMainWindow: scope.isMainWindow });
+		const ofSession = createChangesEditorScope(service, sessionsManagementService, mainWindowHost, constObservable({ session: sessionA.resource, chat: undefined }), true);
+		const ofChat = createChangesEditorScope(service, sessionsManagementService, mainWindowHost, constObservable({ session: sessionA.resource, chat: chatA2.resource }), true);
+		const describe = (scope: IChangesSessionScope) => ({ session: scope.session.get()?.resource.path, chat: scope.chat.get()?.resource.path, isMainWindow: scope.isMainWindow });
+		const describeAll = () => ({ ofSession: describe(ofSession), ofChat: describe(ofChat) });
 
-		const shown = describe();
+		const shown = describeAll();
 		windowSession.set(sessionB, undefined);
 		windowChat.set(chatB, undefined);
-		const anotherShown = describe();
+		const anotherShown = describeAll();
 		windowSession.set(sessionA, undefined);
 		windowChat.set(chatA1, undefined);
-		const mainChatShown = describe();
+		const mainChatShown = describeAll();
 
+		const a = sessionA.resource.path;
 		assert.deepStrictEqual({ shown, anotherShown, mainChatShown }, {
-			shown: { session: sessionA.resource.path, chat: '/a2', isMainWindow: false },
-			anotherShown: { session: sessionA.resource.path, chat: '/a2', isMainWindow: false },
-			mainChatShown: { session: sessionA.resource.path, chat: '/a1', isMainWindow: false },
+			shown: { ofSession: { session: a, chat: '/a2', isMainWindow: false }, ofChat: { session: a, chat: '/a2', isMainWindow: false } },
+			anotherShown: { ofSession: { session: undefined, chat: undefined, isMainWindow: false }, ofChat: { session: a, chat: '/a2', isMainWindow: false } },
+			mainChatShown: { ofSession: { session: a, chat: '/a1', isMainWindow: false }, ofChat: { session: a, chat: '/a2', isMainWindow: false } },
 		});
 	});
 
