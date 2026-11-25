@@ -1054,6 +1054,41 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('keeps watching a root during an active turn and refreshes Branch Changes from it', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const root = URI.file('/repo');
+		const environment = createEnvironment(root);
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		const branch = buildDefaultBranchChangesetUri(session, ['file:///repo/worktree']);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(branch));
+		await environment.monitor.waitForAcquisitions(1);
+		const operationBaseline = environment.updateOperationsCalls.length;
+		environment.coordinator.onSessionTurnActiveChanged(session, true);
+		const turnStartOperationRefreshes = environment.updateOperationsCalls.slice(operationBaseline);
+		await tick();
+		environment.changesets.clearRefreshes();
+
+		// E.g. a terminal command that writes a file while the turn runs.
+		environment.monitor.fire(root);
+		await tick();
+		const branchRefreshesDuringTurn = [...environment.changesets.branchRefreshes];
+		environment.coordinator.onSessionTurnActiveChanged(session, false);
+		await tick();
+
+		assert.deepStrictEqual({
+			turnStartOperationRefreshes,
+			branchRefreshesDuringTurn,
+			acquisitions: environment.monitor.acquisitions,
+			disposals: environment.monitor.disposals,
+		}, {
+			turnStartOperationRefreshes: [session],
+			branchRefreshesDuringTurn: [parseChangesetUri(branch)!.ownerUri],
+			acquisitions: ['file:///repo'],
+			disposals: [],
+		});
+	});
+
 	test('active turn suspends and resumes root watcher when interest remains', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const root = URI.file('/repo');
