@@ -57,14 +57,11 @@ suite('CommandCenterLabel', () => {
 		]);
 	});
 
-	test('renders the folder-with-branch icon by default and the location own icon otherwise', () => {
-		const iconClass = (icon: typeof Codicon.gitBranch | undefined) => {
-			const { element, label } = createLabel();
-			label.update('repo', { ...createLocation(), icon });
-			return /codicon-(git-branch-checkout|git-branch)\b/.exec(element.querySelector('.folder-location-icon')?.className ?? '')?.[1];
-		};
+	test('renders the location own icon', () => {
+		const { element, label } = createLabel();
+		label.update('repo', { ...createLocation(), icon: Codicon.worktree });
 
-		assert.deepStrictEqual([iconClass(Codicon.gitBranchCheckout), iconClass(undefined), iconClass(Codicon.gitBranch)], ['git-branch-checkout', 'git-branch-checkout', 'git-branch']);
+		assert.deepStrictEqual([...element.querySelectorAll('.codicon')].map(icon => icon.classList.contains('codicon-worktree')), [true]);
 	});
 
 	test('resets to plain text at the primary location', () => {

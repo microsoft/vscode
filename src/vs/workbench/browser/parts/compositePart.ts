@@ -37,15 +37,13 @@ import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/a
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import type { IHoverService } from '../../../platform/hover/browser/hover.js';
-import { IViewTitleBadge } from '../../common/views.js';
-import { ViewTitleBadgeWidget } from './views/viewTitleBadge.js';
 
 export interface ICompositeTitleLabel {
 
 	/**
 	 * Asks to update the title for the composite with the given ID.
 	 */
-	updateTitle(id: string, title: string, keybinding?: string, badge?: IViewTitleBadge): void;
+	updateTitle(id: string, title: string, keybinding?: string): void;
 
 	/**
 	 * Called when theming information changes.
@@ -265,9 +263,8 @@ export abstract class CompositePart<T extends Composite, MementoType extends obj
 
 		// Update title with composite title if it differs from descriptor
 		const descriptor = this.registry.getComposite(composite.getId());
-		const titleBadge = composite.getTitleBadge();
-		if (descriptor && (descriptor.name !== composite.getTitle() || titleBadge)) {
-			this.updateTitle(composite.getId(), composite.getTitle(), titleBadge);
+		if (descriptor && descriptor.name !== composite.getTitle()) {
+			this.updateTitle(composite.getId(), composite.getTitle());
 		}
 
 		// Handle Composite Actions
@@ -313,7 +310,7 @@ export abstract class CompositePart<T extends Composite, MementoType extends obj
 		// Title
 		const composite = this.instantiatedCompositeItems.get(compositeId);
 		if (composite) {
-			this.updateTitle(compositeId, composite.composite.getTitle(), composite.composite.getTitleBadge());
+			this.updateTitle(compositeId, composite.composite.getTitle());
 		}
 
 		// Active Composite
@@ -330,7 +327,7 @@ export abstract class CompositePart<T extends Composite, MementoType extends obj
 		}
 	}
 
-	private updateTitle(compositeId: string, compositeTitle?: string, titleBadge?: IViewTitleBadge): void {
+	private updateTitle(compositeId: string, compositeTitle?: string): void {
 		const compositeDescriptor = this.registry.getComposite(compositeId);
 		if (!compositeDescriptor || !this.titleLabel) {
 			return;
@@ -342,7 +339,7 @@ export abstract class CompositePart<T extends Composite, MementoType extends obj
 
 		const keybinding = this.keybindingService.lookupKeybinding(compositeId);
 
-		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding?.getLabel() ?? undefined, titleBadge);
+		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding?.getLabel() ?? undefined);
 
 		this.toolBar?.setAriaLabel(localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
@@ -447,23 +444,14 @@ export abstract class CompositePart<T extends Composite, MementoType extends obj
 		const titleLabel = append(titleContainer, $('h2'));
 		this.titleLabelElement = titleLabel;
 		const hover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), titleLabel, ''));
-		const badgeWidget = this._register(new ViewTitleBadgeWidget(this.hoverService));
-		titleContainer.appendChild(badgeWidget.element);
 
 		const $this = this;
 		return {
-			updateTitle: (id, title, keybinding, badge) => {
+			updateTitle: (id, title, keybinding) => {
 				// The title label is shared for all composites in the base CompositePart
 				if (!this.activeComposite || this.activeComposite.getId() === id) {
 					titleLabel.textContent = title;
 					hover.update(keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
-					badgeWidget.update(badge);
-					titleContainer.classList.toggle('has-title-badge', !!badge);
-					if (badge) {
-						titleLabel.setAttribute('aria-label', localize('titleWithBadge', "{0}, {1}", title, badge.ariaLabel));
-					} else {
-						titleLabel.removeAttribute('aria-label');
-					}
 				}
 			},
 

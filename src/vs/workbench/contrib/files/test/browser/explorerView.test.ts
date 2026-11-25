@@ -8,19 +8,19 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
-import { ExplorerView, getContext, getFolderLocationTitleBadge, shouldPreserveWorkspaceNameCase } from '../../browser/views/explorerView.js';
+import { ExplorerView, getContext, shouldPreserveWorkspaceNameCase } from '../../browser/views/explorerView.js';
 import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { CompressedNavigationController, ExplorerDataSource, ExplorerFindProvider, FileDragAndDrop, FilesFilter, FilesRenderer, FileSorter, ICompressedNavigationController } from '../../browser/views/explorerViewer.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { NullFilesConfigurationService, TestContextService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IFolderLocationChangeEvent, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkspace, IWorkspaceContextService, WorkbenchState, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -29,21 +29,16 @@ import { TestClipboardService } from '../../../../../platform/clipboard/test/com
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { IExplorerService } from '../../browser/files.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { hasKey } from '../../../../../base/common/types.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class TestExplorerView extends ExplorerView {
 	renderForTesting(container: HTMLElement): void {
 		this.renderBody(container);
-	}
-
-	renderHeaderForTesting(container: HTMLElement): void {
-		this.renderHeader(container);
 	}
 }
 
@@ -92,76 +87,6 @@ suite('Files - ExplorerView', () => {
 		const roots = folders.map((uri, index) => new ExplorerItem(uri, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, `name${index}`, 0, false));
 
 		assert.deepStrictEqual(roots.map(root => renderer.getAriaLabel(root)), ['name0', 'name1']);
-	});
-
-	test('the folder location badge shows only while the folder of a single-folder workspace is at another location', () => {
-		const primary = URI.file('/work/project');
-		const alternate = URI.file('/work/project.worktrees/fix');
-		const location = { uri: alternate, label: 'fix', icon: Codicon.worktree, providerId: 'git', builtIn: true };
-		const workspace = (uri: URI, folders: URI[]) => ({ id: 'id', uri, folders: folders.map((folderUri, index) => ({ uri: folderUri, name: 'project', index, toResource: (path: string) => joinPath(folderUri, path) })) }) as IWorkspace;
-		const folderLocationService = (atAlternate: boolean) => new class extends mock<IWorkspaceFolderLocationService>() { override getLocation() { return atAlternate ? location : undefined; } }();
-		const labelService = { getFolderLocationLabel: () => 'Worktree · fix' } as unknown as ILabelService;
-
-		assert.deepStrictEqual([
-			getFolderLocationTitleBadge(WorkbenchState.FOLDER, workspace(primary, [alternate]), folderLocationService(true), labelService),
-			getFolderLocationTitleBadge(WorkbenchState.FOLDER, workspace(primary, [primary]), folderLocationService(false), labelService),
-			getFolderLocationTitleBadge(WorkbenchState.WORKSPACE, workspace(URI.file('/work/a.code-workspace'), [alternate, primary]), folderLocationService(true), labelService),
-		], [
-			{ icon: Codicon.worktree, label: 'fix', tooltip: `Worktree · fix (alternate location of 'project')`, ariaLabel: 'Folder Location, Worktree · fix' },
-			undefined,
-			undefined,
-		]);
-	});
-
-	test('the Explorer shows the folder location after its name and reads it in its header while the folder is at another location', () => {
-		const primary = URI.file('/work/project');
-		const alternate = URI.file('/work/project.worktrees/fix');
-		const location = { uri: alternate, label: 'fix', icon: Codicon.worktree, providerId: 'git', builtIn: true };
-		let atAlternate = false;
-		const onDidChangeLocation = ds.add(new Emitter<IFolderLocationChangeEvent>());
-		const instantiationService = workbenchInstantiationService(undefined, ds);
-		instantiationService.stub(IWorkspaceContextService, new TestContextService(new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary)));
-		instantiationService.stub(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() {
-			override readonly onDidChangeLocation = onDidChangeLocation.event;
-			override getLocation() { return atAlternate ? location : undefined; }
-		}());
-		instantiationService.stub(ILabelService, new class extends mock<ILabelService>() {
-			override readonly onDidChangeFormatters = Event.None;
-			override getWorkspaceLabel() { return 'project'; }
-			override getFolderLocationLabel() { return atAlternate ? 'Worktree · fix' : undefined; }
-		}());
-		const container = { id: 'workbench.view.explorer' } as ViewContainer;
-		const model = new class extends mock<IViewContainerModel>() { override readonly title = 'Explorer'; override readonly onDidChangeContainerInfo = Event.None; }();
-		instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
-			override readonly onDidChangeLocation = Event.None;
-			override getViewLocationById() { return ViewContainerLocation.Sidebar; }
-			override getViewContainerByViewId() { return container; }
-			override getDefaultContainerById() { return container; }
-			override getViewContainerModel() { return model; }
-			override getViewDescriptorById() { return null; }
-		}());
-		instantiationService.stub(IExplorerService, { registerView: () => { } });
-		const changeEvent: IFolderLocationChangeEvent = { folder: new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 }), reason: 'user' };
-		const view = ds.add(instantiationService.createInstance(TestExplorerView, { id: 'testExplorerHeader', title: 'Explorer', delegate: { willOpenElement: () => { }, didOpenElement: () => { } } }));
-		const header = $('.pane-header');
-		view.renderHeaderForTesting(header);
-		const state = () => ({
-			badge: header.querySelector('.view-title-badge-container:not(.hidden)')?.textContent ?? null,
-			titleAria: header.querySelector('.title')!.getAttribute('aria-label'),
-		});
-
-		const atPrimary = state();
-		atAlternate = true;
-		onDidChangeLocation.fire(changeEvent);
-		const switched = state();
-		atAlternate = false;
-		onDidChangeLocation.fire(changeEvent);
-
-		assert.deepStrictEqual([atPrimary, switched, state()], [
-			{ badge: null, titleAria: 'Explorer Section: project' },
-			{ badge: 'fix', titleAria: 'Explorer Section: project, Folder Location, Worktree · fix' },
-			{ badge: null, titleAria: 'Explorer Section: project' },
-		]);
 	});
 
 	test('getContext', async function () {
@@ -226,7 +151,7 @@ suite('Files - ExplorerView', () => {
 				getEditable: () => undefined,
 			});
 			instantiationService.stub(IClipboardService, new TestClipboardService());
-			instantiationService.stub(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() { override readonly onDidChangeLocation = Event.None; override getLocation() { return undefined; } });
+			instantiationService.stub(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() { override readonly onDidChangeLocation = Event.None; });
 			instantiationService.stub(IContextMenuService, {
 				showContextMenu: delegate => {
 					assert.ok(hasKey(delegate, { menuActionOptions: true }));

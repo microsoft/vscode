@@ -5,7 +5,6 @@
 
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -50,7 +49,7 @@ export class CommandCenterLabel extends Disposable {
 			? localize('label.folderLocationTooltipWithDescription', "{0} (alternate location of '{1}')\n{2}", location.label, text, location.description)
 			: localize('label.folderLocationTooltip', "{0} (alternate location of '{1}')", location.label, text);
 		this.hovers.value = this.hoverService.setupManagedHover(this.hoverDelegate, locationGroup, tooltip);
-		const icon = renderIcon(location.icon ?? Codicon.gitBranchCheckout);
+		const icon = renderIcon(location.icon);
 		icon.classList.add('folder-location-icon');
 		icon.ariaHidden = 'true';
 		const locationLabel = document.createElement('span');

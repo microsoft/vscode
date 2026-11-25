@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DidEnterWorkspaceEvent } from '../../browser/abstractWorkspaceEditingService.js';
@@ -140,7 +141,7 @@ suite('WorkspaceEditingService', () => {
 				{ info: () => { } },
 				{
 					canSetLocation: () => (options.state ?? WorkbenchState.FOLDER) === WorkbenchState.FOLDER,
-					resolveLocation: async (_primary: URI, location: URI) => { resolved.push(location); return { uri: location, label: 'L', providerId: 'test', builtIn: options.builtIn ?? true }; },
+					resolveLocation: async (_primary: URI, location: URI) => { resolved.push(location); return { uri: location, label: 'L', icon: Codicon.folder, providerId: 'test', builtIn: options.builtIn ?? true }; },
 					setLocation: (_folder: unknown, _location: unknown, reason?: string) => { reasons.push(reason); }
 				},
 				{ isWorkspaceTrustEnabled: () => true }
@@ -306,7 +307,7 @@ suite('WorkspaceEditingService', () => {
 
 			const pending = service.setFolderLocation(alt);
 			await service.setFolderLocation(primary);
-			resolution.complete({ uri: alt, label: 'Alt', providerId: 'test', builtIn: false });
+			resolution.complete({ uri: alt, label: 'Alt', icon: Codicon.folder, providerId: 'test', builtIn: false });
 			await pending;
 
 			assert.deepStrictEqual(switched.map(u => u?.toString()), [primary.toString()]);
@@ -331,7 +332,7 @@ suite('WorkspaceEditingService', () => {
 
 			const pending = service.setFolderLocation(alt);
 			await service.setFolderLocation(primary, { ifIdle: true });
-			resolution.complete({ uri: alt, label: 'Alt', providerId: 'test', builtIn: false });
+			resolution.complete({ uri: alt, label: 'Alt', icon: Codicon.folder, providerId: 'test', builtIn: false });
 			await pending;
 			await service.setFolderLocation(primary, { ifIdle: true });
 
@@ -381,7 +382,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async (uri: URI) => ({ trusted: extUri.isEqual(uri, primary) }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
 				undefined, undefined, undefined,
-				{ canSetLocation: () => true, resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: false }), setLocation: () => { } },
+				{ canSetLocation: () => true, resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', icon: Codicon.folder, providerId: 'test', builtIn: false }), setLocation: () => { } },
 				{ isWorkspaceTrustEnabled: () => true }
 			));
 
@@ -410,7 +411,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: (uri: URI) => extUri.isEqual(uri, primary) ? trustInfo.p : Promise.resolve({ trusted: false }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
 				undefined, undefined, undefined,
-				{ canSetLocation: () => true, resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: true }), setLocation: (_folder: unknown, location: IResolvedFolderLocation | undefined) => { currentLocations.push(location); } },
+				{ canSetLocation: () => true, resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', icon: Codicon.folder, providerId: 'test', builtIn: true }), setLocation: (_folder: unknown, location: IResolvedFolderLocation | undefined) => { currentLocations.push(location); } },
 				{ isWorkspaceTrustEnabled: () => true }
 			));
 			return {
@@ -469,7 +470,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async (uri: URI) => ({ trusted: extUri.isEqual(uri, primary) }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); await grant.p; } },
 				undefined, undefined, undefined,
-				{ canSetLocation: () => true, resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: true }), setLocation: () => { } },
+				{ canSetLocation: () => true, resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', icon: Codicon.folder, providerId: 'test', builtIn: true }), setLocation: () => { } },
 				{ isWorkspaceTrustEnabled: () => true }
 			));
 
@@ -506,7 +507,7 @@ suite('WorkspaceEditingService', () => {
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ extUri },
 				undefined, undefined, undefined, undefined,
-				{ canSetLocation: () => true, resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'L', providerId: 'test', builtIn: true }), setLocation: (_folder: unknown, location: { uri: URI }) => { located.push(location.uri.toString()); } },
+				{ canSetLocation: () => true, resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'L', icon: Codicon.folder, providerId: 'test', builtIn: true }), setLocation: (_folder: unknown, location: { uri: URI }) => { located.push(location.uri.toString()); } },
 				{ isWorkspaceTrustEnabled: () => false }
 			));
 
@@ -540,7 +541,7 @@ suite('WorkspaceEditingService', () => {
 				undefined, undefined, undefined, undefined,
 				{
 					canSetLocation: () => true,
-					resolveLocation: async (_primary: URI, location: URI) => extUri.isEqual(location, unknown) ? undefined : { uri: location, label: 'L', providerId: 'test', builtIn: true },
+					resolveLocation: async (_primary: URI, location: URI) => extUri.isEqual(location, unknown) ? undefined : { uri: location, label: 'L', icon: Codicon.folder, providerId: 'test', builtIn: true },
 					setLocation: (_folder: unknown, location: { uri: URI } | undefined) => { located.push(location?.uri.toString()); }
 				},
 				{ isWorkspaceTrustEnabled: () => false }
@@ -593,9 +594,9 @@ suite('WorkspaceEditingService', () => {
 
 			const p1 = service.setFolderLocation(first);
 			const p2 = service.setFolderLocation(second);
-			resolutions.get(second.toString())!.complete({ uri: second, label: 'Second', providerId: 'test', builtIn: true });
+			resolutions.get(second.toString())!.complete({ uri: second, label: 'Second', icon: Codicon.folder, providerId: 'test', builtIn: true });
 			await p2;
-			resolutions.get(first.toString())!.complete({ uri: first, label: 'First', providerId: 'test', builtIn: true });
+			resolutions.get(first.toString())!.complete({ uri: first, label: 'First', icon: Codicon.folder, providerId: 'test', builtIn: true });
 			await p1;
 
 			assert.deepStrictEqual({ switched: switched.map(u => u?.toString()), trusted: trusted.map(u => u.toString()) }, { switched: [second.toString()], trusted: [second.toString()] });

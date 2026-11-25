@@ -20,7 +20,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IPaneOptions, Pane, IPaneStyles } from '../../../../base/browser/ui/splitview/paneview.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, ViewContainerLocationToString, IViewTitleBadge } from '../../../common/views.js';
+import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, ViewContainerLocationToString } from '../../../common/views.js';
 import { ViewTitleBadgeWidget } from './viewTitleBadge.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -367,11 +367,6 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
-	private _titleBadge: IViewTitleBadge | undefined;
-	public get titleBadge(): IViewTitleBadge | undefined {
-		return this._titleBadge;
-	}
-
 	private _singleViewPaneContainerTitle: string | undefined;
 	public get singleViewPaneContainerTitle(): string | undefined {
 		return this._singleViewPaneContainerTitle;
@@ -400,6 +395,8 @@ export abstract class ViewPane extends Pane implements IView {
 	private titleDescriptionContainer?: HTMLElement;
 	private titleDescriptionContainerHover?: IManagedHover;
 	private titleBadgeWidget?: ViewTitleBadgeWidget;
+	/** The header's label as set, which the header reads followed by the title badge. */
+	private ariaHeaderLabelWithoutBadge: string | undefined;
 	private iconContainer?: HTMLElement;
 	private iconContainerHover?: IManagedHover;
 	protected twistiesContainer?: HTMLElement;
@@ -442,6 +439,16 @@ export abstract class ViewPane extends Pane implements IView {
 
 	override get headerVisible(): boolean {
 		return super.headerVisible;
+	}
+
+	override get ariaHeaderLabel(): string {
+		return super.ariaHeaderLabel;
+	}
+
+	override set ariaHeaderLabel(label: string) {
+		this.ariaHeaderLabelWithoutBadge = label;
+		const badge = this.titleBadgeWidget?.badge;
+		super.ariaHeaderLabel = badge ? nls.localize('viewTitleWithBadge', "{0}, {1}", label, badge.ariaLabel) : label;
 	}
 
 	override set headerVisible(visible: boolean) {
@@ -596,8 +603,12 @@ export abstract class ViewPane extends Pane implements IView {
 		if (this._titleDescription) {
 			this.setTitleDescription(this._titleDescription);
 		}
-		if (this._titleBadge) {
-			this.setTitleBadge(this._titleBadge);
+
+		this.titleBadgeWidget = this._register(this.instantiationService.createInstance(ViewTitleBadgeWidget, this.id));
+		after(this.titleDescriptionContainer ?? this.titleContainer, this.titleBadgeWidget.element);
+		this._register(this.titleBadgeWidget.onDidChange(() => this.onDidChangeTitleBadge()));
+		if (this.titleBadgeWidget.badge) {
+			this.onDidChangeTitleBadge();
 		}
 
 		this.iconContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
@@ -605,18 +616,17 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	private _getAriaLabel(title: string, description: string | undefined): string {
-		const titleWithBadge = this._titleBadge ? nls.localize('viewTitleWithBadge', "{0}, {1}", title, this._titleBadge.ariaLabel) : title;
 		const viewHasAccessibilityHelpContent = this.viewDescriptorService.getViewDescriptorById(this.id)?.accessibilityHelpContent;
 		const accessibleViewHasShownForView = this.accessibleViewInformationService?.hasShownAccessibleView(this.id);
 		if (!viewHasAccessibilityHelpContent || accessibleViewHasShownForView) {
 			if (description) {
-				return `${titleWithBadge} - ${description}`;
+				return `${title} - ${description}`;
 			} else {
-				return titleWithBadge;
+				return title;
 			}
 		}
 
-		return nls.localize('viewAccessibilityHelp', 'Use Alt+F1 for accessibility help {0}', titleWithBadge);
+		return nls.localize('viewAccessibilityHelp', 'Use Alt+F1 for accessibility help {0}', title);
 	}
 
 	protected updateTitle(title: string): void {
@@ -648,29 +658,16 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 		else if (description && this.titleContainer) {
 			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', {}, description));
-			if (this.titleBadgeWidget) {
-				after(this.titleDescriptionContainer, this.titleBadgeWidget.element);
-			}
 			this.titleDescriptionContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
 		}
 	}
 
-	private setTitleBadge(badge: IViewTitleBadge | undefined): void {
-		if (!this.titleBadgeWidget && badge && this.titleContainer) {
-			this.titleBadgeWidget = this._register(new ViewTitleBadgeWidget(this.hoverService));
-			after(this.titleDescriptionContainer ?? this.titleContainer, this.titleBadgeWidget.element);
+	private onDidChangeTitleBadge(): void {
+		this.ariaHeaderLabel = this.ariaHeaderLabelWithoutBadge ?? super.ariaHeaderLabel;
+		// A view that names its title element itself keeps it in step with the header
+		if (this.titleContainer?.hasAttribute('aria-label')) {
+			this.titleContainer.setAttribute('aria-label', this.ariaHeaderLabel);
 		}
-		this.titleBadgeWidget?.update(badge);
-	}
-
-	/**
-	 * Shows the given badge after the title of the view, or none.
-	 */
-	protected updateTitleBadge(badge: IViewTitleBadge | undefined): void {
-		this._titleBadge = badge;
-		this.setTitleBadge(badge);
-		this.updateAriaHeaderLabel(this.calculateTitle(this._title), this._titleDescription);
-		this._onDidChangeTitleArea.fire();
 	}
 
 	protected updateTitleDescription(description?: string | undefined): void {
