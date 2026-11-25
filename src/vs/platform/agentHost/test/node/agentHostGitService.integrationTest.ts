@@ -1961,6 +1961,26 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('addWorktree explains a file path that is too long for the file system', async () => {
+		const dir = initRepo();
+		const run = (args: string[], input?: string) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8', input }).trim();
+		// A local setting overrides a global one, so Git for Windows also rejects the path.
+		run(['config', 'core.longpaths', 'false']);
+		// One path component longer than any platform allows.
+		const tree = run(['mktree'], `100644 blob ${run(['hash-object', '-w', '--stdin'], 'x\n')}\t${'x'.repeat(300)}\n`);
+		run(['update-ref', 'refs/heads/main', run(['commit-tree', tree, '-p', 'main', '-m', 'long path'])]);
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await assert.rejects(svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/long-path', track: false }), {
+				message: isWindows
+					? 'A file path in the worktree is too long for Windows. To allow long paths in Git, run `git config --global core.longpaths true`.'
+					: 'A file path in the worktree is too long for the file system.',
+			});
+		} finally {
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
 	(hasGit ? test : test.skip)('addWorktree preserves tracking when attaching an existing branch', async () => {
 		const dir = initRepo();
 		const remotePath = join(dir, 'remote.git');
