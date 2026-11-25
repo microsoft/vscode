@@ -131,6 +131,8 @@ New Nested Session opens the New Session composer for a nested chat of any sessi
 
 Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
 
+The archived section lists its sessions and standalone archived chats by update time, most recent first, whatever the list's sorting and without manual sort keys. Agent Host providers count archiving and restoring a session or chat as an update, so their most recently archived items come first.
+
 Providers may defer archived inventory until the archived section is expanded. Showing archived items in the filter exposes the section even without cached rows, but does not itself request inventory. The list acquires management-owned discovery demand while that section is expanded and visible; collapsing or hiding it releases demand without discarding cached history. Local tree refreshes do not refresh provider inventory.
 
 ## Durable user intent
