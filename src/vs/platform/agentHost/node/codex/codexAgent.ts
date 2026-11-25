@@ -587,8 +587,7 @@ function distinctAbsolutePaths(paths: readonly string[]): string[] {
  * local path, and their `fsPath` would be rejected or misread as a local folder.
  */
 function localWorkingDirectories(directories: readonly URI[] | undefined): readonly URI[] | undefined {
-	const result = directories?.filter(directory => directory.scheme === Schemas.file);
-	return result && result.length > 0 ? result : undefined;
+	return directories?.filter(directory => directory.scheme === Schemas.file);
 }
 
 function distinctWorkingDirectories(directories: readonly URI[] | undefined): readonly URI[] | undefined {
@@ -6502,8 +6501,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		// the previous snapshot before any start, resume, or turn request is
 		// constructed. A missing snapshot is retained only for legacy cold-resume
 		// callers that rely on restored metadata.
+		// A snapshot without local folders (none, or only folders of other schemes)
+		// still replaces the previous one: the session falls back to its own cwd,
+		// as a chat created without local folders does.
 		if (workingDirectories) {
-			session.workingDirectories = workingDirectories.length > 1
+			session.workingDirectories = workingDirectories.length === 0
+				? undefined
+				: workingDirectories.length > 1
 				? distinctWorkingDirectories([
 					session.workingDirectory ?? workingDirectories[0],
 					...workingDirectories.slice(1),
