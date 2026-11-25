@@ -712,7 +712,7 @@ suite('Changes View Actions', () => {
 		await runBranchSubmenuAction(items, 'origin/feature');
 		const picked = [...sets];
 		// Another session, whose Branch changeset has a selection of its own, becomes active.
-		selectionObs.set(upcastPartial<ISessionChangesetBaseBranchSelection>({}), undefined);
+		selectionObs.set(upcastPartial<ISessionChangesetBaseBranchSelection>({ getCandidates: () => new DeferredPromise<ISessionChangesetBaseBranchCandidates>().p }), undefined);
 		await runBranchSubmenuAction(items, 'origin/main');
 
 		assert.deepStrictEqual({ picked, sets }, {
@@ -742,7 +742,7 @@ suite('Changes View Actions', () => {
 		assert.deepStrictEqual(sets, []);
 	});
 
-	test('the Branch row drops the branches that load for a selection it no longer carries', async () => {
+	test('the Branch row drops the branches that load for a selection it no longer carries, and loads those of the new one', async () => {
 		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
 		const sets: string[] = [];
 		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', {
@@ -762,7 +762,7 @@ suite('Changes View Actions', () => {
 		await runBranchSubmenuAction(lists.at(-1)!, 'origin/main');
 
 		assert.deepStrictEqual({ lists: lists.map(listSubmenus), sets }, {
-			lists: [{ Branch: ['Loading branches… (disabled)'] }, {}],
+			lists: [{ Branch: ['Loading branches… (disabled)'] }, { Branch: ['Loading branches… (disabled)'] }],
 			sets: [],
 		});
 	});
@@ -799,6 +799,29 @@ suite('Changes View Actions', () => {
 			lists: [{ Branch: ['Loading branches… (disabled)'] }, {}],
 			errors: ['Git failed'],
 		});
+	});
+
+	test('an open list of changesets loads the Branch changeset while another is selected, and gives the Branch row its submenu once its base can change', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: () => candidates.p,
+			setBaseBranch: async () => { },
+		};
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', undefined);
+		const { picker, lists, selected, session } = renderBaseBranchPicker(selectionObs);
+		selected.set(session, undefined);
+
+		picker.show();
+		// The Branch changeset's state, which no one else loads, arrives while the list is open.
+		selectionObs.set(selection, undefined);
+		candidates.complete({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+
+		assert.deepStrictEqual(lists.map(listSubmenus), [
+			{},
+			{ Branch: ['Loading branches… (disabled)'] },
+			{ Branch: ['[Current Base]', 'origin/feature ✓', '[Default Branch]', 'origin/main'] },
+		]);
 	});
 
 	test('closing the list of changesets stops loading the branches of the Branch submenu', async () => {

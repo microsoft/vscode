@@ -2522,8 +2522,8 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		}
 	}
 
-	private _getBaseBranchSelection(): ISessionChangesetBaseBranchSelection | undefined {
-		return this._changes.changesetsObs.get()?.find(changeset => changeset.id === BRANCH_CHANGES_CHANGESET_ID)?.baseBranchSelection?.get();
+	private _getBaseBranchSelection(reader?: IReader): ISessionChangesetBaseBranchSelection | undefined {
+		return this._changes.changesetsObs.read(reader)?.find(changeset => changeset.id === BRANCH_CHANGES_CHANGESET_ID)?.baseBranchSelection?.read(reader);
 	}
 
 	/** The submenu of the Branch row, which a pen opens to change the base branch it compares against, while the base can change. */
@@ -2555,27 +2555,35 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	/** Loads the branches of the Branch row's submenu while the list of changesets is `visible`. */
 	private _updateBaseBranchCandidates(visible: boolean): void {
 		this._baseBranchCandidatesRequest.clear();
-		const selection = visible ? this._getBaseBranchSelection() : undefined;
-		if (!selection) {
+		if (!visible) {
 			this._setBaseBranchCandidates(undefined);
 			return;
 		}
 		const request = this._baseBranchCandidatesRequest.value = new DisposableStore();
-		const token = cancelOnDispose(request);
-		this._setBaseBranchCandidates({ selection, state: { kind: 'loading' } });
-		selection.getCandidates(token).then(candidates => {
-			if (!token.isCancellationRequested) {
-				this._setBaseBranchCandidates({ selection, state: { kind: 'loaded', candidates } });
-			}
-		}, error => {
-			if (token.isCancellationRequested) {
+		// Observing the selection keeps the Branch changeset loaded while another changeset is shown, so the pen shows as soon as its state arrives.
+		const selectionObs = derived(reader => this._getBaseBranchSelection(reader));
+		request.add(autorun(reader => {
+			const selection = selectionObs.read(reader);
+			if (!selection) {
+				this._setBaseBranchCandidates(undefined);
 				return;
 			}
-			if (!isCancellationError(error)) {
-				this.notificationService.error(error);
-			}
-			this._setBaseBranchCandidates({ selection, state: { kind: 'failed' } });
-		});
+			const token = cancelOnDispose(reader.store);
+			this._setBaseBranchCandidates({ selection, state: { kind: 'loading' } });
+			selection.getCandidates(token).then(candidates => {
+				if (!token.isCancellationRequested) {
+					this._setBaseBranchCandidates({ selection, state: { kind: 'loaded', candidates } });
+				}
+			}, error => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				if (!isCancellationError(error)) {
+					this.notificationService.error(error);
+				}
+				this._setBaseBranchCandidates({ selection, state: { kind: 'failed' } });
+			});
+		}));
 	}
 
 	private _setBaseBranchCandidates(candidates: IBaseBranchCandidatesOfSelection | undefined): void {
