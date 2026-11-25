@@ -14,7 +14,6 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { basename } from '../../../../base/common/path.js';
 import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -214,7 +213,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return customTitle;
 		}
 
-		this._editorName ??= this.customEditorLabelService.getName(this.resource) ?? basename(this.labelService.getUriLabel(this.resource));
+		this._editorName ??= this.customEditorLabelService.getName(this.resource) ?? this.labelService.getUriBasenameLabel(this.resource);
 		return this._editorName;
 	}
 
