@@ -1288,6 +1288,11 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction(buildDefaultChatUri(session), session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		await timeout(25);
+		// Each chat's modified time is written in the background through its own database, which can take longer.
+		const modifiedTimes = () => database.setMetadataCalls.filter(call => call.key === AH_CHAT_MODIFIED_TIME_DB_KEY).map(call => JSON.parse(call.value));
+		while (modifiedTimes().length < 3) {
+			await Event.toPromise(database.onDidChangeMetadata);
+		}
 
 		const modifiedTime = Date.parse('2025-01-01T00:00:00.000Z');
 		assert.deepStrictEqual({
@@ -1295,7 +1300,7 @@ suite('AgentHostChatContributions', () => {
 			workspace,
 			cleared,
 			errors,
-			modifiedTimes: database.setMetadataCalls.filter(call => call.key === AH_CHAT_MODIFIED_TIME_DB_KEY).map(call => JSON.parse(call.value)),
+			modifiedTimes: modifiedTimes(),
 			peerRead: !!((stateManager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsRead),
 			failingRead: !!((stateManager.getChatState(failingChat)?.status ?? 0) & SessionStatus.IsRead),
 		}, {
