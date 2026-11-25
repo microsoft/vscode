@@ -131,8 +131,8 @@ suite('ViewPaneContainer', () => {
 		const header = pane.element.querySelector('.pane-header')!;
 		const state = () => ({
 			containerBadge: container.getTitleBadge()?.label,
-			headerBadge: header.querySelector('.view-title-badge:not(.hidden)')?.textContent ?? null,
-			afterTitle: header.querySelector('.title')!.nextElementSibling?.classList.contains('view-title-badge') ?? false,
+			headerBadge: header.querySelector('.view-title-badge-container:not(.hidden)')?.textContent ?? null,
+			afterTitle: header.querySelector('.title')!.nextElementSibling?.classList.contains('view-title-badge-container') ?? false,
 			ariaHeaderLabel: pane.ariaHeaderLabel,
 			titleAreaUpdates,
 		});

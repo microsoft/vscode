@@ -170,9 +170,9 @@ suite('CompositePart', () => {
 			title: titleLabel.querySelector('h2')!.textContent,
 			ariaLabel: titleLabel.querySelector('h2')!.getAttribute('aria-label'),
 			hasBadge: titleLabel.classList.contains('has-title-badge'),
-			badge: titleLabel.querySelector('.view-title-badge:not(.hidden)')?.textContent ?? null,
+			badge: titleLabel.querySelector('.view-title-badge-container:not(.hidden)')?.textContent ?? null,
 			icon: titleLabel.querySelector('.view-title-badge-icon')!.classList.contains('codicon-worktree'),
-			badgeAriaHidden: titleLabel.querySelector('.view-title-badge')!.getAttribute('aria-hidden'),
+			badgeAriaHidden: titleLabel.querySelector('.view-title-badge-container')!.getAttribute('aria-hidden'),
 		});
 
 		label.updateTitle(TestComposite.ID, 'vscode', undefined, { icon: Codicon.worktree, label: 'fix-tab-corner-alignment', tooltip: 'tooltip', ariaLabel: 'Folder Location, fix-tab-corner-alignment' });

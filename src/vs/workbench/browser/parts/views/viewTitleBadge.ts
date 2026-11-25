@@ -25,10 +25,12 @@ export class ViewTitleBadgeWidget extends Disposable {
 	constructor(hoverService: IHoverService) {
 		super();
 
-		this.element = $('span.view-title-badge.hidden', { 'aria-hidden': 'true' });
-		this.icon = append(this.element, $('span.view-title-badge-icon'));
-		this.label = append(this.element, $('span.view-title-badge-label'));
-		this.hover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, ''));
+		// The container takes the room left after the title, so the pill can drop its label when that room is small
+		this.element = $('span.view-title-badge-container.hidden', { 'aria-hidden': 'true' });
+		const pill = append(this.element, $('span.view-title-badge'));
+		this.icon = append(pill, $('span.view-title-badge-icon'));
+		this.label = append(pill, $('span.view-title-badge-label'));
+		this.hover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), pill, ''));
 	}
 
 	update(badge: IViewTitleBadge | undefined): void {
