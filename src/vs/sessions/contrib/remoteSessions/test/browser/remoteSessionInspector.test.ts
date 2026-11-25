@@ -270,6 +270,35 @@ suite('RemoteSessionInspector', () => {
 		});
 	});
 
+	test('discovered links inspect the intended chats when advertised resources share a short id', async () => {
+		const { inspect, first, connections } = setup();
+		connections.registerSessionResource(backendSession, 'first', 'copilotcli');
+		const peers = ['first', 'second'].map(name => ({
+			resource: buildChatUri(`copilot:/${name}`, 'peer'), title: `${name} peer`,
+			status: SessionStatus.Idle, modifiedAt: '',
+		}));
+		first.setState(backendSession.toString(), {
+			...createSessionState({ resource: backendSession.toString(), provider: 'copilotcli', title: 'First', status: SessionStatus.Idle, createdAt: '', modifiedAt: '' }),
+			lifecycle: SessionLifecycle.Ready,
+			defaultChat,
+			chats: [{ resource: defaultChat, title: 'First default', status: SessionStatus.Idle, modifiedAt: '' }, ...peers],
+		});
+		for (const peer of peers) {
+			first.setState(peer.resource, createChatState(peer));
+		}
+
+		const result = await inspect();
+		const resolved = await Promise.all((result.chats ?? []).map(async chat => {
+			const target = await inspect(chat.openLink);
+			return { title: target.status === 'unavailable' ? target.reason : target.title, status: target.status };
+		}));
+		assert.deepStrictEqual(resolved, [
+			{ title: 'First default', status: 'completed' },
+			{ title: 'first peer', status: 'idle' },
+			{ title: 'second peer', status: 'idle' },
+		]);
+	});
+
 	test('links to an opaque peer chat advertised with a non-AHP URI', async () => {
 		const { inspect, first, connections } = setup();
 		connections.registerSessionResource(backendSession, 'first', 'copilotcli');

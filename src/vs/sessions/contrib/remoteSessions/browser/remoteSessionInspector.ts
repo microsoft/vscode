@@ -104,9 +104,12 @@ export class RemoteSessionInspector {
 				.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool && chat.interactivity !== ChatInteractivity.Hidden)
 				.map(chat => {
 					const main = sessionState.defaultChat !== undefined && isEqual(URI.parse(chat.resource), URI.parse(sessionState.defaultChat));
+					const chatId = getAgentHostChatId(chat.resource);
+					const resolvedChat = getSessionChatResource(sessionState, chatId, sessionState.defaultChat);
+					const chatReference = resolvedChat !== undefined && isEqual(URI.parse(resolvedChat), URI.parse(chat.resource)) ? chatId : chat.resource;
 					return {
 						title: chat.title,
-						openLink: buildOpenSessionLinkUri(identity.backendSession, main ? undefined : getAgentHostChatId(chat.resource), undefined, identity.connectionAuthority),
+						openLink: buildOpenSessionLinkUri(identity.backendSession, main ? undefined : chatReference, undefined, identity.connectionAuthority),
 						...(main ? { main: true as const } : {}),
 					};
 				});
