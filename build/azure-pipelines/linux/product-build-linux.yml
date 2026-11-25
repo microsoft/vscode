@@ -19,6 +19,11 @@ parameters:
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
     default: true
+  # Whether to add a job that checks the deb and rpm package dependencies.
+  # Needs a LinuxCLI job for the same architecture in the stage.
+  - name: VSCODE_CHECK_PACKAGE_DEPENDENCIES
+    type: boolean
+    default: false
 
 # The product is built by Compile and Sign jobs in addition to the parallel CLI
 # job. The test jobs are declared next to this template (see
@@ -105,6 +110,55 @@ jobs:
         condition: succeededOrFailed()
         continueOnError: true
         displayName: Check for artifacts published by an earlier attempt
+
+  # Runs the deb and rpm package dependency checks (see build/linux/dependencies-generator.ts)
+  # without building, signing or publishing packages. The product build runs these checks
+  # in the Sign job when it prepares the packages.
+  - ${{ if eq(parameters.VSCODE_CHECK_PACKAGE_DEPENDENCIES, true) }}:
+    - job: Linux_${{ parameters.VSCODE_ARCH }}_PackageDependencies
+      displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Package Dependencies
+      dependsOn:
+        - Linux_${{ parameters.VSCODE_ARCH }}_Compile
+        - LinuxCLI_${{ parameters.VSCODE_ARCH }}
+      timeoutInMinutes: 30
+      cancelTimeoutInMinutes: 10
+      variables:
+        NPM_ARCH: ${{ parameters.NPM_ARCH }}
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+      steps:
+        - template: ./steps/product-build-linux-setup.yml@self
+          parameters:
+            VSCODE_CIBUILD: false
+
+        - template: ./steps/product-build-linux-download-compilation.yml@self
+
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: vscode_cli_linux_$(VSCODE_ARCH)_cli
+            patterns: "**"
+            path: $(Build.ArtifactStagingDirectory)/cli
+          displayName: Download VS Code CLI
+
+        # The dependency checks include the CLI, so it must be in the build like in the packages
+        - script: |
+            set -e
+            tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
+            CLI_APP_NAME=$(node -p "require(\"$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
+            APP_NAME=$(node -p "require(\"$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
+            mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
+          displayName: Mix in CLI
+
+        - script: |
+            set -e
+            pnpm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
+          env:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+          displayName: Check deb package dependencies
+
+        - script: |
+            set -e
+            pnpm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
+          displayName: Check rpm package dependencies
 
   # Signing needs the ESRP connection, which the SDK validation pipeline
   # (sdk-validation-build.yml) must not reference.

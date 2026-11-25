@@ -1,9 +1,10 @@
 # SDK validation pipeline.
 #
 # Validates a Copilot SDK update (see microsoft/vscode-engineering#4296): builds
-# the product on every desktop platform and architecture, and runs the Agent
-# Host E2E tests on Windows x64, Linux x64 and macOS arm64. It never signs or
-# publishes anything.
+# the product on every desktop platform and architecture, runs the Agent Host
+# E2E tests on Windows x64, Linux x64 and macOS arm64, and checks the Linux x64
+# and arm64 deb and rpm package dependencies. It never signs or publishes
+# anything.
 #
 # It reuses the job templates of the product build (product-build.yml), but its
 # expanded YAML must not reference any of the privileged service connections:
@@ -231,6 +232,10 @@ extends:
           name: 1es-ubuntu-22.04-x64
           os: linux
         jobs:
+          - template: build/azure-pipelines/linux/product-build-linux-cli.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
           - template: build/azure-pipelines/linux/product-build-linux.yml@self
             parameters:
               NPM_ARCH: x64
@@ -238,6 +243,7 @@ extends:
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_TESTS: true
               VSCODE_PRIVILEGED_CONNECTIONS: false
+              VSCODE_CHECK_PACKAGE_DEPENDENCIES: true
           - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
             parameters:
               NPM_ARCH: x64
@@ -254,12 +260,17 @@ extends:
           name: 1es-ubuntu-22.04-x64
           os: linux
         jobs:
+          - template: build/azure-pipelines/linux/product-build-linux-cli.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
           - template: build/azure-pipelines/linux/product-build-linux.yml@self
             parameters:
               NPM_ARCH: arm64
               VSCODE_ARCH: arm64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_PRIVILEGED_CONNECTIONS: false
+              VSCODE_CHECK_PACKAGE_DEPENDENCIES: true
 
       - stage: LinuxARMHF
         displayName: Linux ARMHF
