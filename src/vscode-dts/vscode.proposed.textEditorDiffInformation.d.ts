@@ -60,6 +60,15 @@ declare module 'vscode' {
 		readonly onDidChange: Event<void>;
 	}
 
+	export interface SourceControlDiffInformationOptions {
+		/**
+		 * When `true`, pending global chat editing diffs for the resource take
+		 * precedence over the primary source control diff while chat edits are
+		 * active. Defaults to `false`.
+		 */
+		readonly includeChatEdits?: boolean;
+	}
+
 	export namespace window {
 		export const onDidChangeTextEditorDiffInformation: Event<TextEditorDiffInformationChangeEvent>;
 
@@ -74,9 +83,10 @@ declare module 'vscode' {
 		 * The returned provider must be disposed once it is no longer needed.
 		 *
 		 * @param uri The resource to observe.
+		 * @param options Optional settings controlling which diff sources are included.
 		 * @returns A live, disposable view of the resource's diff information.
 		 */
-		export function createSourceControlDiffInformation(uri: Uri): SourceControlDiffInformationProvider;
+		export function createSourceControlDiffInformation(uri: Uri, options?: SourceControlDiffInformationOptions): SourceControlDiffInformationProvider;
 	}
 
 }

@@ -25,6 +25,8 @@ import { ctxCursorInChangeRange } from './chatEditingEditorContextKeys.js';
 
 export class ChatEditingCustomTextEditorIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
 
+	private static readonly _activeContextKeyOwner = new WeakMap<IContextKeyService, ChatEditingCustomTextEditorIntegration>();
+
 	private readonly _currentIndex = observableValue(this, -1);
 	readonly currentIndex: IObservable<number> = this._currentIndex;
 
@@ -125,20 +127,30 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 			}
 		}));
 
-		const ctxCursorInRange = ctxCursorInChangeRange.bindTo(contextKeyService);
-		this._register(toDisposable(() => ctxCursorInRange.reset()));
+		const scopedContextKeyService = this._editor.scopedContextKeyService ?? this._editor.group.scopedContextKeyService ?? contextKeyService;
+		const ctxCursorInRange = ctxCursorInChangeRange.bindTo(scopedContextKeyService);
+		const resetContextKeyIfOwned = () => {
+			if (ChatEditingCustomTextEditorIntegration._activeContextKeyOwner.get(scopedContextKeyService) === this) {
+				ChatEditingCustomTextEditorIntegration._activeContextKeyOwner.delete(scopedContextKeyService);
+				ctxCursorInRange.reset();
+			}
+		};
+		this._register(toDisposable(resetContextKeyIfOwned));
 
 		const enabledObs = derived(r => this._navigation.read(r) !== undefined);
 		this._register(autorun(r => {
+			if (!enabledObs.read(r)) {
+				resetContextKeyIfOwned();
+				return;
+			}
 			const position = this._selection.read(r)?.getStartPosition();
-			if (!position || !enabledObs.read(r)) {
-				ctxCursorInRange.reset();
+			ChatEditingCustomTextEditorIntegration._activeContextKeyOwner.set(scopedContextKeyService, this);
+			if (!position) {
+				ctxCursorInRange.set(false);
 				return;
 			}
 			const diff = this._documentDiffInfo.read(r);
-			const inRange = diff.changes.some(m =>
-				m.modified.contains(position.lineNumber) || (m.modified.isEmpty && m.modified.startLineNumber === position.lineNumber)
-			);
+			const inRange = this._getChangeRanges(diff).some(range => range.containsPosition(position));
 			ctxCursorInRange.set(inRange);
 		}));
 	}
@@ -207,6 +219,11 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 	}
 
 	private _navigate(next: boolean, strict: boolean): boolean {
+		const navigation = this._getActiveCustomEditorInput()?.navigation;
+		if (!navigation) {
+			return false;
+		}
+
 		const ranges = this._getChangeRanges(this._documentDiffInfo.get());
 		if (ranges.length === 0) {
 			this._currentIndex.set(-1, undefined);
@@ -217,8 +234,8 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 		if (this._pendingRevealIndex !== undefined) {
 			newIndex = this._pendingRevealIndex + (next ? 1 : -1);
 		} else {
-			const position = this._getActiveCustomEditorInput()?.navigation?.selection
-				? Selection.liftSelection(this._getActiveCustomEditorInput()!.navigation!.selection!).getStartPosition()
+			const position = navigation.selection
+				? Selection.liftSelection(navigation.selection).getStartPosition()
 				: undefined;
 
 			if (position) {
@@ -286,8 +303,7 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 		}
 		const diff = this._documentDiffInfo.get();
 		const target = this._findTargetChange(diff);
-		if (target) {
-			await diff.keep(target);
+		if (target && await diff.keep(target)) {
 			this.next(true);
 		}
 	}
@@ -299,8 +315,7 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 		}
 		const diff = this._documentDiffInfo.get();
 		const target = this._findTargetChange(diff);
-		if (target) {
-			await diff.undo(target);
+		if (target && await diff.undo(target)) {
 			this.next(true);
 		}
 	}

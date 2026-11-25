@@ -1055,7 +1055,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 * offsets.
 	 */
 	#wireQuickDiff(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, sync: TextDocumentSync): vscode.Disposable {
-		const diffProvider = vscode.window.createSourceControlDiffInformation(document.uri);
+		const diffProvider = vscode.window.createSourceControlDiffInformation(document.uri, { includeChatEdits: true });
 
 		const postMarkers = async () => {
 			// Offsets into the editor text are document offsets once the editor's changes are written.

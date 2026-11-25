@@ -2261,7 +2261,7 @@ export interface MainThreadSCMShape extends IDisposable {
 export interface MainThreadQuickDiffShape extends IDisposable {
 	$registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string, rootUri: UriComponents | undefined): Promise<void>;
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
-	$createSourceControlDiffInformation(handle: number, uri: UriComponents): Promise<void>;
+	$createSourceControlDiffInformation(handle: number, uri: UriComponents, includeChatEdits?: boolean): Promise<void>;
 	$disposeSourceControlDiffInformation(handle: number): Promise<void>;
 }
 

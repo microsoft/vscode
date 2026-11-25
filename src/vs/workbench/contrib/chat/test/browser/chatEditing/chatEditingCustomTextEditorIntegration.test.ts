@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -12,13 +13,19 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { EditOperation } from '../../../../../../editor/common/core/editOperation.js';
+import { Position } from '../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
 import { ISelection, Selection } from '../../../../../../editor/common/core/selection.js';
-import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
+import { IDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
+import { IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IActiveEditorChangeEvent, IEditorPane, IVisibleEditorPane } from '../../../../../common/editor.js';
 import { IEditorGroup } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IGroupModelChangeEvent } from '../../../../../common/editor/editorGroupModel.js';
@@ -33,6 +40,7 @@ import { IDocumentDiff2 } from '../../../browser/chatEditing/chatEditingCodeEdit
 import { ChatEditingCustomTextEditorIntegration } from '../../../browser/chatEditing/chatEditingCustomTextEditorIntegration.js';
 import { ctxCursorInChangeRange } from '../../../browser/chatEditing/chatEditingEditorContextKeys.js';
 import { ChatEditingOverlayController } from '../../../browser/chatEditing/chatEditingEditorOverlay.js';
+import { ChatEditingTextModelChangeService } from '../../../browser/chatEditing/chatEditingTextModelChangeService.js';
 import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 
 class TestNavigation extends Disposable implements ICustomTextEditorNavigation {
@@ -105,10 +113,13 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 			iconPath: undefined,
 		}, webview, {}));
 
+		const paneContextKeyService = store.add(new MockContextKeyService());
+		const groupContextKeyService = store.add(new MockContextKeyService());
 		const onDidActiveEditorChange = store.add(new Emitter<IActiveEditorChangeEvent>());
 		const onDidModelChange = store.add(new Emitter<IGroupModelChangeEvent>());
 		let activeEditorPane: IVisibleEditorPane | undefined;
 		const group = upcastPartial<IEditorGroup>({
+			scopedContextKeyService: groupContextKeyService,
 			onDidActiveEditorChange: onDidActiveEditorChange.event,
 			onDidModelChange: onDidModelChange.event,
 			get activeEditorPane() { return activeEditorPane; },
@@ -119,6 +130,7 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 		const pane = upcastPartial<IVisibleEditorPane>({
 			input,
 			group,
+			scopedContextKeyService: paneContextKeyService,
 			getControl: () => undefined,
 			getId: () => 'workbench.editor.webviewEditor',
 		});
@@ -178,6 +190,8 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 			undone,
 			openedDiffs,
 			navigation,
+			paneContextKeyService,
+			groupContextKeyService,
 			setActivePane: (nextPane: IVisibleEditorPane | undefined) => {
 				activeEditorPane = nextPane;
 				onDidActiveEditorChange.fire({ editor: nextPane?.input });
@@ -219,7 +233,7 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 		assert.strictEqual(lastToken.isCancellationRequested, true);
 	});
 
-	test('clamps EOF deletion range to a valid document range', () => {
+	test('clamps EOF deletion range to a valid document range and enables cursorInChangeRange after reveal', async () => {
 		const ctx = createSetup({ isTextEditor: true });
 		ctx.input.navigation = ctx.navigation;
 		const eofDeletion = new DetailedLineRangeMapping(new LineRange(5, 6), new LineRange(6, 6), undefined);
@@ -229,6 +243,173 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 		integration.reveal(true);
 		assert.strictEqual(ctx.navigation.revealed.length, 1);
 		assert.deepStrictEqual(ctx.navigation.revealed[0].range, new Range(5, 7, 5, 7));
+
+		// Simulate the custom editor moving its selection to the revealed clamped range.
+		ctx.navigation.setSelection(ctx.navigation.revealed[0].selection);
+		assert.strictEqual(ctx.paneContextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), true);
+
+		await integration.acceptNearestChange();
+		assert.deepStrictEqual(ctx.kept, [eofDeletion]);
+	});
+
+	test('does not consume next/previous when custom editor has no navigation bridge', () => {
+		const ctx = createSetup({ isTextEditor: true });
+		const integration = store.add(ctx.instantiation.createInstance(ChatEditingCustomTextEditorIntegration, ctx.entry, ctx.pane, ctx.diffObs));
+
+		const initialIndex = integration.currentIndex.get();
+		assert.strictEqual(integration.next(false), false);
+		assert.strictEqual(integration.next(true), false);
+		assert.strictEqual(integration.previous(false), false);
+		assert.strictEqual(integration.previous(true), false);
+		assert.strictEqual(integration.currentIndex.get(), initialIndex);
+	});
+
+	test('scopes cursorInChangeRange to the active editor pane and prevents inactive integrations from resetting it', () => {
+		const ctx = createSetup({ isTextEditor: true });
+		ctx.input.navigation = ctx.navigation;
+		const globalContextKeyService = ctx.instantiation.get(IContextKeyService);
+
+		const integration1 = store.add(ctx.instantiation.createInstance(ChatEditingCustomTextEditorIntegration, ctx.entry, ctx.pane, ctx.diffObs));
+
+		// Split group with its own pane & scoped context key service
+		const splitPaneCtx = store.add(new MockContextKeyService());
+		const splitGroupCtx = store.add(new MockContextKeyService());
+		const splitRef: { pane?: IVisibleEditorPane } = {};
+		const splitGroup: IEditorGroup = upcastPartial<IEditorGroup>({
+			scopedContextKeyService: splitGroupCtx,
+			onDidActiveEditorChange: Event.None,
+			onDidModelChange: Event.None,
+			get activeEditorPane() { return splitRef.pane; },
+			get activeEditor() { return ctx.input; },
+			focus: () => { },
+		});
+		const splitPane = upcastPartial<IVisibleEditorPane>({
+			input: ctx.input,
+			group: splitGroup,
+			scopedContextKeyService: splitPaneCtx,
+			getControl: () => undefined,
+			getId: () => 'workbench.editor.webviewEditor',
+		});
+		splitRef.pane = splitPane;
+		const integration2 = store.add(ctx.instantiation.createInstance(ChatEditingCustomTextEditorIntegration, ctx.entry, splitPane, ctx.diffObs));
+
+		ctx.navigation.setSelection(new Selection(4, 1, 4, 5));
+		assert.strictEqual(ctx.paneContextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), true);
+		assert.strictEqual(splitPaneCtx.getContextKeyValue(ctxCursorInChangeRange.key), true);
+		assert.strictEqual(globalContextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), undefined);
+
+		// Disposing the split integration resets only its own scoped key, not the primary pane's key.
+		integration2.dispose();
+		assert.strictEqual(splitPaneCtx.getContextKeyValue(ctxCursorInChangeRange.key), false);
+		assert.strictEqual(ctx.paneContextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), true);
+
+		// Switching tabs in the same pane to a second modified custom editor: inactive integration1 must not clobber integrationB.
+		const otherModel = store.add(createTextModel('a edited\nb', 'markdown', undefined, URI.file('/workspace/other.md')));
+		const otherOrig = store.add(createTextModel('a\nb', 'markdown', undefined, URI.parse('chat-editing-snapshot-text-model:/other.md')));
+		const otherWebview = upcastPartial<IOverlayWebview>({ onMessage: Event.None, dispose: () => { } });
+		const otherInput = store.add(ctx.instantiation.createInstance(CustomEditorInput, {
+			resource: otherModel.uri, viewType: 'vscode.markdown.editor', webviewTitle: undefined, preferredName: 'other.md', iconPath: undefined,
+		}, otherWebview, {}));
+		const otherNav = store.add(new TestNavigation(otherModel));
+		otherNav.setSelection(new Selection(1, 1, 1, 2));
+		otherInput.navigation = otherNav;
+		const otherChange = new DetailedLineRangeMapping(new LineRange(1, 2), new LineRange(1, 2), undefined);
+		const otherDiff = observableValue<IDocumentDiff2>('otherDiff', {
+			identical: false, quitEarly: false, changes: [otherChange], moves: [],
+			originalModel: otherOrig, modifiedModel: otherModel,
+			keep: async () => true, undo: async () => true,
+		});
+		const otherEntry = new class extends mock<IModifiedFileEntry>() {
+			override readonly originalURI = otherOrig.uri;
+			override readonly modifiedURI = otherModel.uri;
+			override readonly state = constObservable(ModifiedFileEntryState.Modified);
+			override readonly isCurrentlyBeingModifiedBy = constObservable(undefined);
+			override readonly lastModifyingRequestId = 'req-2';
+		}();
+
+		// Switch pane input to otherInput
+		(ctx.pane as unknown as { input: CustomEditorInput }).input = otherInput;
+		ctx.onDidActiveEditorChange.fire({ editor: otherInput });
+		store.add(ctx.instantiation.createInstance(ChatEditingCustomTextEditorIntegration, otherEntry, ctx.pane, otherDiff));
+		assert.strictEqual(ctx.paneContextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), true);
+
+		// Updating selection or disposing the now-inactive integration1 must not reset the pane's key.
+		ctx.navigation.setSelection(new Selection(2, 1, 2, 1));
+		assert.strictEqual(ctx.paneContextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), true);
+		integration1.dispose();
+		assert.strictEqual(ctx.paneContextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), true);
+	});
+
+	test('rejects stale hunk mappings after a user edit while diff recomputation is pending', async () => {
+		const originalModel = store.add(createTextModel('header\nline 2\nline 3', 'markdown', undefined, URI.parse('chat-editing-snapshot-text-model:/stale.md')));
+		const modifiedModel = store.add(createTextModel('header\nline 2\nline 3', 'markdown', undefined, URI.file('/workspace/stale.md')));
+
+		const initialChange = new DetailedLineRangeMapping(
+			new LineRange(3, 4),
+			new LineRange(3, 4),
+			[new RangeMapping(new Range(3, 1, 3, 7), new Range(3, 1, 3, 14))]
+		);
+		let diffCallCount = 0;
+		const pendingDiff = new DeferredPromise<IDocumentDiff>();
+		const editorWorkerService = new class extends mock<IEditorWorkerService>() {
+			override async computeDiff(): Promise<IDocumentDiff | null> {
+				diffCallCount++;
+				if (diffCallCount === 1) {
+					return { identical: false, quitEarly: false, changes: [initialChange], moves: [] };
+				}
+				return pendingDiff.p;
+			}
+		}();
+		const accessibilitySignalService = new class extends mock<IAccessibilitySignalService>() {
+			override async playSignal(): Promise<void> { }
+		}();
+
+		const stateObs = observableValue('state', ModifiedFileEntryState.Modified);
+		const changeService = store.add(new ChatEditingTextModelChangeService(
+			originalModel,
+			modifiedModel,
+			stateObs,
+			undefined,
+			editorWorkerService,
+			accessibilitySignalService,
+		));
+
+		// Apply an agent edit on line 3 and let the first diff complete.
+		await changeService.resetDocumentValues(undefined, 'header\nline 2\nline 3 edited');
+		const diff1 = await changeService.getDiffInfo();
+		assert.strictEqual(diff1.changes.length, 1);
+
+		// User inserts two lines above the hunk; recomputation is held pending.
+		modifiedModel.applyEdits([EditOperation.insert(new Position(1, 1), 'user line A\nuser line B\n')]);
+		const expectedModifiedAfterUserEdit = modifiedModel.getValue();
+		const expectedOriginalAfterUserEdit = originalModel.getValue();
+
+		const diff2Obs = changeService.diffInfo.get();
+		const staleChange = diff2Obs.changes[0];
+
+		// Both undo and keep must reject the stale mapping without modifying either model.
+		assert.strictEqual(await diff2Obs.undo(staleChange), false);
+		assert.strictEqual(modifiedModel.getValue(), expectedModifiedAfterUserEdit);
+		assert.strictEqual(await diff2Obs.keep(staleChange), false);
+		assert.strictEqual(originalModel.getValue(), expectedOriginalAfterUserEdit);
+
+		// Also verify integration does not advance when keep/undo rejects a stale hunk.
+		const ctx = createSetup({ isTextEditor: true });
+		ctx.input.navigation = ctx.navigation;
+		ctx.diffObs.set({
+			...ctx.diffObs.get(),
+			keep: async () => false,
+			undo: async () => false,
+		}, undefined);
+		const integration = store.add(ctx.instantiation.createInstance(ChatEditingCustomTextEditorIntegration, ctx.entry, ctx.pane, ctx.diffObs));
+		integration.reveal(true);
+		const revealsBefore = ctx.navigation.revealed.length;
+		await integration.rejectNearestChange();
+		await integration.acceptNearestChange();
+		assert.strictEqual(ctx.navigation.revealed.length, revealsBefore);
+		assert.strictEqual(integration.currentIndex.get(), 0);
+
+		pendingDiff.complete({ identical: false, quitEarly: false, changes: [], moves: [] });
 	});
 
 	test('replays reveal once custom text editor navigation attaches and cancels on navigation change', () => {
@@ -252,17 +433,16 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 		const ctx = createSetup({ isTextEditor: true });
 		ctx.input.navigation = ctx.navigation;
 		const integration = store.add(ctx.instantiation.createInstance(ChatEditingCustomTextEditorIntegration, ctx.entry, ctx.pane, ctx.diffObs));
-		const contextKeyService = ctx.instantiation.get(IContextKeyService);
 
 		ctx.navigation.setSelection(new Selection(2, 1, 2, 1));
-		assert.strictEqual(contextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), false);
+		assert.strictEqual(ctx.paneContextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), false);
 
 		// Reveal hunk 1 so _currentIndex is 0, then move cursor to hunk 2.
 		integration.reveal(true);
 		assert.strictEqual(integration.currentIndex.get(), 0);
 
 		ctx.navigation.setSelection(new Selection(4, 1, 4, 5));
-		assert.strictEqual(contextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), true);
+		assert.strictEqual(ctx.paneContextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), true);
 
 		// Keep should target hunk 2 (where the cursor is), not hunk 1.
 		await integration.acceptNearestChange();

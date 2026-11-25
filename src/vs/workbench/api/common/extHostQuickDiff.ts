@@ -125,11 +125,11 @@ export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 		};
 	}
 
-	createSourceControlDiffInformation(uri: vscode.Uri): vscode.SourceControlDiffInformationProvider {
+	createSourceControlDiffInformation(uri: vscode.Uri, options?: vscode.SourceControlDiffInformationOptions): vscode.SourceControlDiffInformationProvider {
 		const handle = ExtHostQuickDiff.handlePool++;
 		const information = new ExtHostSourceControlDiffInformation(handle, this.proxy, this.documents, h => this.informations.delete(h));
 		this.informations.set(handle, information);
-		this.proxy.$createSourceControlDiffInformation(handle, uri);
+		this.proxy.$createSourceControlDiffInformation(handle, uri, options?.includeChatEdits);
 		return information;
 	}
 }

@@ -50,7 +50,7 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 		}
 	}
 
-	async $createSourceControlDiffInformation(handle: number, uri: UriComponents): Promise<void> {
+	async $createSourceControlDiffInformation(handle: number, uri: UriComponents, includeChatEdits?: boolean): Promise<void> {
 		const resource = URI.revive(uri);
 		const reference = this.quickDiffModelService.createQuickDiffModelReference(resource);
 		if (!reference) {
@@ -59,6 +59,13 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 
 		const store = new DisposableStore();
 		store.add(reference);
+
+		if (!includeChatEdits) {
+			store.add(reference.object.onDidChange(() => this.sendSourceControlDiffInformation(handle, reference)));
+			this.informationDisposables.set(handle, store);
+			this.sendSourceControlDiffInformation(handle, reference);
+			return;
+		}
 
 		const chatDiffObs = derived(r => {
 			const sessions = this.chatEditingService.editingSessionsObs.read(r).filter(session => session.isGlobalEditingSession.read(r));

@@ -1073,9 +1073,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'quickDiffProvider');
 				return extHostQuickDiff.registerQuickDiffProvider(extension, checkSelector(selector), quickDiffProvider, id, label, rootUri);
 			},
-			createSourceControlDiffInformation(uri: vscode.Uri): vscode.SourceControlDiffInformationProvider {
+			createSourceControlDiffInformation(uri: vscode.Uri, options?: vscode.SourceControlDiffInformationOptions): vscode.SourceControlDiffInformationProvider {
 				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
-				return extHostQuickDiff.createSourceControlDiffInformation(uri);
+				return extHostQuickDiff.createSourceControlDiffInformation(uri, options);
 			},
 			get linkPresentationRules(): readonly vscode.LinkPresentationRule[] {
 				checkProposedApiEnabled(extension, 'linkPresentation');
