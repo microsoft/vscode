@@ -10,7 +10,9 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DeferredPromise, installFakeRunWhenIdle, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, waitForState } from '../../../../base/common/observable.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { BaseObservable } from '../../../../base/common/observableInternal/observables/baseObservable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -422,7 +424,8 @@ suite('MultiDiffEditorWidget', () => {
 			widget.setDiffWordWrap(options.diffWordWrap);
 		}
 		widget.layout(new Dimension(800, 300));
-		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) });
+		const documents = new ValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>(documentItems);
+		const viewModel = widget.createViewModel({ documents });
 		disposables.add(toDisposable(() => {
 			widget.dispose();
 			viewModel.dispose();
@@ -445,7 +448,7 @@ suite('MultiDiffEditorWidget', () => {
 		const resource = { original: models[1][0].uri, modified: models[1][1].uri };
 		widget.reveal(resource, { highlight: false });
 		await waitForState(widget.getLayoutDebugState(), state => state.items[1]?.hasTemplate === true);
-		return { widget, resource, computeDiffs };
+		return { widget, resource, computeDiffs, documents };
 	}
 
 	/** Returns whether a position is in the visible part of an editor's content. */
@@ -538,6 +541,29 @@ suite('MultiDiffEditorWidget', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({ highlights: getHighlights(editor), visible: isVisible(editor, new Position(350, 1)) }, { highlights: [new Range(350, 1, 350, 12)], visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	}));
+
+	test('stops waiting for the diff of a file that is removed while a range in it waits to be revealed', () => runWithFakedTimers({}, async () => {
+		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
+		const { widget, resource, documents } = await showFileBelowAnother(lines.join('\n'), lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line).join('\n'), { computeDiffsLater: true });
+
+		try {
+			const viewModel = widget.viewModel.get()!;
+			const item = viewModel.items.get()[1];
+			const isDiffUpToDate = item.diffEditorViewModel.isDiffUpToDate as unknown as BaseObservable<boolean>;
+			widget.reveal(resource, { range: new Range(250, 1, 250, 5), highlight: false });
+			// The other file becomes the active one without a reveal, as when the user focuses it, so that no reveal follows.
+			viewModel.items.get()[0].setIsFocused(constObservable(true), undefined);
+			documents.value = [documents.value[0]];
+			await waitForState(viewModel.items, items => items.length === 1);
+			// The diff view model of the removed file releases its own wait for the diff asynchronously.
+			await timeout(0);
+
+			// The diff of a removed file is never computed, so a wait for it would keep the file.
+			assert.deepStrictEqual({ isAlive: item.isAlive.get(), observers: isDiffUpToDate.debugGetObservers().size }, { isAlive: false, observers: 0 });
 		} finally {
 			widget.setViewModel(undefined);
 		}
@@ -659,6 +685,37 @@ suite('MultiDiffEditorWidget', () => {
 				deleted: revealsWord(152, 'c250'),
 				replaced: revealsWord(153, 'd250'),
 			}, { deleted: true, replaced: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals text that a true inline diff shows after wrapped deleted text', async () => {
+		const words = (prefix: string) => Array.from({ length: 300 }, (_, index) => `${prefix}${index}`).join(' ');
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const originalLines = [...lines];
+		originalLines[151] = `keep(${words('c')})after`;
+		originalLines[251] = `keep(${words('d')})rest`;
+		const modifiedLines = [...lines];
+		// The words of line 152 are deleted, and those of line 252 replaced.
+		modifiedLines[151] = 'keep()after';
+		modifiedLines[251] = 'keep(ZZZ)rest';
+		const { widget, resource } = await showFileBelowAnother(originalLines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false, diffWordWrap: 'on', editorOptions: { experimental: { useTrueInlineView: true } } });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			// The modified editor shows the deleted words in front of the text after them, which starts rows below them.
+			const revealsText = (lineNumber: number, text: string, side: 'original' | 'modified', shownText: string) => {
+				const column = (side === 'original' ? originalLines : modifiedLines)[lineNumber - 1].indexOf(text) + 1;
+				widget.reveal(resource, { range: new Range(lineNumber, column, lineNumber, column + text.length), side, highlight: false });
+				editor.render(true);
+				return [...editor.getDomNode()!.querySelectorAll('.view-line')].some(line => line.textContent?.includes(shownText));
+			};
+
+			assert.deepStrictEqual({
+				textAfterDeletedText: revealsText(152, ')after', 'original', 'after'),
+				replacement: revealsText(252, 'ZZZ', 'modified', 'ZZZ'),
+			}, { textAfterDeletedText: true, replacement: true });
 		} finally {
 			widget.setViewModel(undefined);
 		}
