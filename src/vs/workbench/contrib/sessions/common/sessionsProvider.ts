@@ -446,6 +446,12 @@ export interface ISessionsProvider {
 	getAllSessions?(): ISession[];
 
 	/**
+	 * The session of {@link getAllSessions} that `resource` names, by its {@link ISession.resource} or one of its
+	 * {@link ISession.previousIdentities}, looked up without listing every session.
+	 */
+	getSession(resource: URI): ISession | undefined;
+
+	/**
 	 * Lists only the sessions of `scope` from then on, in {@link getSessions} and {@link onDidChangeSessions}, such as those
 	 * of an editor window's folders; {@link getAllSessions} still finds every session. Without it, the provider lists every
 	 * session also where a window scopes its listing.
