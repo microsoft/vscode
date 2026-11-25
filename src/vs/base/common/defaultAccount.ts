@@ -95,12 +95,18 @@ export interface IDefaultAccountAuthenticationProvider {
 	readonly enterprise: boolean;
 }
 
+/** A Copilot service that a Microsoft sign-in can use. */
+export type CopilotServiceKind = 'github' | 'm365';
+
 export interface IDefaultAccount {
 	readonly authenticationProvider: IDefaultAccountAuthenticationProvider;
 	readonly accountName: string;
 	readonly sessionId: string;
 	readonly enterprise: boolean;
 	readonly entitlementsData?: IEntitlementsData | null;
+
+	/** The Copilot service chosen for a remembered Microsoft account. */
+	readonly copilotService?: CopilotServiceKind;
 }
 
 /** The fields of a default account that identify its GitHub account and the authentication session to use for it. */

@@ -17,7 +17,7 @@ import { isObject } from '../../../../../../base/common/types.js';
 import type { AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
-import { copilotEntraDiscoveryResource, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { copilotEntraDiscoveryResource, copilotEntraResources, copilotServiceForResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { agentEntitlementHintMeta, readAgentEntitlementHint, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -884,12 +884,16 @@ export async function authenticateProtectedResources(
 	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
 	for (const agent of agents) {
 		const resources = agent.protectedResources ?? [];
-		// With several named optional Microsoft service resources offered, the window cannot tell which one the user means, so it forwards none of them.
+		// With several named optional Microsoft service resources offered, the window forwards only the service remembered for the default account.
 		const isOptionalService = (r: ProtectedResourceMetadata) => r.required === false && isCopilotEntraServiceResource(r);
 		const choosesBetweenServices = resources.filter(r => isOptionalService(r) && !!r.resource_name).length > 1;
 		for (const resource of resources) {
 			if (choosesBetweenServices && isOptionalService(resource)) {
-				continue;
+				if (copilotServiceForResource(resource.resource) !== defaultAccountService.currentDefaultAccount?.copilotService) {
+					continue;
+				}
+				// An earlier challenge answer may have sent this credential already; the host takes it as the choice only now, so it is sent again.
+				resolvedOptions.authTokenCache?.invalidate(resource.resource, resource.scopes_supported);
 			}
 			await authenticateProtectedResourceWithServices(authenticationService, defaultAccountService, logService, resource, resolvedOptions);
 		}

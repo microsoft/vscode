@@ -39,7 +39,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, GheParseResultKind, gitHubEnterpriseUrisSetting, isValidGitHubEnterpriseUri, parseGheInstanceInput } from '../../../../services/accounts/common/githubEnterprise.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources } from '../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources, copilotServiceForResource } from '../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AuthRequiredReason, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI, RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -392,7 +392,7 @@ export class ChatSetupController extends Disposable {
 					return defaultAccount?.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID && defaultAccount.accountName === identity.account.label;
 				};
 				const wasDefaultAccount = isDefaultAccount();
-				await this.defaultAccountService.rememberMicrosoftAccount(identity.account);
+				await this.defaultAccountService.rememberMicrosoftAccount(identity.account, copilotServiceForResource(choice.resource)!);
 				try {
 					// The remembered account outlives this attempt, so an attempt abandoned during the update above must not leave it behind.
 					this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
