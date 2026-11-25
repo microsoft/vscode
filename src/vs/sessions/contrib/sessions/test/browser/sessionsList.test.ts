@@ -16393,16 +16393,18 @@ suite('Sessions - SessionsList', () => {
 		suite('hierarchy indent/connector guides', () => {
 
 			function twoSessionContainer(activePeer = false, compact = false): { readonly container: HTMLElement; readonly session: ISession; readonly other: ISession } {
+				// Explicit creation times keep `Session` listed above `Other session`; default timestamps tie only when both fall in the same millisecond.
+				const now = Date.now();
 				const main = createChat('Main chat');
 				const peer = createChat('Peer chat', ChatOriginKind.User);
-				const base = createTestSession('Session').session;
+				const base = createTestSession('Session', { createdAt: new Date(now - 60_000) }).session;
 				const session: ISession = {
 					...base,
 					chats: constObservable([main, peer]),
 					mainChat: constObservable(main),
 					capabilities: constObservable({ supportsMultipleChats: true }),
 				};
-				const otherBase = createTestSession('Other session').session;
+				const otherBase = createTestSession('Other session', { createdAt: new Date(now - 2 * 60_000) }).session;
 				const other: ISession = {
 					...otherBase,
 					chats: constObservable([createChat('Other main chat'), createChat('Other peer chat', ChatOriginKind.User)]),
