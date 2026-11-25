@@ -43,6 +43,10 @@ an interactive prompt.
 Without `--tunnel`, `code agent` and `code agent host` still start or reuse a local
 agent host supervisor.
 
+### Tunnel service startup tests
+
+On Windows, run `cargo +1.97.0 test --release --locked --test tunnel_service --test agent_tunnel` to exercise the release profile and the default 1 MiB main-thread stack. These tests also run after the Windows x64 production CLI build, using its toolchain and native dependencies. The service test runs `tunnel service internal-run` with isolated file-keychain state and rejects all HTTP requests through a loopback proxy; it does not install a service, access existing credentials, or create a live tunnel. Set `VSCODE_CLI_TEST_BINARY` to the absolute path of a downloaded CLI to run the same service test against that artifact.
+
 ## GitHub environments
 
 Use `code agent host --github-environment --name <name>` to register an agent host as a GitHub environment. Like `code agent host`, it starts in the background by default; `--foreground` keeps it attached to the terminal. By default, it grants access to all accessible local drive roots on Windows and `/` on macOS and Linux, while keeping the launch directory as the shared project and default working directory. Network-backed Windows drives are not added automatically; inaccessible local drives are skipped with a warning. Automatically discovered grants are checked again when the agent host restarts, so a disconnected drive does not prevent registration.
