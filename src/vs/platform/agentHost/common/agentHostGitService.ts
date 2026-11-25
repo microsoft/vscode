@@ -478,12 +478,26 @@ export interface IAgentHostGitService {
 	 * Returns `undefined` when {@link workingDirectory} is not a git work
 	 * tree, so callers can fall back to other diff sources.
 	 *
+	 * A changed submodule that is checked out is listed as the files changed
+	 * inside it, diffed against the commit the merge base records for it, so
+	 * the `git-blob:` baselines of those files belong to the submodule (see
+	 * {@link getSubmoduleRoot}).
+	 *
 	 * Each returned {@link ISessionFileDiff} has its `before.content` set to
 	 * a `git-blob:` URI ({@link buildGitBlobUri}); `after.content` is a
 	 * `file:` URI on the working-tree path. Adds and deletes drop the
 	 * missing side.
 	 */
 	computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined>;
+
+	/**
+	 * Returns the root of the checked-out submodule of the repository of
+	 * {@link workingDirectory} that contains `resource`, the innermost one
+	 * when submodules are nested, or `undefined` when none contains it. Only
+	 * submodules that `.gitmodules` registers inside the repository count, so
+	 * `resource` can't select a repository outside of it.
+	 */
+	getSubmoduleRoot?(workingDirectory: URI, resource: URI): Promise<URI | undefined>;
 
 	/**
 	 * Resolves the commit-ish the **Branch Changes** baseline is measured from:
@@ -499,7 +513,8 @@ export interface IAgentHostGitService {
 	/**
 	 * Returns a token that is equal across calls exactly while the Branch Changes of `workingDirectory` against
 	 * `baseBranch` stay the same: it covers HEAD, the merge base, and the paths `git status` reports together with their
-	 * on-disk size and modification time, so editing an already modified file changes it. It is much cheaper than
+	 * on-disk size and modification time, so editing an already modified file changes it, and the same for each changed
+	 * submodule. It is much cheaper than
 	 * computing the diff. `undefined` when it cannot be determined, in which case callers must compute the diff.
 	 */
 	getBranchDiffFingerprint?(workingDirectory: URI, baseBranch?: string): Promise<string | undefined>;
