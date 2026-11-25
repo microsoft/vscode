@@ -3548,7 +3548,6 @@ suite('AgentHostChatContributions', () => {
 			const result = await contributions.service.outgoingTurn({ session: contributions.session, chat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId: 'default-turn', workingDirectories: [workingDirectory] });
 			return result.instructions?.includes(gitLfsPointerFilesInstruction) ?? false;
 		};
-		// The first send is cancelled before the provider receives it, so the retry needs the instruction again.
 		const defaultFirst = await instructed(defaultChat, worktreeDirectory);
 		const defaultRetry = await instructed(defaultChat, worktreeDirectory);
 		contributions.turnTracker.markSendDispatched(defaultChat, 'default-turn');

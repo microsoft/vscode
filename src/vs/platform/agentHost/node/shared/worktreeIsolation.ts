@@ -467,7 +467,7 @@ export function prependAnnouncementToFirstTurn(turns: readonly Turn[], announcem
 	return result;
 }
 
-function prependPartToFirstTurn(turns: readonly Turn[], part: ResponsePart): readonly Turn[] {
+function prependPartsToFirstTurn(turns: readonly Turn[], parts: readonly ResponsePart[]): readonly Turn[] {
 	if (turns.length === 0) {
 		return turns;
 	}
@@ -475,7 +475,7 @@ function prependPartToFirstTurn(turns: readonly Turn[], part: ResponsePart): rea
 	const first = result[0];
 	result[0] = {
 		...first,
-		responseParts: [part, ...first.responseParts],
+		responseParts: [...parts, ...first.responseParts],
 	};
 	return result;
 }
@@ -2412,14 +2412,16 @@ export async function readPersistedWorktreeMetadata(source: WorktreeMetadataSour
 export async function applySavedWorktreeAnnouncement(source: WorktreeMetadataSource, sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
 	const notice = await readPersistedWorktreeNotice(source, sessionUri).catch(() => undefined);
 	if (notice?.kind === 'failure') {
-		return prependPartToFirstTurn(turns, buildWorktreeFailureNotification(notice.diagnostic));
+		return prependPartsToFirstTurn(turns, [buildWorktreeFailureNotification(notice.diagnostic)]);
 	}
 	if (notice?.kind !== 'success') {
 		return turns;
 	}
-	// The warning goes in first, so the announcement lands before it in its own part, as it is shown live.
-	const withWarning = notice.gitLfsPointerFiles ? prependPartToFirstTurn(turns, buildWorktreeGitLfsNotification()) : turns;
-	return prependAnnouncementToFirstTurn(withWarning, buildWorktreeAnnouncementText(notice.branchName));
+	const announcement = buildWorktreeAnnouncementText(notice.branchName);
+	if (notice.gitLfsPointerFiles) {
+		return prependPartsToFirstTurn(turns, [{ kind: ResponsePartKind.Markdown, id: generateUuid(), content: announcement }, buildWorktreeGitLfsNotification()]);
+	}
+	return prependAnnouncementToFirstTurn(turns, announcement);
 }
 
 async function readPersistedWorktreeNotice(source: WorktreeMetadataSource, sessionUri: URI): Promise<{ kind: 'success'; branchName: string; gitLfsPointerFiles: boolean } | { kind: 'failure'; diagnostic?: string } | undefined> {

@@ -22,14 +22,10 @@ Do not edit, regenerate, or delete these files, and do not override the Git LFS 
 If a task needs their content, tell the user to install Git LFS and run \`git lfs checkout\` in the worktree.
 </git_lfs_pointer_files>`;
 
-/** Stands in for the directory of a restored conversation, which already has whatever instruction it needed. */
 const RESTORED = 'restored';
 
-/** The working directory whose Git LFS state the chat's agent has, or {@link RESTORED}. */
 const checkedDirectoryKey = createChatMementoKey<string | undefined>('worktreeGitLfs.checkedDirectory', () => undefined);
-/** The turn that carries the instruction, until the provider receives it. */
 const pendingTurnKey = createChatMementoKey<{ readonly turnId: string; readonly directory: string } | undefined>('worktreeGitLfs.pendingTurn', () => undefined);
-/** The working directory the chat warned the user about, so a retried turn does not warn again. */
 const warnedDirectoryKey = createChatMementoKey<string | undefined>('worktreeGitLfs.warnedDirectory', () => undefined);
 
 /**
@@ -84,7 +80,6 @@ export class WorktreeGitLfsContribution extends Disposable implements IAgentHost
 			return undefined;
 		}
 
-		// The session's default chat runs in the session's worktree; another chat may own a worktree of its own.
 		const isDefaultChat = this._chatOwnership.isDefaultChat(turn.session, turn.chat);
 		const ownWorktree = isDefaultChat ? undefined : (await readSessionAdditionalWorktrees(this._sessionStateStore, URI.parse(turn.session))).find(worktree => worktree.chat === turn.chat);
 		const metadata = await this._worktreeIsolation.readWorktreeMetadata(ownWorktree ? detachedWorktreeRecordUri(ownWorktree.handle) : URI.parse(turn.session));
@@ -93,9 +88,9 @@ export class WorktreeGitLfsContribution extends Disposable implements IAgentHost
 			return undefined;
 		}
 		this._context.memento(pendingTurnKey, turn.chat).set({ turnId: turn.turnId, directory: directory.toString() }, undefined);
-		// Only the chats that announce the worktree show the warning, as they do when restored.
+		const announcesWorktree = isDefaultChat || ownWorktree !== undefined;
 		const warned = this._context.memento(warnedDirectoryKey, turn.chat);
-		if ((isDefaultChat || ownWorktree) && warned.get() !== directory.toString()) {
+		if (announcesWorktree && warned.get() !== directory.toString()) {
 			warned.set(directory.toString(), undefined);
 			this._stateManager.dispatchServerAction(turn.chat, {
 				type: ActionType.ChatResponsePart,

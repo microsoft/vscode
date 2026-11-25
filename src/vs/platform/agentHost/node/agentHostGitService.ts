@@ -71,9 +71,8 @@ const READ_ONLY_GIT_SUBCOMMANDS = new Set(['status', 'rev-parse', 'show-ref', 'f
 const MAX_FINGERPRINTED_CHANGED_PATHS = 2000;
 
 /**
- * Command-local configuration that reads and writes Git LFS files as their
- * pointer files: an empty `process` driver turns off the `smudge` and `clean`
- * commands too, and an optional filter lets git skip it rather than fail.
+ * An empty `process` driver turns off the `smudge` and `clean` commands too,
+ * and an optional filter lets git skip it rather than fail.
  */
 const GIT_LFS_DISABLED_CONFIG = ['-c', 'filter.lfs.process=', '-c', 'filter.lfs.smudge=', '-c', 'filter.lfs.required=false'];
 

@@ -2590,11 +2590,13 @@ suite('WorktreeIsolation', () => {
 		const turn: Turn = {
 			id: 't1',
 			message: { text: 'hi', origin: { kind: MessageKind.User } },
-			responseParts: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, id: 'agent', content: 'Done.' }],
 			usage: undefined,
 			state: TurnState.Complete,
 		};
-		const restoredParts = async () => (await isolation.applyRestoreAnnouncement(sessionUri, [turn]))[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.kind : part);
+		const restoredParts = async () => (await isolation.applyRestoreAnnouncement(sessionUri, [turn]))[0].responseParts.map(part => part.kind !== ResponsePartKind.Markdown ? part
+			: part.id !== 'agent' ? 'announcement'
+				: part.content === 'Done.' ? 'agent reply' : 'announcement + agent reply');
 
 		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 		const created = await restoredParts();
@@ -2603,12 +2605,12 @@ suite('WorktreeIsolation', () => {
 		const recreated = await restoredParts();
 
 		assert.deepStrictEqual({ created, recreated }, {
-			created: [ResponsePartKind.Markdown, {
+			created: ['announcement', {
 				kind: ResponsePartKind.SystemNotification,
 				content: 'Git LFS isn\'t installed or can\'t be found on the PATH, so files stored with Git LFS are pointer files in this worktree. Changes to those files can\'t be committed. Install Git LFS, then run `git lfs checkout` in the worktree to get their contents.',
 				_meta: { kind: 'worktreeGitLfsUnavailable', severity: 'warning' },
-			}],
-			recreated: [ResponsePartKind.Markdown],
+			}, 'agent reply'],
+			recreated: ['announcement + agent reply'],
 		});
 	});
 

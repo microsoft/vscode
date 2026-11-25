@@ -2018,7 +2018,6 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		writeFileSync(join(dir, 'large.bin'), pointer);
 		run('-c', 'filter.lfs.process=', '-c', 'filter.lfs.clean=', '-c', 'filter.lfs.required=false', 'add', '.');
 		run('commit', '-q', '-m', 'add Git LFS pointer');
-		// A repository set up for Git LFS, on a machine where `git-lfs` is missing.
 		run('config', 'filter.lfs.process', '/agent-host-missing-git-lfs/git-lfs filter-process');
 		run('config', 'filter.lfs.required', 'true');
 		writeFileSync(join(dir, '.git', 'hooks', 'post-checkout'), '#!/bin/sh\nprintf >&2 "\\n%s\\n\\n" "This repository is configured for Git LFS but \'git-lfs\' was not found on your path."\nexit 2\n', { mode: 0o755 });
