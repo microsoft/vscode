@@ -14,6 +14,13 @@ interface IRemoteSessionInspectionTarget {
 	readonly chat: string;
 	readonly openLink: string;
 	readonly host: { readonly id: string; readonly label: string };
+	readonly chats?: readonly IRemoteSessionChatSummary[];
+}
+
+interface IRemoteSessionChatSummary {
+	readonly title: string;
+	readonly openLink: string;
+	readonly main?: true;
 }
 
 interface IRemoteSessionTurnSnapshot {
