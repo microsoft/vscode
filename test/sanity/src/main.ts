@@ -12,12 +12,13 @@ import { setup as setupServerTests } from './server.test.js';
 import { setup as setupServerWebTests } from './serverWeb.test.js';
 import { setup as setupWSLTests } from './wsl.test.js';
 import { setup as setupDevTunnelTests } from './devTunnel.test.js';
+import { setup as setupInstallerTests } from './installer.test.js';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality', 'screenshots-dir', 'crash-dumps-dir', 'artifacts-dir'],
-	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'detection', 'setuid-sandbox'],
+	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'detection', 'setuid-sandbox', 'installer'],
 	alias: { commit: 'c', quality: 'q', verbose: 'v', 'screenshots-dir': 's', 'crash-dumps-dir': 'd' },
-	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'detection': true },
+	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'detection': true, installer: false },
 });
 
 if (!options.commit) {
@@ -40,6 +41,7 @@ const context = new TestContext({
 	crashDumpsDir: options['crash-dumps-dir'],
 	artifactsDir: options['artifacts-dir'],
 	setuidSandbox: options['setuid-sandbox'],
+	installer: options.installer,
 });
 
 context.log(`Arguments: ${process.argv.slice(2).join(' ')}`);
@@ -57,3 +59,4 @@ setupServerTests(context);
 setupServerWebTests(context);
 setupWSLTests(context);
 setupDevTunnelTests(context);
+setupInstallerTests(context);

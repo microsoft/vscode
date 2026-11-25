@@ -9,7 +9,8 @@ import { spawnSync } from 'child_process';
 import { webkit } from 'playwright';
 
 /**
- * The capabilities of the current environment.
+ * The capabilities of the current environment. `installer` isn't detected: it's present only when the run opts in
+ * with `--installer`, because installer tests change system state such as `/etc` and `/usr/bin`.
  */
 export type Capability =
 	| 'linux' | 'darwin' | 'windows' | 'alpine'
@@ -18,12 +19,14 @@ export type Capability =
 	| 'desktop'
 	| 'browser'
 	| 'wsl'
-	| 'github-account';
+	| 'github-account'
+	| 'installer';
 
 /**
  * Detect the capabilities of the current environment.
+ * @param installer Whether the run opted in to installer tests.
  */
-export function detectCapabilities(): ReadonlySet<Capability> {
+export function detectCapabilities(installer = false): ReadonlySet<Capability> {
 	const capabilities = new Set<Capability>();
 	detectOS(capabilities);
 	detectArch(capabilities);
@@ -32,6 +35,9 @@ export function detectCapabilities(): ReadonlySet<Capability> {
 	detectBrowser(capabilities);
 	detectWSL(capabilities);
 	detectGitHubAccount(capabilities);
+	if (installer) {
+		capabilities.add('installer');
+	}
 	return capabilities;
 }
 
