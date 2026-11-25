@@ -303,11 +303,6 @@ function shouldShowSpinner(followingContent: IChatRendererContent[], element: Ch
 	return isResponseVM(element) && !element.isComplete && followingContent.length === 0;
 }
 
-/**
- * Length of the leading, non-moving portion of a streaming progress message — the verb before
- * the first digit, `(`, or inline element (e.g. a file anchor). Trailing whitespace is excluded
- * so the shimmer ends on the word rather than the gap before the static suffix.
- */
 function leadingStableTextLength(messageElement: HTMLElement): number {
 	const fullText = messageElement.textContent ?? '';
 	let length = 0;
@@ -364,7 +359,6 @@ export class ChatProgressSubPart extends Disposable {
 
 const WORKING_LABEL_MIN_DWELL_MS = 1200;
 const WORKING_LABEL_ROTATION_MS = 10_000;
-/** How long a phrase stays when it changes periodically instead of with the activity. */
 const WORKING_LABEL_PERIOD_MS = 20_000;
 const DELAYED_PROGRESS_MESSAGE_TIMEOUT_MS = 90_000;
 const lastPickedWorkingLabelByElement = new WeakMap<ChatTreeItem, { label: string; pickedAt: number; progressStep?: number }>();

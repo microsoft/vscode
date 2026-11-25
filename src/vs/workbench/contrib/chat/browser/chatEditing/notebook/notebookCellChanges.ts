@@ -58,6 +58,10 @@ interface IDocumentDiffWithModelsAndActions {
 	modifiedModel: ObservablePromise<ITextModel>;
 	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
 	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
+	/** Keeps all changes at once, where keeping one replaces the others. Reports the outcome itself. */
+	keepAll?(): Promise<boolean>;
+	/** Undoes all changes at once, where undoing one replaces the others. Reports the outcome itself. */
+	undoAll?(): Promise<boolean>;
 }
 
 

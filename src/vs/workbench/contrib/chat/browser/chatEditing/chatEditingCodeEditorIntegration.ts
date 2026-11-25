@@ -5,7 +5,7 @@
 
 import './media/chatEditorController.css';
 
-import { getTotalWidth } from '../../../../../base/browser/dom.js';
+import { getTotalHeight, getTotalWidth } from '../../../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -51,6 +51,9 @@ export interface IDocumentDiff2 extends IDocumentDiff {
 
 	originalModel: ITextModel;
 	modifiedModel: ITextModel;
+
+	/** Whether the changes are only kept or undone together with others, like those of a notebook that is decided on as a whole, so none offers that on its own. */
+	readonly decidedTogether?: boolean;
 
 	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
 	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
@@ -439,7 +442,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 					}
 				}
 
-				if (reviewMode || diffMode) {
+				if ((reviewMode || diffMode) && !diff.decidedTogether) {
 
 					// Add content widget for each diff change
 					let widget = this._diffHunkWidgetPool.get();
@@ -844,13 +847,17 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 	layout(startLineNumber: number): void {
 
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const { contentLeft, contentWidth, verticalScrollbarWidth } = this._editor.getLayoutInfo();
+		const { contentLeft, contentWidth, verticalScrollbarWidth, height } = this._editor.getLayoutInfo();
 		const scrollTop = this._editor.getScrollTop();
+		const top = this._editor.getTopForLineNumber(startLineNumber) - (lineHeight * this._lineDelta);
+		// The widget is taller than a line, and the editor cuts off what overflows it. Where the editor can't scroll
+		// further, as at the end of a notebook cell, which is as tall as its lines, the widget moves up to fit.
+		const lastTop = Math.max(0, Math.max(this._editor.getContentHeight(), height) - getTotalHeight(this._domNode));
 
 		this._position = {
 			stackOrdinal: 1,
 			preference: {
-				top: this._editor.getTopForLineNumber(startLineNumber) - scrollTop - (lineHeight * this._lineDelta),
+				top: Math.min(top, lastTop) - scrollTop,
 				left: contentLeft + contentWidth - (2 * verticalScrollbarWidth + getTotalWidth(this._domNode))
 			}
 		};

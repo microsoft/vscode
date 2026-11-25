@@ -22,7 +22,7 @@ import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupVie
 import { Event } from '../../../../../base/common/event.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorResourceAccessor, IEditorPane, SideBySideEditor } from '../../../../common/editor.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -30,6 +30,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
+import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 
 export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
@@ -276,6 +278,16 @@ class ChatEditorOverlayWidget extends Disposable {
 	}
 }
 
+/**
+ * Whether the changes of `entry` are reviewed in `pane`: those of a notebook in a notebook editor,
+ * whichever of its cells is active, and those of other files in a code editor.
+ */
+function isReviewedIn(entry: IModifiedFileEntry, pane: IEditorPane | undefined): boolean {
+	return entry instanceof ChatEditingModifiedNotebookEntry
+		? !!getNotebookEditorFromEditorPane(pane)
+		: !!getCodeEditor(pane?.getControl());
+}
+
 class ChatEditingOverlayController {
 
 	private readonly _store = new DisposableStore();
@@ -326,7 +338,7 @@ class ChatEditingOverlayController {
 
 			const editor = group.activeEditorPane;
 
-			if (!getCodeEditor(editor?.getControl())) {
+			if (!getCodeEditor(editor?.getControl()) && !getNotebookEditorFromEditorPane(editor)) {
 				return undefined;
 			}
 
@@ -345,7 +357,8 @@ class ChatEditingOverlayController {
 			}
 
 			// Directly query global editing sessions (inline chat has its own overlay)
-			return findChatEditingSessionEntry(chatEditingService.editingSessionsObs.read(r).filter(session => session.isGlobalEditingSession.read(r)), uri, r);
+			const match = findChatEditingSessionEntry(chatEditingService.editingSessionsObs.read(r).filter(session => session.isGlobalEditingSession.read(r)), uri, r);
+			return match && isReviewedIn(match.entry, group.activeEditorPane) ? match : undefined;
 		});
 
 		this._store.add(autorun(r => {

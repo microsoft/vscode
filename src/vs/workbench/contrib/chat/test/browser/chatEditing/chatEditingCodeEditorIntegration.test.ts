@@ -14,6 +14,7 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
@@ -70,7 +71,7 @@ suite('ChatEditingCodeEditorIntegration', () => {
 		await menuRegistered;
 	});
 
-	function createIntegration(actionViewItems?: MenuEntryActionViewItem[]) {
+	function createIntegration(actionViewItems?: MenuEntryActionViewItem[], editorOptions: IEditorConstructionOptions = { dimension: { width: 600, height: 400 } }, changedLines = [3, 8, 13]) {
 		const container = mainWindow.document.createElement('div');
 		mainWindow.document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
@@ -128,12 +129,12 @@ suite('ChatEditingCodeEditorIntegration', () => {
 		const originalModel = disposables.add(createTextModel(lines.join('\n')));
 		const modifiedModel = disposables.add(createTextModel(lines.join('\n')));
 		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {
-			dimension: { width: 600, height: 400 },
+			...editorOptions,
 			useShadowDOM: false
 		}, { contributions: [] }));
 		editor.setModel(modifiedModel);
 
-		const changes = [3, 8, 13].map(line => new DetailedLineRangeMapping(new LineRange(line, line + 1), new LineRange(line, line + 1), undefined));
+		const changes = changedLines.map(line => new DetailedLineRangeMapping(new LineRange(line, line + 1), new LineRange(line, line + 1), undefined));
 		const diff: IDocumentDiff2 = {
 			originalModel,
 			modifiedModel,
@@ -172,6 +173,29 @@ suite('ChatEditingCodeEditorIntegration', () => {
 
 		assert.deepStrictEqual(menuCounts, [0, 1, 1, 0, 1, 0, 0]);
 	}));
+
+	test('offers no hunk toolbar for changes that are decided together', () => runWithFakedTimers({}, async () => {
+		const { editor, diffInfo, diff, menuService } = createIntegration();
+		diffInfo.set({ ...diff, decidedTogether: true }, undefined);
+		editor.setPosition({ lineNumber: 3, column: 1 });
+		await timeout(200);
+
+		assert.strictEqual(menuService.activeHunkMenus.size, 0);
+	}));
+
+	test('keeps the hunk toolbar inside an editor that ends with the changed line, like a notebook cell', () => {
+		// Lines are shorter than the toolbar.
+		const { container, editor } = createIntegration(undefined, { dimension: { width: 600, height: 400 }, lineHeight: 10, scrollBeyondLastLine: false }, [20]);
+		// Like a notebook cell, the editor is as tall as its content, so it can't scroll.
+		const height = editor.getContentHeight();
+		editor.layout({ width: 600, height });
+		editor.setPosition({ lineNumber: 20, column: 1 });
+		editor.render(true);
+		const widget = container.querySelector<HTMLElement>('.chat-diff-change-content-widget.hover');
+		assert.ok(widget);
+
+		assert.deepStrictEqual({ tallerThanLine: widget.offsetHeight > 10, cutOff: widget.offsetTop + widget.offsetHeight - height }, { tallerThanLine: true, cutOff: 0 });
+	});
 
 	test('retains the toolbar through fade-out without postponing cleanup on repeated hidden updates', () => runWithFakedTimers({}, async () => {
 		const { container, editor, integration, menuService, diffInfo, diff } = createIntegration();

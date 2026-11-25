@@ -102,6 +102,10 @@ export class OverlayToolbarDecorator extends Disposable {
 					renderShortTitle: true,
 					arg: {
 						async accept() {
+							if (change.keepAll) {
+								// The toolbar is replaced once the changes are kept, and stays if they can't be.
+								return change.keepAll();
+							}
 							accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 							removeOverlay();
 							toolbarWidget.dispose();
@@ -111,6 +115,9 @@ export class OverlayToolbarDecorator extends Disposable {
 							return true;
 						},
 						async reject() {
+							if (change.undoAll) {
+								return change.undoAll();
+							}
 							accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 							removeOverlay();
 							toolbarWidget.dispose();

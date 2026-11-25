@@ -212,6 +212,8 @@ import { messageAttachmentsToVariableData, SHELL_AUTHENTICATION_QUESTION_ID } fr
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
+import { INotebookEditorModelResolverService } from '../../../../notebook/common/notebookEditorModelResolverService.js';
+import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { mintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 import { ICanvas } from '../../../../../common/canvasReference.js';
 import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
@@ -1081,6 +1083,16 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(): void { }
 		override prompt() { return new NoOpNotification(); }
+	});
+	// The edit review follows the notebooks that are open.
+	instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
+		override readonly onWillAddNotebookDocument = Event.None;
+		override readonly onDidRemoveNotebookDocument = Event.None;
+		override getNotebookTextModels() { return []; }
+		override hasSupportedNotebooks() { return false; }
+	});
+	instantiationService.stub(INotebookEditorModelResolverService, new class extends mock<INotebookEditorModelResolverService>() {
+		override readonly onDidChangeDirty = Event.None;
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,

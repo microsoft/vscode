@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { streamToBuffer } from '../../../../../base/common/buffer.js';
+import { streamToBuffer, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { DisposableStore, IReference, thenRegisterOrDispose } from '../../../../../base/common/lifecycle.js';
@@ -38,7 +38,7 @@ import { CellDiffInfo } from '../../../notebook/browser/diff/notebookDiffViewMod
 import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 import { computeDiff } from '../../../notebook/common/notebookDiff.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
@@ -61,8 +61,8 @@ const SnapshotLanguageId = 'VSCodeChatNotebookSnapshotLanguage';
 
 export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifiedFileEntry {
 	static NewModelCounter: number = 0;
-	private readonly modifiedModel: NotebookTextModel;
-	private readonly originalModel: NotebookTextModel;
+	protected readonly modifiedModel: NotebookTextModel;
+	protected readonly originalModel: NotebookTextModel;
 	override originalURI: URI;
 	/**
 	 * JSON stringified version of the original notebook.
@@ -95,6 +95,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		return this.modifiedModel.viewType;
 	}
 
+	/** Whether the changes of single cells can be kept or undone, rather than only those of the whole notebook. */
+	get canDecideCells(): boolean {
+		return true;
+	}
+
 	/**
 	 * List of Cell URIs that are edited,
 	 * Will be cleared once all edits have been accepted.
@@ -110,15 +115,12 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			const configurationServie = accessor.get(IConfigurationService);
 			const resourceRef: IReference<IResolvedNotebookEditorModel> = await resolver.resolve(uri);
 			const notebook = resourceRef.object.notebook;
-			const originalUri = getNotebookSnapshotFileURI(telemetryInfo.sessionResource, telemetryInfo.requestId, generateUuid(), notebook.uri.scheme === Schemas.untitled ? `/${notebook.uri.path}` : notebook.uri.path, notebook.viewType);
 			const [options, buffer] = await Promise.all([
 				notebookService.withNotebookDataProvider(resourceRef.object.notebook.notebookType),
 				notebookService.createNotebookTextDocumentSnapshot(notebook.uri, SnapshotContext.Backup, CancellationToken.None).then(s => streamToBuffer(s))
 			]);
 			const disposables = new DisposableStore();
-			// Register so that we can load this from file system.
-			disposables.add(ChatEditingNotebookFileSystemProvider.registerFile(originalUri, buffer));
-			const originalRef = await resolver.resolve(originalUri, notebook.viewType);
+			const originalRef = await ChatEditingModifiedNotebookEntry.resolveOriginal(notebook, buffer, telemetryInfo, resolver, disposables);
 			if (initialContent !== undefined) {
 				try {
 					restoreSnapshot(originalRef.object.notebook, initialContent);
@@ -148,6 +150,17 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		});
 	}
 
+	/**
+	 * Resolves a notebook with the serialized content `content`, which the changes of `notebook` are compared with.
+	 * `store` keeps that content readable, as for a diff editor that opens the returned notebook.
+	 */
+	public static resolveOriginal(notebook: NotebookTextModel, content: VSBuffer, telemetryInfo: IModifiedEntryTelemetryInfo, resolver: INotebookEditorModelResolverService, store: Pick<DisposableStore, 'add'>): Promise<IReference<IResolvedNotebookEditorModel>> {
+		const originalUri = getNotebookSnapshotFileURI(telemetryInfo.sessionResource, telemetryInfo.requestId, generateUuid(), notebook.uri.scheme === Schemas.untitled ? `/${notebook.uri.path}` : notebook.uri.path, notebook.viewType);
+		// Register so that we can load this from file system.
+		store.add(ChatEditingNotebookFileSystemProvider.registerFile(originalUri, content));
+		return resolver.resolve(originalUri, notebook.viewType);
+	}
+
 	public static canHandleSnapshotContent(initialContent: string | undefined): boolean {
 		if (!initialContent) {
 			return false;
@@ -172,10 +185,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	private readonly initialContentComparer: SnapshotComparer;
 
 	constructor(
-		private readonly modifiedResourceRef: IReference<IResolvedNotebookEditorModel>,
+		protected readonly modifiedResourceRef: IReference<IResolvedNotebookEditorModel>,
 		originalResourceRef: IReference<IResolvedNotebookEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
-		private readonly transientOptions: TransientOptions | undefined,
+		protected readonly transientOptions: TransientOptions | undefined,
 		telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		initialContent: string,
@@ -266,7 +279,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		// Or user just reverted the changes made via edits (e.g. edit made a change in a cell and user undid that change either by typing over or other).
 		// Computing snapshot is too slow, as this event gets triggered for every key stroke in a cell,
 		// const didResetToOriginalContent = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService) === this.initialContent;
-		let didResetToOriginalContent = this.initialContentComparer.isEqual(this.modifiedModel);
+		let didResetToOriginalContent = this._settlesWithoutChanges() && this.initialContentComparer.isEqual(this.modifiedModel);
 		const currentState = this._stateObs.get();
 		if (currentState === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
@@ -404,13 +417,24 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			}
 		}
 
-		didResetToOriginalContent = this.initialContentComparer.isEqual(this.modifiedModel);
+		didResetToOriginalContent = this._settlesWithoutChanges() && this.initialContentComparer.isEqual(this.modifiedModel);
 		if (currentState === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
 			this.initializeModelsFromDiff();
 			return;
 		}
+	}
+
+	/** Whether the entry is kept or undone once the notebook has no changes left, as after the user typed them away. */
+	protected _settlesWithoutChanges(): boolean {
+		return true;
+	}
+
+	/** Replaces the notebook that the changes are compared with; {@link initializeModelsFromDiff} then compares anew. */
+	protected _setOriginalContent(data: NotebookData): void {
+		this.originalModel.restoreSnapshot(data, this.transientOptions);
+		this.initialContent = this._safeCreateSnapshot(this.originalModel);
 	}
 
 	protected override async _doAccept(): Promise<void> {
@@ -688,6 +712,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	private computeStateAfterAcceptingRejectingChanges(accepted: boolean) {
+		if (!this._settlesWithoutChanges()) {
+			return;
+		}
 		const currentSnapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 		if (new SnapshotComparer(currentSnapshot).isEqual(this.originalModel)) {
 			const state = accepted ? ModifiedFileEntryState.Accepted : ModifiedFileEntryState.Rejected;
