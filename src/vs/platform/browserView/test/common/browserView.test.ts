@@ -236,12 +236,10 @@ suite('BrowserView', () => {
 				remote: getBrowserViewRemoteFile(URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+a', path, query: 'q=1', fragment: 'top' })),
 				agentHost: getBrowserViewRemoteFile(toAgentHostUri(URI.file('/repo').with({ query: 'q=1', fragment: 'top' }), 'host-a').with({ path })),
 				agentHostWithoutMetadata: getBrowserViewRemoteFile(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host-a', path })),
-				fileAuthority: getBrowserViewRemoteFile(toAgentHostUri(URI.from({ scheme: 'file', authority: 'server', path: '/share' }), 'host-a').with({ path: `${path}/share` })),
 			}, {
 				remote: { scheme: 'vscode-remote', authority: 'ssh-remote+a', fileUri: URI.file('/repo').with({ query: 'q=1', fragment: 'top' }) },
 				agentHost: { scheme: AGENT_HOST_SCHEME, authority: 'host-a', fileUri: URI.file('/repo').with({ query: 'q=1', fragment: 'top' }) },
 				agentHostWithoutMetadata: { scheme: AGENT_HOST_SCHEME, authority: 'host-a', fileUri: URI.file('/repo') },
-				fileAuthority: undefined,
 			});
 		}
 	});
