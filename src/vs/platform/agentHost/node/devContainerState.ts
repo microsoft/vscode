@@ -391,7 +391,11 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    if is_other "$home_prefix/$parent" || is_other "./$parent"; then skip parent "~/$parent is not a folder"; return 0; fi',
 		// Like the state folder, only root may change the folders this script works in. Checked top-down, so a checked folder
 		// cannot be replaced.
-		'    if [ -d "./$parent" ] && ! root_only "./$parent"; then skip untrusted "a user other than root can change $state/$parent"; return 0; fi',
+		'    if [ -d "./$parent" ] && ! root_only "./$parent"; then',
+		// The link would keep using the folder. Root writes no marker, see below, into a folder other users can change.
+		'      if [ -L "$src" ] && [ "$(readlink "$src")" = "$target" ]; then rm -f "$src"; fi',
+		'      skip untrusted "a user other than root can change $state/$parent"; return 0',
+		'    fi',
 		'  done',
 		'  if has_mount "$home_real/$rel"; then skip mounted "it is already mounted"; return 0; fi',
 		'  if [ -L "$src" ]; then',
@@ -409,10 +413,13 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    if [ -d "$dst" ]; then : > "$dst.deferred"; fi',
 		'    skip running "it exists and the container was already running"; return 0',
 		'  fi',
-		// Also for an earlier link, e.g., after another container user wrote to the folder.
-		'  if [ -d "$dst" ] && untrusted_files "$dst"; then',
-		// The container's folder stays in use, see above. The link would keep using the volume's folder.
-		'    if [ -L "$src" ]; then rm -f "$src"; elif [ -d "$src" ]; then : > "$dst.deferred"; fi',
+		// Also for an earlier link once another container user took the folder over, which changes its owner, see below. Only
+		// then does connecting again check every file.
+		'  if [ -d "$dst" ] && { [ ! -L "$src" ] || [ "$(stat -c %u:%g "$dst")" != "$owner" ]; } && untrusted_files "$dst"; then',
+		// The container's folder stays in use, see above, as does one the user creates meanwhile. The link would keep using
+		// the volume's folder.
+		'    if [ -L "$src" ]; then rm -f "$src"; fi',
+		'    : > "$dst.deferred"',
 		'    skip untrusted "a user other than root or the container user owns or can change files in $state/$rel"; return 0',
 		'  fi',
 		'  for parent in "$@"; do',
@@ -453,7 +460,8 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    rm -f "$dst.deferred"',
 		'  fi',
 		'  test -d "$dst" || mkdir "$dst" || test -d "$dst"',
-		'  if [ "$(stat -c %u:%g "$dst")" != "$owner" ]; then chown -R "$owner" "$dst"; fi',
+		// The folder itself first, unlike GNU `chown -R`, so an interrupted change still shows in its owner.
+		'  if [ "$(stat -c %u:%g "$dst")" != "$owner" ]; then chown -h "$owner" "$dst"; chown -R "$owner" "$dst"; fi',
 		'  if [ ! -L "$src" ]; then',
 		'    ln -sT "$target" "$src" || test "$(readlink "$src")" = "$target"',
 		'    echo "Persisting ~/$rel in $state/$rel" >&2',
