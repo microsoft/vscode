@@ -293,12 +293,14 @@ class VerticalMarginLayoutService extends TestLayoutService {
 	panelPosition = Position.BOTTOM;
 	panelAlignment: PanelAlignment = 'center';
 	visibleParts = new Set<Parts>([Parts.TITLEBAR_PART, Parts.STATUSBAR_PART, Parts.EDITOR_PART]);
+	editorHiddenByChat = false;
 
 	override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
 	override isModernUICompact(): boolean { return this.modernUICompact; }
 	override getPanelPosition(): Position { return this.panelPosition; }
 	override getPanelAlignment(): PanelAlignment { return this.panelAlignment; }
 	override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
+	override isEditorHiddenByChat(): boolean { return this.editorHiddenByChat; }
 }
 
 suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
@@ -337,6 +339,28 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 			maximizedUnderTitleBar: { top: inner, bottom: margin },
 			maximizedAtTopEdge: { top: outer, bottom: margin },
 			maximizedUnderBanner: { top: inner, bottom: margin },
+		});
+	});
+
+	test('a panel beside the chat part filling the editor area keeps the gap to it', () => {
+		const besideChat = (panelPosition: Position, chatVisible: boolean) => margins(Parts.PANEL_PART, s => {
+			s.panelPosition = panelPosition;
+			s.visibleParts.add(Parts.PANEL_PART);
+			s.visibleParts.delete(Parts.EDITOR_PART);
+			s.editorHiddenByChat = true;
+			if (chatVisible) {
+				s.visibleParts.add(Parts.CHAT_PART);
+			}
+		});
+
+		assert.deepStrictEqual({
+			bottomPanel: besideChat(Position.BOTTOM, true),
+			topPanel: besideChat(Position.TOP, true),
+			bottomPanelWithoutChat: besideChat(Position.BOTTOM, false),
+		}, {
+			bottomPanel: { top: margin, bottom: outer },
+			topPanel: { top: inner, bottom: inner },
+			bottomPanelWithoutChat: { top: inner, bottom: outer },
 		});
 	});
 

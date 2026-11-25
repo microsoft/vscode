@@ -21,6 +21,8 @@ import { NullExtensionService } from '../../services/extensions/common/extension
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { Extensions as ViewExtensions, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../common/views.js';
+import '../../browser/media/floatingPanels.css';
+import '../../browser/parts/panel/media/panelpart.css';
 
 suite('Workbench layout sash endpoints', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -126,6 +128,24 @@ suite('Workbench layout sash endpoints', () => {
 				updateSashEndpoints(grid.element, !compact);
 				assert.deepStrictEqual(actual, endpoints(), `hidden=${hidden}`);
 			}
+		});
+
+		test(`sashes meet at the panel gap below the chat part filling the editor area, not beside a maximized panel, compact=${compact}`, () => {
+			const { root, grid, endpoints } = createLayout();
+			root.classList.toggle('modern-ui-compact', compact);
+			const meetAtGap = (classes: string[]) => {
+				root.classList.remove('nomaineditorarea', 'editor-hidden-by-chat');
+				root.classList.add(...classes);
+				updateSashEndpoints(grid.element, !compact);
+				return endpoints().some(sash => sash.start || sash.end);
+			};
+			assert.deepStrictEqual({
+				maximizedPanel: meetAtGap(['nomaineditorarea']),
+				chatFillsEditorArea: meetAtGap(['nomaineditorarea', 'editor-hidden-by-chat']),
+			}, {
+				maximizedPanel: false,
+				chatFillsEditorArea: !compact,
+			});
 		});
 
 		test(`refreshes sash endpoints immediately after panel position changes, compact=${compact}`, () => {
@@ -542,6 +562,36 @@ suite('Workbench layout chat part', () => {
 				chatTookTheWidth: true,
 			});
 		});
+
+		for (const position of [Position.BOTTOM, Position.TOP]) {
+			test(`the ${position === Position.BOTTOM ? 'bottom' : 'top'} panel keeps its gap and separator to the chat part filling the editor area, but not when maximized`, () => {
+				const { layout } = createGridLayout({ ...configuration, panel: position });
+				const root = append(mainWindow.document.body, layout.mainContainer);
+				store.add(toDisposable(() => root.remove()));
+				root.classList.add('monaco-workbench', `panel-position-${position === Position.BOTTOM ? 'bottom' : 'top'}`);
+				root.style.cssText = '--vscode-panels-spacing: 16px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+				const panel = append(root, $(`.part.panel.${position === Position.BOTTOM ? 'bottom' : 'top'}`));
+				const title = append(panel, $('.composite.title'));
+				const look = () => {
+					root.classList.add('floating-panels');
+					const gap = position === Position.BOTTOM ? mainWindow.getComputedStyle(panel).marginTop : undefined;
+					root.classList.remove('floating-panels');
+					const separator = position === Position.BOTTOM ? mainWindow.getComputedStyle(title).borderTopWidth : mainWindow.getComputedStyle(panel).borderBottomWidth;
+					return { gap, separator };
+				};
+				const editorVisible = look();
+				layout.setEditorHiddenByChat(true);
+				const chatFillsEditorArea = look();
+				layout.toggleMaximizedPanel();
+				const maximized = look();
+				const gap = position === Position.BOTTOM ? '16px' : undefined;
+				assert.deepStrictEqual({ editorVisible, chatFillsEditorArea, maximized }, {
+					editorVisible: { gap, separator: '1px' },
+					chatFillsEditorArea: { gap, separator: '1px' },
+					maximized: { gap: position === Position.BOTTOM ? '0px' : undefined, separator: '0px' },
+				});
+			});
+		}
 
 		test('does not hide the editor area without a visible chat part', () => {
 			const hidden = createGridLayout({ ...configuration, chat: { visible: false, size: 400 } });
