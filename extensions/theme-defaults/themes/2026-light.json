@@ -383,9 +383,12 @@
 			}
 		},
 		{
-			"scope": "keyword",
+			"scope": [
+				"keyword",
+				"keyword.control"
+			],
 			"settings": {
-				"foreground": "#cf222e"
+				"foreground": "#0550ae"
 			}
 		},
 		{
@@ -394,7 +397,7 @@
 				"storage.type"
 			],
 			"settings": {
-				"foreground": "#cf222e"
+				"foreground": "#0550ae"
 			}
 		},
 		{
