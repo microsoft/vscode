@@ -124,7 +124,7 @@ export class SessionChangesUIElementFactory implements IWorkbenchUIElementFactor
 			return false;
 		}
 
-		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource, { session: this.scope.session.get() });
+		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource, { session: this.scope.session.get(), editor: this.editor } satisfies IChangesEditorFileActionContext);
 		return true;
 	}
 
@@ -325,6 +325,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return this._scopeInstance ??= createChangesEditorScope(this.changesViewService, this.sessionsManagementService, this.sessionHost, this._inputChangesSource, !!this.hostLayoutService.editorsBindSessionContext);
 	}
 
+	/** Whether it follows the session of its input, as in an editor window, and acts on the chat of its diffs. */
+	readonly followsInputSession: boolean;
+
 	/** The session whose changes it shows, and those changes. */
 	get changesScope(): IChangesSessionScope {
 		return this._scope;
@@ -366,6 +369,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			editorGroupService,
 		);
 
+		this.followsInputSession = !!hostLayoutService.editorsBindSessionContext;
 		this._logger = this._register(new MultiDiffEditorLogger(logService));
 
 		this._register(autorun(reader => {

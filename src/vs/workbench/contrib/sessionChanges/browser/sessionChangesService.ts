@@ -44,6 +44,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 
 	private readonly _onDidChangeDecorations = this._register(new Emitter<readonly URI[]>());
 
+	private readonly _countedChangesEditorResourceObs: IObservable<URI | undefined>;
 	private _decoratedResource: URI | undefined;
 	private _decoratedChangeCount: number | undefined;
 
@@ -68,6 +69,17 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 			return changesViewService.activeSessionChangesObs.read(reader).length;
 		});
 
+		// The Changes editor the count is of: of the active session, and where its editors name their chat, as in an editor
+		// window, of the chat the window shows of it.
+		this._countedChangesEditorResourceObs = derived(this, reader => {
+			const activeSessionResource = changesViewService.activeSessionResourceObs.read(reader);
+			if (!activeSessionResource) {
+				return undefined;
+			}
+			const chatResource = layoutService.editorsBindSessionContext ? getMainWindowHost(sessionHostService).chat.read(reader)?.resource : undefined;
+			return this.getChangesEditorResource(activeSessionResource, chatResource);
+		});
+
 		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
 			return;
 		}
@@ -80,9 +92,8 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		this._register(decorationsService.registerDecorationsProvider(provider));
 
 		this._register(autorun(reader => {
-			const activeSessionResource = changesViewService.activeSessionResourceObs.read(reader);
 			const changeCount = this.activeSessionUncommittedChangesCountObs.read(reader);
-			const resource = activeSessionResource ? this.getChangesEditorResource(activeSessionResource) : undefined;
+			const resource = this._countedChangesEditorResourceObs.read(reader);
 			if (isEqual(this._decoratedResource, resource) && this._decoratedChangeCount === changeCount) {
 				return;
 			}
@@ -101,6 +112,14 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 				this._onDidChangeDecorations.fire(affectedResources);
 			}
 		}));
+	}
+
+	getChangesEditorFileCount(editorResource: URI): number | undefined {
+		const count = this.activeSessionUncommittedChangesCountObs.get();
+		if (!this.layoutService.editorsBindSessionContext) {
+			return count;
+		}
+		return isEqual(editorResource, this._countedChangesEditorResourceObs.get()) ? count : undefined;
 	}
 
 	getChangesEditorResource(sessionResource: URI, chatResource?: URI): URI {

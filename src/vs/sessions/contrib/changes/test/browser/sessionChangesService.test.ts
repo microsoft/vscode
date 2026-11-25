@@ -28,6 +28,7 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { IChat, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService, SessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
@@ -434,6 +435,71 @@ suite('SessionChangesService', () => {
 			changesetSelection: { kind: 'transient', changeset: upcastPartial<ISessionChangeset>({ id: 'turn:request' }) },
 		});
 		assert.deepStrictEqual(selections, ['turn:request']);
+	});
+
+	test('where Changes editors name their chat, as in an editor window, decorates and announces the count of uncommitted files only on the editor of the chat the window shows, which it opens', async () => {
+		const sessionResource = URI.parse('agent-host:test-session');
+		const shownChat = upcastPartial<IChat>({ resource: URI.parse('agent-host:test-session/shown') });
+		const otherChat = URI.parse('agent-host:test-session/other');
+		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource: sessionResource, activeChat: constObservable(shownChat) });
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = constObservable<URI | undefined>(sessionResource);
+			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(upcastPartial<ISessionChangeset>({ id: UNCOMMITTED_CHANGES_CHANGESET_ID }));
+			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([{ uri: URI.file('/workspace/file.ts'), insertions: 1, deletions: 0 }]);
+		};
+		const providers: IDecorationsProvider[] = [];
+		const opened: URI[] = [];
+		const desktopEditorWindowLayout = new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
+			readonly editorsBindSessionContext = true;
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(): boolean {
+				return true;
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IWorkbenchLayoutService, desktopEditorWindowLayout], [IChangesViewService, changesViewService])));
+		const service = disposables.add(new SessionChangesService(
+			new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<undefined> {
+					const input = args[0];
+					if (input instanceof SessionChangesEditorInput) {
+						disposables.add(input);
+						opened.push(input.resource);
+					}
+					return undefined;
+				}
+			}(),
+			instantiationService,
+			desktopEditorWindowLayout,
+			changesViewService,
+			...hostsOf(disposables, noSessions(session)),
+			new class extends mock<IDecorationsService>() {
+				override registerDecorationsProvider(provider: IDecorationsProvider) {
+					providers.push(provider);
+					return Disposable.None;
+				}
+			}(),
+			new NullLogService(),
+		));
+
+		instantiationService.stub(ISessionChangesService, service);
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getSession: () => undefined }));
+		await service.openChangesEditor(sessionResource);
+		const ofOtherChat = service.getChangesEditorResource(sessionResource, otherChat);
+
+		assert.deepStrictEqual({
+			openedChat: opened.map(resource => service.getChatResource(resource)?.toString()),
+			openedDecoration: (await providers[0].provideDecorations(opened[0], CancellationToken.None))?.letter,
+			openedCount: service.getChangesEditorFileCount(opened[0]),
+			otherChatDecoration: (await providers[0].provideDecorations(ofOtherChat, CancellationToken.None))?.letter,
+			otherChatCount: service.getChangesEditorFileCount(ofOtherChat),
+		}, {
+			openedChat: [shownChat.resource.toString()],
+			openedDecoration: '1',
+			openedCount: 1,
+			otherChatDecoration: undefined,
+			otherChatCount: undefined,
+		});
 	});
 
 	test('decorates only when the uncommitted changeset is selected', async () => {

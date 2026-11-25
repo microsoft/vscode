@@ -93,7 +93,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	override getAriaLabel(): string {
-		const changeCount = this.sessionChangesService.activeSessionUncommittedChangesCountObs.get();
+		const changeCount = this.sessionChangesService.getChangesEditorFileCount(this.multiDiffSource);
 		return !changeCount
 			? this.getTitle()
 			: localize('sessionChangesEditor.ariaLabel', "{0}, {1}", this.getTitle(), getSessionChangesFileCountLabel(changeCount));

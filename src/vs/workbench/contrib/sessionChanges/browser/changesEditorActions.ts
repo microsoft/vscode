@@ -944,13 +944,16 @@ export class ChangesetReviewAction extends Action2 {
 		}
 
 		const changesViewService = accessor.get(IChangesViewService);
-		// The editor passes its own session; the file toolbar and keybindings fall back to the active one.
-		const target = resolveSessionCommandTarget(accessor, [args[1]]);
+		// A Changes editor that follows its own session, as in an editor window, acts on the chat of its diffs. Otherwise the
+		// editor passes its own session; the file toolbar and keybindings fall back to the active one.
+		const editor = (args[1] as Partial<IChangesEditorFileActionContext> | undefined)?.editor;
+		const scope = editor instanceof SessionChangesEditor && editor.followsInputSession ? editor.changesScope : undefined;
+		const target = scope ? { session: scope.session.get(), chat: scope.chat.get() } : resolveSessionCommandTarget(accessor, [args[1]]);
 		const session = target?.session;
 		if (!session) {
 			return;
 		}
-		const changes = getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat);
+		const changes = scope?.changes ?? getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat);
 		if (changes.changesetObs.get()?.capabilities?.review !== true) {
 			return;
 		}
