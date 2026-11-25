@@ -219,10 +219,10 @@ export const BROWSER_REMOTE_FILE_SCHEMES: readonly string[] = [Schemas.vscodeRem
  */
 export function getBrowserViewRemoteFile(uri: URI): { readonly scheme: string; readonly authority: string; readonly fileUri: URI } | undefined {
 	if (uri.scheme === Schemas.vscodeRemote) {
-		return { scheme: uri.scheme, authority: uri.authority, fileUri: uri.with({ scheme: Schemas.file, authority: '' }) };
+		return { scheme: uri.scheme, authority: uri.authority, fileUri: uri.with({ scheme: Schemas.file, authority: '', path: uri.path.replace(/^\/{2,}/, '/') }) };
 	}
 	if (uri.scheme === AGENT_HOST_SCHEME) {
-		const fileUri = fromAgentHostUri(uri);
+		const fileUri = fromAgentHostUri(uri.with({ path: uri.path.replace(/^\/{2,}/, '/') }));
 		// A file with an authority (`file://server/share`) is not on the host's own file system.
 		if (fileUri.scheme === Schemas.file && !fileUri.authority) {
 			return { scheme: uri.scheme, authority: uri.authority, fileUri };
