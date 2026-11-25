@@ -71,7 +71,7 @@ import { VisibleSessions } from '../../../../../../workbench/services/sessions/b
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -2007,6 +2007,108 @@ suite('LocalAgentHostSessionsProvider', () => {
 			creation: provider.sessionTypes.map(t => t.id),
 			interactivity: provider.getSessions().map(session => session.mainChat.get().interactivity.get()),
 		}, { saved: ['claude', 'codex'], creation: ['copilotcli'], interactivity: [ChatInteractivity.ReadOnly, ChatInteractivity.ReadOnly] });
+	});
+
+	test('listing policy-disabled saved sessions reads the policy once per agent, not once per session', () => {
+		let inspects = 0;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				inspects++;
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+		for (let index = 0; index < 50; index++) {
+			fireSessionAdded(agentHost, `claude-${index}`, { title: `Claude ${index}`, provider: 'claude' });
+		}
+		provider.getSessions();
+		inspects = 0;
+		const listed = provider.getSessions().length;
+		assert.deepStrictEqual({ listed, inspects }, { listed: 50, inspects: 2 });
+	});
+
+	test('getSession finds by key exactly the saved sessions the agent gates list, without listing them', () => {
+		let listings = 0;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false, [AgentHostCodexAgentEnabledSettingId]: false });
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService,
+			isSessionsWindow: true,
+			providerCtor: class extends LocalAgentHostSessionsProvider {
+				override getAllSessions(): ISession[] {
+					listings++;
+					return super.getAllSessions();
+				}
+			},
+		});
+		fireSessionAdded(agentHost, 'copilot-saved');
+		fireSessionAdded(agentHost, 'claude-saved', { provider: 'claude' });
+		fireSessionAdded(agentHost, 'codex-saved', { provider: 'codex' });
+		const resources = ['agent-host-copilotcli:/copilot-saved', 'agent-host-claude:/claude-saved', 'agent-host-codex:/codex-saved', 'agent-host-copilotcli:/missing'].map(resource => URI.parse(resource));
+		const lookUp = () => resources.map(resource => provider.getSession(resource)?.resource.toString());
+		listings = 0;
+		const codexDisabled = lookUp();
+		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		fireConfigChange(configurationService, AgentHostCodexAgentEnabledSettingId);
+		const codexEnabled = lookUp();
+
+		assert.deepStrictEqual({ listings, codexDisabled, codexEnabled }, {
+			listings: 0,
+			codexDisabled: [resources[0].toString(), resources[1].toString(), undefined, undefined],
+			codexEnabled: [resources[0].toString(), resources[1].toString(), resources[2].toString(), undefined],
+		});
+	});
+
+	test('getSession finds a parent session and the subagent fragment row an older host also lists, as either is removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const parent = createSession('parent', { summary: 'Parent' });
+		const subagent = { ...parent, session: parent.session.with({ fragment: 'subagent/call-1' }), summary: 'Subagent' };
+		const parentResource = URI.parse('agent-host-copilotcli:/parent');
+		const fragmentResource = parentResource.with({ fragment: 'subagent/call-1' });
+		const lookUp = (provider: LocalAgentHostSessionsProvider, sessionIds: string[]) => ({
+			listed: provider.getAllSessions().map(session => session.resource.toString()).sort(),
+			parent: provider.getSession(parentResource)?.resource.toString(),
+			fragment: provider.getSession(fragmentResource)?.resource.toString(),
+			// Session-id routing ignores fragments, so both ids route to the row cached last.
+			routed: sessionIds.map(sessionId => provider.getBackendSessionResource(sessionId)?.toString()),
+		});
+		const results = [];
+		for (const removed of [subagent, parent]) {
+			agentHost.listSessions = async () => [subagent, parent];
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const sessionIds = [parentResource, fragmentResource].map(resource => provider.getSession(resource)!.sessionId);
+			const before = lookUp(provider, sessionIds);
+			agentHost.fireNotification({ channel: 'ahp-root://', type: NotificationType.SessionRemoved, session: removed.session.toString() });
+			results.push({ before, after: lookUp(provider, sessionIds) });
+		}
+
+		const fragmentBackend = subagent.session.toString();
+		const both = { listed: [parentResource.toString(), fragmentResource.toString()], parent: parentResource.toString(), fragment: fragmentResource.toString(), routed: [fragmentBackend, fragmentBackend] };
+		assert.deepStrictEqual(results, [
+			{ before: both, after: { listed: [parentResource.toString()], parent: parentResource.toString(), fragment: undefined, routed: [undefined, undefined] } },
+			{ before: both, after: { listed: [fragmentResource.toString()], parent: undefined, fragment: fragmentResource.toString(), routed: [fragmentBackend, fragmentBackend] } },
+		]);
+	}));
+
+	test('resource lookups see sessions added and removed before the change event is debounced', () => {
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
+		const provider = createProvider(disposables, agentHost);
+		const management = createManagementService(disposables, provider);
+		const resourceOf = (rawId: string) => provider.getAllSessions().find(session => session.resource.path.includes(rawId))?.resource;
+		fireSessionAdded(agentHost, 'removed-early');
+		const removed = resourceOf('removed-early')!;
+		assert.ok(management.getSession(removed));
+
+		fireSessionAdded(agentHost, 'added-early');
+		fireSessionRemoved(agentHost, 'removed-early');
+		const added = resourceOf('added-early')!;
+
+		assert.deepStrictEqual({ added: management.getSession(added)?.resource.toString(), removed: management.getSession(removed)?.resource.toString() }, { added: added.toString(), removed: undefined });
 	});
 
 	for (const initiallyBlocked of [false, true]) {
@@ -4770,6 +4872,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ model: pinnedId, configuration: { reasoningEffort: 'low' } },
 			{ model: pinnedId, configuration: { reasoningEffort: 'medium' } },
 		]);
+	});
+
+	test('a follow-up request is queued behind the request in progress when asked', async () => {
+		const sent: (ChatRequestQueueKind | undefined)[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(): void { }
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async (resource, _message, options) => {
+				sent.push(options?.queue);
+				if (sent.length === 1) {
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Queued Session' }));
+				}
+				return { kind: 'queued' as const, deferred: new Promise<ChatSendResult>(() => { }) };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'first' });
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'second', queue: ChatRequestQueueKind.Queued });
+		assert.deepStrictEqual(sent, [undefined, ChatRequestQueueKind.Queued]);
 	});
 
 	test('setAgent with undefined clears the cached agent selection', () => {
@@ -17444,16 +17572,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
 		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
 		const advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
+		const foundIsDraft = provider.getSession(session.resource) === session;
 		agentHost.listSessionsBarrier.complete();
 		await request;
 
 		assert.deepStrictEqual({
 			count: advertised.length,
 			isDraft: advertised[0] === session,
+			foundIsDraft,
 			resources: advertised.map(candidate => candidate.resource.toString()),
 		}, {
 			count: 1,
 			isDraft: true,
+			foundIsDraft: true,
 			resources: [session.resource.toString()],
 		});
 	});

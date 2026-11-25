@@ -212,8 +212,8 @@ export interface ISessionGitRepository {
 	readonly branchName?: string;
 	/** Name of the base branch. */
 	readonly baseBranchName: string | undefined;
-	/** Base branch exactly as recorded for the session (e.g. `origin/main`), as Branch Changes describes it. {@link baseBranchName} is the same branch without its remote prefix. */
-	readonly baseBranchFullName?: string;
+	/** Full ref of the base branch Branch Changes compares against (e.g. `refs/remotes/origin/main`), shown without its `refs/heads/` or `refs/remotes/` prefix. {@link baseBranchName} is the branch it names, without its remote. Absent when the host does not report it. */
+	readonly baseBranchRef?: string;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
 	readonly baseBranchProtected?: boolean;
 	/** Whether the repository has any Git remote. */
@@ -1443,7 +1443,7 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.isRepository?.get() === b.isRepository?.get()
 		&& a.branchName === b.branchName
 		&& a.baseBranchName === b.baseBranchName
-		&& a.baseBranchFullName === b.baseBranchFullName
+		&& a.baseBranchRef === b.baseBranchRef
 		&& a.baseBranchProtected === b.baseBranchProtected
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote

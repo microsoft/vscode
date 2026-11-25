@@ -442,7 +442,7 @@
 	color: var(--vscode-charts-blue);
 }
 
-:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.offline > .codicon {
+:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator:is(.stopped, .offline) > .codicon {
 	color: var(--vscode-descriptionForeground);
 }
 

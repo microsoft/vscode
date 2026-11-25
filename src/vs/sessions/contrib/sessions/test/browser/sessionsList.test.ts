@@ -8602,6 +8602,32 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('empty group filter', () => {
+		test('shows the empty group placeholder when expanded', () => {
+			const group: ISessionGroup = { id: 'empty', name: 'In review', createdAt: 1 };
+			const harness = createListHarness(disposables, [], { groups: [group] });
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.setItemCollapsed({ group: group.id }, true);
+			const collapsed = container.querySelector('.session-placeholder-label')?.textContent;
+			list.setItemCollapsed({ group: group.id }, false);
+			const placeholder = container.querySelector<HTMLElement>('.session-placeholder-label');
+
+			assert.deepStrictEqual({
+				collapsed,
+				label: placeholder?.textContent,
+				ariaLabel: placeholder?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			}, {
+				collapsed: undefined,
+				label: 'No sessions',
+				ariaLabel: 'No sessions. Use Add to Group from a session\'s context menu, or drag it into this group.',
+			});
+		});
+
 		test('migrates removed filters and keeps empty groups visible', () => {
 			const emptyGroup: ISessionGroup = { id: 'empty', name: 'Empty Group', createdAt: 2 };
 			const populatedGroup: ISessionGroup = { id: 'populated', name: 'Populated Group', createdAt: 1 };
@@ -9035,7 +9061,7 @@ suite('Sessions - SessionsList', () => {
 						'    Patch CVE',
 						'  Fix login',
 						'  Docs',
-						'  No session',
+						'  No sessions',
 						'Ship notes',
 						'Triage',
 						'Flaky test',
@@ -9080,7 +9106,7 @@ suite('Sessions - SessionsList', () => {
 					'    Patch CVE',
 					'  Fix login',
 					'  Docs',
-					'  No session',
+					'  No sessions',
 					'Ship notes',
 					'Triage',
 					'Flaky test',
@@ -9094,7 +9120,7 @@ suite('Sessions - SessionsList', () => {
 					'      Patch CVE',
 					'    Fix login',
 					'  Docs',
-					'    No session',
+					'    No sessions',
 					'  Ship notes',
 					'Triage',
 					'  Flaky test',

@@ -7,7 +7,7 @@ import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitte
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, PendingOperations, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, IDisposable, isDescendant, Limiter, pathEquals, PendingOperations, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -60,6 +60,10 @@ export interface OriginalResourceChangeEvent {
 
 interface OpenRepository extends Disposable {
 	repository: Repository;
+	/**
+	 * Closes the repository as `dispose` does, but detaches it instead of disposing it.
+	 */
+	detach(): void;
 }
 
 class ClosedRepositoriesManager {
@@ -204,6 +208,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private possibleGitRepositoryPaths = new Set<string>();
 
 	private readonly workspaceFolderRepositories = new WorkspaceFolderRepositories<Repository>();
+
+	/**
+	 * The repositories that switches of workspace folder locations keep warm, detached, each with the listener that
+	 * disposes it once it is gone. They are not in {@link repositories}.
+	 */
+	private readonly detachedRepositories = new Map<Repository, IDisposable>();
 
 	/** The repositories of locations that workspace folders switched to, until they are open. */
 	private readonly locationOpens = new PendingOperations();
@@ -486,7 +496,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const switches = this.workspaceFolderRepositories.getFolderLocationSwitches({ added, removed });
 		if (switches && !switches.some(s => workspace.getConfiguration('git', s.to.uri).get<boolean>('detectWorktrees'))) {
 			try {
-				await this.applyRepositoryChanges(this.workspaceFolderRepositories.switchFolderLocations(switches, workspace.workspaceFolders ?? [], this.repositories));
+				await this.applyRepositoryChanges(this.workspaceFolderRepositories.switchFolderLocations(switches, workspace.workspaceFolders ?? [], this.folderLocationRepositories));
 			} catch (err) {
 				this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error switching folder locations: ${err}`);
 			}
@@ -535,20 +545,28 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		try {
 			const workspaceFolders = workspace.workspaceFolders ?? [];
 			const switchingFolders = workspaceFolders.filter(folder => !workspace.getConfiguration('git', folder.uri).get<boolean>('detectWorktrees'));
-			await this.applyRepositoryChanges(this.workspaceFolderRepositories.updateLeftLocations(workspaceFolders, this.repositories, switchingFolders));
+			await this.applyRepositoryChanges(this.workspaceFolderRepositories.updateLeftLocations(workspaceFolders, this.folderLocationRepositories, switchingFolders));
 		} catch (err) {
 			this.logger.warn(`[Model][onDidChangeWorkspaceFolderLocations] Error: ${err}`);
 		}
 	}
 
 	/**
-	 * Shows, keeps warm and closes repositories as decided for workspace folders that switched location, in one
-	 * tick so that the views change in one step, and opens the repositories of the locations to open. Resolves once
-	 * those are shown or kept warm.
+	 * The repositories of workspace folder locations: the open ones and the detached ones, see `WorkspaceFolderRepositories`.
+	 */
+	private get folderLocationRepositories(): Repository[] {
+		return [...this.repositories, ...this.detachedRepositories.keys()];
+	}
+
+	/**
+	 * Shows (attaches), keeps warm (detaches) and closes repositories as decided for workspace folders that switched
+	 * location, in one tick so that the views change in one step, and opens the repositories of the locations to open.
+	 * Resolves once those are shown or kept warm. It shows before it keeps warm, so that the Source Control views always
+	 * have a source control: core removes a source control only after the ones created before it.
 	 */
 	private async applyRepositoryChanges(changes: IRepositoryChanges<Repository>): Promise<void> {
-		changes.warm.forEach(r => r.setWarm(true));
-		changes.show.forEach(r => r.setWarm(false));
+		changes.show.forEach(r => this.attachRepository(r, true));
+		changes.warm.forEach(r => this.getOpenRepository(r)?.detach());
 		changes.close.forEach(r => this.disposeRepository(r));
 
 		const opening = changes.open.map(o => this.locationSwitches.track(this.openSwitchedLocation(o)));
@@ -559,29 +577,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	/**
-	 * Opens the repository of a location that a workspace folder switched to hidden, and shows it or keeps it warm
-	 * once its first git status ran, at most 10 seconds later.
+	 * Opens the repository of a location that a workspace folder switched to, and keeps it warm if the folder is not at
+	 * the location anymore once it is open.
 	 */
 	private async openSwitchedLocation(opening: ILocationOpening): Promise<void> {
-		await this.locationOpens.track(this.openRepository(opening.location, false, false, true));
-
-		const repository = this.getRepository(opening.location);
-		if (repository?.isWarm && !this.workspaceFolderRepositories.setOpenedRepository(opening, repository)) {
-			let onDidClose: Disposable | undefined;
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			try {
-				await Promise.race([
-					repository.whenFirstStatus,
-					new Promise<void>(c => onDidClose = filterEvent(this.onDidCloseRepository, r => r === repository)(() => c())),
-					new Promise<void>(c => timer = setTimeout(c, 10000))
-				]);
-			} finally {
-				onDidClose?.dispose();
-				clearTimeout(timer);
-			}
+		const repository = await this.locationOpens.track(this.openRepository(opening.location, false, false, true));
+		if (repository) {
+			this.workspaceFolderRepositories.setOpenedRepository(opening, repository);
 		}
 
-		await this.applyRepositoryChanges(this.workspaceFolderRepositories.completeOpening(opening, workspace.workspaceFolders ?? [], this.repositories));
+		await this.applyRepositoryChanges(this.workspaceFolderRepositories.completeOpening(opening, workspace.workspaceFolders ?? [], this.folderLocationRepositories));
 	}
 
 	/**
@@ -606,19 +611,19 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	private async onDidChangeWorkspaceTrustedFolders(): Promise<void> {
 		try {
-			const openRepositoriesToDispose: OpenRepository[] = [];
+			const repositoriesToDispose: Repository[] = [];
 
-			for (const openRepository of this.openRepositories) {
-				const dotGitPath = openRepository.repository.dotGit.commonPath ?? openRepository.repository.dotGit.path;
+			for (const repository of this.folderLocationRepositories) {
+				const dotGitPath = repository.dotGit.commonPath ?? repository.dotGit.path;
 				const isTrusted = await workspace.isResourceTrusted(Uri.file(path.dirname(dotGitPath)));
 
 				if (!isTrusted) {
-					openRepositoriesToDispose.push(openRepository);
-					this.logger.trace(`[Model][onDidChangeWorkspaceTrustedFolders] Repository is no longer trusted: ${openRepository.repository.root}`);
+					repositoriesToDispose.push(repository);
+					this.logger.trace(`[Model][onDidChangeWorkspaceTrustedFolders] Repository is no longer trusted: ${repository.root}`);
 				}
 			}
 
-			openRepositoriesToDispose.forEach(r => r.dispose());
+			repositoriesToDispose.forEach(r => this.disposeRepository(r));
 		}
 		catch (err) {
 			this.logger.warn(`[Model][onDidChangeWorkspaceTrustedFolders] Error: ${err}`);
@@ -630,14 +635,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			.filter(folder => workspace.getConfiguration('git', folder.uri).get<boolean>('enabled') === true)
 			.filter(folder => !this.getOpenRepository(folder.uri));
 
-		const openRepositoriesToDispose = this.openRepositories
-			.map(repository => ({ repository, root: Uri.file(repository.repository.root) }))
-			.filter(({ root }) => workspace.getConfiguration('git', root).get<boolean>('enabled') !== true)
-			.map(({ repository }) => repository);
+		const repositoriesToDispose = this.folderLocationRepositories
+			.filter(repository => workspace.getConfiguration('git', Uri.file(repository.root)).get<boolean>('enabled') !== true);
 
 		this.logger.trace(`[Model][onDidChangeConfiguration] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 		possibleRepositoryFolders.forEach(p => this.openRepository(p.uri.fsPath));
-		openRepositoriesToDispose.forEach(r => r.dispose());
+		repositoriesToDispose.forEach(r => this.disposeRepository(r));
 	}
 
 	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
@@ -709,15 +712,24 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	/**
-	 * @param isWarm Whether the repository opens hidden, as a warm repository of a location that a folder switched to.
+	 * Opens the repository at `repoPath`, attaching it if it is detached, and returns it, or `undefined` if it does not
+	 * open, for example because it is ignored or not trusted.
+	 *
+	 * @param isFolderLocation Whether the repository is the one of a location that a workspace folder switched to, see
+	 * `Repository.attach`.
 	 */
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false, isWarm = false): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false, isFolderLocation = false): Promise<Repository | undefined> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
 			this.logger.trace(`[Model][openRepository] Repository for path ${repoPath} already exists: ${existingRepository.root}`);
-			return;
+			return existingRepository;
+		}
+
+		const detachedRepository = this.getDetachedRepository(repoPath);
+		if (detachedRepository) {
+			return this.attachRepository(detachedRepository, isFolderLocation);
 		}
 
 		const config = workspace.getConfiguration('git', Uri.file(repoPath));
@@ -725,7 +737,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		if (!enabled) {
 			this.logger.trace('[Model][openRepository] Git is not enabled');
-			return;
+			return undefined;
 		}
 
 		try {
@@ -735,12 +747,17 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			const existingRepository = await this.getRepositoryExact(repositoryRoot);
 			if (existingRepository) {
 				this.logger.trace(`[Model][openRepository] Repository for path ${repositoryRoot} already exists: ${existingRepository.root}`);
-				return;
+				return existingRepository;
+			}
+
+			const detachedRepository = this.getDetachedRepository(repositoryRoot);
+			if (detachedRepository) {
+				return this.attachRepository(detachedRepository, isFolderLocation);
 			}
 
 			if (this.shouldRepositoryBeIgnored(repositoryRoot)) {
 				this.logger.trace(`[Model][openRepository] Repository for path ${repositoryRoot} is ignored`);
-				return;
+				return undefined;
 			}
 
 			// Handle git repositories that are in parent folders
@@ -759,7 +776,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 						this._parentRepositoriesManager.addRepository(repositoryRoot);
 					}
 
-					return;
+					return undefined;
 				}
 			}
 
@@ -774,13 +791,13 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 				this._unsafeRepositoriesManager.addRepository(repositoryRoot, unsafeRepositoryMatch[2]);
 
-				return;
+				return undefined;
 			}
 
 			// Handle repositories that were closed by the user
 			if (!openIfClosed && this._closedRepositoriesManager.isRepositoryClosed(repositoryRoot)) {
 				this.logger.trace(`[Model][openRepository] Repository for path ${repositoryRoot} is closed`);
-				return;
+				return undefined;
 			}
 
 			// Get .git path and real path
@@ -795,14 +812,14 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			if (!result) {
 				this.logger.trace(`[Model][openRepository] Repository folder is not trusted: ${path.dirname(dotGitPath)}`);
-				return;
+				return undefined;
 			}
 
 			// Open repository
 			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
-			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter, this._repositoryCache, isWarm);
+			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter, this._repositoryCache);
 
-			this.open(repository);
+			this.open(repository, isFolderLocation);
 			this._closedRepositoriesManager.deleteRepository(repository.root);
 
 			this.logger.info(`[Model][openRepository] Opened repository (path): ${repository.root}`);
@@ -813,9 +830,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this._initialStatusLimiter.queue(() => repository.status()).then(() => {
 				this._repositoryCache.update(repository.remotes, [], repository.root);
 			});
+
+			return repository;
 		} catch (err) {
 			// noop
 			this.logger.trace(`[Model][openRepository] Opening repository for path='${repoPath}' failed. Error:${err}`);
+			return undefined;
 		}
 	}
 
@@ -873,12 +893,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		return false;
 	}
 
-	private open(repository: Repository): void {
+	/**
+	 * @param isFolderLocation Whether the repository is the one of a workspace folder location, see `Repository.attach`.
+	 */
+	private open(repository: Repository, isFolderLocation = false): void {
 		this.logger.trace(`[Model][open] Repository: ${repository.root}`);
+		repository.attach(isFolderLocation);
 
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
-		const disappearListener = onDidDisappearRepository(() => dispose());
-		const disposeParentListener = repository.sourceControl.sourceControl.onDidDisposeParent(() => dispose());
+		const disappearListener = onDidDisappearRepository(() => openRepository.dispose());
+		const disposeParentListener = repository.sourceControl.sourceControl.onDidDisposeParent(() => openRepository.dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
 
@@ -978,32 +1002,89 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const operationListener = operationEvent(() => updateOperationInProgressContext());
 		updateOperationInProgressContext();
 
-		const dispose = () => {
+		// The repository stays open while it closes the repositories shown under it, and closes then
+		const close = (closeRepository: () => void) => {
 			disappearListener.dispose();
 			disposeParentListener.dispose();
 			changeListener.dispose();
 			originalResourceChangeListener.dispose();
 			statusListener.dispose();
 			operationListener.dispose();
-			repository.dispose();
+			closeRepository();
 
-			this.workspaceFolderRepositories.delete(repository);
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
 			this._onDidCloseRepository.fire(repository);
 		};
 
-		const openRepository = { repository, dispose };
+		const openRepository: OpenRepository = {
+			repository,
+			dispose: () => close(() => {
+				repository.dispose();
+				this.workspaceFolderRepositories.delete(repository);
+			}),
+			detach: () => close(() => {
+				repository.detach();
+				this.trackDetachedRepository(repository);
+			})
+		};
 		this.openRepositories.push(openRepository);
 		updateMergeChanges();
 		this._onDidOpenRepository.fire(repository);
 	}
 
 	/**
-	 * Closes a repository without remembering that it was closed, for example a warm repository that is not needed anymore.
+	 * Keeps a repository detached until it is attached, see `attachRepository`, or disposed. Disposes it once it is gone.
+	 */
+	private trackDetachedRepository(repository: Repository): void {
+		const onDidDisappear = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
+		this.detachedRepositories.set(repository, onDidDisappear(() => this.disposeRepository(repository)));
+	}
+
+	/**
+	 * Attaches a detached repository and opens it, which is then not kept warm anymore. Does nothing if the repository is
+	 * not detached.
+	 *
+	 * @param isFolderLocation Whether the repository is the one of a location that a workspace folder switched to, see
+	 * `Repository.attach`.
+	 */
+	private attachRepository(repository: Repository, isFolderLocation: boolean): Repository {
+		const onDidDisappear = this.detachedRepositories.get(repository);
+		if (!onDidDisappear) {
+			return repository;
+		}
+
+		this.logger.trace(`[Model][attachRepository] Repository: ${repository.root}`);
+		onDidDisappear.dispose();
+		this.detachedRepositories.delete(repository);
+		this.workspaceFolderRepositories.delete(repository);
+		this.open(repository, isFolderLocation);
+		return repository;
+	}
+
+	private getDetachedRepository(repoPath: string): Repository | undefined {
+		return [...this.detachedRepositories.keys()].find(r => pathEquals(r.root, repoPath) || (r.rootRealPath !== undefined && pathEquals(r.rootRealPath, repoPath)));
+	}
+
+	/**
+	 * Closes a repository without remembering that it was closed, for example a warm repository that is not needed
+	 * anymore. A detached repository is disposed too.
 	 */
 	disposeRepository(repository: Repository): void {
 		this.logger.trace(`[Model][disposeRepository] Repository: ${repository.root}`);
-		this.getOpenRepository(repository)?.dispose();
+
+		const openRepository = this.getOpenRepository(repository);
+		if (openRepository) {
+			openRepository.dispose();
+			return;
+		}
+
+		const onDidDisappear = this.detachedRepositories.get(repository);
+		if (onDidDisappear) {
+			onDidDisappear.dispose();
+			this.detachedRepositories.delete(repository);
+			this.workspaceFolderRepositories.delete(repository);
+			repository.dispose();
+		}
 	}
 
 	close(repository: Repository): void {
@@ -1025,8 +1106,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 
 		const repositories = this.openRepositories
-			.filter(r => !r.repository.isHidden &&
-				(!repositoryFilter || repositoryFilter.includes(r.repository.kind)));
+			.filter(r => !repositoryFilter || repositoryFilter.includes(r.repository.kind));
 
 		if (repositories.length === 0) {
 			throw new Error(l10n.t('There are no available repositories matching the filter'));
@@ -1342,6 +1422,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const openRepositories = [...this.openRepositories];
 		openRepositories.forEach(r => r.dispose());
 		this.openRepositories = [];
+
+		[...this.detachedRepositories.keys()].forEach(r => this.disposeRepository(r));
 
 		this.possibleGitRepositoryPaths.clear();
 		this.disposables = dispose(this.disposables);

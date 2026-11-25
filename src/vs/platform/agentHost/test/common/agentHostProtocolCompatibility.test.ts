@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getAgentHostClientProtocolVersions, getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
-import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 
 suite('Agent Host protocol compatibility', () => {
@@ -78,9 +77,5 @@ suite('Agent Host protocol compatibility', () => {
 
 	test('client offers and unsupported-version errors include the legacy alias', () => {
 		assert.deepStrictEqual(getAgentHostSupportedProtocolVersions(), ['1.0.0', '0.10.0', '0.9.0']);
-	});
-
-	test('discovery metadata retains the built-in version', () => {
-		assert.strictEqual(createRemoteAgentHostState({ pid: 1, port: 1234, connectionToken: undefined }).protocolVersion, PROTOCOL_VERSION);
 	});
 });

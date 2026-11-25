@@ -6,7 +6,7 @@
 import { distinct } from '../../../../../base/common/arrays.js';
 import { disposableTimeout, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { asGitHubAccount, IDefaultAccount, IGitHubDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { matchesFuzzy2 } from '../../../../../base/common/filters.js';
@@ -137,7 +137,8 @@ export interface ICopilotConnector {
 	readonly description: string;
 	readonly icon?: URI;
 	readonly documentation?: URI;
-	readonly homepage?: URI;
+	/** Validated original URL, preserving escaped path separators and query characters. */
+	readonly homepage?: string;
 	readonly version?: string;
 	readonly author?: ICopilotConnectorAuthor;
 	readonly repository?: URI;
@@ -179,7 +180,7 @@ interface ICopilotConnectorsSnapshot {
 }
 
 interface ICopilotConnectorsAuthentication {
-	readonly account: IDefaultAccount;
+	readonly account: IGitHubDefaultAccount;
 	readonly session: AuthenticationSession;
 	readonly sessions: readonly AuthenticationSession[];
 }
@@ -256,7 +257,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.accountIdentity = getAccountIdentity(this.defaultAccountService.currentDefaultAccount);
+		this.accountIdentity = this.getCurrentAccountIdentity();
 		this.updateEnablement();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled)) {
@@ -274,7 +275,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	get account(): ICopilotConnectorAccount | undefined {
-		const account = this.defaultAccountService.currentDefaultAccount;
+		const account = asGitHubAccount(this.defaultAccountService.currentDefaultAccount);
 		return account ? {
 			providerId: account.authenticationProvider.id,
 			accountName: account.accountName,
@@ -318,7 +319,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				throw new CancellationError();
 			}
 			authentication = await this.getAuthentication(cancellation.token, true);
-			if (authentication && getAccountIdentity(authentication.account) !== getAccountIdentity(account)) {
+			if (authentication && getAccountIdentity(authentication.account) !== getAccountIdentity(asGitHubAccount(account))) {
 				throw new CancellationError();
 			}
 		}
@@ -337,7 +338,8 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			return authorized;
 		}
 		const store = new DisposableStore();
-		store.add(this.defaultAccountService.onDidChangeDefaultAccount(account => {
+		store.add(this.defaultAccountService.onDidChangeDefaultAccount(defaultAccount => {
+			const account = asGitHubAccount(defaultAccount);
 			if (account?.authenticationProvider.id !== authentication.account.authenticationProvider.id || account?.accountName !== authentication.account.accountName) {
 				cancellation.cancel();
 			}
@@ -348,7 +350,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				distinct([...requiredScopes, copilotConnectorsScope]),
 				{ account: authentication.session.account },
 			), cancellation.token);
-			const account = this.defaultAccountService.currentDefaultAccount;
+			const account = asGitHubAccount(this.defaultAccountService.currentDefaultAccount);
 			if (cancellation.token.isCancellationRequested || !this.isEnabled() || this._store.isDisposed ||
 				account?.authenticationProvider.id !== authentication.account.authenticationProvider.id || account?.accountName !== authentication.account.accountName) {
 				throw new CancellationError();
@@ -449,7 +451,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				await this.authorize(token);
 				const operation = await this.createOperation(token);
 				try {
-					const currentIdentity = getAccountIdentity(this.defaultAccountService.currentDefaultAccount);
+					const currentIdentity = this.getCurrentAccountIdentity();
 					if (resets === 0) {
 						accountIdentity = currentIdentity;
 					} else if (currentIdentity !== accountIdentity) {
@@ -467,7 +469,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 					// connecting with a fresh operation instead of abandoning a consent the user may still complete.
 					if (!isCancellationError(error) || token.isCancellationRequested || !operation.cacheToken.isCancellationRequested ||
 						resets >= maxConnectCatalogResets || !this.isEnabled() || this._store.isDisposed ||
-						accountIdentity !== getAccountIdentity(this.defaultAccountService.currentDefaultAccount)) {
+						accountIdentity !== this.getCurrentAccountIdentity()) {
 						throw error;
 					}
 				} finally {
@@ -656,7 +658,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	private handleAuthenticationSessionsChanged(providerId: string, event: AuthenticationSessionsChangeEvent): void {
-		const account = this.defaultAccountService.currentDefaultAccount;
+		const account = asGitHubAccount(this.defaultAccountService.currentDefaultAccount);
 		if (!account || account.authenticationProvider.id !== providerId) {
 			return;
 		}
@@ -700,8 +702,12 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		}
 	}
 
+	private getCurrentAccountIdentity(): string | undefined {
+		return getAccountIdentity(asGitHubAccount(this.defaultAccountService.currentDefaultAccount));
+	}
+
 	private updateAccountIdentity(account: IDefaultAccount | null): void {
-		const identity = getAccountIdentity(account);
+		const identity = getAccountIdentity(asGitHubAccount(account));
 		if (identity !== this.accountIdentity) {
 			this.accountIdentity = identity;
 			this.authenticationAccountId = undefined;
@@ -842,12 +848,12 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			}
 			return undefined;
 		}
-		const account = this.defaultAccountService.currentDefaultAccount ?? await raceCancellationError(this.defaultAccountService.getDefaultAccount(), token);
+		const account = asGitHubAccount(this.defaultAccountService.currentDefaultAccount ?? await raceCancellationError(this.defaultAccountService.getDefaultAccount(), token));
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const sessions = await raceCancellationError(this.authenticationService.getSessions(provider.id, [], { silent: true }, true), token);
-		if (token.isCancellationRequested || !this.isEnabled() || this._store.isDisposed || getAccountIdentity(account) !== getAccountIdentity(this.defaultAccountService.currentDefaultAccount)) {
+		if (token.isCancellationRequested || !this.isEnabled() || this._store.isDisposed || getAccountIdentity(account) !== this.getCurrentAccountIdentity()) {
 			throw new CancellationError();
 		}
 		const session = account ? sessions.find(candidate => candidate.id === account.sessionId) : undefined;
@@ -979,7 +985,7 @@ export class CopilotConnectorsMarketplaceProvider implements ICustomizationMarke
 	}
 }
 
-function getAccountIdentity(account: IDefaultAccount | null): string | undefined {
+function getAccountIdentity(account: IGitHubDefaultAccount | undefined): string | undefined {
 	return account ? JSON.stringify([account.authenticationProvider.id, account.authenticationProvider.enterprise, account.accountName, account.sessionId]) : undefined;
 }
 
@@ -1072,8 +1078,10 @@ function scoreConnectorField(word: string, value: string): number | undefined {
 	return best;
 }
 
+export const copilotConnectorsSourcePageUri = URI.parse('https://docs.github.com/en/copilot/concepts/customizations/copilot-connectors');
+
 export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector): ICustomizationMarketplaceEntry {
-	const publisherUrl = connector.homepage ?? connector.author?.url;
+	const publisher = connector.author?.name || localize('copilotConnectors.publisher', "GitHub Copilot");
 	return {
 		identifier: connector.name,
 		displayName: connector.displayName,
@@ -1083,11 +1091,13 @@ export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector)
 		capabilities: connector.capabilities,
 		representativeQueries: connector.representativeQueries,
 		connectorIds: [...new Set([connector.name, ...connector.mcpServers.map(server => server.name)])],
-		url: connector.documentation,
-		externalUrl: connector.documentation?.toString(true),
+		url: copilotConnectorsSourcePageUri,
+		externalUrl: copilotConnectorsSourcePageUri.toString(true),
+		...(connector.homepage ? { homepage: connector.homepage } : {}),
+		...(connector.repository ? { repository: connector.repository } : {}),
 		icon: connector.icon,
-		publisher: localize('copilotConnectors.publisher', "GitHub Copilot"),
-		...(publisherUrl ? { publisherUrl } : {}),
+		publisher,
+		...(connector.author?.name && connector.author.url ? { publisherUrl: connector.author.url } : {}),
 		installation: { kind: 'copilotConnector', name: connector.name },
 	};
 }
@@ -1140,6 +1150,8 @@ function parseConnectors({ plugins }: ConnectorCatalog): readonly ICopilotConnec
 		const { metadata, connection } = plugin;
 		const displayName = text(metadata.displayName) ?? name;
 		const description = text(plugin.description) ?? localize('copilotConnectors.defaultDescription', "Connect {0} to GitHub Copilot.", displayName);
+		const homepage = text(plugin.homepage, 8192);
+		const homepageUri = parseHttpsUri(homepage);
 		const mcpServerEntries = Object.entries(plugin.mcpServers.mcpServers);
 		if (mcpServerEntries.length > maxMcpServersPerConnector) {
 			throw new CopilotConnectorsError(localize('copilotConnectors.invalidResponse', "Copilot connectors returned an invalid response."));
@@ -1149,8 +1161,8 @@ function parseConnectors({ plugins }: ConnectorCatalog): readonly ICopilotConnec
 			displayName,
 			description,
 			icon: parseHttpsUri(plugin.logo),
-			documentation: parseHttpsUri(plugin.homepage),
-			homepage: parseHttpsUri(plugin.homepage),
+			documentation: homepageUri,
+			homepage: homepageUri ? homepage : undefined,
 			version: text(plugin.version, 512),
 			author: parseAuthor(plugin.author),
 			repository: parseHttpsUri(plugin.repository),

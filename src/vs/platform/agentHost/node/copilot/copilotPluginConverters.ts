@@ -313,6 +313,7 @@ export function toChildCustomizations(plugins: readonly IParsedPlugin[]): ChildC
 		for (const a of plugin.agents) { add(a.customization); }
 		for (const s of plugin.skills) { add(s.customization); }
 		for (const r of plugin.instructions) { add(r.customization); }
+		for (const prompt of plugin.prompts ?? []) { add(prompt); }
 		for (const h of plugin.hooks) { add(h.customization); }
 		for (const m of plugin.mcpServers) { add(m.customization); }
 	}
