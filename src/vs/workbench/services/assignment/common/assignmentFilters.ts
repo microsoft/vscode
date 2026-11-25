@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IExperimentationFilterProvider } from 'tas-client';
-import { IEntitlementsData } from '../../../../base/common/defaultAccount.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../base/common/map.js';
 import { isString } from '../../../../base/common/types.js';
-import type { ICopilotTokenInfo } from '../../../../base/common/defaultAccount.js';
+import type { ICopilotTokenInfo, IEntitlementsData } from '../../../../base/common/defaultAccount.js';
 import { getInternalOrg, isInternalAccount } from '../../../../platform/assignment/common/assignment.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
