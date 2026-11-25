@@ -14,7 +14,6 @@ import * as errors from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { isLinux } from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as network from '../../../../base/common/network.js';
@@ -29,7 +28,7 @@ import { CommonFindController } from '../../../../editor/contrib/find/browser/fi
 import { MultiCursorSelectionController } from '../../../../editor/contrib/multicursor/browser/multicursor.js';
 import * as nls from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -66,7 +65,7 @@ import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibil
 import { SearchWidget } from './searchWidget.js';
 import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
-import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from '../common/search.js';
+import { getOutOfWorkspaceEditorResources, getSearchNoResultsActions, SearchStateKey, SearchUIState } from '../common/search.js';
 import { ISearchHistoryService, ISearchHistoryValues, SearchHistoryService } from '../common/searchHistoryService.js';
 import { createEditorFromSearchResult } from '../../searchEditor/browser/searchEditorActions.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
@@ -246,6 +245,7 @@ export class SearchView extends ViewPane {
 		@ISCMService private readonly scmService: ISCMService,
 		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -1711,13 +1711,15 @@ export class SearchView extends ViewPane {
 		// https://github.com/microsoft/vscode/issues/58374
 		const charsPerLine = content.isRegExp ? 10000 : 1000;
 
+		const folderResources = this.contextService.getWorkspace().folders;
+
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchView',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
-			ignoreGlobCase: !isLinux || undefined,
+			ignoreGlobCase: this.queryBuilder.ignoreGlobCaseForResources(folderResources.map(folder => folder.uri)) || undefined,
 			onlyOpenEditors: onlySearchInOpenEditors,
 			changedFileUris,
 			excludePattern,
@@ -1729,7 +1731,6 @@ export class SearchView extends ViewPane {
 			isSmartCase: this.searchConfig.smartCase,
 			expandPatterns: true
 		};
-		const folderResources = this.contextService.getWorkspace().folders;
 
 		const onQueryValidationError = (err: Error) => {
 			this.searchWidget.searchInput?.showMessage({ content: err.message, type: MessageType.ERROR });
@@ -1924,6 +1925,16 @@ export class SearchView extends ViewPane {
 			if (this.shouldShowAIResults()) {
 				this.appendSearchWithAIButton(messageEl);
 				dom.append(messageEl, $('span', undefined, ' - '));
+			}
+
+			// Other features offer what else to do with the query
+			const query = this.searchWidget.searchInput?.getValue();
+			if (completed && query) {
+				for (const action of getSearchNoResultsActions(this.menuService, this.contextKeyService, query)) {
+					const actionButton = this.messageDisposables.add(new SearchLinkButton(action.label, () => action.run(), this.hoverService, action.tooltip || undefined));
+					dom.append(messageEl, actionButton.element);
+					dom.append(messageEl, $('span', undefined, ' - '));
+				}
 			}
 
 			if (!completed) {

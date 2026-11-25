@@ -49,6 +49,8 @@ export interface IAgentHostAuthenticationService {
 	getAuthCredential(request: IAgentHostAuthTokenRequest, includeExpired?: boolean): IAgentHostAuthCredential | undefined;
 	/** Forgets the resource's credentials and in-flight writes without signing out an external account. */
 	invalidateAuthTokens(resource: string): void;
+	/** Resolves once no untargeted authenticate request for the resource is in flight. The other members work without it; a caller about to act on a stored token while such a request may be in flight awaits it first. */
+	whenAuthenticationSettled(resource: string): Promise<void>;
 	getSessionCredentialBinding(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialSource(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialPrincipal(session: string): IAgentHostCredentialPrincipal | undefined;
@@ -408,6 +410,14 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				this._revocations.set(key, (this._revocations.get(key) ?? 0) + 1);
 				this._onDidChangeAuthToken.fire({ resource, scopes: credential.scopes, token: undefined });
 			}
+		}
+	}
+
+	async whenAuthenticationSettled(resource: string): Promise<void> {
+		const pendingRequests = () => [...this._authenticationRequests.values()].filter(request => !request.target && request.resource === resource);
+		// A request is completed when it is replaced as well, so look again for the one that replaced it.
+		for (let pending = pendingRequests(); pending.length > 0; pending = pendingRequests()) {
+			await Promise.all(pending.map(request => request.completed.p));
 		}
 	}
 

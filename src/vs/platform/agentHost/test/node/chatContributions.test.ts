@@ -160,19 +160,19 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
 
-	readonly pullRequestAttachments: { readonly sessionKey: string; readonly workingDirectory: string | undefined }[] = [];
+	readonly pullRequestAttachments: string[] = [];
 	readonly pendingPullRequestReconciliations: string[] = [];
 
 	constructor(private readonly _observed: string[] | undefined) { }
 
-	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async refreshSessionGitState(_sessionKey: string): Promise<void> { }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
-	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
+	async resolveSessionBaseBranchRef(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
-	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void> {
-		this.pullRequestAttachments.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
+	async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
+		this.pullRequestAttachments.push(sessionKey);
 		this._observed?.push('githubReferences');
 	}
 	async reconcilePendingRecordedPullRequests(chat: string): Promise<void> {
@@ -2820,12 +2820,8 @@ suite('AgentHostChatContributions', () => {
 			attachments: contributions.gitStateService.pullRequestAttachments,
 			pending: contributions.gitStateService.pendingPullRequestReconciliations,
 		}, {
-			attachments: [
-				{ sessionKey: session, workingDirectory: sessionFolder },
-				{ sessionKey: session, workingDirectory: sessionFolder },
-				{ sessionKey: session, workingDirectory: sessionFolder },
-				{ sessionKey: peerFolderChat, workingDirectory: peerFolder },
-			],
+			// The session reconciles the session folder's pull request; the peer chat reconciles its own folder's.
+			attachments: [session, session, session, peerFolderChat],
 			pending: [],
 		});
 	});

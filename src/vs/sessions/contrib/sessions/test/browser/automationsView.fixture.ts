@@ -26,7 +26,7 @@ import { IListService, ListService } from '../../../../../platform/list/browser/
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEntryAddress, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -56,7 +56,7 @@ import { IChat, ISession, SessionStatus } from '../../../../../workbench/service
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import { AutomationsCustomViewContribution, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { registerAutomationHistoryFixtureMenus } from '../../../automations/test/browser/automationsTableTestUtils.js';
 import '../../../../browser/media/style.css';
 
@@ -223,6 +223,8 @@ interface IAutomationsFixtureOptions {
 	readonly width: number;
 	readonly height: number;
 	readonly populated: boolean;
+	readonly data?: IAutomationsFixtureData;
+	readonly showDisabled?: boolean;
 	readonly catalogueState?: AutomationCatalogueState;
 	readonly unavailableProviders?: readonly IAutomationProviderDescriptor[];
 	readonly pluginTemplate?: boolean;
@@ -261,6 +263,22 @@ const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
+	...Object.fromEntries((['Empty', 'Enabled', 'Mixed', 'Disabled'] as const).flatMap(personal =>
+		(['Empty', 'Enabled', 'Mixed', 'Disabled'] as const).flatMap(shared =>
+			[false, true].map(showDisabled => [
+				`MatrixPersonal${personal}Shared${shared}ShowDisabled${showDisabled ? 'On' : 'Off'}`,
+				defineComponentFixture({
+					render: ctx => renderAutomations(ctx, {
+						width: 1000, height: 900, populated: false, showDisabled,
+						data: {
+							automations: [...createStateAutomations('user', personal), ...createStateAutomations('repository', shared)],
+							runs: [],
+						},
+					}),
+				}),
+			]),
+		),
+	)),
 	Populated: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
@@ -429,7 +447,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 });
 
 async function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): Promise<void> {
-	const data = options.repositoryOnly ? createRepositoryOnlyData() : options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
+	const data = options.data ?? (options.repositoryOnly ? createRepositoryOnlyData() : options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] });
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
 		[RemoteAgentHostsEnabledSettingId]: true,
@@ -485,6 +503,11 @@ async function renderAutomations(ctx: ComponentFixtureContext, options: IAutomat
 			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 			reg.define(IMenuService, MenuService);
 			reg.defineInstance(IConfigurationService, configurationService);
+			if (options.showDisabled !== undefined) {
+				const storageService = ctx.disposableStore.add(new InMemoryStorageService());
+				storageService.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, options.showDisabled, StorageScope.PROFILE, StorageTarget.MACHINE);
+				reg.defineInstance(IStorageService, storageService);
+			}
 			reg.defineInstance(IContextKeyService, contextKeyService);
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { }());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
@@ -634,6 +657,21 @@ function createRepositoryOnlyData(): IAutomationsFixtureData {
 		})),
 		runs: [],
 	};
+}
+
+function createStateAutomations(ownership: 'user' | 'repository', state: 'Empty' | 'Enabled' | 'Mixed' | 'Disabled'): IAutomationDescriptor[] {
+	const enabledStates = state === 'Empty' ? [] : state === 'Mixed' ? [true, false] : [state === 'Enabled'];
+	const label = ownership === 'user' ? 'Personal' : 'Shared';
+	return enabledStates.map(enabled => createAutomation({
+		id: `${ownership}-${enabled ? 'enabled' : 'disabled'}`,
+		name: `${label} ${enabled ? 'enabled' : 'disabled'}`,
+		prompt: 'Review recent changes and suggest focused improvements.',
+		schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+		ownership,
+		enabled,
+		isCreatedByCurrentUser: true,
+		targetDisplay: { label: ownership === 'user' ? 'vscode' : 'example/project', icon: Codicon.folder },
+	}));
 }
 
 function createPopulatedData(): IAutomationsFixtureData {

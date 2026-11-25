@@ -391,7 +391,7 @@ export class DisposableCancellationTokenSource extends CancellationTokenSource {
 	}
 }
 
-export function translatePosition(posInOriginal: Position, mappings: DetailedLineRangeMapping[]): Range {
+export function translatePosition(posInOriginal: Position, mappings: readonly DetailedLineRangeMapping[]): Range {
 	const mapping = findLast(mappings, m => m.original.startLineNumber <= posInOriginal.lineNumber);
 	if (!mapping) {
 		// No changes before the position

@@ -421,7 +421,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = changesets;
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
-			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
+			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
 		const contextKeyService = new MockContextKeyService();
@@ -495,7 +495,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = constObservable([branch]);
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
-			override readonly activeSessionBaseBranchFullNameObs = baseBranch;
+			override readonly activeSessionBaseBranchRefObs = baseBranch;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
 		const contextKeyService = new MockContextKeyService();
@@ -573,7 +573,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
-			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
+			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = summary;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
@@ -682,7 +682,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
-			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
+			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 2, additions: 5, deletions: 1 });
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();

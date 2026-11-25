@@ -18,7 +18,8 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
-import { IApprovedSession, ISessionCIFixModel, ISessionsFlatListOptions, SessionsFlatList, SessionItemStatusContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { IApprovedSession, ISessionCIFixModel, ISessionsFlatListOptions, SessionsFlatList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionItemStatusContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 
 export interface ICommandCenterSessionsHeaderActionContext {

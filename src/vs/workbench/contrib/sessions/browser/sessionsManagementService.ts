@@ -442,10 +442,21 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (unlistedSession) {
 			return unlistedSession;
 		}
-		return this._getAllSessions().find(s =>
-			this.uriIdentityService.extUri.isEqual(s.resource, resource)
-			|| s.previousIdentities?.some(previous => this.uriIdentityService.extUri.isEqual(previous.resource, resource))
-		);
+		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
+			const session = provider.getSession(resource);
+			if (session) {
+				return session;
+			}
+		}
+		// Providers match resources exactly. Where the scheme's file system ignores path casing, also find a case variant.
+		const extUri = this.uriIdentityService.extUri;
+		if (extUri.ignorePathCasing(resource)) {
+			return this._getAllSessions().find(s =>
+				extUri.isEqual(s.resource, resource)
+				|| s.previousIdentities?.some(previous => extUri.isEqual(previous.resource, resource))
+			);
+		}
+		return undefined;
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {

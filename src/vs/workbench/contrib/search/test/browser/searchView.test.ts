@@ -100,7 +100,7 @@ suite('Search View - folder location change', () => {
 			inputPatternExcludes: { getValue: () => '', useExcludesAndIgnoreFiles: () => true },
 			inputPatternIncludes: { getValue: () => '', onlySearchInOpenEditors: () => false, onlySearchInChangedFiles: () => false },
 			instantiationService: { invokeFunction: () => [] },
-			queryBuilder: { text: () => ({ folderQueries: [] }) },
+			queryBuilder: { text: () => ({ folderQueries: [] }), ignoreGlobCaseForResources: () => false },
 			validateQuery: () => options.validation ?? Promise.resolve(),
 			viewletVisible: { set: () => { } },
 			viewModel: { searchResult: { toggleHighlights: () => { } }, cancelSearch, cancelAISearch: () => { }, isReplaceActive: () => false },

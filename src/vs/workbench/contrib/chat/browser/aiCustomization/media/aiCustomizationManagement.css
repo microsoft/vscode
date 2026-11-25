@@ -2273,7 +2273,7 @@ per-word capitalization does not survive translation. */
 	margin-top: 1px;
 }
 
-.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-publisher {
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-header-link {
 	align-self: flex-end;
 	flex-shrink: 1;
 	min-width: 0;
@@ -2286,7 +2286,7 @@ per-word capitalization does not survive translation. */
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
-.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-publisher[href] {
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-header-link[href] {
 	color: var(--vscode-textLink-foreground);
 }
 

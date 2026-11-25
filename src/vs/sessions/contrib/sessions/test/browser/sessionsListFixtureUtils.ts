@@ -97,7 +97,8 @@ import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions
 import { IScheduledChatsService } from '../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { SessionInboxAction } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
-import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsList, SessionsListItemReference } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionChatItem, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISessionsHeaderElements, ISessionsViewLocator, ISessionsViewOptions, renderSessionsHeader, SessionsView, SessionsViewGroupingContext, SessionsViewId, SessionsViewLocator } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import '../../browser/views/sessionsViewActions.js';

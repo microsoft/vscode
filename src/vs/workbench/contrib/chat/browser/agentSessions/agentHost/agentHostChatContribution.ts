@@ -408,7 +408,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const modelCatalogueStatus = observableFromEvent(this, this._agentHostService.rootState.onDidChange, () =>
 			readAgentModelCatalogStatus(this._agentHostService.rootState.value, agent.provider));
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, undefined));
+		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
 		// Local mode IDs keep the ambient wrapping that predates connection resource mappers.
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, { clientId: ahService.clientId, resourceUris: this._isLocalAgentHost ? createAgentHostResourceUriMapper(LOCAL_AGENT_HOST_AUTHORITY) : ahService.resourceUris }, undefined,
