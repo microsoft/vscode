@@ -683,6 +683,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * callers can enforce provider-specific trust without resolving it again.
 	 */
 	private _resolveProviderForNewSession(folderUri: URI, options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string; workspace: ISessionWorkspace } {
+		const defaultFolder = options?.folders ? options.folders[0] : options?.workspaceConfig?.folders[0];
+		if ((options?.folders || options?.workspaceConfig) && (!defaultFolder || !this.uriIdentityService.extUri.isEqual(defaultFolder, folderUri))) {
+			throw new Error(`The session folder ${folderUri.toString()} is not the default folder of the session's folders.`);
+		}
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
 		let workspace: ISessionWorkspace | undefined;
@@ -783,6 +787,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * advertised one. Throws when no capable provider/type can be resolved.
 	 */
 	private _resolveProviderForQuickChat(options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string } {
+		if (options?.workspaceConfig || options?.folders) {
+			throw new Error('A quick chat has no folders: it cannot be created in a workspace or in folders.');
+		}
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
 
@@ -881,6 +888,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return {
 			metadata: options?.metadata,
 			...(options?.createdBySession ? { createdBySession: options.createdBySession } : {}),
+			...(options?.workspaceConfig ? { workspaceConfig: options.workspaceConfig } : {}),
+			...(options?.folders ? { folders: options.folders } : {}),
 			...(options?.modelId && options.modelConfiguration ? {
 				modelId: options.modelId,
 				modelConfiguration: options.modelConfiguration,
@@ -1233,9 +1242,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async createAndSendNewChatRequest(folderUri: URI, options: NewSessionRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId, workspace } = this._resolveProviderForNewSession(folderUri, createOptions);
 		if (workspace.requiresWorkspaceTrust) {
-			const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(folderUri);
-			if (!trustInfo.trusted) {
-				throw new WorkspaceNotTrustedError();
+			for (const folder of createOptions?.folders ?? createOptions?.workspaceConfig?.folders ?? [folderUri]) {
+				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(folder);
+				if (!trustInfo.trusted) {
+					throw new WorkspaceNotTrustedError();
+				}
 			}
 		}
 		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, createOptions));
@@ -1908,6 +1919,32 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
 		await this._getProvider(session)?.renameChat(session.sessionId, chatUri, title);
 		this._onDidRenameChat.fire(session);
+	}
+
+	async addChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider?.addChatFolder || !session.capabilities.get().supportsChatFolders) {
+			throw new Error(`Session ${session.sessionId} does not support adding folders to a chat.`);
+		}
+		// The chat's agent gets access to the folder, which the session's trusted folders do not vouch for
+		if (session.workspace.get()?.requiresWorkspaceTrust !== false && !(await this.workspaceTrustManagementService.getUriTrustInfo(folder)).trusted) {
+			throw new WorkspaceNotTrustedError();
+		}
+		await provider.addChatFolder(session.sessionId, chatUri, folder);
+	}
+
+	async removeChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider?.removeChatFolder || !session.capabilities.get().supportsChatFolders) {
+			throw new Error(`Session ${session.sessionId} does not support removing folders from a chat.`);
+		}
+		const extUri = this.uriIdentityService.extUri;
+		const chat = session.chats.get().find(candidate => extUri.isEqual(candidate.resource, chatUri));
+		const defaultFolder = (chat?.workspace.get() ?? session.workspace.get())?.folders[0];
+		if (defaultFolder && (extUri.isEqual(defaultFolder.root, folder) || extUri.isEqual(defaultFolder.workingDirectory, folder))) {
+			throw new Error(`The default folder of chat ${chatUri.toString()} cannot be removed.`);
+		}
+		await provider.removeChatFolder(session.sessionId, chatUri, folder);
 	}
 
 	async renameSession(session: ISession, title: string): Promise<void> {

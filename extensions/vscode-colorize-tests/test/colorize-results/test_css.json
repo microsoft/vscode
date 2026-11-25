@@ -344,9 +344,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -360,9 +360,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -456,9 +456,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -472,9 +472,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -616,9 +616,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -632,9 +632,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1464,9 +1464,9 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"2026-dark": "keyword: #FF7B72",
+			"2026-dark": "keyword: #569CD6",
 			"dark_modern": "keyword: #569CD6",
-			"2026-light": "keyword: #CF222E",
+			"2026-light": "keyword: #0550AE",
 			"hc_light": "keyword: #0F4A85",
 			"light_modern": "keyword: #0000FF"
 		}
@@ -5624,9 +5624,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -5640,9 +5640,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #569CD6",
 			"dark_modern": "keyword.control: #C586C0",
-			"2026-light": "keyword.control: #AF00DB",
+			"2026-light": "keyword.control: #0550AE",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}

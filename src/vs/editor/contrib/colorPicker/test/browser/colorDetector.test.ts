@@ -107,4 +107,20 @@ suite('ColorDetector', () => {
 			);
 		});
 	});
+
+	test('does not expand color decorations into text typed over deleted colors', async () => {
+		await withAsyncTestCodeEditor(['#ff0000', '#00ff00', '#0000ff'], {}, async (editor, _viewModel, instantiationService) => {
+			store.add(instantiationService.get(ILanguageFeaturesService).colorProvider.register('*', colorProvider(3)));
+
+			useStyledContainer(editor);
+			const detector = store.add(instantiationService.createInstance(ColorDetector, editor));
+			await Event.toPromise(detector.limitReporter.onDidChange);
+
+			editor.executeEdits('test', [{ range: new Range(2, 1, 3, 8), text: '' }]);
+			editor.executeEdits('test', [{ range: new Range(2, 1, 2, 1), text: 'some text' }]);
+
+			const visibleColorDecorations = editor.getModel()!.getAllDecorations().filter(decoration => detector.isColorDecoration(decoration) && !decoration.range.isEmpty());
+			assert.deepStrictEqual(visibleColorDecorations.map(decoration => decoration.range), [new Range(1, 1, 1, 8)]);
+		});
+	});
 });

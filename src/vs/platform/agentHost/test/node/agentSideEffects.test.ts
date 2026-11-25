@@ -163,13 +163,13 @@ class NoopGitStateService implements IAgentHostGitStateService {
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
 
-	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async refreshSessionGitState(_sessionKey: string): Promise<void> { }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
 	async resolveSessionBaseBranchRef(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
-	async attachSessionGitHubPullRequest(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
 }
 
 class NoopWorktreeIsolation extends NullAgentHostWorktreeIsolation { }

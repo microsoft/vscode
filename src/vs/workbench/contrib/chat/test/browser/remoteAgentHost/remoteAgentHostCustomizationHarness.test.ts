@@ -7,7 +7,6 @@ import assert from 'assert';
 import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -35,20 +34,19 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
+import { IChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { NullAgenticSkillsService } from '../../../common/promptSyntax/service/agenticSkillsService.js';
 
 const labelService = new class extends mock<ILabelService>() {
 	override getUriLabel(resource: URI): string { return resource.toString(); }
 }();
 
 class MockPromptsService extends BaseMockPromptsService {
-	override getDisabledPromptFiles(): ResourceSet {
-		return new ResourceSet();
-	}
-
-	override async listPromptFilesForStorage(): Promise<[]> {
-		return [];
-	}
 }
+
+const extensionCustomizations = new class extends mock<IChatExtensionCustomizationsService>() {
+	override async getExtensionPromptFiles() { return []; }
+}();
 
 /** Throws the file-not-found result used for absent optional plugin directories. */
 function throwFileNotFound(): never {
@@ -280,7 +278,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginA, pluginB]),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -298,7 +296,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [{
 			type: CustomizationType.Agent,
@@ -339,7 +337,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [hostScoped]),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -381,7 +379,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [hostPlugin]),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -463,7 +461,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		provider.setDraftCustomizations(observableValue('draftCustomizations', [bundleRef]));
@@ -500,7 +498,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -546,7 +544,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginRef]),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -584,7 +582,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginRef]),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		let changeCount = 0;
@@ -666,7 +664,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -720,7 +718,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			new class extends mock<IFileService>() { }(),
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [container]),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -774,7 +772,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 		provider.setDraftCustomizations(observableValue('draftCustomizations', [plugin]));
 
@@ -835,7 +833,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		provider.setDraftCustomizations(observableValue('draftCustomizations', [bundle]));
@@ -879,7 +877,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 		provider.setDraftCustomizations(observableValue('draftCustomizations', [bundle]));
 
@@ -932,7 +930,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 
 		provider.setDraftCustomizations(observableValue('draftCustomizations', [bundle]));
@@ -976,7 +974,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(), labelService,
+			new MockPromptsService(), extensionCustomizations, new NullAgenticSkillsService(), labelService,
 		));
 		provider.setDraftCustomizations(observableValue('draftCustomizations', [plugin]));
 

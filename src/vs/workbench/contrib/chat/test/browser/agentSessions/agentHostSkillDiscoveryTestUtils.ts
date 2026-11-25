@@ -8,7 +8,6 @@ import { createAgentHostResourceUriMapper } from '../../../../../../platform/age
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { CustomizationLoadStatus, CustomizationType, type DirectoryCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -20,6 +19,8 @@ import { IAgentHostCustomizationService } from '../../../browser/agentSessions/a
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { NullAgenticSkillsService } from '../../../common/promptSyntax/service/agenticSkillsService.js';
 
 export function createCodexSkillCustomizations(): DirectoryCustomization[] {
 	return [
@@ -61,11 +62,12 @@ export async function assertCodexSkillItems(service: IAgentHostCustomizationServ
 		new class extends mock<IFileService>() { }(),
 		new NullLogService(),
 		service,
-		new class extends mock<IPromptsService>() {
-			override readonly onDidChangeSkills = Event.None;
-			override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
-			override async listPromptFilesForStorage() { return []; }
+		new class extends mock<IPromptsService>() { }(),
+		new class extends mock<IChatExtensionCustomizationsService>() {
+			override readonly onDidChange = Event.None;
+			override async getExtensionPromptFiles() { return []; }
 		}(),
+		new NullAgenticSkillsService(),
 		new class extends mock<ILabelService>() { }(),
 	));
 	const items = await provider.provideChatSessionCustomizations(sessionResource, CancellationToken.None);

@@ -42,7 +42,8 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ArchiveSessionAction, registerSessionsListReadStateMenus } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../../workbench/common/chatSessionCommands.js';
-import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { SessionsView, SessionsViewId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';

@@ -76,7 +76,7 @@ import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../.
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { AutomationsHasItemsContext, CustomViewAllowsPanelContext } from '../../../../common/agentsWindowContextKeys.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { getShowSharedAutomationsByOthers, setShowSharedAutomationsByOthers } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
@@ -7256,7 +7256,7 @@ suite('AutomationsCardsWidget', () => {
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const describesBuiltInTemplates = () => {
-			const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+			const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
 			assert.ok(provider);
 			disposables.add(provider);
 			return provider.provideContent().includes('Built-in Templates section');
@@ -7293,6 +7293,20 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider.provideContent().includes('Activate Got It or the highlighted button to continue to the new session draft, or press Escape to dismiss it and stay in Automations.'));
 		assert.ok(provider.provideContent().includes('Existing attachments are kept. Choose View Draft to return to the new session page without changing the draft, or Cancel to stay in Automations.'));
 	});
+
+	for (const panelAvailable of [true, false]) {
+		test(`accessibility help ${panelAvailable ? 'explains' : 'omits'} Terminal and Output access when the custom view ${panelAvailable ? 'keeps' : 'does not keep'} the panel`, () => {
+			const { instantiationService } = setup();
+			instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+			stubSessionsHostLayout(instantiationService);
+			CustomViewAllowsPanelContext.bindTo(instantiationService.get(IContextKeyService)).set(panelAvailable);
+			const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+			assert.ok(help);
+			const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
+
+			assert.strictEqual(provider.provideContent().includes('New local terminals start in your user profile because this view has no active session workspace.'), panelAvailable);
+		});
+	}
 
 	test('accessibility help explains the disconnected remote management link', () => {
 		const { instantiationService } = setup();

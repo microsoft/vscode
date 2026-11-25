@@ -27,6 +27,21 @@ suite('openSessionLink', () => {
 		})), Array(2).fill({ backend: backend.toString(), authority: 'other-host', chat: 'conversation:/peer', turn: 'turn-1' }));
 	});
 
+	test('preserves reserved characters in backend identity and connection scope', () => {
+		const backend = URI.from({ scheme: 'ahp-session', authority: 'tenant', path: '/opaque%2Fvalue', query: 'revision=part%26literal&mode=two' });
+		const authority = 'remote%26alias';
+		const turn = 'turn%26one&two';
+		const link = buildOpenSessionLinkUri(backend, 'peer', turn, authority);
+		const external = buildExternalOpenSessionLinkUri('vscode-insiders', backend, 'peer', turn, authority);
+		const restored = parseExternalOpenSessionLinkUri(external, 'vscode-insiders');
+		assert.ok(restored);
+		assert.deepStrictEqual([link, URI.parse(link), restored, restored.toString()].map(value => ({
+			backend: parseOpenSessionLinkUri(value)?.toString(),
+			authority: parseOpenSessionLinkConnectionAuthority(value),
+			turn: parseOpenSessionLinkTurnId(value),
+		})), Array(4).fill({ backend: backend.toString(), authority, turn }));
+	});
+
 	test('invalid declared connection scope cannot fall back to the ambient host', () => {
 		assert.deepStrictEqual(['', '%'].map(value => parseOpenSessionLinkUri(`agent-host-session://ahp-session/shared?connectionAuthority=${value}`)), [undefined, undefined]);
 	});
@@ -138,6 +153,20 @@ suite('openSessionLink', () => {
 		assert.strictEqual(parseOpenSessionLinkUri(link)?.toString(), URI.parse('copilotcli:/abc-123').toString());
 		assert.strictEqual(parseOpenSessionLinkChatId(link), 'chat-9');
 		assert.strictEqual(parseOpenSessionLinkChatId(buildOpenSessionLinkUri('copilotcli:/abc-123')), undefined);
+	});
+
+	test('preserves reserved characters in chat ids through URI parsing', () => {
+		const chatIds = ['other-chat://example/peer?scope=one&view=two#thread', 'other-chat:/peer?scope%3Done'];
+		assert.deepStrictEqual(chatIds.map(chatId => {
+			const link = buildOpenSessionLinkUri('copilotcli:/abc-123', chatId, undefined, 'remote');
+			const external = buildExternalOpenSessionLinkUri('vscode-insiders', 'copilotcli:/abc-123', chatId, undefined, 'remote');
+			const restored = parseExternalOpenSessionLinkUri(external, 'vscode-insiders');
+			return [
+				parseOpenSessionLinkChatId(link),
+				parseOpenSessionLinkChatId(URI.parse(link)),
+				restored && parseOpenSessionLinkChatId(restored),
+			];
+		}), chatIds.map(chatId => [chatId, chatId, chatId]));
 	});
 
 	test('carries an optional chat and turn id', () => {

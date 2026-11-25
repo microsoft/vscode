@@ -73,6 +73,13 @@ export const AGENT_HOST_AUTO_MERGE_OPERATION_IDS: ReadonlySet<string> = new Set(
  * responsible for executing the operation.
  */
 export interface IChangesetOperationHandler {
+	/**
+	 * Whether the operation can change the Git state of its changeset's owner: its files, index, branch, commits or upstream.
+	 * After such an operation succeeds, the operation service republishes the owner's operations and refreshes its Git state,
+	 * without waiting out the refresh cooldown and with the operation's credentials, before the operation returns.
+	 * A failed operation is always followed by a refresh, since it may have changed the checkout part way.
+	 */
+	readonly changesGitState: boolean;
 	/** Captures credentials at admission, before the operation waits for another operation to finish. */
 	captureCredentialSource?(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined;
 	/**
@@ -116,8 +123,8 @@ export interface IChangesetOperationContext {
 /**
  * Registration surface handed to changeset operation contributions.
  *
- * Contributions use this object to install operation handlers and request a
- * refresh when external state changes which operations should be advertised.
+ * Contributions use this object to install operation handlers and to report
+ * when external state changes which operations should be advertised.
  */
 export interface IChangesetOperationRegistry {
 	/**
@@ -130,11 +137,6 @@ export interface IChangesetOperationRegistry {
 	 * changesets in `sessionKey` should be recomputed from current session state.
 	 */
 	onDidChangeOperations(sessionKey: string): void;
-	/**
-	 * Recomputes the session's git metadata and then refreshes advertised
-	 * operations if that metadata can be resolved.
-	 */
-	refreshSessionGitState(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void>;
 }
 
 /**

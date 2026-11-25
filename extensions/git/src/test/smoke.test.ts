@@ -570,9 +570,10 @@ suite('git smoke test', function () {
 			const repository = (await model.openRepository(repositoryPath, { openIfParent: true }))!;
 			await repository.status();
 
-			// As a switch of a workspace folder location detaches the repository of the location that it leaves
-			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Only switches detach, which tests cannot drive.
-			model['getOpenRepository'](repository)!.detach();
+			// A switch of a workspace folder location away from the repository's location detaches it. The location that it
+			// switches to does not exist, so nothing opens there.
+			const away = Uri.file(`${repositoryPath}-away`);
+			await model.workspaceFolderRepositories.switchFolderLocations([{ from: { uri: Uri.file(repositoryPath), name: 'here', index: 0 }, to: { uri: away, name: 'away', index: 0 } }]);
 			const state = () => ({ isAttached: repository.isAttached, inApi: git.getRepository(Uri.file(repositoryPath)) !== null });
 			const detached = { ...state(), changes: repository.workingTreeChanges.map(r => path.basename(r.resourceUri.fsPath)) };
 

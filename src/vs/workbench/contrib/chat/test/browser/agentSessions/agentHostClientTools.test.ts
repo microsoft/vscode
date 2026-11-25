@@ -95,8 +95,12 @@ import { IAuthenticationMcpAccessService } from '../../../../../services/authent
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { IChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { IAgenticSkillsService, NullAgenticSkillsService } from '../../../common/promptSyntax/service/agenticSkillsService.js';
+import { AgentHostClientCustomizationsService, IAgentHostClientCustomizationsService, IClientCustomizationSnapshot } from '../../../browser/agentSessions/agentHost/agentHostClientCustomizationsService.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
@@ -151,9 +155,23 @@ suite('AgentHostClientTools', () => {
 			override readonly onDidChangeSlashCommands = Event.None;
 			override readonly onDidChangeSkills = Event.None;
 			override readonly onDidChangeInstructions = Event.None;
-			override getDisabledPromptFiles() { return new ResourceSet(); }
 			override async listPromptFilesForStorage(type: string, storage: string) {
 				promptListings.push(`${type}:${storage}`);
+				return [];
+			}
+		}());
+		instantiationService.stub(IChatExtensionCustomizationsService, new class extends mock<IChatExtensionCustomizationsService>() {
+			override readonly onDidChange = Event.None;
+			override async getExtensionPromptFiles(type: string) {
+				promptListings.push(`${type}:extension`);
+				return [];
+			}
+		}());
+		instantiationService.stub(IAgenticSkillsService, new class extends mock<IAgenticSkillsService>() {
+			override readonly onDidChange = Event.None;
+			override getDisabledSkills() { return new ResourceSet(); }
+			override async getSkills() {
+				promptListings.push('skill:builtin');
 				return [];
 			}
 		}());
@@ -189,8 +207,17 @@ suite('AgentHostClientTools', () => {
 			setToolEnabled: () => { },
 		});
 
+		instantiationService.stub(IAgentHostClientCustomizationsService, instantiationService.createInstance(AgentHostClientCustomizationsService));
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
 		return { service, instantiationService, promptListings, getFullReferenceNameSnapshots: () => fullReferenceNameSnapshots };
+	}
+
+	function createAgentSnapshot(uri?: URI): IClientCustomizationSnapshot {
+		return {
+			files: uri ? [{ uri, type: PromptsType.agent, source: AICustomizationSources.local, disabled: false }] : [],
+			plugins: [],
+			mcpServers: [],
+		};
 	}
 
 	test('lazily creates scopes and shares them for equivalent root sets', async () => {
@@ -250,26 +277,14 @@ suite('AgentHostClientTools', () => {
 		const refreshScan = new DeferredPromise<void>();
 		const refreshPublished = new DeferredPromise<void>();
 		let scans = 0;
-		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
-			override readonly onDidChangeCustomAgents = changed.event;
-			override readonly onDidChangeSlashCommands = Event.None;
-			override readonly onDidChangeSkills = Event.None;
-			override readonly onDidChangeInstructions = Event.None;
-			override getDisabledPromptFiles() { return new ResourceSet(); }
-			override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage): Promise<readonly IPromptPath[]> {
-				if (type === PromptsType.agent && storage === PromptsStorage.local) {
-					const scan = ++scans;
-					await (scan === 1 ? firstScan.p : refreshScan.p);
-					return [{
-						uri: URI.file(`/agent-${scan}.agent.md`),
-						type,
-						storage,
-						source: PromptFileSource.ConfigWorkspace,
-					}];
-				}
-				return [];
+		instantiationService.stub(IAgentHostClientCustomizationsService, {
+			onDidChange: changed.event,
+			async collect() {
+				const scan = ++scans;
+				await (scan === 1 ? firstScan.p : refreshScan.p);
+				return createAgentSnapshot(URI.file(`/agent-${scan}.agent.md`));
 			}
-		}());
+		});
 		const scope = disposables.add(service.acquireScope('agent-host-claude', []));
 		disposables.add(autorun(reader => {
 			if (scope.customAgents.read(reader)[0]?.name === 'agent-2') {
@@ -307,20 +322,14 @@ suite('AgentHostClientTools', () => {
 		const { service, instantiationService } = createActiveClientService();
 		const scan = new DeferredPromise<void>();
 		let scans = 0;
-		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
-			override readonly onDidChangeCustomAgents = Event.None;
-			override readonly onDidChangeSlashCommands = Event.None;
-			override readonly onDidChangeSkills = Event.None;
-			override readonly onDidChangeInstructions = Event.None;
-			override getDisabledPromptFiles() { return new ResourceSet(); }
-			override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage) {
-				if (type === PromptsType.agent && storage === PromptsStorage.local) {
-					scans++;
-					await scan.p;
-				}
-				return [];
+		instantiationService.stub(IAgentHostClientCustomizationsService, {
+			onDidChange: Event.None,
+			async collect() {
+				scans++;
+				await scan.p;
+				return createAgentSnapshot(URI.file('/agent.agent.md'));
 			}
-		}());
+		});
 		const scope = service.acquireScope('agent-host-claude', []);
 		await timeout(100);
 		service.getSyncProvider('agent-host-claude').setDisabled(URI.file('/agent.agent.md'), true);
@@ -1304,11 +1313,15 @@ suite('AgentHostClientTools', () => {
 				override readonly onDidChangeInstructions = Event.None;
 				override readonly onDidChangeAgentInstructions = Event.None;
 
-				override getDisabledPromptFiles() { return new ResourceSet(); }
 				override async listPromptFilesForStorage() {
 					return [];
 				}
 			}());
+			instantiationService.stub(IChatExtensionCustomizationsService, new class extends mock<IChatExtensionCustomizationsService>() {
+				override readonly onDidChange = Event.None;
+				override async getExtensionPromptFiles() { return []; }
+			}());
+			instantiationService.stub(IAgenticSkillsService, new NullAgenticSkillsService());
 			instantiationService.stub(ITerminalChatService, {
 				onDidContinueInBackground: Event.None,
 				registerTerminalInstanceWithToolSession: () => { },
@@ -1358,6 +1371,7 @@ suite('AgentHostClientTools', () => {
 
 			// Use the real active-client service so the handler's tools autorun
 			// observes the mocked ILanguageModelToolsService tool sets.
+			instantiationService.stub(IAgentHostClientCustomizationsService, instantiationService.createInstance(AgentHostClientCustomizationsService));
 			const activeClientService = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
 			instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 			const appTools = observableValue<readonly ToolDefinition[]>('appTools', []);

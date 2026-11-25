@@ -266,8 +266,8 @@ suite('SessionWorkspaceConversionService', () => {
 			override getMaterializedWorktreeMeta(session: string, branchName: string) {
 				return withSessionGitState(stateManager.getSessionState(session)?._meta, { branchName });
 			}
-			override async refreshSessionGitState(_session: string, directory?: URI): Promise<void> {
-				gitRefreshes.push(directory!.toString());
+			override async refreshSessionGitState(session: string): Promise<void> {
+				gitRefreshes.push(session);
 			}
 		}();
 		const service = disposables.add(new SessionWorkspaceConversionService(chatIsolationHost ?? {

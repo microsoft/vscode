@@ -334,8 +334,16 @@ export interface ISessionWorkspace {
 	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
-	/** Folders in this session workspace. */
+	/**
+	 * Folders in this session workspace. The first is the default (main) folder: the session runs in it, or in its
+	 * worktree. Any others are attached as they are.
+	 */
 	readonly folders: ISessionFolder[];
+	/**
+	 * The workspace configuration (a `.code-workspace` file) the session was created in, with its folders as they were then;
+	 * `undefined` for a session created for folders alone. Providers that do not record workspaces omit it.
+	 */
+	readonly workspaceConfig?: ISessionWorkspaceConfig;
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
 	/**
@@ -348,6 +356,32 @@ export interface ISessionWorkspace {
 	 * identifies the workspace in pickers, this is drawn inline in dense rows.
 	 */
 	readonly typeIcon?: ThemeIcon;
+}
+
+/**
+ * The workspace configuration (a `.code-workspace` file, as `IWorkspace.configuration`) a session can be created in:
+ * a named, ordered set of folders. Not to be confused with a session's configuration. The
+ * first folder is the default (main) folder. A session records the workspace it was created in (see
+ * {@link ISessionWorkspace.workspaceConfig}) with a snapshot of its folders; the session's current folders are those of its
+ * {@link ISessionWorkspace}, which can differ later, for example after a chat added a folder.
+ *
+ * All URIs are in the client's URI space.
+ */
+export interface ISessionWorkspaceConfig {
+	/** The `.code-workspace` file. Identifies the workspace. */
+	readonly uri: URI;
+	/** The display name. */
+	readonly name: string;
+	/** The folders, the default folder first. Never empty. */
+	readonly folders: readonly URI[];
+}
+
+/** Structural equality for {@link ISessionWorkspaceConfig}. */
+export function sessionWorkspaceConfigEqual(a: ISessionWorkspaceConfig | undefined, b: ISessionWorkspaceConfig | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	return !!a && !!b && isEqual(a.uri, b.uri) && a.name === b.name && arrayEquals(a.folders, b.folders, isEqual);
 }
 
 /**
@@ -1161,6 +1195,12 @@ export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**
+	 * Whether a chat of this session can add folders to work in, and remove any folder it works in but its default
+	 * folder (its first), through `ISessionsProvider.addChatFolder` and `ISessionsProvider.removeChatFolder`.
+	 * Defaults to falsy when omitted.
+	 */
+	readonly supportsChatFolders?: boolean;
+	/**
 	 * Harness ids a new peer chat may choose in this session, in the same identity
 	 * space as {@link ISession.harness}. Absent or empty means choosing a harness
 	 * for a new peer chat is unsupported.
@@ -1406,6 +1446,7 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| (!!a.typeIcon && !!b.typeIcon && !ThemeIcon.isEqual(a.typeIcon, b.typeIcon))
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
+		|| !sessionWorkspaceConfigEqual(a.workspaceConfig, b.workspaceConfig)
 		|| a.folders.length !== b.folders.length) {
 		return false;
 	}

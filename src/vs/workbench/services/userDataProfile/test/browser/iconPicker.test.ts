@@ -13,6 +13,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IQuickInputHideEvent, IQuickInputService, IQuickWidget, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { getIconRegistry } from '../../../../../platform/theme/common/iconRegistry.js';
 import { TerminalIconPicker } from '../../../../contrib/terminal/browser/terminalIconPicker.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IconPicker } from '../../browser/iconPicker.js';
@@ -50,6 +51,20 @@ suite('Shared IconPicker', () => {
 		const picker = disposables.add(instantiationService.createInstance(IconPicker));
 		return { picker, host, hidden, quickWidget, grid: () => grid!, disposed: () => disposed };
 	}
+
+	test('the picker offers the icons registered when it opens, without blank, aliases or icons of other icons', async () => {
+		const registry = getIconRegistry();
+		disposables.add(toDisposable(() => ['test-pickable-glyph', 'test-pickable-alias', 'test-pickable-reference'].forEach(id => registry.deregisterIcon(id))));
+		registry.registerIcon('test-pickable-glyph', { fontCharacter: '\\f8ff' });
+		registry.registerIcon('test-pickable-alias', { fontCharacter: '\\f8ff' });
+		registry.registerIcon('test-pickable-reference', Codicon.rocket);
+		const harness = setup();
+		const result = harness.picker.pickIcons();
+		const ids = new Set([...harness.grid().querySelectorAll<HTMLElement>('.icon-container')].map(icon => icon.title));
+		harness.hidden.fire({ reason: QuickInputHideReason.Gesture });
+		await result;
+		assert.deepStrictEqual(['blank', 'rocket', 'test-pickable-glyph', 'test-pickable-alias', 'test-pickable-reference'].map(id => ids.has(id)), [false, true, true, false, false]);
+	});
 
 	test('terminal and session consumers share the original icon picker implementation', () => {
 		assert.strictEqual(TerminalIconPicker, IconPicker);

@@ -11,7 +11,7 @@ import { RuntimeConnection, CopilotClient, type CreateSessionOptions } from '@mi
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { COPILOT_DEFAULT_AVAILABLE_TOOLS, COPILOT_ENABLED_BUILTIN_TOOL_NAMES } from '../../../node/copilot/copilotBuiltinToolAllowlist.js';
+import { COPILOT_DEFAULT_AVAILABLE_TOOLS, COPILOT_ENABLED_BUILTIN_TOOL_NAMES, PROGRAMMATIC_TOOL_CALLING_TOOL_NAME } from '../../../node/copilot/copilotBuiltinToolAllowlist.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME } from '../../../node/copilot/copilotManagedSettings.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
@@ -189,7 +189,7 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 	});
 
 	/** The built-ins a session registers across every mode, by name, with their descriptions. */
-	async function registeredBuiltins(model: string, availableTools: string[] | undefined): Promise<Map<string, string>> {
+	async function registeredBuiltins(model: string, availableTools: string[] | undefined, flags: Record<string, boolean> = {}): Promise<Map<string, string>> {
 		const config: CreateSessionOptions = {
 			model,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
@@ -204,7 +204,7 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 			github: { interactiveUser: true },
 			enableConfigDiscovery: false,
 			skills: { enabled: true },
-			experiments: { flags: { MCP_SKILLS: true } },
+			experiments: { flags: { MCP_SKILLS: true, ...flags } },
 			state: { enableCrossSessionStore: true, infiniteSessions: { enabled: true } },
 			...(availableTools ? { tools: { availableTools } } : {}),
 		};
@@ -254,5 +254,20 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 			allowListedButNotRegistered: Object.keys(NOT_EXERCISED).sort(),
 			filteredMismatches: [],
 		}, describeDrift(registered, registeredButNotAllowListed, allowListedButNotRegistered, filteredMismatches));
+	});
+
+	test('the programmatic tool calling opt-in registers run_program and its filter keeps it', async function () {
+		this.timeout(120_000);
+
+		const flags = { CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING: true };
+		const name = PROGRAMMATIC_TOOL_CALLING_TOOL_NAME;
+		const model = MODELS[0];
+		assert.deepStrictEqual({
+			defaultFilter: (await registeredBuiltins(model, [...COPILOT_DEFAULT_AVAILABLE_TOOLS], flags)).has(name),
+			optInFilter: (await registeredBuiltins(model, [...COPILOT_DEFAULT_AVAILABLE_TOOLS, `builtin:${name}`], flags)).has(name),
+		}, {
+			defaultFilter: false,
+			optInFilter: true,
+		});
 	});
 });

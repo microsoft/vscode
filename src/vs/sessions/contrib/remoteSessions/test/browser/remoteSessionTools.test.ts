@@ -26,7 +26,7 @@ suite('RemoteSessionTools', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('opaque scoped references require exact advertised identity instead of a reconstructed neighbor', async () => {
-		const backend = URI.parse('session-store://tenant/root?revision=2');
+		const backend = URI.from({ scheme: 'session-store', authority: 'tenant', path: '/root%2Fopaque', query: 'revision=part%26literal&mode=two' });
 		const frontend = backend.with({ scheme: 'remote-other-host-claude' });
 		const connections = new class extends mock<IAgentHostConnectionsService>() {
 			override findSessionResource(resource: URI, authority?: string): URI | undefined {
