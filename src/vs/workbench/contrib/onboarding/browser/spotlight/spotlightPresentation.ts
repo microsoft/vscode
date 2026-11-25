@@ -434,11 +434,13 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			}));
 		}
 
-		// Every experiment arm shows this step, and only an assigned default changes how its callout ends the tour:
-		// a value the user, workspace, policy or memory sets wins over it.
-		const closeButtonSetting = this.configurationService.inspect<boolean>(SPOTLIGHT_CLOSE_BUTTON_CONFIG);
-		if (!isConfigured(closeButtonSetting) && closeButtonSetting.policyValue === undefined && closeButtonSetting.memoryValue === undefined) {
-			logSettingExperimentTrigger(this.telemetryService, SPOTLIGHT_CLOSE_BUTTON_CONFIG);
+		// Every experiment arm shows this step, and only an assigned default changes whether the spotlight dims the window
+		// and how its callout ends the tour: a value the user, workspace, policy or memory sets wins over it.
+		for (const setting of [SPOTLIGHT_BACKDROP_CONFIG, SPOTLIGHT_CLOSE_BUTTON_CONFIG]) {
+			const value = this.configurationService.inspect<boolean>(setting);
+			if (!isConfigured(value) && value.policyValue === undefined && value.memoryValue === undefined) {
+				logSettingExperimentTrigger(this.telemetryService, setting);
+			}
 		}
 		overlay.show(target.element, content, {
 			placement: step.placement,

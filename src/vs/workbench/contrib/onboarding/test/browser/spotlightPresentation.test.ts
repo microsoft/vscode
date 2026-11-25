@@ -282,7 +282,7 @@ suite('SpotlightPresentation', () => {
 
 	for (const source of ['assignedDefault', 'explicitValue'] as const) {
 		for (const closeButton of [false, true]) {
-			test(`logs the close button experiment trigger only for an assigned default and ends the tour from the shown button (${source}: ${closeButton})`, async () => {
+			test(`logs the backdrop and close button experiment triggers only for assigned defaults and ends the tour from the shown button (${source}: ${closeButton})`, async () => {
 				const container = createContainer();
 				const telemetry = new TestExperimentTriggerTelemetryService();
 				const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
@@ -292,7 +292,7 @@ suite('SpotlightPresentation', () => {
 						const inspected = super.inspect<T>(key, overrides);
 						return source === 'assignedDefault' ? { value: inspected.value, defaultValue: inspected.value } : inspected;
 					}
-				}({ [SPOTLIGHT_CLOSE_BUTTON_CONFIG]: closeButton });
+				}({ [SPOTLIGHT_BACKDROP_CONFIG]: true, [SPOTLIGHT_CLOSE_BUTTON_CONFIG]: closeButton });
 				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, configuration, telemetry));
 				createTarget(container, 'test.closeButton');
 				const step = (id: string): ISpotlightStep => ({ id, targetId: 'test.closeButton', title: id, description: 'Highlights the target.' });
@@ -307,7 +307,7 @@ suite('SpotlightPresentation', () => {
 					},
 				});
 				assert.deepStrictEqual({ whileShown, outcome: result.outcome, dismissReason: result.dismissReason }, {
-					whileShown: { triggers: source === 'assignedDefault' ? [`config.${SPOTLIGHT_CLOSE_BUTTON_CONFIG}`] : [], closeButtons: closeButton ? 1 : 0, endTour: !closeButton },
+					whileShown: { triggers: source === 'assignedDefault' ? [`config.${SPOTLIGHT_BACKDROP_CONFIG}`, `config.${SPOTLIGHT_CLOSE_BUTTON_CONFIG}`] : [], closeButtons: closeButton ? 1 : 0, endTour: !closeButton },
 					outcome: OnboardingOutcome.Skipped,
 					dismissReason: OnboardingDismissReason.SkipButton,
 				});
