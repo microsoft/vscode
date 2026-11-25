@@ -69,6 +69,13 @@ class ShortTimeoutGitService extends AgentHostGitService {
 	protected override readonly _defaultTimeoutMs = 300;
 }
 
+/** Runs git as if the user's environment selected French, which translates the lock file message, unlike German. */
+class FrenchLocaleGitService extends AgentHostGitService {
+	protected override _spawnGit(workingDirectory: URI, args: readonly string[], options?: { readonly env?: Record<string, string> }, onTimedOut?: () => void): Promise<string | undefined> {
+		return super._spawnGit(workingDirectory, args, { ...options, env: { LANGUAGE: 'fr', LC_ALL: 'fr_FR.UTF-8', ...options?.env } }, onTimedOut);
+	}
+}
+
 async function rmDirWithRetry(path: string | undefined): Promise<void> {
 	if (!path) {
 		return;
@@ -1957,6 +1964,42 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(), 'feature');
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('addWorktree explains a file path that is too long for the file system', async () => {
+		const dir = initRepo();
+		const run = (args: string[], input?: string) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8', input }).trim();
+		// A local setting overrides a global one, so Git for Windows also rejects the path.
+		run(['config', 'core.longpaths', 'false']);
+		// One path component longer than any platform allows.
+		const tree = run(['mktree'], `100644 blob ${run(['hash-object', '-w', '--stdin'], 'x\n')}\t${'x'.repeat(300)}\n`);
+		run(['update-ref', 'refs/heads/main', run(['commit-tree', tree, '-p', 'main', '-m', 'long path'])]);
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await assert.rejects(svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/long-path', track: false }), {
+				message: isWindows
+					? 'A file path in the worktree is too long for Windows. If the full path is longer than 260 characters, run `git config --global core.longpaths true` to allow long paths in Git. If a file or folder name is longer than 255 characters, shorten it in the repository.'
+					: 'A file path in the worktree is too long for the file system.',
+			});
+		} finally {
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('addWorktree explains a lock file when the user locale translates git messages', async () => {
+		const dir = initRepo();
+		mkdirSync(join(dir, '.git', 'refs', 'heads', 'agents'), { recursive: true });
+		writeFileSync(join(dir, '.git', 'refs', 'heads', 'agents', 'locked.lock'), '');
+		const git = createGitService(disposables, undefined, FrenchLocaleGitService);
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await assert.rejects(
+				git.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/locked', track: false }),
+				/Another Git process is using the repository\. If no Git process is running, delete the lock file '[^']+[\\/]refs[\\/]heads[\\/]agents[\\/]locked\.lock'\./,
+			);
+		} finally {
 			await rmDirWithRetry(wtPath);
 		}
 	});
