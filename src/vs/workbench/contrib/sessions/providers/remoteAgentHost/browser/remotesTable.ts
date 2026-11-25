@@ -85,7 +85,7 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly pickerHidden: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
+		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly indicators: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly pickerHidden: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
 		| { readonly column: 'sandboxProfile'; readonly select: SelectBox; readonly picker: HTMLElement; options: readonly SandboxProfileOption[] }
 		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly troubleshoot: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
@@ -398,13 +398,14 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const icon = dom.append(nameRow, dom.$('.remotes-name-icon', { 'aria-hidden': 'true' }));
 				const label = dom.append(nameRow, dom.$('.remotes-name'));
 				const count = dom.append(nameRow, dom.$('.remotes-group-count', { 'aria-hidden': 'true' }));
+				const detail = dom.append(nameRow, dom.$('.remotes-name-detail'));
+				const indicators = dom.append(nameRow, dom.$('.remotes-name-indicators'));
 				template = {
 					...base, column: this.column, content, chevron, nameRow,
-					icon, label, count,
-					detail: dom.append(nameRow, dom.$('.remotes-name-detail')),
-					gitHubEnvironment: dom.append(nameRow, dom.$('.remotes-github-environment')),
-					serverUpdate: dom.append(nameRow, dom.$('.remotes-server-update')),
-					pickerHidden: dom.append(nameRow, dom.$('.remotes-picker-hidden')),
+					icon, label, count, detail, indicators,
+					gitHubEnvironment: dom.append(indicators, dom.$('.remotes-github-environment')),
+					serverUpdate: dom.append(indicators, dom.$('.remotes-server-update')),
+					pickerHidden: dom.append(indicators, dom.$('.remotes-picker-hidden')),
 					countBadge: disposables.add(new CountBadge(count, {}, {
 						...defaultCountBadgeStyles, badgeBackground: undefined, badgeForeground: undefined,
 					})),
@@ -729,6 +730,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						content: hiddenDetail, style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
 				}
+				template.indicators.hidden = template.gitHubEnvironment.hidden && template.serverUpdate.hidden && template.pickerHidden.hidden;
 				template.count.hidden = entry.type !== 'group';
 				dom.clearNode(template.warning);
 				if (entry.type === 'group' && entry.warning) {
