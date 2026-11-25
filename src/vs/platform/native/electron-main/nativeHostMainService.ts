@@ -39,7 +39,7 @@ import { IThemeMainService } from '../../theme/electron-main/themeMainService.js
 import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
 import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IAgentsLauncherOptions, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
 import { IFolderLocationsMainService } from '../../windows/electron-main/folderLocationsMainService.js';
-import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, isInactiveWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -520,6 +520,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const win = this.exactWindowById(windowId, options)?.win;
 		if (!win) {
+			return;
+		}
+		if (isInactiveWindowMode(this.environmentMainService)) {
+			if (!win.isVisible() && !win.isMinimized()) {
+				win.showInactive(); // show() and focus() would activate the application
+			}
 			return;
 		}
 		if (win.isMinimized()) {
@@ -1519,9 +1525,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window.setMenuBarVisibility(false);
 		window.loadURL(url);
 
-		window.once('ready-to-show', () => window.show());
+		window.once('ready-to-show', () => this.showChildWindow(window));
 
 		return window;
+	}
+
+	private showChildWindow(window: BrowserWindow): void {
+		if (isInactiveWindowMode(this.environmentMainService)) {
+			window.showInactive(); // show() would activate the application
+		} else {
+			window.show();
+		}
 	}
 
 	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {
@@ -1543,10 +1557,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		if (typeof this.gpuInfoWindowId === 'number') {
 			const window = BrowserWindow.fromId(this.gpuInfoWindowId);
-			if (window?.isMinimized()) {
-				window?.restore();
+			if (window && !isInactiveWindowMode(this.environmentMainService)) {
+				if (window.isMinimized()) {
+					window.restore();
+				}
+				window.focus();
 			}
-			window?.focus();
 		}
 	}
 
@@ -1573,7 +1589,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					window.prompt = () => '';
 					null
 				`);
-				contentTracingWindow.show();
+				this.showChildWindow(contentTracingWindow);
 			});
 			contentTracingWindow.once('close', () => this.contentTracingWindowId = undefined);
 			this.contentTracingWindowId = contentTracingWindow.id;
@@ -1581,10 +1597,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		if (typeof this.contentTracingWindowId === 'number') {
 			const window = BrowserWindow.fromId(this.contentTracingWindowId);
-			if (window?.isMinimized()) {
-				window?.restore();
+			if (window && !isInactiveWindowMode(this.environmentMainService)) {
+				if (window.isMinimized()) {
+					window.restore();
+				}
+				window.focus();
 			}
-			window?.focus();
 		}
 	}
 

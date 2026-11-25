@@ -83,6 +83,7 @@ export interface NativeParsedArgs {
 	extensionDevelopmentPath?: string[]; // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
 	'hidden-window'?: boolean; // only honored together with `extensionTestsPath`
+	'inactive-window'?: boolean; // only honored when running out of sources
 	extensionDevelopmentKind?: string[];
 	extensionEnvironment?: string; // JSON-stringified Record<string, string> object
 	'inspect-extensions'?: string;

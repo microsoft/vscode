@@ -157,6 +157,16 @@ export function isHiddenWindowMode(environmentMainService: IEnvironmentMainServi
 }
 
 /**
+ * Whether windows must never activate the application: `--inactive-window`
+ * is only honored when running out of sources (`VSCODE_DEV`), for example
+ * for instances that agents launch in the background. Windows are still
+ * shown, but inactive, and focus requests never steal focus.
+ */
+export function isInactiveWindowMode(environmentMainService: IEnvironmentMainService): boolean {
+	return environmentMainService.args['inactive-window'] === true && !environmentMainService.isBuilt;
+}
+
+/**
  * Whether background throttling may be enabled at runtime: a hidden window
  * is never visible, so throttling would apply to it permanently.
  */
@@ -332,6 +342,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			...options.webPreferences,
 			backgroundThrottling: false,
 		};
+	}
+
+	if (isInactiveWindowMode(environmentMainService)) {
+		options.show = false; // a window that is created visible activates the application, it is shown inactive later
 	}
 
 	if (isHiddenWindowMode(environmentMainService)) {

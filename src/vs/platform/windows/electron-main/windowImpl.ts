@@ -34,7 +34,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings, getMacOSWindowControlsPosition } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, isHiddenWindowMode, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
+import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, isHiddenWindowMode, isInactiveWindowMode, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
@@ -373,7 +373,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			// to reduce flicker from the default window size
 			// to maximize or fullscreen, we only show after
 			if (!minimized) {
-				this._win?.show();
+				if (isInactiveWindowMode(this.environmentMainService)) {
+					this._win?.showInactive();
+				} else {
+					this._win?.show();
+				}
 			}
 		}
 
@@ -382,6 +386,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				this._win?.showInactive(); // a window that is about to be minimized must not take focus
 			}
 			this._win?.minimize();
+		} else if (isInactiveWindowMode(this.environmentMainService) && this._win && !this._win.isVisible()) {
+			this._win.showInactive(); // windows are created hidden in inactive window mode
 		}
 	}
 
@@ -454,7 +460,20 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			return; // focusing would show the window and activate the application
 		}
 
-		switch (options?.mode ?? FocusMode.Transfer) {
+		const mode = options?.mode ?? FocusMode.Transfer;
+		if (isInactiveWindowMode(this.environmentMainService)) {
+			if (mode === FocusMode.Notify) {
+				this.showNotifyFocus();
+			} else {
+				const win = this.win;
+				if (win && !win.isVisible() && !win.isMinimized()) {
+					win.showInactive(); // reveal the window without activating the application
+				}
+			}
+			return;
+		}
+
+		switch (mode) {
 			case FocusMode.Transfer:
 				this.doFocusWindow();
 				break;
@@ -1126,6 +1145,19 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					return;
 				}
 
+				// In inactive window mode, a dialog would activate the application:
+				// keep waiting for an unresponsive window, and close a window
+				// whose renderer process is gone.
+				if (isInactiveWindowMode(this.environmentMainService)) {
+					if (type === WindowError.PROCESS_GONE) {
+						this.logService.error('CodeWindow: renderer process gone in inactive window mode, closing the window without a dialog');
+						await this.destroyWindow(false, false);
+					} else {
+						this.logService.warn('CodeWindow: window is unresponsive in inactive window mode, waiting without a dialog');
+					}
+					return;
+				}
+
 				// Unresponsive
 				if (type === WindowError.UNRESPONSIVE) {
 					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || this._win?.webContents?.isDevToolsOpened()) {
@@ -1404,6 +1436,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		if (!this.environmentMainService.isBuilt && !this.environmentMainService.extensionTestsLocationURI) {
 			this._register(new RunOnceScheduler(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
+					if (isInactiveWindowMode(this.environmentMainService)) {
+						this.logService.warn('CodeWindow: window did not show within 10s, showing it inactive');
+						this._win.showInactive(); // undocked DevTools would activate the application
+						return;
+					}
+
 					this._win.show();
 					this.focus({ mode: FocusMode.Force });
 					this._win.webContents.openDevTools();

@@ -14,7 +14,7 @@
 # Usage:
 #   launch.sh [--agents] [--session-title <title>] [--source-user-data-dir <path>] [--repo <vscode-repo-root>]
 #             [--clone-extensions] [--full] [--skip-prelaunch]
-#             [--disable-workspace-trust]
+#             [--disable-workspace-trust] [--foreground]
 #             [-- <extra code.sh args>]
 #
 # Flags:
@@ -28,6 +28,12 @@
 #   --disable-workspace-trust
 #                       Disable trust prompts for unattended automation. Only
 #                       use with content you trust.
+#   --foreground        Let Code OSS take focus like a normal launch. Default:
+#                       pass --inactive-window, so windows are shown without
+#                       activating the app and never take focus from the user.
+#
+# On macOS, the launcher reports whether Code OSS activated anyway as
+# "activated" in the JSON, and warns on stderr. Report every activation.
 #
 # Defaults:
 #   --source-user-data-dir  $CODE_OSS_DEV_AUTHED_USER_DATA_DIR  (else ~/.vscode-oss-dev)
@@ -44,6 +50,7 @@ CLONE_EXTENSIONS=0
 FULL=0
 SKIP_PRELAUNCH=0
 DISABLE_WORKSPACE_TRUST=0
+FOREGROUND=0
 SESSION_TITLE=""
 
 while [[ $# -gt 0 ]]; do
@@ -63,6 +70,7 @@ while [[ $# -gt 0 ]]; do
 		--full) FULL=1; shift ;;
 		--skip-prelaunch) SKIP_PRELAUNCH=1; shift ;;
 		--disable-workspace-trust) DISABLE_WORKSPACE_TRUST=1; shift ;;
+		--foreground) FOREGROUND=1; shift ;;
 		--) shift; EXTRA_ARGS=("$@"); break ;;
 		*) echo "Unknown arg: $1" >&2; exit 2 ;;
 	esac
@@ -229,6 +237,11 @@ ARGS=(
 if [[ "$DISABLE_WORKSPACE_TRUST" == "1" ]]; then
 	ARGS+=("--disable-workspace-trust")
 fi
+if [[ "$FOREGROUND" != "1" ]]; then
+	# Dev-only flag (ignored by built VS Code): show windows without activating
+	# the app, and never take focus from the user.
+	ARGS+=("--inactive-window")
+fi
 if [[ "$AGENTS" == "1" ]]; then
 	ARGS=("--agents" "${ARGS[@]}")
 	if [[ -n "$SESSION_TITLE" ]]; then
@@ -263,6 +276,7 @@ PRELAUNCH_READY_MS=$(monotonic_ms)
 # forked into its own process tree, so it's robust to its launching shell
 # going away. (Earlier failures came from returning while Electron was still
 # mid-bootstrap, not from process-group concerns.)
+LAUNCHED_AT=$(date +%s)
 nohup env VSCODE_SKIP_PRELAUNCH=1 "$CODE_SH" "${ARGS[@]}" \
 	</dev/null >>"$LOG_FILE" 2>&1 &
 PID=$!
@@ -286,11 +300,27 @@ else
 	exit 1
 fi
 
-node -e '
+CDP_READY_AT_MS=$(monotonic_ms)
+
+# Report whether Code OSS activated (took focus) while starting. Activation
+# happens when the first window shows, so give a late one a moment to land.
+CHECK_ACTIVATION="$(cd "$(dirname "$0")" && pwd)/check-activation.sh"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+	sleep 1
+fi
+ACTIVATION=$("$CHECK_ACTIVATION" "$PID" "$((LAUNCHED_AT - 1))")
+if [[ "$ACTIVATION" == *'"activated":true'* ]]; then
+	echo "[launch.sh] WARNING: Code OSS (PID $PID) activated and took focus from the user: $ACTIVATION" >&2
+	echo "[launch.sh] WARNING: report this so the launcher can be fixed; do not hide the window to cover it up." >&2
+fi
+
+INFO=$(node -e '
 	const finishedAt = Number(process.hrtime.bigint() / 1_000_000n);
 	const startedAt = Number(process.argv[7]);
 	const profileReadyAt = Number(process.argv[8]);
 	const preLaunchReadyAt = Number(process.argv[9]);
+	const activation = JSON.parse(process.argv[10]);
+	const cdpReadyAt = Number(process.argv[11]);
 	console.log(JSON.stringify({
 		pid: '"$PID"',
 		cdpPort: '"$CDP_PORT"',
@@ -304,11 +334,18 @@ node -e '
 		logFile: process.argv[5],
 		repo: process.argv[6],
 		agents: '"$AGENTS"' === 1,
+		inactiveWindow: '"$FOREGROUND"' !== 1,
+		launchedAt: '"$LAUNCHED_AT"',
+		activated: activation.activated,
 		timings: {
 			profileMs: profileReadyAt - startedAt,
 			preLaunchMs: preLaunchReadyAt - profileReadyAt,
-			cdpReadyMs: finishedAt - preLaunchReadyAt,
+			cdpReadyMs: cdpReadyAt - preLaunchReadyAt,
+			activationCheckMs: finishedAt - cdpReadyAt,
 			totalMs: finishedAt - startedAt,
 		},
 	}));
-' "$DEST_UDD" "$EXT_DIR" "$SHARED_DATA_DIR" "$RUN_DIR" "$LOG_FILE" "$REPO" "$LAUNCH_START_MS" "$PROFILE_READY_MS" "$PRELAUNCH_READY_MS"
+' "$DEST_UDD" "$EXT_DIR" "$SHARED_DATA_DIR" "$RUN_DIR" "$LOG_FILE" "$REPO" "$LAUNCH_START_MS" "$PROFILE_READY_MS" "$PRELAUNCH_READY_MS" "$ACTIVATION" "$CDP_READY_AT_MS")
+# cleanup.sh reads the PID and launch time from here.
+printf '%s\n' "$INFO" > "$RUN_DIR/launch.json"
+echo "$INFO"

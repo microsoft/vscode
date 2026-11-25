@@ -58,6 +58,7 @@ SESSION_TITLE=<title-from-get_current_session>
 "$LAUNCH" --full                             # skip slim excludes; copy everything
 "$LAUNCH" --skip-prelaunch                   # reuse already-current build outputs
 "$LAUNCH" --disable-workspace-trust          # avoid trust prompts for trusted automation inputs
+"$LAUNCH" --foreground                       # let Code OSS take focus (only when a person asked for it)
 ```
 
 On Windows, invoke the PowerShell launcher with the same flags:
@@ -78,6 +79,14 @@ $sessionTitle = '<title-from-get_current_session>'
 ```
 
 If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
+
+### Never take the user's focus
+
+The user keeps working while you test, so on macOS a launched Code OSS must never become the frontmost app. `launch.sh` passes the dev-only `--inactive-window` flag by default: windows are shown without activating the app, and focus requests from the app (window open and reload, a second launch, the crash dialog) leave the frontmost app alone. Built VS Code ignores the flag; it only applies when running out of sources (`VSCODE_DEV`). Pass `--foreground` only when a person asked for a normal, focused launch. `launch.ps1` does not pass the flag yet.
+
+`launch.sh` reports `"activated"` in its JSON: `false` if Code OSS never became frontmost while starting, `true` if it did, `null` when it can't tell (not macOS, or the system log could not be read). `cleanup.sh` reports the same over the whole lifetime of the instance, including window reloads and the stop. On `true`, both print a warning: report the activation with the timestamps so the launcher can be fixed. Do not hide the window to cover it up.
+
+Because the window is never focused, `document.hasFocus()` is `false` in the renderer. Playwright input still reaches the page; if a flow depends on window focus, note it in your results rather than switching to `--foreground`.
 
 ### Handle a missing sign-in
 
@@ -159,10 +168,10 @@ The script runs pre-launch (electron download, compile-if-missing, built-in exte
 For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
 
 ```json
-{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
+{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"inactiveWindow":true,"launchedAt":1764100000,"activated":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"activationCheckMs":2500,"totalMs":3441}}
 ```
 
-The additive `timings` object uses monotonic elapsed time to identify time spent preparing the isolated profile, running pre-launch, and starting Code OSS through CDP readiness. `totalMs` covers the complete launcher operation through readiness.
+The additive `timings` object uses monotonic elapsed time to identify time spent preparing the isolated profile, running pre-launch, starting Code OSS through CDP readiness, and checking for an activation (macOS only). `totalMs` covers the complete launcher operation. The launcher also writes the same JSON to `<runDir>/launch.json` for `cleanup.sh`.
 
 Capture it with Node, which is already a launcher prerequisite. No retry loop is needed because CDP is already up when the JSON is printed:
 
@@ -441,13 +450,13 @@ The launcher also passes `--shared-data-dir=<runDir>/shared-data`. This is **req
 
 ## Restart after source changes
 
-Workbench code is loaded when the Code OSS window starts; source changes are not hot-reloaded into an already-running instance. After the build output is current, kill the launched process, launch again, and reattach to the new `cdpPort` from the new JSON blob.
+Workbench code is loaded when the Code OSS window starts; source changes are not hot-reloaded into an already-running instance. After the build output is current, stop the launched instance with the cleanup helper (see [Cleanup](#cleanup)), launch again, and reattach to the new `cdpPort` from the new JSON blob.
 
 ```bash
-kill "$PID" 2>/dev/null || true
+"$CLEANUP" "$RUN_DIR" --playwright-session "$PW_SESSION"
 INFO=$("$LAUNCH" | tail -n1)
 CDP=$(node -p 'JSON.parse(process.argv[1]).cdpPort' "$INFO")
-PID=$(node -p 'JSON.parse(process.argv[1]).pid' "$INFO")
+RUN_DIR=$(node -p 'JSON.parse(process.argv[1]).runDir' "$INFO")
 npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
 npx @playwright/cli -s=$PW_SESSION tab-list
 npx @playwright/cli -s=$PW_SESSION snapshot
@@ -457,20 +466,17 @@ If you are iterating frequently, keep the repo build/watch task running separate
 
 ## Cleanup
 
-The launcher writes everything under a temp `runDir` (printed in the JSON). When you're done:
+The launcher writes everything under a temp `runDir` (printed in the JSON). When you're done, use the cleanup helper. It closes this session's Playwright daemon, stops the Code OSS main process **first** and then any leftover process that uses this launch's profile, reports `"activated"` for the whole lifetime of the instance, and removes the throwaway profile:
 
 ```bash
-# Disconnect this session's playwright daemon (leaves other sessions' daemons alone)
-npx @playwright/cli -s=$PW_SESSION close
+# CLEANUP=<dir-of-this-SKILL.md>/scripts/cleanup/cleanup.sh
+"$CLEANUP" "$RUN_DIR" --playwright-session "$PW_SESSION"
 
 # Or nuke any stale daemons left behind by crashed callers across all sessions:
 # npx @playwright/cli kill-all
-
-# Kill the Code OSS instance
-kill "$PID" 2>/dev/null || true
-# Remove the throwaway profile
-rm -rf "$(dirname "$LOG")"
 ```
+
+Don't stop the instance by killing its helper processes (renderer, GPU, extension host) first: when a renderer dies while the main process lives, the main process reopens or shows a "window terminated unexpectedly" dialog, which can take focus.
 
 On Windows, use the cleanup helper. The PID returned by `code.bat` can be a short-lived wrapper, so the helper finds and terminates only `Code - OSS.exe` processes whose `--user-data-dir` references this launch's exact `runDir`, then removes the throwaway profile:
 

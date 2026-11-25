@@ -24,7 +24,7 @@ import { NativeParsedArgs } from '../../../environment/common/argv.js';
 import { FocusMode } from '../../../native/common/native.js';
 import { release } from 'os';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
-import { defaultBrowserWindowOptions, getAuxiliaryWindowRestoreMode, getClaimedAuxiliaryWindowMode, isBackgroundThrottlingAllowed, isHiddenWindowMode } from '../../electron-main/windows.js';
+import { defaultBrowserWindowOptions, getAuxiliaryWindowRestoreMode, getClaimedAuxiliaryWindowMode, isBackgroundThrottlingAllowed, isHiddenWindowMode, isInactiveWindowMode } from '../../electron-main/windows.js';
 
 const displayBounds = { x: 0, y: 0, width: 1440, height: 900 };
 const workArea = { x: 0, y: 25, width: 1440, height: 875 };
@@ -338,4 +338,106 @@ suite('BaseWindow - hidden window mode', () => {
 			assert.deepStrictEqual([notifyFocus.callCount, show.callCount, focus.callCount], [0, 0, 0]);
 		});
 	}
+});
+
+suite('BaseWindow - inactive window mode', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	function environment(inactive: boolean, isBuilt = false): IEnvironmentMainService {
+		return upcastPartial<IEnvironmentMainService>({ appRoot: '', isBuilt, args: { _: [], 'inactive-window': inactive } });
+	}
+
+	test('isInactiveWindowMode requires --inactive-window and running out of sources', () => {
+		assert.deepStrictEqual([
+			isInactiveWindowMode(environment(false)),
+			isInactiveWindowMode(environment(true)),
+			isInactiveWindowMode(environment(true, true)),
+		], [false, true, false]);
+	});
+
+	test('windows are created hidden only in inactive window mode', () => {
+		function show(env: IEnvironmentMainService): boolean | undefined {
+			const configurationService = new TestConfigurationService({ window: { titleBarStyle: 'native' } });
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IEnvironmentMainService, env);
+			instantiationService.stub(IProductService, { nameLong: 'Test' });
+			instantiationService.stub(IThemeMainService, { getBackgroundColor: () => '#000000' });
+
+			return instantiationService.invokeFunction(defaultBrowserWindowOptions, { mode: WindowMode.Normal }).show;
+		}
+
+		assert.deepStrictEqual([show(environment(false)), show(environment(true)), show(environment(true, true))], [true, false, true]);
+	});
+
+	function createWindow(visible = false) {
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const window = store.add(new TestWindow(
+			configurationService,
+			new InMemoryTestStateMainService(),
+			environment(true),
+			store.add(new NullLogService())
+		));
+		const calls: string[] = [];
+		const on = sinon.stub();
+		const removeListener = sinon.stub();
+		const setSheetOffset = sinon.stub();
+		window.setWin(upcastPartial<BrowserWindow>({
+			on,
+			removeListener,
+			setSheetOffset,
+			isVisible: () => visible || calls.includes('showInactive'),
+			isMinimized: () => false,
+			show: () => calls.push('show'),
+			showInactive: () => calls.push('showInactive'),
+			maximize: () => calls.push('maximize'),
+			minimize: () => calls.push('minimize'),
+			focus: () => calls.push('focus'),
+			webContents: upcastPartial<WebContents>({ focus: () => calls.push('focusWebContents') }),
+		}));
+		const notifyFocus = sinon.stub(window as unknown as { showNotifyFocus(): void }, 'showNotifyFocus').callsFake(() => calls.push('notify'));
+		return { window, calls, notifyFocus };
+	}
+
+	test('applyState shows windows inactive', () => {
+		function restore(mode: WindowMode, minimized = false): string[] {
+			const { window, calls } = createWindow();
+			window.applyState({ mode }, false, minimized);
+			return calls;
+		}
+
+		assert.deepStrictEqual({
+			normal: restore(WindowMode.Normal),
+			maximized: restore(WindowMode.Maximized),
+			minimized: restore(WindowMode.Normal, true),
+		}, {
+			normal: ['showInactive'],
+			maximized: ['maximize', 'showInactive'],
+			minimized: ['showInactive', 'minimize'],
+		});
+	});
+
+	test('focus never focuses the window or activates the application', () => {
+		function focus(mode: FocusMode, visible: boolean): string[] {
+			const { window, calls } = createWindow(visible);
+			window.focus({ mode });
+			return calls;
+		}
+
+		assert.deepStrictEqual({
+			transferHidden: focus(FocusMode.Transfer, false),
+			transferVisible: focus(FocusMode.Transfer, true),
+			forceHidden: focus(FocusMode.Force, false),
+			notify: focus(FocusMode.Notify, true),
+		}, {
+			transferHidden: ['showInactive'],
+			transferVisible: [],
+			forceHidden: ['showInactive'],
+			notify: ['notify'],
+		});
+	});
 });
