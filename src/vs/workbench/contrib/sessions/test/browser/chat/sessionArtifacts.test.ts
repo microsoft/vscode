@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -57,6 +59,8 @@ import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 suite('Session Artifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	const actions: ISessionArtifactActions = {
 		recordOpen() { },
@@ -116,6 +120,8 @@ suite('Session Artifacts', () => {
 		let downloadError: Error | undefined;
 		const telemetryEvents: { readonly name: string | undefined; readonly data: unknown }[] = [];
 		let removalError: Error | undefined;
+		const copied: string[] = [];
+		let writeText = async (text: string) => { copied.push(text); };
 		const gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', info);
 		const browserUrls = observableValue<ReadonlySet<string>>('browserUrls', new Set());
 		const root = URI.file('/repo');
@@ -155,7 +161,9 @@ suite('Session Artifacts', () => {
 			browserUrls,
 			gitHubReferences,
 			{ id: 'test-artifact-details', selected: constObservable(undefined), activeSection: constObservable(undefined), toggle() { }, release() { }, suspend: () => Disposable.None },
-			new class extends mock<IClipboardService>() { }(),
+			new class extends mock<IClipboardService>() {
+				override writeText(text: string): Promise<void> { return writeText(text); }
+			}(),
 			configurationService,
 			new class extends mock<ILabelService>() {
 				override readonly onDidChangeFormatters = Event.None;
@@ -240,7 +248,8 @@ suite('Session Artifacts', () => {
 			paneHost,
 		));
 		return {
-			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, browserUrls, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, activatedSessions, resourceDownloads,
+			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, browserUrls, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, activatedSessions, resourceDownloads, copied,
+			setWriteText: (write: (text: string) => Promise<void>) => { writeText = write; },
 			setRemovalError: (error: Error | undefined) => { removalError = error; },
 			setCancelDownload: () => { cancelDownload = true; },
 			setDownloadError: (error: Error) => { downloadError = error; },
@@ -1280,6 +1289,182 @@ suite('Session Artifacts', () => {
 				'/repo/src/index.ts',
 				resource.toString(true),
 			],
+		});
+	});
+
+	test('reference row copy actions render feedback after success and restore it independently', async () => {
+		const clock = sinon.useFakeTimers();
+		const issue = URI.parse('https://github.com/microsoft/vscode/issues/349857');
+		const resource = URI.parse('vscode://settings/chat');
+		const harness = createPresentation([
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: false, link: issue },
+			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Settings', isArtifact: false, uri: resource },
+		]);
+		const entries = harness.presentation.referenceSections.get().flatMap(section => section.entries);
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const actionBar = disposables.add(new ActionBar(container));
+		const copyActions = entries.map(entry => entry.toolbarActions![0]);
+		actionBar.push(copyActions, { icon: true, label: false });
+		const labels = [...container.querySelectorAll<HTMLElement>('.action-label')];
+		const state = () => labels.map(label => ({
+			copy: label.classList.contains('codicon-copy'),
+			check: label.classList.contains('codicon-check'),
+			ariaLabel: label.getAttribute('aria-label'),
+		}));
+		const states = [state()];
+		const pending = new DeferredPromise<void>();
+		harness.setWriteText(async text => { harness.copied.push(text); await pending.p; });
+		const firstCopy = Event.toPromise(actionBar.onDidRun);
+		labels[0].click();
+		states.push(state());
+		await pending.complete();
+		await firstCopy;
+		states.push(state());
+		clock.tick(1000);
+		await copyActions[1].run();
+		states.push(state());
+		clock.tick(200);
+		states.push(state());
+		await copyActions[0].run();
+		states.push(state());
+		clock.tick(1000);
+		states.push(state());
+		clock.tick(200);
+		states.push(state());
+
+		assert.deepStrictEqual({ states, copied: harness.copied }, {
+			states: [
+				[{ copy: true, check: false, ariaLabel: 'Copy Issue Link' }, { copy: true, check: false, ariaLabel: 'Copy URI' }],
+				[{ copy: true, check: false, ariaLabel: 'Copy Issue Link' }, { copy: true, check: false, ariaLabel: 'Copy URI' }],
+				[{ copy: false, check: true, ariaLabel: 'Copied' }, { copy: true, check: false, ariaLabel: 'Copy URI' }],
+				[{ copy: false, check: true, ariaLabel: 'Copied' }, { copy: false, check: true, ariaLabel: 'Copied' }],
+				[{ copy: true, check: false, ariaLabel: 'Copy Issue Link' }, { copy: false, check: true, ariaLabel: 'Copied' }],
+				[{ copy: false, check: true, ariaLabel: 'Copied' }, { copy: false, check: true, ariaLabel: 'Copied' }],
+				[{ copy: false, check: true, ariaLabel: 'Copied' }, { copy: true, check: false, ariaLabel: 'Copy URI' }],
+				[{ copy: true, check: false, ariaLabel: 'Copy Issue Link' }, { copy: true, check: false, ariaLabel: 'Copy URI' }],
+			],
+			copied: [issue.toString(true), resource.toString(true), issue.toString(true)],
+		});
+	});
+
+	test('reference copy failures do not show success and removed actions ignore late completion', async () => {
+		const link = URI.parse('https://example.com/reference');
+		const harness = createPresentation([{ id: 'reference', kind: SessionArtifactKind.Website, label: 'Reference', isArtifact: false, link }]);
+		const action = harness.presentation.referenceSections.get()[0].entries[0].toolbarActions![0];
+		harness.setWriteText(async () => { throw new Error('Clipboard unavailable'); });
+		await assert.rejects(async () => { await action.run(); }, /Clipboard unavailable/);
+		const failed = { label: action.label, icon: action.class };
+
+		const pending = new DeferredPromise<void>();
+		harness.setWriteText(() => pending.p);
+		const copying = action.run();
+		harness.artifacts.set([], undefined);
+		await pending.complete();
+		await copying;
+
+		assert.deepStrictEqual({ failed, errors: harness.errors, afterRemoval: { label: action.label, icon: action.class } }, {
+			failed: { label: 'Copy Website URL', icon: 'codicon codicon-copy' },
+			errors: ['Could not copy to clipboard: Clipboard unavailable'],
+			afterRemoval: { label: 'Copy Website URL', icon: 'codicon codicon-copy' },
+		});
+	});
+
+	test('removed references start with fresh copy feedback when their id is reused', async () => {
+		const reference: ISessionArtifact = { id: 'reference', kind: SessionArtifactKind.Website, label: 'Reference', isArtifact: false, link: URI.parse('https://example.com/reference') };
+		const harness = createPresentation([reference]);
+		const action = harness.presentation.referenceSections.get()[0].entries[0].toolbarActions![0];
+		await action.run();
+
+		harness.artifacts.set([], undefined);
+		harness.artifacts.set([reference], undefined);
+		const restoredAction = harness.presentation.referenceSections.get()[0].entries[0].toolbarActions![0];
+
+		assert.deepStrictEqual({
+			sameAction: action === restoredAction,
+			label: restoredAction.label,
+			icon: restoredAction.class,
+		}, {
+			sameAction: false,
+			label: 'Copy Website URL',
+			icon: 'codicon codicon-copy',
+		});
+	});
+
+	test('reference copy feedback follows the latest destination and attempt', async () => {
+		const originalLink = URI.parse('https://example.com/original');
+		const updatedLink = URI.parse('https://example.com/updated');
+		const reference: ISessionArtifact = { id: 'reference', kind: SessionArtifactKind.Website, label: 'Reference', isArtifact: false, link: originalLink };
+		const harness = createPresentation([reference]);
+		const action = harness.presentation.referenceSections.get()[0].entries[0].toolbarActions![0];
+		const state = () => ({ label: action.label, icon: action.class });
+		const states: { label: string; icon: string | undefined }[] = [];
+
+		const oldWrite = new DeferredPromise<void>();
+		harness.setWriteText(() => oldWrite.p);
+		const oldCopy = action.run();
+		harness.artifacts.set([{ ...reference, link: updatedLink }], undefined);
+		const updated = harness.presentation.referenceSections.get()[0].entries[0].toolbarActions![0];
+		await oldWrite.complete();
+		await oldCopy;
+		states.push(state());
+
+		harness.setWriteText(async text => { harness.copied.push(text); });
+		await updated.run();
+		states.push(state());
+		harness.setWriteText(async () => { throw new Error('Clipboard unavailable'); });
+		await assert.rejects(async () => { await updated.run(); }, /Clipboard unavailable/);
+		states.push(state());
+
+		const slowWrite = new DeferredPromise<void>();
+		harness.setWriteText(() => slowWrite.p);
+		const slowCopy = updated.run();
+		harness.setWriteText(async () => { throw new Error('Clipboard unavailable'); });
+		await assert.rejects(async () => { await updated.run(); }, /Clipboard unavailable/);
+		await slowWrite.complete();
+		await slowCopy;
+		states.push(state());
+
+		assert.deepStrictEqual({ states, sameAction: action === updated, copied: harness.copied, errors: harness.errors }, {
+			states: [
+				{ label: 'Copy Website URL', icon: 'codicon codicon-copy' },
+				{ label: 'Copied', icon: 'codicon codicon-check' },
+				{ label: 'Copy Website URL', icon: 'codicon codicon-copy' },
+				{ label: 'Copy Website URL', icon: 'codicon codicon-copy' },
+			],
+			sameAction: true,
+			copied: [updatedLink.toString(true)],
+			errors: ['Could not copy to clipboard: Clipboard unavailable', 'Could not copy to clipboard: Clipboard unavailable'],
+		});
+	});
+
+	test('copies each recorded reference kind with feedback and updates cached destinations', async () => {
+		const entries: readonly ISessionArtifact[] = [
+			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/pull/12') },
+			{ id: 'commit', kind: SessionArtifactKind.Commit, label: 'Commit', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/commit/abc123') },
+			{ id: 'file', kind: SessionArtifactKind.File, label: 'File', isArtifact: false, uri: URI.file('/repo/file.txt') },
+			{ id: 'image', kind: SessionArtifactKind.File, label: 'Image', isArtifact: false, uri: URI.file('/repo/image.png') },
+		];
+		const harness = createPresentation(entries);
+		const actionsById = new Map(harness.presentation.referenceSections.get().flatMap(section => section.entries)
+			.map(entry => [entry.id, entry.toolbarActions!.find(action => action.id.includes('.copy'))!] as const));
+		for (const action of actionsById.values()) {
+			await action.run();
+		}
+		const copied = [...harness.copied].sort();
+		const icons = [...actionsById].map(([id, action]) => [id, action.class]).sort();
+		harness.artifacts.set(entries.map(entry => entry.id === 'file' ? { ...entry, uri: URI.file('/repo/updated.txt') } : entry), undefined);
+		const updated = harness.presentation.referenceSections.get().flatMap(section => section.entries).find(entry => entry.id === 'file')!.toolbarActions!.find(action => action.id.includes('.copy'))!;
+		const updatedState = { label: updated.label, icon: updated.class };
+		await updated.run();
+
+		assert.deepStrictEqual({ copied, icons, sameAction: updated === actionsById.get('file'), updatedState, updatedCopy: harness.copied.at(-1) }, {
+			copied: ['/repo/file.txt', '/repo/image.png', 'https://github.com/microsoft/vscode/commit/abc123', 'https://github.com/microsoft/vscode/pull/12'].sort(),
+			icons: ['commit', 'file', 'image', 'pr'].map(id => [id, 'codicon codicon-check']),
+			sameAction: true,
+			updatedState: { label: 'Copy Path', icon: 'codicon codicon-copy' },
+			updatedCopy: '/repo/updated.txt',
 		});
 	});
 

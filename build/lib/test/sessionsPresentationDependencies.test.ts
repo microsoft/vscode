@@ -353,7 +353,6 @@ function isMobileEntryFile(file: string): boolean {
 			mobileConfigurationPresenter,
 			mobileInputButton,
 			hostPickerRoot + 'mobileAgentHostFilterService.ts',
-			hostPickerRoot + 'mobileTunnelConnection.ts',
 		].includes(file);
 }
 

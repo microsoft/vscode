@@ -145,6 +145,8 @@ class MockDefaultAccountService implements IDefaultAccountService {
 	async refresh(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	async signIn(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	async signOut(): Promise<void> { }
+	async rememberMicrosoftAccount(): Promise<void> { }
+	async forgetMicrosoftAccount(): Promise<void> { }
 }
 
 // ---------------------------------------------------------------------------

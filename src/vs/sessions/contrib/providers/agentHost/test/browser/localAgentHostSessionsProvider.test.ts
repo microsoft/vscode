@@ -71,7 +71,7 @@ import { VisibleSessions } from '../../../../../../workbench/services/sessions/b
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -79,7 +79,8 @@ import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/co
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../../workbench/services/sessions/common/session.js';
+import { CanvasOpenFailedError } from '../../../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../../workbench/services/sessions/common/session.js';
 import { readSessionChangesStats } from '../../../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { getSessionGitHubReferences } from '../../../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import { ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -901,7 +902,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override acquireSessionTools = (resource: URI) => new ImmortalReference(constObservable(options?.sessionTools?.(resource) ?? []));
 		override areScopeRootsEqual = (first: readonly URI[] | undefined, second: readonly URI[]) =>
 			first !== undefined && first.length === second.length && first.every((root, index) => extUriIgnorePathCase.isEqual(root, second[index]));
-		override acquireScope = (sessionType: string, roots: readonly URI[] | undefined) => options?.activeClientScope?.(sessionType, roots ?? []) ?? ({
+		override acquireScope = (sessionType: string, roots: readonly URI[]) => options?.activeClientScope?.(sessionType, roots) ?? ({
 			customizations: constObservable(options?.activeClient?.customizations ?? []),
 			customAgents: options?.activeClientAgents ?? constObservable([]),
 			tools: constObservable(options?.activeClient?.tools ?? []),
@@ -1369,6 +1370,88 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	});
 
+	suite('createCanvasDraft', () => {
+		const canvas: ISessionCanvasDefinition = { canvasId: 'plan', extensionId: 'user:agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: 'Plans.', requiresInput: false };
+
+		/** A provider whose agents list Codex before Copilot, and whose host advertises each draft's default chat and announces the session a canvas starts. */
+		function setup(open: (session: URI) => AgentCanvasOpenResult) {
+			agentHost.setAgents([
+				{ provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [], capabilities: {} },
+				{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} },
+			]);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+			// The fake host runs its create hook once, so each draft re-arms it for the next one.
+			const advertiseDefaultChat = (uri: URI) => {
+				agentHost.onCreateSession = advertiseDefaultChat;
+				agentHost.setSessionState(AgentSession.id(uri), AgentSession.provider(uri)!, {
+					provider: AgentSession.provider(uri)!, title: '', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Creating,
+					activeClients: [], chats: [], defaultChat: buildDefaultChatUri(uri),
+				});
+			};
+			agentHost.onCreateSession = advertiseDefaultChat;
+			agentHost.openSessionCanvas = async (session, request, chat) => {
+				agentHost.canvasOpenRequests.push({ session, chat, request });
+				const result = open(session);
+				if (result.kind === 'opened') {
+					fireSessionAdded(agentHost, AgentSession.id(session), { title: '', workspaceless: true });
+				}
+				return result;
+			};
+			return provider;
+		}
+
+		test('lists the canvases of a new Copilot quick chat, opens one in it, and lists the session under the canvas name', async () => {
+			const provider = setup(() => ({ kind: 'opened' }));
+			agentHost.canvasDefinitions = [{ canvasId: 'plan', extensionId: 'user:agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: 'Plans.', requiresInput: false, actionCount: 0 }];
+
+			const draft = provider.createCanvasDraft();
+			const canvases = await draft.canvases;
+			const listedBeforeOpen = provider.getSessions().length;
+			const committed = await draft.open(canvas, 'plan-instance');
+			draft.dispose();
+
+			const backend = agentHost.createdSessionUris.at(-1)!;
+			assert.deepStrictEqual({
+				canvases: canvases?.map(definition => definition.canvasId),
+				listedBeforeOpen,
+				created: agentHost.createSessionConfigs.map(config => config.workingDirectory),
+				opened: agentHost.canvasOpenRequests.map(open => ({ session: open.session.toString(), chat: open.chat.toString(), request: open.request })),
+				committed: { rawId: AgentSession.id(committed.resource), sessionType: committed.sessionType, title: committed.title.get() },
+				listed: provider.getSessions().map(session => session.sessionId),
+				titles: agentHost.dispatchedActions.filter(dispatched => dispatched.action.type === ActionType.SessionTitleChanged).map(dispatched => ({ channel: dispatched.channel, action: dispatched.action })),
+			}, {
+				canvases: ['plan'],
+				listedBeforeOpen: 0,
+				created: [undefined],
+				opened: [{ session: backend.toString(), chat: buildDefaultChatUri(backend), request: { canvasId: 'plan', extensionId: 'user:agent-plan', instanceId: 'plan-instance' } }],
+				committed: { rawId: AgentSession.id(backend), sessionType: 'copilotcli', title: 'Agent Plan' },
+				listed: [committed.sessionId],
+				titles: [{ channel: backend.toString(), action: { type: ActionType.SessionTitleChanged, title: 'Agent Plan' } }],
+			});
+		});
+
+		test('deletes the new session when its canvas does not open, or when it is disposed before one opens', async () => {
+			const provider = setup(() => ({ kind: 'failed', failure: 'unavailable' }));
+
+			const abandoned = provider.createCanvasDraft();
+			await abandoned.canvases;
+			abandoned.dispose();
+			const error = await provider.createCanvasDraft().open(canvas, 'plan-instance').then(() => undefined, (error: Error) => error);
+
+			assert.deepStrictEqual({
+				failed: error instanceof CanvasOpenFailedError,
+				disposed: agentHost.disposedSessions.map(session => session.toString()),
+				listed: provider.getSessions().length,
+			}, {
+				failed: true,
+				disposed: agentHost.createdSessionUris.map(session => session.toString()),
+				listed: 0,
+			});
+		});
+	});
+
 	test('reports no session types before rootState hydrates', () => {
 		agentHost.clearRootState();
 		const provider = createProvider(disposables, agentHost);
@@ -1516,10 +1599,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('observes the canvases of an inactive chat, which its chat model leaves unknown, while the reference is held', () => {
+	test('observes the canvases of an inactive chat, which its chat model leaves unknown, and contributes to its session while the reference is held', async () => {
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined) });
 		const rawId = 'pinned-chat-owner';
+		agentHost.addSession(createSession(rawId));
 		fireSessionAdded(agentHost, rawId);
 		const session = provider.getSessions()[0];
 		// The chat the session listing advertises, which the session never subscribes to while inactive.
@@ -1534,13 +1618,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const observed = read(reference?.object.get());
 		const chatModel = read(session.mainChat.get().canvases?.get());
 		const subscribedWhileHeld = [agentHost.sessionSubscribeCounts.get(chat), agentHost.sessionSubscribeCounts.get(resource)];
+		// The host restores a released chat's canvases only for a client that contributes to its session.
+		await timeout(0);
 		reference?.dispose();
+		// The host forgets the contribution when it releases the session, so observing again contributes again.
+		const again = provider.observeChatCanvases(session.sessionId, session.mainChat.get().resource);
+		await timeout(0);
+		again?.dispose();
+		const contributedTo = agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).map(dispatch => dispatch.channel);
 
-		assert.deepStrictEqual({ observed, chatModel, subscribedWhileHeld, unsubscribes: [agentHost.sessionUnsubscribeCounts.get(chat), agentHost.sessionUnsubscribeCounts.get(resource)] }, {
+		assert.deepStrictEqual({ observed, chatModel, subscribedWhileHeld, contributedTo, unsubscribes: [agentHost.sessionUnsubscribeCounts.get(chat), agentHost.sessionUnsubscribeCounts.get(resource)] }, {
 			observed: [{ resource, instanceId: 'plan' }],
 			chatModel: undefined,
 			subscribedWhileHeld: [1, 1],
-			unsubscribes: [1, 1],
+			contributedTo: [AgentSession.uri('copilotcli', rawId).toString(), AgentSession.uri('copilotcli', rawId).toString()],
+			unsubscribes: [2, 2],
 		});
 	});
 
@@ -1915,6 +2007,108 @@ suite('LocalAgentHostSessionsProvider', () => {
 			creation: provider.sessionTypes.map(t => t.id),
 			interactivity: provider.getSessions().map(session => session.mainChat.get().interactivity.get()),
 		}, { saved: ['claude', 'codex'], creation: ['copilotcli'], interactivity: [ChatInteractivity.ReadOnly, ChatInteractivity.ReadOnly] });
+	});
+
+	test('listing policy-disabled saved sessions reads the policy once per agent, not once per session', () => {
+		let inspects = 0;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				inspects++;
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+		for (let index = 0; index < 50; index++) {
+			fireSessionAdded(agentHost, `claude-${index}`, { title: `Claude ${index}`, provider: 'claude' });
+		}
+		provider.getSessions();
+		inspects = 0;
+		const listed = provider.getSessions().length;
+		assert.deepStrictEqual({ listed, inspects }, { listed: 50, inspects: 2 });
+	});
+
+	test('getSession finds by key exactly the saved sessions the agent gates list, without listing them', () => {
+		let listings = 0;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false, [AgentHostCodexAgentEnabledSettingId]: false });
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService,
+			isSessionsWindow: true,
+			providerCtor: class extends LocalAgentHostSessionsProvider {
+				override getAllSessions(): ISession[] {
+					listings++;
+					return super.getAllSessions();
+				}
+			},
+		});
+		fireSessionAdded(agentHost, 'copilot-saved');
+		fireSessionAdded(agentHost, 'claude-saved', { provider: 'claude' });
+		fireSessionAdded(agentHost, 'codex-saved', { provider: 'codex' });
+		const resources = ['agent-host-copilotcli:/copilot-saved', 'agent-host-claude:/claude-saved', 'agent-host-codex:/codex-saved', 'agent-host-copilotcli:/missing'].map(resource => URI.parse(resource));
+		const lookUp = () => resources.map(resource => provider.getSession(resource)?.resource.toString());
+		listings = 0;
+		const codexDisabled = lookUp();
+		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		fireConfigChange(configurationService, AgentHostCodexAgentEnabledSettingId);
+		const codexEnabled = lookUp();
+
+		assert.deepStrictEqual({ listings, codexDisabled, codexEnabled }, {
+			listings: 0,
+			codexDisabled: [resources[0].toString(), resources[1].toString(), undefined, undefined],
+			codexEnabled: [resources[0].toString(), resources[1].toString(), resources[2].toString(), undefined],
+		});
+	});
+
+	test('getSession finds a parent session and the subagent fragment row an older host also lists, as either is removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const parent = createSession('parent', { summary: 'Parent' });
+		const subagent = { ...parent, session: parent.session.with({ fragment: 'subagent/call-1' }), summary: 'Subagent' };
+		const parentResource = URI.parse('agent-host-copilotcli:/parent');
+		const fragmentResource = parentResource.with({ fragment: 'subagent/call-1' });
+		const lookUp = (provider: LocalAgentHostSessionsProvider, sessionIds: string[]) => ({
+			listed: provider.getAllSessions().map(session => session.resource.toString()).sort(),
+			parent: provider.getSession(parentResource)?.resource.toString(),
+			fragment: provider.getSession(fragmentResource)?.resource.toString(),
+			// Session-id routing ignores fragments, so both ids route to the row cached last.
+			routed: sessionIds.map(sessionId => provider.getBackendSessionResource(sessionId)?.toString()),
+		});
+		const results = [];
+		for (const removed of [subagent, parent]) {
+			agentHost.listSessions = async () => [subagent, parent];
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const sessionIds = [parentResource, fragmentResource].map(resource => provider.getSession(resource)!.sessionId);
+			const before = lookUp(provider, sessionIds);
+			agentHost.fireNotification({ channel: 'ahp-root://', type: NotificationType.SessionRemoved, session: removed.session.toString() });
+			results.push({ before, after: lookUp(provider, sessionIds) });
+		}
+
+		const fragmentBackend = subagent.session.toString();
+		const both = { listed: [parentResource.toString(), fragmentResource.toString()], parent: parentResource.toString(), fragment: fragmentResource.toString(), routed: [fragmentBackend, fragmentBackend] };
+		assert.deepStrictEqual(results, [
+			{ before: both, after: { listed: [parentResource.toString()], parent: parentResource.toString(), fragment: undefined, routed: [undefined, undefined] } },
+			{ before: both, after: { listed: [fragmentResource.toString()], parent: undefined, fragment: fragmentResource.toString(), routed: [fragmentBackend, fragmentBackend] } },
+		]);
+	}));
+
+	test('resource lookups see sessions added and removed before the change event is debounced', () => {
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
+		const provider = createProvider(disposables, agentHost);
+		const management = createManagementService(disposables, provider);
+		const resourceOf = (rawId: string) => provider.getAllSessions().find(session => session.resource.path.includes(rawId))?.resource;
+		fireSessionAdded(agentHost, 'removed-early');
+		const removed = resourceOf('removed-early')!;
+		assert.ok(management.getSession(removed));
+
+		fireSessionAdded(agentHost, 'added-early');
+		fireSessionRemoved(agentHost, 'removed-early');
+		const added = resourceOf('added-early')!;
+
+		assert.deepStrictEqual({ added: management.getSession(added)?.resource.toString(), removed: management.getSession(removed)?.resource.toString() }, { added: added.toString(), removed: undefined });
 	});
 
 	for (const initiallyBlocked of [false, true]) {
@@ -3817,7 +4011,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	for (const rejected of [false, true]) {
-		test(`archive waits for host confirmation and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test(`archive shows the session as archived until host confirmation, also over earlier host updates, and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const backend = URI.parse('opaque-session://tenant/archiving');
 			const provider = createProvider(disposables, agentHost);
 			await timeout(0);
@@ -3837,11 +4031,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const archive = provider.archiveSession(session.sessionId).then(() => { completed = true; });
 			const result = rejected ? assert.rejects(archive, /Archive denied/) : archive;
 			await dispatched.p;
-			const beforeAcknowledgement = completed;
+			// The host reports a status from before it applied the archive.
+			agentHost.fireNotification({ channel: 'ahp-root://', type: NotificationType.SessionSummaryChanged, session: backend.toString(), changes: { status: ProtocolSessionStatus.Idle } });
+			const beforeAcknowledgement = { completed, archived: session.isArchived.get(), archivePending: session.archivePending?.get() };
 			await acknowledgement.complete();
 			await result;
-			assert.deepStrictEqual({ beforeAcknowledgement, completed, archived: session.isArchived.get(), calls, released: agentHost.sessionUnsubscribeCounts.get(backend.toString()) }, {
-				beforeAcknowledgement: false, completed: !rejected, archived: !rejected, calls: [backend.toString()], released: 1,
+			assert.deepStrictEqual({ beforeAcknowledgement, completed, archived: session.isArchived.get(), archivePending: session.archivePending?.get(), calls, released: agentHost.sessionUnsubscribeCounts.get(backend.toString()) }, {
+				beforeAcknowledgement: { completed: false, archived: true, archivePending: true }, completed: !rejected, archived: !rejected, archivePending: false, calls: [backend.toString()], released: 1,
 			});
 		}));
 	}
@@ -3876,7 +4072,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			active, maximumActive, elapsedMs: Date.now() - started,
 			outcomes: results.map(result => result.status),
 			archived: sessions.map(session => session.isArchived.get()),
-			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			changes: changes.map(event => event.changed.map(session => session.sessionId).sort()),
 			channels: [...channels],
 			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
 		};
@@ -3890,12 +4086,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 				elapsedMs: 230,
 				outcomes: sessions.map((_, index) => index === 1 ? 'rejected' : 'fulfilled'),
 				archived: sessions.map((_, index) => index !== 1),
-				changes: Array.from({ length: 23 }, (_, batch) => sessions.slice(batch * 4, (batch + 1) * 4)
-					.filter(session => session !== sessions[1]).map(session => session.sessionId)),
+				// Each change shows the archives that started and settles those that the host confirmed or rejected before.
+				changes: Array.from({ length: 24 }, (_, event) => sessions.slice(Math.max(0, event - 1) * 4, (event + 1) * 4)
+					.map(session => session.sessionId).sort()),
 				channels: backends.map(resource => resource.toString()),
 				released: backends.map(() => 1),
 			},
-			changesAfterRetry: 24,
+			changesAfterRetry: 26,
 		});
 	}));
 
@@ -3931,14 +4128,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			active, maximumActive,
 			outcomes: results.map(batch => batch.map(result => result.status)),
 			archived: sessions.map(session => session.isArchived.get()),
-			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			changes: changes.map(event => event.changed.map(session => session.sessionId).sort()),
 			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
 		}, {
-			betweenBatches: { active: 4, changes: 1 },
+			betweenBatches: { active: 4, changes: 2 },
 			active: 0, maximumActive: 4,
 			outcomes: [['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled'], ['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled']],
 			archived: sessions.map(() => true),
-			changes: [sessions.slice(0, 4), sessions.slice(4)].map(batch => batch.map(session => session.sessionId)),
+			changes: [sessions.slice(0, 4), sessions, sessions.slice(4)].map(batch => batch.map(session => session.sessionId).sort()),
 			released: backends.map(() => 1),
 		});
 	}));
@@ -4675,6 +4872,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ model: pinnedId, configuration: { reasoningEffort: 'low' } },
 			{ model: pinnedId, configuration: { reasoningEffort: 'medium' } },
 		]);
+	});
+
+	test('a follow-up request is queued behind the request in progress when asked', async () => {
+		const sent: (ChatRequestQueueKind | undefined)[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(): void { }
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async (resource, _message, options) => {
+				sent.push(options?.queue);
+				if (sent.length === 1) {
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Queued Session' }));
+				}
+				return { kind: 'queued' as const, deferred: new Promise<ChatSendResult>(() => { }) };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'first' });
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'second', queue: ChatRequestQueueKind.Queued });
+		assert.deepStrictEqual(sent, [undefined, ChatRequestQueueKind.Queued]);
 	});
 
 	test('setAgent with undefined clears the cached agent selection', () => {
@@ -8836,6 +9059,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
 				_newWorktree: instantiationService.createInstance(NewWorktreeChoice, current, constObservable(true)),
 				contextKeyService: { contextMatchesRules: () => true },
+				configurationService: new TestConfigurationService({ 'chat.editorWindow.enableWorktree': true }),
 				_getWorktreeSendChoiceControl: () => mainWindow.document.createElement('div'),
 				_isRecentChatInFolder: Reflect.get(NewChatWidget.prototype, '_isRecentChatInFolder'),
 				_warnNewWorktreeUnavailable: Reflect.get(NewChatWidget.prototype, '_warnNewWorktreeUnavailable'),
@@ -10099,6 +10323,49 @@ suite('LocalAgentHostSessionsProvider', () => {
 			last: { [SessionConfigKey.SensitiveEditLocations]: [{ path: 'updated-hooks/hooks.json', isDirectory: true }] },
 		});
 	});
+
+	test('two clients with different sensitive edit locations for one session settle on both of their locations', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const createClient = async (hookLocations: Record<string, boolean>) => {
+			const host = new MockAgentHostService();
+			disposables.add(toDisposable(() => host.dispose()));
+			host.addSession(createSession('shared', { summary: 'Shared Session', workingDirectory: URI.file('/home/user/project') }));
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatHookFilesLocationsSettingId, hookLocations);
+			const provider = createProvider(disposables, host, undefined, { configurationService });
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(s => s.title.get() === 'Shared Session')!;
+			provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+			return host;
+		};
+		const clients = [await createClient({ 'agents-window-hooks': true }), await createClient({ 'other-window-hooks': true })];
+		let hostValue: unknown = [{ path: 'agents-window-hooks', isDirectory: true }];
+		const broadcast = () => {
+			for (const host of clients) {
+				host.setSessionState('shared', 'copilotcli', {
+					provider: 'copilotcli', title: 'Shared Session', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+					config: { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree', [SessionConfigKey.SensitiveEditLocations]: hostValue } },
+				});
+			}
+		};
+
+		let rounds = 0;
+		for (; rounds < 10; rounds++) {
+			broadcast();
+			await timeout(0);
+			const writes = clients.flatMap(host => host.dispatchedActions.splice(0).flatMap(({ action }) =>
+				action.type === ActionType.SessionConfigChanged && Object.hasOwn(action.config, SessionConfigKey.SensitiveEditLocations) ? [action.config[SessionConfigKey.SensitiveEditLocations]] : []));
+			if (writes.length === 0) {
+				break;
+			}
+			hostValue = writes.at(-1);
+		}
+
+		assert.deepStrictEqual({ settled: rounds < 10, hostValue }, {
+			settled: true,
+			hostValue: [{ path: 'agents-window-hooks', isDirectory: true }, { path: 'other-window-hooks', isDirectory: true }],
+		});
+	}));
 
 	test('sendRequest forwards Git worktree settings of the folder loaded after the draft was created', async () => {
 		const folder = URI.file('/home/user/project');
@@ -17305,17 +17572,103 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
 		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
 		const advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
+		const foundIsDraft = provider.getSession(session.resource) === session;
 		agentHost.listSessionsBarrier.complete();
 		await request;
 
 		assert.deepStrictEqual({
 			count: advertised.length,
 			isDraft: advertised[0] === session,
+			foundIsDraft,
 			resources: advertised.map(candidate => candidate.resource.toString()),
 		}, {
 			count: 1,
 			isDraft: true,
+			foundIsDraft: true,
 			resources: [session.resource.toString()],
+		});
+	});
+
+	test('archiving a new session before its first request commits archives the draft and then the committed session', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const rawId = AgentSession.id(session.resource);
+		const archiveDispatches = () => agentHost.dispatchedActions
+			.filter(dispatched => dispatched.action.type === ActionType.SessionIsArchivedChanged)
+			.map(dispatched => ({ session: AgentSession.id(dispatched.channel), action: dispatched.action }));
+
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			if (action.type === ActionType.SessionIsArchivedChanged) {
+				agentHost.dispatchedActions.push({ channel, action, clientId: agentHost.clientId, clientSeq: 0 });
+			}
+			return { channel, action, serverSeq: 1, origin: undefined };
+		};
+		await provider.archiveSession(session.sessionId);
+		const beforeCommit = { draftArchived: session.isArchived.get(), dispatched: archiveDispatches() };
+		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+		const committed = await request;
+
+		assert.deepStrictEqual({
+			beforeCommit,
+			committedArchived: committed.isArchived.get(),
+			dispatched: archiveDispatches(),
+		}, {
+			beforeCommit: { draftArchived: true, dispatched: [] },
+			committedArchived: true,
+			dispatched: [{ session: rawId, action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } }],
+		});
+	});
+
+	test('unarchiving a new session after the host announces it but before commit is not undone at commit', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		await timeout(0);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		agentHost.listSessionsBarrier = new DeferredPromise<void>();
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const rawId = AgentSession.id(session.resource);
+
+		await provider.archiveSession(session.sessionId);
+		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+		await provider.unarchiveSession(session.sessionId);
+		const draftArchived = session.isArchived.get();
+		agentHost.listSessionsBarrier.complete();
+		const committed = await request;
+
+		assert.deepStrictEqual({
+			draftArchived,
+			committedArchived: committed.isArchived.get(),
+			dispatched: agentHost.dispatchedActions
+				.filter(dispatched => dispatched.action.type === ActionType.SessionIsArchivedChanged)
+				.map(dispatched => dispatched.action),
+		}, {
+			draftArchived: false,
+			committedArchived: false,
+			dispatched: [{ type: ActionType.SessionIsArchivedChanged, isArchived: false }],
 		});
 	});
 

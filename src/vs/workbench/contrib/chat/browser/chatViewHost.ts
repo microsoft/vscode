@@ -214,6 +214,8 @@ export interface IChatViewHostService extends IChatViewHost {
 	 * Chat view does not host the chat shown last of a host that replaces it, nor a new chat that it started.
 	 */
 	readonly sessionsOnly: IObservable<boolean>;
+	/** Whether a contribution has the chats open elsewhere, such as in editors ({@link IChatViewContribution.chatsOpenElsewhere}). */
+	readonly chatsOpenElsewhere: IObservable<boolean>;
 
 	/**
 	 * Registers what a feature contributes to the Chat view until the returned disposable is disposed. Of each part, the

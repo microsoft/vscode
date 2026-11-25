@@ -434,6 +434,8 @@ export interface IChatWarningMessage {
 	 */
 	keepVisibleWhenCollapsed?: boolean;
 	mute?: IChatWarningMuteAction;
+	/** Shows the message as an error, for something that stopped the request rather than a caution about it. */
+	isError?: boolean;
 }
 
 export interface IChatInfoMessage {

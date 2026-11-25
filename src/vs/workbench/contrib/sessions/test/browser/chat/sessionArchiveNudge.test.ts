@@ -51,7 +51,8 @@ import { getPullRequestKey } from '../../../common/github/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../common/github/sessionLifecycleSettings.js';
 import { SESSION_ARCHIVE_TOUR_ID } from '../../../browser/tours/sessionArchiveTour.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../../browser/chat/sessionArchiveNudge.js';
-import { getSessionArchiveOnboardingTargetId, SessionsList } from '../../../browser/views/sessionsList.js';
+import { SessionsList } from '../../../browser/views/sessionsList.js';
+import { getSessionArchiveOnboardingTargetId } from '../../../browser/views/sessionsListRenderers.js';
 import { SessionsView, SessionsViewId } from '../../../browser/views/sessionsView.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 

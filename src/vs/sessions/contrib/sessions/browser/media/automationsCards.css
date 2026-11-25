@@ -474,7 +474,7 @@
 .monaco-workbench .custom-view-header-actions .action-label.automations-more-actions {
 	box-sizing: border-box;
 	width: auto;
-	height: auto;
+	height: 26px;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
 	border-radius: var(--vscode-cornerRadius-small);

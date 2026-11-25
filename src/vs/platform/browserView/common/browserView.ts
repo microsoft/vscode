@@ -22,6 +22,7 @@ export enum BrowserViewCommandId {
 	Open = `${commandPrefix}.open`,
 	OpenFile = `${commandPrefix}.openFile`,
 	NewTab = `${commandPrefix}.newTab`,
+	DuplicateTab = `${commandPrefix}.duplicateTab`,
 	QuickOpen = `${commandPrefix}.quickOpen`,
 	OpenOrList = `${commandPrefix}.openOrList`,
 	CloseAll = `${commandPrefix}.closeAll`,
@@ -217,11 +218,14 @@ export const BROWSER_REMOTE_FILE_SCHEMES: readonly string[] = [Schemas.vscodeRem
  * location on that remote's own file system, or `undefined` for anything else. The inverse of {@link fileUrlToRemoteUri}.
  */
 export function getBrowserViewRemoteFile(uri: URI): { readonly scheme: string; readonly authority: string; readonly fileUri: URI } | undefined {
+	// A remote URI can have a path starting with `//` (such as a trusted folder `vscode-remote://ssh-remote+host//home/x`),
+	// but a `file:` URI without an authority cannot, so collapse them to the single root they mean on the remote.
+	const path = uri.path.replace(/^\/{2,}/, '/');
 	if (uri.scheme === Schemas.vscodeRemote) {
-		return { scheme: uri.scheme, authority: uri.authority, fileUri: uri.with({ scheme: Schemas.file, authority: '' }) };
+		return { scheme: uri.scheme, authority: uri.authority, fileUri: uri.with({ scheme: Schemas.file, authority: '', path }) };
 	}
 	if (uri.scheme === AGENT_HOST_SCHEME) {
-		const fileUri = fromAgentHostUri(uri);
+		const fileUri = fromAgentHostUri(uri.with({ path }));
 		// A file with an authority (`file://server/share`) is not on the host's own file system.
 		if (fileUri.scheme === Schemas.file && !fileUri.authority) {
 			return { scheme: uri.scheme, authority: uri.authority, fileUri };
@@ -479,11 +483,36 @@ export interface IBrowserViewState {
 	session: IBrowserViewSessionOptions;
 	storageKeys: IBrowserViewStorageKeys;
 	permissions: ISerializedBrowserPermissionsSnapshot;
+	pendingDialog?: IBrowserViewDialog;
 	browserZoomIndex: number;
 	elementSelectionState: IBrowserElementSelectionState;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
 	audiences: IBrowserViewAudience[];
+}
+
+/**
+ * Only the current top-level origin or a pending main-frame navigation may request website sign-in.
+ * This is stricter than Chrome, which only blocks cross-origin images.
+ */
+export function getBrowserViewAuthenticationOrigin(url: string, mainFrameOrigin: string, navigationOrigin: string | undefined): string | undefined {
+	const origin = URL.parse(url)?.origin;
+	return origin && origin !== 'null' && (origin === mainFrameOrigin || origin === navigationOrigin) ? origin : undefined;
+}
+
+export interface IBrowserViewDialog {
+	readonly requestId: string;
+	readonly type: 'login' | 'alert' | 'confirm' | 'prompt';
+	readonly origin: string;
+	readonly message?: string;
+	readonly defaultPrompt?: string;
+}
+
+export interface IBrowserViewDialogResponse {
+	readonly accept: boolean;
+	readonly username?: string;
+	readonly password?: string;
+	readonly promptText?: string;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -703,6 +732,7 @@ export interface BrowserViewEventData {
 	onDidChangeDeviceEmulation: IBrowserDeviceProfile | undefined;
 	onDidChangeAudiences: IBrowserViewAudience[];
 	onDidRequestPermission: IBrowserViewPermissionRequestEvent;
+	onDidChangeDialog: IBrowserViewDialog | undefined;
 	onDidChangePermissions: ISerializedBrowserPermissionsSnapshot;
 	onDidRequestOpenExternal: string;
 }
@@ -954,6 +984,9 @@ export interface IBrowserViewService {
 	 * @param deviceId The selected device id, or `null` to cancel
 	 */
 	selectDevice(id: string, requestId: string, deviceId: string | null): Promise<void>;
+
+	/** Answer the current browser dialog, identified by its request ID. */
+	respondToDialog(id: string, requestId: string, response: IBrowserViewDialogResponse): Promise<void>;
 
 	/**
 	 * Get captured console logs for a browser view.

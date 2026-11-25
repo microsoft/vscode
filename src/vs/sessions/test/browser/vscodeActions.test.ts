@@ -33,9 +33,11 @@ import { getIconRegistry } from '../../../platform/theme/common/iconRegistry.js'
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { NullLogService } from '../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING } from '../../../platform/chat/common/chatSettings.js';
+import { NullWorkbenchAssignmentService } from '../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { OpenInVSCodeAction } from '../../browser/actions/vscodeActions.js';
@@ -195,7 +197,7 @@ suite('Open in Editor in Agents windows', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const results = ['stable', 'insider', 'exploration', undefined].map(quality => {
 			const action = store.add(new Action('test', 'Open in Editor'));
-			const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality }), NullHoverService, keybindings, configuration, NullTelemetryService));
+			const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality }), NullHoverService, keybindings, configuration, NullTelemetryService, new NullWorkbenchAssignmentService(), new NullLogService()));
 			const container = document.createElement('div');
 			widget.render(container);
 			const icon = container.querySelector('.open-in-vscode-titlebar-widget-icon');
@@ -234,7 +236,7 @@ suite('Open in Editor in Agents windows', () => {
 			const telemetry = new TestExperimentTriggerTelemetryService();
 			const keybindings = upcastPartial<IKeybindingService>({ appendKeybinding: label => `${label} (shortcut)` });
 			const action = store.add(new Action('test', 'Open in Editor'));
-			const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality: 'stable' }), NullHoverService, keybindings, configuration, telemetry));
+			const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality: 'stable' }), NullHoverService, keybindings, configuration, telemetry, new NullWorkbenchAssignmentService(), new NullLogService()));
 			const container = document.createElement('div');
 			widget.render(container);
 			const icon = container.querySelector<HTMLElement>('.open-in-vscode-titlebar-widget-icon')!;
@@ -274,7 +276,7 @@ suite('Open in Editor in Agents windows', () => {
 			const telemetry = new TestExperimentTriggerTelemetryService();
 			const keybindings = upcastPartial<IKeybindingService>({ appendKeybinding: label => label });
 			const action = store.add(new Action('test', 'Open in Editor'));
-			const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality: 'stable' }), NullHoverService, keybindings, configuration, telemetry));
+			const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality: 'stable' }), NullHoverService, keybindings, configuration, telemetry, new NullWorkbenchAssignmentService(), new NullLogService()));
 			const change = new class extends mock<IConfigurationChangeEvent>() {
 				override affectsConfiguration(section: string): boolean {
 					return section === setting;
@@ -318,7 +320,7 @@ suite('Open in Editor in Agents windows', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const action = store.add(new Action('test', 'Open in Editor'));
 		const keybindings = upcastPartial<IKeybindingService>({ appendKeybinding: label => label });
-		const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality: 'stable' }), NullHoverService, keybindings, configuration, NullTelemetryService));
+		const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality: 'stable' }), NullHoverService, keybindings, configuration, NullTelemetryService, new NullWorkbenchAssignmentService(), new NullLogService()));
 		widget.render(container);
 		const icon = container.querySelector<HTMLElement>('.open-in-vscode-titlebar-widget-icon')!;
 		const colors = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
@@ -336,6 +338,45 @@ suite('Open in Editor in Agents windows', () => {
 		const expected = { active: 'rgb(255, 255, 255)', disabled: 'rgb(255, 255, 255)', inactive: 'rgb(170, 187, 204)' };
 		assert.deepStrictEqual(colors, [expected, expected, expected, expected]);
 	});
+
+	for (const expandOnHover of [true, false]) {
+		test(`uses the ${expandOnHover ? 'control' : 'treatment'} behavior for hover expansion and logs the experiment trigger`, async () => {
+			const treatmentName = 'sessionsOpenInEditorTitleBarExpandOnHover';
+			const assignment = new class extends NullWorkbenchAssignmentService {
+				override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+					return name === treatmentName ? expandOnHover as T : undefined;
+				}
+			}();
+			const telemetry = new TestExperimentTriggerTelemetryService();
+			const configuration = new TestConfigurationService({ [AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING]: true });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const keybindings = upcastPartial<IKeybindingService>({ appendKeybinding: label => `${label} (shortcut)` });
+			const action = store.add(new Action('test', 'Open in Editor'));
+			const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality: 'stable' }), NullHoverService, keybindings, configuration, telemetry, assignment, new NullLogService()));
+			const container = $('div');
+			widget.render(container);
+			attach(container);
+			const triggered = Event.toPromise(telemetry.onDidTrigger);
+			container.dispatchEvent(new MouseEvent('mouseenter'));
+			await triggered;
+			const label = container.querySelector<HTMLElement>('.open-in-vscode-titlebar-widget-label')!;
+			container.classList.add('hovered');
+			const hoverLabelMaxWidth = mainWindow.getComputedStyle(label).maxWidth;
+			container.classList.remove('hovered');
+
+			assert.deepStrictEqual({
+				expandOnHover: container.classList.contains('expand-on-hover'),
+				hoverLabelMaxWidth,
+				ariaLabel: container.getAttribute('aria-label'),
+				triggers: telemetry.triggers,
+			}, {
+				expandOnHover,
+				hoverLabelMaxWidth: expandOnHover ? '200px' : '0px',
+				ariaLabel: 'Open in VS Code Editor Window (shortcut)',
+				triggers: [treatmentName],
+			});
+		});
+	}
 
 	test('shows in the main window and in chat windows, as the main window always showed it, and not in editor windows', () => {
 		const menus = new OpenInVSCodeAction().desc.menu;

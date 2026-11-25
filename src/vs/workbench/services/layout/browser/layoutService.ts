@@ -155,6 +155,17 @@ export const enum PartOpensMaximizedOptions {
 
 export type PanelAlignment = 'left' | 'center' | 'right' | 'justify';
 
+/**
+ * The arrangement of the primary side bar, the panel and the secondary side bar of the main window.
+ * The size of a part is its size when it shows and is not maximized: the width of a side bar, the
+ * height of a panel at the top or bottom and the width of a panel on the left or right.
+ */
+export interface IPartsLayoutState {
+	readonly sideBar: { readonly visible: boolean; readonly size: number };
+	readonly panel: { readonly visible: boolean; readonly size: number; readonly position: Position; readonly maximized: boolean };
+	readonly auxiliaryBar: { readonly visible: boolean; readonly size: number; readonly maximized: boolean };
+}
+
 export function positionToString(position: Position): string {
 	switch (position) {
 		case Position.LEFT: return 'left';

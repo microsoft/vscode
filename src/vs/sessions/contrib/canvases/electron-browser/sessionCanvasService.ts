@@ -20,7 +20,7 @@ import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/bro
 import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
-import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvasDefinition, isSessionArchiveConfirmed } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
@@ -130,7 +130,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			}
 		}));
 		this._register(this.sessionsManagementService.onDidChangeSessions(event => {
-			const archived = event.changed.filter(session => session.isArchived.read(undefined));
+			const archived = event.changed.filter(session => isSessionArchiveConfirmed(session));
 			for (const session of [...event.removed, ...archived]) {
 				this.removeOwners(owner => ownsSession(owner, session));
 			}

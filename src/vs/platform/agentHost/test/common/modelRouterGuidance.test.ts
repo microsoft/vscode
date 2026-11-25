@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { parseModelRouter } from '../../common/modelRouter.js';
-import { modelRouterBriefing, resolveModelRouterGuidance } from '../../common/modelRouterGuidance.js';
+import { modelRouterGuidanceNote, resolveModelRouterGuidance } from '../../common/modelRouterGuidance.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 
 function model(id: string): IAgentModelInfo {
@@ -41,7 +41,6 @@ suite('modelRouterGuidance', () => {
 		assert.deepStrictEqual({
 			named: resolveModelRouterGuidance(router, { routeName: 'feature', chosenModel: 'opus' }, models),
 			unnamed: resolveModelRouterGuidance(router, { chosenModel: 'haiku' }, models),
-			// "No guidance" is one value, so that guidance can be compared by identity.
 			noGuidance: resolveModelRouterGuidance(router, { routeName: 'notes', chosenModel: 'opus' }, models),
 			// A model alone never means a named route.
 			modelOfNamedRoute: resolveModelRouterGuidance(router, { chosenModel: 'opus' }, models),
@@ -55,29 +54,22 @@ suite('modelRouterGuidance', () => {
 		});
 	});
 
-	test('briefs the main agent with the route\'s guidance', () => {
+	test('tells the main agent the route\'s guidance, or that earlier guidance no longer holds', () => {
+		const note = (lines: readonly string[]) => [
+			'<model_router_guidance>',
+			'This note is for the main agent of this chat only. If you were started as a subagent, ignore it.',
+			...lines,
+			'</model_router_guidance>',
+		].join('\n');
+		const holds = 'What follows holds for this message and the ones after it, and replaces any model router guidance given earlier in this chat.';
 		assert.deepStrictEqual({
-			named: modelRouterBriefing({ router: 'Workday', route: 'feature', guidance: 'Plan first.' }),
-			unnamed: modelRouterBriefing({ router: 'Workday', guidance: 'Keep it short.' }),
+			named: modelRouterGuidanceNote({ router: 'Workday', route: 'feature', guidance: 'Plan first.' }),
+			unnamed: modelRouterGuidanceNote({ router: 'Workday', guidance: 'Keep it short.' }),
+			none: modelRouterGuidanceNote(undefined),
 		}, {
-			named: [
-				'<model_router_guidance>',
-				'This note is for the main agent of this chat only. If you were started as a subagent, ignore it.',
-				'The user\'s model router "Workday" chose its "feature" route for this chat.',
-				'',
-				'How the user wants the work done:',
-				'Plan first.',
-				'</model_router_guidance>',
-			].join('\n'),
-			unnamed: [
-				'<model_router_guidance>',
-				'This note is for the main agent of this chat only. If you were started as a subagent, ignore it.',
-				'The user\'s model router "Workday" chose a route for this chat.',
-				'',
-				'How the user wants the work done:',
-				'Keep it short.',
-				'</model_router_guidance>',
-			].join('\n'),
+			named: note(['The user\'s model router "Workday" chose its "feature" route for this chat.', holds, '', 'How the user wants the work done:', 'Plan first.']),
+			unnamed: note(['The user\'s model router "Workday" chose a route for this chat.', holds, '', 'How the user wants the work done:', 'Keep it short.']),
+			none: note(['The route the user\'s model router chose for this chat has no guidance. Model router guidance given earlier in this chat no longer holds.']),
 		});
 	});
 });

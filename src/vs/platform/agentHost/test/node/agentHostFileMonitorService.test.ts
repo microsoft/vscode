@@ -60,6 +60,7 @@ suite('AgentHostFileMonitorService', () => {
 			disposables.add(acquire(monitor, URI.file('/repo'), () => calls++, { debounceMs: 10 }));
 			fileService.fire(URI.file('/repo/.git/objects/12/abcdef'));
 			fileService.fire(URI.file('/repo/.git/index.lock'));
+			fileService.fire(URI.file('/repo/.git/refs/agents/session-1/checkpoints/turn/1'));
 			fileService.fire(URI.file('/repo/.watchman-cookie-123'));
 			await timeout(11);
 			assert.strictEqual(calls, 0);

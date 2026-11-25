@@ -1,0 +1,364 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Visual language follows the Remote Environments editor: compact section headings with icons, muted helper text, quiet dividers and grouped header rows. */
+
+.sandbox-profiles-editor {
+	box-sizing: border-box;
+	overflow: hidden;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.sandbox-profiles-editor .sidebar-view,
+.sandbox-profiles-editor .contents-view {
+	box-sizing: border-box;
+	height: 100%;
+}
+
+/* Section headings */
+
+.sandbox-profiles-editor .section-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	min-height: 28px;
+}
+
+.sandbox-profiles-editor .section-heading > .codicon {
+	flex-shrink: 0;
+}
+
+.sandbox-profiles-editor .section-title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.sandbox-profiles-editor .section-actions {
+	flex-shrink: 0;
+}
+
+.sandbox-profiles-editor .section-description {
+	margin: var(--vscode-spacing-size40) 0 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Profile list */
+
+.sandbox-profiles-editor .sidebar-view {
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size120) 0 var(--vscode-spacing-size240);
+}
+
+.sandbox-profiles-editor .new-profile-button {
+	display: flex;
+	align-items: center;
+	height: 40px;
+	box-sizing: border-box;
+	padding-bottom: var(--vscode-spacing-size80);
+}
+
+.sandbox-profiles-editor .profiles-empty .section-description {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.sandbox-profiles-editor .profile-list-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	padding-left: var(--vscode-spacing-size80);
+}
+
+.sandbox-profiles-editor .profile-list-item-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.sandbox-profiles-editor .profile-list-item-actions {
+	display: none;
+	padding-right: var(--vscode-spacing-size40);
+}
+
+.sandbox-profiles-editor .profile-list-item-actions[hidden] {
+	visibility: hidden;
+}
+
+.sandbox-profiles-editor .monaco-list-row:hover .profile-list-item-actions,
+.sandbox-profiles-editor .monaco-list-row.focused .profile-list-item-actions,
+.sandbox-profiles-editor .monaco-list-row.selected .profile-list-item-actions {
+	display: flex;
+}
+
+/* Selected profile */
+
+.sandbox-profiles-editor .contents-view {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size240) 0;
+}
+
+.sandbox-profiles-editor .profile-header {
+	flex: none;
+	padding-bottom: var(--vscode-spacing-size160);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
+}
+
+.sandbox-profiles-editor .inline-field {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	margin-top: var(--vscode-spacing-size120);
+}
+
+.sandbox-profiles-editor .inline-field-label {
+	flex-shrink: 0;
+}
+
+.sandbox-profiles-editor .inline-field-control {
+	flex: 0 1 320px;
+	min-width: 0;
+}
+
+.sandbox-profiles-editor .profile-body {
+	flex: 1;
+	min-height: 0;
+}
+
+.sandbox-profiles-editor .profile-body-content {
+	height: 100%;
+}
+
+.sandbox-profiles-editor .profile-body-inner {
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size120) var(--vscode-spacing-size160) 0;
+}
+
+.sandbox-profiles-editor .settings-group-title {
+	display: flex;
+	align-items: center;
+	height: 30px;
+	margin: 0;
+	padding: 0 var(--vscode-spacing-size120);
+	background-color: var(--vscode-keybindingTable-headerBackground);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+/* Properties are nested one indentation step inside their group header. */
+.sandbox-profiles-editor .profile-body .setting-item {
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size320);
+	border-left: var(--vscode-strokeThickness) solid transparent;
+}
+
+.sandbox-profiles-editor .profile-body .setting-item:hover {
+	background-color: var(--vscode-settings-rowHoverBackground);
+}
+
+.sandbox-profiles-editor .profile-body .setting-item:focus-within {
+	background-color: var(--vscode-settings-focusedRowBackground);
+	border-left-color: var(--vscode-settings-focusedRowBorder);
+}
+
+.sandbox-profiles-editor .setting-item + .settings-group-title {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.sandbox-profiles-editor .setting-item-title {
+	padding-bottom: var(--vscode-spacing-size20);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.sandbox-profiles-editor .setting-item-description {
+	color: var(--vscode-descriptionForeground);
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.sandbox-profiles-editor .setting-item-value {
+	margin-top: var(--vscode-spacing-size60);
+	max-width: 420px;
+}
+
+.sandbox-profiles-editor .setting-item-select {
+	position: relative;
+	width: 320px;
+	max-width: 100%;
+}
+
+.sandbox-profiles-editor .setting-item-select .monaco-select-box {
+	width: 100%;
+	height: 26px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	font: inherit;
+}
+
+.sandbox-profiles-editor .setting-item-select .monaco-select-box:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.sandbox-profiles-editor .setting-item-bool .setting-item-value-description {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	margin-top: var(--vscode-spacing-size20);
+}
+
+.sandbox-profiles-editor .setting-item-bool .monaco-custom-toggle {
+	flex: none;
+	margin: var(--vscode-spacing-size20) 0 0;
+}
+
+.sandbox-profiles-editor .setting-item-bool .setting-item-description {
+	cursor: pointer;
+}
+
+.sandbox-profiles-editor .setting-sublabel {
+	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Inline settings.json editor for object settings. */
+
+.sandbox-profiles-editor .setting-item-value.setting-item-json {
+	max-width: 640px;
+}
+
+.sandbox-profiles-editor .json-frame {
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-settings-textInputBorder, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-editor-background);
+}
+
+.sandbox-profiles-editor .json-frame:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+.sandbox-profiles-editor .json-frame.invalid {
+	border-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.sandbox-profiles-editor .json-caption {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	background-color: var(--vscode-keybindingTable-headerBackground);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.sandbox-profiles-editor .json-caption-key {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-family: var(--monaco-monospace-font);
+}
+
+.sandbox-profiles-editor .json-editor {
+	width: 100%;
+}
+
+.sandbox-profiles-editor .json-message:not(:empty) {
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-errorForeground);
+}
+
+/* Settings editor list widget, scoped to this editor. */
+
+.sandbox-profiles-editor .setting-list-widget {
+	padding: 1px;
+}
+
+.sandbox-profiles-editor .setting-list-row,
+.sandbox-profiles-editor .setting-list-edit-row {
+	display: flex;
+	position: relative;
+}
+
+.sandbox-profiles-editor .setting-list-row {
+	max-height: 24px;
+}
+
+.sandbox-profiles-editor .setting-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground);
+}
+
+.sandbox-profiles-editor .setting-list-row.selected:focus {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.sandbox-profiles-editor .setting-list-row.selected:not(:focus) {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
+
+.sandbox-profiles-editor .setting-list-value {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 24px;
+	padding: 0 40px 0 var(--vscode-spacing-size20);
+	line-height: 24px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.sandbox-profiles-editor .setting-list-row .monaco-action-bar {
+	display: none;
+	position: absolute;
+	top: 0;
+	right: 0;
+}
+
+.sandbox-profiles-editor .setting-list-row:hover .monaco-action-bar,
+.sandbox-profiles-editor .setting-list-row.selected .monaco-action-bar {
+	display: block;
+}
+
+.sandbox-profiles-editor .setting-list-row .monaco-action-bar .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 20px;
+	padding: var(--vscode-spacing-size20);
+	margin-right: var(--vscode-spacing-size20);
+	color: inherit;
+}
+
+.sandbox-profiles-editor .setting-list-valueInput {
+	width: 100%;
+	height: 24px;
+	margin-right: var(--vscode-spacing-size40);
+}
+
+.sandbox-profiles-editor .setting-list-ok-button {
+	margin: 0 var(--vscode-spacing-size40);
+}
+
+.sandbox-profiles-editor .setting-item-value .monaco-text-button {
+	width: initial;
+	white-space: nowrap;
+}
+
+.sandbox-profiles-editor .monaco-text-button.setting-list-addButton {
+	display: inline-block;
+	margin-top: var(--vscode-spacing-size40);
+}

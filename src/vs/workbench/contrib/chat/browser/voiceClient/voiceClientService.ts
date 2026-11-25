@@ -26,7 +26,6 @@ import {
 	IVoiceToolCall,
 	IVoiceSpeechStarted,
 	IVoiceSessionInit,
-	IVoiceFeedbackPayload,
 	IVoiceTurnConfig,
 	IVoiceTurnAutoEnded,
 	IVoiceTurnAutoEndReason,
@@ -1911,45 +1910,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 			this._ws.send(JSON.stringify(payload));
 			this._sessionStartedOnSocket = true;
-		}
-	}
-
-	async submitFeedback(payload: IVoiceFeedbackPayload): Promise<{ ok: boolean; error?: string }> {
-		const httpUrl = this._getWsUrl()
-			.replace('wss://', 'https://')
-			.replace('ws://', 'http://')
-			.replace(/\/realtime\/voice$/, '/feedback');
-		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-		if (this._authToken) {
-			headers['Authorization'] = `Bearer ${this._authToken}`;
-		}
-		try {
-			const response = await fetch(httpUrl, {
-				method: 'POST',
-				headers,
-				body: JSON.stringify({
-					feedback_text: payload.feedbackText,
-					machine_id: payload.machineId,
-					user_id: payload.userId,
-					session_id: payload.sessionId,
-					submission_id: payload.submissionId,
-					transcript_history: payload.transcriptHistory.map(t => ({
-						role: t.role,
-						text: t.text,
-						timestamp: t.timestamp,
-					})),
-					client_session_state: payload.clientSessionState,
-					client_environment: payload.clientEnvironment,
-					timestamp: payload.timestamp,
-				}),
-			});
-			if (!response.ok) {
-				const text = await response.text();
-				return { ok: false, error: `HTTP ${response.status}: ${text}` };
-			}
-			return { ok: true };
-		} catch (err) {
-			return { ok: false, error: String(err) };
 		}
 	}
 

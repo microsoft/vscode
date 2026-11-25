@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hasKey, isDefined } from '../../../../../../base/common/types.js';
-import { SessionListItem, SessionsList, SessionsListItemReference } from '../../../browser/views/sessionsList.js';
+import { SessionsList, SessionsListItemReference } from '../../../browser/views/sessionsList.js';
+import { isSessionChatItem, isSessionItem, SessionListItem } from '../../../browser/views/sessionsListCommon.js';
 
 /**
  * A sessions list whose focus, selection, collapse state, and rendered rows can be
@@ -106,6 +107,22 @@ export class TestSessionsList extends SessionsList {
 			}
 		}
 		return undefined;
+	}
+
+	/** Returns references to the selected session and chat rows. */
+	getSelectedItems(): SessionsListItemReference[] {
+		return this.tree.getSelection().flatMap((element): SessionsListItemReference[] => {
+			if (element && isSessionChatItem(element)) {
+				return [{ session: element.session.resource, chat: element.chat.resource }];
+			}
+			return element && isSessionItem(element) ? [{ session: element.resource }] : [];
+		});
+	}
+
+	/** Whether the referenced row is in the list and entirely within the viewport. */
+	isItemInViewport(item: SessionsListItemReference): boolean {
+		const element = this.findItem(item);
+		return !!element && this.tree.getRelativeTop(element) !== null;
 	}
 
 	private revealElement(element: SessionListItem): void {

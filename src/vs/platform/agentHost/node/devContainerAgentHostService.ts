@@ -33,21 +33,22 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
+import { DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
 import { devContainerEnvironmentScheme, IDevContainerEnvironmentSource } from '../common/devContainerEnvironments.js';
 import { DevContainerSample, IDevContainerRepository, devContainerSampleUri, devContainerSamples, getDevContainerSampleFolder } from '../common/devContainerSamples.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
-import { IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from './devContainerEnvironments.js';
+import { hasDevContainerEnvironmentVolume, IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from './devContainerEnvironments.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
-import { IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
+import { IDevContainerSecurityOptions, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import {
 	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
+	DETECT_MUSL_COMMAND,
 	ISshExec,
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
@@ -61,7 +62,6 @@ import {
 } from './sshRemoteAgentHostHelpers.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
-const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 
@@ -741,6 +741,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			existingFolders: progress.existingFolders,
 			skippedFolders: progress.skippedFolders,
 			skipReasons: progress.skipReasons,
+			...(progress.scriptUser ? { scriptUser: progress.scriptUser } : {}),
+			...(progress.capChown !== undefined ? { capChown: progress.capChown, capDacOverride: progress.capDacOverride, capDacReadSearch: progress.capDacReadSearch, capFowner: progress.capFowner } : {}),
+			...(progress.stateOwner ? { stateOwner: progress.stateOwner } : {}),
+			...(progress.volumeOwner ? { volumeOwner: progress.volumeOwner } : {}),
 		};
 		try {
 			const mount = findDevContainerStateMount(await this._getContainerMounts(connectionId, containerId, token));
@@ -785,8 +789,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			if (linked.code !== 0) {
 				throw new Error(`Cannot link user state (exit ${linked.code}): ${linked.stderr}`);
 			}
-			this._logService.info(`${LOG_PREFIX} Keeping user state on volume ${mount.Name}`);
-			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: progress.homeFound ? 'linked' : 'homeNotFound', target, ...getProgress() });
+			const skippedMessage = getDevContainerStateLinkSkippedMessage(progress);
+			this._logService.info(skippedMessage ? `${LOG_PREFIX} Not keeping user state on volume ${mount.Name}: ${skippedMessage}` : `${LOG_PREFIX} Keeping user state on volume ${mount.Name}`);
+			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: progress.skipped ?? (progress.homeFound ? 'linked' : 'homeNotFound'), ...(progress.skipped ? { step: progress.step } : {}), target, ...getProgress() });
 		} catch (error) {
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw error;
@@ -799,7 +804,11 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			this._logService.warn(`${LOG_PREFIX} Cannot keep user state on its volume`, error);
 			this._reportOutput(connectionId, `Cannot keep user state on its volume: ${getErrorMessage(error)}\n`);
 			const errorMessage = sanitizeDevContainerStateErrorMessage([getErrorMessage(error)], { homeFolder, user: remoteUser });
-			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: 'failed', reason, step: progress?.step, exitCode, target, ...getProgress(), errorMessage });
+			const security = reason === 'inspect' ? {} : await this._getContainerSecurityOptions(containerId, token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: 'failed', reason, step: progress?.step, exitCode, target, ...getProgress(), ...security, errorMessage });
 		}
 		return homeFolder;
 	}
@@ -981,6 +990,20 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		const mounts = parseDevContainerMounts(result.stdout);
 		this._logService.trace(`${LOG_PREFIX} Inspected container mounts for ${connectionId}`);
 		return mounts;
+	}
+
+	/** Reads the container's security settings for link failure telemetry, if Docker can inspect it. */
+	protected async _getContainerSecurityOptions(containerId: string, token: CancellationToken): Promise<IDevContainerSecurityOptions> {
+		try {
+			const result = await this._runLocalCommand('docker', ['inspect', '--format', '{{json .HostConfig}}', containerId], await this._resolveShellEnvironment(), token);
+			return result.code === 0 ? getDevContainerSecurityOptions(JSON.parse(result.stdout)) : {};
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this._logService.trace(`${LOG_PREFIX} Cannot inspect the container's security settings`, error);
+			return {};
+		}
 	}
 
 	protected async _isHostDirectoryOwnedByCurrentUser(path: string, token: CancellationToken): Promise<boolean> {
@@ -1287,6 +1310,25 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	async stopContainer(source: DevContainerAgentHostSource): Promise<boolean> {
 		return this._containerOperations.queue(getSourceKey(source), () => this._changeContainerState(source, 'stop'));
+	}
+
+	async hasEnvironmentVolume(environmentId: string): Promise<boolean> {
+		if (!await this.isDockerAvailable()) {
+			return false;
+		}
+		// A stalled Docker engine must not keep the caller's connection waiting.
+		const tokenSource = new CancellationTokenSource();
+		const timer = setTimeout(() => tokenSource.cancel(), DevContainerEnvironmentVolumeLookupTimeoutMs);
+		try {
+			return await hasDevContainerEnvironmentVolume(environmentId, args => this._runDocker(args, tokenSource.token));
+		} catch (error) {
+			// For example, the Docker engine is not running or did not answer in time.
+			this._logService.trace(`${LOG_PREFIX} Could not list the volumes of environment ${environmentId}`, error);
+			return false;
+		} finally {
+			clearTimeout(timer);
+			tokenSource.dispose();
+		}
 	}
 
 	async removeContainer(source: DevContainerAgentHostSource): Promise<boolean> {

@@ -1259,6 +1259,10 @@ export class ChatService extends Disposable implements IChatService {
 				this._remoteSessionRestorers.delete(model.sessionResource);
 			}
 		}));
+		// A disposed session can no longer stream into the model or take its input, so the
+		// model must not keep itself alive for it. Once its other holders release it, the
+		// next open loads the session from its current provider.
+		disposables.add(providedSession.onWillDispose(() => model.disableBackgroundKeepAlive()));
 
 		// Set up progress streaming and cancellation for contributed sessions.
 		// This handles both the initial in-flight response (from session load)
@@ -1286,9 +1290,19 @@ export class ChatService extends Disposable implements IChatService {
 				});
 			};
 
+			// The model can be released while its streamed turn still runs (its session was
+			// disposed), so drop the tracker this model added. Disposing it does not cancel the turn.
+			let syntheticRequest: CancellableRequest | undefined;
+			disposables.add(toDisposable(() => {
+				if (syntheticRequest && this._pendingRequests.get(model.sessionResource) === syntheticRequest) {
+					this._pendingRequests.deleteAndDispose(model.sessionResource);
+				}
+			}));
+
 			const trackNewCancellableRequest = () => {
 				const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined, undefined);
 				this._syntheticPendingRequests.add(cancellableRequest);
+				syntheticRequest = cancellableRequest;
 				this._pendingRequests.set(model.sessionResource, cancellableRequest);
 				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession', ...getChatSessionTelemetryIds(model.sessionResource, this.agentHostConnectionsService) });
 				cancellationListener.value = createCancellationListener(cancellableRequest.cancellationTokenSource.token);

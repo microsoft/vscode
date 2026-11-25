@@ -42,7 +42,7 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { CustomViewVisibleContext, SessionActivityBarDockedContext, SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
+import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowLayoutCommandsContext, toggleChatWindowEditorAsSidePanel } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
@@ -457,6 +457,16 @@ export abstract class BaseLayoutController extends Disposable {
 			this._syncPanelView(shown ? this._ownerKeyFor(shown, reader) : undefined);
 		}));
 		this._register(this._layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.CUSTOM_VIEW_GRID_PART && !e.visible) {
+				const shown = this._shownByMainWindow();
+				if (this._isPanelVisibilityPerSession) {
+					this._syncPanelVisibility(shown ? this._panelVisibilityKeyFor(shown) : undefined);
+				}
+				if (this._isPanelViewPerSession) {
+					this._syncPanelView(shown ? this._ownerKeyFor(shown) : undefined);
+				}
+				return;
+			}
 			if (!this._isPanelViewPerSession || e.partId !== Parts.PANEL_PART || !e.visible) {
 				return;
 			}
@@ -805,7 +815,7 @@ export abstract class BaseLayoutController extends Disposable {
 							id: AgentsWindowMenus.TitleBarSessionMenu,
 							group: 'navigation',
 							order: 11, // After Open in VS Code (7), Run Script (8), and Toggle Panel (10)
-							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate(), SessionActivityBarDockedContext.negate())
+							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate())
 						},
 						{
 							// Replaces the title bar entry while the Session Activity Bar shows its layout actions.
@@ -1252,6 +1262,9 @@ export abstract class BaseLayoutController extends Disposable {
 	// --- Panel [B1] ---
 
 	private _syncPanelVisibility(sessionResource: URI | undefined): void {
+		if (this._isCustomViewVisible()) {
+			return;
+		}
 		if (!sessionResource) {
 			this._layoutService.setPartHidden(true, Parts.PANEL_PART);
 			return;
@@ -1270,7 +1283,7 @@ export abstract class BaseLayoutController extends Disposable {
 	 * otherwise reveal the panel, whose visibility is governed elsewhere.
 	 */
 	private _syncPanelView(sessionResource: URI | undefined): void {
-		if (!sessionResource || !this._layoutService.isVisible(Parts.PANEL_PART)) {
+		if (this._isCustomViewVisible() || !sessionResource || !this._layoutService.isVisible(Parts.PANEL_PART)) {
 			return;
 		}
 		const viewContainerId = this._panelViewBySession.get(sessionResource) ?? TERMINAL_VIEW_ID;

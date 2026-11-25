@@ -5640,6 +5640,111 @@ suite('ChatService', () => {
 			});
 		});
 
+		test('reopening a kept-alive model after its provided session is disposed loads a live session', async () => {
+			// Like an Agent Host session, each provided session is read-only once disposed
+			// (e.g. because its remote connection was replaced).
+			const resource = URI.from({ scheme: remoteScheme, path: '/session-' + generateId() });
+			const mockSessionsService = new MockChatSessionsService();
+			instantiationService.stub(IChatSessionsService, mockSessionsService);
+			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, { async invoke() { return {}; } }));
+			const providedSessions: IChatSession[] = [];
+			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
+				provideChatSessionContent: async () => {
+					const disposed = observableValue('disposed', false);
+					const onWillDispose = testDisposables.add(new Emitter<void>());
+					const provided: IChatSession = {
+						sessionResource: resource,
+						history: [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+						onWillDispose: onWillDispose.event,
+						isReadOnly: disposed,
+						// The turn never completes, so the model keeps itself alive.
+						progressObs: observableValue<IChatProgress[]>('progress', []),
+						isCompleteObs: observableValue('isComplete', false),
+						interruptActiveResponseCallback: async () => true,
+						dispose: () => {
+							disposed.set(true, undefined);
+							onWillDispose.fire();
+						},
+					};
+					providedSessions.push(provided);
+					return provided;
+				},
+			}));
+			const service = createChatService();
+			// The model's in-progress keep-alive acquires through IChatService.
+			instantiationService.stub(IChatService, service);
+
+			const first = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(first);
+			const firstModel = first.object;
+			first.dispose();
+			providedSessions[0].dispose();
+			await service.waitForModelDisposals();
+
+			const reopened = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(reopened);
+			testDisposables.add(reopened);
+
+			assert.deepStrictEqual({
+				reusedDisposedSessionModel: reopened.object === firstModel,
+				isReadOnly: reopened.object.isReadOnly.get(),
+				resolutions: providedSessions.length,
+			}, {
+				reusedDisposedSessionModel: false,
+				isReadOnly: false,
+				resolutions: 2,
+			});
+		});
+
+		test('a session disposed mid-turn does not block sends after its idle session is reopened', async () => {
+			const resource = URI.from({ scheme: remoteScheme, path: '/session-' + generateId() });
+			const mockSessionsService = new MockChatSessionsService();
+			instantiationService.stub(IChatSessionsService, mockSessionsService);
+			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, { async invoke() { return {}; } }));
+			const providedSessions: IChatSession[] = [];
+			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
+				provideChatSessionContent: async () => {
+					// The first session is disposed with its turn still running. The reopened one
+					// is idle and streams nothing, so it has no turn of its own to complete.
+					const onWillDispose = testDisposables.add(new Emitter<void>());
+					const provided: IChatSession = providedSessions.length === 0 ? {
+						sessionResource: resource,
+						history: [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+						onWillDispose: onWillDispose.event,
+						progressObs: observableValue<IChatProgress[]>('progress', []),
+						isCompleteObs: observableValue('isComplete', false),
+						interruptActiveResponseCallback: async () => true,
+						dispose: () => onWillDispose.fire(),
+					} : {
+						sessionResource: resource,
+						history: [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+						onWillDispose: onWillDispose.event,
+						dispose: () => onWillDispose.fire(),
+					};
+					providedSessions.push(provided);
+					return provided;
+				},
+			}));
+			const service = createChatService();
+			// The model's in-progress keep-alive acquires through IChatService.
+			instantiationService.stub(IChatService, service);
+
+			const first = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(first);
+			first.dispose();
+			providedSessions[0].dispose();
+			await service.waitForModelDisposals();
+
+			const reopened = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(reopened);
+			testDisposables.add(reopened);
+			const result = await service.sendRequest(resource, 'follow up');
+
+			assert.deepStrictEqual({ result: result.kind, resolutions: providedSessions.length }, { result: 'sent', resolutions: 2 });
+		});
+
 		test('cached history refreshes append new turns and clear status without replacing the model, input or unchanged requests', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const historyStatus = observableValue<IChatSessionHistoryStatus | undefined>('historyStatus', undefined);

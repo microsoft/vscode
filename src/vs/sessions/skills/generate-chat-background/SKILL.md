@@ -16,7 +16,7 @@ If the user only wants to apply an existing image, change the layout, use Codico
 1. If `setChatBackground` or an image-generation tool is unavailable, explain that rather than generating an image you cannot apply.
 2. Call `getThemeColors` and use the palette as context for the image, not as a limit on the user's colors.
 3. Design for the chat: messages and the input cover the center, so keep interesting detail toward the edges and keep contrast low enough for text to stay readable. For a pattern, generate a seamless tile with small, spaced motifs.
-4. Save the image to a file in your working or scratch directory and pass its path to `setChatBackground`. If it fails, report the error and fix the input.
+4. Save the image to a file in your working or scratch directory and wait for the tool that writes or converts it to finish. Then pass its path to `setChatBackground`, never in the same parallel batch as that tool. If `setChatBackground` fails, report the error and fix the input.
 
 Choose the layout:
 - `repeat` tiles the image at its original size. Resize the tile first if its motifs are too large or too small.

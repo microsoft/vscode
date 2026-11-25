@@ -26,7 +26,7 @@
     "compile": "pnpm exec gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "pnpm exec gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
     "test": "pnpm -C server run test",
-    "install-client-next": "pnpm add vscode-languageclient@next"
+    "update-dependencies": "pnpm install vscode-languageclient@latest"
   },
   "categories": [
     "Programming Languages"
@@ -993,7 +993,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^10.1.1",
+    "vscode-languageclient": "^11.0.0",
     "vscode-uri": "^3.2.0"
   },
   "devDependencies": {

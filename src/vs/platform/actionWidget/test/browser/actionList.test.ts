@@ -4039,7 +4039,7 @@ suite('ActionListWidget', () => {
 			content.style.height = '100px';
 			await settleLayout();
 
-			const expected = { rowVisible: true, centeredOnRow: true, expanded: 'true', focused: 'active' };
+			const expected = { rowVisible: true, centeredOnRow: true, expanded: null, focused: 'active' };
 			assert.deepStrictEqual({ before, after: measure() }, { before: expected, after: expected });
 		});
 	}

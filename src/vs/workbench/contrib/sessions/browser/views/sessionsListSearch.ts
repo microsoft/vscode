@@ -248,6 +248,8 @@ export interface ISessionsListFindControllerDelegate {
 	didFilter(): void;
 	/** What the search shows. */
 	getResults(): ISessionsListSearchResults;
+	/** Updates the inline empty state and returns whether it replaces the input warning. */
+	renderInlineMessage(message: string): boolean;
 }
 
 export interface ISessionsListFindControllerOptions<T> {
@@ -330,14 +332,11 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 	}
 
 	private renderResults(announce: boolean): ISessionsListSearchResults | undefined {
-		if (!this.delegate.isSearching()) {
-			this.renderMessage(false);
-			return undefined;
-		}
-		const results = this.delegate.getResults();
-		// The input announces its "no sessions found" message itself.
-		this.renderMessage(results.count === 0, localize('sessionsList.noResults', "No sessions found"));
-		if (announce && results.count > 0) {
+		const results = this.delegate.isSearching() ? this.delegate.getResults() : undefined;
+		const message = results?.count === 0 ? localize('sessionsList.noResults', "No sessions found") : '';
+		const inline = this.delegate.renderInlineMessage(message);
+		this.renderMessage(!inline && !!message, message);
+		if (announce && results && results.count > 0) {
 			status(results.count === 1
 				? localize('sessionsList.oneResult', "1 session found")
 				: localize('sessionsList.results', "{0} sessions found", results.count));

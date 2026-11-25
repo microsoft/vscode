@@ -82,10 +82,23 @@ export interface IDevContainerAgentHostConnection {
 	/** Native source path reported by the host that launched the container. */
 	readonly hostWorkspaceFolder?: string;
 	readonly repository?: IDevContainerRepository;
+	/**
+	 * Whether this computer's Docker engine has the volume of a Dev Container environment on a WSL host, so the Dev
+	 * Containers extension, which cannot address the distribution for a volume, opens it there.
+	 */
+	readonly volumeOnLocalDockerEngine?: boolean;
 	readonly sandboxSupported?: boolean;
 	readonly defaultDirectory?: string;
 	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
 	readonly clientProxy?: IAgentHostClientProxyProvider;
+}
+
+/** Options for {@link IDevContainerAgentHostConnector.createConnection}. */
+export interface IDevContainerAgentHostConnectionOptions {
+	readonly resume: boolean;
+	readonly sandboxEnabled?: boolean;
+	/** Names the connection of a Dev Container environment, which otherwise gets a name for its host. */
+	readonly name?: string;
 }
 
 /** Creates a Dev Container and connects to its Agent Host. */
@@ -95,7 +108,7 @@ export interface IDevContainerAgentHostConnector {
 	isAvailable(workspaceUri: URI): Promise<boolean>;
 	/** Whether Docker is available on this computer, regardless of settings. */
 	isLocalDockerAvailable?(): Promise<boolean>;
-	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean; readonly sandboxEnabled?: boolean }): Promise<IDevContainerAgentHostConnection>;
+	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: IDevContainerAgentHostConnectionOptions): Promise<IDevContainerAgentHostConnection>;
 	stopContainer?(workspaceUri: URI): Promise<boolean>;
 	removeContainer?(workspaceUri: URI): Promise<boolean>;
 	showLog(workspaceUri: URI): Promise<void>;

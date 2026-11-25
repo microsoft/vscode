@@ -87,13 +87,16 @@ export class CopilotEntraAuthentication extends Disposable {
 		];
 	}
 
-	async authenticate(params: AuthenticateParams, resource?: ProtectedResourceMetadata): Promise<boolean> {
+	/**
+	 * @param advertiseOnRevoke Whether an empty token makes the missing Microsoft credential an advertised requirement.
+	 */
+	async authenticate(params: AuthenticateParams, resource?: ProtectedResourceMetadata, advertiseOnRevoke = true): Promise<boolean> {
 		if (params.target || !isEntraCredentialResource(params.resource)) {
 			return false;
 		}
 		this.validateAuthentication(params, resource);
 		if (!params.token) {
-			this.revoke();
+			this.revoke(advertiseOnRevoke);
 			return true;
 		}
 		return true;
@@ -147,13 +150,22 @@ export class CopilotEntraAuthentication extends Disposable {
 		}
 	}
 
-	private revoke(): void {
+	/** Advertises the missing Microsoft credential, unless a Microsoft authority is set. */
+	advertiseMissingCredential(): void {
+		if (!this._authority.get()) {
+			// Like a cleared GitHub token, advertise the loss so a client that still holds the credential can re-supply it.
+			this.requireCredential(copilotEntraDiscoveryMetadata, AuthRequiredReason.Expired);
+		}
+	}
+
+	private revoke(advertise: boolean): void {
 		if (!this._authority.get()) {
 			return;
 		}
 		this.clearAuthority();
-		// Like a cleared GitHub token, advertise the loss so a client that still holds the credential can re-supply it.
-		this.requireCredential(copilotEntraDiscoveryMetadata, AuthRequiredReason.Expired);
+		if (advertise) {
+			this.advertiseMissingCredential();
+		}
 		this._onDidRevoke.fire();
 	}
 

@@ -45,7 +45,7 @@ class RemoteSessionToolsContribution extends Disposable implements IWorkbenchCon
 		super();
 		const list = instantiationService.createInstance(ListAgentHostsTool);
 		const create = instantiationService.createInstance(CreateRemoteSessionTool);
-		const message = instantiationService.createInstance(SendRemoteMessageTool);
+		const message = this._register(instantiationService.createInstance(SendRemoteMessageTool));
 		const inspect = instantiationService.createInstance(GetRemoteSessionTool);
 		this._register(toolsService.registerTool(list.getToolData(), list));
 		this._register(toolsService.registerTool(create.getToolData(), create));
@@ -54,4 +54,6 @@ class RemoteSessionToolsContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
-registerWorkbenchContribution2(RemoteSessionToolsContribution.ID, RemoteSessionToolsContribution, WorkbenchPhase.Eventually);
+// A session only gets the tools registered when its turn starts. Registering these with the other startup tools, such as
+// create_dev_container, lets an early prompt continue its work in a new remote session.
+registerWorkbenchContribution2(RemoteSessionToolsContribution.ID, RemoteSessionToolsContribution, WorkbenchPhase.AfterRestored);

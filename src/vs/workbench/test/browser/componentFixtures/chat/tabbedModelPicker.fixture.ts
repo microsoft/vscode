@@ -62,6 +62,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 import '../../../../contrib/chat/browser/widget/input/modelPicker/media/modelPicker.css';
 
 const EXTENSION = new ExtensionIdentifier('fixture.models');
+const RETIRING_MESSAGE = 'This model is retiring soon.';
 
 interface IFixtureModelOptions {
 	readonly vendor?: string;
@@ -130,7 +131,7 @@ function createModel(id: string, name: string, options: IFixtureModelOptions = {
 			modelGroup: options.modelGroupId ? { id: options.modelGroupId } : undefined,
 			targetChatSessionType: options.targetChatSessionType,
 			promo: options.promoDiscount ? { id: 'promo', discountPercent: options.promoDiscount, message: 'Discounted for a limited time.' } : undefined,
-			warningText: options.retiring ? { model_pending_deprecation: 'This model is retiring soon.' } : undefined,
+			warningText: options.retiring ? { model_pending_deprecation: RETIRING_MESSAGE } : undefined,
 			maxInputTokens: 264000,
 			maxOutputTokens: 64000,
 			isDefaultForLocation: {},
@@ -180,6 +181,11 @@ const COPILOT_NOTICE_MODELS = [
 	createModel('gpt-5-1', 'GPT-5.1', { category: 'versatile', priceCategory: 'low', promoDiscount: 25 }),
 	createModel('gpt-4-turbo', 'GPT-4 Turbo', { category: 'versatile', priceCategory: 'medium', retiring: true }),
 ];
+
+/** Copilot also gives a retirement as the model's tooltip, which explains the row's warning icon elsewhere. */
+const PENDING_DEPRECATION_MODEL = createModel('gemini-3-8-flash', 'Gemini 3.8 Flash', {
+	category: 'versatile', priceCategory: 'low', costs: true, retiring: true, tooltip: RETIRING_MESSAGE,
+});
 
 /** The full effort ladder a real model can publish, where the labels vary in width. */
 const MANY_EFFORT_MODEL = createModel('gpt-5-6-terra', 'GPT-5.6 Terra', {
@@ -1108,4 +1114,5 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		render: context => renderCard(context, MANY_EFFORT_MODEL, false),
 	}),
 	CardWithoutConfiguration: defineComponentFixture({ render: context => renderCard(context, COPILOT_MODELS[2], false) }),
+	CardPendingDeprecation: defineComponentFixture({ render: context => renderCard(context, PENDING_DEPRECATION_MODEL, false) }),
 });

@@ -1111,6 +1111,14 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	async signOut(): Promise<void> {
 		// no-op
 	}
+
+	async rememberMicrosoftAccount(): Promise<void> {
+		// no-op
+	}
+
+	async forgetMicrosoftAccount(): Promise<void> {
+		// no-op
+	}
 }
 
 export interface IEditorOverrideServices {

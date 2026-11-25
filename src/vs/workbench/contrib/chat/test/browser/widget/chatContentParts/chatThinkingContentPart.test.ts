@@ -44,7 +44,8 @@ import { ChatToolInvocationSummary } from '../../../../common/tools/toolInvocati
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { chatSessionResourceToId } from '../../../../common/model/chatUri.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { resolveResponseSelection } from '../../../../browser/responseSelectionResolver.js';
 import '../../../../browser/widget/media/chat.css';
 
 suite('ChatThinkingContentPart', () => {
@@ -1768,6 +1769,18 @@ suite('ChatThinkingContentPart', () => {
 				});
 			});
 		}
+
+		test('restores completed reasoning expanded only in Verbose progress and only with text to show', async () => {
+			const isRestoredExpanded = async (verbosity: ChatProgressVerbosity, text: string) => {
+				await mockConfigurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, verbosity);
+				return createPersistentReasoning(createThinkingPart(text), true).expanded.get();
+			};
+			assert.deepStrictEqual({
+				compact: await isRestoredExpanded(ChatProgressVerbosity.Compact, 'Check the renderer.'),
+				verbose: await isRestoredExpanded(ChatProgressVerbosity.Verbose, 'Check the renderer.'),
+				verboseWithoutText: await isRestoredExpanded(ChatProgressVerbosity.Verbose, ''),
+			}, { compact: false, verbose: true, verboseWithoutText: false });
+		});
 
 		test('a heading without a body remains available through the completed disclosure', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Reviewed the implementation**'));
@@ -4156,6 +4169,47 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				display: 'none',
 				attachmentCount: 0,
+			});
+		});
+
+		test('offers only its visible reasoning text to the response selection menu', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const part = createThinkingContentPart(createThinkingPart('Checking the `getCodeEditor` path'), createMockRenderContext(false), markdownRenderer, false);
+			// The response row is what makes its content selectable. Without motion, expanding shows the text at once.
+			const row = $('.interactive-item-container.monaco-reduce-motion', undefined, part.domNode);
+			mainWindow.document.body.appendChild(row);
+			disposables.add(toDisposable(() => row.remove()));
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button')!;
+			button.click();
+			const tool = createMockExecutingToolInvocation('read_file', 'Reading file', 'read-1');
+			part.appendItem(() => ({ domNode: $('div', undefined, 'Tool content') }), tool.toolId, tool);
+
+			const response = upcastPartial<IChatResponseViewModel>({ setVote: () => undefined });
+			const selection = mainWindow.getSelection()!;
+			disposables.add(toDisposable(() => selection.removeAllRanges()));
+			const selectedText = (selector: string) => {
+				selection.selectAllChildren(part.domNode.querySelector(selector)!);
+				return resolveResponseSelection({ domNode: row, getElementFromNode: () => response })?.text;
+			};
+
+			const expanded = {
+				reasoning: selectedText('.chat-thinking-item.markdown-content'),
+				tool: selectedText('.chat-thinking-tool-wrapper'),
+				title: selectedText('.chat-used-context-label'),
+			};
+			button.click();
+			assert.deepStrictEqual({
+				expanded,
+				collapsedReasoning: selectedText('.chat-thinking-item.markdown-content'),
+			}, {
+				expanded: {
+					reasoning: 'Checking the getCodeEditor path',
+					tool: undefined,
+					title: undefined,
+				},
+				collapsedReasoning: undefined,
 			});
 		});
 	});

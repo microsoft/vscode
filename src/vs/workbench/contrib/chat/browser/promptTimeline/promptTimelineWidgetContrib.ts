@@ -138,7 +138,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	}
 
 	private _createRail(model: PromptTimelineModel, host: HTMLElement, railStyle: PromptTimelineRailStyle): void {
-		const rail: IPromptTimelineRail = this._enablement.add(
+		const rail = this._enablement.add(
 			railStyle === 'gutter' ? new PromptTimelineGutterRail() : new PromptTimelineRulerRail()
 		);
 		this._enablement.add(observePromptTimelineHostWidth(this.widget as ChatWidget, host, rail));
@@ -153,17 +153,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		host.appendChild(rail.domNode);
 		this._enablement.add(toDisposable(() => rail.domNode.remove()));
 
-		rail.setFilesProvider(tick => model.getRequestFiles(tick));
 		this._enablement.add(rail.onDidSelect(requestId => model.reveal(requestId)));
-		this._enablement.add(rail.onDidReview(tick => { void model.reviewChanges(tick); }));
-		this._enablement.add(rail.onDidReviewFile(e => { void model.reviewChanges(e.tick, e.file); }));
-
-		// A deliberate hard/fast scroll reveals the ruler's fan; capture phase so it is seen before the
-		// transcript's ScrollableElement consumes the wheel mid-content (see `_registerHardWheelDetector`).
-		// The gutter rail is a static list with no scroll-driven bloom, so it does not need this.
-		if (railStyle === 'ruler') {
-			this._enablement.add(this._registerHardWheelDetector(rail));
-		}
 
 		// Keep the rail above the input part so it only spans the transcript.
 		const inputPart = this.widget.inputPart;
@@ -193,11 +183,16 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			rail.setActive(activeObs.read(reader));
 		}));
 
-		// Supply proportional scroll positions for the marks.
-		this._enablement.add(autorun(reader => {
-			model.onDidChangeScrollLayout.read(reader);
-			rail.setScrollLayout(model.getScrollLayout());
-		}));
+		if (rail instanceof PromptTimelineRulerRail) {
+			rail.setFilesProvider(tick => model.getRequestFiles(tick));
+			this._enablement.add(rail.onDidReview(tick => { void model.reviewChanges(tick); }));
+			this._enablement.add(rail.onDidReviewFile(e => { void model.reviewChanges(e.tick, e.file); }));
+			this._enablement.add(this._registerHardWheelDetector(rail));
+			this._enablement.add(autorun(reader => {
+				model.onDidChangeScrollLayout.read(reader);
+				rail.setScrollLayout(model.getScrollLayout());
+			}));
+		}
 
 		rail.setHostWidth(host.clientWidth);
 	}
@@ -229,7 +224,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	 * and the listener is on the capture phase so it is seen before the transcript's ScrollableElement
 	 * consumes the wheel mid-content.
 	 */
-	private _registerHardWheelDetector(rail: IPromptTimelineRail): IDisposable {
+	private _registerHardWheelDetector(rail: PromptTimelineRulerRail): IDisposable {
 		let wheelAcc = 0;
 		let wheelWindowStart = 0;
 		return addDisposableListener(this.widget.domNode, EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {

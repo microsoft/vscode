@@ -14,10 +14,12 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { localize } from '../../../../nls.js';
 import { IBrowserViewKeyDownEvent } from '../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { BrowserDimOverlaySettingId, IBrowserViewModel } from '../common/browserView.js';
 import { BrowserOverlayManager, BrowserOverlayType } from './overlayManager.js';
+import { BrowserDialogs } from './browserDialogs.js';
 
 const originalHtmlElementFocus = HTMLElement.prototype.focus;
 
@@ -39,6 +41,7 @@ export class WebContentsViewHost extends Disposable {
 	private readonly _placeholderScreenshot = $('.browser-placeholder-screenshot');
 	private readonly _overlayPauseElement = $('.browser-overlay-paused');
 	private readonly _overlayManager: BrowserOverlayManager;
+	private readonly _dialogs: BrowserDialogs;
 	private readonly _modelStore = this._register(new DisposableStore());
 	private readonly _screenshotHandle = this._register(new MutableDisposable());
 	private _focusTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -63,8 +66,10 @@ export class WebContentsViewHost extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._dialogs = this._register(instantiationService.createInstance(BrowserDialogs));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(BrowserDimOverlaySettingId)) {
@@ -113,6 +118,7 @@ export class WebContentsViewHost extends Disposable {
 		if (this._editorVisible !== visible) {
 			this._editorVisible = visible;
 			this._refresh(false, immediate);
+			this._dialogs.setVisible(visible);
 		} else if (!visible && immediate) {
 			// A hide requested earlier in this frame still waits for that frame, so hide now.
 			this._refresh(false, true);
@@ -155,6 +161,7 @@ export class WebContentsViewHost extends Disposable {
 			return;
 		}
 		this._model = model;
+		this._dialogs.setModel(model);
 		this._setBackgroundImage(model.screenshot);
 		this._modelStore.add(model.onDidChangeVisibility(() => void this._captureScreenshot()));
 		this._modelStore.add(model.onDidKeyCommand(event => void this._handleKeyEvent(event)));
@@ -172,6 +179,7 @@ export class WebContentsViewHost extends Disposable {
 			void model.setVisible(false).catch(error => this.logService.error('Failed to hide detached browser view', error));
 		}
 		this._model = undefined;
+		this._dialogs.setModel(undefined);
 		this._modelStore.clear();
 		this._screenshotHandle.clear();
 		this._cancelFocusTimeout();

@@ -42,6 +42,8 @@ export type IntegratedBrowserOpenSource =
 	| 'browserLinkNewWindow'
 	/** Opened when the user copies a browser editor to a new window via "Copy into New Window". */
 	| 'copyToNewWindow'
+	/** Opened via the "Duplicate Tab" command from an existing tab. */
+	| 'duplicateTab'
 	/** Opened via the "Open in Integrated Browser" command for a local file. */
 	| 'openFileCommand'
 	/** Opened by resolving a local file resource to the Integrated Browser editor. */

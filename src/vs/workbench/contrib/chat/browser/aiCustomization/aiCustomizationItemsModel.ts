@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -17,7 +17,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { CustomizationHarnessServiceBase, ICustomizationHarnessService, IHarnessDescriptor, isPluginCustomizationItem, isSyncedFromClientCustomizationItem } from '../../common/customizationHarnessService.js';
+import { CustomizationHarnessServiceBase, ICustomizationHarnessService, ICustomizationSectionNotice, IHarnessDescriptor, isPluginCustomizationItem, isSyncedFromClientCustomizationItem } from '../../common/customizationHarnessService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -74,6 +74,12 @@ export interface IAICustomizationItemsModel {
 	getItems(section: ItemsModelSection): IObservable<readonly IAICustomizationListItem[]>;
 
 	/**
+	 * Returns an observable of the messages the active harness reports about the given
+	 * section as a whole, such as files that failed to load. Fetched with the section's items.
+	 */
+	getSectionNotices(section: ItemsModelSection): IObservable<readonly ICustomizationSectionNotice[]>;
+
+	/**
 	 * Returns the live item source for the active harness.
 	 * Editor consumers may need this to access provider-level affordances
 	 * (e.g. debug reporting). The returned source is reused across the
@@ -128,6 +134,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 
 	private readonly perSectionSource = new Map<ItemsModelSection, ISettableObservable<readonly IAICustomizationListItem[]>>();
 	private readonly perSection = new Map<ItemsModelSection, IObservable<readonly IAICustomizationListItem[]>>();
+	private readonly perSectionNotices = new Map<ItemsModelSection, ISettableObservable<readonly ICustomizationSectionNotice[]>>();
 	private readonly perSectionCount = new Map<ItemsModelSection, IObservable<number>>();
 	private readonly fetchSeq = new Map<ItemsModelSection, number>();
 	/** Promise of the most recent fetch per section (resolves regardless of stale-discard). */
@@ -184,6 +191,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 				});
 			}) : sourceItems;
 			this.perSectionSource.set(section, sourceItems);
+			this.perSectionNotices.set(section, observableValue<readonly ICustomizationSectionNotice[]>(`aiCustomizationSectionNotices:${section}`, []));
 			this.perSection.set(section, items);
 			this.perSectionCount.set(section, derived(reader => {
 				const pluginEnablement = new ResourceMap<boolean>();
@@ -227,6 +235,11 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	getItems(section: ItemsModelSection): IObservable<readonly IAICustomizationListItem[]> {
 		this.markObserved(section);
 		return this.perSection.get(section)!;
+	}
+
+	getSectionNotices(section: ItemsModelSection): IObservable<readonly ICustomizationSectionNotice[]> {
+		this.markObserved(section);
+		return this.perSectionNotices.get(section)!;
 	}
 
 	createSessionModel(sessionResource: URI): IDisposable & { readonly model: IAICustomizationItemsModel } {
@@ -346,10 +359,13 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this.fetchSeq.set(section, seq);
 		const promptType = sectionToPromptType(section);
 		const observable = this.perSectionSource.get(section)!;
-		const pending = source.fetchAICustomizationItems(promptType).then(items => promptType === PromptsType.hook
-			? markLocalFormatHookItems(items, this.agentPluginService.plugins.get(), this.fileService)
-			: items
-		).then(items => {
+		const notices = this.perSectionNotices.get(section)!;
+		const pending = Promise.all([
+			source.fetchAICustomizationItems(promptType).then(items => promptType === PromptsType.hook
+				? markLocalFormatHookItems(items, this.agentPluginService.plugins.get(), this.fileService)
+				: items),
+			source.fetchSectionNotices(promptType),
+		]).then(([items, sectionNotices]) => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -361,7 +377,10 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 			if (this.getActiveItemSource() !== source) {
 				return;
 			}
-			observable.set(items, undefined);
+			transaction(tx => {
+				observable.set(items, tx);
+				notices.set(sectionNotices, tx);
+			});
 		}, e => {
 			if (this._store.isDisposed) {
 				return;

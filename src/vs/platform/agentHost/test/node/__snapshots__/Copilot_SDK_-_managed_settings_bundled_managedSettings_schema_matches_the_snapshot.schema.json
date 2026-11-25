@@ -1111,7 +1111,7 @@
 					}
 				},
 				"userPolicy": {
-					"description": "Fine-grained sandbox policy (filesystem, network, seatbelt). Deprecated sub-keys (userPolicy.experimental) are excluded from the managed surface.",
+					"description": "Fine-grained sandbox policy (filesystem, network, seatbelt, Windows capabilities). Deprecated sub-keys (userPolicy.experimental) are excluded from the managed surface.",
 					"type": "object",
 					"additionalProperties": false,
 					"properties": {
@@ -1232,6 +1232,16 @@
 								}
 							}
 						},
+						"capabilities": {
+							"description": "Allowed additional Windows capability names. Intersected exactly with default or requested grants and other managed lists; an empty list denies all additional capabilities. Absence imposes no constraint.",
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"x-composition": {
+								"strategy": "intersection"
+							}
+						},
 						"seatbelt": {
 							"description": "macOS seatbelt policy.",
 							"type": "object",
@@ -1242,6 +1252,17 @@
 									"type": "boolean",
 									"x-composition": {
 										"strategy": "deny-wins"
+									}
+								},
+								"extraMachLookups": {
+									"description": "Exact macOS Mach service names that sandboxed processes may look up. Patterns are not supported. Managed policy can only shrink the effective grant (intersection).",
+									"type": "array",
+									"items": {
+										"type": "string",
+										"pattern": "^[A-Za-z0-9._@-]{1,127}$"
+									},
+									"x-composition": {
+										"strategy": "allowlist-intersection"
 									}
 								}
 							}

@@ -35,7 +35,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
-import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
+import { SessionsList } from './sessionsList.js';
+import { SessionsGrouping, SessionsSorting } from './sessionsListCommon.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
@@ -508,6 +509,7 @@ export class SessionsView extends ViewPane {
 				return requests;
 			}),
 			sectionRowHeight: this.presentation.sectionRowHeight,
+			titleOnlyQuickChatRowHeight: this.presentation.titleOnlyQuickChatRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.grouping,
 			sorting: () => this.currentSorting,

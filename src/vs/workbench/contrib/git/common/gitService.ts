@@ -99,7 +99,11 @@ export interface IGitRepository {
 
 export interface IGitExtensionDelegate {
 	readonly repositories: Iterable<IGitRepository>;
-	openRepository(uri: URI): Promise<IGitRepository | undefined>;
+	/**
+	 * Resolves `undefined` without running Git when `token` is cancelled before
+	 * the request leaves the queue of pending repository opens.
+	 */
+	openRepository(uri: URI, token?: CancellationToken): Promise<IGitRepository | undefined>;
 
 	getRefs(root: URI, query?: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(root: URI, ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
@@ -116,5 +120,10 @@ export interface IGitService {
 
 	setDelegate(delegate: IGitExtensionDelegate): IDisposable;
 
-	openRepository(uri: URI): Promise<IGitRepository | undefined>;
+	/**
+	 * Opens the repository containing `uri`. Requests wait for the Git
+	 * extension and run one at a time; one whose `token` is cancelled while it
+	 * waits resolves `undefined` without running Git.
+	 */
+	openRepository(uri: URI, token?: CancellationToken): Promise<IGitRepository | undefined>;
 }

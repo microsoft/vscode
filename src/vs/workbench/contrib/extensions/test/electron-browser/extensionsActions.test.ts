@@ -66,7 +66,7 @@ import { Mutable } from '../../../../../base/common/types.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfileService.js';
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IExtensionFeaturesManagementService } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 
 let instantiationService: TestInstantiationService;
@@ -307,6 +307,43 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 			});
+	});
+
+	test('Uninstall command removes the requested extension through the shared actions module', async () => {
+		const owner = aLocalExtension('plugin-owner');
+		const unrelated = aLocalExtension('unrelated');
+		const uninstalled: ILocalExtension[] = [];
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [unrelated, owner]);
+		instantiationService.stub(IExtensionManagementService, 'uninstall', async (extension: ILocalExtension) => {
+			uninstalled.push(extension);
+		});
+
+		const command = CommandsRegistry.getCommand('workbench.extensions.uninstallExtension');
+		assert.ok(command);
+		await instantiationService.invokeFunction(command.handler, owner.identifier.id.toUpperCase());
+
+		assert.deepStrictEqual(uninstalled, [owner]);
+	});
+
+	test('Uninstall command rejects missing, unknown, and built-in extensions without uninstalling', async () => {
+		const builtin = aLocalExtension('builtin', {}, { type: ExtensionType.System });
+		const uninstalled: ILocalExtension[] = [];
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [builtin]);
+		instantiationService.stub(IExtensionManagementService, 'uninstall', async (extension: ILocalExtension) => {
+			uninstalled.push(extension);
+		});
+
+		const command = CommandsRegistry.getCommand('workbench.extensions.uninstallExtension');
+		assert.ok(command);
+		for (const [id, error] of [
+			['', /Extension id required/],
+			['pub.missing', /not installed/],
+			[builtin.identifier.id, /Built-in extension/],
+		] as const) {
+			await assert.rejects(async () => instantiationService.invokeFunction(command.handler, id), error);
+		}
+
+		assert.deepStrictEqual(uninstalled, []);
 	});
 
 	test('Uninstall action is disabled when there is no extension', () => {

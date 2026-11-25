@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { readSessionGitState, SESSION_META_GIT_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatDeletedEvent, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
@@ -19,8 +20,9 @@ import { IAgentFeedbackService } from '../../../sessions/browser/agentFeedback.j
 import { AgentFeedbackState, IAgentFeedback } from '../../../sessions/browser/agentFeedbackModel.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../sessions/browser/codeReviewService.js';
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
-import { createChangesEditorScope } from '../../browser/changesView.js';
-import { getChangesOfSession, IChangesSessionScope } from '../../../sessions/common/changesViewService.js';
+import { createChangesEditorScope, createChangesPickerLabelObservable } from '../../browser/changesView.js';
+import { getActiveSessionChanges, getChangesOfSession, IChangesSessionScope } from '../../../sessions/common/changesViewService.js';
+import { buildAgentHostSessionWorkspace } from '../../../sessions/common/agentHostSessionWorkspace.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ChangesViewMode } from '../../../sessions/common/changes.js';
@@ -76,7 +78,7 @@ suite('ChangesViewService', () => {
 		});
 	}
 
-	function createWorkspace(root: string, baseBranchFullName?: string): ISessionWorkspace {
+	function createWorkspace(root: string, baseBranchRef?: string): ISessionWorkspace {
 		const uri = URI.file(root);
 		return upcastPartial<ISessionWorkspace>({
 			uri,
@@ -89,7 +91,7 @@ suite('ChangesViewService', () => {
 					uri,
 					branchName: 'feature',
 					baseBranchName: 'main',
-					baseBranchFullName,
+					baseBranchRef,
 				}),
 			})],
 		});
@@ -1198,7 +1200,7 @@ suite('ChangesViewService', () => {
 		});
 		const { activeSession, service } = createHarness(createSession('first', { workspace: createWorkspace('/repo', 'origin/main'), changesets: [createChangeset([])] }));
 		const snapshot = () => ({
-			baseBranch: service.activeSessionBaseBranchFullNameObs.get(),
+			baseBranch: service.activeSessionBaseBranchRefObs.get(),
 			catalogueLoading: service.activeSessionChangesetsLoadingObs.get(),
 			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
 		});
@@ -1210,6 +1212,28 @@ suite('ChangesViewService', () => {
 		assert.deepStrictEqual({ beforeSwitch, loadingCatalogue }, {
 			beforeSwitch: { baseBranch: 'origin/main', catalogueLoading: false, changesets: ['branch'] },
 			loadingCatalogue: { baseBranch: 'origin/release', catalogueLoading: true, changesets: ['branch'] },
+		});
+	});
+
+	test('labels Branch Changes with the base branch ref a host reports, and plainly when the host omits it', () => {
+		const options = { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description: undefined, branchProtectionPatterns: [], group: undefined };
+		const createHostSession = (id: string, git: Record<string, unknown>) => createSession(id, {
+			workspace: buildAgentHostSessionWorkspace(undefined, [URI.file(`/${id}`)], options, constObservable(undefined), readSessionGitState({ [SESSION_META_GIT_KEY]: git })),
+			changesets: [createChangeset([])],
+		});
+		const omitted = createHostSession('omitted', { branchName: 'feature', baseBranchName: 'main' });
+		const reported = createHostSession('reported', { branchName: 'feature', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
+		const { activeSession, service } = createHarness(omitted);
+		const label = createChangesPickerLabelObservable({}, getActiveSessionChanges(service));
+		const snapshot = () => ({ baseBranchRef: service.activeSessionBaseBranchRefObs.get(), label: label.get()?.label });
+
+		const withoutRef = snapshot();
+		activeSession.set(reported, undefined);
+		const withRef = snapshot();
+
+		assert.deepStrictEqual({ withoutRef, withRef }, {
+			withoutRef: { baseBranchRef: undefined, label: 'Branch Changes' },
+			withRef: { baseBranchRef: 'refs/remotes/origin/main', label: 'Branch Changes → origin/main' },
 		});
 	});
 

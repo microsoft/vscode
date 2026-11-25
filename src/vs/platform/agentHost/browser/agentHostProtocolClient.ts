@@ -100,7 +100,7 @@ import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
-import { derived, observableValue, observableValueOpts, transaction, type IObservable, autorun, observableFromEvent } from '../../../base/common/observable.js';
+import { derived, observableValue, observableValueOpts, transaction, type IObservable, autorun } from '../../../base/common/observable.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
@@ -466,7 +466,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<AgentHostClientState>());
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
-	readonly connectionAvailable = observableFromEvent(this, this.onDidChangeConnectionState, () => this._state.kind === AgentHostClientState.Connected);
+	private readonly _connectionAvailable = observableValue(this, false);
+	/** Whether the client is connected; already current when {@link onDidChangeConnectionState} listeners run. */
+	readonly connectionAvailable: IObservable<boolean> = this._connectionAvailable;
 	readonly artifactIntegrationTransport = {
 		onDidUpdate: this._artifactIntegrationUpdates.event,
 		onDidReset: this._artifactIntegrationReset.event,
@@ -807,6 +809,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (next.kind === AgentHostClientState.Reconnecting || next.kind === AgentHostClientState.Closed) {
 			this._devContainerService.connectionClosed();
 		}
+		this._connectionAvailable.set(next.kind === AgentHostClientState.Connected, undefined);
 		this._onDidChangeConnectionState.fire(next.kind);
 	}
 
@@ -2416,11 +2419,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return result?.delivered === true;
 	}
 
-	async registerGitHubEnvironment(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration> {
+	async registerGitHubEnvironment(accountId: string, credential: string, name?: string): Promise<IAgentHostGitHubEnvironmentRegistration> {
 		if (!this._gitHubEnvironment.get()) {
 			throw new Error('This agent host does not support GitHub environment registration.');
 		}
-		const result = await this._sendExtensionRequest(RegisterGitHubEnvironmentExtensionMethod, { accountId, credential });
+		const result = await this._sendExtensionRequest(RegisterGitHubEnvironmentExtensionMethod, { accountId, credential, ...(name ? { name } : {}) });
 		if (typeof result?.name !== 'string' || (result.environmentId !== undefined && typeof result.environmentId !== 'string')) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid GitHub environment registration');
 		}

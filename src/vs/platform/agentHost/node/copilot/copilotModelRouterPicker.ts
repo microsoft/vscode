@@ -30,6 +30,9 @@ const agentFraming = 'The request goes to an AI coding agent that works in the u
 /** Short follow-ups read as easy on their own; the work they hand over usually isn't. */
 const followUpEffortNote = 'This is a follow-up in an ongoing chat; recentTurns are the earlier messages and replies. Read the latest message together with them: a short message such as "fix it", "do that", "go ahead and implement it" or "open a PR with the fix" asks the agent to carry out the work the earlier turns discussed, so judge the work that involves, not the length of the message.';
 
+/** On its own, a question about the last reply reads as a quick question, and would move the chat off the route its work is on. */
+const followUpModelNote = 'This is a follow-up in an ongoing chat: recentTurns are the earlier messages and replies, and currentModel is the route the chat is on. A message that asks about the last reply or about the work just done, or asks to adjust it, is part of the work the chat is already doing, so pick currentModel for it, however short or simple the message is. Pick another route only when the message starts a different kind of work, such as asking the agent to build what the chat has only discussed.';
+
 /** A first turn's message goes as plain text, as the Decisions API expects its input; this routes better than a JSON field. */
 const firstTurnLead = 'A user sent this message to an AI coding agent:\n\n';
 
@@ -118,7 +121,7 @@ function buildRequest(request: IModelRouterPickRequest): { readonly decisions: I
 		{
 			kind: 'choice',
 			name: 'model',
-			instructions: `${agentFraming}${situation ? situationNote : ''}\n\nPick the model the user would want for this request, going by the routes they wrote for when to use each model. Follow the routes over your own view of the models.${guidance}`,
+			instructions: `${agentFraming}${situation ? situationNote : ''}\n\nPick the model the user would want for this request, going by the routes they wrote for when to use each model. Follow the routes over your own view of the models.${guidance}${followUp ? `\n\n${followUpModelNote}` : ''}`,
 			options,
 		},
 		...(request.askEffort ? [{
@@ -136,7 +139,21 @@ function buildRequest(request: IModelRouterPickRequest): { readonly decisions: I
 	const build = (): IAgentDecisionsRequest => ({
 		model: MODEL_ROUTER_DECISION_MODEL,
 		context: followUp
-			? { kind: 'json', value: { request: prompt, ...(situation ? { situation } : {}), ...followUp, recentTurns } }
+			? {
+				kind: 'json',
+				// JSON has no `undefined`, so facts the turn lacks are left out.
+				value: {
+					request: prompt,
+					...(situation ? { situation } : {}),
+					currentModel: followUp.currentModel,
+					...(followUp.currentEffort !== undefined ? { currentEffort: followUp.currentEffort } : {}),
+					recentTurns,
+					turns: followUp.turns,
+					...(followUp.lastTurnState !== undefined ? { lastTurnState: followUp.lastTurnState } : {}),
+					lastTurnToolCalls: followUp.lastTurnToolCalls,
+					lastTurnFailedToolCalls: followUp.lastTurnFailedToolCalls,
+				},
+			}
 			: { kind: 'text', text: `${firstTurnLead}${prompt}${situation ? `\n\n${situationLead}${situation.map(line => `- ${line}`).join('\n')}` : ''}` },
 		questions: questions(),
 		timeoutMs: DECISION_TIMEOUT_MS,

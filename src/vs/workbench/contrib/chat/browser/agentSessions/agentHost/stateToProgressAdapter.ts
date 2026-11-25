@@ -25,7 +25,7 @@ import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../../.
 import { getShellAuthenticationTitle, readShellAuthentication, type IShellAuthenticationPrompt } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, readToolCallResponseMarkdown, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, readToolCallResponseMarkdown, type IAgentToolOutputChunk, type IToolCallHookDenialMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { getCompletionDescription, readCompletionAttachmentMeta, restoreLegacySkillAttachment } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
@@ -651,7 +651,7 @@ function getToolSummary(tc: ToolCallState, resourceUris: IAgentHostResourceUriMa
 		return { kind: 'incomplete' };
 	}
 	if (!tc.success) {
-		return { kind: 'failed' };
+		return { kind: getToolCallHookDenial(tc) ? 'blockedByHook' : 'failed' };
 	}
 	const edits = getToolFileEdits(tc).map(normalizeFileEdit);
 	if (edits.length > 0) {
@@ -788,12 +788,16 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		case AgentSystemNotificationKind.ModelRouterSuggestion:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.lightbulb, alwaysVisible: true };
 		case AgentSystemNotificationKind.Hook:
-			if (meta.hook?.outcome !== AgentHookOutcome.Failed) {
+			if (meta.hook?.outcome === AgentHookOutcome.Blocked) {
+				// An error, since the prompt never reached the model, and shown even with hook warnings off: it is the only answer to the user's prompt.
+				return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true, isError: true };
+			}
+			if (meta.hook?.outcome !== AgentHookOutcome.Failed && meta.hook?.outcome !== AgentHookOutcome.Warned) {
 				return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true };
 			}
 			return showHookFailures ? {
 				kind: 'warning',
-				content: new MarkdownString(escapeHostText(formatHookFailure(meta.hook, markdown.value))),
+				content: new MarkdownString(escapeHostText(meta.hook.outcome === AgentHookOutcome.Failed ? formatHookFailure(meta.hook, markdown.value) : formatHookWarning(meta.hook, markdown.value))),
 				keepVisibleWhenCollapsed: true,
 				mute: { commandId: AGENT_HOST_DISABLE_HOOK_WARNINGS_COMMAND_ID, tooltip: localize('agentHost.hookFailed.disable', "Disable Hook Warnings") },
 			} : undefined;
@@ -822,12 +826,25 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 
 /** Names the hook with its Local harness label, since Copilot names hook events as in its hook files (`sessionStart`). */
 function formatHookFailure(hook: IAgentSystemNotificationHookMeta, hostText: string): string {
-	const hookType = resolveCopilotCliHookType(hook.type);
-	// Host-provided names such as `constructor` resolve to inherited properties, not hook types.
-	const label = hookType && Object.hasOwn(HOOK_METADATA, hookType) ? HOOK_METADATA[hookType].label : undefined;
+	const label = hook.type && getCopilotHookLabel(hook.type);
 	return label && hook.source && hook.message
 		? localize('agentHost.hookFailed', "The {0} hook from {1} failed: {2}", label, hook.source, hook.message)
 		: hostText;
+}
+
+function formatHookWarning(hook: IAgentSystemNotificationHookMeta, hostText: string): string {
+	// The Local label when there is one, else the provider's event name.
+	const event = hook.type && (getCopilotHookLabel(hook.type) ?? hook.type);
+	return event && hook.message
+		? localize('agentHost.hookWarning', "Warning from the {0} hook: {1}", event, hook.message)
+		: hostText;
+}
+
+/** The Local harness label of a Copilot hook event name (`preToolUse` is "Pre-Tool Use"), if it has one. */
+function getCopilotHookLabel(copilotHookType: string): string | undefined {
+	const hookType = resolveCopilotCliHookType(copilotHookType);
+	// Host-provided names such as `constructor` resolve to inherited properties, not hook types.
+	return hookType && Object.hasOwn(HOOK_METADATA, hookType) ? HOOK_METADATA[hookType].label : undefined;
 }
 
 /** Appends a link that opens the Tools section of the Chat Customizations editor. */
@@ -2475,7 +2492,36 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 function toolCallOriginMessage(tc: ToolCallState): string | undefined {
 	const meta = readToolCallMeta(tc);
 	const serverName = (meta['vscode.mcpServerDisplayName'] ?? meta.mcpServerName)?.trim();
-	return serverName ? localize('agentHost.mcpServer.origin', "{0} (MCP Server)", serverName) : undefined;
+	const origin = serverName ? localize('agentHost.mcpServer.origin', "{0} (MCP Server)", serverName) : undefined;
+	// A hook's own reason stays visible beside the collapsed row. A failed hook gave none; its title names the hook.
+	const denial = getToolCallHookDenial(tc);
+	const reason = denial && !denial.source ? getToolErrorString(tc)?.trim() : undefined;
+	if (!reason) {
+		return origin;
+	}
+	return origin ? localize('agentHost.toolOriginAndHookReason', "{0} · {1}", origin, reason) : reason;
+}
+
+/** The hook the host attributed a failed call's denial to, if any. */
+function getToolCallHookDenial(tc: ToolCallState): IToolCallHookDenialMeta | undefined {
+	return tc.status === ToolCallStatus.Completed && !tc.success ? readToolCallMeta(tc)['vscode.deniedByHook'] : undefined;
+}
+
+/**
+ * Past-tense title for a call a hook denied, in place of a generic failure. Terminal calls are left out:
+ * their row shows the denial in place of the command's output.
+ */
+function hookDenialPastTenseMessage(tc: ToolCallState, isTerminal: boolean): IMarkdownString | undefined {
+	const denial = getToolCallHookDenial(tc);
+	if (!denial || isTerminal) {
+		return undefined;
+	}
+	const hook = getCopilotHookLabel(denial.hookType) ?? denial.hookType;
+	const message = denial.source
+		? localize('agentHost.toolBlockedByFailedHook', "\"{0}\" blocked because {1} hook {2} failed", tc.displayName, hook, denial.source)
+		: localize('agentHost.toolBlockedByHook', "\"{0}\" blocked by {1} hook", tc.displayName, hook);
+	// The hook source and the tool name are not Markdown.
+	return new MarkdownString().appendText(message);
 }
 
 function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<IChatToolInvocationSerialized['isConfirmed']> {
@@ -2530,12 +2576,13 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			source: ToolDataSource.Internal,
 			invocationMessage: invocationMsg,
 			originMessage: toolCallOriginMessage(tc),
-			pastTenseMessage: pastTenseMsg,
+			pastTenseMessage: hookDenialPastTenseMessage(tc, false) ?? pastTenseMsg,
 			resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
 			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
 			presentation: undefined,
 			subAgentInvocationId: subAgentInvocationId,
+			summary: getToolSummary(tc, resourceUris),
 			toolSpecificData: fusionPhaseData ?? {
 				kind: 'subagent',
 				hasStarted: false,
@@ -2593,7 +2640,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		source: ToolDataSource.Internal,
 		invocationMessage: invocationMsg,
 		originMessage: toolCallOriginMessage(tc),
-		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
+		pastTenseMessage: isTerminal ? undefined : hookDenialPastTenseMessage(tc, false) ?? pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
 		presentation: shouldHideAutomaticTitleRename(tc) || responseMarkdown
@@ -3528,6 +3575,11 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 	if (isCompleted && !isTerminal) {
 		invocation.pastTenseMessage = modelComparisonReference(tc) ?? stringOrMarkdownToString(readToolCallPresentation(tc).pastTenseMessage, connectionAuthority);
+	}
+	const hookDenialMessage = hookDenialPastTenseMessage(tc, isTerminal);
+	if (hookDenialMessage) {
+		invocation.pastTenseMessage = hookDenialMessage;
+		invocation.originMessage = toolCallOriginMessage(tc);
 	}
 	const imageTerminalMessage = getImageGenerationTerminalMessage(tc);
 	if (imageTerminalMessage) {

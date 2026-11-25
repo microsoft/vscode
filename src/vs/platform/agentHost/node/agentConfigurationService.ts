@@ -42,21 +42,6 @@ import { getSessionSandboxOverrides, resolveSandboxEnabled } from './sessionSand
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
 
-/**
- * @deprecated Use {@link getEffectiveWorkingDirectories} instead, which preserves every root instead of collapsing to the primary.
- */
-export function getEffectiveWorkingDirectory(stateManager: AgentHostStateManager, session: ProtocolURI): string | undefined {
-	const own = stateManager.getSessionState(session)?.workingDirectories?.[0];
-	if (own !== undefined) {
-		return own;
-	}
-	const parentInfo = parseSubagentSessionUri(session);
-	if (parentInfo) {
-		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
-	}
-	return undefined;
-}
-
 export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): string[] | undefined {
 	const state = stateManager.getSessionState(session);
 	const own = state?.workingDirectories;

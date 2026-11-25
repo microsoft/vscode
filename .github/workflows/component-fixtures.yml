@@ -16,13 +16,7 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-  statuses: write
-  pull-requests: write
-  id-token: write
-  # Finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
-  actions: read
+permissions: {}
 
 concurrency:
   group: component-fixtures-${{ github.event.pull_request.number || github.sha }}
@@ -31,6 +25,10 @@ concurrency:
 jobs:
   playwright:
     name: Playwright Fixture Tests
+    permissions:
+      contents: read
+      # Finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
+      actions: read
     # The merge queue and the pull requests to release branches run on dedicated runners, like pr.yml (see the comment at the top of its jobs)
     runs-on: &runner ${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-ubuntu-8-core-merge-queue' || 'vscode-large-runners-ubuntu-8-core' }}
     steps:
@@ -156,6 +154,12 @@ jobs:
 
   screenshots:
     name: Screenshots
+    permissions:
+      contents: read
+      actions: read
+      # Only this job posts PR comments and authenticates uploads to the screenshot service.
+      pull-requests: write
+      id-token: write
     runs-on: *runner
     steps:
       - *image-scripts

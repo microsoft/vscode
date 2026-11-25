@@ -100,8 +100,12 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 		}
 	}
 
-	async openRepository(uri: URI): Promise<IGitRepository | undefined> {
+	async openRepository(uri: URI, token?: CancellationToken): Promise<IGitRepository | undefined> {
 		return this._openRepositorySequencer.queue(async () => {
+			if (token?.isCancellationRequested) {
+				return undefined;
+			}
+
 			// Open the repository
 			const result = await this._proxy.$openRepository(uri);
 			if (!result) {

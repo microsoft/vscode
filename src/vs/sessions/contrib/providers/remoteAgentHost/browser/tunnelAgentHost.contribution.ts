@@ -41,6 +41,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
 	private readonly _pendingConnects = new Map<string, Promise<void>>();
 	private _lastStatusCheck = 0;
+	/** Sequence number of the latest started discovery. */
+	private _lastStartedDiscovery = 0;
+	/** Sequence number of the newest discovery whose result was applied. */
+	private _lastAppliedDiscovery = 0;
 	private readonly _hostedTunnelSuppressions = new Set<string>();
 	private _remoteTunnelStatus: TunnelStatus = { type: 'uninitialized' };
 	private _hasReceivedRemoteTunnelStatus = false;
@@ -171,6 +175,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 			if (!this._providerStores.has(address)) {
 				this._createProvider(address, tunnel.name);
+			} else {
+				// Discovery can rename a cached tunnel; workspace labels come from the provider label.
+				this._providerInstances.get(address)?.setLabel(tunnel.name);
 			}
 		}
 	}
@@ -464,6 +471,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 		this._lastStatusCheck = Date.now();
 		const cachedBefore = this._tunnelService.getCachedTunnels().length;
+		const discoveryId = ++this._lastStartedDiscovery;
 
 		// Fetch tunnel list silently to check online status
 		let onlineTunnels: ITunnelInfo[] | undefined;
@@ -487,7 +495,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		}
 
 		const cached = this._tunnelService.getCachedTunnels();
-		if (onlineTunnels) {
+		// Discoveries can overlap (focus, sharing status, rediscovery, sign-in). A
+		// slower, older result must not undo a newer one's names, removals, or statuses.
+		if (onlineTunnels && discoveryId > this._lastAppliedDiscovery) {
+			this._lastAppliedDiscovery = discoveryId;
 			const onlineIds = new Set(onlineTunnels.map(t => t.tunnelId));
 			// Remove cached tunnels that no longer exist on the account
 			for (const tunnel of cached) {
@@ -502,9 +513,14 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			// offline — those render grayed-out via the status-update loop
 			// below. Pass 'github' as authProvider so _handleSessionsChange
 			// can match these tunnels for teardown on session removal.
+			// Refresh already-cached tunnels in place so a renamed tunnel
+			// picks up its new name without losing its auth provider, order,
+			// or auto-connect suppression.
 			const cachedIds = new Set(cached.map(t => t.tunnelId));
 			for (const tunnel of onlineTunnels) {
-				if (!cachedIds.has(tunnel.tunnelId) && !this._tunnelService.isTunnelDismissed(tunnel.tunnelId)) {
+				if (cachedIds.has(tunnel.tunnelId)) {
+					this._tunnelService.updateCachedTunnel(tunnel);
+				} else if (!this._tunnelService.isTunnelDismissed(tunnel.tunnelId)) {
 					this._tunnelService.cacheTunnel(tunnel, 'github');
 				}
 			}

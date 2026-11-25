@@ -128,7 +128,8 @@ export class AgentPluginEditor extends EditorPane {
 		const description = append(details, $('.description'));
 
 		const subtitle = append(details, $('.subtitle'));
-		const marketplace = append(subtitle, $('span.subtitle-entry'));
+		// The marketplace is the only subtitle entry, so it must not draw the separator that precedes a following entry.
+		const marketplace = append(subtitle, $('span.subtitle-entry.last-non-empty'));
 
 		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
 		const actionBar = this._register(new ActionBar(actionsAndStatusContainer, {
