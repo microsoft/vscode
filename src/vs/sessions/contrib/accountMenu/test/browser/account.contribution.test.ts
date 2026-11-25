@@ -272,7 +272,9 @@ suite('Sessions - Account Menu', () => {
 		instantiationService.stub(ILayoutService, { activeContainer: container, mainContainer: container, getContainer: () => container, onDidLayoutContainer: Event.None });
 		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 		instantiationService.stub(IMarkdownRendererService, {});
-		instantiationService.stub(IHoverService, store.add(instantiationService.createInstance(HoverService)));
+		const hoverService = store.add(instantiationService.createInstance(HoverService));
+		hoverService.showDelayedHover = () => undefined;
+		instantiationService.stub(IHoverService, hoverService);
 		const defaultAccount: IDefaultAccount = { authenticationProvider: { id: providerId, name: providerName, enterprise }, accountName: 'Alex', sessionId: 'session', enterprise };
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;
