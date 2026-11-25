@@ -81,6 +81,8 @@ const REPOSITORY_DISCOVERY_PROBES = 10_000;
 const REPOSITORY_DISCOVERY_TIMEOUT_MS = 5_000;
 /** How long the repositories found for a session's folders are used before they are found again. */
 const REPOSITORY_REDISCOVERY_INTERVAL_MS = 60_000;
+/** How long after a discovery a forced refresh, as after a Git operation or a turn, finds the repositories again. */
+const FORCED_REDISCOVERY_INTERVAL_MS = 30_000;
 interface IPendingRecordedPullRequest {
 	readonly chat: string;
 	readonly folderKey: string;
@@ -156,6 +158,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		this._register(this._stateManager.onDidRemoveSession(sessionKey => {
 			this._pullRequestAssociationResolver.removeSession(sessionKey);
 			this._discoveredRepositories.delete(sessionKey);
+			this._repositoryDiscoveries.delete(sessionKey);
+			this._recordedAdditionalFolders.delete(sessionKey);
 			this._pendingPullRequests.delete(sessionKey);
 			for (const [key, session] of this._announcedGitStateRefreshes) {
 				if (key === sessionKey || session === sessionKey) {
@@ -703,6 +707,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	/** The repositories found for each session, with the folders and detection options they were found for. */
+	/** The folders of each session other than its first whose state {@link _refreshAdditionalFolderGitStates} recorded. */
+	private readonly _recordedAdditionalFolders = new Map<string, readonly string[]>();
+	/** The discovery of each session that is running; see {@link _discoverRepositoriesInBackground}. */
+	private readonly _repositoryDiscoveries = new Map<string, Promise<void>>();
 	private readonly _discoveredRepositories = new Map<string, { readonly input: string; readonly repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>>; readonly discoveredAt: number; readonly stale: boolean }>();
 
 	/**
@@ -716,7 +724,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const sessionState = this._stateManager.getSessionState(sessionKey);
 		const additionalFolders = (this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? []).slice(1)
 			.filter(folder => !this._stateManager.isScratchFolder(folder));
-		if (!additionalFolders.length && !readSessionNonRepositoryFolders(sessionState?._meta).length) {
+		const recorded = this._recordedAdditionalFolders.get(sessionKey) ?? [];
+		if (!additionalFolders.length && !recorded.length && !readSessionNonRepositoryFolders(sessionState?._meta).length) {
 			return false;
 		}
 		const chatScopes = new Set((sessionState?.chats ?? []).map(chat => chat.workingDirectories).filter(isDefined).map(directories => getWorkingDirectoryScopeId(directories)));
@@ -751,6 +760,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				changed = true;
 			}
 		}
+		// A folder that left the session loses the state recorded for it here
+		for (const folder of recorded) {
+			if (!currentFolders.slice(1).includes(folder) && await this._clearFolderState(sessionKey, folder)) {
+				changed = true;
+			}
+		}
+		this._recordedAdditionalFolders.set(sessionKey, folders.filter(folder => currentFolders.includes(folder)));
 		const meta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const nextNonRepositoryFolders = [...nonRepositoryFolders].filter(folderKey => currentFolders.slice(1).some(folder => getWorkingDirectoryKey(folder) === folderKey));
 		if (!objectEquals(readSessionNonRepositoryFolders(meta), nextNonRepositoryFolders)) {
@@ -784,7 +800,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			await this._applySessionGitHubState(folder, this._stateManager.getSessionState(sessionKey)?._meta, currentGitHubState, { owner: gitState.githubOwner, repo: gitState.githubRepo });
 		}
 		if (repositoryChanged || previousGitState?.branchName !== gitState.branchName) {
-			await this._pullRequestSequencer.queue(`${sessionKey}#${folder.folderKey}`, () => this._attachAdditionalFolderPullRequest(folder, gitState, credentials));
+			// Not awaited, so a slow lookup does not hold the session's refresh; the folder's GitHub state announces the result
+			void this._pullRequestSequencer.queue(`${sessionKey}#${folder.folderKey}`, () => this._attachAdditionalFolderPullRequest(folder, gitState, credentials));
 		}
 		return changed;
 	}
@@ -798,40 +815,72 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * Work is bounded: a discovery reads the own repository of at most {@link MAX_DISCOVERED_FOLDERS} folders (one Git
 	 * call each) and shares one file system budget across their scans ({@link REPOSITORY_DISCOVERY_PROBES} calls,
 	 * {@link REPOSITORY_DISCOVERY_TIMEOUT_MS}); each refresh reads the Git state of at most
-	 * {@link MAX_ADDITIONAL_FOLDER_GIT_READS} repositories in all, the session's other folders first. A discovery runs
-	 * again when the session's folders or their options change, when a recorded repository is gone, and otherwise at most
-	 * every {@link REPOSITORY_REDISCOVERY_INTERVAL_MS}, never just for a forced refresh. Without options, as from another
+	 * {@link MAX_ADDITIONAL_FOLDER_GIT_READS} repositories in all, the session's other folders first. Discovery runs in the
+	 * background (see {@link _discoverRepositoriesInBackground}); a refresh records what the last discovery of the same
+	 * folders and options found. A discovery runs again when the session's folders or their options change, when a
+	 * recorded repository is gone, after {@link REPOSITORY_REDISCOVERY_INTERVAL_MS}, and on a forced refresh (as after a
+	 * Git operation, which may have created a repository) after {@link FORCED_REDISCOVERY_INTERVAL_MS}. Without options, as from another
 	 * client, each folder is its own repository: what an earlier discovery recorded is removed. A repository that is no
 	 * longer found loses the Git and GitHub state discovery recorded for it, unless its root is now a folder of the
 	 * session or of one of its chats. Returns whether anything changed.
 	 */
 	private async _refreshSessionRepositories(sessionKey: string, credentials: IRepositoryCredentialContext, fresh: boolean): Promise<boolean> {
 		const { options, folders, input } = this._repositoryDiscoveryInput(sessionKey);
-		const cached = this._discoveredRepositories.get(sessionKey);
-		let repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined;
-		if (Object.keys(options).length) {
-			repositories = cached?.input === input && !cached.stale && Date.now() - cached.discoveredAt < REPOSITORY_REDISCOVERY_INTERVAL_MS ? cached.repositories : undefined;
-			if (!repositories) {
-				repositories = await this._discoverRepositories(folders, options);
-				// Removed while its folders were scanned, or its folders or options changed meanwhile: the next refresh scans them
-				if (!this._stateManager.getSessionState(sessionKey) || this._repositoryDiscoveryInput(sessionKey).input !== input) {
-					return false;
-				}
-				this._discoveredRepositories.set(sessionKey, { input, repositories, discoveredAt: Date.now(), stale: false });
-			}
-		} else {
+		if (!Object.keys(options).length) {
 			this._discoveredRepositories.delete(sessionKey);
+			return this._applyDiscoveredRepositories(sessionKey, undefined, folders, credentials, fresh);
 		}
+		const cached = this._discoveredRepositories.get(sessionKey);
+		const current = cached?.input === input ? cached : undefined;
+		const age = current ? Date.now() - current.discoveredAt : Infinity;
+		if (!current || current.stale || age >= REPOSITORY_REDISCOVERY_INTERVAL_MS || (fresh && age >= FORCED_REDISCOVERY_INTERVAL_MS)) {
+			this._discoverRepositoriesInBackground(sessionKey, input, folders, options, credentials);
+		}
+		// Until the first discovery of these folders and options finishes, what was recorded before stays
+		return current ? this._applyDiscoveredRepositories(sessionKey, current.repositories, folders, credentials, fresh) : false;
+	}
+
+	/**
+	 * Finds the repositories of a session's folders outside its refresh, so a long scan never delays its Git state, and
+	 * announces them when they are recorded. At most one discovery of a session runs at a time; one whose folders or
+	 * options changed meanwhile records nothing, and the next refresh starts another.
+	 */
+	private _discoverRepositoriesInBackground(sessionKey: string, input: string, folders: readonly string[], options: Readonly<Record<string, IRepositoryDetectionOptions>>, credentials: IRepositoryCredentialContext): void {
+		if (this._repositoryDiscoveries.has(sessionKey)) {
+			return;
+		}
+		const discovery = (async () => {
+			const repositories = await this._discoverRepositories(folders, options);
+			if (!this._stateManager.getSessionState(sessionKey) || this._repositoryDiscoveryInput(sessionKey).input !== input) {
+				return;
+			}
+			this._discoveredRepositories.set(sessionKey, { input, repositories, discoveredAt: Date.now(), stale: false });
+			if (await this._applyDiscoveredRepositories(sessionKey, repositories, folders, credentials, false)) {
+				this._onDidRefreshSessionGitState.fire(sessionKey);
+			}
+		})().catch(error => this._logService.warn(`[AgentHostGitStateService] Failed to find the repositories of ${sessionKey}`, error))
+			.finally(() => this._repositoryDiscoveries.delete(sessionKey));
+		this._repositoryDiscoveries.set(sessionKey, discovery);
+	}
+
+	/**
+	 * Records `repositories` as the session's repositories (removing them when `undefined`), removes the state of those no
+	 * longer found, and reads the Git state of each nested and submodule repository. Returns whether anything changed.
+	 */
+	private async _applyDiscoveredRepositories(sessionKey: string, repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined, folders: readonly string[], credentials: IRepositoryCredentialContext, fresh: boolean): Promise<boolean> {
 		let changed = false;
 		const meta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const previous = readSessionRepositories(meta);
+		if (!meta && !repositories) {
+			return false;
+		}
 		if (!objectEquals(previous, repositories)) {
 			changed = true;
 			this._stateManager.setSessionMeta(sessionKey, withSessionRepositories(meta, repositories));
 		}
 		const discovered = this._discoveredRoots(repositories, folders);
 		for (const root of this._discoveredRoots(previous, folders)) {
-			if (!discovered.includes(root) && await this._clearDiscoveredRepositoryState(sessionKey, root)) {
+			if (!discovered.includes(root) && await this._clearFolderState(sessionKey, root)) {
 				changed = true;
 			}
 		}
@@ -873,10 +922,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	/**
-	 * Removes the Git and GitHub state discovery recorded for a repository root that is no longer found, unless the root
-	 * is now a folder of the session or of one of its chats, whose state is theirs. Returns whether anything was removed.
+	 * Removes the folder-scope Git state and the GitHub state recorded for a folder that left the session, or for a
+	 * repository root that is no longer found, unless it is a folder of the session or of one of its chats, whose state
+	 * is theirs. Returns whether anything was removed.
 	 */
-	private async _clearDiscoveredRepositoryState(sessionKey: string, root: string): Promise<boolean> {
+	private async _clearFolderState(sessionKey: string, root: string): Promise<boolean> {
 		const state = this._stateManager.getSessionState(sessionKey);
 		const scope = getWorkingDirectoryScopeId([root]);
 		const owned = (this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? []).some(folder => getWorkingDirectoryScopeId([folder]) === scope)

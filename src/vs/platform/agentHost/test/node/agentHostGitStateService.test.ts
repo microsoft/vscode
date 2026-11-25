@@ -3080,6 +3080,8 @@ suite('AgentHostGitStateService', () => {
 		h.setPullRequest('api-feature', createTestPullRequestSummary(12, { html_url: 'https://github.com/contoso/api/pull/12' }));
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
+		// The pull request of the other folder is looked up after the refresh
+		await timeout(0);
 
 		const meta = h.stateManager.getSessionState(SESSION)?._meta;
 		assert.deepStrictEqual({
@@ -3141,6 +3143,8 @@ suite('AgentHostGitStateService', () => {
 			h.setGitResultForFolder('file:///wd/vscode', { branchName: 'vscode-feature' });
 			h.setGitResultForFolder('file:///wd/vscode-docs', { branchName: 'docs-main' });
 			await h.service.refreshSessionGitState(SESSION, undefined);
+			// Discovery runs after the refresh
+			await timeout(0);
 			const meta = h.stateManager.getSessionState(SESSION)?._meta;
 			return {
 				scans,
@@ -3212,6 +3216,7 @@ suite('AgentHostGitStateService', () => {
 		setOptions(1);
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
+		await timeout(0);
 
 		assert.deepStrictEqual(readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta), undefined);
 	}));
@@ -3267,7 +3272,7 @@ suite('AgentHostGitStateService', () => {
 		});
 	}));
 
-	test('the repositories are found again after a while, and removing the detection options removes what was found', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('the repositories are found again after a while, and sooner on a forced refresh, and removing the detection options removes what was found', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		let scans = 0;
 		h.gitService.findRepositories = async () => {
@@ -3278,25 +3283,34 @@ suite('AgentHostGitStateService', () => {
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
 		const setOptions = (values: Record<string, unknown>) => h.stateManager.setSessionConfig(SESSION, { schema: { type: 'object', properties: {} }, values });
 		setOptions({ [SessionConfigKey.RepositoryDetection]: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: [], detectSubmodules: false } } });
+		const refresh = async (force: boolean) => {
+			await h.service.refreshSessionGitState(SESSION, undefined, { force });
+			await timeout(0);
+		};
 		const read = () => ({ scans, repositories: readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta)?.[getWorkingDirectoryKey(WORKING_DIRECTORY)]?.length, docsBranch: readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, getWorkingDirectoryScopeId(['file:///wd/docs']))?.branchName });
 
-		await h.service.refreshSessionGitState(SESSION, undefined);
-		await timeout(30_000);
-		await h.service.refreshSessionGitState(SESSION, undefined);
-		const within = read();
-		await timeout(60_000);
-		await h.service.refreshSessionGitState(SESSION, undefined);
-		const after = read();
+		await refresh(false);
+		await timeout(20_000);
+		await refresh(true);
+		const forcedSoon = read();
+		await timeout(15_000);
+		await refresh(true);
+		const forcedLater = read();
+		await timeout(70_000);
+		await refresh(false);
+		const later = read();
 		await timeout(5_000);
 		setOptions({});
-		await h.service.refreshSessionGitState(SESSION, undefined);
+		await refresh(false);
 
-		assert.deepStrictEqual({ within, after, withoutOptions: read() }, {
-			within: { scans: 1, repositories: 1, docsBranch: 'docs-main' },
-			after: { scans: 2, repositories: 1, docsBranch: 'docs-main' },
-			withoutOptions: { scans: 2, repositories: undefined, docsBranch: undefined },
+		assert.deepStrictEqual({ forcedSoon, forcedLater, later, withoutOptions: read() }, {
+			forcedSoon: { scans: 1, repositories: 1, docsBranch: 'docs-main' },
+			forcedLater: { scans: 2, repositories: 1, docsBranch: 'docs-main' },
+			later: { scans: 3, repositories: 1, docsBranch: 'docs-main' },
+			withoutOptions: { scans: 3, repositories: undefined, docsBranch: undefined },
 		});
 	}));
+
 
 	test('each folder lists its own repository, also below the repository\'s root or in the same repository as another folder, and every scan of a discovery shares one budget', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
@@ -3315,6 +3329,7 @@ suite('AgentHostGitStateService', () => {
 		h.stateManager.setSessionConfig(SESSION, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.RepositoryDetection]: { [getWorkingDirectoryKey(sub)]: options, [getWorkingDirectoryKey(other)]: options } } });
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
+		await timeout(0);
 
 		const repositories = readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta);
 		assert.deepStrictEqual({ sub: repositories?.[getWorkingDirectoryKey(sub)], other: repositories?.[getWorkingDirectoryKey(other)], budgets: budgets.size }, {
@@ -3334,6 +3349,7 @@ suite('AgentHostGitStateService', () => {
 		h.setGitResultForFolder(api, { branchName: 'feature', baseBranchName: 'main', hasGitHubRemote: true, githubOwner: 'contoso', githubRepo: 'api' });
 		h.setPullRequest('feature', createTestPullRequestSummary(12, { html_url: 'https://github.com/contoso/api/pull/12' }));
 		await h.service.refreshSessionGitState(SESSION, undefined);
+		await timeout(0);
 		const before = readFolderGitHubState(h.stateManager.getSessionState(SESSION)?._meta, getWorkingDirectoryKey(api));
 
 		// Same branch, another repository: its pull request is not the previous one's
@@ -3341,6 +3357,7 @@ suite('AgentHostGitStateService', () => {
 		h.setPullRequest('feature', createTestPullRequestSummary(30, { html_url: 'https://github.com/fabrikam/api/pull/30' }));
 		await timeout(5_000);
 		await h.service.refreshSessionGitState(SESSION, undefined);
+		await timeout(0);
 
 		assert.deepStrictEqual({ before, after: readFolderGitHubState(h.stateManager.getSessionState(SESSION)?._meta, getWorkingDirectoryKey(api)), lookups: h.pullRequestCalls }, {
 			before: { owner: 'contoso', repo: 'api', pullRequestUrls: ['https://github.com/contoso/api/pull/12'], pullRequestBranchName: 'feature' },
@@ -3380,5 +3397,81 @@ suite('AgentHostGitStateService', () => {
 			chatAddedFolder: { gitCalls: ['file:///api', WORKING_DIRECTORY], apiBranch: 'api-feature' },
 			editorWindowWorkspace: { gitCalls: ['file:///api', WORKING_DIRECTORY], apiBranch: 'api-feature' },
 		});
+	}));
+
+	test('a discovery that never finishes does not hold the refresh of the session\'s Git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		h.gitService.findRepositories = () => new Promise(() => { });
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		h.stateManager.setSessionConfig(SESSION, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.RepositoryDetection]: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: [], detectSubmodules: false } } } });
+		h.setGitResult({ branchName: 'feature' });
+
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual({ gitState: h.service.getSessionGitState(SESSION), runEvents: h.runEvents }, { gitState: { branchName: 'feature' }, runEvents: [SESSION] });
+	}));
+
+	test('a folder that leaves the session loses the Git and GitHub state recorded for it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const api = 'file:///api';
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: api });
+		h.setGitResult({ branchName: 'main' });
+		h.setGitResultForFolder(api, { branchName: 'feature', hasGitHubRemote: true, githubOwner: 'contoso', githubRepo: 'api' });
+		const read = () => {
+			const meta = h.stateManager.getSessionState(SESSION)?._meta;
+			return [readFolderScopeGitState(meta, getWorkingDirectoryScopeId([api]))?.branchName, readFolderGitHubState(meta, getWorkingDirectoryKey(api))?.repo];
+		};
+
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		const before = read();
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectoryRemoved, directory: api });
+		await timeout(5_000);
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual({ before, after: read() }, { before: ['feature', 'api'], after: [undefined, undefined] });
+	}));
+
+	test('records the folders that are not Git repositories, forgets one that becomes one, and counts a folder Git could not read as a repository', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const notes = 'file:///notes';
+		const unreadable = 'file:///unreadable';
+		let notesIsRepository = false;
+		h.gitService.getRepositoryRoot = async folder => {
+			if (folder.toString() === unreadable) {
+				throw new Error('git failed');
+			}
+			return folder.toString() === notes && notesIsRepository ? folder : undefined;
+		};
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: notes });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: unreadable });
+		h.setGitResult({ branchName: 'main' });
+		h.setGitResultForFolder(notes, undefined);
+		h.setGitResultForFolder(unreadable, undefined);
+
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		const before = readSessionNonRepositoryFolders(h.stateManager.getSessionState(SESSION)?._meta);
+		notesIsRepository = true;
+		h.setGitResultForFolder(notes, { branchName: 'notes-main' });
+		await timeout(5_000);
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual({ before, after: readSessionNonRepositoryFolders(h.stateManager.getSessionState(SESSION)?._meta) }, {
+			before: [getWorkingDirectoryKey(notes)],
+			after: [],
+		});
+	}));
+
+	test('repositories found under drive letters of different case are one repository', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		h.gitService.findRepositories = async () => [{ root: URI.parse('file:///C%3A/wd/docs'), kind: 'nested' }, { root: URI.parse('file:///c%3A/wd/docs'), kind: 'nested' }];
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		h.stateManager.setSessionConfig(SESSION, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.RepositoryDetection]: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: [], detectSubmodules: false } } } });
+
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta)?.[getWorkingDirectoryKey(WORKING_DIRECTORY)], [{ root: 'file:///c%3A/wd/docs', kind: 'nested' }]);
 	}));
 });
