@@ -86,7 +86,7 @@ const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_
 const alwaysDisabledTools = [...disabledWorkflowTools, 'builtin:semantic_code_search'];
 const defaultDisabledTools = [...alwaysDisabledTools, 'builtin:search_code_subagent'];
 const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_PLUGIN_INSTALL: true, AGENT_FINDER_SKILL_INSTALL: true };
-const hydraFusionFeatureFlags = { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true };
+const hydraFusionFeatureFlags = { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_STAGED_STREAMING: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true };
 const emptyAgentCatalog: Pick<CopilotSession['rpc']['agent'], 'list'> = { list: async () => ({ agents: [] }) };
 function reportManagedSettings(config: ResumeSessionOptions | undefined): void {
 	config?.events?.onEvent?.({
