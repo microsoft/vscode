@@ -150,7 +150,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	private pendingCheckEarlyStaging: boolean | undefined;
 	private activeDownloadEarlyStaging: boolean | undefined;
 	private readyEarlyStaging: boolean | undefined;
-	private bootSessionId: string | undefined;
+	private bootSessionIdPromise: Promise<string | undefined> | undefined;
 	private nextQuitUnattended = false;
 	private pendingRestart: { readonly restartId: string; readonly expectedCommit: string; readonly earlyStaging: boolean; readonly unattended: boolean } | undefined;
 	private writtenBreadcrumb: IPendingRestartBreadcrumb | undefined;
@@ -183,11 +183,16 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		return userDataPath && appRoot ? getBreadcrumbPath(userDataPath, appRoot) : undefined;
 	}
 
+	private getBootSessionId(): Promise<string | undefined> {
+		return this.bootSessionIdPromise ??= readBootSessionId();
+	}
+
 	private async writeRestartBreadcrumb(restart: NonNullable<DarwinUpdateService['pendingRestart']>): Promise<void> {
 		const filePath = this.breadcrumbPath;
 		if (!filePath) {
 			return;
 		}
+		const quitBootSessionId = await this.getBootSessionId();
 		const quitWallMs = Date.now();
 		const record: IPendingRestartBreadcrumb = {
 			restartId: restart.restartId,
@@ -196,7 +201,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			expectedCommit: restart.expectedCommit,
 			quitWallMs,
 			quitMonotonicNs: process.hrtime.bigint().toString(),
-			quitBootSessionId: this.bootSessionId,
+			quitBootSessionId,
 			quitBootTimeSec: Math.round(quitWallMs / 1000 - os.uptime()),
 			earlyStaging: restart.earlyStaging,
 			unattended: restart.unattended,
@@ -270,14 +275,15 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
+		const bootSessionId = await this.getBootSessionId();
 		const nowWallMs = Date.now();
 		const nowMonotonicNs = process.hrtime.bigint();
 		const mainStartWallMs = Math.round(performance.timeOrigin);
 		const nowBootTimeSec = Math.round(nowWallMs / 1000 - os.uptime());
 		const quitMonotonicNs = BigInt(pending.quitMonotonicNs);
 
-		const sameBoot = (this.bootSessionId !== undefined && pending.quitBootSessionId !== undefined)
-			? this.bootSessionId === pending.quitBootSessionId
+		const sameBoot = (bootSessionId !== undefined && pending.quitBootSessionId !== undefined)
+			? bootSessionId === pending.quitBootSessionId
 			: (nowMonotonicNs >= quitMonotonicNs && Math.abs(nowBootTimeSec - pending.quitBootTimeSec) <= 5);
 
 		const mainStartMonotonicNs = nowMonotonicNs - BigInt(Math.round(performance.now() * 1e6));
@@ -372,7 +378,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	protected override async initialize(): Promise<void> {
 		if (this.environmentMainService.isBuilt) {
-			this.bootSessionId = await readBootSessionId();
 			await this.reportCompletedRestart();
 		}
 
