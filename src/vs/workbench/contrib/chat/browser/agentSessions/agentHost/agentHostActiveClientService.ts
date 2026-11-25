@@ -7,12 +7,11 @@ import { coalesce, distinct } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
-import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { Disposable, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -25,15 +24,12 @@ import { createDecorator, IInstantiationService } from '../../../../../../platfo
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { RenameToolId } from '../../tools/renameTool.js';
-import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
-import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { enumerateLocalCustomizationsForHarness, type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
+import { resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
+import { IAgentHostClientCustomizationsService } from './agentHostClientCustomizationsService.js';
 import { createAgentFileToolReferenceNameResolver, toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
@@ -135,16 +131,12 @@ class AgentCustomizationScope extends Disposable {
 		private readonly _roots: readonly URI[],
 		scopeKey: string,
 		private readonly _syncProvider: ICustomizationSyncProvider,
-		private readonly _options: ILocalCustomizationSyncOptions | undefined,
-		private readonly _windowRemoteAuthority: string | null,
+		private readonly _includeUserStorage: boolean,
 		private readonly _getClientTools: (sessionType: string) => IObservable<readonly ToolDefinition[]>,
 		private readonly _onDispose: () => void,
 		@IFileService private readonly _fileService: IFileService,
-		@IPromptsService private readonly _promptsService: IPromptsService,
-		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@IAgentHostClientCustomizationsService private readonly _clientCustomizations: IAgentHostClientCustomizationsService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IMcpService private readonly _mcpService: IMcpService,
-		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 	) {
 		super();
 		const preserveAgentFileCollisions = isCopilotCliSessionType(_sessionType);
@@ -156,24 +148,14 @@ class AgentCustomizationScope extends Disposable {
 			const seq = ++this._updateSeq;
 			let completedInitialResolution = false;
 			try {
-				// List the customization folders once for both the refs and the agents.
-				const enumerated = await enumerateLocalCustomizationsForHarness(this._promptsService, this._syncProvider, this._sessionType, CancellationToken.None, this._options);
+				const snapshot = await this._clientCustomizations.collect(this._sessionType, {
+					roots: this._roots,
+					syncProvider: this._syncProvider,
+					includeUserStorage: this._includeUserStorage,
+				}, CancellationToken.None);
 				const [refs, agents] = await Promise.all([
-					resolveCustomizationRefs(
-						this._fileService,
-						this._promptsService,
-						this._syncProvider,
-						this._agentPluginService,
-						this._mcpService,
-						this._configurationResolverService,
-						{ synced: this._bundler, standalone: this._standaloneBundler },
-						this._sessionType,
-						this._options,
-						this._roots,
-						this._windowRemoteAuthority,
-						enumerated,
-					),
-					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options, enumerated),
+					resolveCustomizationRefs(this._fileService, snapshot, { synced: this._bundler, standalone: this._standaloneBundler }, this._sessionType),
+					resolveLocalCustomAgents(this._fileService, snapshot),
 				]);
 				if (seq !== this._updateSeq) {
 					return;
@@ -205,31 +187,8 @@ class AgentCustomizationScope extends Disposable {
 		};
 
 		this._register(this._syncProvider.onDidChange(() => scheduleUpdate()));
-		this._register(Event.any(
-			this._promptsService.onDidChangeCustomAgents,
-			this._promptsService.onDidChangeSlashCommands,
-			this._promptsService.onDidChangeSkills,
-			this._promptsService.onDidChangeInstructions,
-		)(() => scheduleUpdate()));
-		this._register(autorun(reader => {
-			for (const plugin of this._agentPluginService.plugins.read(reader)) {
-				plugin.enablement.read(reader);
-				plugin.hooks.read(reader);
-				plugin.commands.read(reader);
-				plugin.skills.read(reader);
-				plugin.agents.read(reader);
-				plugin.instructions.read(reader);
-				plugin.mcpServerDefinitions.read(reader);
-			}
-			scheduleUpdate();
-		}));
-		this._register(autorun(reader => {
-			for (const server of this._mcpService.servers.read(reader)) {
-				server.enablement.read(reader);
-				server.readDefinitions().read(reader);
-			}
-			scheduleUpdate();
-		}));
+		this._register(this._clientCustomizations.onDidChange(() => scheduleUpdate()));
+		scheduleUpdate();
 	}
 
 	acquire(): IAgentCustomizationScope {
@@ -331,16 +290,14 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const serviceScopeKey = getServiceScopeKey(sessionType, scopeKey);
 		let scope = this._scopes.get(serviceScopeKey);
 		if (!scope) {
-			// A host that does not share the client's filesystem needs user storage shipped over the wire.
-			const options = isRemoteAgentHostSessionType(sessionType) ? { includeUserStorage: true } : undefined;
 			const createdScope: AgentCustomizationScope = this._instantiationService.createInstance(
 				AgentCustomizationScope,
 				sessionType,
 				normalizedRoots,
 				scopeKey,
 				this.getSyncProvider(sessionType),
-				options,
-				this._environmentService.remoteAuthority ?? null,
+				// A host that does not share the client's filesystem needs user storage shipped over the wire.
+				isRemoteAgentHostSessionType(sessionType),
 				type => this._getClientTools(type),
 				() => this._removeScope(serviceScopeKey, createdScope),
 			);
