@@ -4808,6 +4808,34 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('detachSessionsFromWorkspace clears the workspace of a loaded session, keeping its folders, and leaves other workspaces\' sessions', async () => {
+		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(localService, agent);
+		const workspaceFile = 'file:///work/agents.code-workspace';
+		const other = { workspaceFile: 'file:///work/other.code-workspace' };
+		const folders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
+		const session = await localService.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: folders, _meta: { multiRoot: { workspaceFile, name: 'Agents', folders: folders.map(String) } } });
+		const kept = await localService.createSession({ legacyChatUris: true, provider: agent.id, _meta: { multiRoot: other } });
+		const stateManager = getStateManager(localService);
+		const foldersBefore = stateManager.getSessionState(session.toString())?.workingDirectories;
+
+		const detached = await localService.detachSessionsFromWorkspace([URI.parse(workspaceFile)]);
+
+		assert.deepStrictEqual({
+			detached: detached.map(String),
+			multiRoot: readSessionMultiRootMetadata(stateManager.getSessionState(session.toString())?._meta),
+			folders: stateManager.getSessionState(session.toString())?.workingDirectories,
+			kept: readSessionMultiRootMetadata(stateManager.getSessionState(kept.toString())?._meta),
+		}, {
+			detached: [session.toString()],
+			multiRoot: undefined,
+			folders: foldersBefore,
+			kept: other,
+		});
+	});
+
 	test('createSession fails open (shows the picker) when the folder-picker decision rejects', async () => {
 		class RejectingFolderPickerAgent extends MockAgent {
 			override getDescriptor() {
@@ -7578,22 +7606,87 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
-		test('rejects working-directory mutations from non-Editor clients', async () => {
+		test('rejects working-directory mutations from clients other than an editor or Agents window', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
 			svc.dispatchAction(session.toString(), {
 				type: ActionType.SessionWorkingDirectorySet,
 				directory: URI.file('/workspace/added').toString(),
-			}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+			}, 'unknown-client', 1, AgentHostClientType.Unknown);
 			const envelope = await envelopePromise;
 
 			assert.deepStrictEqual({
 				rejectionReason: envelope.rejectionReason,
 				confirmed: getStateManager(svc).getSessionState(session.toString())?.workingDirectories,
 			}, {
-				rejectionReason: 'Session working-directory actions require an Editor Window client.',
+				rejectionReason: 'Session working-directory actions require an Editor Window or Agents Window client.',
 				confirmed: [primary.toString(), secondary.toString()],
+			});
+		});
+
+		suite('chat folders', () => {
+			async function dispatch(svc: AgentService, channel: string, action: SessionAction | ChatAction, clientSeq: number) {
+				const envelope = Event.toPromise(Event.filter(svc.onDidAction, candidate => candidate.origin?.clientSeq === clientSeq));
+				svc.dispatchAction(channel, action, 'agents-window-client', clientSeq, AgentHostClientType.AgentsWindow);
+				return (await envelope).rejectionReason;
+			}
+
+			test('an Agents window client adds a folder to the session, then to the chat, and removes it from the chat', async () => {
+				const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+				const chat = buildDefaultChatUri(session);
+				const added = URI.file('/workspace/added');
+				const state = getStateManager(svc);
+				const rejections = [
+					await dispatch(svc, session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: added.toString() }, 1),
+					await dispatch(svc, chat, { type: ActionType.ChatWorkingDirectorySet, directory: added.toString() }, 2),
+				];
+				const afterAdd = {
+					chat: state.getChatState(chat)?.workingDirectories,
+					catalog: state.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat)?.workingDirectories,
+				};
+				rejections.push(await dispatch(svc, chat, { type: ActionType.ChatWorkingDirectoryRemoved, directory: secondary.toString() }, 3));
+
+				assert.deepStrictEqual({ rejections, afterAdd, afterRemove: state.getChatState(chat)?.workingDirectories }, {
+					rejections: [undefined, undefined, undefined],
+					afterAdd: {
+						chat: [primary.toString(), secondary.toString(), added.toString()],
+						catalog: [primary.toString(), secondary.toString(), added.toString()],
+					},
+					afterRemove: [primary.toString(), added.toString()],
+				});
+			});
+
+			test('rejects adding a folder that is not a session folder, and removing a pinned primary folder', async () => {
+				const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+				const chat = buildDefaultChatUri(session);
+				const outside = URI.file('/elsewhere');
+
+				assert.deepStrictEqual({
+					rejections: [
+						await dispatch(svc, chat, { type: ActionType.ChatWorkingDirectorySet, directory: outside.toString() }, 1),
+						await dispatch(svc, chat, { type: ActionType.ChatWorkingDirectoryRemoved, directory: primary.toString() }, 2),
+					],
+					chat: getStateManager(svc).getChatState(chat)?.workingDirectories,
+				}, {
+					rejections: [
+						`Cannot add ${outside.toString()} to chat ${chat}: it is not a folder of the session.`,
+						`Cannot remove the primary folder of chat ${chat}.`,
+					],
+					chat: [primary.toString(), secondary.toString()],
+				});
+			});
+
+			test('an Agents window client cannot change the folders of a session without a workspace', async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new DynamicWorkingDirectoryAgent('dynamic', true);
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [URI.file('/scratch')] });
+				const state = getStateManager(svc);
+				state.setSessionMeta(session.toString(), withSessionWorkspaceless(state.getSessionState(session.toString())?._meta, true));
+
+				assert.deepStrictEqual(await dispatch(svc, session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: URI.file('/workspace/added').toString() }, 1), `Session does not support dynamic working-directory changes: ${session.toString()}`);
 			});
 		});
 
@@ -23281,6 +23374,35 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await svc.listSessions();
 
 			assert.deepStrictEqual(readSessionMultiRootMetadata(sessions[0]._meta), multiRoot);
+		});
+
+		test('detachSessionsFromWorkspace clears the workspace of a stored session, which lists without it', async () => {
+			const db = new TestSessionDatabase();
+			const workspaceFile = 'file:///work/agents.code-workspace';
+			await db.setMetadata(SESSION_META_MULTI_ROOT_KEY, JSON.stringify({ workspaceFile }));
+			const sessionId = 'test-session-detached-workspace';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			registerTestAgentProvider(svc, agent);
+
+			const unrelated = await svc.detachSessionsFromWorkspace([URI.parse('file:///work/other.code-workspace')]);
+			const detached = await svc.detachSessionsFromWorkspace([URI.parse(workspaceFile)]);
+
+			assert.deepStrictEqual({
+				unrelated: unrelated.map(String),
+				detached: detached.map(String),
+				persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+				listed: readSessionMultiRootMetadata((await svc.listSessions())[0]._meta),
+			}, {
+				unrelated: [],
+				detached: [sessionUri.toString()],
+				persisted: '',
+				listed: undefined,
+			});
 		});
 
 		test('listSessions restores persisted source-control provenance', async () => {

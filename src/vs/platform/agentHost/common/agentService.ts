@@ -1062,6 +1062,12 @@ export interface IAgentService {
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<ISessionArtifact | undefined>;
 	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/**
+	 * Removes the multi-root workspace record (`_meta.multiRoot`) from every session, loaded or stored, whose record is
+	 * one of `workspaceFiles` (host URI space), persists that and publishes it to every client. The sessions keep their
+	 * working directories. Resolves to the sessions that were detached.
+	 */
+	detachSessionsFromWorkspace?(workspaceFiles: readonly URI[]): Promise<readonly URI[]>;
 	/** Answers a chat's pending shell authentication prompt; `undefined` cancels it. Resolves false when it had already ended. */
 	answerShellAuthentication?(chat: URI, requestId: string, answer: string | undefined): Promise<boolean>;
 	manageHostSandboxCertificate?(provider: AgentProvider, operation: AgentSandboxCertificateOperation): Promise<void>;
@@ -1514,6 +1520,12 @@ export interface IAgentConnection {
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/**
+	 * Detaches every session, loaded or stored, that records one of `workspaceFiles` (host URI space) as its multi-root
+	 * workspace, and resolves to those sessions. A host without `vscode/detachSessionsFromWorkspace` rejects with
+	 * method-not-found: callers treat that as no session detached.
+	 */
+	detachSessionsFromWorkspace?(workspaceFiles: readonly URI[]): Promise<readonly URI[]>;
 	/** Only for shell authentication prompts. `undefined` cancels the prompt. Resolves false when it had already ended. */
 	answerShellAuthentication?(chat: URI, requestId: string, answer: string | undefined): Promise<boolean>;
 	/** Whether this connection can install through trusted local management or an advertised remote capability. */

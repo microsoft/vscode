@@ -1148,10 +1148,23 @@ export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
 export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
+const MAX_WORKSPACE_NAME_LENGTH = 256;
+const MAX_WORKSPACE_FOLDERS = 64;
 
-/** Multi-root workspace provenance attached by the creating client. */
+/**
+ * Multi-root workspace provenance attached by the creating client: the `.code-workspace` file the session was created
+ * in, and optionally the workspace's name and its folders when the session was created, default folder first. A value
+ * without them, as an editor window or an older client writes it, names the workspace after its file and takes the
+ * session's folders as the workspace's folders.
+ *
+ * All URIs are in the host's URI space.
+ */
 export interface ISessionMultiRootMetadata {
 	readonly workspaceFile: string;
+	/** The workspace's display name. */
+	readonly name?: string;
+	/** The workspace's folders when the session was created, default folder first. */
+	readonly folders?: readonly string[];
 }
 
 /** Reads validated multi-root workspace provenance from session metadata. */
@@ -1187,17 +1200,30 @@ function validateSessionMultiRootMetadata(value: unknown): ISessionMultiRootMeta
 		return undefined;
 	}
 	const raw = value as Record<string, unknown>;
-	if (typeof raw.workspaceFile !== 'string' || raw.workspaceFile.length === 0 || raw.workspaceFile.length > MAX_WORKSPACE_FILE_LENGTH) {
+	if (!isMultiRootUri(raw.workspaceFile)) {
 		return undefined;
+	}
+	// A malformed name or folder list is dropped on its own, keeping the workspace file.
+	const name = typeof raw.name === 'string' && raw.name.length > 0 && raw.name.length <= MAX_WORKSPACE_NAME_LENGTH ? raw.name : undefined;
+	const folders = Array.isArray(raw.folders) && raw.folders.length > 0 && raw.folders.length <= MAX_WORKSPACE_FOLDERS && raw.folders.every(isMultiRootUri)
+		? [...raw.folders]
+		: undefined;
+	return {
+		workspaceFile: raw.workspaceFile,
+		...(name !== undefined ? { name } : {}),
+		...(folders !== undefined ? { folders } : {}),
+	};
+}
+
+function isMultiRootUri(value: unknown): value is string {
+	if (typeof value !== 'string' || value.length === 0 || value.length > MAX_WORKSPACE_FILE_LENGTH) {
+		return false;
 	}
 	try {
-		if (!ResourceURI.parse(raw.workspaceFile, true).scheme) {
-			return undefined;
-		}
+		return !!ResourceURI.parse(value, true).scheme;
 	} catch {
-		return undefined;
+		return false;
 	}
-	return { workspaceFile: raw.workspaceFile };
 }
 
 /** Latest known prompt-cache state for the model active in an agent session. */

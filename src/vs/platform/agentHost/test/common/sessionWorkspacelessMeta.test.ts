@@ -37,6 +37,20 @@ suite('Session workspace-less meta', () => {
 			});
 		});
 
+		test('keeps a workspace\'s name and folders, and drops malformed ones without dropping the workspace file', () => {
+			const workspaceFile = 'file:///work/demo.code-workspace';
+			const read = (value: object) => readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: { workspaceFile, ...value } });
+			assert.deepStrictEqual([
+				read({ name: 'Demo', folders: ['file:///work/web', 'file:///work/api'] }),
+				read({ name: '', folders: [] }),
+				read({ name: 42, folders: ['relative/folder'] }),
+			], [
+				{ workspaceFile, name: 'Demo', folders: ['file:///work/web', 'file:///work/api'] },
+				{ workspaceFile },
+				{ workspaceFile },
+			]);
+		});
+
 		test('rejects malformed workspace provenance', () => {
 			assert.deepStrictEqual([
 				readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'relative.code-workspace' } }),

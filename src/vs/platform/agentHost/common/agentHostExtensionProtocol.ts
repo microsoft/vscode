@@ -126,6 +126,7 @@ export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWork
 export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestMcpAuthentication';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
+export const DetachSessionsFromWorkspaceExtensionMethod = 'vscode/detachSessionsFromWorkspace';
 export const AnswerShellAuthenticationExtensionMethod = 'vscode/answerShellAuthentication';
 export const MeasureWorktreeDiskUsageExtensionMethod = 'vscode/measureWorktreeDiskUsage';
 export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDiskUsage';
@@ -292,6 +293,14 @@ export const removeSessionArtifactParamsValidator = vObj({
 	artifactId: vString(),
 });
 
+/**
+ * Detaches every session that records one of `workspaceFiles` (host URI space) as its multi-root workspace, loaded or
+ * stored, by removing that record from its `_meta`. The sessions keep their working directories.
+ */
+export const detachSessionsFromWorkspaceParamsValidator = vObj({
+	workspaceFiles: vArray(vString()),
+});
+
 /** Stops a chat's background work entry that the host marked stoppable in its `_meta`. */
 export const stopBackgroundWorkParamsValidator = vObj({
 	chat: vString(),
@@ -441,6 +450,11 @@ export interface IAgentHostExtensionCommandMap {
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;
+	};
+	[DetachSessionsFromWorkspaceExtensionMethod]: {
+		params: ValidatorType<typeof detachSessionsFromWorkspaceParamsValidator>;
+		/** The sessions that were detached. */
+		result: { sessions: string[] };
 	};
 	[StopBackgroundWorkExtensionMethod]: {
 		params: ValidatorType<typeof stopBackgroundWorkParamsValidator>;
