@@ -170,9 +170,10 @@ suite('chatSessionObserver', () => {
 
 	function suggestionHarness(session: URI) {
 		const input = store.add(createTextModel('', null, undefined, URI.from({ scheme: Schemas.vscodeChatInput, path: '/input-2' })));
+		const placeholders: string[] = [];
 		const widget = {
 			viewModel: { sessionResource: session, model: { hasRequests: true } }, visible: true, onDidShow: Event.None, onDidChangeViewModel: Event.None,
-			inputEditor: { getModel: () => input, hasTextFocus: () => false, onDidFocusEditorText: Event.None, updateOptions: () => { }, getOption: () => '', getContribution: () => undefined },
+			inputEditor: { getModel: () => input, hasTextFocus: () => false, onDidFocusEditorText: Event.None, updateOptions: (o: { placeholder?: string }) => { if (o.placeholder !== undefined) { placeholders.push(o.placeholder); } }, getOption: () => '', getContribution: () => undefined },
 		} as unknown as IChatWidget;
 		const widgets = { getAllWidgets: () => [widget], onDidAddWidget: Event.None, onDidRemoveWidget: Event.None } as unknown as IChatWidgetService;
 		const chatService = { onDidAcceptRequest: Event.None } as unknown as IChatService;
@@ -187,7 +188,7 @@ suite('chatSessionObserver', () => {
 		store.add(service.onDidSubmitRequest(e => submissions.push(e)));
 		const ctx = { triggerKind: InlineCompletionTriggerKind.Automatic, selectedSuggestionInfo: undefined, includeInlineEdits: false, includeInlineCompletions: true, requestIssuedDateTime: 0, earliestShownDateTime: 0 } as never;
 		const provide = async (model = input) => (await features.inlineCompletionsProvider.all(model)[0].provideInlineCompletions(model, model.getFullModelRange().getEndPosition(), ctx, CancellationToken.None))?.items[0];
-		return { service, states, submissions, provide, provider: features.inlineCompletionsProvider.all(input)[0], input, models };
+		return { service, states, submissions, provide, provider: features.inlineCompletionsProvider.all(input)[0], input, models, placeholders };
 	}
 
 	test('answer surfaces: a shown carousel takes the answer from the input; the suggested pick accepts it', async () => {
@@ -207,6 +208,31 @@ suite('chatSessionObserver', () => {
 		assert.deepStrictEqual(states.map(s => [s.state, s.host, s.selectedOptions?.join()]), [['shown', 'agentsWindow', undefined], ['accepted', 'agentsWindow', 'vitest']]);
 		assert.deepStrictEqual(submissions.map(s => [s.kind, s.text, s.fromSuggestion?.id]), [['answer', 'vitest', 'a1']]);
 		assert.strictEqual(service.getSuggestion(session), undefined);
+	});
+
+	test('answer surfaces: each question\'s answer box gets its own words, and a multi-question answer accepts by its picks', async () => {
+		const session = URI.parse('agent-host-copilotcli:/s7');
+		const { service, states, provide, provider, placeholders } = suggestionHarness(session);
+		const box = (fragment: string) => store.add(createTextModel('', null, undefined, URI.from({ scheme: CHAT_QUESTION_ANSWER_SCHEME, path: `/${fragment}`, query: session.toString(), fragment })));
+		const [first, second] = [box('q0of2'), box('q1of2')];
+		service.setSuggestion('ext', session, { id: 'm1', answer: { questionId: 'c1', questions: [{ selectedOptions: ['Weekly'] }, { freeform: 'Personal' }] } });
+		const claim = service.claimAnswerSurface(session);
+		assert.strictEqual(await provide(first), undefined, 'the first question is a pick, with no words');
+		const shown = (await provide(second))!;
+		assert.strictEqual(shown.insertText, 'Personal');
+		provider.handleItemDidShow?.({ items: [shown] }, shown, '', undefined as never);
+		assert.deepStrictEqual(placeholders, [], 'ghost text in an answer box leaves the chat input\'s placeholder as it was');
+		provider.handleEndOfLifetime?.({ items: [shown] }, shown, { kind: InlineCompletionEndOfLifeReasonKind.Accepted, alternativeAction: false }, undefined as never);
+		assert.deepStrictEqual(states.filter(s => s.id === 'm1' && s.state === 'accepted').map(s => s.acceptedChars), [8], 'Tab takes the box\'s own words');
+
+		// One answer for a whole carousel of several questions can't say which box its words are for.
+		service.setSuggestion('ext', session, { id: 'm2', answer: { questionId: 'c1', freeform: 'Weekly; Personal' } });
+		assert.strictEqual(await provide(second), undefined);
+
+		service.setSuggestion('ext', session, { id: 'm3', answer: { questionId: 'c1', questions: [{ selectedOptions: ['Weekly'] }, { freeform: 'Personal' }] } });
+		service.reportAnswer(session, { kind: 'answer', selected: ['Weekly'], text: 'Personal' });
+		claim.dispose();
+		assert.deepStrictEqual(states.filter(s => s.state === 'accepted' && s.id === 'm3').map(s => [s.id, s.selectedOptions?.join()]), [['m3', 'Weekly']]);
 	});
 
 	test('answer surfaces: suggested feedback taken in with Tab and then rewritten still links the decision', () => {

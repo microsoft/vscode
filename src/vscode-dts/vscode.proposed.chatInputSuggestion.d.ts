@@ -6,19 +6,29 @@
 declare module 'vscode' {
 
 	// Push a suggested next message for one session. Core renders it as ghost text in every
-	// chat input bound to that session, and for an open question or plan review it marks the
-	// suggested options and shows the free-form part as ghost text in the answer box. Tab
-	// accepts; nothing is ever sent without the user.
+	// chat input bound to that session. For an open question it selects the suggested options,
+	// marked as suggested, until the user answers otherwise, and shows the free-form part as
+	// ghost text in the answer box. For a plan review it marks the suggested action. Tab accepts
+	// ghost text; nothing is ever sent without the user.
+
+	export interface ChatInputSuggestionQuestionAnswer {
+		/** Option labels to select for this question, as the question labels them. */
+		readonly selectedOptions?: readonly string[];
+		/** Ghost text for this question's answer box. */
+		readonly freeform?: string;
+	}
 
 	export interface ChatInputSuggestionAnswer {
 		/** The open question (carousel) this answers. */
 		readonly questionId?: string;
 		/** The open plan review this answers. */
 		readonly reviewId?: string;
-		/** Option labels to mark as suggested (never pre-selected). */
+		/** Option labels to select (an open question) or mark as suggested (a plan review). */
 		readonly selectedOptions?: readonly string[];
-		/** Ghost text for the free-form answer or the review feedback. */
+		/** Ghost text for the free-form answer of a question carousel with one question, or the review feedback. */
 		readonly freeform?: string;
+		/** One answer per question of the carousel, in its order. Takes the place of `selectedOptions` and `freeform`. */
+		readonly questions?: readonly ChatInputSuggestionQuestionAnswer[];
 	}
 
 	export interface ChatInputSuggestion {

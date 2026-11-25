@@ -192,11 +192,39 @@ export interface IChatSessionObserverService {
 
 // ---- N2: input suggestions (proposed API `chatInputSuggestion`) -----------------------------
 
+/** A suggested answer to one question of a carousel: the options to pick and any words of the user's own. */
+export interface IChatInputSuggestionQuestionAnswer {
+	readonly selectedOptions?: readonly string[];
+	readonly freeform?: string;
+}
+
 export interface IChatInputSuggestion {
 	readonly id: string;
 	readonly validForTurn?: string;
 	readonly text?: string;
-	readonly answer?: { readonly questionId?: string; readonly reviewId?: string; readonly selectedOptions?: readonly string[]; readonly freeform?: string };
+	readonly answer?: {
+		readonly questionId?: string;
+		readonly reviewId?: string;
+		readonly selectedOptions?: readonly string[];
+		readonly freeform?: string;
+		/** One per question of the carousel, in its order. Takes the place of `selectedOptions` and `freeform`. */
+		readonly questions?: readonly IChatInputSuggestionQuestionAnswer[];
+	};
+}
+
+/**
+ * The part of a suggested answer for the question at `index` of a carousel of `count` questions. Without
+ * per-question answers, the picks go to whichever question has an option of that label, and the words only
+ * to a carousel of one question, since they can't be told apart.
+ */
+export function suggestedAnswerForQuestion(answer: IChatInputSuggestion['answer'], index: number, count: number): IChatInputSuggestionQuestionAnswer | undefined {
+	if (!answer) {
+		return undefined;
+	}
+	if (answer.questions) {
+		return answer.questions[index];
+	}
+	return { selectedOptions: answer.selectedOptions, ...(count <= 1 ? { freeform: answer.freeform } : {}) };
 }
 
 export type ChatInputSuggestionState = 'shown' | 'hidden' | 'accepted' | 'partiallyAccepted' | 'rejected' | 'superseded' | 'invalidated';

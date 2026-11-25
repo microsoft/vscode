@@ -9,7 +9,7 @@ import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Event as BaseEvent } from '../../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -2139,38 +2139,99 @@ suite('ChatQuestionCarouselPart', () => {
 	});
 
 	suite('Suggested answers (proposed API chatInputSuggestion)', () => {
-		function stubSuggestions(answer: { selectedOptions?: string[]; freeform?: string }) {
+		type SuggestedAnswer = { selectedOptions?: string[]; freeform?: string; questions?: { selectedOptions?: string[]; freeform?: string }[] };
+		function stubSuggestions(initial: SuggestedAnswer) {
 			const reported: { kind: string; selected: readonly string[]; text: string }[] = [];
 			const interactions: string[] = [];
 			let claims = 0;
+			let answer = initial;
+			const changed = store.add(new Emitter<URI>());
 			const service = {
 				getSuggestion: () => ({ id: 's1', owner: 'ext', answer }),
 				claimAnswerSurface: () => { claims++; return toDisposable(() => claims--); },
-				onDidChangeSuggestions: BaseEvent.None,
+				onDidChangeSuggestions: changed.event,
 				reportAnswer: (_session: URI, a: { kind: string; selected: readonly string[]; text: string }) => reported.push(a),
 				reportAnswerInteraction: (_session: URI, state: string) => interactions.push(state),
 			} as unknown as IChatInputSuggestionService;
-			return { service, reported, interactions, claims: () => claims };
+			const suggest = (next: SuggestedAnswer) => {
+				answer = next;
+				changed.fire(createMockContext().element.sessionResource);
+			};
+			return { service, reported, interactions, claims: () => claims, suggest };
 		}
+		const runner = (): IChatQuestionCarousel['questions'][number] => ({
+			id: 'q1', type: 'singleSelect', title: 'Which runner?', defaultValue: 'a',
+			options: [{ id: 'a', label: 'mocha', value: 'mocha' }, { id: 'b', label: 'vitest', value: 'vitest' }],
+		});
+		const items = () => [...widget.domNode.querySelectorAll<HTMLElement>('.chat-question-list-item')];
+		const submit = () => widget.domNode.querySelector<HTMLElement>('.chat-question-submit-button')!.click();
 
-		test('marks the suggested option without choosing it, and reports the pick', () => {
+		test('selects and marks the suggested option, so submitting as is sends it', () => {
 			const s = stubSuggestions({ selectedOptions: ['vitest'] });
-			createWidget(createMockCarousel([{
-				id: 'q1', type: 'singleSelect', title: 'Which runner?',
-				options: [{ id: 'a', label: 'mocha', value: 'mocha' }, { id: 'b', label: 'vitest', value: 'vitest' }],
-			}]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+			createWidget(createMockCarousel([runner()]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
 
-			const items = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-question-list-item')];
-			const suggested = items.filter(i => i.classList.contains('chat-question-list-item-suggested'));
+			const suggested = items().filter(i => i.classList.contains('chat-question-list-item-suggested'));
 			assert.deepStrictEqual(suggested.map(i => i.querySelector('.chat-question-list-label')?.textContent), ['vitest']);
 			assert.ok(suggested[0].getAttribute('aria-label')?.endsWith('(suggested)'));
-			assert.ok(!suggested[0].classList.contains('selected') && suggested[0].getAttribute('aria-selected') !== 'true', 'never chosen for the user');
+			assert.deepStrictEqual(items().map(i => i.getAttribute('aria-selected')), ['false', 'true'], 'the suggestion, not the agent\'s default, is selected');
 			assert.deepStrictEqual(s.interactions, ['shown']);
 			assert.strictEqual(s.claims(), 1, 'the open carousel takes the answer from the input');
 
-			suggested[0].click();
+			submit();
+			assert.deepStrictEqual(submittedAnswers?.get('q1'), { selectedValue: 'vitest', freeformValue: undefined });
 			assert.deepStrictEqual(s.reported, [{ kind: 'answer', selected: ['vitest'], text: '' }]);
 			assert.strictEqual(s.claims(), 0, 'released once answered');
+		});
+
+		test('checks every suggested option of a multi-select question', () => {
+			const s = stubSuggestions({ selectedOptions: ['Subtasks', 'Reminders'] });
+			createWidget(createMockCarousel([{
+				id: 'q1', type: 'multiSelect', title: 'Which features?',
+				options: [{ id: 'a', label: 'Recurring tasks', value: 'recurring' }, { id: 'b', label: 'Subtasks', value: 'subtasks' }, { id: 'c', label: 'Reminders', value: 'reminders' }],
+			}]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+
+			assert.deepStrictEqual(items().map(i => i.classList.contains('checked')), [false, true, true]);
+			assert.deepStrictEqual(items().map(i => i.classList.contains('chat-question-list-item-suggested')), [false, true, true]);
+			submit();
+			assert.deepStrictEqual((submittedAnswers?.get('q1') as { selectedValues: string[] }).selectedValues, ['subtasks', 'reminders']);
+		});
+
+		test('answers each question of a carousel with its own part of the suggestion', () => {
+			const s = stubSuggestions({
+				questions: [
+					{ selectedOptions: ['vitest'] },
+					{ selectedOptions: ['Reminders'] },
+					{ freeform: 'Personal' },
+				],
+			});
+			createWidget(createMockCarousel([
+				runner(),
+				{ id: 'q2', type: 'multiSelect', title: 'Which features?', options: [{ id: 'a', label: 'Subtasks', value: 'subtasks' }, { id: 'b', label: 'Reminders', value: 'reminders' }] },
+				{ id: 'q3', type: 'text', title: 'One list to create?' },
+			]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+
+			assert.deepStrictEqual(items().map(i => i.getAttribute('aria-selected')), ['false', 'true']);
+			widget.navigateToNextQuestion();
+			assert.deepStrictEqual(items().map(i => i.classList.contains('checked')), [false, true]);
+			widget.navigateToNextQuestion();
+			const answerBox = codeEditorService.listCodeEditors().map(e => e.getModel()).find(m => m?.uri.fragment);
+			assert.strictEqual(answerBox?.uri.fragment, 'q2of3', 'the answer box says which question it answers, so it gets that question\'s words');
+			submit();
+			assert.deepStrictEqual(submittedAnswers?.get('q1'), { selectedValue: 'vitest', freeformValue: undefined });
+			assert.deepStrictEqual((submittedAnswers?.get('q2') as { selectedValues: string[] }).selectedValues, ['reminders']);
+		});
+
+		test('a newer suggestion re-picks only questions the user hasn\'t answered', () => {
+			const s = stubSuggestions({ questions: [{ selectedOptions: ['vitest'] }, { selectedOptions: ['vitest'] }] });
+			createWidget(createMockCarousel([runner(), { ...runner(), id: 'q2' }, { id: 'q3', type: 'text', title: 'Anything else?' }]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+
+			s.suggest({ questions: [{ selectedOptions: ['mocha'] }, { selectedOptions: ['vitest'] }] });
+			assert.deepStrictEqual(items().map(i => i.getAttribute('aria-selected')), ['true', 'false'], 'an untouched question takes the newer pick');
+			items()[1].click();
+			s.suggest({ questions: [{ selectedOptions: ['mocha'] }, { selectedOptions: ['mocha'] }] });
+			assert.deepStrictEqual(items().map(i => i.getAttribute('aria-selected')), ['true', 'false'], 'the next question, untouched, takes it too');
+			widget.navigateToPreviousQuestion();
+			assert.deepStrictEqual(items().map(i => i.getAttribute('aria-selected')), ['false', 'true'], 'the user\'s own pick stays');
 		});
 
 		test('without the service, renders as before', () => {

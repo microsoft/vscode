@@ -23,7 +23,7 @@ import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
-import { IChatInputSuggestion, IChatInputSuggestionService } from '../../../common/sessionObserver/chatSessionObserver.js';
+import { IChatInputSuggestion, IChatInputSuggestionQuestionAnswer, IChatInputSuggestionService, suggestedAnswerForQuestion } from '../../../common/sessionObserver/chatSessionObserver.js';
 import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst, isBooleanQuestion } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
 import { CHAT_QUESTION_PASSWORD_MASK, ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -186,6 +186,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	/** Pushed answer suggestions (proposed API `chatInputSuggestion`), when the service exists. */
 	private readonly _suggestions: IChatInputSuggestionService | undefined;
 	private readonly _answerClaim = this._register(new MutableDisposable());
+	/** Questions the user has answered themselves: a suggestion selects options only in the others. */
+	private readonly _touched = new Set<string>();
 
 	private readonly _textAnswerEditors: Map<string, ChatQuestionAnswerEditor> = new Map();
 	private readonly _singleSelectItems: Map<string, { items: HTMLElement[]; selectedIndex: number; optionIndices: number[] }> = new Map();
@@ -280,6 +282,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			if (carousel.draftAnswers) {
 				for (const [key, value] of Object.entries(carousel.draftAnswers)) {
 					this._answers.set(key, value);
+					// A restored draft may hold the user's own choice, which a suggestion must not replace.
+					this._touched.add(key);
 				}
 			}
 		}
@@ -578,6 +582,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const newIndex = this._currentIndex + delta;
 		if (newIndex >= 0 && newIndex < this.carousel.questions.length) {
 			this.saveCurrentAnswer();
+			this.markCurrentAnswered();
 			this._currentIndex = newIndex;
 			this.persistDraftState();
 			this.renderCurrentQuestion(true);
@@ -591,6 +596,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 */
 	private handleNextOrSubmit(): void {
 		this.saveCurrentAnswer();
+		this.markCurrentAnswered();
 
 		if (!this.validateCurrentQuestion()) {
 			return;
@@ -1398,10 +1404,27 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		return session && this._answerClaim.value ? this._suggestions?.getSuggestion(session)?.answer : undefined;
 	}
 
-	/** Marks an option the suggestion picked: a sparkle and an outline, never pre-selected. */
-	private markSuggestedOption(listItem: HTMLElement, label: string): void {
-		const suggested = this.suggestedAnswer?.selectedOptions;
-		if (suggested?.some(o => o === label || label.startsWith(`${o} - `))) {
+	/** Moving on from a question keeps the answer the user saw there: a later suggestion doesn't change it. */
+	private markCurrentAnswered(): void {
+		const question = this.carousel.questions[this._currentIndex];
+		if (question) {
+			this._touched.add(question.id);
+		}
+	}
+
+	/** The suggestion's answer to this question of the carousel. */
+	private suggestionFor(question: IChatQuestion): IChatInputSuggestionQuestionAnswer | undefined {
+		return suggestedAnswerForQuestion(this.suggestedAnswer, this.carousel.questions.indexOf(question), this.carousel.questions.length);
+	}
+
+	/** Whether the suggestion picks this option of the question (by its label, or its title before " - "). */
+	private isSuggestedOption(question: IChatQuestion, label: string): boolean {
+		return !!this.suggestionFor(question)?.selectedOptions?.some(o => o === label || label.startsWith(`${o} - `));
+	}
+
+	/** Marks an option the suggestion picked: a sparkle and an outline. Until the user answers the question, it is also selected. */
+	private markSuggestedOption(listItem: HTMLElement, label: string, question: IChatQuestion): void {
+		if (this.isSuggestedOption(question, label)) {
 			listItem.classList.add('chat-question-list-item-suggested');
 			const marker = dom.$('span.chat-question-suggested-marker' + ThemeIcon.asCSSSelector(Codicon.sparkle));
 			marker.title = localize('chat.questionCarousel.suggested', "Suggested");
@@ -1450,17 +1473,18 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	/**
 	 * Creates an answer editor in the container, tied to the lifetime of the rendered question.
 	 */
-	private createAnswerEditor(container: HTMLElement, placeholder: string, initialValue: string | undefined): ChatQuestionAnswerEditor {
+	private createAnswerEditor(container: HTMLElement, placeholder: string, initialValue: string | undefined, question: IChatQuestion): ChatQuestionAnswerEditor {
 		const editor = this._inputBoxes.add(this._instantiationService.createInstance(ChatQuestionAnswerEditor, container, {
 			placeholder,
 			ariaLabel: placeholder,
 			initialValue,
 			sessionResource: this._options.sessionResource ?? this._context?.element?.sessionResource,
 			overflowWidgetsDomNode: this._options.editorOverflowWidgetsDomNode,
+			question: { index: this.carousel.questions.indexOf(question), count: this.carousel.questions.length },
 		}));
 		this._inputBoxes.add(editor.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._inputBoxes.add(editor.onDidPressEnter(() => this.handleNextOrSubmit()));
-		if (this.suggestedAnswer?.freeform) {
+		if (this.suggestionFor(question)?.freeform) {
 			editor.enableSuggestions();
 		}
 		return editor;
@@ -1478,8 +1502,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			? String(previousAnswer)
 			: question.defaultValue !== undefined ? String(question.defaultValue) : undefined;
 
-		const editor = this.createAnswerEditor(container, localize('chat.questionCarousel.enterText', 'Enter your answer'), initialValue);
-		this._inputBoxes.add(editor.onDidChangeValue(() => this.saveCurrentAnswer()));
+		const editor = this.createAnswerEditor(container, localize('chat.questionCarousel.enterText', 'Enter your answer'), initialValue, question);
+		this._inputBoxes.add(editor.onDidChangeValue(() => {
+			this._touched.add(question.id);
+			this.saveCurrentAnswer();
+		}));
 
 		this._textAnswerEditors.set(question.id, editor);
 		this._focusAnswer = () => editor.focus();
@@ -1545,6 +1572,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				selectedIndex = index;
 			}
 		});
+		// Until the user answers it, a suggested pick is the selection, so submitting as is sends it.
+		const suggestedIndex = this._touched.has(question.id) ? -1 : orderedOptions.findIndex(({ option }) => this.isSuggestedOption(question, option.label));
+		if (suggestedIndex !== -1) {
+			selectedIndex = suggestedIndex;
+		}
 
 		const listbox = new ChatCardListbox(selectContainer, question.title, 'selected');
 		this._focusAnswer = () => listbox.focus();
@@ -1558,7 +1590,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				indicator.classList.toggle('codicon-check', isSelected);
 			});
 		};
-		const updateSelection = (newIndex: number) => {
+		const updateSelection = (newIndex: number, byUser = true) => {
+			if (byUser) {
+				this._touched.add(question.id);
+			}
 			paintSelection(newIndex);
 			// Update tracked state
 			const data = this._singleSelectItems.get(question.id);
@@ -1602,7 +1637,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 			listItem.appendChild(label);
 			listItem.appendChild(indicator);
-			this.markSuggestedOption(listItem, option.label);
+			this.markSuggestedOption(listItem, option.label, question);
 
 			// Selecting an option answers with it, ignoring any custom answer, and goes to the next question
 			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
@@ -1639,7 +1674,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			freeformContainer.appendChild(freeformNumber);
 			container.appendChild(freeformContainer);
 
-			const capturedFreeform = this.createAnswerEditor(freeformContainer, localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'), previousFreeform ?? this._ignoredFreeformValues.get(question.id));
+			const capturedFreeform = this.createAnswerEditor(freeformContainer, localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'), previousFreeform ?? this._ignoredFreeformValues.get(question.id), question);
 			freeformEditor = capturedFreeform;
 			// The saved answer leaves out text that a selected option overrides, so keep it here when the question is unrendered.
 			this._inputBoxes.add(toDisposable(() => {
@@ -1726,7 +1761,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				}));
 			} else if (listItems.length > 0) {
 				if (selectedIndex < 0 && this._options.shouldAutoSelectFirstOption !== false) {
-					updateSelection(0);
+					updateSelection(0, false);
 				}
 				this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(selectContainer), () => {
 					listbox.focus();
@@ -1761,10 +1796,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._focusAnswer = () => listItems[focusedIndex]?.focus();
 		let firstCheckedIndex = -1;
 
+		// Until the user answers it, the suggested picks are the selection, so submitting as is sends them.
+		const suggestedPicks = !this._touched.has(question.id) && orderedOptions.some(({ option }) => this.isSuggestedOption(question, option.label));
 		orderedOptions.forEach(({ option }, index) => {
 			// Determine initial checked state
 			let isChecked = false;
-			if (previousSelectedValues && previousSelectedValues.length > 0) {
+			if (suggestedPicks) {
+				isChecked = this.isSuggestedOption(question, option.label);
+			} else if (previousSelectedValues && previousSelectedValues.length > 0) {
 				isChecked = previousSelectedValues.includes(option.value);
 			} else if (!previousFreeform && defaultOptionIds.includes(option.id)) {
 				isChecked = true;
@@ -1804,7 +1843,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				label.textContent = option.label;
 			}
 			listItem.appendChild(label);
-			this.markSuggestedOption(listItem, option.label);
+			this.markSuggestedOption(listItem, option.label, question);
 
 			if (isChecked) {
 				listItem.classList.add('checked');
@@ -1815,6 +1854,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			// Sync checkbox state with list item visual state
 			this._inputBoxes.add(checkbox.onChange(() => {
+				this._touched.add(question.id);
 				listItem.classList.toggle('checked', checkbox.checked);
 				listItem.setAttribute('aria-selected', String(checkbox.checked));
 				this.saveCurrentAnswer();
@@ -1855,9 +1895,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			freeformContainer.appendChild(freeformNumber);
 			container.appendChild(freeformContainer);
 
-			const capturedFreeform = this.createAnswerEditor(freeformContainer, localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'), previousFreeform);
+			const capturedFreeform = this.createAnswerEditor(freeformContainer, localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'), previousFreeform, question);
 			freeformEditor = capturedFreeform;
-			this._inputBoxes.add(capturedFreeform.onDidChangeValue(() => this.saveCurrentAnswer()));
+			this._inputBoxes.add(capturedFreeform.onDidChangeValue(() => {
+				this._touched.add(question.id);
+				this.saveCurrentAnswer();
+			}));
 			// Up from the start of the custom answer moves to the last option, keeping the custom answer
 			this._inputBoxes.add(capturedFreeform.onDidPressUpAtStart(() => {
 				if (listItems.length) {

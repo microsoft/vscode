@@ -9,6 +9,7 @@ import { DEFAULT_FONT_FAMILY } from '../../../../../../base/browser/fonts.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
@@ -47,6 +48,15 @@ export function getChatQuestionAnswerSessionResource(uri: URI): URI | undefined 
 	}
 }
 
+/**
+ * Which question of its carousel a {@link ChatQuestionAnswerEditor} model answers, when it was created for one:
+ * its index and the carousel's number of questions.
+ */
+export function getChatQuestionAnswerQuestion(uri: URI): { readonly index: number; readonly count: number } | undefined {
+	const m = uri.scheme === CHAT_QUESTION_ANSWER_SCHEME ? /^q(\d+)of(\d+)$/.exec(uri.fragment) : null;
+	return m ? { index: Number(m[1]), count: Number(m[2]) } : undefined;
+}
+
 export interface IChatQuestionAnswerEditorOptions {
 	readonly placeholder: string;
 	readonly ariaLabel: string;
@@ -57,6 +67,8 @@ export interface IChatQuestionAnswerEditorOptions {
 	readonly maxHeight?: number;
 	/** Node that hosts the editor's overflow widgets (e.g. suggest) so they aren't clipped by the container. */
 	readonly overflowWidgetsDomNode?: HTMLElement;
+	/** The carousel question this editor answers, so a suggestion can offer each question its own words. */
+	readonly question?: { readonly index: number; readonly count: number };
 }
 
 /**
@@ -85,6 +97,7 @@ export class ChatQuestionAnswerEditor extends Disposable {
 	private readonly _editor: CodeEditorWidget;
 	private readonly _model: ITextModel;
 	private readonly _maxHeight: number;
+	private readonly _placeholder: string;
 
 	private _width = 0;
 	private _height = 0;
@@ -107,10 +120,18 @@ export class ChatQuestionAnswerEditor extends Disposable {
 
 	/**
 	 * Shows a pushed suggestion (proposed API `chatInputSuggestion`) as ghost text: inline
-	 * suggestions stay off in answer boxes unless one is offered, and Tab accepts it.
+	 * suggestions stay off in answer boxes unless one is offered, and Tab accepts it. The
+	 * placeholder steps aside while the ghost text shows, so the two never overlap.
 	 */
 	enableSuggestions(): void {
 		this._editor.updateOptions({ inlineSuggest: { enabled: true } });
+		const controller = InlineCompletionsController.get(this._editor);
+		if (controller) {
+			this._register(autorun(reader => {
+				const showing = (controller.model.read(reader)?.ghostTexts.read(reader)?.length ?? 0) > 0;
+				this._editor.updateOptions({ placeholder: showing ? '' : this._placeholder });
+			}));
+		}
 		const trigger = () => InlineCompletionsController.get(this._editor)?.model.get()?.trigger();
 		this._register(this._editor.onDidFocusEditorText(trigger));
 		if (this._editor.hasTextFocus()) {
@@ -140,8 +161,10 @@ export class ChatQuestionAnswerEditor extends Disposable {
 		const uri = URI.from({
 			scheme: CHAT_QUESTION_ANSWER_SCHEME,
 			path: generateUuid(),
-			query: options.sessionResource ? options.sessionResource.toString() : undefined
+			query: options.sessionResource ? options.sessionResource.toString() : undefined,
+			fragment: options.question ? `q${options.question.index}of${options.question.count}` : undefined,
 		});
+		this._placeholder = options.placeholder;
 		this._value = options.initialValue ?? '';
 		this._model = modelService.createModel(this._value, null, uri, true);
 

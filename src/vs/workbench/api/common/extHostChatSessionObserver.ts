@@ -279,7 +279,13 @@ export class ExtHostChatSessionObserver implements ExtHostChatSessionObserverSha
 			id: suggestion.id,
 			...(suggestion.validForTurn ? { validForTurn: suggestion.validForTurn } : {}),
 			...(suggestion.text !== undefined ? { text: suggestion.text } : {}),
-			...(suggestion.answer ? { answer: { ...suggestion.answer, ...(suggestion.answer.selectedOptions ? { selectedOptions: [...suggestion.answer.selectedOptions] } : {}) } } : {}),
+			...(suggestion.answer ? {
+				answer: {
+					...suggestion.answer,
+					...(suggestion.answer.selectedOptions ? { selectedOptions: [...suggestion.answer.selectedOptions] } : {}),
+					...(suggestion.answer.questions ? { questions: suggestion.answer.questions.map(q => ({ ...(q.selectedOptions ? { selectedOptions: [...q.selectedOptions] } : {}), ...(q.freeform !== undefined ? { freeform: q.freeform } : {}) })) } : {}),
+				}
+			} : {}),
 		} : undefined);
 	}
 
