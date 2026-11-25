@@ -447,7 +447,8 @@ export interface IModalEditorOptions {
 	 * other modal editors open. The size keeps within the window and the
 	 * modal's minimum size; like every modal editor, the modal keeps its
 	 * minimum size in a window smaller than that, where it shows at the
-	 * window's top left. Defaults to `false`.
+	 * window's top left. Until the editor pane reports a size, the modal has
+	 * the default size of modal editors. Defaults to `false`.
 	 */
 	readonly fitToContent?: boolean;
 }

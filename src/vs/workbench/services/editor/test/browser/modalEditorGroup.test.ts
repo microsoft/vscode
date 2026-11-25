@@ -1225,11 +1225,13 @@ suite('Modal Editor Group', () => {
 			return input;
 		}
 
-		function createFitToContentInput(contentSize: { width: number; height: number }): TestFitToContentEditorInput {
+		function createFitToContentInput(contentSize: { width: number; height: number } | undefined): TestFitToContentEditorInput {
 			disposables.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(EditorPaneDescriptor.create(TestFitToContentEditorPane, 'testFitToContentEditorPane', 'Test Fit To Content Editor'), [new SyncDescriptor(TestFitToContentEditorInput)]));
 			const input = disposables.add(new TestFitToContentEditorInput(URI.file('foo/fit'), TEST_EDITOR_INPUT_ID));
 			input.setModalEditorOptions({ fitToContent: true });
-			input.setContentSize(contentSize);
+			if (contentSize) {
+				input.setContentSize(contentSize);
+			}
 
 			return input;
 		}
@@ -1329,6 +1331,35 @@ suite('Modal Editor Group', () => {
 			await modalPart.activeGroup.openEditor(createFitToContentInput({ width: 300, height: 200 }), { pinned: true });
 
 			assert.deepStrictEqual(getModalBounds(modalPart), { left: '200px', top: '150px', width: '400px', height: '300px' });
+
+			await modalPart.close();
+		});
+
+		test('an editor that fits its content centers the modal at the default size until its editor pane reports a size, then fits it', async () => {
+			const { parts } = await createParts('some');
+			const modalPart = await parts.createModalEditorPart({ position: { left: 10, top: 20 } });
+			const input = createFitToContentInput(undefined);
+
+			await modalPart.activeGroup.openEditor(input, { pinned: true });
+			const initialBounds = getModalBounds(modalPart);
+			input.setContentSize({ width: 500, height: 300 });
+
+			assert.deepStrictEqual({ initialBounds, fittedBounds: getModalBounds(modalPart) }, {
+				initialBounds: { left: '80px', top: '60px', width: '640px', height: '480px' },
+				fittedBounds: { left: '149px', top: '132.5px', width: '502px', height: '335px' }
+			});
+
+			await modalPart.close();
+		});
+
+		test('an editor that fits its content without a reported size shows the modal at its minimum size at the top left of a window smaller than that', async () => {
+			const { instantiationService, parts } = await createParts('some');
+			(instantiationService.get(IWorkbenchLayoutService) as TestLayoutService).mainContainerDimension = { width: 350, height: 250 };
+			const modalPart = await parts.createModalEditorPart();
+
+			await modalPart.activeGroup.openEditor(createFitToContentInput(undefined), { pinned: true });
+
+			assert.deepStrictEqual(getModalBounds(modalPart), { left: '0px', top: '0px', width: '400px', height: '300px' });
 
 			await modalPart.close();
 		});

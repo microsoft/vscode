@@ -760,11 +760,14 @@ export class ModalEditorPart {
 				const verticalPadding = Math.max(titleBarOffset /* keep away from title bar to prevent clipping issues with WCO */, MODAL_MAXIMIZED_PADDING);
 				width = Math.max(containerDimension.width - MODAL_MAXIMIZED_PADDING, 0);
 				height = Math.max(availableHeight - verticalPadding, 0);
-			} else if (contentSize) {
-				// Keep to the modal's minimum size here, so that the modal is centered at the size it gets. In a window smaller than
-				// the minimum size the modal keeps that size, so it shows at the window's top left
-				width = Math.min(Math.max(contentSize.width + MODAL_BORDER_SIZE, resizableElement.minSize.width), containerDimension.width);
-				height = Math.max(contentSize.height + (headerElement.offsetHeight || MODAL_HEADER_HEIGHT) + MODAL_BORDER_SIZE, resizableElement.minSize.height);
+			} else if (editorPart.fitsContent) {
+				// Fit the content, or the default size until the editor reports one. Keep to the modal's minimum size here, so that
+				// the modal is centered at the size it gets. In a window smaller than the minimum size the modal keeps that size, so
+				// it shows at the window's top left
+				const requestedWidth = contentSize ? contentSize.width + MODAL_BORDER_SIZE : defaultSize.width;
+				const requestedHeight = contentSize ? contentSize.height + (headerElement.offsetHeight || MODAL_HEADER_HEIGHT) + MODAL_BORDER_SIZE : defaultSize.height;
+				width = Math.min(Math.max(requestedWidth, resizableElement.minSize.width), containerDimension.width);
+				height = Math.max(requestedHeight, resizableElement.minSize.height);
 			} else if (editorPart.size && editorPart.canResize) {
 				width = Math.min(editorPart.size.width, containerDimension.width);
 				height = Math.min(editorPart.size.height, availableHeight);
