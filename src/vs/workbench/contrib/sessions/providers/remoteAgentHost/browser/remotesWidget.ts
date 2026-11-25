@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { IMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
+import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -13,7 +14,7 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DropdownMenuActionViewItem } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
-import { Action, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
+import { Action, IAction, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { equals } from '../../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -53,6 +54,7 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
+import { RemoteAgentHostCommandIds } from './remoteAgentHostCommandIds.js';
 import { getConnectionProblem, getGitHubEnvironmentLabel, getServerUpdateLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteRowMenuActions, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import { RemoteEnvironmentDetails, RemoteEnvironmentDetailsMode } from './remoteEnvironmentDetails.js';
 import './media/remotesWidget.css';
@@ -260,13 +262,20 @@ export class RemotesWidget extends Disposable {
 			}, contextMenuService, { ...options, classNames: action.class, hoverDelegate: actionHoverDelegate }),
 		}));
 		this._register(this.searchInput.onDidChange(query => this.setSearchQuery(query)));
-		const refreshButton = this.refreshButton = this._register(new Button(dom.append(searchControls, dom.$('.remotes-header-actions')), {
+		const headerActions = dom.append(searchControls, dom.$('.remotes-header-actions'));
+		const refreshButton = this.refreshButton = this._register(new Button(headerActions, {
 			...defaultButtonStyles, secondary: true, hoverDelegate: actionHoverDelegate, title: this.refreshAction.tooltip,
 		}));
 		refreshButton.label = this.refreshAction.label;
 		refreshButton.setAriaLabel(this.refreshAction.tooltip);
 		this._register(refreshButton.onDidClick(() => this.refreshAction.run()));
 		this._register(this.refreshAction.onDidChange(() => refreshButton.enabled = this.refreshAction.enabled));
+		const moreActions = this._register(new Action('remotes.moreActions', localize('remotes.moreActions', "More Actions..."), ThemeIcon.asClassName(Codicon.toolBarMore)));
+		const moreActionsBar = this._register(new ActionBar(headerActions, {
+			actionViewItemProvider: (action, options) => new DropdownMenuActionViewItem(action, { getActions: () => this.getAddActions() },
+				contextMenuService, { ...options, classNames: action.class, hoverDelegate: actionHoverDelegate }),
+		}));
+		moreActionsBar.push(moreActions, { icon: true, label: false });
 		this.tableContainer = dom.append(overviewBody, dom.$('.remotes-table-container'));
 		this.tableInner = dom.append(this.tableContainer, dom.$('.remotes-table-inner'));
 		this.message = dom.append(overviewBody, dom.$('.remotes-message'));
@@ -1126,6 +1135,30 @@ export class RemotesWidget extends Disposable {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Actions for environments that discovery can't find by itself. Unavailable actions are left out.
+	 */
+	private getAddActions(): IAction[] {
+		const add: IAction[] = [toAction({
+			id: 'remotes.header.addSSHHost',
+			label: localize('remotes.header.addSSHHost', "Add SSH Host..."),
+			run: () => this.notifyOnFailure(this.commandService.executeCommand<void>(RemoteAgentHostCommandIds.addSSHHost)),
+		})];
+		if (this.model.canCreateDevContainer.get()) {
+			add.push(toAction({
+				id: 'remotes.header.createDevContainer',
+				label: localize('remotes.header.createDevContainer', "Create Dev Container..."),
+				run: () => this.createDevContainer(),
+			}));
+		}
+		const signIn = this.model.tunnelAuthenticationRequired.get() && !this.signingInToTunnels ? [toAction({
+			id: 'remotes.header.signInToTunnels',
+			label: localize('remotes.header.signInToTunnels', "Sign In to Dev Tunnels..."),
+			run: () => this.notifyOnFailure(this.signInToTunnels()),
+		})] : [];
+		return Separator.join(add, signIn);
 	}
 
 	/**

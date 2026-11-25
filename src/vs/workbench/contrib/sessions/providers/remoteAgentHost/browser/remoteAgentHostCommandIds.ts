@@ -7,6 +7,9 @@
 export const RemoteAgentHostCommandIds = {
 	addRemoteAgentHost: 'sessions.remoteAgentHost.add',
 	connectViaSSH: 'workbench.action.sessions.connectViaSSH',
+	/** Connects to a new `user@host` without opening a session, for Remote Environments. */
+	addSSHHost: 'workbench.action.sessions.addSSHHost',
+	/** Adds a Host entry to the SSH configuration file. */
 	addNewSSHHost: 'workbench.action.sessions.addNewSSHHost',
 	configureSSHHosts: 'workbench.action.sessions.configureSSHHosts',
 	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',

@@ -389,9 +389,12 @@ async function promptToConnectViaSSH(
 		notificationService.error(validateSSHHostInput(newHost.hostInput) ?? localize('sshHostInvalid', "Invalid SSH host."));
 		return;
 	}
-	await instantiationService.invokeFunction(accessor =>
+	const connectionAddress = await instantiationService.invokeFunction(accessor =>
 		promptForCredentialsAndConnect(accessor, parsed.host, parsed.username, parsed.port)
 	);
+	if (connectionAddress) {
+		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(connectionAddress, accessor.get(ISessionsProvidersService), accessor.get(ISessionsService), accessor.get(ISessionsPartService)));
+	}
 }
 
 async function connectToConfiguredSSHHost(
@@ -432,11 +435,15 @@ async function connectToConfiguredSSHHost(
 	}
 
 	// Fallback: alias resolved without a user — fall through to manual flow
-	await instantiationService.invokeFunction(accessor =>
+	const connectionAddress = await instantiationService.invokeFunction(accessor =>
 		promptForCredentialsAndConnect(accessor, host, undefined, port, suggestedName, defaultKeyPath, resolvedConfig.identityAgent)
 	);
+	if (connectionAddress) {
+		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(connectionAddress, accessor.get(ISessionsProvidersService), accessor.get(ISessionsService), accessor.get(ISessionsPartService)));
+	}
 }
 
+/** Prompts for the missing SSH credentials and connects, returning the connection's address unless canceled or failed. */
 async function promptForCredentialsAndConnect(
 	accessor: ServicesAccessor,
 	host: string,
@@ -445,7 +452,7 @@ async function promptForCredentialsAndConnect(
 	suggestedName?: string,
 	defaultKeyPath?: string,
 	identityAgent?: string,
-): Promise<void> {
+): Promise<string | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const instantiationService = accessor.get(IInstantiationService);
 
@@ -546,12 +553,9 @@ async function promptForCredentialsAndConnect(
 		name: name.trim(),
 	};
 
-	const connectionAddress = await instantiationService.invokeFunction(accessor =>
+	return instantiationService.invokeFunction(accessor =>
 		connectWithProgress(accessor, config, host)
 	);
-	if (connectionAddress) {
-		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(connectionAddress, accessor.get(ISessionsProvidersService), accessor.get(ISessionsService), accessor.get(ISessionsPartService)));
-	}
 }
 
 export async function connectWithProgress(
@@ -678,6 +682,34 @@ registerAction2(class extends Action2 {
 		const result = await promptToConnectViaSSH(accessor, { showBackButton: !!onBack });
 		if (result === 'back') {
 			onBack?.();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RemoteAgentHostCommandIds.addSSHHost,
+			title: localize2('addSSHHost', "Add SSH Host..."),
+			category: SessionsCategories.Sessions,
+			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const value = await quickInputService.input({
+			title: localize('addSSHHostTitle', "Add SSH Host"),
+			prompt: localize('addSSHHostPrompt', "Enter user@host, optionally followed by :port."),
+			placeHolder: 'user@host',
+			ignoreFocusLost: true,
+			validateInput: async value => validateSSHHostInput(value),
+		});
+		const parsed = value === undefined ? undefined : parseSSHHostInput(value);
+		if (parsed) {
+			// Connecting saves the host, so it stays listed in Remote Environments without opening a session.
+			await instantiationService.invokeFunction(accessor => promptForCredentialsAndConnect(accessor, parsed.host, parsed.username, parsed.port));
 		}
 	}
 });

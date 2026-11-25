@@ -16,7 +16,7 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type SSHAgentHostConnectionRequest } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type SSHAgentHostConnectionRequest } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -47,7 +47,7 @@ import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menu
 import '../../browser/missionControlAgentHost.contribution.js';
 import { getSessionCreationEnvironments } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
-import { IQuickInputService, QuickInputHideReason, type IQuickPick, type IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, QuickInputHideReason, type IQuickPick, type IQuickPickItem, type QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -311,6 +311,51 @@ suite('Remote Agent Host actions', () => {
 		});
 		await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(RemoteAgentHostCommandIds.connectViaSSH)!.handler(accessor));
 		assert.deepStrictEqual(requests, [{ sshConfigHost: 'myalias', name: 'myalias' }]);
+	});
+
+	test('Add SSH Host connects to user@host without asking for a folder or opening a session', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const inputs = ['alice@build.example:2222', 'Build'];
+		const prompts: (string | undefined)[] = [];
+		const requests: SSHAgentHostConnectionRequest[] = [];
+		const sessionCalls: string[] = [];
+		instantiation.stub(IInstantiationService, instantiation);
+		instantiation.stub(INotificationService, new TestNotificationService());
+		instantiation.stub(ITelemetryService, NullTelemetryService);
+		instantiation.stub(IRemoteAgentHostService, { connections: [] });
+		instantiation.stub(IQuickInputService, {
+			input: async options => {
+				prompts.push(options?.title);
+				return inputs.shift();
+			},
+			pick: (async (picks: QuickPickInput<IQuickPickItem>[]) => {
+				prompts.push('Authentication Method');
+				return picks[0];
+			}) as IQuickInputService['pick'],
+		});
+		instantiation.stub(ISSHRemoteAgentHostService, {
+			onDidReportConnectProgress: Event.None,
+			connect: async request => {
+				requests.push(request);
+				return upcastPartial<ISSHAgentHostConnection>({ localAddress: 'ssh:build.example' });
+			},
+		});
+		instantiation.stub(ISessionsProvidersService, { getProviders: () => { sessionCalls.push('getProviders'); return []; } });
+		instantiation.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			openNewSession: async () => {
+				sessionCalls.push('openNewSession');
+				return { session: undefined, trustDeclined: false };
+			},
+		}));
+		await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(RemoteAgentHostCommandIds.addSSHHost)!.handler(accessor));
+		assert.deepStrictEqual({ prompts, requests, sessionCalls }, {
+			prompts: ['Add SSH Host', 'Authentication Method', 'Name Remote'],
+			requests: [{
+				host: 'build.example', port: 2222, username: 'alice', authMethod: SSHAuthMethod.Agent,
+				privateKeyPath: undefined, identityAgent: undefined, password: undefined, name: 'Build',
+			}],
+			sessionCalls: [],
+		});
 	});
 
 	test('reuses an existing SSH connection when reopening the folder picker', async () => {

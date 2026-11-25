@@ -1067,16 +1067,33 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('header refreshes discovered environments without offering duplicate add routes', async () => {
-		const { parent, model } = createWidget();
+	test('header refreshes discovery and offers only the add actions that are available', async () => {
+		const { parent, model, commands } = createWidget(OperatingSystem.Windows, 'default');
 		parent.querySelector<HTMLElement>('.remotes-header-actions .monaco-button')!.click();
+		await timeout(0);
+		const openMenu = () => {
+			parent.querySelector<HTMLElement>('.remotes-header-actions .codicon-toolbar-more')!.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+			return menus.get(parent)!();
+		};
+		const labels = () => openMenu().map(action => action instanceof Separator ? '---' : action.label);
+		const initial = labels();
+		model.canCreateDevContainer.set(true, undefined);
+		model.tunnelAuthenticationRequired.set('github', undefined);
+		const available = labels();
+		for (const action of openMenu()) {
+			await action.run();
+		}
 		await timeout(0);
 		assert.deepStrictEqual({
 			headerButtons: parent.querySelectorAll('.remotes-search-controls .monaco-button').length,
-			refreshes: model.refreshCalls,
-			connections: model.connectionChanges,
+			initial, available, afterSignIn: labels(),
+			commands, devContainerCreations: model.devContainerCreations, signIns: model.signInCalls, refreshes: model.refreshCalls, connections: model.connectionChanges,
 		}, {
-			headerButtons: 1, refreshes: 1, connections: [],
+			headerButtons: 1,
+			initial: ['Add SSH Host...'],
+			available: ['Add SSH Host...', 'Create Dev Container...', '---', 'Sign In to Dev Tunnels...'],
+			afterSignIn: ['Add SSH Host...', 'Create Dev Container...'],
+			commands: ['workbench.action.sessions.addSSHHost'], devContainerCreations: [undefined], signIns: 1, refreshes: 1, connections: [],
 		});
 	});
 
