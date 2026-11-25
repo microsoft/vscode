@@ -56,6 +56,10 @@ suite('CommandsQuickAccessProvider', () => {
 		store.add(MenuRegistry.addCommand({ id: 'test.zyzzyva.alpha', title: 'Zyzzyva Alpha' }));
 	});
 
+	teardown(() => {
+		sinon.restore();
+	});
+
 	function openPicker(): { picker: CommandPicker; session: IDisposable } {
 		const picker = store.add(instantiationService.get(IQuickInputService).createQuickPick<ICommandQuickPick>({ useSeparators: true }));
 		picker.value = CommandsQuickAccessProvider.PREFIX;
