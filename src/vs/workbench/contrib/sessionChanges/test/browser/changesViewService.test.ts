@@ -318,7 +318,7 @@ suite('ChangesViewService', () => {
 		});
 	});
 
-	test('a Changes editor that follows its input, as in an editor window, is of the session of its input whichever session the window shows, of the chat the window shows of it, else of its main chat, and is not of the main window, whose workspace is the one mounted', () => {
+	test('a Changes editor that follows its input, as in an editor window, is of the session of its input whichever session the window shows, of the chat the window shows of it, else of the chat it last showed of it, as its diffs are, and is not of the main window, whose workspace is the one mounted', () => {
 		const createChat = (id: string) => upcastPartial<IChat>({
 			resource: URI.from({ scheme: 'test-chat', path: `/${id}` }),
 			changes: constObservable([]),
@@ -342,10 +342,14 @@ suite('ChangesViewService', () => {
 		windowSession.set(sessionB, undefined);
 		windowChat.set(chatB, undefined);
 		const anotherShown = describe();
+		windowSession.set(sessionA, undefined);
+		windowChat.set(chatA1, undefined);
+		const mainChatShown = describe();
 
-		assert.deepStrictEqual({ shown, anotherShown }, {
+		assert.deepStrictEqual({ shown, anotherShown, mainChatShown }, {
 			shown: { session: sessionA.resource.path, chat: '/a2', isMainWindow: false },
-			anotherShown: { session: sessionA.resource.path, chat: '/a1', isMainWindow: false },
+			anotherShown: { session: sessionA.resource.path, chat: '/a2', isMainWindow: false },
+			mainChatShown: { session: sessionA.resource.path, chat: '/a1', isMainWindow: false },
 		});
 	});
 
