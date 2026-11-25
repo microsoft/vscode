@@ -170,6 +170,23 @@ sourceMapSupport.install({
 	},
 });
 
+// Parsing a source map sorts with Math.random, millions of times for a large bundle. Format stacks
+// with the native generator, so that a fixture's seeded Math.random (pushRandomOverwrite) yields
+// the same values whether or not an earlier fixture on the page has already parsed the map.
+const nativeRandom = Math.random;
+const sourceMappedPrepareStackTrace = Error.prepareStackTrace;
+if (sourceMappedPrepareStackTrace) {
+	Error.prepareStackTrace = (error, stackTraces) => {
+		const random = Math.random;
+		Math.random = nativeRandom;
+		try {
+			return sourceMappedPrepareStackTrace(error, stackTraces);
+		} finally {
+			Math.random = random;
+		}
+	};
+}
+
 /**
  * A storage service that never stores anything and always returns the default/fallback value.
  * This is useful for fixtures where we want consistent behavior without persisted state.
