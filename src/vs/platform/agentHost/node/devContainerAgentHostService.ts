@@ -48,6 +48,7 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import {
 	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
+	DETECT_MUSL_COMMAND,
 	ISshExec,
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
@@ -61,7 +62,6 @@ import {
 } from './sshRemoteAgentHostHelpers.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
-const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 

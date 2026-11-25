@@ -8,6 +8,7 @@ import { escapeRegExpCharacters } from '../../../../../../base/common/strings.js
 import { IAgentHostBuild } from '../../../../../../platform/agentHost/common/meta/agentHostUpgradeMeta.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { formatSSHProxyCommandExit } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { WSL_INSTALL_SERVER_LIBRARIES_COMMAND, WSL_MUSL_SERVER_LIBRARIES } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { canConnectToRemote, ICustomizationRemote, IRemoteTroubleshootingInfo } from './remotesModel.js';
 
 /** Actions the Troubleshoot Connection page can offer. */
@@ -274,8 +275,14 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 					command = { label: localize('remotes.wslListCommand', "List installed distributions in PowerShell"), value: 'wsl --list --verbose' };
 				} else if (failed && /Unsupported WSL distro platform/i.test(error)) {
 					guidance.push(localize('remotes.wslUnsupportedPlatform', "This distribution's platform isn't supported. Use an x64 or Arm64 Linux distribution."));
+				} else if (failed && WSL_MUSL_SERVER_LIBRARIES.some(library => error.includes(library))) {
+					// The library names and install command stay untranslated in the localized connection error.
+					guidance.push(localize('remotes.wslMissingLibraries', "The VS Code server needs the libstdc++ and libgcc libraries, which Alpine and other musl-based distributions don't install by default. Install them in the distribution as root, then retry."));
+					if (error.includes(WSL_INSTALL_SERVER_LIBRARIES_COMMAND) && /^[\w.-]+$/.test(remote.detail)) {
+						command = { label: localize('remotes.wslInstallLibrariesCommand', "Install libstdc++ in the distribution from PowerShell"), value: `wsl -d ${remote.detail} -u root ${WSL_INSTALL_SERVER_LIBRARIES_COMMAND}` };
+					}
 				} else if (failed && /download|ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|certificate/i.test(error)) {
-					guidance.push(localize('remotes.wslDownload', "The server couldn't be downloaded inside the distribution. Check its internet connection and proxy settings, then retry."));
+					guidance.push(localize('remotes.wslDownload', "The VS Code CLI or server couldn't be downloaded. This computer downloads the CLI and the distribution downloads the server, so check the internet connection and proxy settings of both, then retry."));
 				} else if (incompatible && !upgradeMethod || failed) {
 					guidance.push(localize('remotes.wslRestart', "Restart the distribution to stop its agent host, then connect again to start a new one."));
 				} else if (remote.startsOnConnect) {

@@ -7,15 +7,14 @@ import * as cp from 'child_process';
 import { join } from '../../../base/common/path.js';
 import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import { AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
-import type { IWSLDistro } from '../common/wslRemoteAgentHost.js';
+import { WSL_MUSL_SERVER_LIBRARIES, type IWSLDistro } from '../common/wslRemoteAgentHost.js';
 import {
 	buildAgentHostBaseCommand,
-	buildCLIDownloadUrl,
 	buildCleanupOldCLIsCommand,
+	DETECT_MUSL_COMMAND,
 	extractAgentHostWebSocketURL,
 	getRemoteCLIBin,
 	getRemoteCLIInstallRoot,
-	shellEscape,
 	validateAgentHostTelemetryLevel,
 	validateShellToken,
 } from './sshRemoteAgentHostHelpers.js';
@@ -56,6 +55,8 @@ export async function isWSLSupported(): Promise<boolean> {
 export interface IRunWslCommandOptions {
 	readonly timeout?: number;
 	readonly distro?: string;
+	/** Bytes written to the command's stdin, which is closed afterwards. */
+	readonly input?: Uint8Array;
 }
 
 export interface IRunWslCommandResult {
@@ -79,8 +80,13 @@ export function runWslCommand(args: readonly string[], options?: IRunWslCommandO
 		const child = cp.spawn(getWslExePath(), fullArgs, {
 			env: { ...process.env, WSL_UTF8: '1' },
 			windowsHide: true,
-			stdio: ['ignore', 'pipe', 'pipe'],
+			stdio: [options?.input ? 'pipe' : 'ignore', 'pipe', 'pipe'],
 		});
+		if (options?.input) {
+			// The exit code reports why a command stopped reading its input early.
+			child.stdin?.on('error', () => { });
+			child.stdin?.end(options.input);
+		}
 
 		const stdoutChunks: Buffer[] = [];
 		const stderrChunks: Buffer[] = [];
@@ -248,31 +254,116 @@ export function parseRunningDistros(output: string): string[] {
 		.filter(line => line.length > 0);
 }
 
+/** What {@link composeDistroProbeScript} reports about a distribution. */
+export interface IWSLDistroProbe {
+	readonly unameS: string;
+	readonly unameM: string;
+	/** `musl` on musl-based distributions such as Alpine, otherwise empty. */
+	readonly libc: string;
+	/** Whether the installed CLI runs, so it can be reused instead of being installed again. */
+	readonly cliRunnable: boolean;
+	/** Libraries from {@link WSL_MUSL_SERVER_LIBRARIES} that are missing on a musl distribution. */
+	readonly missingLibraries: readonly string[];
+	/** Whether the distribution has Alpine's `apk` package manager, which can install missing libraries. */
+	readonly hasApk: boolean;
+}
+
+/**
+ * Compose the POSIX `sh` script that reports, one `key=value` per line, the
+ * platform for picking the CLI build, whether the CLI at `cliBin` runs (a CLI
+ * of the wrong platform or libc doesn't and is replaced), and which libraries
+ * the server needs are missing on musl and whether `apk` can install them.
+ */
+export function composeDistroProbeScript(cliBin: string): string {
+	return [
+		'printf \'os=%s\\n\' "$(uname -s)"',
+		'printf \'arch=%s\\n\' "$(uname -m)"',
+		`libc=$(${DETECT_MUSL_COMMAND})`,
+		'printf \'libc=%s\\n\' "$libc"',
+		`if [ "$libc" = musl ]; then for lib in ${WSL_MUSL_SERVER_LIBRARIES.join(' ')}; do [ -e "/usr/lib/$lib" ] || [ -e "/lib/$lib" ] || printf 'missing=%s\\n' "$lib"; done; fi`,
+		'if command -v apk >/dev/null 2>&1; then echo apk=yes; fi',
+		`if ${cliBin} --version >/dev/null 2>&1; then echo cli=ok; fi`,
+	].join('; ');
+}
+
+/** Parse the output of {@link composeDistroProbeScript}. */
+export function parseDistroProbe(output: string): IWSLDistroProbe {
+	const values = new Map<string, string>();
+	const missingLibraries: string[] = [];
+	for (const line of output.split(/\r\n|\r|\n/)) {
+		const separator = line.indexOf('=');
+		if (separator <= 0) {
+			continue;
+		}
+		const key = line.slice(0, separator);
+		const value = line.slice(separator + 1).trim();
+		if (key === 'missing') {
+			missingLibraries.push(value);
+		} else {
+			values.set(key, value);
+		}
+	}
+	return {
+		unameS: values.get('os') ?? '',
+		unameM: values.get('arch') ?? '',
+		libc: values.get('libc') ?? '',
+		cliRunnable: values.get('cli') === 'ok',
+		missingLibraries,
+		hasApk: values.get('apk') === 'yes',
+	};
+}
+
+/**
+ * Compose the POSIX `sh` script that installs the CLI from the `.tar.gz`
+ * archive on its stdin, which is downloaded on the Windows side so the
+ * distribution needs neither `curl` nor `wget`. It extracts into a temporary
+ * directory in the install root and renames the binary into place, replacing
+ * a CLI that doesn't run, then verifies that the new one runs.
+ */
+export function composeCLIInstallScript(serverDataFolderName: string, quality: string, commit: string | undefined): string {
+	const installRoot = getRemoteCLIInstallRoot(serverDataFolderName);
+	const cliBin = getRemoteCLIBin(serverDataFolderName, quality, commit);
+	return [
+		'set -e',
+		`mkdir -p ${installRoot}`,
+		`tmpdir=$(mktemp -d ${installRoot}/.cli-install-XXXXXX)`,
+		'trap \'rm -rf "$tmpdir"\' EXIT',
+		'tar -xzf - -C "$tmpdir"',
+		`mv -f "$tmpdir"/* ${cliBin}`,
+		`chmod +x ${cliBin}`,
+		`${cliBin} --version >/dev/null`,
+	].join('; ');
+}
+
+/**
+ * Arguments after `wsl.exe -d <distro> -e` that run `script` in Bash's login
+ * shell, which reads `~/.bash_profile` for settings such as proxies that the
+ * CLI's server download needs, or in a POSIX login shell on distros without
+ * Bash, such as Alpine.
+ */
+export function getWslLoginShellArgs(script: string): string[] {
+	return ['sh', '-c', 'if command -v bash >/dev/null 2>&1; then exec bash -lc "$1"; fi; exec sh -lc "$1"', 'sh', script];
+}
+
 export interface IComposeAgentHostBootstrapScriptArgs {
 	readonly serverDataFolderName: string;
 	readonly quality: string;
 	readonly commit: string | undefined;
-	readonly os: string;
-	readonly arch: string;
 	readonly telemetryLevel?: TelemetryConfiguration;
 	/** Dev override; executed verbatim with no appended arguments. All CLI bootstrap is skipped. */
 	readonly remoteAgentHostCommand?: string;
 }
 
 /**
- * Compose the bash one-liner passed to `wsl.exe -d <distro> -e bash -lc`.
+ * Compose the POSIX `sh` one-liner that {@link getWslLoginShellArgs} runs in a
+ * login shell, which launches the CLI that {@link composeCLIInstallScript}
+ * installed.
  *
  * Reuses the same install layout helpers as Remote-SSH
- * ({@link getRemoteCLIBin}, {@link buildCLIDownloadUrl},
- * {@link buildCleanupOldCLIsCommand}, {@link buildAgentHostBaseCommand}) so
- * a WSL-installed CLI and an SSH-installed CLI share the same
- * `~/<serverDataFolderName>/...` files inside the distro.
- *
- * SSH composes the same operations across multiple sequential `exec` calls
- * (so it can branch on lockfile reuse and CLI-install failures); WSL does
- * not have a control channel back to the host between commands and so
- * collapses the install+launch into one script per spawn. The shared layout
- * lives in the helper functions above, not in the composition itself.
+ * ({@link getRemoteCLIBin}, {@link buildCleanupOldCLIsCommand},
+ * {@link buildAgentHostBaseCommand}) so a WSL-installed CLI and an
+ * SSH-installed CLI share the same `~/<serverDataFolderName>/...` files
+ * inside the distro.
  */
 export function composeAgentHostBootstrapScript(args: IComposeAgentHostBootstrapScriptArgs): string {
 	const telemetryLevel = validateAgentHostTelemetryLevel(args.telemetryLevel ?? TelemetryConfiguration.OFF);
@@ -280,41 +371,18 @@ export function composeAgentHostBootstrapScript(args: IComposeAgentHostBootstrap
 		// The override may not be the VS Code CLI, so pass launch restrictions out-of-band.
 		return `export ${AgentHostTelemetryLevelEnvKey}=${telemetryLevel} && ${args.remoteAgentHostCommand}`;
 	}
-	const installRoot = getRemoteCLIInstallRoot(args.serverDataFolderName);
 	const cliBin = getRemoteCLIBin(args.serverDataFolderName, args.quality, args.commit);
-	const url = buildCLIDownloadUrl(args.os, args.arch, args.quality, args.commit);
-	const agentHostCommand = buildAgentHostBaseCommand(cliBin, args.serverDataFolderName, telemetryLevel);
-	const launch = buildWslAgentHostLaunch(agentHostCommand);
-
-	if (args.commit) {
-		// Pinned-install path. Mirrors SSH's _ensureCLIInstalledPinned: stage
-		// into a same-FS tmpdir for atomic rename, validate +x, then prune
-		// older commit-keyed binaries (keep newest 5). Touch keeps the
-		// reuse-path binary's mtime fresh so it doesn't fall out of that
-		// window.
-		const cleanup = buildCleanupOldCLIsCommand(args.serverDataFolderName, args.quality);
-		const installSteps = [
-			`tmpdir=$(mktemp -d ${installRoot}/.cli-install-XXXXXX)`,
-			`(cd "$tmpdir" && curl -fsSL ${shellEscape(url)} | tar xz)`,
-			`mv "$tmpdir"/* ${cliBin}`,
-			`chmod +x ${cliBin}`,
-			`rm -rf "$tmpdir"`,
-		].join(' && ');
-		return [
-			`mkdir -p ${installRoot}`,
-			`if [ ! -x ${cliBin} ]; then ${installSteps}; fi`,
-			`touch -- ${cliBin} 2>/dev/null || true`,
-			`(${cleanup}) >/dev/null 2>&1 || true`,
-			launch,
-		].join(' && ');
+	const launch = buildWslAgentHostLaunch(buildAgentHostBaseCommand(cliBin, args.serverDataFolderName, telemetryLevel));
+	if (!args.commit) {
+		// Dev builds use a single non-pinned binary without retention pruning.
+		return launch;
 	}
-
-	// Loose dev-build path. Matches SSH's _ensureCLIInstalledLoose: single
-	// non-pinned binary, no retention pruning, install on first miss.
-	const installLoose = `curl -fsSL ${shellEscape(url)} | tar xz -C ${installRoot} && chmod +x ${cliBin}`;
+	// Mirrors SSH's pinned install: touch keeps the reused binary's mtime
+	// fresh so pruning older commit-keyed binaries (keep newest 5) keeps it.
+	const cleanup = buildCleanupOldCLIsCommand(args.serverDataFolderName, args.quality);
 	return [
-		`mkdir -p ${installRoot}`,
-		`if [ ! -x ${cliBin} ]; then ${installLoose}; fi`,
+		`touch -- ${cliBin} 2>/dev/null || true`,
+		`(${cleanup}) >/dev/null 2>&1 || true`,
 		launch,
 	].join(' && ');
 }
