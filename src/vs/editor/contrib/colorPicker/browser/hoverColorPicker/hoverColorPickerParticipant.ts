@@ -18,7 +18,7 @@ import * as nls from '../../../../../nls.js';
 import { BaseColor, ColorPickerWidgetType, createColorHover, updateColorPresentations, updateEditorModel } from '../colorPickerParticipantUtils.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Color } from '../../../../../base/common/color.js';
 import { HoverStartSource } from '../../../hover/browser/hoverOperation.js';
 
@@ -123,6 +123,13 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		const colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), this._themeService, ColorPickerWidgetType.Hover));
 		this._colorPicker = colorPicker;
 		this._colorPickerRange = colorHover.range;
+		// A hover update can drop the picker without hiding the hover, and renders a replacement before disposing the old one
+		disposables.add(toDisposable(() => {
+			if (this._colorPicker === colorPicker) {
+				this._colorPicker = undefined;
+				this._colorPickerRange = undefined;
+			}
+		}));
 
 		let editorUpdatedByColorPicker = false;
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
