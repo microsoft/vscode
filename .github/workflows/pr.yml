@@ -29,10 +29,11 @@ jobs:
   #
   # It runs for pull requests and for the merge groups of the merge queue of main. Pull
   # requests to main run every job except the Windows ones ("Windows / *", "Copilot - Test
-  # (Windows)" and "chat-lib - Test (Windows)"), which the merge queue runs, apart from
-  # "Windows / Electron-Unit" and "Windows / Browser-Unit": they finish well within the time of
-  # the Linux jobs, and catch the Windows path bugs before the merge queue. Pull requests to
-  # release branches, which have no merge queue, run them too. The merge queue and the pull
+  # (Windows)" and "chat-lib - Test (Windows)"), which the merge queue runs, apart from the
+  # Windows unit tests ("Windows / Electron-Unit (electron)", "Windows / Electron-Unit (node)"
+  # and "Windows / Browser-Unit"): they finish within the time of the Linux jobs, and catch
+  # Windows path bugs before the merge queue. Pull requests to release branches, which have
+  # no merge queue, run them too. The merge queue and the pull
   # requests to release branches run every job on dedicated runners, so that the pull
   # requests to main cannot hold up the merges:
   #
@@ -674,7 +675,7 @@ jobs:
           fi
           node build/lib/dependencyReleaseAge.ts --base "$base" --head HEAD
 
-  # The test jobs below report "<OS> / <job>" checks, for example "Windows / Electron-Unit", whether
+  # The test jobs below report "<OS> / <job>" checks, for example "Windows / Electron-Unit (electron)", whether
   # they run or not. Each calls the reusable workflow of its OS, whose jobs have fixed names, run on
   # the runner that the calling job passes, and skip when the changes cannot affect them (the
   # *_affected inputs). The calling jobs always run, as GitHub reports a skipped calling job under its

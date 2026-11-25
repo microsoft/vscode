@@ -50,7 +50,7 @@ const testWorkflow = /^\.\/\.github\/workflows\/(?<file>pr-(linux|darwin|win32)-
 
 /**
  * Returns the jobs of the reusable test workflows that pr.yml calls, by the names of their checks, such as
- * "Windows / Electron-Unit".
+ * "Windows / Electron-Unit (electron)".
  */
 function testJobs(): Map<string, ITestJob> {
 	const result = new Map<string, ITestJob>();
@@ -403,14 +403,14 @@ suite('Detect Changes', () => {
 				`\${{ steps.detect.outputs.product-tests == 'true' && steps.ripple.outputs.selects-no-node-integration-tests != 'true' }}`,
 				`\${{ steps.detect-agent-host-e2e.outputs.affected == 'true' && steps.ripple.outputs.selects-no-agent-host-e2e != 'true' }}`,
 			],
-			skippableUnitTests: ['Linux / Electron-Unit (electron)', 'Linux / Electron-Unit (node)', 'Windows / Electron-Unit'].sort(),
+			skippableUnitTests: ['Linux / Electron-Unit (electron)', 'Linux / Electron-Unit (node)', 'Windows / Electron-Unit (electron)', 'Windows / Electron-Unit (node)'].sort(),
 			skippableBrowserUnitTests: ['Linux / Browser-Unit', 'Linux / Browser-Unit (WebKit)', 'Windows / Browser-Unit'].sort(),
 			skippableNodeIntegrationTests: ['Linux / Electron (node.js)', 'Windows / Electron (node.js)'],
 			skippableAgentHostE2E: ['Linux / Agent-Host-E2E', 'Windows / Agent-Host-E2E (shard 1/3)', 'Windows / Agent-Host-E2E (shard 2/3)', 'Windows / Agent-Host-E2E (shard 3/3)'],
 			planned: [
 				'Linux / Electron-Unit (electron)', 'Linux / Electron-Unit (node)', 'Linux / Browser-Unit', 'Linux / Browser-Unit (WebKit)', 'Linux / Electron (node.js)',
 				'Linux / Agent-Host-E2E',
-				'Windows / Electron-Unit', 'Windows / Browser-Unit', 'Windows / Electron (node.js)',
+				'Windows / Electron-Unit (electron)', 'Windows / Electron-Unit (node)', 'Windows / Browser-Unit', 'Windows / Electron (node.js)',
 				'Windows / Agent-Host-E2E (shard 1/3)', 'Windows / Agent-Host-E2E (shard 2/3)', 'Windows / Agent-Host-E2E (shard 3/3)',
 			].sort(),
 		});
@@ -462,7 +462,8 @@ suite('Detect Changes', () => {
 				'Linux / Remote (integration)': skipsWhenUnaffected('product-tests'),
 				'Linux / Remote (smoke)': skipsWhenUnaffected('product-tests'),
 				// Pull requests to main run only the Windows unit tests.
-				'Windows / Electron-Unit': skipsWhenUnaffected('selected-unit-tests'),
+				'Windows / Electron-Unit (electron)': skipsWhenUnaffected('selected-unit-tests'),
+				'Windows / Electron-Unit (node)': skipsWhenUnaffected('selected-unit-tests'),
 				'Windows / Electron (node.js)': queueSkipsWhenUnaffected('selected-node-integration-tests'),
 				'Windows / Electron (extension host)': queueSkipsWhenUnaffected('product-tests'),
 				'Windows / Agent-Host-E2E (shard 1/3)': queueSkipsWhenUnaffected('selected-agent-host-e2e'),
