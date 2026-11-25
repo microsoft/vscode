@@ -37,6 +37,7 @@ import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -56,7 +57,7 @@ import { IChat, ISession, SessionStatus } from '../../../../../workbench/service
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { AutomationsCustomViewContribution, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY } from '../../browser/views/automationsView.js';
+import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
 import { registerAutomationHistoryFixtureMenus } from '../../../automations/test/browser/automationsTableTestUtils.js';
 import '../../../../browser/media/style.css';
 
