@@ -8,7 +8,11 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { UndoRedoService } from '../../../../../platform/undoRedo/common/undoRedoService.js';
 import { ShutdownReason } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
 import { ISessionsListChange, ISessionsListNotice, ISessionsListUndoPresenter, SessionsListUndoService } from '../../browser/sessionsListUndoService.js';
@@ -22,11 +26,17 @@ suite('SessionsListUndoService', () => {
 		closed: boolean;
 	}
 
-	/** A service with a sessions list whose notice shows one notice at a time, as the real one does. */
+	/** A service on the window's undo stack, with a sessions list whose notice shows one notice at a time, as the real one does. */
 	function setup() {
 		const lifecycleService = store.add(new TestLifecycleService());
 		const errors: unknown[] = [];
-		const service = store.add(new SessionsListUndoService(upcastPartial<INotificationService>({ error: error => { errors.push(error); } }), lifecycleService));
+		const undoRedoService = new UndoRedoService(new TestDialogService(), new TestNotificationService());
+		const service = store.add(new SessionsListUndoService(
+			undoRedoService,
+			upcastPartial<INotificationService>({ error: error => { errors.push(error); } }),
+			upcastPartial<IKeybindingService>({ lookupKeybinding: () => undefined }),
+			lifecycleService,
+		));
 		const shown: IShownNotice[] = [];
 		const close = (entry: IShownNotice) => {
 			if (!entry.closed) {
@@ -46,7 +56,8 @@ suite('SessionsListUndoService', () => {
 			},
 		};
 		const registration = store.add(service.registerPresenter(presenter));
-		return { service, lifecycleService, errors, shown, close, registration };
+		const history = () => ({ canUndo: service.canUndo(), canRedo: service.canRedo() });
+		return { service, lifecycleService, errors, shown, close, registration, history };
 	}
 
 	function change(kind: string, count: number, log: string[], id: string, overrides?: Partial<ISessionsListChange>): ISessionsListChange {
@@ -56,77 +67,78 @@ suite('SessionsListUndoService', () => {
 			help: 'Help.',
 			message: total => `${total} ${kind}`,
 			undo: async () => { log.push(`undo ${id}`); },
-			commit: async () => { log.push(`commit ${id}`); },
+			redo: async () => { log.push(`redo ${id}`); },
 			...overrides,
 		};
 	}
 
-	test('a change of the same kind joins the notice, which counts both, and Undo reverts both, latest first', async () => {
+	test('a change of the same kind joins the notice, whose Undo reverts both, latest first, and Redo makes them again', async () => {
 		const test = setup();
 		const log: string[] = [];
 		test.service.offerUndo(change('marked done', 1, log, 'first'));
 		test.service.offerUndo(change('marked done', 2, log, 'second'));
 		await test.shown[0].notice.undo!();
-		test.close(test.shown[0]);
-		assert.deepStrictEqual({ notices: test.shown.map(entry => entry.messages), log }, {
-			notices: [['1 marked done', '3 marked done']],
-			log: ['undo second', 'undo first'],
+		const undone = { closed: test.shown[0].closed, ...test.history() };
+		await test.service.redo();
+		await test.service.redo();
+		assert.deepStrictEqual({ notices: test.shown.map(entry => entry.messages), undone, redone: test.history(), log }, {
+			notices: [['1 marked done', '3 marked done'], ['1 marked done', '3 marked done']],
+			undone: { closed: true, canUndo: false, canRedo: true },
+			redone: { canUndo: true, canRedo: false },
+			log: ['undo second', 'undo first', 'redo first', 'redo second'],
 		});
 	});
 
-	test('a change of another kind, or one made while undoing, replaces the notice, which completes the changes it offered', async () => {
+	test('Undo goes on past notices, which it updates, until a change that completed: the history ends there', async () => {
 		const test = setup();
 		const log: string[] = [];
-		const undoing = new DeferredPromise<void>();
-		test.service.offerUndo(change('deleted', 1, log, 'replaced'));
+		test.service.offerUndo(change('archived', 1, log, 'archive'));
+		test.service.offerUndo(change('deleted', 2, log, 'delete', { commit: async () => { log.push('commit delete'); } }));
 		test.service.offerUndo(change('groups deleted', 1, log, 'group'));
-		test.service.offerUndo(change('deleted', 1, log, 'undone', { undo: () => undoing.p }));
-		const undo = test.shown[2].notice.undo!();
-		test.service.offerUndo(change('deleted', 1, log, 'expired'));
-		await undoing.complete();
-		await undo;
-		test.close(test.shown[3]);
-		assert.deepStrictEqual({ notices: test.shown.map(entry => entry.messages[0]), log }, {
-			notices: ['1 deleted', '1 groups deleted', '1 deleted', '1 deleted'],
-			log: ['commit replaced', 'commit group', 'commit expired'],
+		test.service.offerUndo(change('groups deleted', 2, log, 'other group'));
+		await test.service.undo();
+		await test.service.undo();
+		await test.service.undo();
+		assert.deepStrictEqual({ notices: test.shown.map(entry => entry.messages), log, ...test.history() }, {
+			notices: [['1 archived'], ['2 deleted'], ['1 groups deleted', '3 groups deleted', '1 groups deleted'], ['Can\'t undo "2 deleted" anymore']],
+			log: ['commit delete', 'undo other group', 'undo group'],
+			canUndo: false,
+			canRedo: false,
 		});
 	});
 
-	test('a failed undo can be retried, unless its notice was replaced meanwhile, which completes the change', async () => {
+	test('a conflict ends the history instead of undoing or redoing, and says why', async () => {
 		const test = setup();
 		const log: string[] = [];
-		const error = new Error('restore failed');
-		let attempts = 0;
-		test.service.offerUndo(change('archived', 1, log, 'first'));
-		test.service.offerUndo(change('archived', 1, log, 'flaky', {
-			undo: async () => {
-				if (++attempts === 1) {
-					throw error;
-				}
-				log.push('undo flaky');
-			},
-		}));
-		const failedAttempt = await test.shown[0].notice.undo!().catch(reason => reason);
-		await test.shown[0].notice.undo!();
-		const failing = new DeferredPromise<void>();
-		test.service.offerUndo(change('deleted', 1, log, 'failing', { undo: () => failing.p }));
-		const replacedAttempt = test.shown[1].notice.undo!().catch(reason => reason);
-		test.service.offerUndo(change('groups deleted', 1, log, 'other'));
-		await failing.error(error);
-		assert.deepStrictEqual({ failedAttempt, replacedAttempt: await replacedAttempt, log }, {
-			failedAttempt: error,
-			replacedAttempt: error,
-			log: ['undo flaky', 'undo first', 'commit failing'],
+		let conflict: boolean | undefined;
+		const conflicting = change('archived', 1, log, 'conflicting', { conflicts: applied => conflict === applied });
+		test.service.offerUndo(change('archived', 1, log, 'older'));
+		test.service.offerUndo(conflicting);
+		conflict = true;
+		await test.service.undo();
+		const afterUndo = { message: test.shown.at(-1)!.messages[0], ...test.history() };
+		test.service.offerUndo(conflicting);
+		conflict = undefined;
+		await test.service.undo();
+		conflict = false;
+		await test.service.redo();
+		assert.deepStrictEqual({ afterUndo, afterRedo: { message: test.shown.at(-1)!.messages[0], ...test.history() }, log }, {
+			afterUndo: { message: 'Can\'t undo "1 archived": the sessions list changed since', canUndo: false, canRedo: false },
+			afterRedo: { message: 'Can\'t redo "1 archived": the sessions list changed since', canUndo: false, canRedo: false },
+			log: ['undo conflicting'],
 		});
 	});
 
-	test('removing the sessions list completes what it offered to undo, and without a list a change completes right away', () => {
+	test('a provisional change completes once its notice no longer offers Undo, also when the list goes away, and right away without one', () => {
 		const test = setup();
 		const log: string[] = [];
-		test.service.offerUndo(change('deleted', 1, log, 'shown'));
+		const provisional = (id: string) => change('deleted', 1, log, id, { commit: async () => { log.push(`commit ${id}`); } });
+		test.service.offerUndo(provisional('expired'));
+		test.close(test.shown[0]);
+		test.service.offerUndo(provisional('shown'));
 		test.registration.dispose();
-		const offered = test.service.offerUndo(change('deleted', 1, log, 'unshown'));
-		assert.deepStrictEqual({ offered, closed: test.shown[0].closed, log }, { offered: false, closed: true, log: ['commit shown', 'commit unshown'] });
+		const offered = test.service.offerUndo(provisional('unshown'));
+		assert.deepStrictEqual({ offered, closed: test.shown[1].closed, log }, { offered: false, closed: true, log: ['commit expired', 'commit shown', 'commit unshown'] });
 	});
 
 	test('closing the window completes what Undo was offered for and waits for it, and a failure is reported', async () => {

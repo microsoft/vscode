@@ -1143,8 +1143,9 @@ export class SessionsView extends ViewPane {
 		if (!sessionsControl) {
 			return;
 		}
-		const restore = sessionsControl.resetFilters();
+		let restore = sessionsControl.resetFilters();
 		this.syncFilterContextKeys(sessionsControl);
+		let expected = sessionsControl.captureFilters();
 		this.undoService.offerUndo({
 			kind: 'resetFilters',
 			count: 1,
@@ -1153,8 +1154,16 @@ export class SessionsView extends ViewPane {
 			undo: async () => {
 				restore();
 				this.syncFilterContextKeys(sessionsControl);
+				expected = sessionsControl.captureFilters();
 				status(localize('filtersRestored', "Filters restored."));
 			},
+			redo: async () => {
+				restore = sessionsControl.resetFilters();
+				this.syncFilterContextKeys(sessionsControl);
+				expected = sessionsControl.captureFilters();
+			},
+			// The filters changed since, or the list they belong to went away.
+			conflicts: () => this._store.isDisposed || !expected.isCurrent(),
 		});
 	}
 

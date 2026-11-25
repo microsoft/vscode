@@ -136,11 +136,13 @@ Providers may defer archived inventory until the archived section is expanded. S
 
 ### Deleted sessions
 
-Providers can't restore deleted sessions, so deleting sessions from the list is a provisional change (see [Undo](#undo)): `ISessionsListModelService` leaves them out of the list and the window stops showing them, and the management service deletes them only once Undo is no longer offered. Undo lists them again without involving the provider.
+Providers can't restore deleted sessions, so deleting sessions from the list is a provisional change (see [Undo](#undo)): `ISessionsListModelService` leaves them out of the list and the window stops showing them, and the management service deletes them only once the notice no longer offers Undo for them. Undo lists them again without involving the provider.
 
 ## Undo
 
-`ISessionsListUndoService` offers Undo for changes made from the list, in the notice of the window's Sessions view (the most recently rendered one, if there are several), which presents it. A change joins the notice that offers to undo changes of the same kind, which then counts them all, restarts its countdown, and undoes all of them, latest first; a change of another kind replaces the notice, ending Undo for the changes it offered. A change that can't be reverted once made stays provisional while Undo is offered for it, and completes once Undo no longer is: when its notice expires, is dismissed or replaced, its Sessions view goes away, or the window closes, which waits for it. The web can't wait as a page unloads, so there leaving the page ends Undo and asks to stay while those changes complete. Without a Sessions view, a change completes right away.
+`ISessionsListUndoService` records each change made from the list as a step of the window's Undo and Redo (`IUndoRedoService`), which the Edit menu and its keybindings take while focus is in a Sessions view but not in one of its inputs. It also offers Undo for the latest changes in the notice of the window's Sessions view (the most recently rendered one, if there are several), which presents it; Redo offers it there again. A change joins the notice that offers to undo changes of the same kind, which then counts them all, restarts its countdown, and undoes all of them, latest first; a change of another kind replaces the notice.
+
+Before each Undo or Redo, the change checks that what it changed is still as it left it. When the list changed since in a way that conflicts with it, so restoring it could no longer give what the user expects, the list's undo history ends there and the notice says why; unrelated changes keep the history. A change that can't be reverted once made stays provisional while its notice offers Undo, and completes once the notice no longer does: when it expires, is dismissed or replaced, its Sessions view goes away, or the window closes, which waits for it. The web can't wait as a page unloads, so there leaving the page ends Undo and asks to stay while those changes complete. The history also ends at a completed change. Without a Sessions view, a change completes right away and is not recorded.
 
 ## Durable user intent
 

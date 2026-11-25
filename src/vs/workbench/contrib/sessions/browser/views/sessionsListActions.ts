@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { equals as arrayEquals } from '../../../../../base/common/arrays.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -18,6 +19,8 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { RedoCommand, UndoCommand } from '../../../../../editor/browser/editorExtensions.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -70,6 +73,63 @@ function throwArchiveErrors(results: readonly PromiseSettledResult<unknown>[]): 
 	}
 }
 
+/** Sessions that were marked done, with how to restore them. */
+interface IArchivedSessions {
+	readonly sessions: readonly ISession[];
+	/** Restores the sessions, to the custom groups and comparisons they were in where those still exist. A failure leaves the rest to restore. */
+	restore(): Promise<void>;
+}
+
+/** Marks `sessions` done, returning those it marked done with how to restore them, and the result for each it tried. */
+async function archiveSessionsRestorably(
+	sessions: readonly ISession[],
+	sessionsManagementService: ISessionsManagementService,
+	groupsService: ISessionGroupsService,
+	comparisonService: ISessionComparisonService,
+): Promise<{ readonly archived: IArchivedSessions; readonly results: readonly PromiseSettledResult<unknown>[] }> {
+	const candidates = sessions.filter(session => !session.isArchived.get()).map(session => ({
+		session,
+		groupId: groupsService.getGroupOfSession(session.sessionId),
+	}));
+	const comparisonGroups = new Map(comparisonService.comparisons.get()
+		.filter(comparison => comparison.archivedAt === undefined && candidates.some(entry => entry.groupId === comparison.groupId))
+		.map(comparison => [comparison.groupId, comparison.id]));
+	const results = await sessionsManagementService.archiveSessions(candidates.map(entry => entry.session));
+	const archived = candidates.filter((_, index) => results[index].status === 'fulfilled');
+	const pending = [...archived];
+	const removedComparisonGroups = new Map([...comparisonGroups].filter(([groupId]) => !groupsService.getGroup(groupId)));
+	const restoredGroupIds = new Map<string, string>();
+	return {
+		results,
+		archived: {
+			sessions: archived.map(entry => entry.session),
+			restore: async () => {
+				for (const [groupId, comparisonId] of removedComparisonGroups) {
+					const restoredGroupId = restoredGroupIds.get(groupId);
+					if (!restoredGroupId || !groupsService.getGroup(restoredGroupId)) {
+						restoredGroupIds.set(groupId, comparisonService.restoreComparison(comparisonId));
+					}
+				}
+				while (pending.length > 0) {
+					const { session, groupId } = pending[0];
+					const current = sessionsManagementService.getSession(session.resource);
+					if (current?.isArchived.get()) {
+						await sessionsManagementService.unarchiveSession(current);
+						// A comparison's group may have come back under another id, such as by undoing a later archive.
+						const comparisonId = groupId ? comparisonGroups.get(groupId) : undefined;
+						const comparisonGroupId = comparisonId ? comparisonService.getComparison(comparisonId)?.groupId : undefined;
+						const restoredGroupId = groupId ? restoredGroupIds.get(groupId) ?? comparisonGroupId ?? groupId : undefined;
+						if (restoredGroupId && groupsService.getGroup(restoredGroupId) && !groupsService.getGroupOfSession(current.sessionId)) {
+							groupsService.addToGroup(current.sessionId, restoredGroupId);
+						}
+					}
+					pending.shift();
+				}
+			},
+		},
+	};
+}
+
 async function archiveSessionsWithUndo(
 	sessions: readonly ISession[],
 	wording: ChatSessionArchiveActionWording,
@@ -78,92 +138,75 @@ async function archiveSessionsWithUndo(
 	undoService: ISessionsListUndoService,
 	comparisonService: ISessionComparisonService,
 ): Promise<void> {
-	const archived: { session: ISession; groupId: string | undefined }[] = [];
-	const candidates = sessions.filter(session => !session.isArchived.get()).map(session => ({
-		session,
-		groupId: groupsService.getGroupOfSession(session.sessionId),
-	}));
-	const comparisonGroups = new Map(comparisonService.comparisons.get()
-		.filter(comparison => comparison.archivedAt === undefined && candidates.some(entry => entry.groupId === comparison.groupId))
-		.map(comparison => [comparison.groupId, comparison.id]));
-	try {
-		const results = await sessionsManagementService.archiveSessions(candidates.map(entry => entry.session));
-		for (const [index, result] of results.entries()) {
-			if (result.status === 'fulfilled') {
-				archived.push(candidates[index]);
-			}
-		}
-		throwArchiveErrors(results);
-	} finally {
-		// A partially completed batch must remain undoable even when another archive fails.
-		if (archived.length > 0) {
-			const removedComparisonGroups = new Map([...comparisonGroups].filter(([groupId]) => !groupsService.getGroup(groupId)));
-			const restoredGroupIds = new Map<string, string>();
-			undoService.offerUndo({
-				kind: 'archiveSessions',
-				count: archived.length,
-				message: count => wording === ChatSessionArchiveActionWording.MarkAsDone
-					? localize('sessionsMarkedDone', "{0} marked done", count)
-					: localize('sessionsArchived', "{0} archived", count),
-				help: localize('archiveNoticeHelp', "This notice appears after marking sessions done or archiving them. Undo restores the sessions and their previous custom groups, if those groups still exist. It does not restart stopped requests."),
-				undo: async () => {
-					for (const [groupId, comparisonId] of removedComparisonGroups) {
-						const restoredGroupId = restoredGroupIds.get(groupId);
-						if (!restoredGroupId || !groupsService.getGroup(restoredGroupId)) {
-							restoredGroupIds.set(groupId, comparisonService.restoreComparison(comparisonId));
-						}
-					}
-					while (archived.length > 0) {
-						const { session, groupId } = archived[0];
-						const current = sessionsManagementService.getSession(session.resource);
-						if (current?.isArchived.get()) {
-							await sessionsManagementService.unarchiveSession(current);
-							// A comparison's group may have come back under another id, such as by undoing a later archive.
-							const comparisonId = groupId ? comparisonGroups.get(groupId) : undefined;
-							const comparisonGroupId = comparisonId ? comparisonService.getComparison(comparisonId)?.groupId : undefined;
-							const restoredGroupId = groupId ? restoredGroupIds.get(groupId) ?? comparisonGroupId ?? groupId : undefined;
-							if (restoredGroupId && groupsService.getGroup(restoredGroupId) && !groupsService.getGroupOfSession(current.sessionId)) {
-								groupsService.addToGroup(current.sessionId, restoredGroupId);
-							}
-						}
-						archived.shift();
-					}
-					status(localize('sessionsRestored', "Sessions restored."));
-				},
-			});
-		}
+	const { archived, results } = await archiveSessionsRestorably(sessions, sessionsManagementService, groupsService, comparisonService);
+	// A partially completed batch must remain undoable even when another archive fails.
+	if (archived.sessions.length > 0) {
+		let current = archived;
+		undoService.offerUndo({
+			kind: 'archiveSessions',
+			count: archived.sessions.length,
+			message: count => wording === ChatSessionArchiveActionWording.MarkAsDone
+				? localize('sessionsMarkedDone', "{0} marked done", count)
+				: localize('sessionsArchived', "{0} archived", count),
+			help: localize('archiveNoticeHelp', "This notice appears after marking sessions done or archiving them. Undo restores the sessions and their previous custom groups, if those groups still exist. It does not restart stopped requests."),
+			undo: async () => {
+				await current.restore();
+				status(localize('sessionsRestored', "Sessions restored."));
+			},
+			redo: async () => {
+				const redone = await archiveSessionsRestorably(archived.sessions.map(session => sessionsManagementService.getSession(session.resource) ?? session), sessionsManagementService, groupsService, comparisonService);
+				current = redone.archived;
+				throwArchiveErrors(redone.results);
+			},
+			conflicts: applied => archived.sessions.some(session => sessionsManagementService.getSession(session.resource)?.isArchived.get() !== applied),
+		});
 	}
+	throwArchiveErrors(results);
 }
 
 /**
  * Deletes a custom group and its subgroups, offering Undo. Undo also restores the comparisons whose groups it deleted.
  */
 function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGroupsService, comparisonService: ISessionComparisonService, undoService: ISessionsListUndoService): void {
-	const subtreeIds = new Set(groupsService.getTree().getSubtree(groupId).map(group => group.id));
-	const comparisonIds = comparisonService.comparisons.get()
-		.filter(comparison => comparison.archivedAt === undefined && subtreeIds.has(comparison.groupId))
-		.map(comparison => comparison.id);
-	const deleted = groupsService.deleteGroup(groupId);
-	if (!deleted) {
+	const deleteGroup = () => {
+		const subtreeIds = new Set(groupsService.getTree().getSubtree(groupId).map(group => group.id));
+		const comparisonIds = comparisonService.comparisons.get()
+			.filter(comparison => comparison.archivedAt === undefined && subtreeIds.has(comparison.groupId))
+			.map(comparison => comparison.id);
+		const deleted = groupsService.deleteGroup(groupId);
+		return deleted && { deleted, comparisonIds };
+	};
+	const first = deleteGroup();
+	if (!first) {
 		return;
 	}
+	let removal = first;
+	const groupIds = first.deleted.groups.map(group => group.id);
+	const sessionIds = [...first.deleted.membership.keys()];
 	undoService.offerUndo({
 		kind: 'deleteSessionGroups',
-		count: deleted.groups.length,
+		count: first.deleted.groups.length,
 		message: count => count === 1
 			? localize('sessionGroupDeleted', "Group deleted")
 			: localize('sessionGroupsDeleted', "{0} groups deleted", count),
 		help: localize('deleteGroupsNoticeHelp', "This notice appears after deleting groups. Undo restores the groups, their order, and their sessions and sections, except sessions that were marked done or items moved to another group since."),
 		undo: async () => {
-			groupsService.restoreGroups(deleted);
+			groupsService.restoreGroups(removal.deleted);
 			// Deleting a comparison's group archived the comparison.
-			for (const comparisonId of comparisonIds) {
+			for (const comparisonId of removal.comparisonIds) {
 				if (comparisonService.getComparison(comparisonId)?.archivedAt !== undefined) {
 					comparisonService.restoreComparison(comparisonId);
 				}
 			}
 			status(localize('sessionGroupsRestored', "Groups restored."));
 		},
+		redo: async () => {
+			removal = deleteGroup() ?? removal;
+		},
+		// Groups that came back, or their sessions joined other groups, since deleting them; or restored groups deleted since
+		conflicts: applied => applied
+			? groupIds.some(id => groupsService.getGroup(id)) || sessionIds.some(id => groupsService.getGroupOfSession(id) !== undefined)
+			: groupIds.some(id => !groupsService.getGroup(id)),
 	});
 }
 
@@ -403,7 +446,7 @@ function triageSessions(modelService: ISessionsListModelService, undoService: IS
 	if (!targets.length) {
 		return;
 	}
-	const undo = modelService.setInboxState(targets, action);
+	let undo = modelService.setInboxState(targets, action);
 	const getMessage = (count: number) => action === undefined ? localize('inboxResumed', "{0} returned to inbox", count)
 		: action === 'done' ? localize('inboxAcknowledged', "{0} acknowledged", count)
 			: action === 'hold' ? localize('inboxHeld', "{0} put on hold", count)
@@ -412,13 +455,27 @@ function triageSessions(modelService: ISessionsListModelService, undoService: IS
 		status(getMessage(targets.length));
 		return;
 	}
+	const readStates = () => targets.map(session => {
+		const state = modelService.getInboxState(session);
+		return !state ? 'none' : state.kind === 'snoozed' ? `snoozed ${state.until}` : state.kind === 'hold' ? 'hold' : `${state.kind} ${state.activity}`;
+	});
+	let expected = readStates();
 	undoService.offerUndo({
 		kind: action === undefined ? 'inboxResume' : action === 'hold' ? 'inboxHold' : 'inboxSnooze',
 		count: targets.length,
 		message: getMessage,
 		help: localize('inboxTriageHelp', "This changes only Inbox mode. It does not stop or archive sessions. Undo restores the previous triage state unless it has changed since."),
 		showCountdown: true,
-		undo: async () => { undo(); status(localize('inboxTriageUndone', "Inbox change undone.")); },
+		undo: async () => {
+			undo();
+			expected = readStates();
+			status(localize('inboxTriageUndone', "Inbox change undone."));
+		},
+		redo: async () => {
+			undo = modelService.setInboxState(targets, action);
+			expected = readStates();
+		},
+		conflicts: () => !arrayEquals(readStates(), expected),
 	});
 }
 
@@ -941,6 +998,18 @@ function createSessionsListActions(): DisposableStore {
 	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, false)));
 
 	store.add(registerSessionsListAccessibilityHelp());
+
+	// Undo and Redo, as in the Edit menu, step through the changes made from the sessions list while it has focus, but
+	// not while one of its inputs, such as find or rename, has.
+	const sessionsListUndoFocus = ContextKeyExpr.and(SessionsViewFocusedContext, InputFocusedContext.negate());
+	store.add(UndoCommand.addImplementation(110, 'sessions-list', accessor => {
+		const undoService = accessor.get(ISessionsListUndoService);
+		return undoService.canUndo() && undoService.undo();
+	}, sessionsListUndoFocus));
+	store.add(RedoCommand.addImplementation(110, 'sessions-list', accessor => {
+		const undoService = accessor.get(ISessionsListUndoService);
+		return undoService.canRedo() && undoService.redo();
+	}, sessionsListUndoFocus));
 
 	store.add(CommandsRegistry.registerCommand(ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, (accessor, sessions: readonly ISession[]) => archiveSessionsWithUndo(
 		sessions,
@@ -1680,7 +1749,9 @@ function createSessionsListActions(): DisposableStore {
 			if (sessions.length === 0) {
 				return;
 			}
-			const undo = accessor.get(ISessionsListModelService).hideAutomationSessions(sessions);
+			const listModelService = accessor.get(ISessionsListModelService);
+			const wasListed = sessions.map(session => listModelService.isSessionListed(session));
+			let undo = listModelService.hideAutomationSessions(sessions);
 			const offered = accessor.get(ISessionsListUndoService).offerUndo({
 				kind: 'hideAutomationSessions',
 				count: sessions.length,
@@ -1690,6 +1761,10 @@ function createSessionsListActions(): DisposableStore {
 					undo();
 					status(localize('automationSessionsHiddenUndone', "Sessions listed again."));
 				},
+				redo: async () => {
+					undo = listModelService.hideAutomationSessions(sessions);
+				},
+				conflicts: applied => sessions.some((session, index) => listModelService.isSessionListed(session) !== (applied ? false : wasListed[index])),
 			});
 			if (!offered) {
 				status(sessions.length === 1
@@ -1879,7 +1954,8 @@ function createSessionsListActions(): DisposableStore {
 			}
 
 			// Providers can't restore deleted sessions, so deleting waits until it can no longer be undone.
-			const hidden = listModelService.hideSessionsProvisionally(sessions);
+			let hidden = listModelService.hideSessionsProvisionally(sessions);
+			const closeSessions = () => Promise.all(sessions.map(session => navigationService.closeSession(session)));
 			const offered = undoService.offerUndo({
 				kind: 'deleteSessions',
 				count: sessions.length,
@@ -1889,6 +1965,11 @@ function createSessionsListActions(): DisposableStore {
 					hidden.dispose();
 					status(localize('sessionsDeleteUndone', "Sessions restored."));
 				},
+				redo: async () => {
+					hidden = listModelService.hideSessionsProvisionally(sessions);
+					await closeSessions();
+				},
+				conflicts: () => sessions.some(session => !sessionsManagementService.getSession(session.resource)),
 				commit: async () => {
 					try {
 						await sessionsManagementService.deleteSessions(sessions);
@@ -1902,7 +1983,7 @@ function createSessionsListActions(): DisposableStore {
 				},
 			});
 			if (offered) {
-				await Promise.all(sessions.map(session => navigationService.closeSession(session)));
+				await closeSessions();
 			}
 		}
 	}));

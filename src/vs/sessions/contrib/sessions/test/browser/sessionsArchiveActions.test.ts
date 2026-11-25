@@ -63,7 +63,7 @@ suite('Sessions - Bulk archive undo', () => {
 		const sessionArchived = store.add(new Emitter<ISession>());
 		const archived: string[] = [];
 		const restored: string[] = [];
-		const state = { failArchive: '', failRestore: '', confirmed: true, launching: false, notices: 0, message: '', undo: async () => { }, undos: [] as (() => Promise<void>)[], started: [] as string[], onStart: () => { }, gate: Promise.resolve() };
+		const state = { failArchive: '', failRestore: '', confirmed: true, launching: false, notices: 0, message: '', undo: async () => { }, undos: [] as (() => Promise<void>)[], changes: [] as ISessionsListChange[], started: [] as string[], onStart: () => { }, gate: Promise.resolve() };
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm() { return { confirmed: state.confirmed }; }
 		});
@@ -148,6 +148,7 @@ suite('Sessions - Bulk archive undo', () => {
 				state.message = change.message(change.count);
 				state.undo = () => change.undo();
 				state.undos.push(state.undo);
+				state.changes.push(change);
 				state.notices++;
 				return true;
 			},
@@ -173,10 +174,18 @@ suite('Sessions - Bulk archive undo', () => {
 		await test.instantiationService.invokeFunction(accessor => action.run(accessor, test.sessions[0].session));
 		const afterArchive = { message: test.state.message, membership: test.membership() };
 		await test.state.undo();
-		assert.deepStrictEqual({ afterArchive, restored: test.restored, membership: test.membership() }, {
+		const undone = { restored: [...test.restored], membership: test.membership() };
+		const change = test.state.changes[0];
+		const conflictsBeforeRedo = change.conflicts?.(false);
+		await change.redo();
+		const redone = { archived: [...test.archived], membership: test.membership(), conflicts: change.conflicts?.(true) };
+		await test.managementService.unarchiveSession(test.sessions[0].session);
+		assert.deepStrictEqual({ afterArchive, undone, conflictsBeforeRedo, redone, conflictsOnceRestoredElsewhere: change.conflicts?.(true) }, {
 			afterArchive: { message: '1 marked done', membership: [['second', test.group.id]] },
-			restored: ['first'],
-			membership: [['first', test.group.id], ['second', test.group.id]],
+			undone: { restored: ['first'], membership: [['first', test.group.id], ['second', test.group.id]] },
+			conflictsBeforeRedo: false,
+			redone: { archived: ['first', 'first'], membership: [['second', test.group.id]], conflicts: false },
+			conflictsOnceRestoredElsewhere: true,
 		});
 	});
 
@@ -723,12 +732,16 @@ suite('Sessions - Delete session undo', () => {
 		const pending = { visible: visible(), closed: [...closed], deleted: [...deleted], message: notices[0].message(notices[0].count), kind: notices[0].kind, detail: confirmations[0].detail };
 		await notices[0].undo();
 		const undone = { visible: visible(), deleted: [...deleted] };
+		await notices[0].redo();
+		const redone = { visible: visible(), closed: [...closed], conflicts: notices[0].conflicts?.(true) };
+		await notices[0].undo();
 		await deleteSessions(sessions.slice(2));
 		await notices[1].commit!();
 
-		assert.deepStrictEqual({ pending, undone, committed: { visible: visible(), deleted } }, {
+		assert.deepStrictEqual({ pending, undone, redone, committed: { visible: visible(), deleted } }, {
 			pending: { visible: ['three'], closed: ['one', 'two'], deleted: [], message: '2 deleted', kind: 'deleteSessions', detail: undefined },
 			undone: { visible: ['one', 'two', 'three'], deleted: [] },
+			redone: { visible: ['three'], closed: ['one', 'two', 'one', 'two'], conflicts: false },
 			committed: { visible: ['one', 'two'], deleted: ['three'] },
 		});
 	});

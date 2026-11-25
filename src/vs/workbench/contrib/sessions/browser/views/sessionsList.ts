@@ -25,6 +25,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
@@ -121,7 +122,7 @@ import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../common/sessionComparis
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { compareSessionEnvironments, getSessionEnvironments, getWorktreeFilterKeys, ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
+import { compareSessionEnvironments, getSessionEnvironments, getWorktreeFilterKeys, ISessionsListCapturedState, ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { clearChatReferenceDragData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -4511,6 +4512,8 @@ export interface ISessionsList {
 	readonly filters: SessionsListFilters;
 	setExcludeArchived(exclude: boolean): void;
 	isExcludeArchived(): boolean;
+	/** Captures every filter and display option that {@link resetFilters} returns to its default. */
+	captureFilters(): ISessionsListCapturedState;
 	/**
 	 * Returns every filter and display option to its default. Returns a function
 	 * that restores them as they were before the reset.
@@ -4571,11 +4574,11 @@ export interface ISessionsListHeaderPosition {
 export const SESSIONS_LIST_UNGROUPED_PLACEMENT = 'ungrouped';
 
 /** The resettable state of a single value, which Reset Filters sets to `defaultValue`. */
-function resettableValue<T>(read: () => T, write: (value: T) => void, defaultValue: T): ISessionsListResettableState {
+function resettableValue<T>(read: () => T, write: (value: T) => void, defaultValue: T, isEqual: (a: T, b: T) => boolean = (a, b) => a === b): ISessionsListResettableState {
 	return {
 		capture: () => {
 			const value = read();
-			return () => write(value);
+			return { restore: () => write(value), isCurrent: () => isEqual(read(), value) };
 		},
 		reset: () => write(defaultValue),
 	};
@@ -4863,7 +4866,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// `undefined` follows the archived filter's default setting.
 			resettableValue(() => this._excludeArchivedIsDefault ? undefined : this._excludeArchived, exclude => this.applyExcludeArchived(exclude), undefined),
 			resettableValue(() => this.workspaceGroupCapped, capped => this.applyWorkspaceGroupCapped(capped), true),
-			resettableValue(() => this.loadSessionGroupExpansion(), state => this.storeSessionGroupExpansion(state), new Map()),
+			resettableValue(() => this.loadSessionGroupExpansion(), state => this.storeSessionGroupExpansion(state), new Map(), mapsStrictEqualIgnoreOrder),
 			resettableValue(() => this.expandedMoreFolders, expanded => { this.expandedMoreFolders = expanded; }, false),
 		];
 
@@ -9951,18 +9954,26 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
+	captureFilters(): ISessionsListCapturedState {
+		const captured = this.resettableStates.map(state => state.capture());
+		return {
+			restore: () => {
+				for (const state of captured) {
+					state.restore();
+				}
+				this.update();
+			},
+			isCurrent: () => captured.every(state => state.isCurrent()),
+		};
+	}
+
 	resetFilters(): () => void {
-		const restores = this.resettableStates.map(state => state.capture());
+		const captured = this.captureFilters();
 		for (const state of this.resettableStates) {
 			state.reset();
 		}
 		this.update();
-		return () => {
-			for (const restore of restores) {
-				restore();
-			}
-			this.update();
-		};
+		return () => captured.restore();
 	}
 
 	// Session group capping
