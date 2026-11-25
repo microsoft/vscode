@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../../base/browser/dom.js';
+import { timeout } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -217,5 +218,67 @@ suite('DiffEditorWidget2', () => {
 				3,
 			)), (['[1,96) - [1,96)']));
 		});
+	});
+
+	suite('alignment', () => {
+		async function withWrappedDiffEditor(run: (viewModel: DiffEditorViewModel, widget: DiffEditorWidget, misalignedLines: () => number[]) => Promise<void>) {
+			const services = new ServiceCollection();
+			services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+			services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+				override show() { return emptyProgressRunner; }
+			}());
+			services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+			const instantiationService = createCodeEditorServices(disposables, services);
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const lines = Array.from({ length: 60 }, (_, i) => `const value${i} = '${'x'.repeat(i % 3 === 0 ? 1000 : 100)}';`);
+			const original = disposables.add(instantiateTextModel(instantiationService, lines.join('\n')));
+			lines[30] = 'const value30 = 30;';
+			const modified = disposables.add(instantiateTextModel(instantiationService, lines.join('\n')));
+			const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
+				wordWrap: 'on',
+				renderGutterMenu: false,
+				useInlineViewWhenSpaceIsLimited: false,
+				splitViewDefaultRatio: 0.3,
+				hideUnchangedRegions: { enabled: true },
+			}, {
+				originalEditor: { contributions: [] },
+				modifiedEditor: { contributions: [] },
+			}));
+			// Low enough that the sides scroll before and after revealing lines. A new scrollbar would change the wrapping and realign them anyway.
+			widget.layout(new Dimension(1000, 200));
+			const model = disposables.add(RefCounted.create(widget.createViewModel({ original, modified })));
+			widget.setDiffModel(model);
+			try {
+				await widget.waitForDiff();
+				// Opening schedules a realign, which would otherwise run after the lines are revealed and hide the bug.
+				await timeout(0);
+				assert.ok(model.object instanceof DiffEditorViewModel);
+				const viewModel = model.object;
+				const isHidden = (line: number) => viewModel.unchangedRegions.get().some(r => r.getHiddenModifiedRange(undefined).contains(line));
+				await run(viewModel, widget, () => lines.map((_, i) => i + 1).filter(line =>
+					!isHidden(line) && widget.getOriginalEditor().getTopForLineNumber(line) !== widget.getModifiedEditor().getTopForLineNumber(line)
+				));
+			} finally {
+				widget.setDiffModel(null);
+			}
+		}
+
+		test('wrapped lines are aligned after revealing and collapsing all unchanged regions', () => withWrappedDiffEditor(async (_viewModel, widget, misalignedLines) => {
+			widget.showAllUnchangedRegions();
+			await timeout(0);
+			assert.deepStrictEqual(misalignedLines(), []);
+
+			widget.collapseAllUnchangedRegions();
+			await timeout(0);
+			assert.deepStrictEqual(misalignedLines(), []);
+		}));
+
+		test('wrapped lines are aligned after revealing part of an unchanged region', () => withWrappedDiffEditor(async (viewModel, _widget, misalignedLines) => {
+			viewModel.unchangedRegions.get()[0].showMoreBelow(10, undefined);
+			await timeout(0);
+			assert.deepStrictEqual(misalignedLines(), []);
+		}));
 	});
 });
