@@ -683,8 +683,10 @@ suite('Sessions - Delete session undo', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('deleting sessions hides and closes them, and deletes them only once Undo is no longer offered', async () => {
-		const sessions = ['one', 'two', 'three'].map(id => {
-			const entry = createTestSession(id);
+		// Distinct creation times, newest first, keep the list's order from depending on how fast the sessions are created.
+		const now = Date.now();
+		const sessions = ['one', 'two', 'three'].map((id, index) => {
+			const entry = createTestSession(id, { createdAt: new Date(now - index * 60_000) });
 			entry.capabilities.set({ supportsMultipleChats: false, supportsDelete: true }, undefined);
 			return entry.session;
 		});
