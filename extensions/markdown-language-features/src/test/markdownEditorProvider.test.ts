@@ -187,6 +187,7 @@ suite('Markdown editor initial state', () => {
 			highlightActiveBlock: false,
 			renderWhitespace: true,
 			lineBreak: '\r\n' as const,
+			zoomPercent: 120,
 			linkPresentationRules: [],
 		};
 		const encoded = encodeWebviewInitialState(state);
