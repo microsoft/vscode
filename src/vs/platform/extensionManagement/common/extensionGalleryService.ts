@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from '../../../base/common/arrays.js';
+import { VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import * as semver from '../../../base/common/semver/semver.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
@@ -14,13 +15,14 @@ import { arch } from '../../../base/common/process.js';
 import { isBoolean, isNumber, isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from '../../../base/parts/request/common/request.js';
+import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey, IExtensionBlockingInfo, ExtensionBlockingOrigin, ExtensionBlockingScope } from './extensionManagement.js';
+import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, ExtensionManagementError, ExtensionManagementErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey, IExtensionBlockingInfo, ExtensionBlockingOrigin, ExtensionBlockingScope } from './extensionManagement.js';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from './extensionManagementUtil.js';
 import { IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { isEngineValid } from '../../extensions/common/extensionValidator.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, asTextOrError, IRequestService, isClientError, isServerError, isSuccess } from '../../request/common/request.js';
@@ -1764,17 +1766,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const headers: IHeaders | undefined = activityId && typeof activityId === 'string' ? { [SEARCH_ACTIVITY_HEADER_NAME]: activityId } : undefined;
 		const context = await this.getAsset(extension.identifier.id, downloadAsset, AssetType.VSIX, extension.version, 'extensionGalleryService.download', headers ? { headers } : undefined);
 
-		try {
-			await this.fileService.writeFile(location, context.stream);
-		} catch (error) {
-			try {
-				await this.fileService.del(location);
-			} catch (e) {
-				/* ignore */
-				this.logService.warn(`Error while deleting the file ${location.toString()}`, getErrorMessage(e));
-			}
-			throw new ExtensionGalleryError(getErrorMessage(error), ExtensionGalleryErrorCode.DownloadFailedWriting);
-		}
+		await this.writeDownload(location, context.stream);
 
 		/* __GDPR__
 			"galleryService:downloadVSIX" : {
@@ -1796,8 +1788,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		this.logService.trace('ExtensionGalleryService#downloadSignatureArchive', extension.identifier.id);
 
 		const context = await this.getAsset(extension.identifier.id, extension.assets.signature, AssetType.Signature, extension.version, 'extensionGalleryService.signature');
+		await this.writeDownload(location, context.stream);
+	}
+
+	private async writeDownload(location: URI, stream: VSBufferReadableStream): Promise<void> {
 		try {
-			await this.fileService.writeFile(location, context.stream);
+			await this.fileService.writeFile(location, stream);
 		} catch (error) {
 			try {
 				await this.fileService.del(location);
@@ -1805,9 +1801,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				/* ignore */
 				this.logService.warn(`Error while deleting the file ${location.toString()}`, getErrorMessage(e));
 			}
+			if (toFileOperationResult(error) === FileOperationResult.FILE_EXCEEDS_STORAGE_QUOTA) {
+				throw new ExtensionManagementError(localize('downloadInsufficientStorage', "Not enough storage to download the extension. Free up space and try again."), ExtensionManagementErrorCode.InsufficientStorage);
+			}
 			throw new ExtensionGalleryError(getErrorMessage(error), ExtensionGalleryErrorCode.DownloadFailedWriting);
 		}
-
 	}
 
 	async getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {

@@ -1026,6 +1026,9 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			case 'EACCES':
 				code = FileSystemProviderErrorCode.NoPermissions;
 				break;
+			case 'ENOSPC':
+				code = FileSystemProviderErrorCode.FileExceedsStorageQuota;
+				break;
 			case 'ERR_UNC_HOST_NOT_ALLOWED':
 				resultError = `${error.message}. Please update the 'security.allowedUNCHosts' setting if you want to allow this host.`;
 				code = FileSystemProviderErrorCode.Unknown;

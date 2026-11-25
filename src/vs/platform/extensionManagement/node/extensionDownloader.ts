@@ -214,7 +214,7 @@ export class ExtensionsDownloader extends Disposable {
 				await downloadFn();
 				return attempts;
 			} catch (e) {
-				if (attempts++ > retries) {
+				if ((e instanceof ExtensionManagementError && e.code === ExtensionManagementErrorCode.InsufficientStorage) || attempts++ > retries) {
 					throw e;
 				}
 				this.logService.warn(`Failed downloading ${name}. ${getErrorMessage(e)}. Retry again...`, extension.identifier.id);

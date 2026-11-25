@@ -521,6 +521,7 @@ export const enum ExtensionManagementErrorCode {
 	Download = 'Download',
 	DownloadSignature = 'DownloadSignature',
 	DownloadFailedWriting = ExtensionGalleryErrorCode.DownloadFailedWriting,
+	InsufficientStorage = 'InsufficientStorage',
 	UpdateMetadata = 'UpdateMetadata',
 	Extract = 'Extract',
 	Scanning = 'Scanning',

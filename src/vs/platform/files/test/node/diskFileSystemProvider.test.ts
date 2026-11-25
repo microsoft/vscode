@@ -11,7 +11,7 @@ import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { stub } from 'sinon';
 import { timeout } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
@@ -19,10 +19,11 @@ import { join } from '../../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { consumeStream } from '../../../../base/common/stream.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { Promises } from '../../../../base/node/pfs.js';
 import { BufferReader, BufferWriter, deserialize, serialize } from '../../../../base/parts/ipc/common/ipc.js';
 import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileSystemProviderErrorCode, FileType, toFileSystemProviderErrorCode } from '../../common/files.js';
+import { FileOperationError, FileOperationResult, FileSystemProviderErrorCode, FileType, toFileSystemProviderErrorCode } from '../../common/files.js';
 import { Event } from '../../../../base/common/event.js';
 import { DefaultURITransformer, IURITransformer } from '../../../../base/common/uriIpc.js';
 import { DiskFileSystemProviderClient } from '../../common/diskFileSystemProviderClient.js';
@@ -86,6 +87,27 @@ suite('DiskFileSystemProvider', function () {
 		await promises.writeFile(filePath, 'contents');
 
 		assert.strictEqual(Buffer.from(await provider.readFile(URI.file(filePath))).toString(), 'contents');
+	});
+
+	test('reports a disk-full write through the provider and file service', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.file, provider));
+		const resource = URI.file(join(testDir, 'extension.vsix'));
+		const contents = VSBuffer.fromString('contents');
+		const diskFull = Object.assign(new Error('No space left on device'), { code: 'ENOSPC' });
+		const write = stub(Promises, 'write').get(() => () => Promise.reject(diskFull));
+		try {
+			await assert.rejects(
+				provider.writeFile(resource, contents.buffer, { create: true, overwrite: true, unlock: false, atomic: false }),
+				error => error instanceof Error && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileExceedsStorageQuota
+			);
+			await assert.rejects(
+				fileService.writeFile(resource, bufferToStream(contents)),
+				error => error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_EXCEEDS_STORAGE_QUOTA
+			);
+		} finally {
+			write.restore();
+		}
 	});
 
 	test('realpath reports missing paths as a filesystem error', async () => {
