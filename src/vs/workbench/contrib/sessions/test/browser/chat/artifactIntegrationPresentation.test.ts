@@ -2668,6 +2668,9 @@ suite('Artifact Integration Presentation', () => {
 			master.click();
 			await settle(f);
 			states.push(state());
+			// Activating a label focuses its control as a pointer would, which hides the keyboard focus ring from
+			// every later test in the page. A switch that already has focus does not get focused again.
+			master.focus();
 			label.click();
 			await settle(f);
 			states.push(state());
