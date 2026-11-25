@@ -19,9 +19,11 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { Schemas } from '../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { newWriteableStream, WriteableStream } from '../../../../../base/common/stream.js';
+import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CopyAction, CutAction, PasteAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -205,11 +207,13 @@ suite('WebviewElement', () => {
 			assert.ok(contextKeyService);
 			result.push(MenuRegistry.getMenuItems(MenuId.WebviewContext)
 				.filter(item => isIMenuItem(item) && item.group === '5_cutcopypaste' && contextKeyService.contextMatchesRules(item.when))
-				.map(item => isIMenuItem(item) ? item.command.title : undefined));
+				.map(item => isIMenuItem(item) ? item.command.id : undefined));
 		}
+		// Cut, Copy and Paste are only registered when the browser supports them (Firefox has no Paste)
+		const supported = (actions: readonly ({ readonly id: string } | undefined)[]) => actions.filter(isDefined).map(action => action.id);
 		assert.deepStrictEqual(result, [
-			['Copy'],
-			['Cut', 'Copy', 'Paste'],
+			supported([CopyAction]),
+			supported([CutAction, CopyAction, PasteAction]),
 		]);
 	});
 
