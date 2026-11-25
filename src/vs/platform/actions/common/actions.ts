@@ -35,15 +35,15 @@ export interface ISubmenuItem {
 	when?: ContextKeyExpression;
 	/** Submenu item is checked if this expression returns true. */
 	toggled?: ContextKeyExpression;
-	group?: 'navigation' | string;
-	order?: number;
-	isSelection?: boolean;
 	/**
 	 * The maximum height, in pixels, of the menu that shows the submenu's
 	 * actions. Longer menus scroll. When not set, the menu is only limited
 	 * by the window.
 	 */
 	maxHeight?: number;
+	group?: 'navigation' | string;
+	order?: number;
+	isSelection?: boolean;
 	/**
 	 * A split button shows the first action
 	 * as primary action and the rest of the
