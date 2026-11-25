@@ -14,6 +14,7 @@ import { autorun } from '../../../base/common/observable.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import type { IRequestContext } from '../../../base/parts/request/common/request.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -37,6 +38,7 @@ import {
 	decodeWslOutput,
 	extractAgentHostWebSocketURL,
 	getWslExePath,
+	getWslLoginShellArgs,
 	isWSLSupported,
 	type IRunWslCommandResult,
 	type IWSLDistroProbe,
@@ -307,14 +309,13 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		this._logService.info(`${LOG_PREFIX} Spawning agent host in WSL distro '${distro}'`);
 		this._logService.trace(`${LOG_PREFIX} bootstrap script: ${script}`);
 
-		// `-e sh -lc <script>` runs a POSIX login shell, which every distro
-		// has (Alpine has no bash), so /etc/profile and ~/.profile are sourced
-		// before the CLI launches. The agent host resolves the user's own
-		// login shell environment for the tools it runs. We deliberately do
-		// NOT set `WSL_UTF8` for this spawn: it would force `wsl.exe` to
-		// recode the agent host's stdout/stderr, which is already valid UTF-8
-		// from a Linux process. Keeping the bytes untouched also avoids
-		// surprising the URL/PID regex.
+		// The login shell sources the profile before the CLI launches, so its
+		// server download sees settings such as proxies; the agent host itself
+		// resolves the user's own login shell environment for the tools it runs.
+		// We deliberately do NOT set `WSL_UTF8` for this spawn: it would force
+		// `wsl.exe` to recode the agent host's stdout/stderr, which is already
+		// valid UTF-8 from a Linux process. Keeping the bytes untouched also
+		// avoids surprising the URL/PID regex.
 		const child = this._spawnAgentHost(distro, script);
 
 		let url: string | undefined;
@@ -740,7 +741,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	}
 
 	protected _spawnAgentHost(distro: string, script: string): cp.ChildProcess {
-		return cp.spawn(getWslExePath(), ['-d', distro, '-e', 'sh', '-lc', script], {
+		return cp.spawn(getWslExePath(), ['-d', distro, '-e', ...getWslLoginShellArgs(script)], {
 			windowsHide: true,
 			stdio: ['ignore', 'pipe', 'pipe'],
 		});
@@ -775,11 +776,11 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		try {
 			const context = await this._requestService.request({ type: 'GET', url, callSite: 'wslRemoteAgentHost.downloadCLI' }, cts.token);
 			if (!isSuccess(context)) {
-				context.stream.destroy();
+				abortResponse(context);
 				throw new Error(`HTTP ${context.res.statusCode}`);
 			}
-			// Cancellation must also abort a response body that stalls after its headers.
-			const cancellation = cts.token.onCancellationRequested(() => context.stream.destroy());
+			// The request service stops cancelling once headers arrive, so a body that stalls must be aborted here.
+			const cancellation = cts.token.onCancellationRequested(() => abortResponse(context));
 			try {
 				return await raceCancellationError(streamToBuffer(context.stream), cts.token);
 			} finally {
@@ -856,6 +857,16 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			});
 		});
 	}
+}
+
+/**
+ * Stops reading a response and closes it. Destroying the body stream alone
+ * leaves Node's underlying response downloading, so it is destroyed too.
+ */
+function abortResponse(context: IRequestContext): void {
+	context.stream.destroy();
+	const response: IRequestContext['res'] & { readonly destroy?: () => void } = context.res;
+	response.destroy?.();
 }
 
 /**

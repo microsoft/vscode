@@ -7,7 +7,8 @@ import assert from 'assert';
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { newWriteableBufferStream, VSBuffer } from '../../../../base/common/buffer.js';
+import type { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -99,6 +100,11 @@ class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainServic
 		return VSBuffer.fromString(`archive from ${url}`);
 	}
 
+	/** Downloads through the request service instead of the stub above. */
+	downloadCLIWithRequestService(url: string): Promise<VSBuffer> {
+		return super._downloadCLI(url);
+	}
+
 	protected override async _installCLI(distro: string, archive: VSBuffer): Promise<void> {
 		this.cliInstalls.push({ distro, archive: archive.toString() });
 	}
@@ -113,7 +119,7 @@ class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainServic
 	}
 }
 
-function createService(): TestableWSLRemoteAgentHostMainService {
+function createService(requestService: IRequestService = new class extends mock<IRequestService>() { }()): TestableWSLRemoteAgentHostMainService {
 	const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'serverDataFolderName' | 'commit'> = {
 		_serviceBrand: undefined,
 		quality: 'insider',
@@ -124,7 +130,7 @@ function createService(): TestableWSLRemoteAgentHostMainService {
 		new NullLogService(),
 		productService as IProductService,
 		NullTelemetryService,
-		new class extends mock<IRequestService>() { }(),
+		requestService,
 	);
 }
 
@@ -240,6 +246,20 @@ suite('WSL Remote Agent Host Service', () => {
 		await assert.rejects(result, /can't run in 'Alpine' without libstdc\+\+\.so\.6, libgcc_s\.so\.1/);
 		assert.deepStrictEqual({ downloads: service.cliDownloads, spawned: service.children.length }, { downloads: [], spawned: 0 });
 	});
+
+	test('closes the CLI download response when its body stalls after the headers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let responseDestroyed = false;
+		const response = { statusCode: 200, headers: {}, destroy: () => { responseDestroyed = true; } };
+		const service = disposables.add(createService(new class extends mock<IRequestService>() {
+			override async request(): Promise<IRequestContext> {
+				return { res: response, stream: newWriteableBufferStream() };
+			}
+		}()));
+		const rejected = assert.rejects(service.downloadCLIWithRequestService('https://update.code.visualstudio.com/latest/cli-alpine-x64/insider'), /timed out after 300s/);
+		await timeout(5 * 60_000);
+		await rejected;
+		assert.strictEqual(responseDestroyed, true);
+	}));
 
 	for (const exitTiming of ['before session creation', 'during relay acquisition', 'after relay acquisition'] as const) {
 		test(`keeps the detached host session when the launcher exits successfully ${exitTiming}`, async () => {

@@ -334,6 +334,16 @@ export function composeCLIInstallScript(serverDataFolderName: string, quality: s
 	].join('; ');
 }
 
+/**
+ * Arguments after `wsl.exe -d <distro> -e` that run `script` in Bash's login
+ * shell, which reads `~/.bash_profile` for settings such as proxies that the
+ * CLI's server download needs, or in a POSIX login shell on distros without
+ * Bash, such as Alpine.
+ */
+export function getWslLoginShellArgs(script: string): string[] {
+	return ['sh', '-c', 'if command -v bash >/dev/null 2>&1; then exec bash -lc "$1"; fi; exec sh -lc "$1"', 'sh', script];
+}
+
 export interface IComposeAgentHostBootstrapScriptArgs {
 	readonly serverDataFolderName: string;
 	readonly quality: string;
@@ -344,8 +354,9 @@ export interface IComposeAgentHostBootstrapScriptArgs {
 }
 
 /**
- * Compose the POSIX `sh` one-liner passed to `wsl.exe -d <distro> -e sh -lc`,
- * which launches the CLI that {@link composeCLIInstallScript} installed.
+ * Compose the POSIX `sh` one-liner that {@link getWslLoginShellArgs} runs in a
+ * login shell, which launches the CLI that {@link composeCLIInstallScript}
+ * installed.
  *
  * Reuses the same install layout helpers as Remote-SSH
  * ({@link getRemoteCLIBin}, {@link buildCleanupOldCLIsCommand},
