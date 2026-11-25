@@ -8,7 +8,7 @@ import { IChatSessionsService, isAgentHostTarget, isRemoteAgentHostTarget, local
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { hasVirtualWorkspaceContent, isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandMetadata } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -614,8 +614,8 @@ export function isNewChatSessionTypeUsable(
 		return agentHostEnabled
 			&& (!isRemoteAgentHostTarget(sessionType) || !!contribution)
 			&& !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, configurationService)
-			// In workspaces with virtual folders, defer to contribution visibility for non-Copilot harnesses.
-			&& (!!contribution || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot || !hasVirtualWorkspaceContent(workspace));
+			// In fully virtual workspaces, defer to contribution visibility for non-Copilot harnesses.
+			&& (!!contribution || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot || !isVirtualWorkspace(workspace));
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace, managedSandboxEnforced);
 }

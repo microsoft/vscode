@@ -29,7 +29,7 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { getVirtualWorkspaceScheme } from '../../../../../../platform/workspace/common/virtualWorkspace.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
-import { WorkspaceHasVirtualContentContext } from '../../../../../common/contextkeys.js';
+import { VirtualWorkspaceContext } from '../../../../../common/contextkeys.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -203,8 +203,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
 		if (this._isLocalAgentHost && !this._isSessionsWindow) {
-			const workspaceHasVirtualContent = observableContextKey<boolean>(WorkspaceHasVirtualContentContext.key, contextKeyService);
-			this._onDidChangeVirtualWorkspaceContent = Event.signal(Event.fromObservable(workspaceHasVirtualContent, this._store));
+			const virtualWorkspace = observableContextKey<string>(VirtualWorkspaceContext.key, contextKeyService);
+			this._onDidChangeVirtualWorkspaceContent = Event.signal(Event.fromObservable(virtualWorkspace, this._store));
 		}
 
 		this._register(autorun(reader => {
@@ -373,7 +373,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			name: agentId,
 			displayName: agent.displayName,
 			description: agent.description,
-			when: onDidChangeAvailability ? WorkspaceHasVirtualContentContext.negate().serialize() : undefined,
+			when: onDidChangeAvailability ? VirtualWorkspaceContext.negate().serialize() : undefined,
 			onDidChangeAvailability,
 			locations: agent.provider === 'copilotcli' ? [ChatAgentLocation.Chat, ChatAgentLocation.Terminal, ChatAgentLocation.EditorInline] : undefined,
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,

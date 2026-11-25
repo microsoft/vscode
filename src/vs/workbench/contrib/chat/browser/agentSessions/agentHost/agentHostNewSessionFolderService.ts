@@ -10,8 +10,12 @@ import { extUriBiasedIgnorePathCase, isEqual, type IExtUri } from '../../../../.
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { isVirtualResource } from '../../../../../../platform/workspace/common/virtualWorkspace.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentService.js';
 import { RootState, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 
@@ -52,6 +56,44 @@ export function supportsMultipleWorkingDirectories(rootState: RootState | Error 
 export function hasImmutablePrimaryWorkingDirectory(rootState: RootState | Error | undefined, provider: string): boolean {
 	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
 	return agent?.capabilities?.multipleWorkingDirectories?.immutablePrimary === true;
+}
+
+/**
+ * Filters `directories` to those the given agent-host connection and provider
+ * can address. Local Copilot CLI sessions in the editor window can also use
+ * virtual folders (served back from this client); all other connections and
+ * providers only receive directories whose host URI matches
+ * `defaultDirectory`'s scheme.
+ */
+export function filterHostAddressableWorkingDirectories(
+	directories: readonly URI[] | undefined,
+	options: {
+		readonly defaultDirectory: string | URI | undefined;
+		readonly resourceUris: IAgentHostResourceUriMapper;
+		readonly clientConnectionKind: AgentHostClientConnectionKind;
+		readonly provider: string;
+		readonly isSessionsWindow: boolean;
+		readonly logService?: ILogService;
+	},
+): readonly URI[] | undefined {
+	if (!directories?.length || !options.defaultDirectory) {
+		return directories;
+	}
+	const hostScheme = URI.isUri(options.defaultDirectory)
+		? URI.revive(options.defaultDirectory).scheme
+		: URI.parse(options.defaultDirectory).scheme;
+	const supportsVirtualWorkingDirectories = !options.isSessionsWindow
+		&& options.clientConnectionKind === AgentHostClientConnectionKind.Local
+		&& options.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
+	const addressable = directories.filter(directory => {
+		const hostDirectory = options.resourceUris.toAgentHost(directory);
+		return hostDirectory.scheme === hostScheme || (supportsVirtualWorkingDirectories && isVirtualResource(hostDirectory));
+	});
+	if (addressable.length === directories.length) {
+		return directories;
+	}
+	options.logService?.warn(`[AgentHost] Host addresses '${hostScheme}' working directories; dropping ${directories.length - addressable.length} that it cannot use.`);
+	return addressable.length > 0 ? addressable : undefined;
 }
 
 /**

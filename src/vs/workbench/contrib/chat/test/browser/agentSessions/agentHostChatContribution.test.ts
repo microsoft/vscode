@@ -155,7 +155,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { isResourceEditorInput, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../../common/editor.js';
-import { WorkspaceHasVirtualContentContext } from '../../../../../common/contextkeys.js';
+import { VirtualWorkspaceContext } from '../../../../../common/contextkeys.js';
 import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -1716,7 +1716,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(chatAgentService.registeredAgents.get('agent-host-copilot')?.data.modes, [ChatModeKind.Agent, ChatModeKind.Ask]);
 		});
 
-		test('hides unsupported local harnesses when any editor workspace folder is virtual', () => {
+		test('hides unsupported local harnesses when the editor workspace is virtual', () => {
 			const results = [];
 			for (const { isSessionsWindow, remoteAuthority } of [
 				{ isSessionsWindow: false, remoteAuthority: undefined },
@@ -1724,8 +1724,8 @@ suite('AgentHostChatContribution', () => {
 				{ isSessionsWindow: true, remoteAuthority: undefined },
 			]) {
 				const { instantiationService, contextKeyService, agentHostService, chatSessionContributions } = createTestServices(disposables);
-				const workspaceHasVirtualContent = WorkspaceHasVirtualContentContext.bindTo(contextKeyService);
-				workspaceHasVirtualContent.set(true);
+				const virtualWorkspace = VirtualWorkspaceContext.bindTo(contextKeyService);
+				virtualWorkspace.set('vscode-vfs');
 				instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow, remoteAuthority });
 				instantiationService.stub(ICustomizationHarnessService, {
 					activeSessionResource: constObservable(URI.parse('agent-host-copilotcli:/session')),
@@ -1746,16 +1746,16 @@ suite('AgentHostChatContribution', () => {
 						disposables.add(event(() => availabilityChanges.push(visible())));
 					}
 				}
-				const withVirtualContent = visible();
-				workspaceHasVirtualContent.set(false);
-				results.push({ isSessionsWindow, remoteAuthority, withVirtualContent, withoutVirtualContent: visible(), availabilityChanges });
+				const withVirtualWorkspace = visible();
+				virtualWorkspace.set('');
+				results.push({ isSessionsWindow, remoteAuthority, withVirtualWorkspace, withoutVirtualWorkspace: visible(), availabilityChanges });
 			}
 			const all = ['agent-host-copilotcli', 'agent-host-claude', 'agent-host-codex'];
 			const copilot = ['agent-host-copilotcli'];
 			assert.deepStrictEqual(results, [
-				{ isSessionsWindow: false, remoteAuthority: undefined, withVirtualContent: copilot, withoutVirtualContent: all, availabilityChanges: [all] },
-				{ isSessionsWindow: false, remoteAuthority: 'ssh-remote+test', withVirtualContent: all, withoutVirtualContent: all, availabilityChanges: [] },
-				{ isSessionsWindow: true, remoteAuthority: undefined, withVirtualContent: all, withoutVirtualContent: all, availabilityChanges: [] },
+				{ isSessionsWindow: false, remoteAuthority: undefined, withVirtualWorkspace: copilot, withoutVirtualWorkspace: all, availabilityChanges: [all] },
+				{ isSessionsWindow: false, remoteAuthority: 'ssh-remote+test', withVirtualWorkspace: all, withoutVirtualWorkspace: all, availabilityChanges: [] },
+				{ isSessionsWindow: true, remoteAuthority: undefined, withVirtualWorkspace: all, withoutVirtualWorkspace: all, availabilityChanges: [] },
 			]);
 		});
 
