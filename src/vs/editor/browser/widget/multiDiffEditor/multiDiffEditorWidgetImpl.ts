@@ -523,7 +523,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 
 	private async _revealRangeOnceDiffIsComputed(viewItem: VirtualizedViewItem, options: RevealOptions, token: CancellationToken): Promise<void> {
-		await waitForState(viewItem.viewModel.diffEditorViewModel.isDiffUpToDate, isDiffUpToDate => isDiffUpToDate, undefined, token);
+		// The diff of a file is not computed once the file is removed, which ends the wait too.
+		await waitForState(derived(this, reader => !this._viewItems.read(reader).includes(viewItem) || viewItem.viewModel.diffEditorViewModel.isDiffUpToDate.read(reader)), isDone => isDone, undefined, token);
 		// This continues after the transaction that sets the diff, in which the editors show the diff.
 		if (!token.isCancellationRequested) {
 			this._pendingRangeReveal.clear();
@@ -563,7 +564,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			}
 			side = 'modified';
 		}
-		this._scrollToItemOffset(index, offset ?? template.getPositionOffset(side, range.getStartPosition()));
+		this._scrollToItemOffset(index, offset ?? template.getRangeOffset(side, range));
 		const scrollLeft = template.revealRangeHorizontally(side, range);
 		if (scrollLeft !== undefined) {
 			// All items share the horizontal scroll position.
