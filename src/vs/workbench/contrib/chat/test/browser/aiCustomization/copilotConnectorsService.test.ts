@@ -382,12 +382,63 @@ suite('CopilotConnectorsService', () => {
 			hasCursor: typeof first.nextCursor === 'string',
 			requests: fixture.requests.map(request => request.url),
 		}, {
-			first: [{ identifier: 'mail', installation: { kind: 'copilotConnector', name: 'mail' }, publisher: 'GitHub Copilot', publisherUrl: 'https://github.com/features/copilot' }],
+			first: [{ identifier: 'mail', installation: { kind: 'copilotConnector', name: 'mail' }, publisher: 'GitHub Copilot', publisherUrl: undefined }],
 			second: ['calendar'],
 			total: 2,
 			hasCursor: true,
 			requests: ['https://api.github.test/copilot-connectors/api/v1/plugins'],
 		});
+	});
+
+	test('projects validated connector homepages separately from their author and source', async () => {
+		const fixture = createFixture([{
+			body: {
+				plugins: [
+					createConnectorPlugin({
+						name: 'amplitude',
+						homepage: 'https://amplitude.com',
+						author: { name: 'GitHub', url: 'https://github.com' },
+						repository: 'https://github.com/amplitude/connector',
+						metadata: { displayName: 'Amplitude' },
+					}),
+					createConnectorPlugin({
+						name: 'github-homepage',
+						homepage: 'https://github.com/example/connector',
+					}),
+					createConnectorPlugin({
+						name: 'encoded-homepage',
+						homepage: 'https://example.com/a%2Fb?query=x%26y',
+					}),
+					createConnectorPlugin({
+						name: 'missing-homepage',
+						author: { name: 'GitHub', url: 'https://github.com' },
+						repository: 'https://github.com/example/connector',
+					}),
+					createConnectorPlugin({
+						name: 'invalid-homepage',
+						homepage: 'javascript:alert(1)',
+					}),
+				],
+			},
+		}]);
+		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
+		const page = await source.query({}, CancellationToken.None);
+
+		const sourceUrl = 'https://docs.github.com/en/copilot/concepts/customizations/copilot-connectors';
+		assert.deepStrictEqual(page.items.map(item => ({
+			identifier: item.identifier,
+			homepage: item.homepage,
+			publisher: item.publisher,
+			publisherUrl: item.publisherUrl?.toString(),
+			sourceUrl: item.url?.toString(),
+			externalUrl: item.externalUrl,
+		})), [
+			{ identifier: 'amplitude', homepage: 'https://amplitude.com', publisher: 'GitHub', publisherUrl: 'https://github.com/', sourceUrl, externalUrl: sourceUrl },
+			{ identifier: 'github-homepage', homepage: 'https://github.com/example/connector', publisher: 'GitHub Copilot', publisherUrl: undefined, sourceUrl, externalUrl: sourceUrl },
+			{ identifier: 'encoded-homepage', homepage: 'https://example.com/a%2Fb?query=x%26y', publisher: 'GitHub Copilot', publisherUrl: undefined, sourceUrl, externalUrl: sourceUrl },
+			{ identifier: 'missing-homepage', homepage: undefined, publisher: 'GitHub', publisherUrl: 'https://github.com/', sourceUrl, externalUrl: sourceUrl },
+			{ identifier: 'invalid-homepage', homepage: undefined, publisher: 'GitHub Copilot', publisherUrl: undefined, sourceUrl, externalUrl: sourceUrl },
+		]);
 	});
 
 	test('projects top-level service metadata and public endpoints', async () => {
@@ -417,7 +468,7 @@ suite('CopilotConnectorsService', () => {
 			marketplaceIcon: URI.isUri(marketplaceIcon) ? marketplaceIcon.toString() : undefined,
 			description: connector.description,
 			version: connector.version,
-			homepage: connector.homepage?.toString(),
+			homepage: connector.homepage,
 			documentation: connector.documentation?.toString(),
 			repository: connector.repository?.toString(),
 			license: connector.license,

@@ -3045,9 +3045,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 
 		if (!isInput) {
-			// The inline editor is self-contained: it shows the model its request ran on, submits
-			// with it (see `acceptInput`, which reads the model from here before this runs), and
-			// disappears. The bottom input keeps whatever the user left it on.
 			this.inputPart?.toggleChatInputOverlay(false);
 			this.disposeInlineInput();
 		}
@@ -4332,13 +4329,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus, forkPromptSourceInput?.clear)) {
 			return;
 		}
-		const isEditing = this.viewModel?.editing;
+		const editingViewModel = this.viewModel;
+		const isEditing = editingViewModel.editing;
 		const submittedFromEditing = shouldUnlockChatPetRequestRevision(isEditing !== undefined, isUserQuery);
-		// Captured before `finishedEditing` tears the inline editor down, while `this.input` still
-		// resolves to it. The inline editor owns the model and mode for a resubmit — those are the
-		// pickers the user actually chose in — so these stay authoritative over the bottom input.
+		// Capture the inline pickers before `finishedEditing` tears them down.
 		const isInlineEdit = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input';
 		const editedModelRequestOptions = isInlineEdit ? this.getSelectedModelRequestOptions() : undefined;
+		const editedModelId = editedModelRequestOptions?.userSelectedModelId;
+		const modelToKeep = isUserQuery && !options.preserveInput && editedModelId && isEditing
+			&& isEditing.pendingKind === undefined && editedModelId !== isEditing.modelId && this.input.hasUserSelectedModel
+			? {
+				id: editedModelId,
+				configuration: editedModelRequestOptions?.userSelectedModelConfiguration,
+				previousComposerModelId: this.inputPart.currentLanguageModel,
+				composerModelSelectionRevision: this.inputPart.modelSelectionRevision,
+			}
+			: undefined;
 		const editedModeKind = isInlineEdit ? this.input.currentModeKind : undefined;
 		const editedModeInfo = isInlineEdit ? this.input.currentModeInfo : undefined;
 		// Tools and instruction routing belong to the mode, so they come from the same editor at the
@@ -4534,6 +4540,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 			return;
+		}
+
+		if (modelToKeep && !this._store.isDisposed && this.viewModel === editingViewModel && !this.viewModel.editing
+			&& this.inputPart.currentLanguageModel === modelToKeep.previousComposerModelId
+			&& this.inputPart.modelSelectionRevision === modelToKeep.composerModelSelectionRevision) {
+			if (!this.inputPart.switchModelByIdentifier(modelToKeep.id, false, true, modelToKeep.configuration)) {
+				this.logService.debug('[ChatWidget] The model chosen for the revised request is no longer selectable in the composer');
+			}
 		}
 
 		this.logThinkingStyleUsage('submit');

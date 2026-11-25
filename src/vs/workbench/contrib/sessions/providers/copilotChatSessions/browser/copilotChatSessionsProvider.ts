@@ -74,6 +74,7 @@ import { CloudSandboxModels } from '../../../../chat/browser/remoteAgentHost/clo
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { createCloudSandboxSessionConfig } from '../../../../chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
+import { CloudAutomationTaskRegistration } from './cloudAutomationTaskRegistration.js';
 import { CloudAutomationStore } from './cloudAutomationStore.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
@@ -1157,6 +1158,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	get supportsLocalWorkspaces(): boolean { return this.providerMode !== 'sandbox'; }
 	readonly automations: CloudAutomationStore | undefined;
+	private taskConversations: CloudAutomationTaskRegistration | undefined;
+
+	registerAutomationTaskConversations(): void {
+		if (this.automations && !this.taskConversations) {
+			this.taskConversations = this._register(this.instantiationService.createInstance(CloudAutomationTaskRegistration, this.automations));
+		}
+	}
 	get supportsAutomationSessionConfiguration(): boolean { return this.providerMode === 'default' && this.automations?.enabled.get() === true; }
 
 	get supportsQuickChats(): boolean {
@@ -1409,7 +1417,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 		if (this.agentSessionsService.getSession(resource) === undefined) {
 			await this.chatSessionsService.activateChatSessionItemProvider(resource.scheme);
-			await this.commandService.executeCommand(RESOLVE_TASK_COMMAND, resource);
+			const resolved = await this.taskConversations?.resolve(resource);
+			if (resolved === false) {
+				return undefined;
+			}
+			if (resolved === undefined) {
+				await this.commandService.executeCommand(RESOLVE_TASK_COMMAND, resource);
+			}
 			if (this._store.isDisposed || !this.automations.enabled.get()) {
 				throw new CancellationError();
 			}

@@ -15,6 +15,7 @@ import { IRequestContext } from '../../../../../../base/parts/request/common/req
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
@@ -85,7 +86,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			}
 		}());
 		const detail = store.add(instantiationService.createInstance(EmbeddedMarketplaceDetail, parent, {
-			getSourceLabel: () => 'Marketplace',
+			getSourceLabel: sourceId => sourceId === CustomizationMarketplaceSources.CopilotConnectors.id ? CustomizationMarketplaceSources.CopilotConnectors.displayName : 'Marketplace',
 			install: async resource => {
 				installCount++;
 				if (actions.install) {
@@ -131,12 +132,12 @@ suite('EmbeddedMarketplaceDetail', () => {
 			repository: URI.parse('https://github.com/example/review'),
 			icon: URI.parse('https://example.com/review.svg'),
 		});
-		parent.querySelector<HTMLElement>('.embedded-detail-publisher')?.click();
+		parent.querySelector<HTMLElement>('.embedded-detail-header-link')?.click();
 		await timeout(0);
 		assert.deepStrictEqual({
 			heading: parent.querySelector('h2')?.textContent,
-			publisher: parent.querySelector<HTMLElement>('.embedded-detail-publisher')?.textContent,
-			publisherHref: parent.querySelector<HTMLAnchorElement>('.embedded-detail-publisher')?.getAttribute('href'),
+			publisher: parent.querySelector<HTMLElement>('.embedded-detail-header-link')?.textContent,
+			publisherHref: parent.querySelector<HTMLAnchorElement>('.embedded-detail-header-link')?.getAttribute('href'),
 			icon: parent.querySelector<HTMLImageElement>('.marketplace-detail-icon img')?.getAttribute('src'),
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
 			queries: [...parent.querySelectorAll('.marketplace-detail-query-text')].map(element => element.textContent),
@@ -159,6 +160,72 @@ suite('EmbeddedMarketplaceDetail', () => {
 			actions: ['Install'],
 			openedExternal: ['https://github.com/example'],
 			accessible: 'Repository review\n\nExample\n\nReviews pull requests.\n\nGet started: Review this change, Find security risks, Summarize this repository\n\nType: Skill\n\nPublisher: Example\n\nVersion: 1.2.0\n\nSource: Marketplace\n\nTags: review\n\nRepository: example/review',
+		});
+	});
+
+	test('shows connector homepage and source links instead of publisher attribution', async () => {
+		const sourceUrl = 'https://docs.github.com/en/copilot/concepts/customizations/copilot-connectors';
+		const homepageUrl = 'https://amplitude.com/a%2Fb?query=x%26y';
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+			identifier: 'amplitude',
+			displayName: 'Amplitude',
+			description: 'Analytics',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+			publisher: 'GitHub',
+			publisherUrl: URI.parse('https://github.com/'),
+			homepage: homepageUrl,
+			url: URI.parse(sourceUrl),
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: { kind: 'copilotConnector', name: 'amplitude' },
+		};
+		const { detail, parent, getOpenedExternal } = render(resource);
+		const getHomepage = () => [...parent.querySelectorAll('dt')]
+			.find(element => element.textContent === 'Homepage')
+			?.nextElementSibling?.querySelector<HTMLAnchorElement>('a');
+		const homepage = getHomepage();
+		const source = parent.querySelector<HTMLAnchorElement>('.marketplace-detail-facts .embedded-detail-fact-link');
+		homepage?.click();
+		source?.click();
+		await timeout(0);
+		const initial = {
+			name: parent.querySelector('h2')?.textContent,
+			headerLink: parent.querySelector<HTMLElement>('.embedded-detail-header-link')?.style.display,
+			homepage: homepage?.textContent,
+			homepageHref: homepage?.getAttribute('href'),
+			homepageTabIndex: homepage?.tabIndex,
+			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
+			sourceHref: source?.getAttribute('href'),
+			opened: getOpenedExternal(),
+			accessible: detail.getAccessibilityContent(),
+		};
+		detail.setInput({ ...resource, homepage: undefined });
+		const withoutHomepage = {
+			homepage: getHomepage(),
+			accessible: detail.getAccessibilityContent(),
+		};
+		detail.clearInput();
+		const cleared = getHomepage();
+
+		assert.deepStrictEqual({ initial, withoutHomepage, cleared }, {
+			initial: {
+				name: 'Amplitude',
+				headerLink: 'none',
+				homepage: homepageUrl,
+				homepageHref: homepageUrl,
+				homepageTabIndex: 0,
+				facts: ['Type', 'MCP server', 'Source', 'Copilot Connectors', 'Homepage', homepageUrl],
+				sourceHref: sourceUrl,
+				opened: [homepageUrl, sourceUrl],
+				accessible: `Amplitude\n\nAnalytics\n\nType: MCP server\n\nSource: Copilot Connectors\n\nHomepage: ${homepageUrl}`,
+			},
+			withoutHomepage: {
+				homepage: undefined,
+				accessible: 'Amplitude\n\nAnalytics\n\nType: MCP server\n\nSource: Copilot Connectors',
+			},
+			cleared: undefined,
 		});
 	});
 
@@ -262,7 +329,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 		assert.deepStrictEqual({
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
 			queries: parent.querySelectorAll('.marketplace-detail-query-list li').length,
-			publisherDisplay: parent.querySelector<HTMLElement>('.embedded-detail-publisher')?.style.display,
+			publisherDisplay: parent.querySelector<HTMLElement>('.embedded-detail-header-link')?.style.display,
 			actions: [...parent.querySelectorAll('.embedded-detail-title-actions .monaco-button')].map(element => element.textContent),
 			accessible: detail.getAccessibilityContent(),
 		}, {

@@ -265,7 +265,49 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	}));
 
+	test('only runs without a known revision may use the current definition for display', async () => {
+		const { store, api } = setup();
+		const access = store.taskAccess.get()!;
+		const run: Task = { id: 'task', automation_id: definition.id, created_at: definition.created_at, remote_steerable: true, state: 'completed', repository: { full_name: `${repository.owner}/${repository.repo}` } };
+		const revisions: string[] = [];
+		api.getRevisionPrompt = async (repo, id, revision) => {
+			assert.deepStrictEqual({ repo, id }, { repo: repository, id: definition.id });
+			revisions.push(revision);
+			if (revision === 'removed') { throw new Error('Not found'); }
+			return 'Previous instructions';
+		};
+		const prompts = [];
+		for (const revision of ['old', undefined, 'unknown']) {
+			prompts.push(await access.getAutomationPrompt({ ...run, automation_revision_id: revision }, CancellationToken.None));
+		}
+		await assert.rejects(access.getAutomationPrompt({ ...run, automation_revision_id: 'removed' }, CancellationToken.None), /Not found/);
+		assert.deepStrictEqual({ prompts, revisions, currentReads: api.detailCalls.length }, {
+			prompts: ['Previous instructions', definition.prompt, definition.prompt], revisions: ['old', 'removed'], currentReads: 2,
+		});
+	});
+
 	for (const change of ['account', 'client'] as const) {
+		test(`task conversations cannot read or steer through an expired ${change} grant`, async () => {
+			const { store, clientInvalidated, changeAccount } = setup();
+			const access = store.taskAccess.get()!;
+			const started = new DeferredPromise<void>();
+			const finished = new DeferredPromise<void>();
+			const pending = access.withTasks(CancellationToken.None, async (_tasks, token) => {
+				await started.complete();
+				await finished.p;
+				return token.isCancellationRequested;
+			});
+			await started.p;
+			if (change === 'account') {
+				changeAccount(null);
+			} else {
+				clientInvalidated.fire();
+			}
+			await finished.complete();
+			await assert.rejects(pending, isCancellationError);
+			await assert.rejects(access.withTasks(CancellationToken.None, () => assert.fail('Expired access must not send')), isCancellationError);
+		});
+
 		test(`model requests are shared and discard late responses after ${change} changes`, async () => {
 			const { store, api, changeAccount, clientInvalidated, leases } = setup();
 			const old = new DeferredPromise<ListModelsResponse>();

@@ -1530,6 +1530,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	platform?: NodeJS.Platform;
 	githubToken?: string;
 	githubCredentials?: CopilotGitHubSessionCredentials;
+	accountContext?: CopilotSessionLaunchPlan['accountContext'];
 	copilotApiEndpoint?: string;
 	gitService?: IAgentHostGitService;
 	gitHubEndpointService?: IAgentHostGitHubEndpointService;
@@ -1670,6 +1671,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		snapshot: options?.clientSnapshot ?? { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		shellManager: options?.shellManager,
 		githubCredentials: options?.githubCredentials ?? CopilotGitHubSessionCredentials.fromToken(options?.githubToken),
+		accountContext: options?.accountContext,
 		isEphemeral: options?.isEphemeral,
 		disabledRootMcpServers: options?.disabledRootMcpServers,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
@@ -4442,6 +4444,15 @@ suite('CopilotAgentSession', () => {
 			result: { success: true, copilotUserResolved: true },
 			updates: [{ credentials: { type: 'token', host: 'github.com', token: 'updated-token' } }],
 		});
+	});
+
+	test('a session signed in with a Microsoft account takes no GitHub token replacement', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+			accountContext: { kind: 'ready' } as CopilotSessionLaunchPlan['accountContext'],
+		});
+		await assert.rejects(session.updateGitHubCredentials('github.com', 'token'), /isolated/);
+		assert.deepStrictEqual({ staticToken: session.usesStaticGitHubToken, updates: mockSession.gitHubCredentialUpdates }, { staticToken: false, updates: [] });
 	});
 
 	test('client-owned GitHub credentials reject global token replacement while allowing BYOK', async () => {
