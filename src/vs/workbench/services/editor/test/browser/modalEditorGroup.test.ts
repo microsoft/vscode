@@ -9,8 +9,8 @@ import { timeout } from '../../../../../base/common/async.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, createEditorParts, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
-import { GroupsOrder, IEditorGroupsService, IModalEditorPart } from '../../common/editorGroupsService.js';
-import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { GroupsOrder, IEditorGroup, IEditorGroupsService, IModalEditorPart } from '../../common/editorGroupsService.js';
+import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry, IEditorOpenContext } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -34,7 +34,13 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { CLOSE_MODAL_EDITOR_COMMAND_ID } from '../../../../browser/parts/editor/editorCommands.js';
 import { IWorkbenchLayoutService, Parts } from '../../../layout/browser/layoutService.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
+import { IEditorOptions, IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
+import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 
 class TestModalOptionsEditorInput extends TestFileEditorInput implements IModalEditorOptionsProvider {
 
@@ -51,6 +57,49 @@ class TestModalOptionsEditorInput extends TestFileEditorInput implements IModalE
 		this.modalEditorOptions = options;
 		this._onDidChangeModalEditorOptions.fire();
 	}
+}
+
+/** An editor whose content prefers a size, which its {@link TestFitToContentEditorPane} reports. */
+class TestFitToContentEditorInput extends TestModalOptionsEditorInput {
+
+	private readonly _onDidChangeContentSize = this._register(new Emitter<void>());
+	readonly onDidChangeContentSize = this._onDidChangeContentSize.event;
+
+	private _contentSize: { width: number; height: number } | undefined;
+	get contentSize() { return this._contentSize; }
+
+	setContentSize(size: { width: number; height: number }): void {
+		this._contentSize = size;
+		this._onDidChangeContentSize.fire();
+	}
+}
+
+class TestFitToContentEditorPane extends EditorPane {
+
+	private readonly _onDidChangePreferredContentSize = this._register(new Emitter<void>());
+	readonly onDidChangePreferredContentSize = this._onDidChangePreferredContentSize.event;
+
+	private readonly inputListener = this._register(new DisposableStore());
+
+	constructor(group: IEditorGroup, @IThemeService themeService: IThemeService, @IStorageService storageService: IStorageService) {
+		super('testFitToContentEditorPane', group, NullTelemetryService, themeService, storageService);
+	}
+
+	get preferredContentSize() {
+		return this.input instanceof TestFitToContentEditorInput ? this.input.contentSize : undefined;
+	}
+
+	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
+		this.inputListener.clear();
+		if (input instanceof TestFitToContentEditorInput) {
+			this.inputListener.add(input.onDidChangeContentSize(() => this._onDidChangePreferredContentSize.fire()));
+		}
+		this._onDidChangePreferredContentSize.fire();
+	}
+
+	protected createEditor(): void { }
+	layout(): void { }
 }
 
 class TestFloatingEditorLayoutService extends TestLayoutService {
@@ -1176,6 +1225,15 @@ suite('Modal Editor Group', () => {
 			return input;
 		}
 
+		function createFitToContentInput(contentSize: { width: number; height: number }): TestFitToContentEditorInput {
+			disposables.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(EditorPaneDescriptor.create(TestFitToContentEditorPane, 'testFitToContentEditorPane', 'Test Fit To Content Editor'), [new SyncDescriptor(TestFitToContentEditorInput)]));
+			const input = disposables.add(new TestFitToContentEditorInput(URI.file('foo/fit'), TEST_EDITOR_INPUT_ID));
+			input.setModalEditorOptions({ fitToContent: true });
+			input.setContentSize(contentSize);
+
+			return input;
+		}
+
 		function getModalBounds(modalPart: IModalEditorPart) {
 			const element = (modalPart.modalElement as HTMLElement).querySelector<HTMLElement>('.modal-editor-resizable')!;
 
@@ -1236,14 +1294,14 @@ suite('Modal Editor Group', () => {
 			await modalPart.close();
 		});
 
-		test('an editor with a content size fits and centers the modal, and fits it again when the size changes', async () => {
+		test('an editor that fits its content fits and centers the modal, and fits it again when its editor pane reports a new size', async () => {
 			const { parts } = await createParts('some');
 			const modalPart = await parts.createModalEditorPart({ position: { left: 10, top: 20 } });
-			const input = createInput({ contentSize: { width: 500, height: 300 } });
+			const input = createFitToContentInput({ width: 500, height: 300 });
 
 			await modalPart.activeGroup.openEditor(input, { pinned: true });
 			const initialBounds = getModalBounds(modalPart);
-			input.setModalEditorOptions({ contentSize: { width: 600, height: 340 } });
+			input.setContentSize({ width: 600, height: 340 });
 
 			assert.deepStrictEqual({ initialBounds, changedBounds: getModalBounds(modalPart) }, {
 				initialBounds: { left: '149px', top: '132.5px', width: '502px', height: '335px' },
@@ -1264,23 +1322,23 @@ suite('Modal Editor Group', () => {
 			await modalPart.close();
 		});
 
-		test('an editor with a content size below the minimum size centers the modal at its minimum size', async () => {
+		test('an editor that fits content below the minimum size centers the modal at its minimum size', async () => {
 			const { parts } = await createParts('some');
 			const modalPart = await parts.createModalEditorPart();
 
-			await modalPart.activeGroup.openEditor(createInput({ contentSize: { width: 300, height: 200 } }), { pinned: true });
+			await modalPart.activeGroup.openEditor(createFitToContentInput({ width: 300, height: 200 }), { pinned: true });
 
 			assert.deepStrictEqual(getModalBounds(modalPart), { left: '200px', top: '150px', width: '400px', height: '300px' });
 
 			await modalPart.close();
 		});
 
-		test('an editor with a content size shows the modal at its minimum size at the top left of a window smaller than that', async () => {
+		test('an editor that fits its content shows the modal at its minimum size at the top left of a window smaller than that', async () => {
 			const { instantiationService, parts } = await createParts('some');
 			(instantiationService.get(IWorkbenchLayoutService) as TestLayoutService).mainContainerDimension = { width: 350, height: 250 };
 			const modalPart = await parts.createModalEditorPart();
 
-			await modalPart.activeGroup.openEditor(createInput({ contentSize: { width: 300, height: 200 } }), { pinned: true });
+			await modalPart.activeGroup.openEditor(createFitToContentInput({ width: 300, height: 200 }), { pinned: true });
 
 			assert.deepStrictEqual(getModalBounds(modalPart), { left: '0px', top: '0px', width: '400px', height: '300px' });
 

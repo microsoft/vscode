@@ -440,16 +440,16 @@ export interface IModalEditorOptions {
 	readonly canResize?: boolean;
 
 	/**
-	 * The size of the content below the modal editor's header. When set,
-	 * the modal fits this size (within the window and the modal's minimum
-	 * size), is always centered and cannot be resized, and dragging it does
-	 * not change where other modal editors open. Like every modal editor, it
-	 * keeps its minimum size in a window smaller than that, where it shows at
-	 * the window's top left. Fire
-	 * {@link IModalEditorOptionsProvider.onDidChangeModalEditorOptions} when
-	 * the size changes to fit the modal again.
+	 * Whether the modal fits the content of the editor: the size its editor
+	 * pane prefers (see `IEditorPane.preferredContentSize`), fitted again
+	 * whenever the pane reports a new size. The modal is then always
+	 * centered and cannot be resized, and dragging it does not change where
+	 * other modal editors open. The size keeps within the window and the
+	 * modal's minimum size; like every modal editor, the modal keeps its
+	 * minimum size in a window smaller than that, where it shows at the
+	 * window's top left. Defaults to `false`.
 	 */
-	readonly contentSize?: { readonly width: number; readonly height: number };
+	readonly fitToContent?: boolean;
 }
 
 /**

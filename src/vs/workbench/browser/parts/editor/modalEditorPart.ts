@@ -610,7 +610,7 @@ export class ModalEditorPart {
 				dragDisposables.clear();
 
 				// A modal that fits its content opens centered, so where it is dragged to is not kept
-				if (didDrag && !editorPart.contentSize) {
+				if (didDrag && !editorPart.fitsContent) {
 					const currentLeft = parseFloat(resizableElement.domNode.style.left) || 0;
 					const currentTop = parseFloat(resizableElement.domNode.style.top) || 0;
 
@@ -791,7 +791,7 @@ export class ModalEditorPart {
 			resizableElement.enableSashes(canResize, canResize, canResize, canResize);
 
 			// Position: use custom position if available (clamped to bounds), otherwise center
-			if (!editorPart.maximized && !contentSize && editorPart.position) {
+			if (!editorPart.maximized && !editorPart.fitsContent && editorPart.position) {
 				const clampedLeft = Math.max(0, Math.min(editorPart.position.left, containerDimension.width - width));
 				const clampedTop = Math.max(titleBarOffset, Math.min(editorPart.position.top, titleBarOffset + availableHeight - height));
 				resizableElement.domNode.style.left = `${clampedLeft}px`;
@@ -825,9 +825,15 @@ export class ModalEditorPart {
 			}
 		};
 		const modalOptionsListener = disposables.add(new MutableDisposable());
+		const contentSizeListener = disposables.add(new MutableDisposable());
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			modalOptionsListener.value = isModalEditorOptionsProvider(activeEditor) ? activeEditor.onDidChangeModalEditorOptions?.(updateModalOptions) : undefined;
+			contentSizeListener.value = editorPart.activeGroup.activeEditorPane?.onDidChangePreferredContentSize?.(() => {
+				if (editorPart.fitsContent) {
+					layoutModal();
+				}
+			});
 			updateModalOptions();
 		}));
 
@@ -970,11 +976,11 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	private _maximized: boolean;
 	get maximized(): boolean { return this._maximized; }
 
-	/**
-	 * The size the active editor fits the modal to, if any
-	 * (see `IModalEditorOptions.contentSize`).
-	 */
-	get contentSize(): IDimension | undefined { return resolveModalEditorOptions(this.activeGroup.activeEditor)?.contentSize; }
+	/** Whether the modal fits the content of the active editor (see `IModalEditorOptions.fitToContent`). */
+	get fitsContent(): boolean { return resolveModalEditorOptions(this.activeGroup.activeEditor)?.fitToContent === true; }
+
+	/** The size the modal fits, as the active editor pane prefers it, when the modal fits its content. */
+	get contentSize(): IDimension | undefined { return this.fitsContent ? this.activeGroup.activeEditorPane?.preferredContentSize : undefined; }
 
 	/** Whether the active editor allows maximizing the modal. */
 	get canMaximize(): boolean { return resolveModalEditorOptions(this.activeGroup.activeEditor)?.canMaximize !== false; }
@@ -983,7 +989,7 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	get canResize(): boolean {
 		const options = resolveModalEditorOptions(this.activeGroup.activeEditor);
 
-		return options?.canResize !== false && !options?.contentSize;
+		return options?.canResize !== false && !options?.fitToContent;
 	}
 
 	private _size: IDimension | undefined;
