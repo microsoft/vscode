@@ -191,6 +191,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		// working tree / branch state can't be mutated mid-request; recompute
 		// them whenever the active-turn state flips.
 		this._changesetOperationService.updateOperations(sessionStr);
+		// Agents write files during turns, so retry the root watchers that could not be acquired.
+		this._changesetFileMonitor.retryPendingWatches();
 	}
 
 	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {

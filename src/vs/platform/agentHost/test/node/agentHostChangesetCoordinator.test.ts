@@ -28,6 +28,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService, IRefreshSessionGitStateOptions } from '../../common/agentHostGitStateService.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
@@ -1054,38 +1055,86 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	/** Forwards active-turn changes to the coordinator, as the agent service composition does. */
+	function forwardActiveTurnChanges(environment: ReturnType<typeof createEnvironment>): void {
+		disposables.add(environment.stateManager.onDidChangeSessionActiveTurn(event => environment.coordinator.onSessionTurnActiveChanged(event.session)));
+	}
+
 	test('keeps watching a root during an active turn and refreshes Branch Changes from it', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
+		const chat = buildDefaultChatUri(session);
 		const root = URI.file('/repo');
 		const environment = createEnvironment(root);
 		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		forwardActiveTurnChanges(environment);
 		const branch = buildDefaultBranchChangesetUri(session, ['file:///repo/worktree']);
 
 		environment.coordinator.onFirstSubscriber(URI.parse(branch));
 		await environment.monitor.waitForAcquisitions(1);
 		const operationBaseline = environment.updateOperationsCalls.length;
-		environment.coordinator.onSessionTurnActiveChanged(session);
+		environment.stateManager.dispatchServerAction(chat, chatTurnStarted('turn-1', 'Run the script'));
 		const turnStartOperationRefreshes = environment.updateOperationsCalls.slice(operationBaseline);
 		await tick();
 		environment.changesets.clearRefreshes();
 
 		// E.g. a terminal command that writes a file while the turn runs.
+		const turnActive = environment.stateManager.hasActiveTurn(session);
 		environment.monitor.fire(root);
 		await tick();
 		const branchRefreshesDuringTurn = [...environment.changesets.branchRefreshes];
-		environment.coordinator.onSessionTurnActiveChanged(session);
+		environment.stateManager.dispatchServerAction(chat, chatTurnComplete('turn-1', 1));
 		await tick();
 
 		assert.deepStrictEqual({
+			turnActive,
 			turnStartOperationRefreshes,
 			branchRefreshesDuringTurn,
 			acquisitions: environment.monitor.acquisitions,
 			disposals: environment.monitor.disposals,
 		}, {
+			turnActive: true,
 			turnStartOperationRefreshes: [session],
 			branchRefreshesDuringTurn: [parseChangesetUri(branch)!.ownerUri],
 			acquisitions: ['file:///repo'],
 			disposals: [],
+		});
+	});
+
+	test('retries a root watcher that could not be acquired when a turn starts or ends, keeping the watched roots', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const chat = buildDefaultChatUri(session);
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+		])));
+		createMultiRootSession(environment.stateManager, session, [rootA.toString(), rootB.toString()]);
+		forwardActiveTurnChanges(environment);
+
+		environment.monitor.failAcquireFor.add(rootB.toString());
+		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(session)));
+		await environment.monitor.waitForAcquisitions(2);
+		environment.stateManager.dispatchServerAction(chat, chatTurnStarted('turn-1', 'Run the script'));
+		await environment.monitor.waitForAcquisitions(3);
+
+		// The failure clears during the turn, and the retry when the turn ends succeeds.
+		environment.monitor.failAcquireFor.delete(rootB.toString());
+		environment.stateManager.dispatchServerAction(chat, chatTurnComplete('turn-1', 1));
+		await environment.monitor.waitForAcquisitions(4);
+		await tick();
+		environment.changesets.clearRefreshes();
+		environment.monitor.fire(rootB);
+		await tick();
+
+		assert.deepStrictEqual({
+			acquisitions: [...environment.monitor.acquisitions].sort(),
+			disposals: environment.monitor.disposals,
+			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
+		}, {
+			acquisitions: [rootA.toString(), rootB.toString(), rootB.toString(), rootB.toString()].sort(),
+			disposals: [],
+			uncommittedRefreshes: [session],
 		});
 	});
 

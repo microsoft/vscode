@@ -149,6 +149,13 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		this._retryWatchAttachment(sessionStr);
 	}
 
+	/** Retries the watches still waiting for a root watcher, such as one whose acquisition failed. Roots that are already watched keep their watcher. */
+	retryPendingWatches(): void {
+		for (const sessionStr of [...this._pendingWatchInterest]) {
+			this._retryWatchAttachment(sessionStr);
+		}
+	}
+
 	onSessionDisposed(sessionStr: string): void {
 		this.untrackSessionChanges(buildUncommittedChangesetUri(sessionStr));
 		for (const [subscription, owner] of [...this._watchOwners]) {
