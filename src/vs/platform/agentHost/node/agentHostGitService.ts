@@ -315,7 +315,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		this._repositoryRoots.set(roots, undefined);
 	}
 
-	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined> {
+	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean; readonly fresh?: boolean }): Promise<URI | undefined> {
 		if (workingDirectory.scheme !== Schemas.file) {
 			return undefined;
 		}
@@ -328,23 +328,28 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		}
 
 		const roots = this._repositoryRoots.get();
-		if (roots.has(workingDirectoryKey)) {
+		if (roots.has(workingDirectoryKey) && !options?.fresh) {
 			const repositoryRoot = roots.get(workingDirectoryKey);
 			if (repositoryRoot || !options?.refreshIfNone) {
 				return repositoryRoot;
 			}
 		}
 
-		const request = this._readRepositoryRoot(workingDirectory, workingDirectoryKey)
+		const request = this._readRepositoryRoot(workingDirectory, workingDirectoryKey, !!options?.fresh)
 			.finally(() => this._pendingRepositoryRoots.delete(workingDirectoryKey));
 		this._pendingRepositoryRoots.set(workingDirectoryKey, request);
 		return request;
 	}
 
-	private async _readRepositoryRoot(workingDirectory: URI, workingDirectoryKey: string): Promise<URI | undefined> {
+	/** @param fresh whether a folder found missing or not in a repository replaces a cached root. */
+	private async _readRepositoryRoot(workingDirectory: URI, workingDirectoryKey: string, fresh = false): Promise<URI | undefined> {
 		const roots = this._repositoryRoots.get();
 		if (await this._isMissingDirectory(workingDirectory.fsPath)) {
 			this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
+			if (fresh && roots.peek(workingDirectoryKey)) {
+				roots.delete(workingDirectoryKey);
+				this._repositoryRoots.set(roots, undefined);
+			}
 			return undefined;
 		}
 
@@ -358,7 +363,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			throw new Error('Git repository root lookup returned no path');
 		} catch (error) {
 			if (error instanceof GitCommandError && /^fatal: (?:not a git repository\b|this operation must be run in a work tree\b)/m.test(error.stderr)) {
-				if (!roots.peek(workingDirectoryKey)) {
+				if (fresh || !roots.peek(workingDirectoryKey)) {
 					this._cacheRepositoryRoot(workingDirectoryKey, undefined);
 				}
 			} else {

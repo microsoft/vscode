@@ -479,6 +479,22 @@ suite('AgentHostGitService', () => {
 			}(...gitArguments()));
 		}
 
+		test('a fresh lookup reads the disk whatever is cached, and a folder gone from it replaces its cached root', async () => {
+			const folder = await fsPromises.mkdtemp(join(tmpdir(), 'agent-host-fresh-root-'));
+			let probes = 0;
+			const git = createGitService(async () => { probes++; return folder; });
+			const warmed = await git.getRepositoryRoot(URI.file(folder));
+			await fsPromises.rm(folder, { recursive: true, force: true });
+
+			const cached = await git.getRepositoryRoot(URI.file(folder));
+			const fresh = await git.getRepositoryRoot(URI.file(folder), { fresh: true });
+			const afterFresh = await git.getRepositoryRoot(URI.file(folder));
+
+			assert.deepStrictEqual({ warmed: warmed?.fsPath, cached: cached?.fsPath, fresh, afterFresh, probes }, {
+				warmed: folder, cached: folder, fresh: undefined, afterFresh: undefined, probes: 1,
+			});
+		});
+
 		test('concurrent forced lookups share a failed probe without caching an I/O failure', async () => {
 			const started = new DeferredPromise<void>();
 			const answer = new DeferredPromise<string | undefined>();

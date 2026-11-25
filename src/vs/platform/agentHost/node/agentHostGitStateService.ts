@@ -160,6 +160,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			this._discoveredRepositories.delete(sessionKey);
 			this._repositoryDiscoveries.delete(sessionKey);
 			this._recordedAdditionalFolders.delete(sessionKey);
+			this._repositoryGenerations.delete(sessionKey);
 			this._pendingPullRequests.delete(sessionKey);
 			for (const [key, session] of this._announcedGitStateRefreshes) {
 				if (key === sessionKey || session === sessionKey) {
@@ -709,6 +710,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	/** The repositories found for each session, with the folders and detection options they were found for. */
 	/** The folders of each session other than its first whose state {@link _refreshAdditionalFolderGitStates} recorded. */
 	private readonly _recordedAdditionalFolders = new Map<string, readonly string[]>();
+	/** How many times the found repositories of each session were applied; see {@link _isCurrentRepositoryRead}. */
+	private readonly _repositoryGenerations = new Map<string, number>();
 	/** The discovery of each session that is running; see {@link _discoverRepositoriesInBackground}. */
 	private readonly _repositoryDiscoveries = new Map<string, Promise<void>>();
 	private readonly _discoveredRepositories = new Map<string, { readonly input: string; readonly repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>>; readonly discoveredAt: number; readonly stale: boolean }>();
@@ -851,7 +854,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 		const discovery = (async () => {
 			const repositories = await this._discoverRepositories(folders, options);
-			if (!this._stateManager.getSessionState(sessionKey) || this._repositoryDiscoveryInput(sessionKey).input !== input) {
+			if (this._store.isDisposed || !this._stateManager.getSessionState(sessionKey) || this._repositoryDiscoveryInput(sessionKey).input !== input) {
 				return;
 			}
 			this._discoveredRepositories.set(sessionKey, { input, repositories, discoveredAt: Date.now(), stale: false });
@@ -868,6 +871,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * longer found, and reads the Git state of each nested and submodule repository. Returns whether anything changed.
 	 */
 	private async _applyDiscoveredRepositories(sessionKey: string, repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined, folders: readonly string[], credentials: IRepositoryCredentialContext, fresh: boolean): Promise<boolean> {
+		// A later application, or a change of the recorded repositories, supersedes this one's reads
+		const generation = (this._repositoryGenerations.get(sessionKey) ?? 0) + 1;
+		this._repositoryGenerations.set(sessionKey, generation);
 		let changed = false;
 		const meta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const previous = readSessionRepositories(meta);
@@ -887,14 +893,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const readable = discovered.slice(0, Math.max(0, MAX_ADDITIONAL_FOLDER_GIT_READS - Math.max(0, folders.length - 1)));
 		const reads = await Promise.all(readable.map(async root => ({ root, gitState: await this._readGitState(URI.parse(root), undefined, fresh) })));
 		for (const { root, gitState } of reads) {
-			if (!this._stateManager.getSessionState(sessionKey)) {
-				break;
+			if (!this._isCurrentRepositoryRead(sessionKey, generation, root)) {
+				continue;
 			}
 			if (gitState) {
 				if (this._applyAdditionalFolderGitState(sessionKey, root, gitState, credentials)) {
 					changed = true;
 				}
-			} else if (!await this._gitService.getRepositoryRoot(URI.parse(root)).catch(() => URI.parse(root))) {
+			} else if (!await this._gitService.getRepositoryRoot(URI.parse(root), { fresh: true }).catch(() => URI.parse(root))) {
 				// Gone from disk: the next refresh finds the repositories again
 				const entry = this._discoveredRepositories.get(sessionKey);
 				if (entry) {
@@ -903,6 +909,22 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			}
 		}
 		return changed;
+	}
+
+	/**
+	 * Whether a read of `root` that application `generation` started may still be recorded: no later application started,
+	 * the session still records `root` among its found repositories, and no chat works in it.
+	 */
+	private _isCurrentRepositoryRead(sessionKey: string, generation: number, root: string): boolean {
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (!state || this._repositoryGenerations.get(sessionKey) !== generation) {
+			return false;
+		}
+		const folders = (this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? []).filter(folder => !this._stateManager.isScratchFolder(folder));
+		// A root a chat now works in has that chat's state
+		const scope = getWorkingDirectoryScopeId([root]);
+		return this._discoveredRoots(readSessionRepositories(state._meta), folders).includes(root)
+			&& !state.chats.some(chat => chat.workingDirectories?.some(folder => getWorkingDirectoryScopeId([folder]) === scope));
 	}
 
 	/**
@@ -970,24 +992,27 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 */
 	private async _discoverRepositories(folders: readonly string[], options: Readonly<Record<string, IRepositoryDetectionOptions>>): Promise<Readonly<Record<string, readonly ISessionRepositoryEntry[]>>> {
 		const result: Record<string, ISessionRepositoryEntry[]> = {};
-		const budget = new RepositoryScanBudget(REPOSITORY_DISCOVERY_PROBES, Date.now() + REPOSITORY_DISCOVERY_TIMEOUT_MS);
+		const discovered = folders.slice(0, MAX_DISCOVERED_FOLDERS);
+		// First every folder's own repository, read afresh, so a repository a later folder is in is that folder's own
+		const ownRoots = await Promise.all(discovered.map(folder => this._gitService.getRepositoryRoot(URI.parse(folder), { fresh: true }).catch(() => undefined)));
 		const seen = new Set<string>();
-		let remaining = MAX_ADDITIONAL_FOLDER_GIT_READS;
-		for (const folder of folders.slice(0, MAX_DISCOVERED_FOLDERS)) {
-			const folderUri = URI.parse(folder);
-			const entries: ISessionRepositoryEntry[] = [];
-			result[getWorkingDirectoryKey(folder)] = entries;
-			const ownRoot = await this._gitService.getRepositoryRoot(folderUri).catch(() => undefined);
+		discovered.forEach((folder, index) => {
+			const ownRoot = ownRoots[index];
+			result[getWorkingDirectoryKey(folder)] = ownRoot ? [{ root: ownRoot.toString(), kind: 'folder' }] : [];
 			if (ownRoot) {
-				entries.push({ root: ownRoot.toString(), kind: 'folder' });
 				seen.add(getWorkingDirectoryScopeId([ownRoot.toString()]));
 			}
+		});
+		// Then the repositories in them, within one budget
+		const budget = new RepositoryScanBudget(REPOSITORY_DISCOVERY_PROBES, Date.now() + REPOSITORY_DISCOVERY_TIMEOUT_MS);
+		let remaining = MAX_ADDITIONAL_FOLDER_GIT_READS;
+		for (const folder of discovered) {
 			const folderOptions = options[getWorkingDirectoryKey(folder)];
 			if (!folderOptions || remaining <= 0 || budget.exhausted) {
 				continue;
 			}
 			// Without subfolder scanning, a folder that is a repository still has its submodules
-			const found = await this._gitService.findRepositories?.(folderUri, {
+			const found = await this._gitService.findRepositories?.(URI.parse(folder), {
 				scanMaxDepth: folderOptions.scanSubfolders ? folderOptions.scanMaxDepth : 0,
 				scanIgnoredFolders: folderOptions.scanIgnoredFolders,
 				detectSubmodules: folderOptions.detectSubmodules,
@@ -1002,7 +1027,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				if (remaining > 0 && !seen.has(scope)) {
 					seen.add(scope);
 					remaining--;
-					entries.push({ root: repository.root.toString(), kind: repository.kind });
+					result[getWorkingDirectoryKey(folder)].push({ root: repository.root.toString(), kind: repository.kind });
 				}
 			}
 		}

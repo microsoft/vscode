@@ -394,8 +394,12 @@ export interface IAgentHostGitService {
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	/** Observes exact probe results or a known ancestor root; undefined is unresolved, false is a confirmed non-repository. */
 	hasGitRoot(workingDirectory: URI): IObservable<boolean | undefined>;
-	/** Caches roots and confirmed non-repositories; refreshIfNone retries cached non-repositories, sharing any in-flight probe. */
-	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined>;
+	/**
+	 * Caches roots and confirmed non-repositories; refreshIfNone retries cached non-repositories, sharing any in-flight
+	 * probe. `fresh` reads the disk whatever is cached, and a folder it finds missing or not in a repository replaces a
+	 * cached root.
+	 */
+	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean; readonly fresh?: boolean }): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**
