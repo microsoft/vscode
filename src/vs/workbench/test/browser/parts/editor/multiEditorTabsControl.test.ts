@@ -790,7 +790,7 @@ suite('MultiEditorTabsControl', () => {
 			control.updateOptions(previousOptions, partOptions);
 			root.dir = direction;
 			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
-			for (const width of [320, 900, 320, 1500]) {
+			for (const width of [320, 380, 320, 440]) {
 				await layoutConnectedGroup(group, width);
 				const terminal = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab')).at(-1)!;
 				const add = container.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
@@ -831,7 +831,7 @@ suite('MultiEditorTabsControl', () => {
 		for (const { connected, direction } of [false, true].flatMap(connected => ['ltr', 'rtl'].map(direction => ({ connected, direction })))) {
 			root.dir = direction;
 			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
-			for (const width of [300, 600, 300]) {
+			for (const width of [300, 420, 300]) {
 				await layoutConnectedGroup(group, width);
 				const terminal = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab')).at(-1)!;
 				const close = terminal.querySelector<HTMLElement>('.action-label')!;
@@ -1099,6 +1099,183 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, wideNamesComplete: true, narrowMatchesMode: true, ignoresFixedBounds: true, restored: true })));
 	});
 
+	test('fit tabs preserve ordinary and preview widths', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const baselineStyle = mainWindow.document.createElement('style');
+		baselineStyle.textContent = `
+			.test-original-fit.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit {
+				width: 120px;
+				min-width: fit-content;
+				max-width: none;
+			}
+			.test-original-fit.monaco-workbench:not(.modern-ui-tabs) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label {
+				min-width: auto;
+			}
+			.test-original-fit.monaco-workbench:not(.modern-ui-tabs) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label-container {
+				overflow-x: visible;
+			}
+		`;
+		root.appendChild(baselineStyle);
+		const [, normalEditor] = openNamedEditors(['short.ts', 'a-normal-filename-with-details.ts']);
+		const results = [];
+		for (const preview of [false, true]) {
+			if (preview) {
+				model.unpin(normalEditor);
+				control.pinEditor(normalEditor);
+			}
+			for (const style of ['legacy', 'pill', 'connected'] as const) {
+				root.classList.toggle('modern-ui-tabs', style !== 'legacy');
+				root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+				for (const tabActionReserveSpace of [false, true]) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace, wrapTabs: false, editorActionsLocation: 'hidden' };
+					control.updateOptions(oldOptions, partOptions);
+					await layoutConnectedGroup(group, 1200);
+					const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+					const currentWidths = tabs.map(tab => tab.getBoundingClientRect().width);
+					root.classList.add('test-original-fit');
+					await layoutConnectedGroup(group, 1200);
+					const originalWidths = tabs.map(tab => tab.getBoundingClientRect().width);
+					root.classList.remove('test-original-fit');
+					results.push({ style, preview, tabActionReserveSpace, unchanged: currentWidths.every((width, index) => Math.abs(width - originalWidths[index]) < 1 / 32) });
+				}
+			}
+		}
+		assert.deepStrictEqual(results.filter(result => !result.unchanged), []);
+	});
+
+	test('fit tabs cap exceptionally long labels while preserving normal widths and scrolling', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const longName = `an-exceptionally-long-filename-${'with-more-details-'.repeat(12)}.ts`;
+		const [, normalEditor] = openNamedEditors(['short.ts', 'a-normal-filename-with-details.ts', longName]);
+		model.unpin(normalEditor);
+		control.pinEditor(normalEditor);
+		const results = [];
+		for (const style of ['legacy', 'pill', 'connected'] as const) {
+			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
+			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+			for (const wrapTabs of [false, true]) {
+				for (const { tabActionReserveSpace, tabActionLocation } of [false, true].flatMap(tabActionReserveSpace => (['left', 'right'] as const).map(tabActionLocation => ({ tabActionReserveSpace, tabActionLocation })))) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabSizing: 'fit', wrapTabs, tabActionReserveSpace, tabActionLocation, editorActionsLocation: 'hidden' };
+					control.updateOptions(oldOptions, partOptions);
+					await layoutConnectedGroup(group, 1200);
+					const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+					const [short, normal, long] = tabs;
+					const normalName = normal.querySelector<HTMLElement>('.monaco-icon-name-container')!;
+					const normalLabel = normal.querySelector<HTMLElement>('.monaco-icon-label-container')!;
+					const normalRange = mainWindow.document.createRange();
+					normalRange.selectNodeContents(normalName);
+					const longNameElement = long.querySelector<HTMLElement>('.monaco-icon-name-container')!;
+					const longLabel = long.querySelector<HTMLElement>('.monaco-icon-label-container')!;
+					const longRange = mainWindow.document.createRange();
+					longRange.selectNodeContents(longNameElement);
+					const action = long.querySelector<HTMLElement>('.tab-actions .action-label')!;
+					action.focus();
+					const longBounds = long.getBoundingClientRect();
+					const actionBounds = action.getBoundingClientRect();
+					const wide = {
+						normalIsPreview: !!normal.querySelector('.monaco-icon-label.italic'),
+						normalFits: normalRange.getBoundingClientRect().width <= normalLabel.getBoundingClientRect().width + 1 / 64,
+						normalIsNarrower: normal.getBoundingClientRect().width < longBounds.width && short.getBoundingClientRect().width < longBounds.width,
+						capped: Math.abs(longBounds.width - 400) < 1 / 32,
+						truncated: longRange.getBoundingClientRect().width > longLabel.getBoundingClientRect().width,
+						ellipsis: mainWindow.getComputedStyle(style === 'legacy' ? longLabel : longNameElement).textOverflow === 'ellipsis',
+						fullAccessibleName: long.getAttribute('aria-label')?.includes(longName) ?? false,
+						actionInBounds: actionBounds.left >= longBounds.left && actionBounds.right <= longBounds.right,
+					};
+					action.blur();
+					await layoutConnectedGroup(group, 240);
+					const wrapping = long.closest('.tabs-and-actions-container')!.classList.contains('wrapping');
+					const narrow = {
+						scrollsInsteadOfShrinking: wrapping || Math.abs(long.getBoundingClientRect().width - longBounds.width) < 1 / 32,
+						hasOverflow: wrapping || long.parentElement!.scrollWidth > long.parentElement!.clientWidth,
+						fitsWrappedRow: !wrapping || long.getBoundingClientRect().width <= long.parentElement!.getBoundingClientRect().width + 1 / 32,
+					};
+					results.push({ style, wrapTabs, tabActionReserveSpace, tabActionLocation, ...wide, ...narrow });
+				}
+			}
+		}
+		assert.deepStrictEqual(results.filter(result => !result.normalIsPreview || !result.normalFits || !result.normalIsNarrower || !result.capped || !result.truncated || !result.ellipsis || !result.fullAccessibleName || !result.actionInBounds || !result.scrollsInsteadOfShrinking || !result.hasOverflow || !result.fitsWrappedRow), []);
+	});
+
+	test('fit preview tabs truncate long labels without losing their accessible name', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const longName = `a-long-preview-filename-${'with-more-details-'.repeat(12)}.ts`;
+		const [, previewEditor] = openNamedEditors(['short.ts', longName]);
+		model.unpin(previewEditor);
+		control.pinEditor(previewEditor);
+		const results = [];
+		for (const style of ['legacy', 'pill', 'connected'] as const) {
+			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
+			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, tabSizing: 'fit', wrapTabs: false, editorActionsLocation: 'hidden' };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, 1200);
+			const tab = container.querySelectorAll<HTMLElement>('.tabs-container > .tab')[1];
+			const name = tab.querySelector<HTMLElement>('.monaco-icon-name-container')!;
+			const label = tab.querySelector<HTMLElement>('.monaco-icon-label-container')!;
+			const range = mainWindow.document.createRange();
+			range.selectNodeContents(name);
+			results.push({
+				style,
+				preview: !!tab.querySelector('.monaco-icon-label.italic'),
+				capped: Math.abs(tab.getBoundingClientRect().width - 400) < 1 / 32,
+				truncated: range.getBoundingClientRect().width > label.getBoundingClientRect().width,
+				fullAccessibleName: tab.getAttribute('aria-label')?.includes(longName) ?? false,
+			});
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, preview: true, capped: true, truncated: true, fullAccessibleName: true })));
+	});
+
+	test('fit tabs preserve compact and shrink pinned widths', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const [sticky] = openNamedEditors([`a-pinned-filename-${'with-more-details-'.repeat(12)}.ts`, 'regular.ts']);
+		model.stick(sticky);
+		control.stickEditor(sticky);
+		const results = [];
+		for (const style of ['legacy', 'pill', 'connected'] as const) {
+			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
+			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+			for (const pinnedTabSizing of ['compact', 'shrink'] as const) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabSizing: 'fit', pinnedTabSizing, wrapTabs: false, editorActionsLocation: 'hidden' };
+				control.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, 1200);
+				results.push({
+					style, pinnedTabSizing,
+					width: container.querySelector<HTMLElement>('.tab.sticky')!.getBoundingClientRect().width,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, width: result.pinnedTabSizing === 'shrink' ? 80 : result.style === 'legacy' ? 38 : 28 })));
+	});
+
+	test('shrink tabs continue to use available space for exceptionally long labels', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(['short.ts', `an-exceptionally-long-filename-${'with-more-details-'.repeat(12)}.ts`]);
+		const results = [];
+		for (const style of ['legacy', 'pill', 'connected'] as const) {
+			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
+			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, tabSizing: 'shrink', wrapTabs: false, editorActionsLocation: 'hidden' };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, 1600);
+			const long = container.querySelectorAll<HTMLElement>('.tabs-container > .tab')[1];
+			const wide = long.getBoundingClientRect().width;
+			await layoutConnectedGroup(group, 240);
+			results.push({ style, growsBeyondFitCap: wide > 400, shrinksWithSpace: long.getBoundingClientRect().width < wide });
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, growsBeyondFitCap: true, shrinksWithSpace: true })));
+	});
+
 	test('connected shrink tabs preserve icons as the editor width changes', async () => {
 		const group = connectedGroup();
 		const iconStyle = document.createElement('style');
@@ -1303,7 +1480,7 @@ suite('MultiEditorTabsControl', () => {
 		partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: false, wrapTabs: true, editorActionsLocation: 'hidden' };
 		control.updateOptions(oldOptions, partOptions);
 		const results = [];
-		for (const width of [300, 900, 300]) {
+		for (const width of [300, 380, 300]) {
 			await layoutConnectedGroup(group, width);
 			const tab = container.querySelector<HTMLElement>('.tab')!;
 			const name = tab.querySelector<HTMLElement>('.monaco-icon-name-container')!;
@@ -3600,7 +3777,7 @@ suite('MultiEditorTabsControl', () => {
 		partOptions = { ...partOptions, tabSizing: 'fit', wrapTabs: true, editorActionsLocation: 'hidden' };
 		control.updateOptions(oldOptions, partOptions);
 		const results = [];
-		for (const width of [500, 240, 350, 240]) {
+		for (const width of [380, 240, 350, 240]) {
 			await layoutConnectedGroup(group, width);
 			const titleBounds = container.getBoundingClientRect();
 			const name = container.querySelector<HTMLElement>('.label-name')!;

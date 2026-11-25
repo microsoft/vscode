@@ -1159,6 +1159,7 @@
 		"--tab-dirty-border-top-color",
 		"--tabs-border-bottom-color",
 		"--tab-sizing-current-width",
+		"--tab-sizing-fit-max-width",
 		"--tab-sizing-fit-width",
 		"--tab-sizing-fixed-min-width",
 		"--tab-sizing-fixed-max-width",

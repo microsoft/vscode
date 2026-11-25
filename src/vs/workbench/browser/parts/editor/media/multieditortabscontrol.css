@@ -218,8 +218,10 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit {
-	width: 120px;
-	min-width: fit-content;
+	--tab-sizing-fit-max-width: 400px;
+	width: max-content;
+	min-width: 120px;
+	max-width: var(--tab-sizing-fit-max-width);
 	flex-shrink: 0;
 }
 
@@ -416,8 +418,8 @@
 	text-align: center; /* ensure that sticky-compact tabs without icon have label centered */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label {
+	min-width: 0;
 	overflow-x: visible; /* fixes https://github.com/microsoft/vscode/issues/20182 by ensuring the horizontal overflow is visible */
 
 	scrollbar-width: none; /* Firefox */
