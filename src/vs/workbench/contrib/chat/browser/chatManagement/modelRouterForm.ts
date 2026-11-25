@@ -77,6 +77,9 @@ export class ModelRouterForm extends Disposable {
 	private models: readonly IRoutableModel[];
 	private readonly routes: IModelRouterFormRoute[];
 	private routeNameInputs: InputBox[] = [];
+	/** Whether the agent's models changed while the routes could not be drawn again. */
+	private hasModelsToTake = false;
+	private isDrawingRoutes = false;
 	/** The fields of the routes, in the order they are drawn. */
 	private routeControls: IModelRouterFormControl[] = [];
 
@@ -125,19 +128,13 @@ export class ModelRouterForm extends Disposable {
 		}));
 		this.renderRoutes();
 		// The agent can list its models after the form opens, and change them while it is open.
-		this._register(viewModel.onDidChange(() => {
-			const models = viewModel.getRoutableModels();
-			if (equals(models, this.models)) {
-				return;
+		this._register(viewModel.onDidChange(() => this.updateModels()));
+		// Models that changed while a selector's list was open are taken when the focus is back in the form.
+		this._register(DOM.addDisposableListener(this.element, DOM.EventType.FOCUS_IN, () => {
+			// A field that is focused as the routes are drawn waits for them to be done
+			if (this.hasModelsToTake && !this.isDrawingRoutes) {
+				this.updateModels();
 			}
-			this.models = models;
-			// A route drawn before there were models has none. The first two start on different models, as they do in a form opened later.
-			this.routes.forEach((route, index) => {
-				if (!route.models.length && models.length) {
-					route.models = [(models[index === 1 ? 1 : 0] ?? models[0]).reference];
-				}
-			});
-			this.renderRoutesKeepingFocus();
 		}));
 
 		this.errorElement = DOM.append(this.element, $('.mcp-config-form-error', { 'aria-live': 'polite' }));
@@ -152,6 +149,25 @@ export class ModelRouterForm extends Disposable {
 
 	focus(): void {
 		this.nameInput.focus();
+	}
+
+	/** Takes the agent's models as they are now, and draws the routes with them. */
+	private updateModels(): void {
+		const models = this.viewModel.getRoutableModels();
+		const hasChanged = !equals(models, this.models);
+		// The open list of a selector has the focus, outside the form. Drawing the routes again would close it, so the models wait.
+		this.hasModelsToTake = hasChanged && DOM.isAncestorOfActiveElement(this.contextViewService.getContextViewElement());
+		if (!hasChanged || this.hasModelsToTake) {
+			return;
+		}
+		this.models = models;
+		// A route drawn before there were models has none. The first two start on different models, as they do in a form opened later.
+		this.routes.forEach((route, index) => {
+			if (!route.models.length && models.length) {
+				route.models = [(models[index === 1 ? 1 : 0] ?? models[0]).reference];
+			}
+		});
+		this.renderRoutesKeepingFocus();
 	}
 
 	private appendField(parent: HTMLElement, label: string): HTMLElement {
@@ -192,12 +208,21 @@ export class ModelRouterForm extends Disposable {
 	}
 
 	private renderRoutes(focusModelOf?: number): void {
-		this.routeDisposables.clear();
-		DOM.clearNode(this.routesElement);
-		this.routeNameInputs = [];
-		this.routeControls = [];
-		this.addRouteButton.enabled = this.routes.length < MODEL_ROUTER_MAX_ROUTES;
-		this.routes.forEach((route, index) => this.renderRoute(route, index, focusModelOf === index));
+		this.isDrawingRoutes = true;
+		try {
+			this.routeDisposables.clear();
+			DOM.clearNode(this.routesElement);
+			this.routeNameInputs = [];
+			this.routeControls = [];
+			this.addRouteButton.enabled = this.routes.length < MODEL_ROUTER_MAX_ROUTES;
+			this.routes.forEach((route, index) => this.renderRoute(route, index, focusModelOf === index));
+		} finally {
+			this.isDrawingRoutes = false;
+		}
+		// The selector that was chosen from has the focus again, its list closed
+		if (this.hasModelsToTake) {
+			this.updateModels();
+		}
 	}
 
 	/** Draws the routes again without taking the keyboard focus, or the caret, from the field that has it. */
