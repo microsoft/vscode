@@ -142,6 +142,21 @@ suite('Fuzzy Scorer', () => {
 		// assert.strictEqual(positions[1], 6);
 	});
 
+	test('score matches equivalent separators, lowercase expansions and non-contiguous characters', () => {
+		const cases = [
+			['a\\b', 'a/b'],
+			['a/b', 'a\\b'],
+			['i', 'İ'],
+			['abc', 'ac'],
+		];
+		assert.deepStrictEqual(cases.map(([target, query]) => scoreFuzzy(target, query, query.toLowerCase(), true)), [
+			[36, [0, 1, 2]],
+			[36, [0, 1, 2]],
+			[9, [0]],
+			[12, [0, 2]],
+		]);
+	});
+
 	test('score (non fuzzy)', function () {
 		const target = 'HelLo-World';
 
