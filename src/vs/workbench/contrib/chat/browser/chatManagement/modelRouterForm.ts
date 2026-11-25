@@ -15,7 +15,6 @@ import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
-import { equals } from '../../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -33,14 +32,6 @@ const $ = DOM.$;
 
 // Match the Settings editor, whose inputs stay visible on themes with a faint `input.border`.
 const formInputBoxStyles = getInputBoxStyle({ inputBorder: settingsTextInputBorder });
-
-/** A field of a route that can take the keyboard focus. */
-interface IModelRouterFormControl {
-	readonly element: HTMLElement;
-	focus(): void;
-	/** Measures the field again for the width it has now. */
-	layout?(): void;
-}
 
 interface IModelRouterFormRoute {
 	name: string;
@@ -79,11 +70,8 @@ export class ModelRouterForm extends Disposable {
 	private models: readonly IRoutableModel[];
 	private readonly routes: IModelRouterFormRoute[];
 	private routeNameInputs: InputBox[] = [];
-	/** Whether the agent's models changed while the routes could not be drawn again. */
-	private hasModelsToTake = false;
-	private isDrawingRoutes = false;
-	/** The fields of the routes, in the order they are drawn. */
-	private routeControls: IModelRouterFormControl[] = [];
+	/** The fields of the routes that take text, in the order they are drawn. */
+	private routeInputs: InputBox[] = [];
 
 	constructor(
 		parent: HTMLElement,
@@ -129,13 +117,20 @@ export class ModelRouterForm extends Disposable {
 			this.routeNameInputs.at(-1)?.focus();
 		}));
 		this.renderRoutes();
-		// The agent can list its models after the form opens, and change them while it is open.
-		this._register(viewModel.onDidChange(() => this.updateModels()));
-		// Models that changed while a selector's list was open are taken when the focus is back in the form.
-		this._register(DOM.addDisposableListener(this.element, DOM.EventType.FOCUS_IN, () => {
-			// A field that is focused as the routes are drawn waits for them to be done
-			if (this.hasModelsToTake && !this.isDrawingRoutes) {
-				this.updateModels();
+		// The agent can list its models after the form opens, and a route has none to choose from until then.
+		this._register(viewModel.onDidChange(() => {
+			if (this.models.length) {
+				return;
+			}
+			this.models = viewModel.getRoutableModels();
+			if (this.models.length) {
+				// The first two routes start on different models, as they do in a form opened later.
+				this.routes.forEach((route, index) => {
+					if (!route.models.length) {
+						route.models = [(this.models[index === 1 ? 1 : 0] ?? this.models[0]).reference];
+					}
+				});
+				this.renderRoutesKeepingFocus();
 			}
 		}));
 
@@ -156,28 +151,9 @@ export class ModelRouterForm extends Disposable {
 	/** Measures the fields again, as the text of one that grows with it wraps differently at another width. */
 	layout(): void {
 		this.descriptionInput.layout();
-		for (const control of this.routeControls) {
-			control.layout?.();
+		for (const input of this.routeInputs) {
+			input.layout();
 		}
-	}
-
-	/** Takes the agent's models as they are now, and draws the routes with them. */
-	private updateModels(): void {
-		const models = this.viewModel.getRoutableModels();
-		const hasChanged = !equals(models, this.models);
-		// The open list of a selector has the focus, outside the form. Drawing the routes again would close it, so the models wait.
-		this.hasModelsToTake = hasChanged && DOM.isAncestorOfActiveElement(this.contextViewService.getContextViewElement());
-		if (!hasChanged || this.hasModelsToTake) {
-			return;
-		}
-		this.models = models;
-		// A route drawn before there were models has none. The first two start on different models, as they do in a form opened later.
-		this.routes.forEach((route, index) => {
-			if (!route.models.length && models.length) {
-				route.models = [(models[index === 1 ? 1 : 0] ?? models[0]).reference];
-			}
-		});
-		this.renderRoutesKeepingFocus();
 	}
 
 	private appendField(parent: HTMLElement, label: string): HTMLElement {
@@ -209,49 +185,31 @@ export class ModelRouterForm extends Disposable {
 
 	private appendSelect(parent: HTMLElement, options: ISelectOptionItem[], selected: number, ariaLabel: string, onSelect: (index: number) => void): SelectBox {
 		const select = this.routeDisposables.add(new SelectBox(options, selected, this.contextViewService, defaultSelectBoxStyles, { useCustomDrawn: !hasNativeContextMenu(this.configurationService), ariaLabel }));
-		const element = DOM.append(parent, $('.model-router-form-route-select'));
-		select.render(element);
-		this.routeControls.push({ element, focus: () => select.focus() });
+		select.render(DOM.append(parent, $('.model-router-form-route-select')));
 		select.setEnabled(options.length > 1);
 		this.routeDisposables.add(select.onDidSelect(event => onSelect(event.index)));
 		return select;
 	}
 
 	private renderRoutes(focusModelOf?: number): void {
-		this.isDrawingRoutes = true;
-		try {
-			this.routeDisposables.clear();
-			DOM.clearNode(this.routesElement);
-			this.routeNameInputs = [];
-			this.routeControls = [];
-			this.addRouteButton.enabled = this.routes.length < MODEL_ROUTER_MAX_ROUTES;
-			this.routes.forEach((route, index) => this.renderRoute(route, index, focusModelOf === index));
-		} finally {
-			this.isDrawingRoutes = false;
-		}
-		// The selector that was chosen from has the focus again, its list closed
-		if (this.hasModelsToTake) {
-			this.updateModels();
-		}
+		this.routeDisposables.clear();
+		DOM.clearNode(this.routesElement);
+		this.routeNameInputs = [];
+		this.routeInputs = [];
+		this.addRouteButton.enabled = this.routes.length < MODEL_ROUTER_MAX_ROUTES;
+		this.routes.forEach((route, index) => this.renderRoute(route, index, focusModelOf === index));
 	}
 
-	/** Draws the routes again without taking the keyboard focus, or the caret, from the field that has it. */
+	/** Draws the routes again without taking the keyboard focus, or the caret, from the field being typed in. */
 	private renderRoutesKeepingFocus(): void {
-		const index = this.routeControls.findIndex(control => DOM.isAncestorOfActiveElement(control.element));
-		const typedIn = DOM.getActiveElement();
-		const caret = index !== -1 && (DOM.isHTMLInputElement(typedIn) || DOM.isHTMLTextAreaElement(typedIn)) ? { start: typedIn.selectionStart, end: typedIn.selectionEnd } : undefined;
+		const index = this.routeInputs.findIndex(input => input.hasFocus());
+		const { selectionStart, selectionEnd } = this.routeInputs[index]?.inputElement ?? {};
 		this.renderRoutes();
-		// The routes are the ones they were, so each has its fields where they were. A selector left with nothing to choose
-		// from does not take the focus, which then goes to the field before it.
-		for (let i = index; i >= 0; i--) {
-			this.routeControls[i].focus();
-			if (DOM.isAncestorOfActiveElement(this.routeControls[i].element)) {
-				break;
-			}
-		}
-		const focused = DOM.getActiveElement();
-		if (caret && (DOM.isHTMLInputElement(focused) || DOM.isHTMLTextAreaElement(focused))) {
-			focused.setSelectionRange(caret.start, caret.end);
+		// The routes are the ones they were, so each has its fields where they were.
+		const input = this.routeInputs[index];
+		if (input) {
+			input.focus();
+			input.inputElement.setSelectionRange(selectionStart ?? null, selectionEnd ?? null);
 		}
 	}
 
@@ -282,7 +240,7 @@ export class ModelRouterForm extends Disposable {
 		nameInput.value = route.name;
 		this.routeDisposables.add(nameInput.onDidChange(value => route.name = value));
 		this.routeNameInputs.push(nameInput);
-		this.routeControls.push(nameInput);
+		this.routeInputs.push(nameInput);
 
 		const modelSelect = this.appendSelect(this.appendRouteField(settings, localize('modelRouterForm.route.model', "Model")), models.map(candidate => ({ text: candidate.name })), model ? models.indexOf(model) : 0, localize('modelRouterForm.route.model.aria', "Route {0} model", position), selected => {
 			// Effort, context and the models to fall back to are per model, so they start over and the route is drawn again.
@@ -318,12 +276,12 @@ export class ModelRouterForm extends Disposable {
 		const whenInput = this.appendInput(this.appendRouteField(card, localize('modelRouterForm.route.when', "When to use it")), localize('modelRouterForm.route.when.placeholder', "Building a feature or fixing a bug"), localize('modelRouterForm.route.when.aria', "When to use route {0}", position), this.routeDisposables, true);
 		whenInput.value = route.when;
 		this.routeDisposables.add(whenInput.onDidChange(value => route.when = value));
-		this.routeControls.push(whenInput);
+		this.routeInputs.push(whenInput);
 
 		const guidanceInput = this.appendInput(this.appendRouteField(card, localize('modelRouterForm.route.guidance', "Guidance"), true), localize('modelRouterForm.route.guidance.placeholder', "How you want this work done, such as: Plan first, then run the tests"), localize('modelRouterForm.route.guidance.aria', "Guidance for route {0}", position), this.routeDisposables, true);
 		guidanceInput.value = route.guidance;
 		this.routeDisposables.add(guidanceInput.onDidChange(value => route.guidance = value));
-		this.routeControls.push(guidanceInput);
+		this.routeInputs.push(guidanceInput);
 	}
 
 	private setError(message: string | undefined): void {

@@ -9,7 +9,6 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -18,7 +17,6 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -72,19 +70,14 @@ suite('ModelRoutersWidget', () => {
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		const instantiationService = workbenchInstantiationService({ fileService: () => fileService }, store);
 		const onDidListModels = store.add(new Emitter<string>());
-		const laterModels = new Map<string, ILanguageModelChatMetadata>();
-		/** The agent lists its models, with `another` that it did not have before. */
-		const listModels = (another?: ILanguageModelChatMetadata) => {
+		const listModels = () => {
 			hasListedModels = true;
-			if (another) {
-				laterModels.set(another.id, another);
-			}
 			onDidListModels.fire(harnessId);
 		};
 		instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 			override readonly onDidChangeLanguageModels = onDidListModels.event;
-			override getLanguageModelIds() { return hasListedModels ? [...models.keys(), ...laterModels.keys()] : []; }
-			override lookupLanguageModel(id: string) { return models.get(id) ?? laterModels.get(id); }
+			override getLanguageModelIds() { return hasListedModels ? [...models.keys()] : []; }
+			override lookupLanguageModel(id: string) { return models.get(id); }
 		}());
 		instantiationService.stub(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return hasUnsavedChanges; }
@@ -123,7 +116,7 @@ suite('ModelRoutersWidget', () => {
 			});
 			observer.observe(container, { childList: true, subtree: true, characterData: true });
 		});
-		return { container, fileService, rows, search, button, type, shows, listModels, contextViewService: instantiationService.get(IContextViewService), nextError: () => Event.toPromise(onDidError.event) };
+		return { container, fileService, rows, search, button, type, shows, listModels, nextError: () => Event.toPromise(onDidError.event) };
 	}
 
 	test('lists this agent\'s routers with their routes, and finds them by a spaced or dashed query', () => {
@@ -279,8 +272,8 @@ suite('ModelRoutersWidget', () => {
 		});
 	});
 
-	test('a form follows the agent\'s models as they are listed, without taking the focus from the field that has it', () => {
-		const { container, button, type, listModels, contextViewService } = createWidget(false, false);
+	test('a form opened before the agent lists its models gets them without taking the focus from the field being typed in', () => {
+		const { container, button, type, listModels } = createWidget(false, false);
 		button('Add Router').click();
 		const name = () => container.querySelector<HTMLInputElement>('[aria-label="Route 1 name"]')!;
 		const selects = () => [...container.querySelectorAll('.model-router-form-route')].map(route => route.querySelector('select')!);
@@ -290,29 +283,14 @@ suite('ModelRoutersWidget', () => {
 		name().setSelectionRange(2, 4);
 		const before = offered();
 		listModels();
-		const typing = { offered: offered(), focused: mainWindow.document.activeElement === name(), value: name().value, selection: [name().selectionStart, name().selectionEnd] };
 		// The two routes start on different models, which routes without a name need.
-		const chosen = selects().map(select => select.selectedOptions[0]?.textContent);
-		// The open list of a selector has the focus in the context view: the models wait until the selector has it again.
-		contextViewService.showContextView({
-			getAnchor: () => selects()[1],
-			render: element => {
-				DOM.append(element, DOM.$('div', { tabIndex: 0 })).focus();
-				return Disposable.None;
-			},
-		});
-		listModels(model('claude-sonnet', 'Sonnet'));
-		const whileChoosing = offered();
-		contextViewService.hideContextView();
-		selects()[1].focus();
-		// A window without the focus, as a test run's can be, does not send the event itself.
-		selects()[1].dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-		assert.deepStrictEqual({ before, typing, chosen, whileChoosing, afterChoosing: { offered: offered(), focused: mainWindow.document.activeElement === selects()[1], chosen: selects().map(select => select.selectedOptions[0]?.textContent) } }, {
+		assert.deepStrictEqual({ before, after: offered(), chosen: selects().map(select => select.selectedOptions[0]?.textContent), focused: mainWindow.document.activeElement === name(), value: name().value, selection: [name().selectionStart, name().selectionEnd] }, {
 			before: [],
-			typing: { offered: ['Opus', 'Haiku'], focused: true, value: 'feature', selection: [2, 4] },
+			after: ['Opus', 'Haiku'],
 			chosen: ['Opus', 'Haiku'],
-			whileChoosing: ['Opus', 'Haiku'],
-			afterChoosing: { offered: ['Opus', 'Haiku', 'Sonnet'], focused: true, chosen: ['Opus', 'Haiku'] },
+			focused: true,
+			value: 'feature',
+			selection: [2, 4],
 		});
 	});
 
