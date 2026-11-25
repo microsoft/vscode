@@ -43,7 +43,8 @@ import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionWor
 import { AgentHostSessionTypesAvailableContext, NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 import { ISessionNavigationRequest } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { getSessionOnboardingTargetId, SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { getSessionOnboardingTargetId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { AgentsWindowInvitationOnboarding } from '../../browser/agentsWindowInvitationOnboarding.js';
