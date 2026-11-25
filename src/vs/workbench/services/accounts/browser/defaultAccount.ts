@@ -6,7 +6,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData, MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, asGitHubAccount } from '../../../../base/common/defaultAccount.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -19,6 +19,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -32,7 +33,7 @@ import { asJson, asText, IRequestService, isSuccess, readHeader, retryAfterFromH
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -69,6 +70,8 @@ export const enum DefaultAccountStatus {
 
 export const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
+/** Holds the label of the remembered Microsoft account. Kept apart from the account preferences of the authentication service for now. */
+const MICROSOFT_ACCOUNT_KEY = 'defaultAccount.microsoftAccount';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
 
@@ -216,6 +219,16 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	async signOut(): Promise<void> {
 		await this.initBarrier.wait();
 		await this.defaultAccountProvider?.signOut();
+	}
+
+	async rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }): Promise<void> {
+		await this.initBarrier.wait();
+		await this.defaultAccountProvider?.rememberMicrosoftAccount(account);
+	}
+
+	async forgetMicrosoftAccount(): Promise<void> {
+		await this.initBarrier.wait();
+		await this.defaultAccountProvider?.forgetMicrosoftAccount();
 	}
 
 	resolveGitHubUrl(path: string): string | undefined {
@@ -452,6 +465,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(e => {
+			if (e.providerId === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID && this.isMicrosoftDefaultAccountEnabled()) {
+				void this.onDidChangeMicrosoftSessions(e.event);
+				return;
+			}
 			const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
 			if (e.providerId !== defaultAccountProvider.id) {
 				return;
@@ -485,6 +502,15 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			this.updateDefaultAccount();
 		}));
 
+		// The stored choice is followed wherever it was changed. This window's own remember and forget also await the update, and both coincide in one throttled run.
+		this._register(this.onDidChangeRememberedMicrosoftAccount(() => {
+			if (!this.isMicrosoftDefaultAccountEnabled()) {
+				return;
+			}
+			this.logService.debug('[DefaultAccount] Remembered Microsoft account changed, updating default account');
+			this.updateDefaultAccount();
+		}));
+
 		let configuredProviderId = this.getDefaultAccountAuthenticationProvider().id;
 		this._register(this.configurationService.onDidChangeConfiguration(() => {
 			const providerId = this.getDefaultAccountAuthenticationProvider().id;
@@ -496,8 +522,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}));
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => {
-			const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
-			if (e.id !== defaultAccountProvider.id) {
+			if (!this.isFollowedProviderRegistration(e.id)) {
 				return;
 			}
 			this.logService.debug('[DefaultAccount] Default account provider registered, updating default account');
@@ -505,8 +530,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}));
 
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
-			const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
-			if (e.id !== defaultAccountProvider.id) {
+			if (!this.isFollowedProviderRegistration(e.id)) {
 				return;
 			}
 			this.logService.debug('[DefaultAccount] Default account provider unregistered, updating default account');
@@ -624,6 +648,25 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			this.setManagedSettingsFreshness(MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED);
 		}
 
+		if (this.isMicrosoftDefaultAccountEnabled() && this.isAccountProviderAvailable({ id: MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID })) {
+			try {
+				const microsoftAccount = await this.getMicrosoftDefaultAccount();
+				if (microsoftAccount) {
+					this.blockManagedSettingsFreshnessWithoutToken(refreshRequirement);
+					return microsoftAccount;
+				}
+			} catch (error) {
+				this.logService.error('[DefaultAccount] Error while reading the Microsoft default account', getErrorMessage(error));
+				// A failed lookup is neither a sign-in nor a sign-out: keep the current account.
+				// A GitHub account goes on to the GitHub path below, which resolves it together with its managed settings.
+				const keptAccount = this._defaultAccount;
+				if (!keptAccount || !asGitHubAccount(keptAccount.defaultAccount)) {
+					this.blockManagedSettingsFreshnessWithoutToken(refreshRequirement);
+					return keptAccount;
+				}
+			}
+		}
+
 		if (!this.isAccountProviderAvailable(defaultAccountProvider)) {
 			this.logService.info(`[DefaultAccount] Authentication provider is not available.`, defaultAccountProvider);
 			this.blockManagedSettingsFreshnessWithoutToken(refreshRequirement);
@@ -633,7 +676,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		return await this.getDefaultAccountForAuthenticationProvider(defaultAccountProvider, managedSettingsSources, refreshRequirement, options);
 	}
 
-	private isAccountProviderAvailable(accountProvider: IDefaultAccountAuthenticationProvider): boolean {
+	private isAccountProviderAvailable(accountProvider: Pick<IDefaultAccountAuthenticationProvider, 'id'>): boolean {
 		return this.authenticationService.declaredProviders.some(p => p.id === accountProvider.id)
 			|| this.authenticationService.isAuthenticationProviderRegistered(accountProvider.id);
 	}
@@ -643,36 +686,53 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			return;
 		}
 
+		// Policy state changes only when a GitHub account is gained, replaced or lost: a Microsoft account is invisible to it.
+		const hadGitHubAccount = !!asGitHubAccount(this._defaultAccount?.defaultAccount);
 		this.logService.trace('[DefaultAccount] Updating default account:', account);
 		if (account) {
 			this._defaultAccount = account;
-			this.setCopilotTokenInfo(account.copilotTokenInfo);
-			this.setPolicyData(account.policyData);
-			this.setManagedSettingsCompatibilityError(account.policyData?.managedSettingsCompatibilityError ?? null);
+			if (asGitHubAccount(account.defaultAccount)) {
+				this.setCopilotTokenInfo(account.copilotTokenInfo);
+				this.setPolicyData(account.policyData);
+				this.setManagedSettingsCompatibilityError(account.policyData?.managedSettingsCompatibilityError ?? null);
+			} else if (hadGitHubAccount) {
+				this.applyPolicyWithoutAccount();
+			}
 			this._onDidChangeDefaultAccount.fire(this._defaultAccount.defaultAccount);
 			this.accountStatusContext.set(DefaultAccountStatus.Available);
 			this.logService.debug('[DefaultAccount] Account status set to Available');
 		} else {
 			this._defaultAccount = null;
-			const refreshRequirement = resolveForceRemoteSettingsRefresh(
-				this.nativeManagedSettingsService.managedSettings,
-				this.getCachedServerManagedSettings(this.getDefaultAccountAuthenticationProvider()),
-				this.fileManagedSettingsService.managedSettings
-			);
-			this.blockManagedSettingsFreshnessWithoutToken(refreshRequirement);
-			const retainedPolicyData = this._managedSettingsFreshness.state !== ManagedSettingsFreshnessState.NotRequired
-				&& isManagedSettingsFreshnessBlocking(this._managedSettingsFreshness)
-				&& this._managedSettingsFreshness.source === 'server'
-				? this._policyData
-				: null;
-			this.setPolicyData(retainedPolicyData);
-			this.setManagedSettingsCompatibilityError(null);
-			this.setCopilotTokenInfo(null);
+			if (hadGitHubAccount) {
+				this.applyPolicyWithoutAccount();
+			}
 			this._onDidChangeDefaultAccount.fire(null);
 			this.accountDataPollScheduler.cancel();
 			this.accountStatusContext.set(DefaultAccountStatus.Unavailable);
 			this.logService.debug('[DefaultAccount] Account status set to Unavailable');
 		}
+	}
+
+	/**
+	 * Applies the policy state for a window without a GitHub account: managed settings
+	 * freshness is blocked when a refresh is required, and cached policy data is kept
+	 * only while a server-delivered requirement is blocking.
+	 */
+	private applyPolicyWithoutAccount(): void {
+		const refreshRequirement = resolveForceRemoteSettingsRefresh(
+			this.nativeManagedSettingsService.managedSettings,
+			this.getCachedServerManagedSettings(this.getDefaultAccountAuthenticationProvider()),
+			this.fileManagedSettingsService.managedSettings
+		);
+		this.blockManagedSettingsFreshnessWithoutToken(refreshRequirement);
+		const retainedPolicyData = this._managedSettingsFreshness.state !== ManagedSettingsFreshnessState.NotRequired
+			&& isManagedSettingsFreshnessBlocking(this._managedSettingsFreshness)
+			&& this._managedSettingsFreshness.source === 'server'
+			? this._policyData
+			: null;
+		this.setPolicyData(retainedPolicyData);
+		this.setManagedSettingsCompatibilityError(null);
+		this.setCopilotTokenInfo(null);
 	}
 
 	private setPolicyData(accountPolicyData: IAccountPolicyData | null): void {
@@ -1618,7 +1678,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	resolveGitHubUrl(path: string): string | undefined {
-		const authenticationProvider = this._defaultAccount?.defaultAccount.authenticationProvider ?? this.getDefaultAccountAuthenticationProvider();
+		const gitHubAccount = asGitHubAccount(this._defaultAccount?.defaultAccount);
+		const authenticationProvider = gitHubAccount?.authenticationProvider ?? this.getDefaultAccountAuthenticationProvider();
 		if (authenticationProvider.enterprise) {
 			const enterpriseUri = this._defaultAccount?.enterpriseUri;
 			if (!enterpriseUri) {
@@ -1652,6 +1713,112 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			return;
 		}
 		await this.commandService.executeCommand('_signOutOfAccount', { providerId: this.defaultAccount.authenticationProvider.id, accountLabel: this.defaultAccount.accountName });
+	}
+
+	async rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }): Promise<void> {
+		if (!this.isMicrosoftDefaultAccountEnabled()) {
+			return;
+		}
+		this.storeRememberedMicrosoftAccountLabel(account.label);
+		await this.updateDefaultAccount();
+	}
+
+	async forgetMicrosoftAccount(): Promise<void> {
+		this.removeRememberedMicrosoftAccountLabel();
+		await this.updateDefaultAccount();
+	}
+
+	// The remembered Microsoft account is stored, read, removed and watched by the four members below only.
+	// They are the only place that names its storage key and scope, so that moving it elsewhere changes just these.
+
+	private storeRememberedMicrosoftAccountLabel(accountLabel: string): void {
+		this.storageService.store(MICROSOFT_ACCOUNT_KEY, accountLabel, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	private removeRememberedMicrosoftAccountLabel(): void {
+		this.storageService.remove(MICROSOFT_ACCOUNT_KEY, StorageScope.APPLICATION);
+	}
+
+	private get rememberedMicrosoftAccountLabel(): string | undefined {
+		return this.storageService.get(MICROSOFT_ACCOUNT_KEY, StorageScope.APPLICATION);
+	}
+
+	/** Fires when the remembered account changed. */
+	private get onDidChangeRememberedMicrosoftAccount(): Event<unknown> {
+		return this.storageService.onDidChangeValue(StorageScope.APPLICATION, MICROSOFT_ACCOUNT_KEY, this._store);
+	}
+
+	private isMicrosoftDefaultAccountEnabled(): boolean {
+		return this.configurationService.getValue(AgentHostCopilotM365EnabledSettingId) === true;
+	}
+
+	/** Whether a Microsoft default account or a remembered Microsoft account exists, so that Microsoft provider changes can affect the default account. */
+	private hasMicrosoftDefaultAccountState(): boolean {
+		return this.defaultAccount?.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID
+			|| !!this.rememberedMicrosoftAccountLabel;
+	}
+
+	/** Whether the registration or unregistration of the given authentication provider affects the default account. */
+	private isFollowedProviderRegistration(providerId: string): boolean {
+		return providerId === this.getDefaultAccountAuthenticationProvider().id
+			|| (providerId === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID && this.isMicrosoftDefaultAccountEnabled() && this.hasMicrosoftDefaultAccountState());
+	}
+
+	/**
+	 * Returns the Microsoft default account for the remembered account label, or `undefined` when there is none.
+	 * Throws when the sessions of the Microsoft provider cannot be read.
+	 */
+	private async getMicrosoftDefaultAccount(): Promise<IDefaultAccountData | undefined> {
+		const accountLabel = this.rememberedMicrosoftAccountLabel;
+		if (!accountLabel) {
+			return undefined;
+		}
+		const sessions = await this.authenticationService.getSessions(MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, undefined, {}, true);
+		const session = sessions.find(s => s.account.label === accountLabel);
+		if (!session) {
+			return undefined;
+		}
+		return {
+			accountId: session.account.id,
+			defaultAccount: {
+				authenticationProvider: {
+					id: MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID,
+					name: this.authenticationService.getProvider(MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID).label,
+					enterprise: false
+				},
+				accountName: session.account.label,
+				sessionId: session.id,
+				enterprise: false
+			},
+			policyData: null,
+			copilotTokenInfo: null
+		};
+	}
+
+	/**
+	 * Handles changes of the Microsoft provider's sessions. The remembered account is forgotten only when the
+	 * session of the current Microsoft default account was removed and no session of that account remains.
+	 */
+	private async onDidChangeMicrosoftSessions(event: AuthenticationSessionsChangeEvent): Promise<void> {
+		const current = this.defaultAccount;
+		const currentIsMicrosoft = current?.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID;
+		if (!this.hasMicrosoftDefaultAccountState()) {
+			return;
+		}
+		const currentSessionRemoved = currentIsMicrosoft && (event.removed?.some(session => session.id === current.sessionId) ?? false);
+		if (currentSessionRemoved) {
+			try {
+				const sessions = await this.authenticationService.getSessions(MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, undefined, {}, true);
+				if (this.rememberedMicrosoftAccountLabel === current.accountName && !sessions.some(session => session.account.label === current.accountName)) {
+					this.logService.info('[DefaultAccount] The remembered Microsoft account signed out, forgetting it');
+					await this.forgetMicrosoftAccount();
+					return;
+				}
+			} catch (error) {
+				this.logService.error('[DefaultAccount] Error while reading Microsoft sessions', getErrorMessage(error));
+			}
+		}
+		await this.updateDefaultAccount();
 	}
 
 }

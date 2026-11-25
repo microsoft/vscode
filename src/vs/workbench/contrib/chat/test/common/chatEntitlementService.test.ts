@@ -4,19 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { IDefaultAccount, IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyChangeEvent } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementService, getChatEntitlement, getQuotaReset, getQuotaUsage, parseQuotas, QuotaUsageKind, SIMULATABLE_CHAT_ENTITLEMENTS, simulateEntitlementsData } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IAuthenticationService, AuthenticationSession } from '../../../../services/authentication/common/authentication.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementRequests, ChatEntitlementService, getChatEntitlement, getQuotaReset, getQuotaUsage, parseQuotas, QuotaUsageKind, SIMULATABLE_CHAT_ENTITLEMENTS, simulateEntitlementsData } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('parseQuotas', () => {
@@ -774,6 +782,74 @@ suite('ChatEntitlementService', () => {
 				creditsUsed: 700,
 			},
 			removed: undefined,
+		});
+	});
+});
+
+suite('ChatEntitlementRequests with a Microsoft default account', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const microsoftAccount: IDefaultAccount = {
+		authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
+		accountName: 'alice',
+		sessionId: 'ms-session',
+		enterprise: false,
+	};
+
+	function githubSession(id: string): AuthenticationSession {
+		return { id, accessToken: 'token', account: { id: `id-${id}`, label: id }, scopes: [] };
+	}
+
+	function createRequests(defaultAccount: IDefaultAccount | null) {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const instantiationService = store.add(new TestInstantiationService());
+		const storageService = store.add(new TestStorageService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {});
+		instantiationService.stub(IDialogService, {});
+		instantiationService.stub(IOpenerService, {});
+		instantiationService.stub(ILifecycleService, {});
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IDefaultAccountService, {
+			getDefaultAccount: async () => defaultAccount,
+			currentDefaultAccount: defaultAccount,
+			onDidChangeDefaultAccount: Event.None,
+			getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }),
+		});
+		instantiationService.stub(IAuthenticationService, {
+			getSessions: async () => [githubSession('g1'), githubSession('g2')],
+		});
+		const context = store.add(new ChatEntitlementContext(contextKeyService, storageService, new NullLogService(), new TestConfigurationService(), NullTelemetryService));
+		const requests = store.add(instantiationService.createInstance(ChatEntitlementRequests, context, { clearQuotas: () => { }, acceptQuotas: () => { } }));
+		const internals = requests as unknown as { getSessions(): Promise<AuthenticationSession[]>; resolve(): Promise<void>; state: { entitlement: ChatEntitlement } };
+		return { internals, contextKeyService };
+	}
+
+	test('sessions of the window are not used for a default account that is not a GitHub account', async () => {
+		const microsoft = createRequests(microsoftAccount);
+		const signedOut = createRequests(null);
+
+		assert.deepStrictEqual({
+			microsoft: (await microsoft.internals.getSessions()).map(session => session.id),
+			signedOut: (await signedOut.internals.getSessions()).map(session => session.id),
+		}, {
+			microsoft: [],
+			signedOut: ['g1', 'g2'],
+		});
+	});
+
+	// Pins existing behaviour: resolve() already treats an account without entitlement data as unresolved.
+	test('a Microsoft account without entitlement data leaves the entitlement unresolved, not signed out', async () => {
+		const { internals, contextKeyService } = createRequests(microsoftAccount);
+		await internals.resolve();
+
+		assert.deepStrictEqual({
+			entitlement: internals.state.entitlement,
+			signedOut: contextKeyService.getContextKeyValue(ChatEntitlementContextKeys.Entitlement.signedOut.key),
+		}, {
+			entitlement: ChatEntitlement.Unresolved,
+			signedOut: false,
 		});
 	});
 });

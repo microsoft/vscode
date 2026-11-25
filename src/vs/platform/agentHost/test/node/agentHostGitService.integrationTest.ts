@@ -20,7 +20,7 @@ import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
-import { join } from '../../../../base/common/path.js';
+import { join, relative } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -34,6 +34,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { parseGitBlobUri } from '../../node/gitDiffContent.js';
 import { gitServiceArguments } from './agentHostGitServiceTestUtils.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { GitRepositoryRootsContribution } from '../../node/chatContributions/gitRepositoryRoots/gitRepositoryRootsContribution.js';
@@ -79,6 +80,28 @@ async function rmDirWithRetry(path: string | undefined): Promise<void> {
 		// in Electron libc++ build.
 		await rm(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 	} catch { /* best-effort temp cleanup */ }
+}
+
+/** Creates the repository `<root>/parent`, which checks out the repository `<root>/sub` as the submodule `lib`, and returns its path. */
+function initRepositoryWithSubmodule(root: string): string {
+	const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+	const run = (cwd: string, ...args: string[]) => cp.execFileSync('git', args, { cwd, env, stdio: 'pipe' });
+	const sub = join(root, 'sub');
+	const parent = join(root, 'parent');
+	mkdirSync(sub);
+	mkdirSync(parent);
+	run(sub, 'init', '-q', '-b', 'main');
+	writeFileSync(join(sub, 'lib.txt'), 'lib\n');
+	mkdirSync(join(sub, 'old'));
+	writeFileSync(join(sub, 'old', 'gone.txt'), 'gone\n');
+	run(sub, 'add', '.');
+	run(sub, '-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'sub');
+	run(parent, 'init', '-q', '-b', 'main');
+	writeFileSync(join(parent, 'README.md'), 'readme\n');
+	run(parent, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'lib');
+	run(parent, 'add', '.');
+	run(parent, '-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'init');
+	return parent;
 }
 
 suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
@@ -1183,6 +1206,61 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.ok(result, 'expected diffs');
 		assert.strictEqual(result.length, 1);
 		assert.ok(result[0].after && !result[0].before, 'untracked file in empty repo should be an addition');
+	});
+
+	(hasGit ? test : test.skip)('lists the files changed inside a submodule, with baselines read from the submodule', async () => {
+		const fs = await import('fs/promises');
+		// Not resolved, so that on macOS, like for Windows 8.3 short names, the folder isn't spelled like the root that Git reports.
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-diff-submodule-'));
+		const dir = initRepositoryWithSubmodule(tmpRoot);
+		await fs.appendFile(join(dir, 'README.md'), 'root edit\n');
+		await fs.appendFile(join(dir, 'lib', 'lib.txt'), 'submodule edit\n');
+		await fs.writeFile(join(dir, 'lib', 'new.txt'), 'new\n');
+		await fs.rm(join(dir, 'lib', 'old'), { recursive: true });
+		// Changed files are reported under the root as Git spells it.
+		const root = (await svc!.getRepositoryRoot(URI.file(dir)))!.fsPath;
+
+		const changes = async () => {
+			const diffs = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
+			return Promise.all((diffs ?? []).map(async diff => {
+				const file = URI.parse(diff.after?.uri ?? diff.before!.uri);
+				const baseline = diff.before && parseGitBlobUri(diff.before.content.uri);
+				const repository = await svc!.getSubmoduleRoot(URI.file(dir), file) ?? URI.file(dir);
+				return {
+					path: relative(root, file.fsPath),
+					diff: diff.diff,
+					baseline: baseline && (await svc!.showBlob(repository, baseline.sha, baseline.repoRelativePath))?.toString(),
+				};
+			}));
+		};
+		const tracked = await changes();
+		// An untracked file in the parent makes the diff go through a temporary index.
+		await fs.writeFile(join(dir, 'fresh.txt'), 'fresh\n');
+		const withUntracked = await changes();
+
+		const expected = [
+			{ path: 'README.md', diff: { added: 1, removed: 0 }, baseline: 'readme\n' },
+			{ path: join('lib', 'lib.txt'), diff: { added: 1, removed: 0 }, baseline: 'lib\n' },
+			{ path: join('lib', 'new.txt'), diff: { added: 1, removed: 0 }, baseline: undefined },
+			{ path: join('lib', 'old', 'gone.txt'), diff: { added: 0, removed: 1 }, baseline: 'gone\n' },
+		];
+		assert.deepStrictEqual({ tracked, withUntracked }, {
+			tracked: expected,
+			withUntracked: [
+				{ path: 'README.md', diff: { added: 1, removed: 0 }, baseline: 'readme\n' },
+				{ path: 'fresh.txt', diff: { added: 1, removed: 0 }, baseline: undefined },
+				...expected.slice(1),
+			],
+		});
+	});
+
+	(hasGit && !isWindows ? test : test.skip)('does not resolve a registered submodule path that is a symlink to a repository outside', async () => {
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-diff-submodule-symlink-')));
+		const dir = initRepositoryWithSubmodule(tmpRoot);
+		rmSync(join(dir, 'lib'), { recursive: true, force: true });
+		symlinkSync(join(tmpRoot, 'sub'), join(dir, 'lib'), 'dir');
+
+		assert.strictEqual(await svc!.getSubmoduleRoot(URI.file(dir), URI.file(join(dir, 'lib', 'lib.txt'))), undefined);
 	});
 
 	(hasGit ? test : test.skip)('captureWorkingTreeAsTree stages scoped rename source and untracked paths', async () => {
@@ -3040,6 +3118,28 @@ suite('AgentHostGitService - getBranchDiffFingerprint (real git)', () => {
 			defined: true,
 			distinct: Object.keys(steps).length,
 		});
+	});
+
+	(hasGit ? test : test.skip)('changes with each edit to a file inside a submodule', async () => {
+		const fs = await import('fs/promises');
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-submodule-')));
+		const directory = URI.file(initRepositoryWithSubmodule(tmpRoot));
+		const file = join(directory.fsPath, 'lib', 'lib.txt');
+		await fs.appendFile(file, 'one\n');
+		const modified = await svc!.getBranchDiffFingerprint(directory);
+		await fs.appendFile(file, 'two\n');
+
+		assert.notStrictEqual(await svc!.getBranchDiffFingerprint(directory), modified);
+	});
+
+	(hasGit ? test : test.skip)('is defined when a submodule that is not checked out changes', async () => {
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-submodule-')));
+		const directory = initRepositoryWithSubmodule(tmpRoot);
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: directory, env, stdio: 'pipe' });
+		run('submodule', 'deinit', '-q', '-f', 'lib');
+		run('update-index', '--cacheinfo', `160000,${run('rev-parse', 'HEAD').toString().trim()},lib`);
+
+		assert.strictEqual(typeof await svc!.getBranchDiffFingerprint(URI.file(directory)), 'string');
 	});
 
 	(hasGit ? test : test.skip)('is undefined outside a repository', async () => {

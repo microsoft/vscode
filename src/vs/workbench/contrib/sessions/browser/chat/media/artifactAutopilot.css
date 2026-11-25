@@ -15,6 +15,27 @@
 	gap: var(--vscode-spacing-size80);
 }
 
+/* Extra room keeps the switch for all rules apart from the disclosure that expands them. */
+.artifact-autopilot-toggle-all {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	margin-left: var(--vscode-spacing-size120);
+}
+
+/* Padding rather than a gap, so the label's target reaches the switch with no dead strip in the clickable heading. */
+.artifact-autopilot-toggle-all-label {
+	padding-left: var(--vscode-spacing-size80);
+	cursor: pointer;
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+}
+
+.artifact-autopilot-toggle-all.disabled .artifact-autopilot-toggle-all-label {
+	cursor: default;
+	color: var(--vscode-disabledForeground);
+}
+
 .artifact-autopilot-rule {
 	width: fit-content;
 	max-width: 100%;
@@ -40,8 +61,15 @@
 	flex-shrink: 0;
 }
 
-.artifact-autopilot-policy .artifact-autopilot-policy-chevron {
+/* The trailing chevron carries its own side bearing, so less padding after it balances the padding before the label. */
+.artifact-autopilot-rule-row > .monaco-button.artifact-autopilot-policy {
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+}
+
+.monaco-button.artifact-autopilot-policy .artifact-autopilot-policy-chevron {
 	order: 1;
+	margin: 0;
 }
 
 .artifact-autopilot-rule-label:focus-visible {

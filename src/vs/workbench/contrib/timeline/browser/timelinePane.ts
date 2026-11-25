@@ -803,6 +803,10 @@ export class TimelinePane extends ViewPane {
 		pendingRequest.dispose();
 
 		if (response === undefined || request.uri !== this.uri) {
+			// Refresh even without a timeline, to stop showing that it is loading, and to remove the items the provider had before a change
+			if (response === undefined && request.uri === this.uri) {
+				this._pendingRefresh = true;
+			}
 			if (this.pendingRequests.size === 0 && this._pendingRefresh) {
 				this.refresh();
 			}

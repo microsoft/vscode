@@ -80,6 +80,18 @@ type DevContainerStateVolumeEvent = {
 	createdFolders: number | undefined;
 	existingFolders: number | undefined;
 	skippedFolders: number | undefined;
+	scriptUser: string | undefined;
+	capChown: boolean | undefined;
+	capDacOverride: boolean | undefined;
+	capDacReadSearch: boolean | undefined;
+	capFowner: boolean | undefined;
+	stateOwner: string | undefined;
+	volumeOwner: string | undefined;
+	capDropChown: boolean | undefined;
+	privileged: boolean | undefined;
+	usernsMode: boolean | undefined;
+	readonlyRootfs: boolean | undefined;
+	runtime: string | undefined;
 	errorMessage: string | undefined;
 	enabled: boolean;
 	sample: boolean;
@@ -90,11 +102,11 @@ type DevContainerStateVolumeClassification = {
 	owner: 'chrmarti';
 	comment: 'Reports how keeping user and agent state on a per-container volume went, to evaluate the chat.agentHost.devContainer.stateVolume.enabled experiment.';
 	stage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage: mount (adding the volume), up (starting the container), link (linking state folders to it) or userCommands (lifecycle commands, which run after linking).' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage outcome, e.g., added, existingContainer, skipped, linked, noMount, homeNotFound, succeeded or failed.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage outcome, e.g., added, existingContainer, skipped, linked, noMount, homeNotFound, missingCapabilities, readOnlyRootfs, homeInaccessible, stateNotRootOwned (the state folder was re-owned, e.g., by a chown -R in a lifecycle command), untrustedState (another user can change the state folder or the volume\'s root folder), succeeded or failed.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the operation that failed, or of why the stage was skipped, e.g., configUnreadable (the Dev Container CLI then reports the error).' };
 	errorCause: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed cause of a failed up or userCommands stage that the failed command does not identify: duplicateMount, volume, mount, daemon (Docker not running), config, lifecycle (a lifecycle command failed), feature or other.' };
 	lifecycleInUp: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the up stage ran the lifecycle commands. Otherwise, e.g., with the setting on, they run in the userCommands stage, so lifecycle failures can be compared separately.' };
-	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the link script step that failed.' };
+	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the link script step that failed or skipped linking.' };
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the volume is mounted at /workspaces or at a separate folder.' };
 	skipReasons: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifiers of why state folders were not persisted, e.g., because they are already mounted.' };
 	exitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Exit code of the failed command.' };
@@ -103,6 +115,18 @@ type DevContainerStateVolumeClassification = {
 	createdFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of new state folders created on the volume.' };
 	existingFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders that were already linked.' };
 	skippedFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders not persisted.' };
+	scriptUser: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the link script ran as root or as another user.' };
+	capChown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_CHOWN capability.' };
+	capDacOverride: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_DAC_OVERRIDE capability.' };
+	capDacReadSearch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_DAC_READ_SEARCH capability.' };
+	capFowner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_FOWNER capability.' };
+	stateOwner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who owns the state folder: root, user (the container user) or other.' };
+	volumeOwner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who owns the volume\'s root folder: root, user (the container user) or other.' };
+	capDropChown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container drops ALL capabilities or CHOWN, for link failures.' };
+	privileged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is privileged, for link failures.' };
+	usernsMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container sets a user namespace mode, for link failures.' };
+	readonlyRootfs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container\'s root file system is read-only, for link failures.' };
+	runtime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed category of the container\'s OCI runtime, e.g., runc, crun, gvisor, kata, sysbox or other, for link failures.' };
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'FeatureInsight'; comment: 'Error message of a failed stage without command lines, ids and the container user; the telemetry service also redacts paths and secrets.' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the chat.agentHost.devContainer.stateVolume.enabled setting is on. The up and userCommands stages are also reported with it off, without error messages, to compare, and linking also runs for containers created with it on.' };
 	sample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is for a Dev Container sample.' };
@@ -125,6 +149,18 @@ export function reportDevContainerUserState(telemetryService: ITelemetryService,
 		createdFolders: report.createdFolders,
 		existingFolders: report.existingFolders,
 		skippedFolders: report.skippedFolders,
+		scriptUser: report.scriptUser,
+		capChown: report.capChown,
+		capDacOverride: report.capDacOverride,
+		capDacReadSearch: report.capDacReadSearch,
+		capFowner: report.capFowner,
+		stateOwner: report.stateOwner,
+		volumeOwner: report.volumeOwner,
+		capDropChown: report.capDropChown,
+		privileged: report.privileged,
+		usernsMode: report.usernsMode,
+		readonlyRootfs: report.readonlyRootfs,
+		runtime: report.runtime,
 		errorMessage: report.errorMessage,
 		enabled,
 		sample,

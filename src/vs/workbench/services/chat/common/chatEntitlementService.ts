@@ -1482,13 +1482,17 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	private async getSessions(): Promise<AuthenticationSession[]> {
-		const account = asGitHubAccount(await this.defaultAccountService.getDefaultAccount());
+		const defaultAccount = await this.defaultAccountService.getDefaultAccount();
+		const account = asGitHubAccount(defaultAccount);
 		if (account) {
 			const sessions = await this.authenticationService.getSessions(account.authenticationProvider.id);
 			const accountSessions = sessions.filter(s => s.id === account.sessionId);
 			if (accountSessions.length) {
 				return accountSessions;
 			}
+		} else if (defaultAccount) {
+			// A default account that is not a GitHub account has no GitHub sessions, whichever GitHub sessions the window has.
+			return [];
 		}
 		// Without a session of the default account, every session of the default authentication provider is used.
 		return [...(await this.authenticationService.getSessions(this.defaultAccountService.getDefaultAccountAuthenticationProvider().id))];

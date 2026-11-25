@@ -1707,7 +1707,7 @@ export class CopilotAgentSession extends Disposable {
 	 * wait for it as well.
 	 */
 	get hasActiveSubagents(): boolean { return this._subagents.hasActiveAgents; }
-	get usesStaticGitHubToken(): boolean { return this._launchPlan.githubCredentials.usesStaticToken; }
+	get usesStaticGitHubToken(): boolean { return this._launchPlan.accountContext === undefined && this._launchPlan.githubCredentials.usesStaticToken; }
 
 	installSandboxCertificate(scopeId: string): Promise<void> {
 		return this._sandbox.installCertificate(scopeId);

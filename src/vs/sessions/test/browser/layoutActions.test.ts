@@ -18,7 +18,7 @@ import { ContextKeyExpr, ContextKeyValue, IContext } from '../../../platform/con
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsWindowAlwaysOnTopContext, LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { decodeKeybinding } from '../../../base/common/keybindings.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
@@ -36,6 +36,7 @@ import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_FIX
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
+import { CustomViewAllowsPanelContext, CustomViewVisibleContext } from '../../common/agentsWindowContextKeys.js';
 
 const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
 const LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID = 'workbench.action.agentSessions.togglePanelAlignment';
@@ -88,6 +89,34 @@ suite('Sessions - Layout Actions', () => {
 				toggled: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, density),
 			})),
 		});
+	});
+
+	test('custom views hide the title-bar panel toggle without disabling its command', () => {
+		const panelItems = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarSessionMenu)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === TOGGLE_PANEL_ACTION_ID);
+		const context: IContext = {
+			getValue: <T extends ContextKeyValue>(key: string) => ({
+				[CustomViewVisibleContext.key]: true,
+				[CustomViewAllowsPanelContext.key]: true,
+			})[key] as T | undefined,
+		};
+
+		assert.deepStrictEqual([false, true].map(visible => {
+			const values: Record<string, ContextKeyValue> = {
+				[CustomViewVisibleContext.key]: true,
+				[CustomViewAllowsPanelContext.key]: true,
+				panelVisible: visible,
+			};
+			const customViewContext: IContext = { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
+			return panelItems.map(item => ({
+				visible: item.when?.evaluate(customViewContext) !== false,
+				enabled: item.command.precondition?.evaluate(context) !== false,
+			}));
+		}), [
+			[{ visible: false, enabled: true }, { visible: false, enabled: true }],
+			[{ visible: false, enabled: true }, { visible: false, enabled: true }],
+		]);
 	});
 
 	// The side panel toggle registers with its layout controller; see baseSessionLayoutController.test.ts.
@@ -425,6 +454,28 @@ suite('Sessions - Layout Actions', () => {
 
 		assert.ok(toggleAlwaysOnTop, 'toggleWindowAlwaysOnTop should be contributed to TitleBarRight');
 		assert.strictEqual(toggleAlwaysOnTop.group, 'navigation');
+	});
+
+	test('shows the always-on-top toggle in floating windows, and in the main window only while it is on top', () => {
+		const toggleAlwaysOnTop = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarRightLayout).filter(isIMenuItem).find(item => item.command.id === 'workbench.action.toggleWindowAlwaysOnTop');
+		const shows = (values: Record<string, ContextKeyValue>) => toggleAlwaysOnTop?.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
+		const onTop = { [IsWindowAlwaysOnTopContext.key]: true };
+		const floating = { [IsAuxiliaryWindowContext.key]: true };
+		const chatWindow = { [IsAuxiliaryWindowContext.key]: true, [LayoutModeContext.key]: 'sideBySide' };
+
+		assert.deepStrictEqual({
+			mainWindow: shows({}),
+			mainWindowOnTop: shows(onTop),
+			floatingWindow: shows(floating),
+			floatingWindowOnTop: shows({ ...floating, ...onTop }),
+			chatWindowOnTop: shows({ ...chatWindow, ...onTop }),
+		}, {
+			mainWindow: false,
+			mainWindowOnTop: true,
+			floatingWindow: true,
+			floatingWindowOnTop: true,
+			chatWindowOnTop: false,
+		});
 	});
 
 	test('screen reader optimized action uses a title bar toolbar menu', () => {

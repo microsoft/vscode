@@ -4116,6 +4116,7 @@ export type IChatSessionHistoryItemDto = {
 	id?: string;
 	type: 'request';
 	prompt: string;
+	isRequestHidden?: boolean;
 	participant: string;
 	command?: string;
 	variableData?: Dto<IChatRequestVariableData>;

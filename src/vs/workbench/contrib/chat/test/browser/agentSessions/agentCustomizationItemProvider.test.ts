@@ -38,7 +38,7 @@ import { withRuntimePluginEnablement } from '../../../../../../platform/agentHos
 import { withCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
 import { withCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
-import { AICustomizationItemNormalizer, expandHookFileItems, ICustomizationSkillItem, ItemProviderItemSource } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationItemNormalizer, expandHookFileItems, ICustomizationHookItem, ICustomizationSkillItem, ItemProviderItemSource } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
 import { withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -245,7 +245,7 @@ suite('AgentCustomizationItemProvider', () => {
 					{ key: 'foreign-plugin::other-window', name: 'Foreign Plugin', uri: foreignPlugin.uri, delivery: 'syncedFromClient', status: 'loaded', actions: 0 },
 				],
 				folders: [{ uri: kind.toClient(URI.file('/workspace/agents')).toString(), source: 'local' }],
-				filesystemRequests: [kind.toClient(URI.file('/plugins/host')).toString(), kind.toClient(URI.file('/workspace/plugins/own')).toString()],
+				filesystemRequests: [],
 				ownSource: true,
 			});
 		});
@@ -1115,13 +1115,12 @@ suite('AgentCustomizationItemProvider', () => {
 		]);
 	});
 
-	test('inherits plugin discovery grouping for expanded children, including cached expansions', async () => {
-		const fileService = createInMemoryFileService(disposables, Schemas.file);
+	test('inherits plugin discovery grouping for published children', async () => {
 		const pluginUri = URI.file('/plugins/review');
-		await fileService.writeFile(URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md'), VSBuffer.fromString('---\nname: Review\n---\nReview code.'));
 		const plugin: PluginCustomization = {
 			type: CustomizationType.Plugin, id: 'review', uri: pluginUri.toString(), name: 'Review Plugin',
 			_meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository' }),
+			children: [{ type: CustomizationType.Skill, id: 'review-skill', uri: URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md').toString(), name: 'Review' }],
 		};
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getCustomizations(): readonly Customization[] {
@@ -1129,7 +1128,7 @@ suite('AgentCustomizationItemProvider', () => {
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			{ clientId: 'vscode', resourceUris: agentHostConnectionKinds[0].resourceUris }, undefined, undefined, fileService,
+			{ clientId: 'vscode', resourceUris: agentHostConnectionKinds[0].resourceUris }, undefined, undefined, upcastPartial<IFileService>({}),
 			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
 		const session = URI.parse('agent-host-copilot:/session');
@@ -1152,22 +1151,125 @@ suite('AgentCustomizationItemProvider', () => {
 		});
 	});
 
-	test('surfaces draft bundle agents skills and instructions before session state exists', async () => {
+	test('uses published plugin children without rescanning the plugin directory', async () => {
+		const connection = agentHostConnectionKinds[0];
+		const pluginUri = URI.file('/plugins/sample');
+		const agentUri = URI.joinPath(pluginUri, 'com.github.copilot', 'agents', 'helper.agent.md');
+		const ruleUri = URI.joinPath(pluginUri, 'com.github.copilot', 'rules', 'style.mdc');
+		const hookUri = URI.joinPath(pluginUri, 'com.github.copilot', 'hooks', 'hooks.json').toString();
+		let scanCount = 0;
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'sample-plugin',
+			uri: pluginUri.toString(),
+			name: 'Sample Plugin',
+			load: { kind: CustomizationLoadStatus.Loaded },
+			_meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository' }),
+			children: [
+				{ type: CustomizationType.Agent, id: 'plugin-agent', uri: agentUri.toString(), name: 'Helper' },
+				{ type: CustomizationType.Skill, id: 'plugin-skill', uri: URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md').toString(), name: 'Review', disableUserInvocation: true },
+				{ type: CustomizationType.Rule, id: 'plugin-rule', uri: ruleUri.toString(), name: 'Style', description: 'Formatting rules', alwaysApply: true, globs: ['**/*.ts'], enabled: false },
+				{
+					type: CustomizationType.Hook, id: 'plugin-hook-start', uri: hookUri, name: 'sessionStart', enabled: true,
+					_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', sourceLabel: 'Sample Plugin', hookType: 'sessionStart' }),
+				},
+				{
+					type: CustomizationType.Hook, id: 'plugin-hook-end', uri: hookUri, name: 'sessionEnd', enabled: true,
+					_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', sourceLabel: 'Sample Plugin', hookType: 'sessionEnd' }),
+				},
+			],
+		};
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [plugin];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: connection.resourceUris },
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({
+				canHandleResource: async () => {
+					scanCount++;
+					throw new Error('Published plugin children should not trigger a directory scan');
+				},
+			}),
+			new NullLogService(),
+			new TestCustomizationService(),
+			makePromptsService(),
+			labelService,
+		));
+
+		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilot:/session'), CancellationToken.None);
+		const agent = items.find(item => item.itemKey === 'plugin-agent');
+		const rule = items.find(item => item.itemKey === 'plugin-rule');
+		const hooks: ICustomizationHookItem[] = items.filter(item => item.type === PromptsType.hook);
+
+		assert.deepStrictEqual({
+			scanCount,
+			agent: agent && { type: agent.type, name: agent.name, source: agent.source, scope: agent.scope, pluginUri: agent.pluginUri?.toString(), pluginLabel: agent.pluginLabel },
+			rule: rule && { type: rule.type, name: rule.name, description: rule.description, groupKey: rule.groupKey, badge: rule.badge, enabled: rule.enabled },
+			skillUserInvocable: items.find(item => item.itemKey === 'plugin-skill')?.userInvocable,
+			hooks: hooks.map(hook => ({ itemKey: hook.itemKey, isHookAction: hook.isHookAction })).sort((a, b) => a.itemKey!.localeCompare(b.itemKey!)),
+		}, {
+			scanCount: 0,
+			agent: { type: PromptsType.agent, name: 'Helper', source: AICustomizationSources.plugin, scope: 'workspace', pluginUri: connection.toClient(pluginUri).toString(), pluginLabel: 'Sample Plugin' },
+			rule: { type: PromptsType.instructions, name: 'Style', description: 'Formatting rules', groupKey: 'context-instructions', badge: '**/*.ts', enabled: false },
+			skillUserInvocable: false,
+			hooks: [{ itemKey: 'plugin-hook-end', isHookAction: true }, { itemKey: 'plugin-hook-start', isHookAction: true }],
+		});
+	});
+
+	test('shows host plugin status without scanning when published children are absent', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const pluginUri = URI.file('/plugins/sample');
+		await fileService.writeFile(URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md'), VSBuffer.fromString('---\nname: Review\n---\nReview code.'));
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'sample', uri: pluginUri.toString(), name: 'Sample Plugin', clientId: 'vscode',
+		};
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [plugin];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: agentHostConnectionKinds[0].resourceUris }, undefined, undefined, fileService,
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const session = URI.parse('agent-host-copilot:/session');
+		const project = (items: readonly ICustomizationSkillItem[]) => items.map(({ name, status, statusMessage }) => ({ name, status, statusMessage }));
+		plugin.load = { kind: CustomizationLoadStatus.Loading };
+		const loading = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+		plugin.load = { kind: CustomizationLoadStatus.Error, message: 'Plugin sync failed' };
+		const error = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+
+		assert.deepStrictEqual({ loading: project(loading), error: project(error) }, {
+			loading: [{ name: 'Sample Plugin', status: 'loading', statusMessage: undefined }],
+			error: [{ name: 'Sample Plugin', status: 'error', statusMessage: 'Plugin sync failed' }],
+		});
+	});
+
+	test('keeps bundle source files when host-published children replace the draft', async () => {
 		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
+		const sessionBundleUri = bundleUri.with({ path: '/session-bundle' });
 		const workspaceAgentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
 		const workspaceSkillUri = URI.file('/workspace/.github/skills/review/SKILL.md');
 		const workspaceInstructionsUri = URI.file('/workspace/.github/instructions/review.instructions.md');
+		const workspacePromptUri = URI.file('/workspace/.github/prompts/review.prompt.md');
+		const extensionId = 'github.copilot-chat';
 		const fileService = createInMemoryFileService(disposables, SYNCED_CUSTOMIZATION_SCHEME);
 		await fileService.writeFile(URI.joinPath(bundleUri, 'agents', 'reviewer.agent.md'), VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nReview carefully.'));
 		await fileService.writeFile(URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md'), VSBuffer.fromString('---\nname: Review Skill\ndescription: Reviews code\n---\nReview code.'));
 		await fileService.writeFile(URI.joinPath(bundleUri, 'rules', 'review.instructions.md'), VSBuffer.fromString('---\nname: Review Instructions\ndescription: Review rules\n---\nFollow review rules.'));
+		await fileService.writeFile(URI.joinPath(bundleUri, 'commands', 'review.prompt.md'), VSBuffer.fromString('Review the changes.'));
 
+		const published: Customization[] = [];
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getWorkingDirectories(): readonly string[] {
 				return ['file:///workspace'];
 			}
 			override getCustomizations(): readonly Customization[] {
-				return [];
+				return published;
 			}
 		}
 
@@ -1175,12 +1277,16 @@ suite('AgentCustomizationItemProvider', () => {
 			[URI.joinPath(bundleUri, 'agents', 'reviewer.agent.md').toString(), workspaceAgentUri],
 			[URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md').toString(), workspaceSkillUri],
 			[URI.joinPath(bundleUri, 'rules', 'review.instructions.md').toString(), workspaceInstructionsUri],
+			[URI.joinPath(bundleUri, 'commands', 'review.prompt.md').toString(), workspacePromptUri],
 		]);
 		const provider = disposables.add(new AgentCustomizationItemProvider(
 			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			syncedUri => {
-				const uri = origins.get(syncedUri.toString());
+				const uri = origins.get(syncedUri.toString()) ?? origins.get(syncedUri.with({ path: syncedUri.path.replace(/^\/session-bundle\//, '/bundle/') }).toString());
+				if (uri === workspaceSkillUri) {
+					return { uri, source: AICustomizationSources.extension, extensionId };
+				}
 				return uri ? { uri, source: AICustomizationSources.local } : undefined;
 			},
 			fileService,
@@ -1201,8 +1307,36 @@ suite('AgentCustomizationItemProvider', () => {
 		assert.deepStrictEqual(items.map(item => ({ type: item.type, name: item.name, uri: item.uri.toString() })), [
 			{ type: PromptsType.agent, name: 'Reviewer', uri: workspaceAgentUri.toString() },
 			{ type: PromptsType.instructions, name: 'Review Instructions', uri: workspaceInstructionsUri.toString() },
+			{ type: PromptsType.prompt, name: 'review', uri: workspacePromptUri.toString() },
 			{ type: PromptsType.skill, name: 'Review Skill', uri: workspaceSkillUri.toString() },
 		]);
+
+		const cacheRoot = URI.file('/host/plugin-cache/bundle');
+		const publishedChild = (type: CustomizationType.Agent | CustomizationType.Rule | CustomizationType.Skill | CustomizationType.Prompt, path: string, name: string) => {
+			const uri = URI.joinPath(cacheRoot, path).toString();
+			return { type, id: uri, uri, name, _meta: { 'vscode.sourceUri': URI.joinPath(sessionBundleUri, path).toString() } };
+		};
+		published.push({
+			type: CustomizationType.Plugin, id: sessionBundleUri.toString(), uri: sessionBundleUri.toString(), name: 'VS Code Synced Data', clientId: 'vscode',
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [
+				publishedChild(CustomizationType.Agent, 'agents/reviewer.agent.md', 'Host Reviewer'),
+				publishedChild(CustomizationType.Rule, 'rules/review.instructions.md', 'Host Instructions'),
+				publishedChild(CustomizationType.Prompt, 'commands/review.prompt.md', 'review'),
+				publishedChild(CustomizationType.Skill, 'skills/review/SKILL.md', 'Host Skill'),
+			],
+		});
+		const updated = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///draft'), CancellationToken.None);
+		assert.deepStrictEqual(updated.map(item => ({ name: item.name, uri: item.uri.toString(), source: item.source, scope: item.scope, status: item.status })), [
+			{ name: 'Host Reviewer', uri: workspaceAgentUri.toString(), source: AICustomizationSources.local, scope: 'workspace', status: 'loaded' },
+			{ name: 'Host Instructions', uri: workspaceInstructionsUri.toString(), source: AICustomizationSources.local, scope: 'workspace', status: 'loaded' },
+			{ name: 'review', uri: workspacePromptUri.toString(), source: AICustomizationSources.local, scope: 'workspace', status: 'loaded' },
+			{ name: 'Host Skill', uri: workspaceSkillUri.toString(), source: AICustomizationSources.extension, scope: undefined, status: 'loaded' },
+		]);
+		const normalizer = new AICustomizationItemNormalizer(labelService, upcastPartial<IProductService>({
+			defaultChatAgent: upcastPartial<NonNullable<IProductService['defaultChatAgent']>>({ chatExtensionId: extensionId }),
+		}));
+		assert.deepStrictEqual(normalizer.normalizeItems(updated, PromptsType.skill).map(item => item.scope), [AICustomizationScopes.application]);
 	});
 
 	test('labels bundled extension customizations with the extension display name', async () => {

@@ -270,7 +270,7 @@ const parseTaskFields = parse.object<Task>({
 		assignment_context: parse.string,
 	})),
 	automation_id: parse.optional(parse.string),
-	automation_revision_id: parse.optional(parse.string),
+	automation_revision_id: parse.optional(parse.nullable(parse.string)),
 	stale_at: parse.optional(parse.dateTime),
 	compute: parse.optional(parse.nullable(parse.object({
 		provider: parse.optional(parse.oneOf('codespaces', 'sandboxes', '')),
@@ -375,7 +375,7 @@ const parseTaskSessions = parse.object<Pick<GetTaskResponse, 'sessions' | 'claim
 		event_type: parse.optional(parse.string),
 		event_url: parse.optional(parse.string),
 		prompt: parse.optional(parse.string),
-		event_content: parse.optional(parse.string),
+		event_content: parse.optional(parse.nullable(parse.string)),
 		event_identifiers: parse.optional(parse.strings),
 		resource_type: parse.optional(parse.string),
 		resource_id: parse.optional(parse.integer),
