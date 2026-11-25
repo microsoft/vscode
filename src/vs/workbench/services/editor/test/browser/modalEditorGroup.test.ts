@@ -9,7 +9,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, createEditorParts, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
-import { GroupsOrder, IEditorGroupsService } from '../../common/editorGroupsService.js';
+import { GroupsOrder, IEditorGroupsService, IModalEditorPart } from '../../common/editorGroupsService.js';
 import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -29,9 +29,29 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Memento } from '../../../../common/memento.js';
 import { IContextKeyService, IContextKeyServiceTarget } from '../../../../../platform/contextkey/common/contextkey.js';
-import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
+import { EditorPartModalCanMaximizeContext, EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID } from '../../../../browser/parts/editor/editorCommands.js';
 import { IWorkbenchLayoutService, Parts } from '../../../layout/browser/layoutService.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
+
+class TestModalOptionsEditorInput extends TestFileEditorInput implements IModalEditorOptionsProvider {
+
+	private readonly _onDidChangeModalEditorOptions = this._register(new Emitter<void>());
+	readonly onDidChangeModalEditorOptions = this._onDidChangeModalEditorOptions.event;
+
+	private modalEditorOptions: IModalEditorOptions | undefined;
+
+	getModalEditorOptions(): IModalEditorOptions | undefined {
+		return this.modalEditorOptions;
+	}
+
+	setModalEditorOptions(options: IModalEditorOptions | undefined): void {
+		this.modalEditorOptions = options;
+		this._onDidChangeModalEditorOptions.fire();
+	}
+}
 
 class TestFloatingEditorLayoutService extends TestLayoutService {
 
@@ -1131,6 +1151,141 @@ suite('Modal Editor Group', () => {
 		assert.strictEqual(modalPart.maximized, true);
 
 		await modalPart.close();
+	});
+
+	suite('modal editor options', () => {
+
+		async function createParts(useModal: string, useScopedContextKeys = false) {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => useScopedContextKeys ? disposables.add(new ContextKeyService(new TestConfigurationService())) : instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', useModal);
+			instantiationService.stub(IConfigurationService, configurationService);
+			Memento.clear(StorageScope.PROFILE); // start from the default modal size, position and maximized state
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+			instantiationService.stub(IEditorService, disposables.add(instantiationService.createInstance(EditorService, undefined)));
+
+			return { instantiationService, parts };
+		}
+
+		function createInput(options: IModalEditorOptions): TestModalOptionsEditorInput {
+			const input = disposables.add(new TestModalOptionsEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID));
+			input.setModalEditorOptions(options);
+
+			return input;
+		}
+
+		function getModalBounds(modalPart: IModalEditorPart) {
+			const element = (modalPart.modalElement as HTMLElement).querySelector<HTMLElement>('.modal-editor-resizable')!;
+
+			return { left: element.style.left, top: element.style.top, width: element.style.width, height: element.style.height };
+		}
+
+		test('findGroup opens an always modal editor in the modal also when useModal is off', async () => {
+			const { instantiationService, parts } = await createParts('off');
+			const input = createInput({ alwaysModal: true });
+
+			const result = instantiationService.invokeFunction(accessor => findGroup(accessor, { editor: input, options: {} }, undefined));
+			const [group] = result instanceof Promise ? await result : result;
+
+			assert.ok(parts.activeModalEditorPart);
+			assert.strictEqual(group.id, parts.activeModalEditorPart.activeGroup.id);
+
+			await parts.activeModalEditorPart.close();
+		});
+
+		test('an editor that cannot maximize restores a maximized modal and keeps it from maximizing', async () => {
+			const { parts } = await createParts('some');
+			const modalPart = await parts.createModalEditorPart({ maximized: true });
+
+			await modalPart.activeGroup.openEditor(createInput({ canMaximize: false }), { pinned: true });
+			const maximizedOnOpen = modalPart.maximized;
+			modalPart.toggleMaximized();
+
+			assert.deepStrictEqual({ maximizedOnOpen, maximizedAfterToggle: modalPart.maximized }, { maximizedOnOpen: false, maximizedAfterToggle: false });
+
+			await modalPart.close();
+		});
+
+		test('the Maximize Modal Editor action is hidden for an editor that cannot maximize', async () => {
+			const { instantiationService, parts } = await createParts('some', true);
+			const modalPart = await parts.createModalEditorPart();
+			const modalContext = () => instantiationService.get(IContextKeyService).getContext(modalPart.modalElement as HTMLElement);
+
+			await modalPart.activeGroup.openEditor(createTestFileEditorInput(URI.file('foo/default'), TEST_EDITOR_INPUT_ID), { pinned: true });
+			const canMaximizeDefault = modalContext().getValue<boolean>(EditorPartModalCanMaximizeContext.key);
+			await modalPart.activeGroup.openEditor(createInput({ canMaximize: false }), { pinned: true });
+
+			assert.deepStrictEqual({ canMaximizeDefault, canMaximize: modalContext().getValue<boolean>(EditorPartModalCanMaximizeContext.key) }, { canMaximizeDefault: true, canMaximize: false });
+
+			await modalPart.close();
+		});
+
+		test('an editor that cannot resize opens at the default size, not the size of other modal editors, where they were moved to', async () => {
+			const { parts } = await createParts('some');
+			const modalPart = await parts.createModalEditorPart({ size: { width: 500, height: 400 }, position: { left: 10, top: 20 } });
+
+			await modalPart.activeGroup.openEditor(createInput({ canResize: false }), { pinned: true });
+
+			assert.deepStrictEqual({ bounds: getModalBounds(modalPart), size: modalPart.size }, {
+				bounds: { left: '10px', top: '20px', width: '640px', height: '480px' },
+				size: { width: 500, height: 400 }
+			});
+
+			await modalPart.close();
+		});
+
+		test('an editor with a content size fits and centers the modal, and fits it again when the size changes', async () => {
+			const { parts } = await createParts('some');
+			const modalPart = await parts.createModalEditorPart({ position: { left: 10, top: 20 } });
+			const input = createInput({ contentSize: { width: 500, height: 300 } });
+
+			await modalPart.activeGroup.openEditor(input, { pinned: true });
+			const initialBounds = getModalBounds(modalPart);
+			input.setModalEditorOptions({ contentSize: { width: 600, height: 340 } });
+
+			assert.deepStrictEqual({ initialBounds, changedBounds: getModalBounds(modalPart) }, {
+				initialBounds: { left: '149px', top: '132.5px', width: '502px', height: '335px' },
+				changedBounds: { left: '99px', top: '112.5px', width: '602px', height: '375px' }
+			});
+
+			await modalPart.close();
+		});
+
+		test('a modal without editor options keeps a size below its minimum size, and where it is centered for it', async () => {
+			const { parts } = await createParts('some');
+			const modalPart = await parts.createModalEditorPart({ size: { width: 300, height: 200 } });
+
+			await modalPart.activeGroup.openEditor(createTestFileEditorInput(URI.file('foo/default'), TEST_EDITOR_INPUT_ID), { pinned: true });
+
+			assert.deepStrictEqual(getModalBounds(modalPart), { left: '250px', top: '200px', width: '400px', height: '300px' });
+
+			await modalPart.close();
+		});
+
+		test('an editor with a content size below the minimum size centers the modal at its minimum size', async () => {
+			const { parts } = await createParts('some');
+			const modalPart = await parts.createModalEditorPart();
+
+			await modalPart.activeGroup.openEditor(createInput({ contentSize: { width: 300, height: 200 } }), { pinned: true });
+
+			assert.deepStrictEqual(getModalBounds(modalPart), { left: '200px', top: '150px', width: '400px', height: '300px' });
+
+			await modalPart.close();
+		});
+
+		test('an editor with a content size shows the modal at its minimum size at the top left of a window smaller than that', async () => {
+			const { instantiationService, parts } = await createParts('some');
+			(instantiationService.get(IWorkbenchLayoutService) as TestLayoutService).mainContainerDimension = { width: 350, height: 250 };
+			const modalPart = await parts.createModalEditorPart();
+
+			await modalPart.activeGroup.openEditor(createInput({ contentSize: { width: 300, height: 200 } }), { pinned: true });
+
+			assert.deepStrictEqual(getModalBounds(modalPart), { left: '0px', top: '0px', width: '400px', height: '300px' });
+
+			await modalPart.close();
+		});
 	});
 
 	suite('RequiresModal capability', () => {
