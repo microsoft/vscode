@@ -7,11 +7,11 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType, parseAgentHostHarness, parseRemoteAgentHostSessionTypeAuthority } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -19,7 +19,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationContext, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
-import { areByokModelSourcesEnabled } from './agentHostModelSourceRegistrar.js';
+import { IAgentHostModelSourceStatusService } from './agentHostModelSourceRegistrar.js';
 
 const REMOTE_BYOK_NOTIFICATION_ID = 'agentHost.remoteByok';
 const REMOTE_BYOK_NOTIFICATION_DISABLED_STORAGE_KEY = 'chat.agentHost.remoteByokNotification.disabled';
@@ -39,7 +39,7 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 		@IStorageService private readonly _storageService: IStorageService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostModelSourceStatusService private readonly _modelSourceStatusService: IAgentHostModelSourceStatusService,
 	) {
 		super();
 
@@ -56,6 +56,7 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._chatEntitlementService.onDidChangeSentiment,
 			this._remoteAgentHostService.onDidChangeConnections,
+			this._modelSourceStatusService.onDidChange,
 			this._storageService.onDidChangeValue(StorageScope.PROFILE, REMOTE_BYOK_NOTIFICATION_DISABLED_STORAGE_KEY, this._store),
 		)(() => this._refresh()));
 
@@ -98,9 +99,7 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 		// Wait for an initialized Copilot session and respect hidden AI features and permanent muting.
 		if (!context.sessionResource || !context.sessionType || !isCopilotAgentHostSessionType(context.sessionType)
 			|| this._chatEntitlementService.sentiment.hidden
-			|| this._storageService.getBoolean(REMOTE_BYOK_NOTIFICATION_DISABLED_STORAGE_KEY, StorageScope.PROFILE, false)
-			// Remote agent hosts then call the BYOK models they can reach directly.
-			|| areByokModelSourcesEnabled(this._configurationService, this._chatEntitlementService)) {
+			|| this._storageService.getBoolean(REMOTE_BYOK_NOTIFICATION_DISABLED_STORAGE_KEY, StorageScope.PROFILE, false)) {
 			return false;
 		}
 		// Keep the warning in the first input and session that displayed it, rather than repeating in new chats.
@@ -123,10 +122,12 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 		if (isRemoteAgentHostSessionType(context.sessionType)) {
 			const provider = parseAgentHostHarness(context.sessionType);
 			const authority = provider && parseRemoteAgentHostSessionTypeAuthority(context.sessionType, provider);
-			return this._remoteAgentHostService.connections.some(connection =>
+			return !!authority && !this._modelSourceStatusService.isServing(authority) && this._remoteAgentHostService.connections.some(connection =>
 				agentHostAuthority(connection.address) === authority && RemoteAgentHostConnectionStatus.isConnected(connection.status));
 		}
 		// The otherwise-local Copilot harness runs remotely when the editor workspace has a live remote connection.
-		return !!this._environmentService.remoteAuthority && this._remoteAgentService.getConnection()?.isConnected === true;
+		return !!this._environmentService.remoteAuthority && this._remoteAgentService.getConnection()?.isConnected === true
+			// A host that calls this window's BYOK models directly has them.
+			&& !this._modelSourceStatusService.isServing(AMBIENT_AGENT_HOST_AUTHORITY);
 	}
 }

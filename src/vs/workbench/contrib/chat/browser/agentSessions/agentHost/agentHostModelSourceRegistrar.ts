@@ -36,15 +36,18 @@ import { ILanguageModelsConfigurationService, type ILanguageModelsProviderGroup 
 export const IAgentHostModelSourceStatusService = createDecorator<IAgentHostModelSourceStatusService>('agentHostModelSourceStatusService');
 
 /**
- * The BYOK models the local agent host serves directly from this window's model
- * sources, so the window's BYOK bridge stops listing them.
+ * Which agent hosts serve BYOK models directly from this window's model sources,
+ * so the window's BYOK bridge stops listing them, and a remote session doesn't
+ * warn that they're missing.
  */
 export interface IAgentHostModelSourceStatusService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
 	/** The language model identifiers of the models the local agent host serves directly. */
 	readonly locallyServedModels: ReadonlySet<string>;
-	setLocallyServedModels(models: ReadonlySet<string>): void;
+	/** Whether the agent host with the connection authority serves this window's models directly, or is setting them up. */
+	isServing(authority: string): boolean;
+	setServedModels(locallyServedModels: ReadonlySet<string>, servingAuthorities: ReadonlySet<string>): void;
 }
 
 export class AgentHostModelSourceStatusService extends Disposable implements IAgentHostModelSourceStatusService {
@@ -53,17 +56,27 @@ export class AgentHostModelSourceStatusService extends Disposable implements IAg
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 	private _locallyServedModels: ReadonlySet<string> = new Set();
+	private _servingAuthorities: ReadonlySet<string> = new Set();
 
 	get locallyServedModels(): ReadonlySet<string> {
 		return this._locallyServedModels;
 	}
 
-	setLocallyServedModels(models: ReadonlySet<string>): void {
-		if (models.size !== this._locallyServedModels.size || [...models].some(model => !this._locallyServedModels.has(model))) {
-			this._locallyServedModels = models;
+	isServing(authority: string): boolean {
+		return this._servingAuthorities.has(authority);
+	}
+
+	setServedModels(locallyServedModels: ReadonlySet<string>, servingAuthorities: ReadonlySet<string>): void {
+		if (!setEquals(locallyServedModels, this._locallyServedModels) || !setEquals(servingAuthorities, this._servingAuthorities)) {
+			this._locallyServedModels = locallyServedModels;
+			this._servingAuthorities = servingAuthorities;
 			this._onDidChange.fire();
 		}
 	}
+}
+
+function setEquals(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+	return a.size === b.size && [...a].every(value => b.has(value));
 }
 
 // #endregion
@@ -95,7 +108,7 @@ function areByokModelSourcesAllowed(configurationService: IConfigurationService,
 }
 
 /** Whether this window registers its BYOK provider groups with agent hosts. Other windows may differ, by their workspace settings. */
-export function areByokModelSourcesEnabled(configurationService: IConfigurationService, chatEntitlementService: IChatEntitlementService): boolean {
+function areByokModelSourcesEnabled(configurationService: IConfigurationService, chatEntitlementService: IChatEntitlementService): boolean {
 	return areByokModelSourcesAllowed(configurationService, chatEntitlementService)
 		&& !chatEntitlementService.sentiment.hidden
 		&& configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId) !== false;
@@ -447,15 +460,23 @@ export class AgentHostModelSourceRegistrar extends Disposable implements IWorkbe
 	}
 
 	private _publishServedModels(): void {
-		const served = new Set<string>();
-		for (const [connection, registrar] of this._connections) {
-			if (connection.clientConnectionKind === AgentHostClientConnectionKind.Local) {
+		const locallyServed = new Set<string>();
+		const servingAuthorities = new Set<string>();
+		for (const info of this._connectionsService.connections) {
+			const registrar = info.connection && this._connections.get(info.connection);
+			if (!registrar) {
+				continue;
+			}
+			if (registrar.serving) {
+				servingAuthorities.add(info.authority);
+			}
+			if (info.connection?.clientConnectionKind === AgentHostClientConnectionKind.Local) {
 				for (const model of registrar.servedModels) {
-					served.add(model);
+					locallyServed.add(model);
 				}
 			}
 		}
-		this._statusService.setLocallyServedModels(served);
+		this._statusService.setServedModels(locallyServed, servingAuthorities);
 	}
 
 	/** The sources with only the models a remote agent host can reach. */
@@ -571,6 +592,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 	private _sources: readonly IByokModelSource[] | undefined;
 	private _removeAll = false;
 	private _servedModels: ReadonlySet<string> = new Set();
+	private _serving = false;
 
 	constructor(
 		private readonly _connection: IAgentConnection,
@@ -592,6 +614,11 @@ class ConnectionModelSourceRegistrar extends Disposable {
 	/** The language model identifiers of the models the host has ready from this window's sources. */
 	get servedModels(): ReadonlySet<string> {
 		return this._servedModels;
+	}
+
+	/** Whether the host serves any of this window's sources, or is setting one up. */
+	get serving(): boolean {
+		return this._serving;
 	}
 
 	update({ sources, removeAll, removedGroups }: IConnectionModelSourceUpdate): void {
@@ -710,16 +737,34 @@ class ConnectionModelSourceRegistrar extends Disposable {
 
 	private _updateServedModels(desired: ReadonlyMap<string, IDesiredModelSource>, current: ReadonlyMap<string, ModelSource>): void {
 		const served = new Set<string>();
+		let serving = false;
 		for (const [id, { modelSource, source }] of desired) {
 			const existing = current.get(id);
-			if (existing?.state?.kind === ModelSourceStatus.Ready && isSameModelSource(existing, modelSource)) {
-				for (const identifier of source.modelIdentifiers.values()) {
-					served.add(identifier);
+			if (!existing) {
+				// This window registers it, unless the host declined it or another client removed it.
+				serving ||= this._rejected.get(id) !== modelSource.nonce && !this._removedElsewhere.has(id);
+			} else if (isSameModelSource(existing, modelSource)) {
+				switch (existing.state?.kind) {
+					case ModelSourceStatus.Ready:
+						for (const identifier of source.modelIdentifiers.values()) {
+							served.add(identifier);
+						}
+						serving = true;
+						break;
+					case ModelSourceStatus.AuthRequired:
+						serving ||= needsCredential(existing, source.accountId, accountId => this._delegate.wasReplaced(source, accountId));
+						break;
+					case ModelSourceStatus.Error:
+						break;
+					default:
+						// The host is still setting it up.
+						serving = true;
 				}
 			}
 		}
-		if (served.size !== this._servedModels.size || [...served].some(model => !this._servedModels.has(model))) {
+		if (serving !== this._serving || !setEquals(served, this._servedModels)) {
 			this._servedModels = served;
+			this._serving = serving;
 			this._delegate.onDidChangeServedModels();
 		}
 	}
@@ -770,8 +815,8 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				this._rejected.set(id, modelSource.nonce);
 			} else {
 				this._contributed.set(id, modelSource.nonce);
-				this._sync();
 			}
+			this._sync();
 		}, error => {
 			if (isCurrent()) {
 				// The next root state update, such as a reconnect, registers it again.

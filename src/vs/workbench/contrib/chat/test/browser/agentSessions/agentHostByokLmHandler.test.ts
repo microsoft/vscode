@@ -192,7 +192,7 @@ suite('AgentHostByokLmHandler', () => {
 		const listed = async () => (await handler.listModels(CancellationToken.None)).map(model => model.modelIdentifier);
 
 		const before = await listed();
-		status.setLocallyServedModels(new Set(['customendpoint/Example/gpt-x']));
+		status.setServedModels(new Set(['customendpoint/Example/gpt-x']), new Set());
 		assert.deepStrictEqual({ before, served: await listed(), modelChangeCount }, {
 			before: ['customendpoint/Example/gpt-x', 'acme/claude'],
 			served: ['acme/claude'],

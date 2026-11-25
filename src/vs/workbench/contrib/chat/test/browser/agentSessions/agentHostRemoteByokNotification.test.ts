@@ -11,6 +11,7 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -24,6 +25,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { AgentHostModelSourceStatusService, IAgentHostModelSourceStatusService } from '../../../browser/agentSessions/agentHost/agentHostModelSourceRegistrar.js';
 import { AgentHostRemoteByokNotificationContribution } from '../../../browser/agentSessions/agentHost/agentHostRemoteByokNotification.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationContext, IChatInputNotificationService, resolveChatInputNotificationBody } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputNotificationWidget } from '../../../browser/widget/input/chatInputNotificationWidget.js';
@@ -89,6 +91,8 @@ suite('AgentHostRemoteByokNotification', () => {
 		let resolved = options.resolved ?? true;
 		let connections = options.connections ?? [{ address: 'host', name: 'Host', status: RemoteAgentHostConnectionStatus.connected }];
 		const sentiment = { hidden: options.hidden ?? false };
+		const modelSourceStatus = store.add(new AgentHostModelSourceStatusService());
+		instantiationService.stub(IAgentHostModelSourceStatusService, modelSourceStatus);
 		instantiationService.stub(ILogService, new NullLogService());
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IChatInputNotificationService)?.[1];
 		assert.ok(descriptor);
@@ -169,6 +173,9 @@ suite('AgentHostRemoteByokNotification', () => {
 			setHidden(hidden: boolean) {
 				sentiment.hidden = hidden;
 				sentimentChanged.fire();
+			},
+			setServing(...authorities: string[]) {
+				modelSourceStatus.setServedModels(new Set(), new Set(authorities));
 			},
 		};
 	}
@@ -290,6 +297,31 @@ suite('AgentHostRemoteByokNotification', () => {
 			fixture.isVisible(),
 			fixture.isVisible(context({ sessionType: 'agent-host-claude' })),
 		], [true, false, false]);
+	});
+
+	test('hides while the session\'s own host serves the BYOK models directly', async () => {
+		const fixture = createFixture({ models: [createModel()], remoteAuthority: 'ssh-remote+host' });
+		await Promise.resolve();
+		let refreshes = 0;
+		store.add(fixture.notificationService.onDidChange(() => refreshes++));
+		const workspace = context({ sessionType: 'agent-host-copilotcli' });
+		const visibility = () => ({ remoteHost: fixture.isVisible(), workspace: fixture.isVisible(workspace) });
+		const states = [visibility()];
+		fixture.setServing('other-host');
+		states.push(visibility());
+		fixture.setServing('host');
+		states.push(visibility());
+		fixture.setServing(AMBIENT_AGENT_HOST_AUTHORITY);
+		states.push(visibility());
+		assert.deepStrictEqual({ states, refreshes }, {
+			states: [
+				{ remoteHost: true, workspace: true },
+				{ remoteHost: true, workspace: true },
+				{ remoteHost: false, workspace: true },
+				{ remoteHost: true, workspace: false },
+			],
+			refreshes: 3,
+		});
 	});
 
 	test('refreshes existing inputs when the first BYOK model is added', () => {

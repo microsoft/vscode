@@ -379,15 +379,20 @@ suite('AgentHostModelSourceRegistrar', () => {
 		const relayed = createRegistrar({ kind: AgentHostClientConnectionKind.WebPubSub });
 		await timeout(0);
 		const beforeConsent = remote.modelSources().length;
+		const servingBeforeConsent = remote.statusService.isServing('host');
 		remote.notificationService.prompts[0].choices[0].run();
 		await timeout(0);
+		const servingWhileStarting = remote.statusService.isServing('host');
+		remote.root.report({ kind: ModelSourceStatus.Error, error: { errorType: 'invalidDefinition', message: 'Declined' } });
 
 		assert.deepStrictEqual({
 			beforeConsent,
 			prompts: remote.notificationService.prompts.length,
 			definitions: remote.connection.definitions,
 			retention: remote.modelSources().map(modelSource => modelSource.retention),
-			relayed: { prompts: relayed.notificationService.prompts.length, actions: relayed.connection.actions.length },
+			// The editor warns that BYOK models are missing unless the host serves them, or is setting them up.
+			serving: [servingBeforeConsent, servingWhileStarting, remote.statusService.isServing('host')],
+			relayed: { prompts: relayed.notificationService.prompts.length, actions: relayed.connection.actions.length, serving: relayed.statusService.isServing('host') },
 		}, {
 			beforeConsent: 0,
 			prompts: 1,
@@ -397,8 +402,9 @@ suite('AgentHostModelSourceRegistrar', () => {
 			}],
 			// A remote host's sources leave with this window.
 			retention: [ModelSourceRetentionPolicy.ContributingClient],
+			serving: [false, true, false],
 			// A relay could read the keys.
-			relayed: { prompts: 0, actions: 0 },
+			relayed: { prompts: 0, actions: 0, serving: false },
 		});
 	});
 });
