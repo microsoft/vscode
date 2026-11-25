@@ -579,7 +579,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
-			ignoreGlobCase: queryBuilder.ignoreGlobCaseForFolders(folderResources.map(folder => folder.uri)) || undefined,
+			ignoreGlobCase: queryBuilder.ignoreGlobCaseForResources(folderResources.map(folder => folder.uri)) || undefined,
 			excludePattern: [{ pattern: config.filesToExclude }],
 			includePattern: config.filesToInclude,
 			onlyOpenEditors: config.onlyOpenEditors,

@@ -1719,7 +1719,7 @@ export class SearchView extends ViewPane {
 			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
-			ignoreGlobCase: this.queryBuilder.ignoreGlobCaseForFolders(folderResources.map(folder => folder.uri)) || undefined,
+			ignoreGlobCase: this.queryBuilder.ignoreGlobCaseForResources(folderResources.map(folder => folder.uri)) || undefined,
 			onlyOpenEditors: onlySearchInOpenEditors,
 			changedFileUris,
 			excludePattern,
