@@ -2027,11 +2027,10 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
-	test('refreshes a subagent session without a working directory of its own from its parent session\'s', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const h = createHarness();
-		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+	/** Restores a subagent session of {@link SESSION} without a working directory of its own. */
+	function restoreSubagentSession(stateManager: AgentHostStateManager): string {
 		const subagent = buildSubagentSessionUri(SESSION, 'tool-1');
-		h.stateManager.restoreSession({
+		stateManager.restoreSession({
 			resource: subagent,
 			defaultChat: buildDefaultChatUri(subagent),
 			provider: 'mock',
@@ -2040,6 +2039,13 @@ suite('AgentHostGitStateService', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 		}, [], creationTimeChatStorageResource);
+		return subagent;
+	}
+
+	test('refreshes a subagent session without a working directory of its own from its parent session\'s', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		const subagent = restoreSubagentSession(h.stateManager);
 		const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
 		h.setGitResult(gitState);
 
@@ -2053,6 +2059,29 @@ suite('AgentHostGitStateService', () => {
 			gitCalls: [WORKING_DIRECTORY],
 			gitState,
 			runEvents: [subagent],
+		});
+	}));
+
+	test('refreshes a subagent from the worktree its parent session\'s default chat works in, not its parent\'s summary folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		const worktree = 'file:///wd.worktrees/isolated';
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: worktree });
+		h.stateManager.dispatchServerAction(buildDefaultChatUri(SESSION), { type: ActionType.ChatWorkingDirectorySet, directory: worktree });
+		const subagent = restoreSubagentSession(h.stateManager);
+		const gitState: ISessionGitState = { branchName: 'isolated', baseBranchName: 'main' };
+		h.setGitResult(gitState);
+
+		await h.service.refreshSessionGitState(subagent);
+
+		assert.deepStrictEqual({
+			parentSummaryFolder: h.stateManager.getSessionSummary(SESSION)?.workingDirectories?.[0],
+			gitCalls: h.gitCalls,
+			gitState: h.service.getSessionGitState(subagent),
+		}, {
+			parentSummaryFolder: WORKING_DIRECTORY,
+			gitCalls: [worktree],
+			gitState,
 		});
 	}));
 

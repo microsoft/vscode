@@ -466,7 +466,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	/**
 	 * The directory a refresh of a key reads: its primary working directory, or, for a subagent session without one
-	 * of its own, its parent session's. A chat whose state is not restored yet reads the folder its catalog entry records.
+	 * of its own, the one its parent session's default chat works in. A chat whose state is not restored yet reads the
+	 * folder its catalog entry records.
 	 */
 	private _resolveGitStateWorkingDirectory(key: string): string | undefined {
 		if (isAhpChatChannel(key)) {
@@ -478,7 +479,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return workingDirectory;
 		}
 		const subagent = parseSubagentSessionUri(key);
-		return subagent ? this._resolveGitStateWorkingDirectory(subagent.parentSession.toString()) : undefined;
+		if (!subagent) {
+			return undefined;
+		}
+		// A subagent works where its parent's default chat does, which can be a worktree the parent's summary does not name.
+		const parent = subagent.parentSession.toString();
+		return getEffectiveWorkingDirectories(this._stateManager, parent)?.[0] ?? this._resolveGitStateWorkingDirectory(parent);
 	}
 
 	async refreshSessionGitState(sessionKey: string, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
