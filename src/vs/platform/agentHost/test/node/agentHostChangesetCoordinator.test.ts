@@ -1733,10 +1733,10 @@ suite('ChangesetSessionCoordinator', () => {
 
 		const excludes = environment.monitor.acquireOptions[0]?.excludes ?? [];
 		assert.deepStrictEqual({
-			ignored: ['**/node_modules/**', '**/.git/refs/agents/**'].filter(pattern => excludes.includes(pattern)),
+			ignored: ['**/node_modules/**'].filter(pattern => excludes.includes(pattern)),
 			watchesHead: !excludes.includes('**/.git/**') && !excludes.includes('**/.git/HEAD'),
 		}, {
-			ignored: ['**/node_modules/**', '**/.git/refs/agents/**'],
+			ignored: ['**/node_modules/**'],
 			watchesHead: true,
 		});
 	});

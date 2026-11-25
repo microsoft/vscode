@@ -19,6 +19,7 @@ export const DEFAULT_AGENT_HOST_WATCH_EXCLUDES: readonly string[] = Object.freez
 	'**/.git/lfs/**',
 	'**/.git/logs/**',
 	'**/.git/objects/**',
+	'**/.git/refs/agents/**',
 	'**/.git/subtree-cache/**',
 	'**/.git/**/*.lock',
 	'**/.git/**/FETCH_HEAD',

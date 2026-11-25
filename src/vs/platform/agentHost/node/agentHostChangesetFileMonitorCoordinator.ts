@@ -20,14 +20,11 @@ import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.
 /**
  * Installed dependencies. Installs rewrite thousands of files, and a change there says nothing about the branch or
  * uncommitted changes. Other build output is told apart by Git's ignore rules, see {@link ChangesetFileMonitorCoordinator._onRootChanged}.
- * Also the agent host's own refs, such as the turn checkpoints it writes at every turn start and end, which change
- * neither the branch nor the working tree.
  */
 const CHANGESET_WATCH_EXCLUDES: readonly string[] = Object.freeze([
 	...DEFAULT_AGENT_HOST_WATCH_EXCLUDES,
 	'**/node_modules',
 	'**/node_modules/**',
-	'**/.git/refs/agents/**',
 ]);
 
 class WatchInterestReferenceCollection extends ReferenceCollection<string> {
