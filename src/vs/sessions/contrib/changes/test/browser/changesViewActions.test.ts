@@ -571,12 +571,13 @@ suite('Changes View Actions', () => {
 		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', branch);
 		const baseBranchRef = observableValue<string | undefined>('picker.baseBranchRef', 'refs/remotes/origin/feature');
 		const loading = observableValue('picker.loading', false);
+		const resource = observableValue('picker.resource', URI.parse('test-session:/session'));
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetsObs = constObservable([branch, session]);
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
 			override readonly activeSessionBaseBranchRefObs = baseBranchRef;
-			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+			override readonly activeSessionResourceObs = resource;
 		}();
 		const lists: (readonly IActionListItem<unknown>[])[] = [];
 		const updates: (IActionListUpdateOptions | undefined)[] = [];
@@ -608,7 +609,7 @@ suite('Changes View Actions', () => {
 		const container = document.createElement('div');
 		const picker = disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), notificationService));
 		picker.render(container);
-		return { picker, container, lists, updates, selected, baseBranchRef, loading, session, errors };
+		return { picker, container, lists, updates, selected, baseBranchRef, loading, resource, session, errors };
 	}
 
 	/** The submenus of the rows of `items` by row: group labels as `[label]`, the checked row marked ✓ and disabled rows marked so. */
@@ -718,6 +719,27 @@ suite('Changes View Actions', () => {
 			picked: ['refs/remotes/origin/release'],
 			sets: ['refs/remotes/origin/release'],
 		});
+	});
+
+	test('a pick from an open Branch submenu changes no base while the catalogue loads, or once the list shows another session', async () => {
+		const sets: string[] = [];
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => ({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature', 'refs/remotes/origin/release'], defaultRef: 'refs/remotes/origin/main' }),
+			setBaseBranch: async ref => { sets.push(ref); },
+		};
+		const { picker, lists, loading, resource } = renderBaseBranchPicker(constObservable(selection));
+
+		picker.show();
+		await timeout(0);
+		const items = lists.at(-1)!;
+		// Another session is shown, and its catalogue loads while the previous one's changesets, and selection, are still listed.
+		loading.set(true, undefined);
+		await runBranchSubmenuAction(items, 'origin/release');
+		loading.set(false, undefined);
+		resource.set(URI.parse('test-session:/other'), undefined);
+		await runBranchSubmenuAction(items, 'origin/main');
+
+		assert.deepStrictEqual(sets, []);
 	});
 
 	test('the Branch row drops the branches that load for a selection it no longer carries', async () => {

@@ -2530,6 +2530,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	private _getBaseBranchSubmenu(): Pick<IActionWidgetDropdownAction, 'submenuActions' | 'submenuOptions' | 'submenuButton' | 'hover'> | undefined {
 		const selection = this._getBaseBranchSelection();
 		const currentRef = selection && this._changes.baseBranchRefObs.get();
+		const sessionResource = this._changes.resourceObs.get();
 		// Branches of another selection are of another session, chat or changeset, as the changesets may be while the catalogue loads.
 		if (!selection || !currentRef || this._changes.changesetsLoadingObs.get() || (this._baseBranchCandidates && this._baseBranchCandidates.selection !== selection)) {
 			return undefined;
@@ -2540,7 +2541,10 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 			return undefined;
 		}
 		return {
-			submenuActions: getBaseBranchSubmenuActions(candidates, currentRef, selection, () => this._getBaseBranchSelection() === selection, this.notificationService),
+			// Like the row's own run, a pick changes nothing while the catalogue loads, when it still lists the changesets shown before.
+			submenuActions: getBaseBranchSubmenuActions(candidates, currentRef, selection, () => !this._changes.changesetsLoadingObs.get()
+				&& isEqual(this._changes.resourceObs.get(), sessionResource)
+				&& this._getBaseBranchSelection() === selection, this.notificationService),
 			submenuOptions: getBaseBranchSubmenuOptions(),
 			submenuButton: { icon: Codicon.editCompact, label: localize('changesView.picker.changeBaseBranch', "Change Base Branch...") },
 			// The branches line up with the list of changesets rather than center on the Branch row.
