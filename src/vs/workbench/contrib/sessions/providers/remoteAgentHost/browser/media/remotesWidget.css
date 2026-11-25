@@ -6,8 +6,6 @@
 .remotes-editor {
 	box-sizing: border-box;
 	height: 100%;
-	max-width: 1400px;
-	margin-inline: auto;
 	overflow: hidden;
 }
 

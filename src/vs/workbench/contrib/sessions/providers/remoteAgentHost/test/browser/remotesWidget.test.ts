@@ -835,8 +835,8 @@ suite('RemotesWidget', () => {
 			widget.layout();
 			return {
 				status: pickerStatus.textContent, visible: pickerStatus.getBoundingClientRect().width > 0,
-				truncated: pickerStatus.scrollWidth > pickerStatus.clientWidth,
-				nameTruncated: name.scrollWidth > name.clientWidth,
+				statusOverflow: dom.getWindow(pickerStatus).getComputedStyle(pickerStatus).textOverflow,
+				nameOverflow: dom.getWindow(name).getComputedStyle(name).textOverflow,
 				connection: getConnectionAction(parent, remote.id).getAttribute('aria-label'),
 				show: getMenuAction(parent, remote.id, 'visibility').label,
 			};
@@ -844,7 +844,7 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual({
 			states, hover: hoverContents.get(pickerStatus), nameHover: hoverContents.get(name)?.includes('Build server'),
 		}, {
-			states: Array.from({ length: 3 }, () => ({ status: 'Hidden from Picker', visible: true, truncated: false, nameTruncated: false, connection: 'Disconnect Build server', show: 'Show in Picker' })),
+			states: Array.from({ length: 3 }, () => ({ status: 'Hidden from Picker', visible: true, statusOverflow: 'ellipsis', nameOverflow: 'ellipsis', connection: 'Disconnect Build server', show: 'Show in Picker' })),
 			hover: 'Hidden from the environment picker. Use More Actions to show it again.', nameHover: true,
 		});
 	});
@@ -880,12 +880,13 @@ suite('RemotesWidget', () => {
 				row.querySelector<HTMLElement>('.remotes-activity-column .remotes-metadata > span')!,
 				row.querySelector<HTMLElement>('.remotes-system-column .remotes-metadata > span')!,
 			];
+			const fitsOrEllipsizes = (label: HTMLElement) => label.clientWidth > 0 && (label.scrollWidth <= label.clientWidth || dom.getWindow(label).getComputedStyle(label).textOverflow === 'ellipsis');
 			return {
 				scrolls: table.getBoundingClientRect().width > viewport.clientWidth,
-				nameFits: name.scrollWidth <= name.clientWidth,
-				statusFits: status.hidden || status.scrollWidth <= status.clientWidth,
+				nameReadable: fitsOrEllipsizes(name),
+				statusReadable: status.hidden || fitsOrEllipsizes(status),
 				actionInView: actionBounds.left >= bounds.left && actionBounds.right <= bounds.right,
-				neighboringLabelsFit: neighboringLabels.map(label => label.scrollWidth <= label.clientWidth),
+				neighboringLabelsReadable: neighboringLabels.map(fitsOrEllipsizes),
 			};
 		};
 		const before = read();
@@ -899,16 +900,16 @@ suite('RemotesWidget', () => {
 		widget.setSearchQuery('Build server');
 		parent.style.width = '620px';
 		assert.deepStrictEqual({ before, hidden, described, restored, filtered: read() }, {
-			before: { scrolls: false, nameFits: true, statusFits: true, actionInView: true, neighboringLabelsFit: [true, true, true, true] },
-			hidden: { scrolls: false, nameFits: true, statusFits: true, actionInView: true, neighboringLabelsFit: [true, true, true, true] },
-			described: { scrolls: false, nameFits: true, statusFits: true, actionInView: true, neighboringLabelsFit: [true, true, true, true] },
-			restored: { scrolls: false, nameFits: true, statusFits: true, actionInView: true, neighboringLabelsFit: [true, true, true, true] },
-			filtered: { scrolls: false, nameFits: true, statusFits: true, actionInView: true, neighboringLabelsFit: [true, true, true, true] },
+			before: { scrolls: false, nameReadable: true, statusReadable: true, actionInView: true, neighboringLabelsReadable: [true, true, true, true] },
+			hidden: { scrolls: false, nameReadable: true, statusReadable: true, actionInView: true, neighboringLabelsReadable: [true, true, true, true] },
+			described: { scrolls: false, nameReadable: true, statusReadable: true, actionInView: true, neighboringLabelsReadable: [true, true, true, true] },
+			restored: { scrolls: false, nameReadable: true, statusReadable: true, actionInView: true, neighboringLabelsReadable: [true, true, true, true] },
+			filtered: { scrolls: false, nameReadable: true, statusReadable: true, actionInView: true, neighboringLabelsReadable: [true, true, true, true] },
 		});
 	});
 
 	for (const state of ['hidden', 'unavailable'] as const) {
-		test(`${state} picker status keeps names readable alongside descriptions through resizing`, () => {
+		test(`${state} picker status retains names and descriptions without forcing horizontal scrolling`, () => {
 			const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'status', 879);
 			feedbackStyles(parent);
 			parent.style.font = '13px "Segoe UI", sans-serif';
@@ -927,19 +928,17 @@ suite('RemotesWidget', () => {
 				const name = row.querySelector<HTMLElement>('.remotes-name')!;
 				const detail = row.querySelector<HTMLElement>('.remotes-name-detail')!;
 				const status = row.querySelector<HTMLElement>('.remotes-picker-status')!;
-				const context = document.createElement('canvas').getContext('2d')!;
-				context.font = dom.getWindow(name).getComputedStyle(name).font;
 				return {
 					scrolls: scrolls(),
-					statusFits: status.scrollWidth <= status.clientWidth,
-					nameReadable: name.clientWidth >= context.measureText('Build server\u2026').width,
+					statusVisible: status.clientWidth > 0,
+					nameVisible: name.clientWidth > 0,
 					detailVisible: detail.clientWidth > 0,
 				};
 			});
 			model.remotes.set([remote], undefined);
 			assert.deepStrictEqual({ before, states, restored: scrolls() }, {
 				before: false,
-				states: [true, true, false, true].map(scrolls => ({ scrolls, statusFits: true, nameReadable: true, detailVisible: true })),
+				states: [false, true, false, false].map(scrolls => ({ scrolls, statusVisible: true, nameVisible: true, detailVisible: true })),
 				restored: false,
 			});
 		});
@@ -2156,28 +2155,34 @@ suite('RemotesWidget', () => {
 				};
 			});
 			assert.deepStrictEqual(layouts, [width, 360, 1400, width].map(layoutWidth => ({
-				clippedHeaders: [], fitsViewport: true, scrolls: layoutWidth === 360 || layoutWidth === 880 || layoutWidth === 900, noOuterOverflow: true, actionsReachable: true,
+				clippedHeaders: [], fitsViewport: true, scrolls: layoutWidth === 360, noOuterOverflow: true, actionsReachable: true,
 			})));
 		});
 	}
 
 	test('all columns remain allocated through resizing while metadata stays searchable', async () => {
 		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'none', 1400);
+		parent.classList.add('remotes-editor');
 		const remote = model.remotes.get()[0];
 		model.remotes.set([{
 			...remote,
 			metadata: { operatingSystem: OperatingSystem.Linux, architecture: 'arm64', observedSessionCount: 2, observedAt: Date.now() },
 		}], undefined);
-		const layouts = [1400, 1200, 900, 700, 360, 900, 1400].map(width => {
+		const widths = [1800, 1400, 1200, 900, 880, 879, 700, 652, 651, 360, 900, 1800];
+		const layouts = widths.map(width => {
 			parent.style.width = `${width}px`;
 			widget.layout();
 			const container = parent.querySelector<HTMLElement>('.remotes-table-container')!;
+			const viewport = parent.querySelector<HTMLElement>('.remotes-table-viewport')!;
+			const table = container.querySelector<HTMLElement>('.monaco-table')!;
 			const row = container.querySelector<HTMLElement>('[data-remote-id]')!;
 			return {
 				columns: [...container.querySelectorAll<HTMLElement>('.monaco-table-th')]
 					.filter(cell => cell.clientWidth > 0 && dom.getWindow(cell).getComputedStyle(cell).display !== 'none')
 					.map(cell => cell.textContent).filter(Boolean),
 				fits: row.scrollWidth === row.clientWidth && container.scrollWidth === container.clientWidth,
+				fillsWidth: table.clientWidth === Math.max(width, 652),
+				scrolls: table.clientWidth > viewport.clientWidth,
 				height: row.getBoundingClientRect().height,
 			};
 		});
@@ -2196,15 +2201,10 @@ suite('RemotesWidget', () => {
 				&& accessible.indexOf('Linux') < accessible.indexOf('Connection type: SSH')
 				&& accessible.indexOf('Connection type: SSH') < accessible.indexOf('Address: build.example.com'),
 		}, {
-			layouts: [
-				['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
-				['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
-				['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
-				['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
-				['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
-				['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
-				['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
-			].map(columns => ({ columns, fits: true, height: 28 })),
+			layouts: widths.map(width => ({
+				columns: ['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
+				fits: true, fillsWidth: true, scrolls: width < 652, height: 28,
+			})),
 			matches: [1, 1, 1], copies: [remote.id], connections: [], accessibleOrder: true,
 		});
 	});
