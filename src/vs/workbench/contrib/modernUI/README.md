@@ -13,7 +13,7 @@ With Modern UI enabled, `window.density.layout` set to `default` keeps the workb
 
 Standard HC Connected editors use the editor card's perimeter and `modernPanel.border`, without a second inset group frame. Compact layout shares its square grid-edge seams with adjacent panels. Agents-window detail editors keep their separately owned frame and use `agentsPanel.border`; tab focus and selection accents remain independent of either frame.
 
-The floating editor's content curve follows the inside of its frame, accounting for the snapped border width so tab-strip corners stay concentric with the card, including with a customized editor-area radius or fractional zoom.
+The floating editor's content curve follows the inside of its frame: the card clips its content to its padding edge, so tab-strip corners stay concentric with the card, including with a customized editor-area radius or fractional zoom. The content rounds no second clip inside the card, because Chromium applies one rounded clip per draw quad and would draw the editor through offscreen render passes.
 
 Modal editors keep one rounded clip on the part itself, with equal radii on all four corners. It clips the header, optional sidebar and square content to the curve inside its border. The shadow wrapper paints but does not clip. This applies with or without Modern UI: Chromium supports one rounded clip per draw quad, so nesting another forces offscreen render surfaces. Unequal corner radii also force a render surface on macOS.
 

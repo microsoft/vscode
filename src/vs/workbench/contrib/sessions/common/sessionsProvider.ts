@@ -221,6 +221,8 @@ export interface ISendRequestOptions {
 	readonly title?: string;
 	/** Hide this request and its response from the chat transcript. */
 	readonly hideFromTranscript?: boolean;
+	/** Queue the request behind the chat's request in progress instead of rejecting it. Agent Host providers honor it. */
+	readonly queue?: IChatSendRequestOptions['queue'];
 }
 
 /** Options for forking a chat within a session. */
@@ -442,6 +444,12 @@ export interface ISessionsProvider {
 	 * {@link getSessions} lists every session.
 	 */
 	getAllSessions?(): ISession[];
+
+	/**
+	 * The session of {@link getAllSessions} that `resource` names, by its {@link ISession.resource} or one of its
+	 * {@link ISession.previousIdentities}, looked up without listing every session.
+	 */
+	getSession(resource: URI): ISession | undefined;
 
 	/**
 	 * Lists only the sessions of `scope` from then on, in {@link getSessions} and {@link onDidChangeSessions}, such as those

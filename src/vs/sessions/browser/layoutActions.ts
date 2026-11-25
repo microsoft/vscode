@@ -407,7 +407,7 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.PanelTitle, {
 	order: 2
 });
 
-// Floating window controls: always-on-top
+// Window controls: always-on-top. Floating windows always show the toggle, the main window only while it is on.
 MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarRightLayout, {
 	command: {
 		id: 'workbench.action.toggleWindowAlwaysOnTop',
@@ -419,7 +419,10 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarRightLayout, {
 		},
 	},
 	// Not in windows with layout modes, such as chat windows, whose title bars show their layout actions there.
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext, LayoutModeContext.toNegated()),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.and(IsAuxiliaryWindowContext, LayoutModeContext.toNegated()),
+		ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), IsWindowAlwaysOnTopContext)
+	),
 	group: 'navigation',
 	order: 0
 });

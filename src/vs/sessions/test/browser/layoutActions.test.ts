@@ -18,7 +18,7 @@ import { ContextKeyExpr, ContextKeyValue, IContext } from '../../../platform/con
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsWindowAlwaysOnTopContext, LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { decodeKeybinding } from '../../../base/common/keybindings.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
@@ -425,6 +425,28 @@ suite('Sessions - Layout Actions', () => {
 
 		assert.ok(toggleAlwaysOnTop, 'toggleWindowAlwaysOnTop should be contributed to TitleBarRight');
 		assert.strictEqual(toggleAlwaysOnTop.group, 'navigation');
+	});
+
+	test('shows the always-on-top toggle in floating windows, and in the main window only while it is on top', () => {
+		const toggleAlwaysOnTop = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarRightLayout).filter(isIMenuItem).find(item => item.command.id === 'workbench.action.toggleWindowAlwaysOnTop');
+		const shows = (values: Record<string, ContextKeyValue>) => toggleAlwaysOnTop?.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
+		const onTop = { [IsWindowAlwaysOnTopContext.key]: true };
+		const floating = { [IsAuxiliaryWindowContext.key]: true };
+		const chatWindow = { [IsAuxiliaryWindowContext.key]: true, [LayoutModeContext.key]: 'sideBySide' };
+
+		assert.deepStrictEqual({
+			mainWindow: shows({}),
+			mainWindowOnTop: shows(onTop),
+			floatingWindow: shows(floating),
+			floatingWindowOnTop: shows({ ...floating, ...onTop }),
+			chatWindowOnTop: shows({ ...chatWindow, ...onTop }),
+		}, {
+			mainWindow: false,
+			mainWindowOnTop: true,
+			floatingWindow: true,
+			floatingWindowOnTop: true,
+			chatWindowOnTop: false,
+		});
 	});
 
 	test('screen reader optimized action uses a title bar toolbar menu', () => {

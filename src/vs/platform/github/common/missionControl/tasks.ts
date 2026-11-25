@@ -212,7 +212,7 @@ export interface Task {
 	/** The automation that created the task, omitted for non-automation tasks. */
 	readonly automation_id?: string;
 	/** The exact automation revision used for the run, omitted when not recorded. */
-	readonly automation_revision_id?: string;
+	readonly automation_revision_id?: string | null;
 	/** The deadline after which the session becomes stale without a heartbeat. */
 	readonly stale_at?: string;
 	/** The compute environment associated with the task. */
@@ -284,7 +284,7 @@ export interface Session {
 	/** The content of the triggering event. */
 	readonly prompt?: string;
 	/** Structured content of the triggering event. */
-	readonly event_content?: string;
+	readonly event_content?: string | null;
 	/** Identifiers used for tracking the triggering event. */
 	readonly event_identifiers?: readonly string[];
 	/** The type of resource associated with the session. */

@@ -1656,7 +1656,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return this.createEmptySession(resource);
 		}
 
-		const events = await backend.fetchTaskEvents(taskId);
+		const [events, initialAutomationPrompt] = await Promise.all([
+			backend.fetchTaskEvents(taskId),
+			backend.getInitialAutomationPrompt(taskContent.task),
+		]);
 
 		// Best-effort PR decoration for the header card.
 		let pullRequest: PullRequestSearchItem | undefined;
@@ -1671,6 +1674,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			events,
 			pullRequest,
 			storedReferences,
+			initialAutomationPrompt,
 		);
 
 		const latestTurn = taskContent.task.sessions?.[taskContent.task.sessions.length - 1];

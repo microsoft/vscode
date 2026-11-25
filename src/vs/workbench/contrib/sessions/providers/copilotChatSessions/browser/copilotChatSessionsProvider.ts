@@ -74,6 +74,7 @@ import { CloudSandboxModels } from '../../../../chat/browser/remoteAgentHost/clo
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { createCloudSandboxSessionConfig } from '../../../../chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
+import { CloudAutomationTaskRegistration } from './cloudAutomationTaskRegistration.js';
 import { CloudAutomationStore } from './cloudAutomationStore.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
@@ -1157,6 +1158,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	get supportsLocalWorkspaces(): boolean { return this.providerMode !== 'sandbox'; }
 	readonly automations: CloudAutomationStore | undefined;
+	private taskConversations: CloudAutomationTaskRegistration | undefined;
+
+	registerAutomationTaskConversations(): void {
+		if (this.automations && !this.taskConversations) {
+			this.taskConversations = this._register(this.instantiationService.createInstance(CloudAutomationTaskRegistration, this.automations));
+		}
+	}
 	get supportsAutomationSessionConfiguration(): boolean { return this.providerMode === 'default' && this.automations?.enabled.get() === true; }
 
 	get supportsQuickChats(): boolean {
@@ -1399,6 +1407,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return Array.from(this._sessionCache.values(), chat => this._chatToSession(chat));
 	}
 
+	getSession(resource: URI): ISession | undefined {
+		this._ensureSessionCache();
+		const chat = this._sessionCache.get(resource.toString());
+		return chat ? this._chatToSession(chat) : undefined;
+	}
+
 	// -- Session Lifecycle --
 
 	async resolveSessionResource(resource: URI): Promise<URI | undefined> {
@@ -1409,7 +1423,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 		if (this.agentSessionsService.getSession(resource) === undefined) {
 			await this.chatSessionsService.activateChatSessionItemProvider(resource.scheme);
-			await this.commandService.executeCommand(RESOLVE_TASK_COMMAND, resource);
+			const resolved = await this.taskConversations?.resolve(resource);
+			if (resolved === false) {
+				return undefined;
+			}
+			if (resolved === undefined) {
+				await this.commandService.executeCommand(RESOLVE_TASK_COMMAND, resource);
+			}
 			if (this._store.isDisposed || !this.automations.enabled.get()) {
 				throw new CancellationError();
 			}
@@ -1514,7 +1534,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	getSession(sessionId: string): ICopilotChatSession | undefined {
+	getSessionById(sessionId: string): ICopilotChatSession | undefined {
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			return newSession;
@@ -1695,7 +1715,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (draft && this._usesSandbox(draft)) {
 			return this._sandboxModelsSnapshot(desiredModelId);
 		}
-		const session = this.getSession(sessionId);
+		const session = this.getSessionById(sessionId);
 		if (session instanceof RemoteNewSession) {
 			// Cloud sessions: models come from the extension-host `models` option
 			// group rather than from registered language models. Synthesize
@@ -1747,7 +1767,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// back to Auto. When it has no models, the picker shows a "No models
 		// available" state instead. Derive this from the contribution's
 		// declarative `showAutoModel` flag rather than hardcoding session types.
-		const sessionType = this.getSession(sessionId)?.sessionType;
+		const sessionType = this.getSessionById(sessionId)?.sessionType;
 		const showAutoModel = !sessionType || this.chatSessionsService.supportsAutoModelForSessionType(sessionType);
 		return {
 			showUnavailableFeatured: false,
@@ -2910,7 +2930,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// unread. Processed after the loop so `setRead` does not re-enter mid-iteration.
 		const sessionsToMarkUnread: IAgentSession[] = [];
 
-		for (const session of this.agentSessionsService.model.sessions) {
+		const model = this.agentSessionsService.model;
+		for (const session of model.sessionsIncludingAutomationRuns ?? model.sessions) {
 			// Only Copilot Cloud sessions surface in the Agents window through this provider.
 			if (session.providerType !== AgentSessionProviders.Cloud) {
 				continue;

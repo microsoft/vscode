@@ -6,7 +6,7 @@
 import { RunOnceScheduler, Throttler, timeout } from '../../../../../base/common/async.js';
 import { equals } from '../../../../../base/common/arrays.js';
 import { CancellationToken, cancelOnDispose } from '../../../../../base/common/cancellation.js';
-import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { asGitHubAccount, IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
@@ -132,15 +132,17 @@ export class MissionControlSharingService extends Disposable implements IMission
 			this._generation++;
 			this._update.schedule();
 		}));
-		this._register(this._defaultAccountService.onDidChangeDefaultAccount(account => {
+		this._register(this._defaultAccountService.onDidChangeDefaultAccount(defaultAccount => {
 			if (!this._enabled || this._defaultAccount === undefined) {
 				return;
 			}
-			if (account?.authenticationProvider.id !== this._defaultAccount?.authenticationProvider.id
-				|| account?.accountName !== this._defaultAccount?.accountName) {
+			const account = asGitHubAccount(defaultAccount);
+			const previous = asGitHubAccount(this._defaultAccount);
+			if (account?.authenticationProvider.id !== previous?.authenticationProvider.id
+				|| account?.accountName !== previous?.accountName) {
 				void this.setEnabled(false).catch(error => this._reportWithdrawalError(error));
-			} else if (account?.sessionId !== this._defaultAccount?.sessionId) {
-				this._defaultAccount = account;
+			} else if (account?.sessionId !== previous?.sessionId) {
+				this._defaultAccount = defaultAccount;
 				this._generation++;
 				this._update.schedule();
 			}
@@ -269,9 +271,12 @@ export class MissionControlSharingService extends Disposable implements IMission
 			const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
 			const defaultAccount = await this._defaultAccountService.getDefaultAccount();
 			const sessions = await this._authentication.getSessions(providerId, undefined, undefined, true);
-			accountId = defaultAccount
-				? defaultAccount.authenticationProvider.id === providerId ? sessions.find(session => session.id === defaultAccount.sessionId)?.account.id : undefined
-				: new Set(sessions.map(session => session.account.id)).size === 1 ? sessions[0].account.id : undefined;
+			if (defaultAccount) {
+				const gitHubAccount = asGitHubAccount(defaultAccount);
+				accountId = gitHubAccount?.authenticationProvider.id === providerId ? sessions.find(session => session.id === gitHubAccount.sessionId)?.account.id : undefined;
+			} else {
+				accountId = new Set(sessions.map(session => session.account.id)).size === 1 ? sessions[0].account.id : undefined;
+			}
 			if (accountId === undefined) {
 				this._logService.warn('Cannot withdraw existing Mission Control sharing without an unambiguous signed-in owner');
 			}

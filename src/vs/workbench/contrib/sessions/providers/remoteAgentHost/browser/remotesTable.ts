@@ -12,7 +12,7 @@ import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDel
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ISelectOptionItem, SelectBox, SeparatorSelectOption } from '../../../../../../base/browser/ui/selectBox/selectBox.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
-import { Action, Separator, toAction } from '../../../../../../base/common/actions.js';
+import { Action, IAction, Separator, toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -77,7 +77,7 @@ export interface IRemoteTableRow {
 }
 
 type RemoteColumn = 'name' | 'type' | 'system' | 'status' | 'sessions' | 'activity' | 'sandboxProfile' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'newSession' | 'createDevContainer' | 'rename' | 'copyAddress' | 'locationPreference' | 'troubleshoot' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'delete' | 'signIn';
+export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'newSession' | 'createDevContainer' | 'rename' | 'copyAddress' | 'locationPreference' | 'troubleshoot' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'restartDistribution' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -85,11 +85,24 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
+		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly pickerHidden: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
 		| { readonly column: 'sandboxProfile'; readonly select: SelectBox; readonly picker: HTMLElement; options: readonly SandboxProfileOption[] }
-		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly troubleshoot: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
+		| { readonly column: 'actions'; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly toolbar: WorkbenchToolBar; primary: IRemoteRowActionState | undefined; actionLayout: string }
 	);
+
+/** A row action as its text button and its menus present it. */
+interface IRemoteRowActionState {
+	readonly id: string;
+	readonly kind: RemoteRowAction;
+	readonly label: string;
+	readonly tooltip?: string;
+	readonly icon?: ThemeIcon;
+	readonly enabled: boolean;
+}
+
+type RemoteRowEntry = Extract<RemoteTableEntry, { readonly type: 'remote' }>;
+type RemoteGroupEntry = Extract<RemoteTableEntry, { readonly type: 'group' }>;
 
 const remoteKindIcons: Record<RemoteKind, ThemeIcon> = {
 	ssh: Codicon.remote,
@@ -117,6 +130,7 @@ const selectNavigationKeys = new Set([KeyCode.UpArrow, KeyCode.DownArrow, KeyCod
 export const remoteStatusGroups = [
 	{ key: 'ready', label: localize('remotes.ready', "Connected"), icon: Codicon.circleFilled, description: localize('remotes.ready.detail', "Connected from this window and ready to start or continue sessions.") },
 	{ key: 'available', label: localize('remotes.available', "Available"), icon: Codicon.circle, description: localize('remotes.available.detail', "Select Connect to use this environment.") },
+	{ key: 'stopped', label: localize('remotes.stopped', "Stopped"), icon: Codicon.stopCircle, description: localize('remotes.stopped.detail', "Not running. Select Connect to start it.") },
 	{ key: 'offline', label: localize('remotes.offline', "Offline"), icon: Codicon.circleSlashCompact, description: localize('remotes.offline.detail', "No reachable endpoint was found at the last check. Bring the environment online, then refresh.") },
 ] as const;
 
@@ -249,18 +263,20 @@ export function getRemoteActivityTime(remote: ICustomizationRemote): number | un
 }
 
 /**
- * Groups disconnected hosts by connection eligibility; unchecked hosts remain available to try.
+ * Groups disconnected hosts by connection eligibility; unchecked hosts remain available to try,
+ * and hosts that connecting starts, such as a stopped WSL distribution, are stopped.
  */
-export function getRemoteStatusGroup(remote: ICustomizationRemote): 'ready' | 'available' | 'offline' | undefined {
+export function getRemoteStatusGroup(remote: ICustomizationRemote): typeof remoteStatusGroups[number]['key'] | undefined {
 	if (RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus)) {
 		return 'ready';
 	}
 	if (remote.requiresTunnelSignIn) {
 		return undefined;
 	}
-	return canConnectToRemote(remote)
-		|| RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus)
-		|| RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus) ? 'available' : 'offline';
+	if (RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus) || RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus)) {
+		return 'available';
+	}
+	return remote.startsOnConnect ? 'stopped' : canConnectToRemote(remote) ? 'available' : 'offline';
 }
 
 export function getRemoteAvailabilityLabel(remote: ICustomizationRemote): string {
@@ -290,7 +306,7 @@ export function getConnectionProblem(remote: ICustomizationRemote): string | und
 	return remote.lastConnectionError ? localize('remotes.connectionFailedProblem', "Connection failed: {0}", remote.lastConnectionError) : undefined;
 }
 
-function getConnectionPresentation(remote: ICustomizationRemote, connecting?: boolean): { readonly label: string; readonly icon: ThemeIcon | undefined; readonly state: 'connected' | 'available' | 'offline' | 'failed' | 'pending' | 'unverified' } {
+function getConnectionPresentation(remote: ICustomizationRemote, connecting?: boolean): { readonly label: string; readonly icon: ThemeIcon | undefined; readonly state: 'connected' | 'available' | 'stopped' | 'offline' | 'failed' | 'pending' | 'unverified' } {
 	if (connecting !== undefined) {
 		return { label: connecting ? getAgentHostConnectionStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting"), icon: ThemeIcon.modify(Codicon.loadingCompact, 'spin'), state: 'pending' };
 	}
@@ -309,12 +325,9 @@ function getConnectionPresentation(remote: ICustomizationRemote, connecting?: bo
 	if (remote.lastConnectionError) {
 		return { label: localize('remotes.connectionFailed', "Connection failed"), icon: Codicon.warning, state: 'failed' };
 	}
-	const group = getRemoteStatusGroup(remote);
-	if (group === 'offline') {
-		return { label: remoteStatusGroups[2].label, icon: remoteStatusGroups[2].icon, state: 'offline' };
-	}
-	if (group === 'available') {
-		return { label: remoteStatusGroups[1].label, icon: remoteStatusGroups[1].icon, state: 'available' };
+	const group = remoteStatusGroups.find(group => group.key === getRemoteStatusGroup(remote));
+	if (group && group.key !== 'ready') {
+		return { label: group.label, icon: group.icon, state: group.key };
 	}
 	return { label: '', icon: undefined, state: 'unverified' };
 }
@@ -331,7 +344,7 @@ export function renderConnectionStatus(container: HTMLElement, remote: ICustomiz
 function renderStatusIndicator(container: HTMLElement, icon: ThemeIcon | undefined, state: ReturnType<typeof getConnectionPresentation>['state']): void {
 	dom.clearNode(container);
 	container.classList.add('remotes-connection-indicator');
-	for (const candidate of ['connected', 'available', 'offline', 'failed', 'pending', 'unverified']) {
+	for (const candidate of ['connected', 'available', 'stopped', 'offline', 'failed', 'pending', 'unverified']) {
 		container.classList.toggle(candidate, candidate === state);
 	}
 	container.setAttribute('aria-hidden', 'true');
@@ -339,6 +352,138 @@ function renderStatusIndicator(container: HTMLElement, icon: ThemeIcon | undefin
 	if (icon) {
 		dom.append(container, renderIcon(icon));
 	}
+}
+
+/** A group heading's main action: creating a Dev Container, or opening the configuration of its connection type. */
+function getGroupPrimaryAction(entry: RemoteGroupEntry): IRemoteRowActionState | undefined {
+	if (entry.canCreate) {
+		// Stays enabled while a Dev Container starts, so more can be created in parallel.
+		return { id: 'remotes.createDevContainer', kind: 'createDevContainer', label: localize('remotes.createDevContainerInGroup', "Create Dev Container"), icon: Codicon.add, enabled: true };
+	}
+	if (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment') {
+		return {
+			id: 'remotes.actions', kind: 'configure',
+			label: entry.kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration")
+				: entry.kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open GitHub Environments Settings")
+					: localize('remotes.openTunnelSettings', "Open Dev Tunnels Settings"),
+			icon: Codicon.settingsGear, enabled: true,
+		};
+	}
+	return undefined;
+}
+
+/** A remote's Connect, Disconnect, or Sign In action, labeled with its connection progress while it changes. */
+function getRemoteConnectionAction(entry: RemoteRowEntry): IRemoteRowActionState & { readonly tooltip: string } {
+	const remote = entry.remote;
+	const pending = isConnectionPending(entry);
+	const signIn = !!remote.requiresTunnelSignIn;
+	const connected = RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus);
+	const label = pending ? getConnectionLabel(remote, entry.connecting)
+		: signIn ? localize('remotes.signIn', "Sign In") : connected ? localize('remotes.disconnectAction', "Disconnect") : localize('remotes.connectAction', "Connect");
+	return {
+		id: 'remotes.actions', kind: signIn ? 'signIn' : 'connect', label,
+		tooltip: pending ? localize('remotes.connectionProgress', "{0}: {1}", label, remote.name)
+			: signIn ? localize('remotes.signInForRemote', "Sign in to connect to {0}", remote.name)
+				: !connected && remote.unavailableReason
+					? localize('remotes.connectUnavailable', "Connect to {0}: {1}", remote.name, remote.unavailableReason)
+					: connected ? localize('remotes.disconnectDetail', "Disconnect from {0}. Sessions may continue running on the remote computer.", remote.name)
+						: localize('remotes.connect', "Connect to {0}", remote.name),
+		icon: signIn ? Codicon.signIn : connected ? Codicon.debugDisconnect : Codicon.debugConnected,
+		enabled: !entry.busy && (!remote.connectsWithHost && canConnectToRemote(remote) || signIn)
+			&& !RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus)
+			&& !RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus),
+	};
+}
+
+/**
+ * Builds a row's More Actions: session and connection actions first, then sharing, picker visibility, copying,
+ * and management, with removal last. The row's overflow menu and its context menu both show these actions.
+ */
+export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entry: RemoteTableEntry, action: RemoteRowAction) => void): IAction[] {
+	// Actions keep the entry they were built for, so an open menu still acts on its row after the row re-renders.
+	const item = (state: IRemoteRowActionState) => toAction({
+		id: state.id, label: state.label, tooltip: state.tooltip ?? '', class: state.icon && ThemeIcon.asClassName(state.icon), enabled: state.enabled,
+		run: () => onAction(entry, state.kind),
+	});
+	if (entry.type === 'group') {
+		const primary = getGroupPrimaryAction(entry);
+		return Separator.join(
+			primary ? [item(primary)] : [],
+			entry.documentation ? [item({ id: 'remotes.documentation', kind: 'documentation', label: localize('remotes.openSetupGuide', "Open Setup Guide"), tooltip: entry.documentation.label, icon: Codicon.info, enabled: true })] : [],
+		);
+	}
+	if (entry.type !== 'remote') {
+		return [];
+	}
+	const remote = entry.remote;
+	const ready = !entry.busy;
+	const connected = RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus);
+	const changingConnection = RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus) || RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus);
+	const showNewSession = connected && !remote.pickerUnavailableReason;
+	const showConnect = remote.requiresTunnelSignIn || !remote.connectsWithHost && canConnectToRemote(remote);
+	// Any installed WSL distribution can be restarted; a stopped one offers Start Distribution, which connects and so starts it.
+	const showDistribution = remote.kind === 'wsl' && canConnectToRemote(remote);
+	const distributionStopped = showDistribution && getRemoteStatusGroup(remote) === 'stopped';
+	const share = remote.gitHubEnvironment;
+	const showGitHubEnvironment = (remote.kind === 'ssh' || remote.kind === 'wsl' || remote.kind === 'tunnel') && (!!remote.canShareAsGitHubEnvironment || !!share);
+	const showDelete = remote.kind === 'environment' && remote.canRemove || (remote.kind === 'tunnel' || remote.kind === 'ssh' || remote.kind === 'devContainer') && !!remote.canDelete;
+	const offerShowInPicker = !!remote.pickerUnavailableReason || !!remote.hidden;
+	return Separator.join(
+		[
+			...(showNewSession ? [item({ id: 'remotes.newSession', kind: 'newSession', label: localize('remotes.newSession', "New Session"), enabled: ready })] : []),
+			...(showConnect ? [item(getRemoteConnectionAction(entry))] : []),
+			...(showDistribution ? [item({
+				id: 'remotes.distribution', kind: distributionStopped ? 'connect' : 'restartDistribution',
+				label: distributionStopped ? localize('remotes.startDistribution', "Start Distribution") : localize('remotes.restartDistribution', "Restart Distribution..."),
+				tooltip: distributionStopped
+					? localize('remotes.startDistributionTooltip', "Start the WSL distribution and connect to it")
+					: localize('remotes.restartDistributionTooltip', "Stop everything running in the WSL distribution, then start it and connect again"),
+				icon: Codicon.debugRestart, enabled: ready && !changingConnection,
+			})] : []),
+			...(remote.canCreateDevContainer ? [item({ id: 'remotes.createDevContainer', kind: 'createDevContainer', label: localize('remotes.createDevContainer', "Create Dev Container"), icon: Codicon.add, enabled: ready })] : []),
+		],
+		showGitHubEnvironment ? [item({
+			id: 'remotes.githubEnvironment', kind: 'githubEnvironment',
+			label: share?.state === 'connecting' || share?.state === 'unavailable'
+				? getGitHubEnvironmentLabel(remote) ?? ''
+				: share
+					? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
+					: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment"),
+			icon: share?.state === 'connecting' ? connectionProgressIcon : Codicon.github,
+			enabled: ready && share?.state !== 'connecting' && share?.state !== 'unavailable',
+		})] : [],
+		[item({
+			id: 'remotes.visibility', kind: 'toggleVisibility',
+			label: offerShowInPicker ? localize('remotes.showInPicker', "Show in Environment Picker") : localize('remotes.hideFromPicker', "Hide from Environment Picker"),
+			tooltip: remote.pickerUnavailableReason ?? (remote.hidden
+				? localize('remotes.showInPickerDetail', "Show this environment when choosing where to run a session")
+				: localize('remotes.hideFromPickerDetail', "Hide this environment from the environment picker. It stays in Remote Environments.")),
+			icon: offerShowInPicker ? Codicon.eyeClosed : Codicon.eye,
+			enabled: !remote.pickerUnavailableReason,
+		})],
+		remote.copyableAddress ? [item({ id: 'remotes.copyAddress', kind: 'copyAddress', label: localize('remotes.copyAddress', "Copy Address"), icon: Codicon.copy, enabled: true })] : [],
+		[
+			item({ id: 'remotes.rename', kind: 'rename', label: localize('remotes.rename', "Rename..."), icon: Codicon.edit, enabled: ready }),
+			...(remote.kind === 'tunnel' || remote.kind === 'ssh' ? [item({
+				id: 'remotes.locationPreference', kind: 'locationPreference', label: localize('remotes.locationPreference', "Configure Agent Run Behavior..."),
+				tooltip: remoteAgentRunBehaviorDescription, icon: Codicon.serverProcess, enabled: ready && !changingConnection,
+			})] : []),
+			item({
+				id: 'remotes.troubleshoot', kind: 'troubleshoot', label: localize('remotes.troubleshootConnection', "Troubleshoot Connection..."),
+				tooltip: localize('remotes.troubleshootConnectionDetail', "See what's known about this connection and what to try next"), icon: Codicon.tools, enabled: ready,
+			}),
+			...(remote.contributedBy ? [item({ id: 'remotes.showExtension', kind: 'showExtension', label: localize('remotes.showExtension', "Show {0} Extension", remote.contributedBy.displayName), icon: Codicon.extensions, enabled: true })] : []),
+			...(remote.canUpdateServer ? [item({ id: 'remotes.updateServer', kind: 'updateServer', label: localize('remotes.updateServer', "Update Server"), icon: Codicon.cloudDownload, enabled: ready })] : []),
+			...(showDelete ? [item({
+				id: 'remotes.delete', kind: 'delete',
+				label: remote.kind === 'tunnel' ? localize('remotes.deleteTunnel', "Delete Dev Tunnel...")
+					: remote.kind === 'ssh' ? localize('remotes.forgetSSH', "Forget SSH Connection...")
+						: remote.kind === 'devContainer' ? localize('remotes.deleteDevContainer', "Delete Dev Container...")
+							: localize('remotes.removeEnvironment', "Remove Environment..."),
+				icon: Codicon.trash, enabled: ready,
+			})] : []),
+		],
+	);
 }
 
 export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, RemoteCellTemplate> {
@@ -404,6 +549,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					detail: dom.append(nameRow, dom.$('.remotes-name-detail')),
 					gitHubEnvironment: dom.append(nameRow, dom.$('.remotes-github-environment')),
 					serverUpdate: dom.append(nameRow, dom.$('.remotes-server-update')),
+					pickerHidden: dom.append(nameRow, dom.$('.remotes-picker-hidden')),
 					countBadge: disposables.add(new CountBadge(count, {}, {
 						...defaultCountBadgeStyles, badgeBackground: undefined, badgeForeground: undefined,
 					})),
@@ -414,29 +560,19 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				break;
 			}
 			default: {
-				const action = disposables.add(new Action(`remotes.${this.column}`, '', undefined, true, async () => {
-					if (template.row && template.column === 'actions') {
-						const entry = template.row.entry;
-						this.onAction(entry, entry.type === 'group' ? 'configure' : entry.type === 'remote' && entry.remote.requiresTunnelSignIn ? 'signIn' : 'connect');
-					}
-				}));
 				const connect = disposables.add(new ButtonWithIcon(container, {
 					...defaultButtonStyles, secondary: true, hoverDelegate: this.actionHoverDelegate, title: false,
 				}));
 				connect.element.classList.add('remotes-connect-action');
 				disposables.add(connect.onDidClick(event => {
 					event?.stopPropagation();
-					if (template.column === 'actions' && template.row) {
-						const primary = template.row.entry.type === 'group' && template.row.entry.canCreate ? template.createDevContainer : action;
-						if (primary.enabled) {
-							void primary.run();
-						}
+					if (template.column === 'actions' && template.row && template.primary?.enabled) {
+						this.onAction(template.row.entry, template.primary.kind);
 					}
 				}));
 				const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 					ariaLabel: localize('remotes.rowActions', "Remote actions"), hoverDelegate: this.actionHoverDelegate,
 				}));
-				toolbar.setActions([action]);
 				const newSession = disposables.add(new ButtonWithIcon(container, {
 					...defaultButtonStyles, hoverDelegate: this.actionHoverDelegate, title: false,
 				}));
@@ -454,62 +590,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						void newSessionAction.run();
 					}
 				}));
-				const visibility = disposables.add(new Action('remotes.visibility', '', undefined, true, async () => {
-					if (template.row?.entry.type === 'remote' && !template.row.entry.remote.pickerUnavailableReason) {
-						this.onAction(template.row.entry, 'toggleVisibility');
-					}
-				}));
-				const rename = disposables.add(new Action('remotes.rename', '', ThemeIcon.asClassName(Codicon.edit), true, async () => {
-					if (template.row?.entry.type === 'remote') {
-						this.onAction(template.row.entry, 'rename');
-					}
-				}));
-				const documentation = disposables.add(new Action('remotes.documentation', '', ThemeIcon.asClassName(Codicon.info), true, async () => {
-					if (template.row?.entry.type === 'group') {
-						this.onAction(template.row.entry, 'documentation');
-					}
-				}));
-				const deleteAction = disposables.add(new Action('remotes.delete', '', ThemeIcon.asClassName(Codicon.trash), true, async () => {
-					if (template.row?.entry.type === 'remote') {
-						this.onAction(template.row.entry, 'delete');
-					}
-				}));
-				const copyAddress = disposables.add(new Action('remotes.copyAddress', '', ThemeIcon.asClassName(Codicon.copy), true, async () => {
-					if (template.row?.entry.type === 'remote') {
-						this.onAction(template.row.entry, 'copyAddress');
-					}
-				}));
-				const locationPreference = disposables.add(new Action('remotes.locationPreference', '', ThemeIcon.asClassName(Codicon.serverProcess), true, async () => {
-					if (template.row?.entry.type === 'remote') {
-						this.onAction(template.row.entry, 'locationPreference');
-					}
-				}));
-				const troubleshoot = disposables.add(new Action('remotes.troubleshoot', '', ThemeIcon.asClassName(Codicon.tools), true, async () => {
-					if (template.row?.entry.type === 'remote') {
-						this.onAction(template.row.entry, 'troubleshoot');
-					}
-				}));
-				const gitHubEnvironment = disposables.add(new Action('remotes.githubEnvironment', '', ThemeIcon.asClassName(Codicon.github), true, async () => {
-					if (template.row?.entry.type === 'remote') {
-						this.onAction(template.row.entry, 'githubEnvironment');
-					}
-				}));
-				const updateServer = disposables.add(new Action('remotes.updateServer', '', ThemeIcon.asClassName(Codicon.cloudDownload), true, async () => {
-					if (template.row?.entry.type === 'remote') {
-						this.onAction(template.row.entry, 'updateServer');
-					}
-				}));
-				const showExtension = disposables.add(new Action('remotes.showExtension', '', ThemeIcon.asClassName(Codicon.extensions), true, async () => {
-					if (template.row?.entry.type === 'remote') {
-						this.onAction(template.row.entry, 'showExtension');
-					}
-				}));
-				const createDevContainer = disposables.add(new Action('remotes.createDevContainer', '', ThemeIcon.asClassName(Codicon.add), true, async () => {
-					if (template.row?.entry.type === 'remote' || template.row?.entry.type === 'group') {
-						this.onAction(template.row.entry, 'createDevContainer');
-					}
-				}));
-				template = { ...base, column: this.column, action, connect, newSession, newSessionAction, visibility, createDevContainer, rename, copyAddress, locationPreference, troubleshoot, gitHubEnvironment, showExtension, updateServer, delete: deleteAction, documentation, toolbar, actionLayout: '' };
+				template = { ...base, column: this.column, connect, newSession, newSessionAction, toolbar, primary: undefined, actionLayout: '' };
 				disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
 				break;
 			}
@@ -716,6 +797,18 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						content: serverUpdate, style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
 				}
+				dom.clearNode(template.pickerHidden);
+				// A reason the picker can't show the remote takes precedence over the user's hidden preference.
+				const hiddenDetail = entry.type === 'remote' && entry.remote.hidden && !entry.remote.pickerUnavailableReason
+					? localize('remotes.hiddenDetail', "Hidden from the environment picker. Use More Actions to show it again.") : undefined;
+				template.pickerHidden.hidden = !hiddenDetail;
+				if (hiddenDetail) {
+					// The row's accessible label already includes this state.
+					dom.append(template.pickerHidden, renderIcon(Codicon.eyeClosed)).setAttribute('aria-hidden', 'true');
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.pickerHidden, {
+						content: hiddenDetail, style: HoverStyle.Pointer,
+					}, { groupId: this.hoverGroupId }));
+				}
 				template.count.hidden = entry.type !== 'group';
 				dom.clearNode(template.warning);
 				if (entry.type === 'group' && entry.warning) {
@@ -747,7 +840,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const pickerDetail = entry.type !== 'remote' ? undefined
 					: entry.remote.pickerUnavailableReason
 						? localize('remotes.pickerUnavailableDetail', "Not shown in the environment picker: {0}", entry.remote.pickerUnavailableReason)
-						: entry.remote.hidden ? localize('remotes.hiddenDetail', "Hidden from the environment picker. Use More Actions to show it again.") : undefined;
+						: hiddenDetail;
 				template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.label, {
 					content: entry.type === 'group' && entry.description ? entry.description
 						: [
@@ -786,10 +879,9 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				break;
 			}
 			case 'actions': {
-				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
-				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
-				const showGroupCreate = template.column === 'actions' && entry.type === 'group' && !!entry.canCreate;
-				const showConnection = template.column === 'actions' && entry.type === 'remote';
+				const groupPrimary = entry.type === 'group' ? getGroupPrimaryAction(entry) : undefined;
+				const showDocumentation = entry.type === 'group' && !!entry.documentation;
+				const showConnection = entry.type === 'remote';
 				const showConnect = showConnection && !entry.remote.connectsWithHost;
 				// Remotes that connect with their host have no Connect action, but can still start sessions once connected.
 				// Those the environment picker can't select, such as GitHub Environments, can't start sessions from here.
@@ -801,155 +893,49 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				template.container.classList.toggle('remotes-connection-pending', showConnection && pending);
 				template.container.classList.toggle('remotes-connection-failed', !!problem);
 				template.container.classList.toggle('remotes-sign-in-required', !!signIn);
-				const showDelete = showConnection && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh' || entry.remote.kind === 'devContainer') && !!entry.remote.canDelete);
-				const showCreateDevContainer = showConnection && !!entry.remote.canCreateDevContainer;
-				const showLocationPreference = showConnection && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh');
-				const showGitHubEnvironment = showConnection && (entry.remote.kind === 'ssh' || entry.remote.kind === 'wsl' || entry.remote.kind === 'tunnel')
-					&& (!!entry.remote.canShareAsGitHubEnvironment || !!entry.remote.gitHubEnvironment);
-				const showExtension = showConnection && !!entry.remote.contributedBy;
-				const showUpdate = showConnection && !!entry.remote.canUpdateServer;
-				const showCopyAddress = showConnection && !!entry.remote.copyableAddress;
-				template.container.classList.toggle('remotes-cell-action-hidden', !showConfig && !showDocumentation && !showGroupCreate && !showConnection);
-				if (template.column === 'actions') {
-					const hideConnect = entry.type === 'group' ? !showGroupCreate && !showConfig : !showConnect || !canConnect && !pending && !problem && !signIn;
-					if (hideConnect && template.connect.element.contains(dom.getActiveElement())) {
-						template.container.closest<HTMLElement>('.monaco-list')?.focus();
-					}
-					template.connect.element.hidden = hideConnect;
-					template.newSession.element.hidden = !showNewSession;
-					template.newSession.enabled = template.newSessionAction.enabled = showNewSession && !entry.busy;
-					if (showConnection) {
-						const label = localize('remotes.newSessionIn', "New Session on {0}", entry.remote.name);
-						template.newSession.element.setAttribute('aria-label', label);
-					}
+				template.container.classList.toggle('remotes-cell-action-hidden', !groupPrimary && !showDocumentation && !showConnection);
+				const hideConnect = entry.type === 'group' ? !groupPrimary : !showConnect || !canConnect && !pending && !problem && !signIn;
+				if (hideConnect && template.connect.element.contains(dom.getActiveElement())) {
+					template.container.closest<HTMLElement>('.monaco-list')?.focus();
 				}
-				if (template.column === 'actions' && entry.type === 'group' && entry.documentation) {
-					template.documentation.label = localize('remotes.openSetupGuide', "Open Setup Guide");
-					template.documentation.tooltip = entry.documentation.label;
-				}
-				if (showGroupCreate) {
-					// Stays enabled while a Dev Container starts, so more can be created in parallel.
-					template.createDevContainer.label = localize('remotes.createDevContainerInGroup', "Create Dev Container");
-					template.createDevContainer.enabled = true;
-				}
-				template.action.enabled = true;
-				template.action.tooltip = '';
-				if (showConfig) {
-					template.action.label = entry.kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration")
-						: entry.kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open GitHub Environments Settings")
-							: localize('remotes.openTunnelSettings', "Open Dev Tunnels Settings");
-					template.action.class = ThemeIcon.asClassName(Codicon.settingsGear);
-				} else if (showConnection) {
+				template.connect.element.hidden = hideConnect;
+				template.newSession.element.hidden = !showNewSession;
+				template.newSession.enabled = template.newSessionAction.enabled = showNewSession && !entry.busy;
+				template.primary = groupPrimary;
+				if (entry.type === 'remote') {
+					template.newSession.element.setAttribute('aria-label', localize('remotes.newSessionIn', "New Session on {0}", entry.remote.name));
+					const connection = template.primary = getRemoteConnectionAction(entry);
 					const connected = RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus);
-					template.action.label = pending ? getConnectionLabel(entry.remote, entry.connecting)
-						: signIn ? localize('remotes.signIn', "Sign In") : connected ? localize('remotes.disconnectAction', "Disconnect") : localize('remotes.connectAction', "Connect");
-					template.action.class = ThemeIcon.asClassName(signIn ? Codicon.signIn : connected ? Codicon.debugDisconnect : Codicon.debugConnected);
-					template.action.enabled = !entry.busy && (canConnect || !!signIn)
-						&& !RemoteAgentHostConnectionStatus.isConnecting(entry.remote.connectionStatus)
-						&& !RemoteAgentHostConnectionStatus.isReconnecting(entry.remote.connectionStatus);
-					template.action.tooltip = pending ? localize('remotes.connectionProgress', "{0}: {1}", template.action.label, entry.remote.name)
-						: signIn ? localize('remotes.signInForRemote', "Sign in to connect to {0}", entry.remote.name)
-							: !connected && entry.remote.unavailableReason
-								? localize('remotes.connectUnavailable', "Connect to {0}: {1}", entry.remote.name, entry.remote.unavailableReason)
-								: connected ? localize('remotes.disconnectDetail', "Disconnect from {0}. Sessions may continue running on the remote computer.", entry.remote.name)
-									: localize('remotes.connect', "Connect to {0}", entry.remote.name);
-					template.connect.label = template.action.label;
+					template.connect.label = connection.label;
 					template.connect.iconElement.hidden = !pending && !problem;
 					if (pending || problem) {
 						template.connect.icon = problem ? Codicon.warning : ThemeIcon.modify(Codicon.loading, 'spin');
 					}
-					template.connect.enabled = template.action.enabled;
-					template.connect.element.setAttribute('aria-label', problem ? localize('remotes.connectWithProblem', "Connect to {0}. {1}", entry.remote.name, problem) : pending
-						? localize('remotes.connectionProgress', "{0}: {1}", template.action.label, entry.remote.name)
-						: signIn || !connected && entry.remote.unavailableReason ? template.action.tooltip
+					template.connect.enabled = connection.enabled;
+					template.connect.element.setAttribute('aria-label', problem ? localize('remotes.connectWithProblem', "Connect to {0}. {1}", entry.remote.name, problem)
+						: pending || signIn || !connected && entry.remote.unavailableReason ? connection.tooltip
 							: connected ? localize('remotes.disconnect', "Disconnect {0}", entry.remote.name) : localize('remotes.connect', "Connect to {0}", entry.remote.name));
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.connect.element, {
-						content: problem ?? template.action.tooltip,
+						content: problem ?? connection.tooltip,
 						style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
-					template.visibility.enabled = !entry.remote.pickerUnavailableReason;
-					template.visibility.label = entry.remote.pickerUnavailableReason || entry.remote.hidden
-						? localize('remotes.showInPicker', "Show in Environment Picker")
-						: localize('remotes.hideFromPicker', "Hide from Environment Picker");
-					template.visibility.tooltip = entry.remote.pickerUnavailableReason ?? (entry.remote.hidden
-						? localize('remotes.showInPickerDetail', "Show this environment when choosing where to run a session")
-						: localize('remotes.hideFromPickerDetail', "Hide this environment from the environment picker. It stays in Remote Environments."));
-					template.visibility.class = ThemeIcon.asClassName(entry.remote.pickerUnavailableReason || entry.remote.hidden ? Codicon.eyeClosed : Codicon.eye);
-					template.rename.label = localize('remotes.rename', "Rename...");
-					template.rename.enabled = !entry.busy;
-					template.createDevContainer.label = localize('remotes.createDevContainer', "Create Dev Container");
-					template.createDevContainer.enabled = showCreateDevContainer && !entry.busy;
-					template.copyAddress.label = localize('remotes.copyAddress', "Copy Address");
-					template.locationPreference.label = localize('remotes.locationPreference', "Configure Agent Run Behavior...");
-					template.locationPreference.tooltip = remoteAgentRunBehaviorDescription;
-					template.locationPreference.enabled = !entry.busy
-						&& !RemoteAgentHostConnectionStatus.isConnecting(entry.remote.connectionStatus)
-						&& !RemoteAgentHostConnectionStatus.isReconnecting(entry.remote.connectionStatus);
-					template.troubleshoot.label = localize('remotes.troubleshootConnection', "Troubleshoot Connection...");
-					template.troubleshoot.tooltip = localize('remotes.troubleshootConnectionDetail', "See what's known about this connection and what to try next");
-					template.troubleshoot.enabled = !entry.busy;
-					const share = entry.remote.gitHubEnvironment;
-					template.gitHubEnvironment.label = share?.state === 'connecting' || share?.state === 'unavailable'
-						? getGitHubEnvironmentLabel(entry.remote) ?? ''
-						: share
-							? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
-							: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment");
-					template.gitHubEnvironment.enabled = showGitHubEnvironment && !entry.busy && share?.state !== 'connecting' && share?.state !== 'unavailable';
-					template.gitHubEnvironment.class = ThemeIcon.asClassName(share?.state === 'connecting' ? connectionProgressIcon : Codicon.github);
-					template.showExtension.label = entry.remote.contributedBy ? localize('remotes.showExtension', "Show {0} Extension", entry.remote.contributedBy.displayName) : '';
-					template.delete.label = entry.remote.kind === 'tunnel' ? localize('remotes.deleteTunnel', "Delete Dev Tunnel...")
-						: entry.remote.kind === 'ssh' ? localize('remotes.forgetSSH', "Forget SSH Connection...")
-							: entry.remote.kind === 'devContainer' ? localize('remotes.deleteDevContainer', "Delete Dev Container...")
-								: localize('remotes.removeEnvironment', "Remove Environment...");
-					template.delete.enabled = showDelete && !entry.busy;
-					template.updateServer.label = localize('remotes.updateServer', "Update Server");
-					template.updateServer.enabled = showUpdate && !entry.busy;
-				}
-				const groupPrimary = template.column === 'actions' && entry.type === 'group'
-					? showGroupCreate ? { action: template.createDevContainer, kind: 'createDevContainer' as const } : showConfig ? { action: template.action, kind: 'configure' as const } : undefined
-					: undefined;
-				if (template.column === 'actions' && groupPrimary) {
+				} else if (entry.type === 'group' && groupPrimary) {
 					// The group heading names the type, so its settings button can stay short enough for the fixed actions column.
-					template.connect.label = groupPrimary.kind === 'configure' && entry.type === 'group' && entry.kind !== 'ssh'
-						? localize('remotes.openGroupSettings', "Open Settings") : groupPrimary.action.label;
+					template.connect.label = groupPrimary.kind === 'configure' && entry.kind !== 'ssh'
+						? localize('remotes.openGroupSettings', "Open Settings") : groupPrimary.label;
 					template.connect.iconElement.hidden = true;
-					template.connect.enabled = groupPrimary.action.enabled;
-					template.connect.element.setAttribute('aria-label', groupPrimary.action.label);
+					template.connect.enabled = groupPrimary.enabled;
+					template.connect.element.setAttribute('aria-label', groupPrimary.label);
 				}
-				if (template.column === 'actions') {
-					// An open overflow menu must retain its environment and labels when the row template is recycled.
-					const menuAction = (action: Action, kind: RemoteRowAction) => toAction({
-						id: action.id, label: action.label, tooltip: action.tooltip, class: action.class, enabled: action.enabled,
-						run: () => this.onAction(entry, kind),
-					});
-					const secondary = showConnection ? Separator.join(
-						[...(showNewSession ? [menuAction(template.newSessionAction, 'newSession')] : []),
-						...(signIn ? [menuAction(template.action, 'signIn')] : showConnect && canConnect ? [menuAction(template.action, 'connect')] : []),
-						...(showCreateDevContainer ? [menuAction(template.createDevContainer, 'createDevContainer')] : [])],
-						showGitHubEnvironment ? [menuAction(template.gitHubEnvironment, 'githubEnvironment')] : [],
-						[menuAction(template.visibility, 'toggleVisibility')],
-						showCopyAddress ? [menuAction(template.copyAddress, 'copyAddress')] : [],
-						[
-							menuAction(template.rename, 'rename'),
-							...(showLocationPreference ? [menuAction(template.locationPreference, 'locationPreference')] : []),
-							menuAction(template.troubleshoot, 'troubleshoot'),
-							...(showExtension ? [menuAction(template.showExtension, 'showExtension')] : []),
-							...(showUpdate ? [menuAction(template.updateServer, 'updateServer')] : []),
-							...(showDelete ? [menuAction(template.delete, 'delete')] : []),
-						],
-					) : Separator.join(
-						groupPrimary ? [menuAction(groupPrimary.action, groupPrimary.kind)] : [],
-						showDocumentation ? [menuAction(template.documentation, 'documentation')] : [],
-					);
-					const actionLayout = JSON.stringify([row.id, showConfig, showDocumentation, showGroupCreate, secondary.map(action => [action.id, action.label, action.tooltip, action.class, action.enabled])]);
-					if (template.actionLayout !== actionLayout) {
-						template.actionLayout = actionLayout;
-						const activeElement = dom.getActiveElement();
-						const focusedAction = dom.isHTMLElement(activeElement) && template.container.contains(activeElement) ? template.toolbar.getItemAction(activeElement) : undefined;
-						template.toolbar.setActions([], secondary);
-						if (focusedAction) {
-							template.container.closest<HTMLElement>('.monaco-list')?.focus();
-						}
+				const secondary = getRemoteRowMenuActions(entry, this.onAction);
+				const actionLayout = JSON.stringify([row.id, secondary.map(action => [action.id, action.label, action.tooltip, action.class, action.enabled])]);
+				if (template.actionLayout !== actionLayout) {
+					template.actionLayout = actionLayout;
+					const activeElement = dom.getActiveElement();
+					const focusedAction = dom.isHTMLElement(activeElement) && template.container.contains(activeElement) ? template.toolbar.getItemAction(activeElement) : undefined;
+					template.toolbar.setActions([], secondary);
+					if (focusedAction) {
+						template.container.closest<HTMLElement>('.monaco-list')?.focus();
 					}
 				}
 				break;
@@ -963,6 +949,26 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		for (const template of this.templates) {
 			this.updateFocus(template);
 		}
+	}
+
+	/** Returns the list row that currently renders the row with the given id, if it is in view. */
+	getRowElement(id: string): HTMLElement | undefined {
+		for (const template of this.templates) {
+			if (template.row?.id === id && template.container.isConnected) {
+				return template.container.parentElement?.parentElement ?? undefined;
+			}
+		}
+		return undefined;
+	}
+
+	/** Returns the rendered row that contains the given element in any of its cells. */
+	getRowContaining(element: Node): IRemoteTableRow | undefined {
+		for (const template of this.templates) {
+			if (template.row && template.container.isConnected && template.container.parentElement?.contains(element)) {
+				return template.row;
+			}
+		}
+		return undefined;
 	}
 
 	private onDidSelectSandboxProfile(address: string, option: SandboxProfileOption | undefined): void {

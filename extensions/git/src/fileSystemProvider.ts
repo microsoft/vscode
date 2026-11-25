@@ -157,7 +157,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		if (workspace.workspaceFolders === undefined || workspace.isAgentSessionsWorkspace) {
 			this.logger.info(`[GitFileSystemProvider][getOrOpenRepository] Opening repository for ${fsPath}`);
 
-			await this.model.openRepository(fsPath, true, true);
+			await this.model.openRepository(fsPath, { openIfClosed: true, openIfParent: true });
 			return this.model.getRepository(uri);
 		}
 

@@ -33,7 +33,7 @@ import { IAgentHostService, type IAgentConnection } from '../../../../../../plat
 import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { cloudSandboxAddress, cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_TASK_SCHEME, cloudSandboxAddress, cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -646,6 +646,133 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			unpublished: { listed: [], found: [] },
 		});
 	}));
+
+	test('resource lookups follow a Cloud task rebinding to another environment, also for observers of the same update', () => {
+		const { catalog } = createTaskCatalog([]);
+		catalog.setTasks([{ taskId: 'task', name: 'Task', environmentId: 'first-env', sessionId: 'first-session' }]);
+		const management = createManagementService(catalog);
+		const row = catalog.getSessions()[0];
+		const firstAlias = row.previousIdentities![0].resource;
+		const second: ICloudSandboxTask = { taskId: 'task', name: 'Renamed', environmentId: 'second-env', sessionId: 'second-session' };
+		const secondAlias = createCloudSandboxTaskSession(second).session.previousIdentities![0].resource;
+		const lookups = () => ({ byFirstAlias: management.getSession(firstAlias)?.resource.toString(), bySecondAlias: management.getSession(secondAlias)?.resource.toString() });
+		const warm = lookups();
+		const observed: ReturnType<typeof lookups>[] = [];
+		disposables.add(autorun(reader => {
+			if (row.title.read(reader) === 'Renamed') {
+				observed.push(lookups());
+			}
+		}));
+
+		catalog.setTasks([second]);
+
+		const rebound = { byFirstAlias: undefined, bySecondAlias: row.resource.toString() };
+		assert.deepStrictEqual({ warm, observed, after: lookups(), secondAlias: row.previousIdentities![0].resource.toString() }, {
+			warm: { byFirstAlias: row.resource.toString(), bySecondAlias: undefined },
+			observed: [rebound],
+			after: rebound,
+			secondAlias: secondAlias.toString(),
+		});
+	});
+
+	test('a Cloud task catalog looks up a runtime session, a task alias and a miss without enumerating its tasks or runtime sessions', () => {
+		const task: ICloudSandboxTask = { taskId: 'task', name: 'Task', environmentId: 'env', sessionId: 'task-session' };
+		const others = [0, 1, 2].map(i => ({ taskId: `other-${i}`, name: `Other ${i}`, environmentId: 'env', sessionId: `other-session-${i}` }));
+		const { runtime, catalog } = createTaskCatalog([task]);
+		catalog.setTasks([task, ...others]);
+		catalog.attach(task.taskId, runtime, task);
+		runtime.seedProvisionalSession(createSession('external', { session: AgentSession.uri('ahp-session', 'external'), provider: 'copilot', summary: 'External' }));
+		runtime.publishWithheldSession('external', { announce: true });
+		const row = catalog.getAllSessions().find(session => isEqual(session.resource, cloudSandboxTaskResource(task.taskId)))!;
+		const external = catalog.getAllSessions().find(session => session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME)!;
+		const alias = row.previousIdentities![0].resource;
+		const externalResource = external.resource;
+		let reads = 0;
+		for (const session of catalog.getAllSessions()) {
+			// Listing the catalog reads every task's aliases and every runtime session's resource
+			const property = session.resource.scheme === CLOUD_SANDBOX_TASK_SCHEME ? 'previousIdentities' : 'resource';
+			const descriptor = Object.getOwnPropertyDescriptor(session, property)!;
+			Object.defineProperty(session, property, { configurable: true, get: () => { reads++; return descriptor.get ? descriptor.get.call(session) : descriptor.value; } });
+		}
+
+		const found = {
+			miss: catalog.getSession(URI.parse('remote-unrelated:/missing'))?.sessionId,
+			runtime: catalog.getSession(externalResource) === external,
+			alias: catalog.getSession(alias) === row,
+		};
+
+		assert.deepStrictEqual({ found, reads }, { found: { miss: undefined, runtime: true, alias: true }, reads: 0 });
+	});
+
+	test('resource lookups find a Cloud task its runtime publishes silently', () => {
+		const task: ICloudSandboxTask = { taskId: 'new-task', sessionId: 'new-session', environmentId: 'environment', name: 'Preparing' };
+		const { runtime, catalog } = createTaskCatalog([task]);
+		const resource = cloudSandboxTaskResource(task.taskId);
+		catalog.attach(task.taskId, runtime, task);
+		runtime.seedProvisionalSession(createSession(task.sessionId!, { session: AgentSession.uri('ahp-session', task.sessionId!), provider: 'copilot', summary: task.name }));
+		catalog.setTasks([task]);
+		const management = createManagementService(catalog);
+		const lookUp = () => ({ task: management.getSession(resource)?.resource.toString(), runtime: runtime.getSession(resource)?.sessionId, runtimeListed: runtime.getAllSessions().map(session => session.sessionId) });
+		const withheld = lookUp();
+
+		runtime.publishWithheldSession(task.sessionId!, { announce: false });
+
+		const published = lookUp();
+		assert.deepStrictEqual({ withheld, published }, {
+			withheld: { task: undefined, runtime: undefined, runtimeListed: [] },
+			published: { task: resource.toString(), runtime: published.runtimeListed[0], runtimeListed: [published.runtimeListed[0]] },
+		});
+	});
+
+	test('resource lookups find cached sessions as soon as a reconnect republishes them, before the host lists them', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('cached', { summary: 'Cached' }));
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+		const resource = provider.getSessions()[0].resource;
+		const management = createManagementService(provider);
+		provider.unpublishCachedSessions();
+		const hidden = management.getSession(resource)?.resource.toString();
+
+		const listing = new DeferredPromise<IAgentSessionMetadata[]>();
+		const reconnected = disposables.add(new MockAgentConnection());
+		reconnected.listSessions = async () => listing.p;
+		provider.setConnection(reconnected);
+		const republished = { listed: provider.getSessions().map(session => session.resource.toString()), found: management.getSession(resource)?.resource.toString() };
+		await listing.complete([]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ hidden, republished }, {
+			hidden: undefined,
+			republished: { listed: [resource.toString()], found: resource.toString() },
+		});
+	}));
+
+	test('resource lookups stop finding a pending first turn as soon as its host is unpublished', async () => {
+		const provider = createProvider(disposables, connection, { openSession: true });
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const management = createManagementService(provider);
+		const pending = { listed: provider.getAllSessions().map(s => s.resource.toString()), found: management.getSession(session.resource)?.resource.toString() };
+
+		provider.unpublishCachedSessions();
+		const hidden = { listed: provider.getAllSessions().map(s => s.resource.toString()), found: management.getSession(session.resource)?.resource.toString() };
+
+		fireSessionAdded(connection, AgentSession.id(session.resource));
+		await request.catch(() => undefined);
+
+		assert.deepStrictEqual({ pending, hidden }, {
+			pending: { listed: [session.resource.toString()], found: session.resource.toString() },
+			hidden: { listed: [], found: undefined },
+		});
+	});
 
 	test('a restored visible chat keeps its facade while runtime fields and interactivity hydrate', () => {
 		const entry = createCloudSandboxTaskSession({ taskId: 'task', name: 'Summary' });
@@ -5197,6 +5324,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			provider2.getSessions().map(s => s.title.get()),
 			['Keep Me'],
 		);
+	}));
+
+	test('forgetSessions removes sessions and their persisted cache without asking the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		connection.addSession(createSession('forget-me', { summary: 'Forget Me' }));
+		const provider = createProvider(disposables, connection, { storageService });
+		await timeout(0);
+		await storageService.flush();
+		provider.clearConnection();
+		const removed: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => removed.push(...e.removed.map(s => s.title.get()))));
+
+		provider.forgetSessions();
+		await storageService.flush();
+
+		const restored = createProvider(disposables, new MockAgentConnection(), { storageService, noConnection: true });
+		assert.deepStrictEqual({
+			sessions: provider.getSessions().length,
+			removed,
+			restored: restored.getSessions().length,
+			hostDeletions: connection.disposedSessions.length,
+		}, { sessions: 0, removed: ['Forget Me'], restored: 0, hostDeletions: 0 });
 	}));
 
 	test('retains application and stable environment identity in disconnected caches after renaming a host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

@@ -1030,6 +1030,22 @@ export function parseCoAuthors(message: string): CoAuthor[] {
 	return coAuthors;
 }
 
+/**
+ * Removes comment lines from a commit message the way `git stripspace --strip-comments`
+ * does: consecutive empty lines are collapsed into one, and leading and trailing empty
+ * lines are removed.
+ */
+// TODO: Support core.commentChar
+export function stripCommitMessageComments(message: string): string {
+	return message
+		.split(/\r?\n/)
+		.filter(line => !/^\s*#/.test(line))
+		.map(line => line.trim().length === 0 ? '' : line)
+		.join('\n')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
+}
+
 const diffShortStatRegex = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/;
 
 function parseGitDiffShortStat(data: string): CommitShortStat {
@@ -3406,17 +3422,12 @@ export class Repository {
 		return this.getBranch(result.stdout.trim());
 	}
 
-	// TODO: Support core.commentChar
-	stripCommitMessageComments(message: string): string {
-		return message.replace(/^\s*#.*$\n?/gm, '').trim();
-	}
-
 	async getSquashMessage(): Promise<string | undefined> {
 		const squashMsgPath = path.join(this.repositoryRoot, '.git', 'SQUASH_MSG');
 
 		try {
 			const raw = await fs.readFile(squashMsgPath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			return stripCommitMessageComments(raw);
 		} catch {
 			return undefined;
 		}
@@ -3427,7 +3438,7 @@ export class Repository {
 
 		try {
 			const raw = await fs.readFile(mergeMsgPath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			return stripCommitMessageComments(raw);
 		} catch {
 			return undefined;
 		}
@@ -3451,7 +3462,7 @@ export class Repository {
 			}
 
 			const raw = await fs.readFile(templatePath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			return stripCommitMessageComments(raw);
 		} catch (err) {
 			return '';
 		}
