@@ -8,6 +8,7 @@ import { escape, htmlAttributeEncodeValue } from '../../../../base/common/string
 export const mathInlineRegExp = /(?<![a-zA-Z0-9])(?<dollars>\${1,2})(?!\.|\(["'])((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\k<dollars>(?![a-zA-Z0-9])/; // Non-standard, but ensure opening $ is not preceded and closing $ is not followed by word/number characters, opening $ not followed by ., (", ('
 export const katexContainerClassName = 'vscode-katex-container';
 export const katexContainerLatexAttributeName = 'data-latex';
+export const katexContainerRawLatexAttributeName = 'data-latex-raw';
 
 const inlineRule = new RegExp('^' + mathInlineRegExp.source);
 
@@ -15,8 +16,9 @@ export namespace MarkedKatexExtension {
 	type KatexOptions = import('katex').KatexOptions;
 
 	// From https://github.com/UziTech/marked-katex-extension/blob/main/src/index.js
-	// From https://github.com/UziTech/marked-katex-extension/blob/main/src/index.js
-	export interface MarkedKatexOptions extends KatexOptions { }
+	export interface MarkedKatexOptions extends KatexOptions {
+		includeRawSource?: boolean;
+	}
 
 	const blockRule = /^(\${1,2})\n((?:\\[^]|[^\\])+?)\n\1(?:\n|$)/;
 
@@ -42,7 +44,10 @@ export namespace MarkedKatexExtension {
 				// Wrap in a container with attribute as a fallback for extracting the original LaTeX source
 				// This ensures we can always retrieve the source even if the annotation element is not present.
 				// Encode `$` so that theme icon rendering, which runs on the rendered HTML, cannot insert tags into the attribute.
-				out = `<span class="${katexContainerClassName}" ${katexContainerLatexAttributeName}="${htmlAttributeEncodeValue(token.text).replaceAll('$', '&#36;')}">${html}</span>`;
+				const rawSource = options.includeRawSource
+					? ` ${katexContainerRawLatexAttributeName}="${htmlAttributeEncodeValue(token.mathSource).replaceAll('$', '&#36;').replace(/\r/g, '&#13;').replace(/\n/g, '&#10;')}"`
+					: '';
+				out = `<span class="${katexContainerClassName}" ${katexContainerLatexAttributeName}="${htmlAttributeEncodeValue(token.text).replaceAll('$', '&#36;')}"${rawSource}>${html}</span>`;
 			} catch {
 				// On failure, just show the original text including the wrapping $ or $$.
 				// Escape it: this output is inserted as HTML, also when the Markdown does not support HTML.
@@ -82,6 +87,7 @@ export namespace MarkedKatexExtension {
 					return {
 						type: 'inlineKatex',
 						raw: match[0],
+						mathSource: match[0],
 						text: match[2].trim(),
 						displayMode: match[1].length === 2,
 					};
@@ -105,6 +111,7 @@ export namespace MarkedKatexExtension {
 					return {
 						type: 'blockKatex',
 						raw: match[0],
+						mathSource: `${match[1]}\n${match[2]}\n${match[1]}`,
 						text: match[2].trim(),
 						displayMode: match[1].length === 2,
 					};

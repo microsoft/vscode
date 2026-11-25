@@ -8,6 +8,7 @@ import * as sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { OverlayLayoutElement } from '../../../../../../base/browser/overlayLayoutElement.js';
+import { convertHtmlToMarkdown } from '../../../../../../base/browser/htmlToMarkdown.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { ObjectTree } from '../../../../../../base/browser/ui/tree/objectTree.js';
 import { IObjectTreeElement } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -482,6 +483,69 @@ suite('ChatListWidget', () => {
 			withoutSelection,
 		}, { text: 'Documentation', response: true, hasSelection: true, withoutSelection: false });
 	});
+
+	test('copies selected math source while sanitizing rich-text links', () => {
+		const { container } = createWidget();
+		const paragraph = mainWindow.document.createElement('p');
+		paragraph.style.userSelect = 'text';
+		paragraph.innerHTML = 'See <a data-href="file:///private/file.ts">file.ts</a>: <span class="vscode-katex-container" data-latex-raw="$x^2$"><span>x²</span><span>x²</span></span>.';
+		container.appendChild(paragraph);
+		const selection = mainWindow.getSelection()!;
+		const range = mainWindow.document.createRange();
+		range.selectNodeContents(paragraph);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		store.add(toDisposable(() => selection.removeAllRanges()));
+
+		const clipboardData = new DataTransfer();
+		const event = new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData });
+		paragraph.dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			prevented: event.defaultPrevented,
+			text: clipboardData.getData('text/plain'),
+			markdown: convertHtmlToMarkdown(clipboardData.getData('text/html')),
+			html: clipboardData.getData('text/html').includes('file:///private/file.ts'),
+		}, {
+			prevented: true,
+			text: 'See file.ts: $x^2$.',
+			markdown: 'See `file.ts`: $x^2$.',
+			html: false,
+		});
+	});
+
+	for (const source of ['$x^2$', '$$\nx^2\n$$']) {
+		test(`copies a partial equation as complete source in both clipboard formats: ${JSON.stringify(source)}`, () => {
+			const { container } = createWidget();
+			const list = mainWindow.document.createElement('ol');
+			list.style.userSelect = 'text';
+			list.innerHTML = '<li><span class="vscode-katex-container"><span>xx</span><span>xx</span></span></li>';
+			const math = list.querySelector('.vscode-katex-container')!;
+			math.setAttribute('data-latex-raw', source);
+			container.appendChild(list);
+			const selection = mainWindow.getSelection()!;
+			const range = mainWindow.document.createRange();
+			range.setStart(math.firstChild!.firstChild!, 0);
+			range.setEnd(math.firstChild!.firstChild!, 1);
+			selection.removeAllRanges();
+			selection.addRange(range);
+			store.add(toDisposable(() => selection.removeAllRanges()));
+
+			const clipboardData = new DataTransfer();
+			const event = new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData });
+			math.dispatchEvent(event);
+
+			assert.deepStrictEqual({
+				prevented: event.defaultPrevented,
+				text: clipboardData.getData('text/plain'),
+				markdown: convertHtmlToMarkdown(clipboardData.getData('text/html')),
+			}, {
+				prevented: true,
+				text: source,
+				markdown: `1. ${source}`,
+			});
+		});
+	}
 
 	test('shows Open With only for resources backed by a file system provider', () => {
 		const editorResolverService = upcastPartial<IEditorResolverService>({

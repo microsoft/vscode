@@ -55,7 +55,7 @@ import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
-import { cloneVisibleSelection, getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
+import { cloneVisibleSelection, getLinkTarget, getMathAwareSelectionText, sanitizeChatClipboardFragment } from './chatClipboard.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
@@ -890,9 +890,8 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
-	 * Rewrites the rich-text flavor of a copied selection so links that only resolve here
-	 * don't paste as `vscode-file:` targets or local paths. Selections whose links all resolve
-	 * elsewhere are left to the browser, which keeps the styling other apps rely on.
+	 * Preserves math source and removes non-portable links from copied selections.
+	 * Other selections retain the browser's native clipboard formats.
 	 */
 	private handleCopy(e: ClipboardEvent): void {
 		const selection = dom.getWindow(this._container).getSelection();
@@ -900,13 +899,15 @@ export class ChatListWidget extends Disposable {
 			return;
 		}
 
+		const selectedEquations = new Set<Element>();
+		const selectedText = getMathAwareSelectionText(selection, this._container, selectedEquations);
 		// Cloning a range never yields the anchors around it, so ask the selection what it
 		// touches: otherwise a selection inside a link looks clean while the browser still
 		// copies the enclosing anchor.
 		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const touched = Array.from(this._container.querySelectorAll('a, img'))
 			.filter(element => selection.containsNode(element, true));
-		if (!touched.length) {
+		if (!touched.length && selectedText === undefined) {
 			return;
 		}
 
@@ -919,8 +920,8 @@ export class ChatListWidget extends Disposable {
 			ranges.push(range);
 		}
 
-		const fragments = ranges.map(range => cloneVisibleSelection(range, this._container));
-		if (!fragments.map(fragment => sanitizeChatClipboardFragment(fragment)).some(Boolean)) {
+		const fragments = ranges.map(range => cloneVisibleSelection(range, this._container, selectedText === undefined ? undefined : selectedEquations));
+		if (!fragments.map(fragment => sanitizeChatClipboardFragment(fragment, selectedText !== undefined)).some(Boolean) && selectedText === undefined) {
 			return;
 		}
 
@@ -929,7 +930,7 @@ export class ChatListWidget extends Disposable {
 			holder.appendChild(fragment);
 		}
 
-		e.clipboardData.setData(Mimes.text, selection.toString());
+		e.clipboardData.setData(Mimes.text, selectedText ?? selection.toString());
 		e.clipboardData.setData(Mimes.html, holder.innerHTML);
 		e.preventDefault();
 	}

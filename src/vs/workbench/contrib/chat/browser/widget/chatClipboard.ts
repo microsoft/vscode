@@ -3,10 +3,143 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, getWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { $, getWindow, isAncestor, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { appendEscapedMarkdownInlineCode, isPortableLinkTarget, isPortableMarkdownTarget } from '../../../../../base/common/htmlContent.js';
 import * as marked from '../../../../../base/common/marked/marked.js';
 import { IMarkdownEdit, markdownTokensToPlainText, rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
+import { katexContainerClassName, katexContainerRawLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
+
+function createMathText(math: Element): HTMLElement {
+	// eslint-disable-next-line eslint-js/no-restricted-syntax -- math may belong to a detached clipboard fragment
+	const text = $(math.querySelector('.katex-display') ? 'div' : 'span');
+	text.style.whiteSpace = 'pre-wrap';
+	text.textContent = math.getAttribute(katexContainerRawLatexAttributeName)!;
+	return text;
+}
+
+function replaceMathWithSource(fragment: DocumentFragment): boolean {
+	let changed = false;
+	// eslint-disable-next-line eslint-js/no-restricted-syntax -- operating on a detached fragment
+	for (const math of fragment.querySelectorAll(`.${katexContainerClassName}[${katexContainerRawLatexAttributeName}]`)) {
+		math.replaceWith(createMathText(math));
+		changed = true;
+	}
+	return changed;
+}
+
+/**
+ * Copies selected equations as their original Markdown, including partially selected equations.
+ */
+export function getMathAwareSelectionText(selection: Selection, container: HTMLElement, selectedEquations?: Set<Element>): string | undefined {
+	if (selection.isCollapsed || !selection.rangeCount) {
+		return undefined;
+	}
+
+	const ranges: Range[] = [];
+	for (let i = 0; i < selection.rangeCount; i++) {
+		const range = selection.getRangeAt(i);
+		if (!isAncestor(range.commonAncestorContainer, container)) {
+			return undefined;
+		}
+		ranges.push(range.cloneRange());
+	}
+
+	// eslint-disable-next-line eslint-js/no-restricted-syntax -- locate math intersecting the native selection
+	const equations = Array.from(container.querySelectorAll(`.${katexContainerClassName}[${katexContainerRawLatexAttributeName}]`))
+		.filter(math => ranges.some(range => range.intersectsNode(math)));
+	if (!equations.length) {
+		return undefined;
+	}
+
+	const { anchorNode, anchorOffset, focusNode, focusOffset } = selection;
+	const readNativeText = (range: Range): string => {
+		selection.removeAllRanges();
+		selection.addRange(range);
+		return selection.toString();
+	};
+	try {
+		let hasMath = false;
+		const result: string[] = [];
+		for (const range of ranges) {
+			const text = readNativeText(range);
+			const edits: { start: number; end: number; source: string; display: boolean }[] = [];
+			let previousEnd = range.cloneRange();
+			previousEnd.collapse(true);
+			let offset = 0;
+			for (const math of equations) {
+				if (!range.intersectsNode(math)) {
+					continue;
+				}
+				const intersection = range.cloneRange();
+				intersection.selectNodeContents(math);
+				if (intersection.compareBoundaryPoints(Range.START_TO_START, range) < 0) {
+					intersection.setStart(range.startContainer, range.startOffset);
+				}
+				if (intersection.compareBoundaryPoints(Range.END_TO_END, range) > 0) {
+					intersection.setEnd(range.endContainer, range.endOffset);
+				}
+				const preceding = previousEnd.cloneRange();
+				preceding.setEnd(intersection.startContainer, intersection.startOffset);
+				const precedingText = readNativeText(preceding);
+				const selectedMath = readNativeText(intersection);
+				if (!selectedMath.trim()) {
+					continue;
+				}
+				let searchStart = offset;
+				while (precedingText && searchStart > 0 && /\s/.test(text[searchStart - 1])) {
+					searchStart--;
+				}
+				const precedingIndex = text.indexOf(precedingText, searchStart);
+				const mathIndex = text.indexOf(selectedMath, precedingIndex + precedingText.length);
+				if (precedingIndex < 0 || mathIndex < 0) {
+					console.warn('Unable to locate selected math in clipboard text; using native selection text');
+					selectedEquations?.clear();
+					return undefined;
+				}
+				if (precedingIndex < offset && edits.length) {
+					edits[edits.length - 1].end = precedingIndex;
+				}
+				const start = precedingIndex + precedingText.length;
+				const end = mathIndex + selectedMath.length;
+				offset = end;
+				previousEnd = intersection.cloneRange();
+				previousEnd.collapse(false);
+				selectedEquations?.add(math);
+				// eslint-disable-next-line eslint-js/no-restricted-syntax -- retain block boundaries, not KaTeX's internal line breaks
+				const display = !!math.querySelector('.katex-display');
+				edits.push({ start, end, source: math.getAttribute(katexContainerRawLatexAttributeName)!, display });
+			}
+			hasMath ||= edits.length > 0;
+			const parts: string[] = [];
+			let position = 0;
+			for (const edit of edits) {
+				let source = edit.source;
+				if (edit.display) {
+					if (edit.start > 0 && text[edit.start - 1] !== '\n') {
+						source = '\n' + source;
+					}
+					if (edit.end < text.length && text[edit.end] !== '\n') {
+						source += '\n';
+					}
+				}
+				parts.push(text.slice(position, edit.start), source);
+				position = edit.end;
+			}
+			parts.push(text.slice(position));
+			result.push(parts.join(''));
+		}
+		return hasMath ? result.join('') : undefined;
+	} finally {
+		selection.removeAllRanges();
+		if (ranges.length === 1 && anchorNode && focusNode) {
+			selection.setBaseAndExtent(anchorNode, anchorOffset, focusNode, focusOffset);
+		} else {
+			for (const range of ranges) {
+				selection.addRange(range);
+			}
+		}
+	}
+}
 
 /**
  * Reads the target a rendered chat anchor points at. Clicks route through `data-href`, so that
@@ -29,14 +162,22 @@ const controlSelector = '[role="toolbar"]';
  * stylesheet a list embeds, are left out, just as they are from the selected text, and so are
  * toolbars.
  */
-export function cloneVisibleSelection(range: Range, root: Node): DocumentFragment {
+export function cloneVisibleSelection(range: Range, root: Node, selectedEquations?: ReadonlySet<Element>): DocumentFragment {
 	const hiddenElements = findHiddenElements(range);
+	if (selectedEquations && isHTMLElement(root)) {
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- match cloned equations to the selected live equations
+		for (const math of root.querySelectorAll(`.${katexContainerClassName}[${katexContainerRawLatexAttributeName}]`)) {
+			if (!selectedEquations.has(math)) {
+				hiddenElements.push(math);
+			}
+		}
+	}
 	for (const element of hiddenElements) {
 		element.setAttribute(hiddenElementAttribute, '');
 	}
 
 	try {
-		const fragment = cloneWithAncestors(range, root);
+		const fragment = cloneWithAncestors(range, root, selectedEquations !== undefined);
 		// eslint-disable-next-line eslint-js/no-restricted-syntax -- operating on a detached fragment
 		for (const element of Array.from(fragment.querySelectorAll(`[${hiddenElementAttribute}], ${controlSelector}`))) {
 			element.remove();
@@ -80,8 +221,29 @@ function findHiddenElements(range: Range): Element[] {
 	return hiddenElements;
 }
 
-function cloneWithAncestors(range: Range, root: Node): DocumentFragment {
+function cloneWithAncestors(range: Range, root: Node, excludeUnselectableText: boolean): DocumentFragment {
 	let content: Node = range.cloneContents();
+
+	if (excludeUnselectableText) {
+		const document = range.commonAncestorContainer.ownerDocument!;
+		const originals = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_TEXT);
+		const copies = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+		const excluded: Node[] = [];
+		let original = range.commonAncestorContainer.nodeType === Node.TEXT_NODE ? range.commonAncestorContainer : originals.nextNode();
+		let copy = copies.nextNode();
+		while (original && copy) {
+			if (range.intersectsNode(original)) {
+				if (original.parentElement && getWindow(original.parentElement).getComputedStyle(original.parentElement).userSelect === 'none') {
+					excluded.push(copy);
+				}
+				copy = copies.nextNode();
+			}
+			original = originals.nextNode();
+		}
+		for (const node of excluded) {
+			node.parentNode?.removeChild(node);
+		}
+	}
 
 	for (
 		let ancestor = range.commonAncestorContainer;
@@ -127,10 +289,10 @@ function replaceWithLabel(element: Element, label: string): void {
 
 /**
  * Rewrites a copied chat selection so it stays useful outside this window, replacing links and
- * images that only resolve here with the text the reader saw. Returns whether anything changed.
+ * images that only resolve here with the text the reader saw, and rendered math with its original LaTeX source. Returns whether anything changed.
  */
-export function sanitizeChatClipboardFragment(fragment: DocumentFragment): boolean {
-	let changed = false;
+export function sanitizeChatClipboardFragment(fragment: DocumentFragment, replaceMath = true): boolean {
+	let changed = replaceMath && replaceMathWithSource(fragment);
 
 	// eslint-disable-next-line eslint-js/no-restricted-syntax -- operating on a detached fragment
 	for (const anchor of Array.from(fragment.querySelectorAll('a'))) {

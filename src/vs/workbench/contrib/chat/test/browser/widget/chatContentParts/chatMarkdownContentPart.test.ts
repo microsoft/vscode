@@ -11,6 +11,7 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../../base/
 import { addDisposableListener, scheduleAtNextAnimationFrame } from '../../../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { convertHtmlToMarkdown } from '../../../../../../../base/browser/htmlToMarkdown.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -78,6 +79,7 @@ import { ToolAndToolSetEnablementMap } from '../../../../common/tools/languageMo
 import { getInlineRequestAttachments } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
+import { getMathAwareSelectionText, sanitizeChatClipboardFragment } from '../../../../browser/widget/chatClipboard.js';
 import { IDisposableReference } from '../../../../browser/widget/chatContentParts/chatCollections.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { ChatHtmlPreviewPart, isHtmlPreviewCodeBlock } from '../../../../browser/widget/chatContentParts/chatHtmlPreviewPart.js';
@@ -184,6 +186,40 @@ suite('ChatMarkdownContentPart', () => {
 			() => ctx.currentWidth.get(),
 			rendererOptions,
 		));
+	}
+
+	for (const { markdown, expectedText, expectedMarkdown } of [
+		{ markdown: 'Before $\\frac{1}{2}$ after.', expectedText: 'Before $\\frac{1}{2}$ after.', expectedMarkdown: 'Before $\\frac{1}{2}$ after.' },
+		{ markdown: '$$\nx\n$$\n\n$$\ny\n$$', expectedText: '$$\nx\n$$\n$$\ny\n$$', expectedMarkdown: '$$\nx\n$$\n\n$$\ny\n$$' },
+	]) {
+		test(`copies original math source from a rendered chat response: ${JSON.stringify(markdown)}`, async () => {
+			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			configurationService.setUserConfiguration(ChatConfiguration.EnableMath, true);
+			await MarkedKatexSupport.loadExtension(mainWindow);
+			store.add(toDisposable(() => mainWindow.document.head.querySelector('link.katex')?.remove()));
+			const part = createMarkdownPart(markdown);
+			part.domNode.style.userSelect = 'text';
+			mainWindow.document.body.appendChild(part.domNode);
+			store.add(toDisposable(() => part.domNode.remove()));
+			const selection = mainWindow.getSelection()!;
+			const range = mainWindow.document.createRange();
+			range.selectNodeContents(part.domNode);
+			selection.removeAllRanges();
+			selection.addRange(range);
+			store.add(toDisposable(() => selection.removeAllRanges()));
+
+			const fragment = range.cloneContents();
+			sanitizeChatClipboardFragment(fragment);
+			const holder = mainWindow.document.createElement('div');
+			holder.appendChild(fragment);
+			assert.deepStrictEqual({
+				text: getMathAwareSelectionText(selection, part.domNode),
+				markdown: convertHtmlToMarkdown(holder.innerHTML),
+			}, {
+				text: expectedText,
+				markdown: expectedMarkdown,
+			});
+		});
 	}
 
 	function createMarkdownPartWithInlineReferences(markdownText: string, inlineReferences: Record<string, IChatContentInlineReference>, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false): ChatMarkdownContentPart {
