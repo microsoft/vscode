@@ -153,7 +153,7 @@ suite('Sessions - Bulk archive undo', () => {
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
 			override getViewWithId<T>() { return upcastPartial<SessionsView>({ listNotification: notification }) as T; }
 		});
-		/** `ownSessions` are a group's own sessions, while `targets` also include those of its subgroups. */
+		/** `ownSessions` are a group's or section's own sessions, while `targets` also include those of its subgroups or pinned groups. */
 		const run = async (kind: 'workspace' | 'section' | 'group' = 'workspace', targets = sessions.map(entry => entry.session), ownSessions = targets) => {
 			const actionId = kind === 'group' ? 'sessionsView.markAllInGroupAsDone' : 'sessionsView.sectionArchive';
 			const action = getSessionsArchiveActionConstructors(wording).map(ctor => new ctor()).find(action => action.desc.id === actionId)!;
@@ -162,7 +162,7 @@ suite('Sessions - Bulk archive undo', () => {
 					group, sessions: ownSessions, subtreeSessions: targets,
 					comparison: withComparison ? { id: 'comparison', title: group.name, launching: state.launching, summary: () => '', configuration: '' } : undefined,
 				})
-				: { id: kind === 'workspace' ? 'workspace:test' : 'today', label: 'Section', sessions: targets } satisfies ISessionSection;
+				: { id: kind === 'workspace' ? 'workspace:test' : 'today', label: 'Section', sessions: ownSessions, subtreeSessions: ownSessions === targets ? undefined : targets } satisfies ISessionSection;
 			return instantiationService.invokeFunction(accessor => action.run(accessor, context));
 		};
 		return { run, sessions, sessionsChanged, membership, groupsService, group, comparisonService, listModel, managementService, storageService, archived, restored, state };
@@ -224,6 +224,12 @@ suite('Sessions - Bulk archive undo', () => {
 	test('a group\'s Mark All as Done includes the sessions of its subgroups', async () => {
 		const test = setup();
 		await test.run('group', test.sessions.slice(0, 2).map(entry => entry.session), []);
+		assert.deepStrictEqual({ archived: test.archived, message: test.state.message }, { archived: ['first', 'second'], message: '2 marked done' });
+	});
+
+	test('a section\'s Mark All as Done includes the sessions of its pinned groups', async () => {
+		const test = setup();
+		await test.run('section', test.sessions.slice(0, 2).map(entry => entry.session), []);
 		assert.deepStrictEqual({ archived: test.archived, message: test.state.message }, { archived: ['first', 'second'], message: '2 marked done' });
 	});
 

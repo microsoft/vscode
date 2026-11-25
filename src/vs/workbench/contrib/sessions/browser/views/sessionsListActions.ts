@@ -175,28 +175,28 @@ const InboxModeContext = SessionsViewGroupingContext.isEqualTo(SessionsGrouping.
 /** Grouping sections whose New Session starts in a workspace that their sessions work in. */
 const ConfirmArchiveStorageKey = 'sessions.confirmArchive';
 
-function getArchiveSectionConfirmationMessage(context: ISessionSection, wording: ChatSessionArchiveActionWording): string {
+function getArchiveSectionConfirmationMessage(context: ISessionSection, sessionCount: number, wording: ChatSessionArchiveActionWording): string {
 	if (context.id === 'pinned') {
-		if (context.sessions.length === 1) {
+		if (sessionCount === 1) {
 			return wording === ChatSessionArchiveActionWording.MarkAsDone
 				? localize('markPinnedSectionSessionDone.confirmSingle', "Are you sure you want to mark 1 pinned session as done?")
 				: localize('archivePinnedSectionSession.confirmSingle', "Are you sure you want to archive 1 pinned session?");
 		}
 
 		return wording === ChatSessionArchiveActionWording.MarkAsDone
-			? localize('markPinnedSectionSessionsDone.confirm', "Are you sure you want to mark {0} pinned sessions as done?", context.sessions.length)
-			: localize('archivePinnedSectionSessions.confirm', "Are you sure you want to archive {0} pinned sessions?", context.sessions.length);
+			? localize('markPinnedSectionSessionsDone.confirm', "Are you sure you want to mark {0} pinned sessions as done?", sessionCount)
+			: localize('archivePinnedSectionSessions.confirm', "Are you sure you want to archive {0} pinned sessions?", sessionCount);
 	}
 
-	if (context.sessions.length === 1) {
+	if (sessionCount === 1) {
 		return wording === ChatSessionArchiveActionWording.MarkAsDone
 			? localize('markSectionSessionDone.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.label)
 			: localize('archiveSectionSession.confirmSingle', "Are you sure you want to archive 1 session from '{0}'?", context.label);
 	}
 
 	return wording === ChatSessionArchiveActionWording.MarkAsDone
-		? localize('markSectionSessionsDone.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.label)
-		: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} sessions from '{1}'?", context.sessions.length, context.label);
+		? localize('markSectionSessionsDone.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", sessionCount, context.label)
+		: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} sessions from '{1}'?", sessionCount, context.label);
 }
 
 abstract class BaseArchiveSectionAction extends Action2 {
@@ -223,7 +223,9 @@ abstract class BaseArchiveSectionAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISessionSection): Promise<void> {
-		if (!context || !context.sessions || context.sessions.length === 0) {
+		// Pinned also contains the sessions of its pinned groups.
+		const sessions = context?.subtreeSessions ?? context?.sessions;
+		if (!context || !sessions || sessions.length === 0) {
 			return;
 		}
 
@@ -237,7 +239,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
 			const confirmed = await dialogService.confirm({
-				message: getArchiveSectionConfirmationMessage(context, this.wording),
+				message: getArchiveSectionConfirmationMessage(context, sessions.length, this.wording),
 				detail: this.wording === ChatSessionArchiveActionWording.MarkAsDone
 					? localize('markSectionSessionsDone.detail', "You can restore sessions later if needed from the sessions view.")
 					: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
@@ -256,7 +258,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 			}
 		}
 
-		await archiveSessionsWithUndo(context.sessions, this.wording, sessionsManagementService, groupsService, getSessionsView, comparisonService);
+		await archiveSessionsWithUndo(sessions, this.wording, sessionsManagementService, groupsService, getSessionsView, comparisonService);
 	}
 }
 

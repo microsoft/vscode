@@ -8783,7 +8783,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const child of this.tree.getNode().children) {
 			const element = child.element;
 			if (element && (isSessionGroupItem(element) ? getSessionGroupSectionId(element.group.id) === headerId : isSessionSection(element) && element.id === headerId)) {
-				return index;
+				// A header that search filters out keeps its node but has no row.
+				return child.visible ? index : undefined;
 			}
 			index += this.tree.getListRenderCount(element);
 		}

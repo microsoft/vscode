@@ -8816,7 +8816,7 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].filter(row => row.getAttribute('aria-level') === '1').map(labelOf);
 		}
 
-		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false, settings: Readonly<Record<string, unknown>> = {}, productQuality?: string) {
+		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false, settings: Readonly<Record<string, unknown>> = {}, productQuality?: string, withFind = false) {
 			let currentGrouping = grouping;
 			const now = Date.now();
 			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', repository: grouping === SessionsGrouping.Repository ? 'microsoft/vscode' : undefined, createdAt: new Date(now - minutesAgo * 60_000) }).session;
@@ -8870,13 +8870,21 @@ suite('Sessions - SessionsList', () => {
 			for (const [key, value] of Object.entries(settings)) {
 				void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(key, value);
 			}
+			const findWidgetContainer = withFind ? append(container, $('div')) : undefined;
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => currentGrouping,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
+				findWidgetContainer,
 			}));
 			list.layout(800, 400);
-			return { harness, container, list, contextMenus, setGrouping: (value: SessionsGrouping) => { currentGrouping = value; list.resetSectionCollapseState(); list.update(true); } };
+			const search = (pattern: string) => {
+				list.openFind();
+				const input = findWidgetContainer!.querySelector<HTMLInputElement>('input')!;
+				input.value = pattern;
+				input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			};
+			return { harness, container, list, contextMenus, search, setGrouping: (value: SessionsGrouping) => { currentGrouping = value; list.resetSectionCollapseState(); list.update(true); } };
 		}
 
 		for (const [grouping, sectionId, sectionLabel] of [
@@ -9046,6 +9054,20 @@ suite('Sessions - SessionsList', () => {
 					: { feedback: ['Flaky test: drop-target-after'], topLevel: ['Pinned', 'Docs', 'Recent'] });
 			});
 		}
+
+		test('a group extracted below Pinned shows its line after Pinned when search hides the headers below it', async () => {
+			const { harness, list, container, search } = render(SessionsGrouping.Workspace, new Map(), true, {}, undefined, true);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			groupsService.setGroupPinned(release.id, true);
+			list.refresh();
+			// Only Pinned has rows: Triage and vscode keep their nodes but have none.
+			search('Fix login');
+			const feedback = dragFeedback(container, 'Hotfixes', 'Release work', 0.1);
+			list.closeFind();
+			await timeout(350);
+
+			assert.deepStrictEqual({ feedback, parent: groupsService.getGroup(hotfixes.id)?.parentId }, { feedback: ['Fix login: drop-target-after'], parent: undefined });
+		});
 
 		test('context-menu section moves expand their destination and keep old sections visible when removed', async () => {
 			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map(), true);

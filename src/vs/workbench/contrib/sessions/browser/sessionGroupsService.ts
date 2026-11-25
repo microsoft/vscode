@@ -1150,7 +1150,6 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 }
 
-/** The group nested in `parentId`, or as a top-level group when it is `undefined`. */
 /** The group with `parentId` as its parent. A nested group is never pinned. */
 function withParent(group: ISessionGroup, parentId: string | undefined): ISessionGroup {
 	const { parentId: _, ...properties } = group;
