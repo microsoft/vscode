@@ -48,6 +48,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -71,7 +72,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatScheduledRequestViewModel, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ChatResponseStats, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { getConfiguredProgressAnimation } from './chatWorkingLogo.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime } from '../../common/chatProgressFormatting.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
@@ -134,6 +135,7 @@ import { ChatExternalEditContentPart } from './chatContentParts/chatExternalEdit
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationBatchPart } from './chatContentParts/chatImageGenerationBatchPart.js';
 import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
+import { ChatInputSessionLinkDetector, linkSessionMentions } from './input/editor/chatInputSessionLinkProvider.js';
 import { getInlineRequestAttachments, recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatInputNotificationWidget } from './input/chatInputNotificationWidget.js';
@@ -621,11 +623,12 @@ export function reconcileChatItemHeight(
 }
 
 /**
- * Renders the response footer: completion timestamp and the model/credits stat.
+ * Renders the response footer: completion timestamp, the model/credits stat, and
+ * the response's working time when `workingTime` is given.
  * `tokenStatsAriaLabel` is folded into the container's accessible name so the
  * token breakdown offered on hover is also available to screen readers.
  */
-export function renderChatResponseDetails(container: HTMLElement, details: string | undefined, completedAt: number | undefined, elapsedMs: number | undefined, verbose: boolean, tokenStatsAriaLabel?: string): HTMLElement | undefined {
+export function renderChatResponseDetails(container: HTMLElement, details: string | undefined, completedAt: number | undefined, elapsedMs: number | undefined, verbose: boolean, tokenStatsAriaLabel?: string, workingTime?: string): HTMLElement | undefined {
 	dom.clearNode(container);
 	container.classList.remove('chat-response-flip-active', 'chat-response-flip-down', 'chat-response-flip-reset');
 
@@ -634,7 +637,7 @@ export function renderChatResponseDetails(container: HTMLElement, details: strin
 	const alternate = completion?.isRelative
 		? formatChatResponseDetails(elapsed, completion.fullText)
 		: elapsed;
-	const responseDetails = formatChatResponseDetails(details, completion?.text);
+	const hasDetails = !!formatChatResponseDetails(details, completion?.text) || !!workingTime;
 
 	let completedAtElement: HTMLElement | undefined;
 	if (completion) {
@@ -651,16 +654,22 @@ export function renderChatResponseDetails(container: HTMLElement, details: strin
 	if (details) {
 		dom.append(container, $('span.chat-response-model-details', undefined, details));
 	}
+	if (workingTime) {
+		if (completion || details) {
+			dom.append(container, $('span.chat-response-details-separator', { 'aria-hidden': 'true' }, '\u2022'));
+		}
+		dom.append(container, $('span.chat-response-working-time', undefined, workingTime));
+	}
 
 	const accessibleTiming = completion
 		? localize('chatResponseCompletedAt', "Completed {0}", completion.fullText)
 		: undefined;
-	const accessibleElapsed = elapsed
-		? localize('chatResponseElapsed', "Elapsed time {0}", elapsed)
+	const accessibleElapsed = elapsed ?? workingTime
+		? localize('chatResponseElapsed', "Elapsed time {0}", elapsed ?? workingTime)
 		: undefined;
 	container.ariaLabel = [accessibleTiming, accessibleElapsed, details, tokenStatsAriaLabel].filter(Boolean).join(', ');
-	container.classList.toggle('hidden', !responseDetails);
-	container.tabIndex = responseDetails ? 0 : -1;
+	container.classList.toggle('hidden', !hasDetails);
+	container.tabIndex = hasDetails ? 0 : -1;
 	return completedAtElement;
 }
 
@@ -1047,6 +1056,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 
 	private readonly _inlineTextModels: InlineTextModelCollection;
+	private readonly _sessionLinkDetector: ChatInputSessionLinkDetector;
 	private readonly _thinkingTitles: ChatThinkingTitleController;
 	private readonly layoutTrace: ChatLayoutTrace;
 	private readonly pendingHeightUpdates = this._register(new DisposableMap<IChatListItemTemplate, IPendingChatItemHeightUpdate>());
@@ -1070,6 +1080,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@IProductService productService: IProductService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -1084,6 +1095,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
+		this._sessionLinkDetector = new ChatInputSessionLinkDetector(productService.urlProtocol, logService);
 		this._register(this.scheduledRequestActionRunner.onDidRun(event => {
 			if (event.error) {
 				this.notificationService.error(event.error);
@@ -2112,13 +2124,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				&& !rendersInlineSystemNotificationTiming
 				? formatResponseTokenStats(element.model.usage?.modelTotals, element.model.completionTimestamp)
 				: undefined;
+			const responseStats = this.configService.getValue<ChatResponseStats>(ChatConfiguration.ResponseStats);
+			const workingTime = isResponseVM(element) && !rendersInlineSystemNotificationTiming && element.isComplete
+				&& responseStats !== ChatResponseStats.Off && Object.values(ChatResponseStats).includes(responseStats)
+				? formatChatResponseElapsedTime(element.model.elapsedMs)
+				: undefined;
 			const completedAtElement = renderChatResponseDetails(
 				responseDetailsContainer,
 				details,
 				isResponseVM(element) ? element.model.completionTimestamp : undefined,
-				isResponseVM(element) && !rendersInlineSystemNotificationTiming ? element.model.elapsedMs : undefined,
+				// The working time already shows, so the timestamp does not flip to it as well.
+				isResponseVM(element) && !rendersInlineSystemNotificationTiming && !workingTime ? element.model.elapsedMs : undefined,
 				isResponseVM(element) && this.configService.getValue<boolean>(ChatConfiguration.Verbose),
 				tokenStats?.footerAriaLabel,
+				workingTime,
 			);
 			// The container (rather than the stat span) is the hover target because it
 			// is the focusable element, which keeps the breakdown reachable by keyboard
@@ -2195,6 +2214,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			if (e.affectsConfiguration(ChatConfiguration.Verbose)) {
 				updateVerboseDetails();
+				updateResponseDetails();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.ResponseStats)) {
 				updateResponseDetails();
 			}
 			if (e.affectsConfiguration(ChatConfiguration.CollapseCompletedResponses) && isResponseVM(element)) {
@@ -3462,7 +3484,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry), inlineAttachmentParts?: ReadonlySet<number>): MarkdownString | undefined {
 		const markdown = isChatFollowup(element.message)
 			? new MarkdownString(element.message.message)
-			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, this.getRenderedRequestMessage(element.message, element.variables), inlineAttachmentParts);
+			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, linkSessionMentions(this.getRenderedRequestMessage(element.message, element.variables), this._sessionLinkDetector), inlineAttachmentParts);
 		const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length
 			? getExplicitFileOrImageAttachmentSummary(element.variables)
 			: undefined;
@@ -5442,7 +5464,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'confirmation') {
 				return this.renderConfirmation(context, content, templateData);
 			} else if (content.kind === 'warning') {
-				return this.instantiationService.createInstance(ChatErrorContentPart, ChatErrorLevel.Warning, content.content, content, this.chatContentMarkdownRenderer);
+				return this.instantiationService.createInstance(ChatErrorContentPart, content.isError ? ChatErrorLevel.Error : ChatErrorLevel.Warning, content.content, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'info') {
 				return this.instantiationService.createInstance(ChatErrorContentPart, ChatErrorLevel.Info, content.content, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'hook') {

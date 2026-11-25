@@ -54,10 +54,25 @@ export function isStickyPromptHeaderShown(widget: IChatWidget, configurationServ
 }
 
 /**
+ * Which rail a widget shows, from `sessions.chatTimeline.display`. Outside the Agents window any
+ * enabled style shows the gutter: the ruler's content reservation is built for the Agents window's
+ * centered session view.
+ */
+export function getPromptTimelineRailStyle(widget: IChatWidget, configurationService: IConfigurationService, isSessionsWindow: boolean): PromptTimelineRailStyle {
+	if (!supportsPromptTimeline(widget)) {
+		return 'off';
+	}
+	const style = configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_DISPLAY_SETTING);
+	if (isSessionsWindow) {
+		return style;
+	}
+	return style === 'ruler' || style === 'gutter' ? 'gutter' : 'off';
+}
+
+/**
  * Per-widget contribution that overlays the prompt timeline on the chat transcript. It shows the sticky
- * header (`chat.stickyScroll.enabled`, both windows) and/or the rail
- * (`sessions.chatTimeline.display`, Agents window only), and is torn down and re-created when a relevant
- * setting changes.
+ * header (`chat.stickyScroll.enabled`, both windows) and/or the rail (see {@link getPromptTimelineRailStyle}),
+ * and is torn down and re-created when a relevant setting changes.
  */
 export class PromptTimelineWidgetContrib extends Disposable implements IChatWidgetContrib {
 
@@ -92,11 +107,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	/** (Re)builds the timeline to match the current settings, or tears it down if no surface is enabled. */
 	private _update(): void {
 		this._enablement.clear();
-		// The rail's layout (and the content reservation it needs) is built for the Agents window's
-		// centered session view, so it stays there; the sticky header works in either window.
-		const railStyle = this.environmentService.isSessionsWindow
-			? this.configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_DISPLAY_SETTING)
-			: 'off';
+		const railStyle = getPromptTimelineRailStyle(this.widget, this.configurationService, this.environmentService.isSessionsWindow);
 		const stickyEnabled = isStickyPromptHeaderShown(this.widget, this.configurationService);
 		if (railStyle !== 'off' || stickyEnabled) {
 			this._createFeature(railStyle, stickyEnabled);
@@ -116,7 +127,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		// The host class provides the positioning context and layout variables both surfaces anchor to.
 		const host = this.widget.domNode;
 		host.classList.add('prompt-timeline-host');
-		this._enablement.add(toDisposable(() => host.classList.remove('prompt-timeline-host', 'prompt-timeline-with-rail')));
+		this._enablement.add(toDisposable(() => host.classList.remove('prompt-timeline-host', 'prompt-timeline-with-rail', 'prompt-timeline-with-gutter')));
 
 		if (railStyle !== 'off') {
 			this._createRail(model, host, railStyle);
@@ -127,29 +138,22 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	}
 
 	private _createRail(model: PromptTimelineModel, host: HTMLElement, railStyle: PromptTimelineRailStyle): void {
-		const rail: IPromptTimelineRail = this._enablement.add(
+		const rail = this._enablement.add(
 			railStyle === 'gutter' ? new PromptTimelineGutterRail() : new PromptTimelineRulerRail()
 		);
 		this._enablement.add(observePromptTimelineHostWidth(this.widget as ChatWidget, host, rail));
-		// The ruler reserves room beside the transcript's right scrollbar; the gutter rail lives in the
-		// existing left gutter and needs no reservation, so only the ruler marks the host.
+		// The ruler reserves room beside the transcript's right scrollbar. The gutter rail lives in the
+		// left gutter, which the Agents window's centered rows already leave room for; elsewhere the host
+		// is marked so the transcript widens that gutter.
 		if (railStyle === 'ruler') {
 			host.classList.add('prompt-timeline-with-rail');
+		} else if (!this.environmentService.isSessionsWindow) {
+			host.classList.add('prompt-timeline-with-gutter');
 		}
 		host.appendChild(rail.domNode);
 		this._enablement.add(toDisposable(() => rail.domNode.remove()));
 
-		rail.setFilesProvider(tick => model.getRequestFiles(tick));
 		this._enablement.add(rail.onDidSelect(requestId => model.reveal(requestId)));
-		this._enablement.add(rail.onDidReview(tick => { void model.reviewChanges(tick); }));
-		this._enablement.add(rail.onDidReviewFile(e => { void model.reviewChanges(e.tick, e.file); }));
-
-		// A deliberate hard/fast scroll reveals the ruler's fan; capture phase so it is seen before the
-		// transcript's ScrollableElement consumes the wheel mid-content (see `_registerHardWheelDetector`).
-		// The gutter rail is a static list with no scroll-driven bloom, so it does not need this.
-		if (railStyle === 'ruler') {
-			this._enablement.add(this._registerHardWheelDetector(rail));
-		}
 
 		// Keep the rail above the input part so it only spans the transcript.
 		const inputPart = this.widget.inputPart;
@@ -165,9 +169,13 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 
 		this._enablement.add(autorun(reader => {
 			const ticks = ticksObs.read(reader);
+			const loadOlder = rail instanceof PromptTimelineGutterRail ? model.olderHistoryLoader.read(reader) : undefined;
+			if (rail instanceof PromptTimelineGutterRail) {
+				rail.setOlderHistoryLoader(loadOlder);
+			}
 			// Toggle visibility before rendering so the rail's fit measurement in
 			// setTicks runs against the displayed (non-zero height) element.
-			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS);
+			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS && !loadOlder);
 			rail.setTicks(ticks);
 		}));
 
@@ -175,11 +183,16 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			rail.setActive(activeObs.read(reader));
 		}));
 
-		// Supply proportional scroll positions for the marks.
-		this._enablement.add(autorun(reader => {
-			model.onDidChangeScrollLayout.read(reader);
-			rail.setScrollLayout(model.getScrollLayout());
-		}));
+		if (rail instanceof PromptTimelineRulerRail) {
+			rail.setFilesProvider(tick => model.getRequestFiles(tick));
+			this._enablement.add(rail.onDidReview(tick => { void model.reviewChanges(tick); }));
+			this._enablement.add(rail.onDidReviewFile(e => { void model.reviewChanges(e.tick, e.file); }));
+			this._enablement.add(this._registerHardWheelDetector(rail));
+			this._enablement.add(autorun(reader => {
+				model.onDidChangeScrollLayout.read(reader);
+				rail.setScrollLayout(model.getScrollLayout());
+			}));
+		}
 
 		rail.setHostWidth(host.clientWidth);
 	}
@@ -211,7 +224,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	 * and the listener is on the capture phase so it is seen before the transcript's ScrollableElement
 	 * consumes the wheel mid-content.
 	 */
-	private _registerHardWheelDetector(rail: IPromptTimelineRail): IDisposable {
+	private _registerHardWheelDetector(rail: PromptTimelineRulerRail): IDisposable {
 		let wheelAcc = 0;
 		let wheelWindowStart = 0;
 		return addDisposableListener(this.widget.domNode, EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {

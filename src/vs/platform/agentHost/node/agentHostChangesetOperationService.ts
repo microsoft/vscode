@@ -378,8 +378,9 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
+		const parsed = parseChangesetUri(params.channel);
 		const state = this._stateManager.getChangesetState(params.channel);
-		if (!state) {
+		if (!parsed || !state) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Changeset not found: ${params.channel}`);
 		}
 		const op = state.operations?.find(o => o.id === params.operationId);
@@ -396,8 +397,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// status back to Idle while a chat turn is still streaming, which would
 		// otherwise re-enable invocation mid-turn and let the working tree /
 		// branch state be mutated.
-		const parsed = parseChangesetUri(params.channel);
-		const containingSession = parsed && this._containingSession(parsed);
+		const containingSession = this._containingSession(parsed);
 		if (containingSession && this._stateManager.hasActiveTurn(containingSession) && !this._isAvailableDuringTurn(parsed.kind, params.operationId, containingSession)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is disabled while a turn is active on changeset ${params.channel}`);
 		}
@@ -408,8 +408,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// advertised operations can go stale if the session became multi-root
 		// after they were published (e.g. the Editor Window added a root), so a
 		// stale operation must not be invocable.
-		if (parsed
-			&& (parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Compare)
+		if ((parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Compare)
 			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sourceUri))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is not available on a ${parsed.kind} changeset in a multi-root session: ${params.channel}`);
 		}

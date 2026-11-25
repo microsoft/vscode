@@ -186,6 +186,12 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
 	return hooks.length > 0 ? Object.fromEntries(hooks) : undefined;
 }
 
+/** Whether a custom agent file declares hooks in its frontmatter. */
+export function customAgentFileDeclaresHooks(content: string): boolean {
+	const md = parseFrontMatter(content);
+	return !!md && getCustomAgentHooks(md) !== undefined;
+}
+
 function customAgentDescription(name: string, description?: string): string {
 	return (description ? `${name}: ${description}` : name).replace(/\s+/g, ' ').trim();
 }
@@ -207,6 +213,7 @@ export async function toSdkCustomAgents(
 	fileService: IFileService,
 	availableModelIds?: ReadonlySet<string>,
 	clientToolNames?: ReadonlyMap<string, string>,
+	includeHooks = true,
 ): Promise<ICopilotCustomAgentConfig[]> {
 	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
@@ -226,7 +233,7 @@ export async function toSdkCustomAgents(
 				const description = md.getStringValue('description');
 				const tools = md.getStringArrayValue('tools');
 				const skills = md.getStringArrayValue('skills');
-				const hooks = getCustomAgentHooks(md);
+				const hooks = includeHooks ? getCustomAgentHooks(md) : undefined;
 				const reasoningEffort = md.getStringValue('reasoning-effort');
 				let infer = md.getBooleanValue('infer');
 				const disableModelInvocation = resolveAgentDisableModelInvocation(infer, md.getBooleanValue('disable-model-invocation'));
@@ -306,6 +313,7 @@ export function toChildCustomizations(plugins: readonly IParsedPlugin[]): ChildC
 		for (const a of plugin.agents) { add(a.customization); }
 		for (const s of plugin.skills) { add(s.customization); }
 		for (const r of plugin.instructions) { add(r.customization); }
+		for (const prompt of plugin.prompts ?? []) { add(prompt); }
 		for (const h of plugin.hooks) { add(h.customization); }
 		for (const m of plugin.mcpServers) { add(m.customization); }
 	}

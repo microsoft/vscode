@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfig } from '../../common/debug.js';
-import { formatPII, getEffectiveConfigForPlatform, getEffectivePresentationForConfig, getExactExpressionStartAndEnd, getVisibleAndSorted } from '../../common/debugUtils.js';
+import { IConfig, IDebugSession } from '../../common/debug.js';
+import { formatPII, getEffectiveConfigForPlatform, getEffectivePresentationForConfig, getExactExpressionStartAndEnd, getVisibleAndSorted, stopSessionsAndWaitForEnd } from '../../common/debugUtils.js';
 
 function platformSection(os: OperatingSystem, value: NonNullable<IConfig['windows']>): Pick<IConfig, 'windows' | 'osx' | 'linux'> {
 	switch (os) {
@@ -21,7 +22,7 @@ function platformSection(os: OperatingSystem, value: NonNullable<IConfig['window
 }
 
 suite('Debug - Utils', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('formatPII', () => {
 		assert.strictEqual(formatPII('Foo Bar', false, {}), 'Foo Bar');
@@ -206,5 +207,45 @@ suite('Debug - Utils', () => {
 		assert.strictEqual(sorted[7].name, 'p');
 		assert.strictEqual(sorted[8].name, 'a');
 
+	});
+
+	suite('stopSessionsAndWaitForEnd', () => {
+		function setup() {
+			const session = {} as IDebugSession;
+			const onDidEndSession = ds.add(new Emitter<{ readonly session: IDebugSession; readonly restart: boolean }>());
+			const log: string[] = [];
+			const ended = new Set<IDebugSession>();
+			return { session, onDidEndSession, log, ended, hasEnded: (s: IDebugSession) => ended.has(s) };
+		}
+
+		test('waits for the session to end after stopping it', async () => {
+			const { session, onDidEndSession, log, hasEnded } = setup();
+			const done = stopSessionsAndWaitForEnd([session], async () => { log.push('stopped'); }, onDidEndSession.event, hasEnded).then(() => log.push('done'));
+			await Promise.resolve();
+			await Promise.resolve();
+			onDidEndSession.fire({ session: {} as IDebugSession, restart: false });
+			onDidEndSession.fire({ session, restart: true });
+			await Promise.resolve();
+			assert.deepStrictEqual(log, ['stopped']);
+			onDidEndSession.fire({ session, restart: false });
+			await done;
+			assert.deepStrictEqual(log, ['stopped', 'done']);
+		});
+
+		test('does not wait for a session that ended already, before or while stopping it', async () => {
+			const before = setup();
+			before.ended.add(before.session);
+			await stopSessionsAndWaitForEnd([before.session], async () => { before.log.push('stopped'); }, before.onDidEndSession.event, before.hasEnded);
+
+			const during = setup();
+			await stopSessionsAndWaitForEnd([during.session], async () => { during.ended.add(during.session); }, during.onDidEndSession.event, during.hasEnded);
+
+			assert.deepStrictEqual({ before: before.log, during: during.log }, { before: [], during: [] });
+		});
+
+		test('rejects when stopping a session fails', async () => {
+			const { session, onDidEndSession, hasEnded } = setup();
+			await assert.rejects(() => stopSessionsAndWaitForEnd([session], async () => { throw new Error('cannot stop'); }, onDidEndSession.event, hasEnded), /cannot stop/);
+		});
 	});
 });

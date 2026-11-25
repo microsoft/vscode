@@ -26,7 +26,7 @@ import { EditorPane } from './editorPane.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
+import { EditorTitleContextEditorIdContext, ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { isFirefox } from '../../../../base/browser/browser.js';
@@ -139,6 +139,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private readonly contextMenuContextKeyService: IContextKeyService;
 	private resourceContext: ResourceContextKey;
+	private readonly editorTitleContextEditorId: IContextKey<string>;
 
 	private editorPinnedContext: IContextKey<boolean>;
 	private editorIsFirstContext: IContextKey<boolean>;
@@ -190,6 +191,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		this.resourceContext = this._register(scopedInstantiationService.createInstance(ResourceContextKey));
 
+		this.editorTitleContextEditorId = EditorTitleContextEditorIdContext.bindTo(this.contextMenuContextKeyService);
 		this.editorPinnedContext = ActiveEditorPinnedContext.bindTo(this.contextMenuContextKeyService);
 		this.editorIsFirstContext = ActiveEditorFirstInGroupContext.bindTo(this.contextMenuContextKeyService);
 		this.editorIsLastContext = ActiveEditorLastInGroupContext.bindTo(this.contextMenuContextKeyService);
@@ -233,14 +235,13 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
 		const context: IEditorCommandsContext = { groupId: this.groupView.id };
-		// The new tab button of the workbench (not the Agents window) lists the recent entry first and makes it the default entry.
-		const isNewTabButton = menuId === MenuId.EditorTabsBarAddTab;
+		const recentFirst = this.menuIds?.tabsBarAddTabRecentFirst === true;
 		const control = this._register(this.instantiationService.createInstance(EditorAddTabControl, parent, menuId, this.contextKeyService, {
 			before,
 			keybindingProvider: action => this.getKeybinding(action),
 			context,
-			recentFirst: isNewTabButton,
-			defaultEntry: isNewTabButton
+			recentFirst,
+			defaultEntry: recentFirst
 		}));
 		if (onDidChangeVisibility) {
 			this._register(control.onDidChangeVisibility(onDidChangeVisibility));
@@ -586,6 +587,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected onTabContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
 
 		// Update contexts based on editor picked and remember previous to restore
+		this.editorTitleContextEditorId.set(editor.editorId ?? '');
 		this.resourceContext.set(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }));
 		this.editorPinnedContext.set(this.tabsModel.isPinned(editor));
 		this.editorIsFirstContext.set(this.tabsModel.isFirst(editor));

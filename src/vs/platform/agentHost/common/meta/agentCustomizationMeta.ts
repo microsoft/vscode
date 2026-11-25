@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export type { IAgentCustomizationMeta } from './vscode/agentCustomizationMeta.js';
-export { readAgentCustomizationMeta, toAgentCustomizationMeta } from './vscode/agentCustomizationMeta.js';
+export { readAgentCustomizationMeta, readCustomizationSourceUri, toAgentCustomizationMeta, withCustomizationSourceUri } from './vscode/agentCustomizationMeta.js';

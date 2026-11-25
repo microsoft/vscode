@@ -341,6 +341,20 @@ suite('SessionTypePickerActionItem', () => {
 		});
 	});
 
+	test('selects an offered harness as if the user picked it', () => {
+		const fixture = createManagedPicker('sidebar');
+		const results = {
+			current: fixture.picker.selectSessionType(AgentSessionProviders.AgentHostCopilot),
+			notOffered: fixture.picker.selectSessionType(AgentSessionProviders.AgentHostClaude),
+			local: fixture.picker.selectSessionType(AgentSessionProviders.Local),
+		};
+		fixture.setManagedSettings({ 'permissions.deny': '["Shell"]' });
+		assert.deepStrictEqual({ ...results, disabledByPolicy: fixture.picker.selectSessionType(AgentSessionProviders.Local), commands: fixture.commands }, {
+			current: 'selected', notOffered: undefined, local: 'switched', disabledByPolicy: undefined,
+			commands: ['workbench.action.chat.openNewChatSessionInPlace.local'],
+		});
+	});
+
 	test('keeps Cloud as a harness choice without nested creation controls', async () => {
 		let selected = false;
 		const item: ISessionTypeItem = {

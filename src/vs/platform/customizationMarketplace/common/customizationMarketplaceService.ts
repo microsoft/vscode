@@ -85,6 +85,8 @@ export interface ICustomizationMarketplaceEntry {
 	readonly url?: URI;
 	/** Validated original URL for external opening, preserving escaped path separators. */
 	readonly externalUrl?: string;
+	/** Validated original homepage URL, distinct from the source page and publisher URL. */
+	readonly homepage?: string;
 	readonly repository?: URI;
 	readonly readmeUri?: URI;
 	readonly icon?: CustomizationMarketplaceIcon;

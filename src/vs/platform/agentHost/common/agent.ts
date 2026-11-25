@@ -758,6 +758,7 @@ export interface IAgentTurnInteraction {
 	readonly steeredFromTurn?: string;
 	readonly interactionIds: readonly string[];
 	readonly interactionIdsTruncated: boolean;
+	readonly steeringDelivery?: 'steering' | 'idle' | 'queued' | 'unknown';
 }
 
 /** A point-in-time snapshot; missing counters and missing snapshots remain unknown. */
@@ -1077,7 +1078,7 @@ export interface IAgentChatContext {
 	 * reason when the send used it, or with the bounded reason it was discarded
 	 * and the send launched one instead.
 	 */
-	readonly reportPrewarmedSession?: (discardReason?: string) => void;
+	readonly reportPrewarmedSession?: (discardReason?: string, claim?: IAgentPrewarmClaim) => void;
 	/**
 	 * Records, before progress can complete the addressed turn, that its send
 	 * materialized a deferred provider session without a pre-warmed one to
@@ -1482,6 +1483,24 @@ export interface IAgentChatReleaseOptions {
 	readonly canContinue?: () => boolean;
 }
 
+/** What a deferred chat's composer would send with, used to shape its warm runtime ({@link IAgentChats.warmChat}). */
+export interface IAgentWarmChatSelection {
+	/** The model to warm with; `undefined` keeps the chat's current model. */
+	readonly model: ModelSelection | undefined;
+	/** The custom agent to warm with; `undefined` is the default agent. */
+	readonly agent: AgentSelection | undefined;
+}
+
+/** How a send found the pre-warmed provider session it used, for turn telemetry ({@link IAgentChatContext.reportPrewarmedSession}). */
+export interface IAgentPrewarmClaim {
+	/** When the used launch became ready, as `Date.now()` in the reporting process. */
+	readonly readyAt: number;
+	/** The draft's warm launches so far, including the used one; more than one means it was warmed again. */
+	readonly launchCount: number;
+	/** Whether the launch's background warm-up, such as MCP startup and tool initialization, had finished. */
+	readonly warmUpComplete: boolean;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -1528,8 +1547,15 @@ export interface IAgentChats {
 	 * disposing the chat discards it. Resolves `true` when a warm runtime is
 	 * live afterwards; a chat that cannot be warmed resolves `false` without
 	 * doing work.
+	 *
+	 * The host calls it again while the user composes. A warm runtime that
+	 * still matches `selection` is kept and its unclaimed lifetime extended;
+	 * one launched with another model or agent is replaced; and a chat whose
+	 * warm runtime expired or was torn down is warmed again. `selection` only
+	 * shapes the warm launch: the first send still selects its own model and
+	 * agent and replaces a launch that does not match them.
 	 */
-	warmChat?(chat: URI, context: IAgentChatContext): Promise<boolean>;
+	warmChat?(chat: URI, context: IAgentChatContext, selection?: IAgentWarmChatSelection): Promise<boolean>;
 
 	/**
 	 * Records why the host is not (yet) warming a deferred chat
@@ -2236,9 +2262,6 @@ export interface IAgent {
 
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
-
-	/** Native snapshots can arrive after host cancellation or steering has already ended a turn. */
-	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
 
 	/** Host-wide progress for provider setup, including work without a chat yet. */
 	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;

@@ -21,7 +21,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { nextAutomationCronOccurrence } from '../../../../../../platform/agentHost/common/automationCron.js';
-import { AgentHostScheduledChatExistingConversationCapabilityMetaKey, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeRun } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostScheduledChatExistingConversationCapabilityMetaKey, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeRun, withAgentHostScheduledChat } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { isAutomationAfterDateExpired } from '../../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { AutomationCatalogSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -400,8 +400,8 @@ class TestActiveClientService extends mock<IAgentHostActiveClientService>() {
 		return undefined;
 	}
 
-	override acquireScope(sessionType: string, roots: readonly URI[] | undefined): IAgentCustomizationScope {
-		const scope = { sessionType, roots: (roots ?? []).map(root => root.toString()), disposed: false };
+	override acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
+		const scope = { sessionType, roots: roots.map(root => root.toString()), disposed: false };
 		this.scopes.push(scope);
 		return {
 			customizations: this.customizations,
@@ -1551,6 +1551,41 @@ suite('AgentHostAutomationStore', () => {
 			definitions: store.automations.get(), name: store.getAutomationHistoryName(automation.id),
 			requests: connection.historyDeletes.map(request => request.deleteHistory),
 		}, { definitions: [], name: automation.name, requests: [false] });
+	});
+
+	test('retained runs preserve scheduled-chat provenance without a live definition', () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		for (const scheduledChat of [false, true]) {
+			const resource = `vendor-automation:/history-${scheduledChat}`;
+			connection.setAutomation({
+				resource,
+				definition: {
+					title: 'History', message: { text: '', origin: { kind: MessageKind.Automation } },
+					session: {}, enabled: false, triggers: [],
+				},
+				runs: [{
+					resource: `vendor-run:/history-${scheduledChat}`, automation: resource,
+					origin: { kind: AutomationRunOriginKind.Manual },
+					lifecycle: { status: AutomationRunStatus.Completed, createdAt: '2026-01-01T00:00:00Z', startedAt: '2026-01-01T00:00:00Z', completedAt: '2026-01-01T00:01:00Z' },
+					sessionCount: 0,
+					_meta: withAgentHostScheduledChat(undefined, scheduledChat ? {} : undefined),
+				}],
+				operations: [],
+				createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+				_meta: withAgentHostAutomationHistoryState(undefined, 'retained'),
+			});
+		}
+		const store = disposables.add(new AgentHostAutomationStore('host', connection, undefined, new NullLogService(), disposables.add(new InMemoryStorageService()), activeClientService));
+		assert.deepStrictEqual({
+			definitions: store.automations.get(),
+			runs: store.runs.get().map(run => ({ id: run.id, purpose: run.purpose })),
+		}, {
+			definitions: [],
+			runs: [
+				{ id: 'host:vendor-run:/history-false', purpose: undefined },
+				{ id: 'host:vendor-run:/history-true', purpose: 'scheduledChat' },
+			],
+		});
 	});
 
 	test('distinguishes active and interrupted retained history deletion', async () => {

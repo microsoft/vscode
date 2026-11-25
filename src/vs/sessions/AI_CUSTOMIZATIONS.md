@@ -17,7 +17,7 @@ The shared management editor and contracts live under:
 
 The Agents Window contributes:
 
-- the customizations tree and overview under `vs/sessions/contrib/aiCustomizationTreeView/`;
+- the customizations tree under `vs/sessions/contrib/aiCustomizationTreeView/`;
 - Sessions-specific workspace and harness adapters under `vs/sessions/contrib/chat/`;
 - Sessions sidebar entry points under `vs/sessions/contrib/sessions/`.
 
@@ -100,7 +100,7 @@ Customization source-folder providers may assign an opaque workspace group ident
 
 `AICustomizationSource` distinguishes local, user, extension, plugin, and built-in items. Source providers and workspace services apply their applicable discovery policy before view-model grouping. Filtering changes presentation only; it does not mutate the underlying customization.
 
-`AICustomizationScope` is an internal presentation axis that answers who a customization applies to: `user`, `workspace`, or `application` (built into VS Code or the agent, shown as Built-in). Scope drives the primary grouping of every management section; storage source continues to drive what can be done with an item. Who supplied an item within its scope is a separate `origin`: a plugin, an extension, or an organization is shown as a nested row in that scope, and the agent's own items are tagged in Built-in. The shared normalizer derives scope from the source and identifies organization files from the default chat extension. Extensions and organization customizations belong to the user. Agent Host adapters derive scope from existing discovery-source metadata (`repository`, `user`, `plugin`, or `builtin`) and MCP configuration sources, retaining an internal scope override for read-only items whose grouping comes from a parent configuration. Built-in agents declare `source: 'builtin'` through `vscode.customizationDiscovery`; no separate scope field crosses the extension API or Agent Host boundary. Absent or unknown host provenance does not establish that an item is built in. Internal items may also carry an origin and a `syncedFromClient` delivery for items synced to a remote agent environment. Overridden customizations are not listed: agent hosts omit them, and local discovery skips same-named duplicates and hides built-in skills that a user or workspace skill replaces. The legacy `remote-host` and `remote-client` group keys are delivery markers, not display groups.
+`AICustomizationScope` is an internal presentation axis that answers who a customization applies to: `user`, `workspace`, or `application` (built into VS Code or the agent, shown as Built-in). Scope drives the primary grouping of every management section; storage source continues to drive what can be done with an item. Who supplied an item within its scope is a separate `origin`: a plugin, an extension, or an organization is shown as a nested row in that scope, and the agent's own items are tagged in Built-in. The shared normalizer derives scope from the source and identifies organization files from the default chat extension. Extensions and organization customizations belong to the user. Agent Host adapters derive scope from existing discovery-source metadata (`repository`, `user`, `plugin`, or `builtin`) and MCP configuration sources, retaining an internal scope override for read-only items whose grouping comes from a parent configuration. Built-in agents declare `source: 'builtin'` through `vscode.customizationDiscovery`; no separate scope field crosses the extension API or Agent Host boundary. Absent or unknown host provenance does not establish that an item is built in. Internal items may also carry an origin and a `syncedFromClient` delivery for items synced to a remote agent environment. Local discovery skips same-named duplicates and hides built-in skills that a user or workspace skill replaces. An agent host may list a client-synced built-in skill alongside a same-named user or workspace skill. The legacy `remote-host` and `remote-client` group keys are delivery markers, not display groups.
 
 ## Item pipeline
 
@@ -181,6 +181,8 @@ In the Agents Window, the customization harness and project root track the chat 
 The management-editor command may select a section, target a session type, reveal a URI-addressable customization, and open migration mode for a targeted migration category. Operations that migrate files bind destination resolution and confirmation to their initiating session and stop if the active session changes.
 
 Provider-backed items retain provider identity through the shared contract. Shared widgets must not import or branch on provider implementations.
+
+A provider may also report section notices: problems with a section as a whole, such as hook files the runtime could not load. The list shows them above its search box rather than as items, and they are not part of the extension API.
 
 Host-reported MCP provenance distinguishes user, workspace, plugin, built-in, managed-catalog, and signed-in-account sources. Account-contributed servers retain that source through protocol metadata and display a signed-in-account explanation when the runtime does not expose an editable definition. Tool telemetry reports only the bounded source kind, never the account identity.
 

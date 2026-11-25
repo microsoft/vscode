@@ -32,13 +32,11 @@ configurationRegistry.registerConfiguration({
 			enum: [...PROMPT_TIMELINE_RAIL_STYLES],
 			enumDescriptions: [
 				localize('sessions.chatTimeline.display.off', "Do not show the prompt timeline."),
-				localize('sessions.chatTimeline.display.ruler', "Show an overview ruler beside the transcript scrollbar that fans into prompt pills on engagement."),
-				localize('sessions.chatTimeline.display.gutter', "Show a minimal handle in the transcript's left gutter that opens a list of prompts on hover."),
+				localize('sessions.chatTimeline.display.ruler', "Show an overview ruler beside the transcript scrollbar that fans into prompt pills on engagement. Outside the Agents window, the handle in the left gutter is shown instead."),
+				localize('sessions.chatTimeline.display.gutter', "Show a handle in the transcript's left gutter. Select a prompt title in the list to jump to it."),
 			],
 			default: 'gutter',
-			description: localize('sessions.chatTimeline.display', "Controls how the prompt timeline is displayed next to the chat transcript in the Agents window."),
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
+			description: localize('sessions.chatTimeline.display', "Controls how the prompt timeline is displayed next to the chat transcript."),
 		},
 	},
 });

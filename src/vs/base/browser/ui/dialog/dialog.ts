@@ -517,6 +517,11 @@ export class Dialog extends Disposable {
 			}, true));
 
 			this._register(addDisposableListener(window, 'keyup', e => {
+				// Preserve native activation, such as Space on checkboxes, in permitted popups.
+				if (isHTMLElement(e.target) && this.options.isExternalFocusAllowed?.(e.target)) {
+					return;
+				}
+
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 

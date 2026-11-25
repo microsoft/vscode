@@ -9,6 +9,10 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
+import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { EditorProgressIndicator } from '../../../../../workbench/services/progress/browser/progressIndicator.js';
+import { IEditorGroupView } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -55,6 +59,7 @@ suite('SessionChangesEditorInput', () => {
 		override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
 		override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
 		override readonly activeSessionChangesetLoadingObs = constObservable(false);
+		override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 	};
 	const emptySessionChangesService = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
@@ -340,6 +345,45 @@ suite('SessionChangesEditorInput', () => {
 		assert.strictEqual(input.viewModelRequests, 0);
 	});
 
+	test('resolves an editor input right away while its editor shows though the editor area is reported hidden, as the Agents window docks the Changes tab beside the chat', async () => {
+		// The desktop layout shows the main editor part's editors beside the chat, without reporting the editor area visible.
+		const layoutService = { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => false };
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		stubSessionHosts(instantiationService, disposables);
+		instantiationService.stub(IChangesViewService, emptyChangesViewService);
+		instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+		instantiationService.stub(ISessionsHostLayoutService, layoutService);
+		instantiationService.stub(ISessionChangesService, sessionChangesServiceWithResource);
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		const viewModel = disposables.add(instantiationService.createInstance(MultiDiffEditorViewModel, { documents: ValueWithChangeEvent.const([]) }));
+
+		class TestSessionChangesEditorInput extends SessionChangesEditorInput {
+			viewModelRequests = 0;
+
+			override async getViewModel(): Promise<MultiDiffEditorViewModel> {
+				this.viewModelRequests++;
+				return viewModel;
+			}
+		}
+
+		const parent = append(mainWindow.document.body, $('.editor-instance'));
+		disposables.add(toDisposable(() => parent.remove()));
+		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		const input = disposables.add(instantiationService.createInstance(
+			TestSessionChangesEditorInput,
+			URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/session"}'),
+		));
+
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+
+		assert.deepStrictEqual({ viewModelRequests: input.viewModelRequests, hasViewModel: editor.hasViewModel }, { viewModelRequests: 1, hasViewModel: true });
+	});
+
 	test('updates managed Changes editor capabilities with editor area visibility', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		let editorVisible = false;
@@ -554,6 +598,7 @@ suite('SessionChangesEditorInput', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = summary;
 		}());
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService { override isMotionReduced() { return true; } }());
@@ -630,6 +675,9 @@ suite('SessionChangesEditorInput', () => {
 		};
 		const parent = append(mainWindow.document.body, $('.editor-instance'));
 		disposables.add(toDisposable(() => parent.remove()));
+		const groupProgressBar = disposables.add(new ProgressBar(append(mainWindow.document.body, $('.editor-group-progress'))));
+		disposables.add(toDisposable(() => groupProgressBar.getContainer().remove()));
+		instantiationService.stub(IEditorProgressService, disposables.add(new EditorProgressIndicator(groupProgressBar, upcastPartial<IEditorGroupView>({ isEmpty: false, onDidModelChange: Event.None }))));
 		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 		editor.create(parent);
 		editor.setVisible(true);
@@ -653,7 +701,7 @@ suite('SessionChangesEditorInput', () => {
 		/** {@link state} once the progress would show, with whether it does. */
 		const presentation = async () => {
 			await timeout(250);
-			return { progress: isShown(parent.querySelector<HTMLElement>('.session-changes-editor-progress .monaco-progress-container.active')), ...state() };
+			return { progress: groupProgressBar.getContainer().classList.contains('active') && !parent.querySelector('.monaco-progress-container'), ...state() };
 		};
 		/** Lets the multi-diff of `name` resolve the documents of its changes, then show the diffs of `count` of them. */
 		const resolveDocuments = (name: string, resolving: boolean, count = 0) => transaction(tx => {

@@ -11,7 +11,7 @@ import { IDefaultAccount } from '../../../../../../../base/common/defaultAccount
 import { isCancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
+import { autorun, waitForState } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastDeepPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -21,6 +21,7 @@ import { COPILOT_INTEGRATION_ID } from '../../../../../../../platform/endpoint/c
 import { AutomationDetail, AutomationRepositoryConfiguration, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from '../../../../../../../platform/github/common/missionControl/automations.js';
 import { PaginatedResponse } from '../../../../../../../platform/github/common/missionControl/missionControl.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../../platform/github/common/missionControl/missionControlClient.js';
+import { IModelsClient, ListModelsResponse } from '../../../../../../../platform/github/common/missionControl/models.js';
 import { ITasksClient, ListTasksResponse, Task, TaskListOptions } from '../../../../../../../platform/github/common/missionControl/tasks.js';
 import { GitHubService } from '../../../../../../../platform/github/common/githubService.js';
 import { IGitHubAccountClient } from '../../../../../../../platform/github/common/account/account.js';
@@ -79,6 +80,9 @@ class TestApi extends mock<IAutomationsClient>() {
 	readonly detailStarted = new DeferredPromise<void>();
 	activeDetails = 0;
 	maxActiveDetails = 0;
+	models: ListModelsResponse | Promise<ListModelsResponse> = { data: [] };
+	readonly modelRequests: { token: CancellationToken; caller: string | undefined }[] = [];
+	readonly modelsStarted = new DeferredPromise<void>();
 
 	override async create(): Promise<AutomationDetail> {
 		this.mutations.push('create');
@@ -208,6 +212,14 @@ suite('GitHubCloudAutomationStore', () => {
 					override readonly onDidChangeCredentials: Event<void> = listener => credentialLifetime.token.onCancellationRequested(listener);
 					override readonly authorization = { providerId: 'github', sessionId: selected.sessionId, scopes: ['repo'] };
 					override readonly automations = api;
+					override readonly missionControlModels = new class extends mock<IModelsClient>() {
+						override async list(token: CancellationToken, options?: ApiRequestOptions): Promise<ListModelsResponse> {
+							api.modelRequests.push({ token, caller: options?.caller });
+							const models = api.models;
+							await api.modelsStarted.complete();
+							return models;
+						}
+					}();
 					override readonly repositories = upcastDeepPartial<IRepositoriesClient>({
 						get: async (repository: RepositoryRef, token: CancellationToken, options?: ApiRequestOptions) => {
 							api.metadataCalls.push({ repository, token });
@@ -252,6 +264,82 @@ suite('GitHubCloudAutomationStore', () => {
 			calls: [], entries: [], state: 'loading',
 		});
 	}));
+
+	test('only runs without a known revision may use the current definition for display', async () => {
+		const { store, api } = setup();
+		const access = store.taskAccess.get()!;
+		const run: Task = { id: 'task', automation_id: definition.id, created_at: definition.created_at, remote_steerable: true, state: 'completed', repository: { full_name: `${repository.owner}/${repository.repo}` } };
+		const revisions: string[] = [];
+		api.getRevisionPrompt = async (repo, id, revision) => {
+			assert.deepStrictEqual({ repo, id }, { repo: repository, id: definition.id });
+			revisions.push(revision);
+			if (revision === 'removed') { throw new Error('Not found'); }
+			return 'Previous instructions';
+		};
+		const prompts = [];
+		for (const revision of ['old', undefined, 'unknown']) {
+			prompts.push(await access.getAutomationPrompt({ ...run, automation_revision_id: revision }, CancellationToken.None));
+		}
+		await assert.rejects(access.getAutomationPrompt({ ...run, automation_revision_id: 'removed' }, CancellationToken.None), /Not found/);
+		assert.deepStrictEqual({ prompts, revisions, currentReads: api.detailCalls.length }, {
+			prompts: ['Previous instructions', definition.prompt, definition.prompt], revisions: ['old', 'removed'], currentReads: 2,
+		});
+	});
+
+	for (const change of ['account', 'client'] as const) {
+		test(`task conversations cannot read or steer through an expired ${change} grant`, async () => {
+			const { store, clientInvalidated, changeAccount } = setup();
+			const access = store.taskAccess.get()!;
+			const started = new DeferredPromise<void>();
+			const finished = new DeferredPromise<void>();
+			const pending = access.withTasks(CancellationToken.None, async (_tasks, token) => {
+				await started.complete();
+				await finished.p;
+				return token.isCancellationRequested;
+			});
+			await started.p;
+			if (change === 'account') {
+				changeAccount(null);
+			} else {
+				clientInvalidated.fire();
+			}
+			await finished.complete();
+			await assert.rejects(pending, isCancellationError);
+			await assert.rejects(access.withTasks(CancellationToken.None, () => assert.fail('Expired access must not send')), isCancellationError);
+		});
+
+		test(`model requests are shared and discard late responses after ${change} changes`, async () => {
+			const { store, api, changeAccount, clientInvalidated, leases } = setup();
+			const old = new DeferredPromise<ListModelsResponse>();
+			api.models = old.p;
+			store.loadModels();
+			store.loadModels();
+			await api.modelsStarted.p;
+			const before = { requests: api.modelRequests.length, kind: store.modelCatalog.get()?.kind };
+			if (change === 'account') {
+				changeAccount({ ...account, accountName: 'other', sessionId: 'auth-2' });
+			} else {
+				clientInvalidated.fire();
+			}
+			const reset = store.modelCatalog.get();
+			const catalog = { data: [{ id: 'current-model', name: 'Current Model' }] };
+			api.models = catalog;
+			store.loadModels();
+			await waitForState(store.modelCatalog, value => value?.kind === 'ready');
+			await old.complete({ data: [{ id: 'old-model', name: 'Old Model' }] });
+			await timeout(0);
+			store.loadModels();
+			assert.deepStrictEqual({
+				before, reset, result: store.modelCatalog.get(),
+				requests: api.modelRequests.map(request => ({ cancelled: request.token.isCancellationRequested, caller: request.caller })),
+				leases,
+			}, {
+				before: { requests: 1, kind: 'loading' }, reset: undefined, result: { kind: 'ready', catalog },
+				requests: [{ cancelled: true, caller: 'cloudAutomations' }, { cancelled: false, caller: 'cloudAutomations' }],
+				leases: { acquired: 2, released: 1 },
+			});
+		});
+	}
 
 	for (const background of [false, true]) {
 		test(`catalogue and history preserve the requested priority (background=${background})`, async () => {
@@ -1346,4 +1434,12 @@ suite('GitHubCloudAutomationStore', () => {
 			assert.deepStrictEqual({ calls: api.calls, state: store.catalogueState.get() }, { calls: [], state: 'unavailable' });
 		});
 	}
+
+	test('rejects reads and creation when signed into a Microsoft account', async () => {
+		const { store, api, changeAccount } = setup();
+		changeAccount({ authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, accountName: 'alice', sessionId: 's1', enterprise: false });
+		await assert.rejects(store.refresh(), /Sign in to GitHub.com/);
+		await assert.rejects(store.create(workspace, createValue), /Sign in to GitHub.com/);
+		assert.deepStrictEqual({ calls: api.calls, state: store.catalogueState.get() }, { calls: [], state: 'unavailable' });
+	});
 });

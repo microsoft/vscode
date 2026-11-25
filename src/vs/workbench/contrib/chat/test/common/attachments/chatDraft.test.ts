@@ -8,8 +8,8 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IChatDraft, reviveChatDraft, serializeChatDraft, UnsupportedChatDraftAttachmentError } from '../../../common/attachments/chatDraft.js';
-import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { IChatDraft, remapChatDraftResources, reviveChatDraft, serializeChatDraft, UnsupportedChatDraftAttachmentError } from '../../../common/attachments/chatDraft.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, isExplicitFileOrImageVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IAgentsWindowDraft, isAgentsWindowDraft } from '../../../../../../platform/window/common/window.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -50,6 +50,105 @@ suite('Chat draft handoff serialization', () => {
 			elementImage: [4, 5, 6],
 			sourceImage: new Uint8Array([1, 2, 255]),
 			payloadFields: ['attachments', 'inputText'],
+		});
+	});
+
+	test('remaps the resources of attachments and inline references that the mapper maps, along with their ids, and leaves others as they are', () => {
+		const wsl = (path: string) => URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: `/file/-/project${path}` });
+		const mapResource = (resource: URI) => resource.scheme === 'vscode-agent-host' && resource.authority === 'wsl' ? resource.with({ authority: 'env' }) : undefined;
+		const range = new Range(1, 1, 2, 1);
+		const file = toFileVariableEntry(wsl('/a.ts'));
+		const selection = toFileVariableEntry(wsl('/b.ts'), range);
+		const local = toFileVariableEntry(URI.file('/workspace/c.ts'));
+		const draft: IChatDraft = {
+			inputText: '#a.ts #file:d.ts #file:e.ts',
+			attachments: [
+				file,
+				selection,
+				{ kind: 'directory', id: `sessions-additional-folder:${wsl('')}`, name: 'project', value: wsl('') },
+				local,
+			],
+			references: [
+				{ id: file.id, range, isFile: true, isAttachmentReference: true, data: undefined },
+				{ id: 'vscode.file', range, isFile: true, data: wsl('/d.ts') },
+				{ id: 'vscode.file', range, isFile: true, data: URI.file('/workspace/e.ts') },
+			],
+		};
+		const remapped = remapChatDraftResources(draft, mapResource);
+		assert.deepStrictEqual({
+			inputText: remapped.inputText,
+			attachments: remapped.attachments.map(attachment => [attachment.id, IChatRequestVariableEntry.toUri(attachment)?.toString()]),
+			references: remapped.references?.map(reference => [reference.id, URI.isUri(reference.data) ? reference.data.toString() : reference.data]),
+			unchangedLocal: remapped.attachments[3] === local && remapped.references?.[2] === draft.references?.[2],
+			unchangedWithoutMatch: remapChatDraftResources(remapped, mapResource) === remapped,
+		}, {
+			inputText: draft.inputText,
+			attachments: [
+				['vscode-agent-host://env/file/-/project/a.ts', 'vscode-agent-host://env/file/-/project/a.ts'],
+				[`vscode-agent-host://env/file/-/project/b.ts${range}`, 'vscode-agent-host://env/file/-/project/b.ts'],
+				['sessions-additional-folder:vscode-agent-host://env/file/-/project', 'vscode-agent-host://env/file/-/project'],
+				[local.id, 'file:///workspace/c.ts'],
+			],
+			references: [
+				['vscode-agent-host://env/file/-/project/a.ts', undefined],
+				['vscode.file', 'vscode-agent-host://env/file/-/project/d.ts'],
+				['vscode.file', 'file:///workspace/e.ts'],
+			],
+			unchangedLocal: true,
+			unchangedWithoutMatch: true,
+		});
+	});
+
+	test('remaps the source of an image attachment kept as bytes, along with its id and the mentions of it, and keeps its bytes', () => {
+		const wsl = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project/shot.png' });
+		const range = new Range(1, 1, 1, 10);
+		const bytes = new Uint8Array([0x89, 0x50, 0x4E, 0x47]);
+		const draft: IChatDraft = {
+			inputText: '#shot.png',
+			attachments: [{ kind: 'image', id: wsl.toString(), name: 'shot.png', value: bytes, references: [{ kind: 'reference', reference: wsl }] }],
+			references: [{ id: wsl.toString(), range, isAttachmentReference: true, data: undefined }],
+		};
+		const remapped = remapChatDraftResources(draft, resource => resource.authority === 'wsl' ? resource.with({ authority: 'env' }) : undefined);
+		const [image] = remapped.attachments;
+		assert.deepStrictEqual({
+			id: image.id,
+			references: image.references?.map(entry => URI.isUri(entry.reference) ? entry.reference.toString() : entry.reference),
+			mentions: remapped.references?.map(reference => reference.id),
+			keptBytes: image.value === bytes,
+		}, {
+			id: 'vscode-agent-host://env/file/-/project/shot.png',
+			references: ['vscode-agent-host://env/file/-/project/shot.png'],
+			mentions: ['vscode-agent-host://env/file/-/project/shot.png'],
+			keptBytes: true,
+		});
+	});
+
+	test('remaps the resources that pasted code, a diagnostic and extension context keep beside their value, along with the ids and mentions derived from them', () => {
+		const wsl = (path: string) => URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: `/file/-/project${path}` });
+		const range = new Range(2, 1, 3, 5);
+		const diagnostic = IDiagnosticVariableEntryFilterData.toEntry({ filterUri: wsl('/b.ts'), owner: 'typescript', problemMessage: 'Oops', filterRange: range });
+		const draft: IChatDraft = {
+			inputText: '#Oops',
+			attachments: [
+				{ kind: 'paste', id: 'a.ts2315', name: 'a.ts 2 lines', value: 'const a = 1;', code: 'const a = 1;', language: 'typescript', pastedLines: '2 lines', fileName: wsl('/a.ts').toString(), copiedFrom: { uri: wsl('/a.ts'), range }, references: [{ kind: 'reference', reference: wsl('/a.ts') }] },
+				diagnostic,
+				{ kind: 'string', id: 'context', name: 'Context', value: 'Resolved text', uri: URI.parse('context:/item'), resourceUri: wsl('/c.ts'), handle: 1 },
+			],
+			references: [{ id: diagnostic.id, range, isAttachmentReference: true, data: undefined }],
+		};
+		const remapped = remapChatDraftResources(draft, resource => resource.authority === 'wsl' ? resource.with({ authority: 'env' }) : undefined);
+		const [pasted, problem, context] = remapped.attachments;
+		const toString = (resource: unknown) => URI.isUri(resource) ? resource.toString() : resource;
+		assert.deepStrictEqual({
+			pasted: pasted.kind === 'paste' && [pasted.id, toString(pasted.copiedFrom?.uri), pasted.copiedFrom?.range, pasted.fileName, pasted.references?.map(entry => toString(entry.reference))],
+			problem: problem.kind === 'diagnostic' && [problem.id, toString(problem.filterUri), toString((problem.value as IDiagnosticVariableEntryFilterData).filterUri)],
+			context: context.kind === 'string' && [context.id, toString(context.uri), toString(context.resourceUri)],
+			mentions: remapped.references?.map(reference => reference.id),
+		}, {
+			pasted: ['a.ts2315', 'vscode-agent-host://env/file/-/project/a.ts', range, 'vscode-agent-host://env/file/-/project/a.ts', ['vscode-agent-host://env/file/-/project/a.ts']],
+			problem: ['vscode-agent-host://env/file/-/project/b.ts:typescript::2:1', 'vscode-agent-host://env/file/-/project/b.ts', 'vscode-agent-host://env/file/-/project/b.ts'],
+			context: ['context', 'context:/item', 'vscode-agent-host://env/file/-/project/c.ts'],
+			mentions: ['vscode-agent-host://env/file/-/project/b.ts:typescript::2:1'],
 		});
 	});
 

@@ -10,16 +10,18 @@ import { DeferredPromise, disposableTimeout } from '../../../../../../base/commo
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
-import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService, LOCAL_AGENT_HOST_PROVIDER_ID, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IsWebContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext, RemoteNameContext, WorkbenchStateContext } from '../../../../../common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../../chatSessions/chatSessions.contribution.js';
+import { IChatViewHostService } from '../../chatViewHost.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -41,9 +43,6 @@ const localAgentHostWhen = ContextKeyExpr.and(
 	IsWebContext.negate(),
 	RemoteNameContext.isEqualTo(''),
 	IsSessionsWindowContext.negate(),
-	// Not while New Chat opens in the chat area (`ChatPartEnabledContext`, #348358), which cannot start a chat in a
-	// worktree yet. TODO@sandy081 use `ChatPartEnabledContext` by reference once it is available to contrib/chat (#348358)
-	ContextKeyExpr.not('chatPartEnabled'),
 );
 
 /**
@@ -171,7 +170,11 @@ export class NewChatInWorktreeAction extends Action2 {
 		});
 	}
 
-	/** Opens a new chat of the local agent host in the Chat view that starts in a new worktree; `undefined` where it cannot. */
+	/**
+	 * Starts a new chat of the local agent host in a new worktree of the window's folder, where New Chat starts its chats:
+	 * in the host that replaces the Chat view, such as the chat part, where it takes it, else in the Chat view. Resolves to
+	 * the chat it opens in the Chat view; `undefined` where the host starts it, or where it cannot.
+	 */
 	override async run(accessor: ServicesAccessor): Promise<URI | undefined> {
 		const contribution = accessor.get(IChatSessionsService).getChatSessionContribution(SessionType.AgentHostCopilot);
 		const enablementService = accessor.get(IAgentHostEnablementService);
@@ -180,8 +183,22 @@ export class NewChatInWorktreeAction extends Action2 {
 		const folderService = accessor.get(IAgentHostNewSessionFolderService);
 		const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
 		const connectionsService = accessor.get(IAgentHostConnectionsService);
+		const chatViewHostService = accessor.get(IChatViewHostService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		if (!contribution || !enablementService.enabled.get()) {
 			notificationService.warn(localize('chat.newAgentHostChat.unavailable', "A new chat cannot start here, as the agent host is not available in this window."));
+			return undefined;
+		}
+		const folder = workspaceContextService.getWorkspace().folders.at(0)?.uri;
+		// As New Chat: a host that replaces the Chat view starts it, of the local agent host, whatever session type its
+		// new chats start with otherwise. Where none does or it does not take it, the Chat view does, prepared here: not as
+		// a new chat of its own (`ownChat`), which the service would leave to the Chat view's default new chat.
+		if (folder && chatViewHostService.replaced.get() && await chatViewHostService.newChat({
+			folder,
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			sessionType: contribution.type.slice(LOCAL_AGENT_HOST_SCHEME_PREFIX.length),
+			placement: 'worktree',
+		})) {
 			return undefined;
 		}
 		const openOptions = { type: contribution.type, displayName: contribution.displayName, position: ChatSessionPosition.Sidebar };

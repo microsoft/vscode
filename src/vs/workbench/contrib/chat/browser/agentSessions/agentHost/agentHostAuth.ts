@@ -17,14 +17,16 @@ import { isObject } from '../../../../../../base/common/types.js';
 import type { AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
+import { copilotEntraDiscoveryResource, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { agentEntitlementHintMeta, readAgentEntitlementHint, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
+import { MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, type IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -342,6 +344,13 @@ function protectedResourceAuthenticationKey(resource: ProtectedResourceMetadata)
  */
 export class AgentHostAuthenticationRecovery {
 	private readonly _resentTokens = new Map<string, string>();
+	/** The credential the last sign-in this recovery prompted for produced, per challenged resource. */
+	private readonly _signedInTokens = new Map<string, string>();
+	/**
+	 * The credential whose sign-in prompt the user last closed. Challenges for it stay silent until a sign-in replaces
+	 * it. Kept by {@link clear}, because closing the dialog is a decision about the credential, not the connection.
+	 */
+	private _dismissedToken: string | undefined;
 	private readonly _pendingRecoveries = new Map<string, Promise<void>>();
 
 	constructor(
@@ -350,17 +359,21 @@ export class AgentHostAuthenticationRecovery {
 
 	clear(): void {
 		this._resentTokens.clear();
+		this._signedInTokens.clear();
 		this._pendingRecoveries.clear();
 	}
 
-	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
+	/**
+	 * @param reason Why the host challenged the resource, when it said.
+	 */
+	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions, reason?: AuthRequiredReason): Promise<void> {
 		const key = protectedResourceAuthenticationKey(resource);
 		const pendingRecovery = this._pendingRecoveries.get(key);
 		if (pendingRecovery) {
 			return pendingRecovery;
 		}
 
-		const recovery = this._recover(accessor, key, resource, resolveAuthenticationOptions(accessor, options))
+		const recovery = this._recover(accessor, key, resource, resolveAuthenticationOptions(accessor, options), reason)
 			.finally(() => {
 				if (this._pendingRecoveries.get(key) === recovery) {
 					this._pendingRecoveries.delete(key);
@@ -370,12 +383,18 @@ export class AgentHostAuthenticationRecovery {
 		return recovery;
 	}
 
-	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
+	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions, reason: AuthRequiredReason | undefined): Promise<void> {
 		throwIfAuthenticationStale(options);
 		const logService = accessor.get(ILogService);
 		const authenticationService = accessor.get(IAuthenticationService);
 		const defaultAccountService = accessor.get(IDefaultAccountService);
 		const commandService = accessor.get(ICommandService);
+		// Copilot's optional Microsoft requirements are answered only by a window whose account is Microsoft; other windows leave the choice to the one that is.
+		// This holds whatever chat.agentHost.copilot.m365.enabled says: a window with the setting off has no way to take a host off a Microsoft account again, so it must not put it there.
+		if (resource.required === false && (resource.resource === copilotEntraDiscoveryResource || isCopilotEntraServiceResource(resource))
+			&& defaultAccountService.currentDefaultAccount?.authenticationProvider.id !== MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID) {
+			return;
+		}
 		if (await options.renewAuthentication?.(resource)) {
 			throwIfAuthenticationStale(options);
 			logService.info(`${options.logPrefix} Renewed authentication for resource: ${resource.resource}`);
@@ -388,6 +407,7 @@ export class AgentHostAuthenticationRecovery {
 		throwIfAuthenticationStale(options);
 		if (resolution.kind === 'signedOut') {
 			this._resentTokens.delete(key);
+			this._signedInTokens.delete(key);
 		}
 		if (resolution.kind !== 'resolved') {
 			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
@@ -457,6 +477,37 @@ export class AgentHostAuthenticationRecovery {
 			return;
 		}
 
+		const challengedToken = candidateResolution.kind === 'resolved' ? candidateResolution.session.accessToken : currentSession.accessToken;
+		const deferPrompt = (why: string) => {
+			logService.info(`${options.logPrefix} Not prompting to sign in for ${resource.resource}: ${why}`);
+			reportAgentHostAuthRecovery(this._telemetryService, {
+				trigger: 'hostChallenge',
+				action: 'defer',
+				initialSessionMatch: resolution.match,
+				quarantinePresent,
+			});
+		};
+		// A challenge is never something the user started. A resource the host only needs on demand is signed in to
+		// where it is used, such as the Sign In of a pull request artifact, rather than in a dialog.
+		if (resource.required === false) {
+			deferPrompt('the host only needs it on demand');
+			return;
+		}
+		// Only the prompted credential: the current session may be an exact-scope one the host already rejected,
+		// which stays resolvable after a sign-in replaces the broader fallback that was prompted for.
+		if (this._dismissedToken === challengedToken) {
+			deferPrompt('its sign-in was dismissed and no sign-in has replaced the credential since');
+			return;
+		}
+		// Every credential the client could send was refused, including the one its last sign-in produced. A host that
+		// is not asking for renewal then needs something signing in cannot grant, such as an organization's approval,
+		// so prompting again would only repeat the dialog; the host's `expired` challenges still prompt.
+		const signedInToken = this._signedInTokens.get(key);
+		if (reason === AuthRequiredReason.Required && signedInToken !== undefined && (signedInToken === challengedToken || signedInToken === currentSession.accessToken)) {
+			deferPrompt('the host still requires authentication after sign-in provided its credential');
+			return;
+		}
+
 		options.authTokenCache?.invalidate(resource.resource, scopes);
 		reportAgentHostAuthRecovery(this._telemetryService, {
 			trigger: 'hostChallenge',
@@ -464,13 +515,19 @@ export class AgentHostAuthenticationRecovery {
 			initialSessionMatch: resolution.match,
 			quarantinePresent,
 		});
-		const challengedToken = candidateResolution.kind === 'resolved' ? candidateResolution.session.accessToken : currentSession.accessToken;
-		const interactiveSession = await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, this._telemetryService, resource, options, 'hostChallenge', challengedToken);
+		const result = await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, this._telemetryService, resource, options, 'hostChallenge', challengedToken);
 		throwIfAuthenticationStale(options);
-		if (!interactiveSession) {
+		if (result.kind === 'dismissed') {
+			this._dismissedToken = challengedToken;
+			logService.info(`${options.logPrefix} Sign-in for ${resource.resource} was dismissed; challenges for its credential stay silent until a sign-in replaces it`);
 			return;
 		}
+		if (result.kind !== 'signedIn') {
+			return;
+		}
+		const interactiveSession = result.session;
 		this._resentTokens.set(key, interactiveSession.accessToken);
+		this._signedInTokens.set(key, interactiveSession.accessToken);
 		if (interactiveSession.accessToken === challengedToken) {
 			logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
 		}
@@ -826,10 +883,21 @@ export async function authenticateProtectedResources(
 	const logService = accessor.get(ILogService);
 	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
 	for (const agent of agents) {
-		for (const resource of agent.protectedResources ?? []) {
+		const resources = agent.protectedResources ?? [];
+		// With several named optional Microsoft service resources offered, the window cannot tell which one the user means, so it forwards none of them.
+		const isOptionalService = (r: ProtectedResourceMetadata) => r.required === false && isCopilotEntraServiceResource(r);
+		const choosesBetweenServices = resources.filter(r => isOptionalService(r) && !!r.resource_name).length > 1;
+		for (const resource of resources) {
+			if (choosesBetweenServices && isOptionalService(resource)) {
+				continue;
+			}
 			await authenticateProtectedResourceWithServices(authenticationService, defaultAccountService, logService, resource, resolvedOptions);
 		}
 	}
+}
+
+function isCopilotEntraServiceResource(resource: ProtectedResourceMetadata): boolean {
+	return [...copilotEntraResources.values()].includes(resource.resource);
 }
 
 export async function authenticateAgentProtectedResourcesWithToken(
@@ -1185,13 +1253,17 @@ export async function resolveAuthenticationInteractively(
 			initialSessionMatch: existingSessionResolution.kind === 'signedOut' ? 'none' : 'unavailable',
 			quarantinePresent: rejectedSession !== undefined,
 		});
-		return (await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, telemetryService, resource, resolvedOptions, 'sessionCreation', rejectedSession?.accessToken)) !== undefined;
+		return (await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, telemetryService, resource, resolvedOptions, 'sessionCreation', rejectedSession?.accessToken)).kind === 'signedIn';
 	}
 
 	return false;
 }
 
-/** Builds the shared setup options for granting an agent host's required GitHub Copilot scopes. */
+/**
+ * Builds the shared setup options for granting an agent host's required GitHub Copilot scopes.
+ * The dialog these options force also offers the Microsoft sign-in, although this caller asks for
+ * more GitHub permissions for an account that is already signed in.
+ */
 export function getAgentHostSignInOptions(scopes: readonly string[]): IChatSetupCommandOptions {
 	return {
 		telemetrySource: ChatSetupSource.AgentHost,
@@ -1201,6 +1273,14 @@ export function getAgentHostSignInOptions(scopes: readonly string[]): IChatSetup
 		disableChatViewReveal: true,
 	};
 }
+
+/** How an interactive sign-in ended. */
+type InteractiveAuthenticationResult =
+	| { readonly kind: 'signedIn'; readonly session: AuthenticationSession }
+	/** The user closed the sign-in dialog. */
+	| { readonly kind: 'dismissed' }
+	/** Sign-in completed without forwarding a new credential. */
+	| { readonly kind: 'noCredential' };
 
 async function forceAuthenticationInteractively(
 	authenticationService: IAuthenticationService,
@@ -1212,7 +1292,7 @@ async function forceAuthenticationInteractively(
 	options: IResolvedAgentHostAuthenticationOptions,
 	trigger: AgentHostAuthTrigger,
 	challengedToken?: string,
-): Promise<AuthenticationSession | undefined> {
+): Promise<InteractiveAuthenticationResult> {
 	throwIfAuthenticationStale(options);
 	const defaultAccount = defaultAccountService.currentDefaultAccount;
 	const watch = StopWatch.create();
@@ -1227,7 +1307,7 @@ async function forceAuthenticationInteractively(
 		}
 		if (setupResult?.success === undefined) {
 			data.result = 'cancelled';
-			return undefined;
+			return { kind: 'dismissed' };
 		}
 		if (!setupResult.success) {
 			throw setupResult.error ?? new Error(localize('agentHost.signInFailed', "Failed to sign in to use GitHub Copilot."));
@@ -1241,7 +1321,7 @@ async function forceAuthenticationInteractively(
 			data.sessionMatch = sessionResolution.kind === 'signedOut' ? 'none' : 'unavailable';
 			data.result = 'noSessionResolved';
 			logService.info(`${options.logPrefix} Interactive authentication did not provide a token for ${resource.resource}`);
-			return undefined;
+			return { kind: 'noCredential' };
 		}
 		const session = sessionResolution.session;
 		data.sessionMatch = sessionResolution.match;
@@ -1249,11 +1329,11 @@ async function forceAuthenticationInteractively(
 		options.authTokenCache?.clear(resource.resource, scopes);
 		if (!await forwardAuthenticationToken(options, resource.resource, scopes, session, sessionResolution.providerId, sessionResolution.entitlement)) {
 			data.result = 'deduplicated';
-			return undefined;
+			return { kind: 'noCredential' };
 		}
 		data.result = 'tokenForwarded';
 		logService.info(`${options.logPrefix} Interactive authentication completed for ${resource.resource}`);
-		return session;
+		return { kind: 'signedIn', session };
 	} catch (error) {
 		data.result = isCancellationError(error) ? 'superseded' : 'failed';
 		throw error;

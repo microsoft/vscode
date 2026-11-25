@@ -134,7 +134,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, _signal: AbortSignal): Promise<InvokeChangesetOperationResult> {
 		const parsed = parseChangesetUri(params.channel);
-		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
+		if (parsed?.kind === ChangesetKind.Turn) {
 			return this._discardTurnFile(params, parsed.ownerUri, parsed.turnId, token);
 		}
 		if (parsed?.kind === ChangesetKind.Session || parsed?.kind === ChangesetKind.WorkingSet) {
@@ -174,10 +174,14 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			if (!repositoryRoot) {
 				throw new Error(`No changeset repository contains '${resource.fsPath}'.`);
 			}
+			const submoduleRoot = await this._agentHostGitService.getSubmoduleRoot?.(repositoryRoot, resource);
 			this._throwIfCancelled(token);
 
-			if (parsed.kind === ChangesetKind.Branch) {
-				await this._discardBranchChange(repositoryRoot, changesetFile, sessionUri, token);
+			// Both changesets diff a file inside a submodule against the commit
+			// that the repository records for the submodule, so restore it from
+			// that baseline in the submodule.
+			if (parsed.kind === ChangesetKind.Branch || submoduleRoot) {
+				await this._discardBranchChange(submoduleRoot ?? repositoryRoot, changesetFile, sessionUri, token);
 			} else {
 				await this._discardUncommittedChange(repositoryRoot, resource, sessionUri, token);
 			}

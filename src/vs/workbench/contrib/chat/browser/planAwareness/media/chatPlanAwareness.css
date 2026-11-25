@@ -1,0 +1,248 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Suggestion card */
+
+.monaco-workbench .chat-plan-card {
+	position: absolute;
+	right: var(--vscode-spacing-size120);
+	bottom: var(--vscode-spacing-size360);
+	z-index: 1000;
+	box-sizing: border-box;
+	width: 360px;
+	max-width: calc(100% - 24px);
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-notifications-border, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-notifications-background);
+	color: var(--vscode-notifications-foreground);
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+	font-size: var(--vscode-fontSize-body1);
+	animation: chat-plan-card-in 0.2s ease-out;
+}
+
+.monaco-workbench.reduce-motion .chat-plan-card {
+	animation: none;
+}
+
+@keyframes chat-plan-card-in {
+	from { opacity: 0; transform: translateY(8px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+.monaco-workbench .chat-plan-card:focus {
+	outline: none;
+}
+
+.monaco-workbench .chat-plan-card-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench .chat-plan-card-title {
+	flex: 1;
+	min-width: 0;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.monaco-workbench .chat-plan-card-message {
+	margin: var(--vscode-spacing-size80) 0;
+	line-height: 1.4;
+}
+
+.monaco-workbench .chat-plan-card-facts {
+	margin: 0 0 var(--vscode-spacing-size120);
+	padding: 0;
+	list-style: none;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.monaco-workbench .chat-plan-card-facts li {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size20) 0;
+	line-height: 18px;
+}
+
+/* One line tall, so the check mark centers on the first line of a fact that wraps */
+.monaco-workbench .chat-plan-card-facts .chat-plan-card-icon {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	height: 1lh;
+	color: var(--vscode-charts-green, var(--vscode-icon-foreground));
+}
+
+.monaco-workbench .chat-plan-card-facts strong {
+	color: var(--vscode-notifications-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.monaco-workbench .chat-plan-card-actions {
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench .chat-plan-card-actions .monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	white-space: nowrap;
+}
+
+/* What the plan includes, in the center of the empty Chat view, as part of the view like its welcome message */
+
+.chat-plan-welcome {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	max-width: 350px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 18px;
+	text-align: center;
+	cursor: default;
+}
+
+/* Above the codicon font size, like the icon of the welcome message */
+.chat-plan-welcome .chat-plan-welcome-icon.codicon[class*='codicon-'] {
+	margin-bottom: var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
+	font-size: 32px;
+}
+
+.chat-plan-welcome-title {
+	color: var(--vscode-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-plan-welcome-facts {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size100) 0 0;
+	padding: 0;
+	list-style: none;
+	text-align: start;
+}
+
+.chat-plan-welcome-facts li {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size60);
+}
+
+.chat-plan-welcome-facts strong {
+	color: var(--vscode-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+/* One line tall, so the check mark centers on the first line of a fact that wraps */
+.chat-plan-welcome-check {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	height: 1lh;
+}
+
+/* A model or harness name that opens its picker: text until hovered */
+.chat-plan-welcome-choice {
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: none;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+}
+
+.chat-plan-welcome-choice:hover {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: underline;
+}
+
+.chat-plan-welcome-choice:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
+/* One line above the first line of agent instructions, skill, agent and prompt files, separated from the text by a rule */
+
+.monaco-editor .chat-plan-file-banner {
+	position: absolute;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) 0;
+	/* Tinted like the icon and the action, so the rule reads as part of the line */
+	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-textLink-foreground) 40%, transparent);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 22px;
+	white-space: nowrap;
+}
+
+.monaco-editor .chat-plan-file-banner-icon {
+	flex-shrink: 0;
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Shortens with an ellipsis, so the actions always fit on the line */
+.monaco-editor .chat-plan-file-banner-text {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-editor .chat-plan-file-banner-title,
+.monaco-editor .chat-plan-file-banner-text strong {
+	color: var(--vscode-editor-foreground);
+}
+
+.monaco-editor .chat-plan-file-banner-text strong {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.monaco-editor .chat-plan-file-banner-separator {
+	margin: 0 var(--vscode-spacing-size60);
+}
+
+.monaco-editor .chat-plan-file-banner-link {
+	flex-shrink: 0;
+	padding: 0 var(--vscode-spacing-size40);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: none;
+	color: var(--vscode-textLink-foreground);
+	font: inherit;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	cursor: pointer;
+}
+
+.monaco-editor .chat-plan-file-banner-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.monaco-editor .chat-plan-file-banner-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+/* At the end of the line, away from the text and its action */
+.monaco-editor .chat-plan-file-banner-close {
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.monaco-workbench.hc-black .monaco-editor .chat-plan-file-banner,
+.monaco-workbench.hc-light .monaco-editor .chat-plan-file-banner {
+	border-bottom-color: var(--vscode-contrastBorder);
+}

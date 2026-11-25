@@ -459,6 +459,38 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
+	for (const action of ['done', 'untilActivity'] as const) {
+		test(`${action} survives last-turn timestamp hydration and reload but ends on newer activity`, () => {
+			const lastTurnEnd = observableValue<Date | undefined>('lastTurnEnd', undefined);
+			const session = { ...createSession('triage', SessionStatus.Completed, { updatedAt: new Date(100) }), lastTurnEnd };
+			sessions.push(session);
+			service.setInboxState([session], action);
+			lastTurnEnd.set(new Date(90), undefined);
+			const hydrated = service.getInboxState(session)?.kind;
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+			const restored = service.getInboxState(session)?.kind;
+			lastTurnEnd.set(new Date(100), undefined);
+			const refined = service.getInboxState(session)?.kind;
+			lastTurnEnd.set(new Date(101), undefined);
+			assert.deepStrictEqual({ hydrated, restored, refined, afterActivity: service.getInboxState(session)?.kind }, {
+				hydrated: action, restored: action, refined: action, afterActivity: undefined,
+			});
+		});
+	}
+
+	test('stored acknowledgement with an unresolved last-turn timestamp survives hydration', () => {
+		const lastTurnEnd = observableValue<Date | undefined>('lastTurnEnd', new Date(90));
+		const session = { ...createSession('triage', SessionStatus.Completed, { updatedAt: new Date(100) }), lastTurnEnd };
+		sessions.push(session);
+		storageService.store('sessionsListControl.inboxState', JSON.stringify([
+			[session.sessionId, { kind: 'done', activity: `${SessionStatus.Completed}:100:0` }],
+		]), StorageScope.PROFILE, StorageTarget.USER);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.strictEqual(service.getInboxState(session)?.kind, 'done');
+	});
+
 	test('inbox snooze persists across reload and expires without a catalog update', async () => {
 		await runWithFakedTimers({}, async () => {
 			const session = createSession('snoozed');

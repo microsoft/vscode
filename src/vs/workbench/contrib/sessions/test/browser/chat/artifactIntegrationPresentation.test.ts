@@ -56,7 +56,7 @@ import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView, Artifa
 import { ArtifactIntegrationPresentation } from '../../../browser/chat/artifactIntegrationPresentation.js';
 import { ArtifactIntegrationGroup } from '../../../browser/chat/artifactIntegrationGroup.js';
 import { ArtifactDetailsModel } from '../../../browser/chat/artifactDetailsModel.js';
-import { ArtifactDetailsPanel } from '../../../browser/chat/artifactDetailsPanel.js';
+import { ArtifactDetailsPanel, fitArtifactListHeights } from '../../../browser/chat/artifactDetailsPanel.js';
 import { artifactViewKey, IArtifactDetailsViewData } from '../../../browser/chat/artifactDetailsView.js';
 import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../sessionHostTestUtils.js';
 
@@ -507,7 +507,7 @@ suite('Artifact Integration Presentation', () => {
 			stateActions: [{ id: 'deploy', label: 'Deploy', primary: true, enabled: true, run: () => { commands.push('deploy'); } }],
 			generalActions: [{ id: 'copy', label: 'Copy Link', run: () => { commands.push('copy'); } }],
 			autopilot: [{
-				id: 'delivery', title: 'Autopilot', expanded: true, checked: false, disabled: false, summary: '0 of 1 on', toggleLabel: 'All Available Autopilot Rules', description: 'Deploy automatically when healthy.',
+				id: 'delivery', title: 'Autopilot', expanded: true, checked: false, disabled: false, summary: '0 of 1 on', toggleLabel: 'Toggle All Autopilot Rules', description: 'Deploy automatically when healthy.',
 				rules: [{ id: 'autoDeploy', label: 'Deploy When Healthy', description: 'Wait for healthy checks.', checked: false, disabled: false, pending: false, setEnabled: async value => { commands.push(`rule:${value}`); } }],
 				setExpanded: expanded => { commands.push(`expand:${expanded}`); }, setEnabled: async value => { commands.push(`group:${value}`); },
 			}],
@@ -627,7 +627,7 @@ suite('Artifact Integration Presentation', () => {
 				const panel = await open(f, a);
 				button(panel, 'Autopilot').click();
 				await expand(f, panel);
-				const outer = panel.querySelector<HTMLElement>('.artifact-details-lower-content')!;
+				const outer = panel.querySelector<HTMLElement>('.artifact-details-body')!;
 				const inner = panel.querySelector<HTMLElement>('.artifact-activities-list .monaco-scrollable-element')!;
 				const contents = inner.querySelector<HTMLElement>('.monaco-list-rows')!;
 				const innerScrollTop = () => Math.round(inner.getBoundingClientRect().top - contents.getBoundingClientRect().top);
@@ -654,6 +654,88 @@ suite('Artifact Integration Presentation', () => {
 					JSON.stringify({ first, bottom, backUp, final: { inner: innerScrollTop(), outer: outer.scrollTop }, rowsTop: contents.style.top, outerHeight: outer.clientHeight, outerScrollHeight: outer.scrollHeight }));
 			});
 		}
+
+		test('everything below the header scrolls together, and only by a distance worth scrolling', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			setActivities(a, Array.from({ length: 20 }, (_, index) => activity(a, `entry-${index}`, { createdAt: index })));
+			const panel = await open(f, a);
+			panel.querySelector<HTMLElement>('[role="tab"]')!.click();
+			button(panel, 'Autopilot').click();
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			const overflows = new Set<string>();
+			for (let height = 300; height <= 800; height += 10) {
+				f.host.style.height = `${height}px`;
+				await settle(f);
+				const overflow = body.scrollHeight - body.clientHeight;
+				overflows.add(overflow <= 0 ? 'fits' : overflow < 56 ? `scrolls only ${overflow}px at ${height}px` : 'scrolls');
+			}
+			assert.deepStrictEqual({
+				scrolled: ['.artifact-tabbed-state-widget', '.artifact-autopilot', '.artifact-activities'].map(selector => body.contains(panel.querySelector(selector))),
+				header: body.contains(panel.querySelector('.artifact-details-header')),
+				overflows: [...overflows].sort(),
+			}, { scrolled: [true, true, true], header: false, overflows: ['fits', 'scrolls'] });
+		});
+
+		test('keyboard navigation reveals the focused row when the panel is shorter than the list', async () => {
+			const f = fixture();
+			f.host.style.height = '300px';
+			const a = f.artifact();
+			setActivities(a, Array.from({ length: 20 }, (_, index) => activity(a, `entry-${index}`, { createdAt: index })));
+			const panel = await open(f, a);
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			const list = panel.querySelector<HTMLElement>('.artifact-activities-list .monaco-list')!;
+			assert.ok(body.clientHeight < list.offsetHeight, `The panel (${body.clientHeight}px) must be shorter than the list (${list.offsetHeight}px)`);
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			const visible: boolean[] = [];
+			for (const id of ['list.focusFirst', 'list.focusDown', 'list.focusDown', 'list.focusDown', 'list.focusDown', 'list.focusLast', 'list.focusFirst']) {
+				f.instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+				await settle(f);
+				const row = list.querySelector('.monaco-list-row.focused')!.getBoundingClientRect();
+				const viewport = body.getBoundingClientRect();
+				visible.push(row.top >= viewport.top - 0.5 && row.bottom <= viewport.bottom + 0.5);
+			}
+			assert.deepStrictEqual(visible, Array(7).fill(true));
+		});
+
+		test('layout and model updates keep the scroll position', async () => {
+			const f = fixture();
+			f.host.style.height = '560px';
+			const a = f.artifact();
+			const entries = (count: number) => Array.from({ length: count }, (_, index) => activity(a, `entry-${index}`, { createdAt: index }));
+			setActivities(a, entries(20));
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			assert.ok(body.scrollHeight - body.clientHeight > 40, 'The panel must have content to scroll');
+			body.scrollTop = 40;
+			body.dispatchEvent(new mainWindow.Event('scroll'));
+			await settle(f);
+			const afterLayout = body.scrollTop;
+			setActivities(a, entries(21));
+			await settle(f);
+			assert.deepStrictEqual({ afterLayout, afterUpdate: body.scrollTop }, { afterLayout: 40, afterUpdate: 40 });
+		});
+
+		test('lists shrink to fit and grow back when scrolling would reveal too little', () => {
+			const lists = [{ preferred: 196, minimum: 112, step: 28 }, { preferred: 168, minimum: 84, step: 28 }];
+			const fit = (overflow: number, slack = 8) => {
+				const result = fitArtifactListHeights(lists, overflow, slack);
+				return [...result.heights, result.overflow];
+			};
+			assert.deepStrictEqual([0, 30, 168, 174, 180, 300].map(overflow => fit(overflow)), [
+				[196, 168, 0],
+				[140, 168, -26],
+				[112, 84, 0],
+				[112, 84, 6],
+				[140, 112, 68],
+				[112, 84, 132],
+			]);
+		});
 
 		test('shows an accessible right-aligned loaded activity count while collapsed and expanded', async () => {
 			const f = fixture();
@@ -991,6 +1073,27 @@ suite('Artifact Integration Presentation', () => {
 			hover: 'Open: compact status', acquired: [], inline: true, labels: ['#42', '1/2', '1'],
 			main: { label: 'Open #42', description: 'Open: compact status', popup: null },
 			sections: [{ popup: 'dialog', expanded: 'false' }, { popup: 'dialog', expanded: 'false' }],
+		});
+	});
+
+	test('a pill label shortens the artifact\'s own pill, while its label still names it for screen readers and dropdown rows', () => {
+		const f = fixture();
+		const a = f.artifact();
+		updateContribution(a, c => ({ ...c, view: { ...c.view, main: { ...c.view.main!, label: 'Use the theme\'s minimap background', pillLabel: 'PR #42', description: undefined } } }));
+		const hover = f.hovers.get(a.main);
+		assert.ok(typeof hover === 'function');
+		assert.deepStrictEqual({
+			label: a.main.querySelector('.chat-pill-label')?.textContent,
+			ariaLabel: a.main.getAttribute('aria-label'),
+			description: a.main.getAttribute('aria-description'),
+			hover: hover().content,
+			row: a.entry.get().label,
+		}, {
+			label: 'PR #42',
+			ariaLabel: 'Open Use the theme\'s minimap background',
+			description: null,
+			hover: 'Use the theme\'s minimap background',
+			row: 'Use the theme\'s minimap background',
 		});
 	});
 
@@ -2330,7 +2433,7 @@ suite('Artifact Integration Presentation', () => {
 				labels, lastSection, focused, expanded, focusedAgain, samePanel, views: f.contextShows(),
 				badgeRemoved: !automationBadge(a), restoredToMain: getActiveElement() === a.main,
 			}, {
-				labels: { badge: 'Show Autopilot: 1 enabled', master: 'All Available Autopilot Rules', help: true },
+				labels: { badge: 'Show Autopilot: 1 enabled', master: 'Toggle All Autopilot Rules', help: true },
 				lastSection: true, focused: true, expanded: 'true', focusedAgain: true, samePanel: true, views: 1, badgeRemoved: true, restoredToMain: true,
 			});
 		});
@@ -2545,29 +2648,69 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('the whole heading except the master switch toggles expansion and shows hover feedback', async () => {
+		test('the whole heading except the Toggle All switch and its label toggles expansion and shows hover feedback', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			const panel = await open(f, a);
 			const group = panel.querySelector<HTMLElement>('.artifact-autopilot-group')!;
 			const heading = group.querySelector<HTMLElement>('.artifact-card-heading')!;
 			const master = heading.querySelector<HTMLButtonElement>('[role="switch"]')!;
-			const expanded = () => group.querySelector('.artifact-card-disclosure')!.getAttribute('aria-expanded');
-			const states: { expanded: string | null; controlHovered?: boolean }[] = [];
+			const toggleAll = master.parentElement!;
+			const label = toggleAll.querySelector('label')!;
+			const state = () => ({
+				expanded: group.querySelector('.artifact-card-disclosure')!.getAttribute('aria-expanded'), checked: master.getAttribute('aria-checked'),
+				controlHovered: heading.classList.contains('artifact-card-heading-control-hovered'),
+			});
 			heading.querySelector<HTMLElement>('.artifact-autopilot-summary')!.click();
 			await settle(f);
-			states.push({ expanded: expanded() });
+			const states = [state()];
+			toggleAll.dispatchEvent(new MouseEvent('mouseenter'));
 			master.click();
 			await settle(f);
-			master.dispatchEvent(new MouseEvent('mouseenter'));
-			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
-			master.dispatchEvent(new MouseEvent('mouseleave'));
+			states.push(state());
+			label.click();
+			await settle(f);
+			states.push(state());
+			toggleAll.dispatchEvent(new MouseEvent('mouseleave'));
 			heading.click();
 			await settle(f);
-			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
-			assert.deepStrictEqual({ states, configured: a.configured.length, focused: getActiveElement() === group.querySelector('.artifact-card-disclosure') }, {
-				states: [{ expanded: 'true' }, { expanded: 'true', controlHovered: true }, { expanded: 'false', controlHovered: false }],
-				configured: 1, focused: true,
+			states.push(state());
+			assert.deepStrictEqual({
+				label: label.textContent, states,
+				configured: a.configured.length, focused: getActiveElement() === group.querySelector('.artifact-card-disclosure'),
+			}, {
+				label: 'Toggle All',
+				states: [
+					{ expanded: 'true', checked: 'false', controlHovered: false },
+					{ expanded: 'true', checked: 'true', controlHovered: true },
+					{ expanded: 'true', checked: 'false', controlHovered: true },
+					{ expanded: 'false', checked: 'false', controlHovered: false },
+				],
+				configured: 2, focused: true,
+			});
+		});
+
+		test('a card disclosure shows its focus ring for keyboard focus but not for pointer focus', async function () {
+			// Hidden Electron windows do not match focus pseudo-classes; run this check in a browser.
+			if (!mainWindow.document.hasFocus()) {
+				this.skip();
+			}
+			const f = fixture();
+			const panel = await open(f, f.artifact());
+			const disclosure = button(panel, 'Autopilot');
+			const ring = () => ({ focusVisible: disclosure.matches(':focus-visible'), outline: mainWindow.getComputedStyle(disclosure).outlineStyle });
+			// Avoid inheriting focus-visible from the element that opening the details focused.
+			const active = getActiveElement();
+			if (isHTMLElement(active)) {
+				active.blur();
+			}
+			disclosure.focus({ focusVisible: false });
+			const pointer = ring();
+			disclosure.blur();
+			disclosure.focus({ focusVisible: true });
+			assert.deepStrictEqual({ pointer, keyboard: ring() }, {
+				pointer: { focusVisible: false, outline: 'none' },
+				keyboard: { focusVisible: true, outline: 'solid' },
 			});
 		});
 

@@ -1626,7 +1626,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
-		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
+		assert.deepStrictEqual(h.gitBaseBranches, ['origin/main']);
 	}));
 
 	for (const project of [undefined, WORKING_DIRECTORY]) {
@@ -1636,28 +1636,28 @@ suite('AgentHostGitStateService', () => {
 				workingDirectory: WORKING_DIRECTORY,
 				project,
 				isolation: 'folder',
-				gitState: { branchName: 'feature', baseBranchName: 'main' },
+				gitState: { branchName: 'feature', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' },
 			});
 			await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release');
 			h.setGitResult({ branchName: 'feature', baseBranchName: 'release' });
 
 			await h.service.refreshSessionGitState(SESSION, undefined);
 
-			assert.deepStrictEqual(h.gitBaseBranches, ['release']);
+			assert.deepStrictEqual(h.gitBaseBranches, ['origin/release']);
 		}));
 	}
 
-	test('existing folder sessions without a persisted base retain their Git-state fallback', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('existing folder sessions without a persisted base fall back to the base branch ref of their Git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
-		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, isolation: 'folder', gitState: { branchName: 'feature', baseBranchName: 'main' } });
-		h.setGitResult({ branchName: 'feature', baseBranchName: 'main' });
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, isolation: 'folder', gitState: { branchName: 'feature', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' } });
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
 		assert.deepStrictEqual({
 			baseBranches: h.gitBaseBranches,
 			persisted: await h.db.getMetadata(META_DIFF_BASE_BRANCH),
-		}, { baseBranches: ['main'], persisted: undefined });
+		}, { baseBranches: ['refs/remotes/origin/main'], persisted: undefined });
 	}));
 
 	test('uses folder-scoped base branches after moving only the main chat to another workspace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1667,7 +1667,7 @@ suite('AgentHostGitStateService', () => {
 			project: 'file:///repo-a',
 			isolation: 'worktree',
 			baseBranch: 'release-A',
-			gitState: { branchName: 'agents/original', baseBranchName: 'release-A' },
+			gitState: { branchName: 'agents/original', baseBranchName: 'release-A', baseBranchRef: 'refs/remotes/origin/release-A' },
 		});
 		const main = buildDefaultChatUri(SESSION);
 		const peer = buildChatUri(SESSION, 'peer');
@@ -1675,10 +1675,10 @@ suite('AgentHostGitStateService', () => {
 		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer, buildDefaultChatUri(SESSION)), { workingDirectories: [WORKING_DIRECTORY] });
 		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: replacement });
 		h.stateManager.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: replacement });
-		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
+		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
 		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release-A');
 
-		const resolved = await Promise.all([main, peer, SESSION].map(key => h.service.resolveSessionBaseBranchName(key)));
+		const resolved = await Promise.all([main, peer, SESSION].map(key => h.service.resolveSessionBaseBranchRef(key)));
 		await h.service.refreshSessionGitState(main, undefined);
 		await h.service.refreshSessionGitState(peer, undefined);
 		await h.service.refreshSessionGitState(SESSION, undefined);
@@ -1688,9 +1688,9 @@ suite('AgentHostGitStateService', () => {
 			directories: h.gitCalls,
 			baseBranches: h.gitBaseBranches,
 		}, {
-			resolved: ['main', 'release-A', 'release-A'],
+			resolved: ['refs/remotes/origin/main', 'refs/remotes/origin/release-A', 'refs/remotes/origin/release-A'],
 			directories: [replacement, WORKING_DIRECTORY, WORKING_DIRECTORY],
-			baseBranches: ['main', 'release-A', 'release-A'],
+			baseBranches: ['refs/remotes/origin/main', 'refs/remotes/origin/release-A', 'refs/remotes/origin/release-A'],
 		});
 	}));
 
@@ -1704,7 +1704,7 @@ suite('AgentHostGitStateService', () => {
 		await h.stateStore.writeMetadata(session, URI.parse(peer), { [META_DIFF_BASE_BRANCH]: 'origin/peer-base' }, SessionStateMirrorFlush.Immediate);
 		await h.stateStore.writeMetadata(session, session, { [META_DIFF_BASE_BRANCH]: 'origin/session-base' }, SessionStateMirrorFlush.Immediate);
 
-		const resolved = await Promise.all([peer, SESSION].map(key => h.service.resolveSessionBaseBranchName(key)));
+		const resolved = await Promise.all([peer, SESSION].map(key => h.service.resolveSessionBaseBranchRef(key)));
 		await h.service.refreshSessionGitState(peer, undefined);
 		await h.service.associateRecordedPullRequests(peer, ['https://github.com/microsoft/vscode/pull/7']);
 		await h.whenStateStoreIdle();
@@ -1715,7 +1715,7 @@ suite('AgentHostGitStateService', () => {
 			chatState: await h.centralDatabase.readSessionState(peer),
 			load: await h.stateStore.load(URI.parse(peer)).then(() => 'loaded', (error: Error) => error.message),
 		}, {
-			resolved: ['peer-base', 'session-base'],
+			resolved: ['origin/peer-base', 'origin/session-base'],
 			chatRecord: undefined,
 			chatState: undefined,
 			load: `${peer} is a chat, not a session`,
@@ -1737,10 +1737,10 @@ suite('AgentHostGitStateService', () => {
 		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release-A');
 		const replacement = 'file:///repo-b';
 		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer, buildDefaultChatUri(SESSION)), { workingDirectories: [replacement] });
-		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
+		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
 		await peerDb.setMetadata(META_DIFF_BASE_BRANCH, '');
 
-		assert.deepStrictEqual(await Promise.all([peer, main].map(key => h.service.resolveSessionBaseBranchName(key))), ['main', 'release-A']);
+		assert.deepStrictEqual(await Promise.all([peer, main].map(key => h.service.resolveSessionBaseBranchRef(key))), ['refs/remotes/origin/main', 'origin/release-A']);
 	}));
 
 	test('uses the persisted pull request base branch for a pull request session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1757,7 +1757,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
-		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
+		assert.deepStrictEqual(h.gitBaseBranches, ['origin/main']);
 	}));
 
 	test('uses the persisted base branch when a worktree checked out its configured branch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1775,7 +1775,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
-		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
+		assert.deepStrictEqual(h.gitBaseBranches, ['origin/main']);
 	}));
 
 	test('uses the persisted worktree base branch for an adopted linked worktree', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1791,7 +1791,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
-		assert.deepStrictEqual(h.gitBaseBranches, ['release']);
+		assert.deepStrictEqual(h.gitBaseBranches, ['origin/release']);
 	}));
 
 	test('refreshes git state in memory while a session is creating', async () => {

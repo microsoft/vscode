@@ -15,7 +15,7 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
-import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
@@ -472,8 +472,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			try {
 				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
 
-				const baseBranchName = await this.resolveSessionBaseBranchName(sessionKey);
-				const gitState = await this._readGitState(workingDirectory, baseBranchName, forced);
+				const baseBranchRef = await this.resolveSessionBaseBranchRef(sessionKey);
+				const gitState = await this._readGitState(workingDirectory, baseBranchRef, forced);
 				const currentWorkingDirectory = this._getStateForGitScope(sessionKey)?.workingDirectories?.[0];
 				const primaryWorkingDirectoryChanged = initialPrimaryWorkingDirectory === undefined
 					? currentWorkingDirectory !== undefined
@@ -564,14 +564,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * flight share it. A forced refresh knows the checkout just changed, which a read that started earlier may not
 	 * reflect, so it only shares a read another forced refresh started.
 	 */
-	private _readGitState(workingDirectory: URI, baseBranchName: string | undefined, fresh: boolean): Promise<ISessionGitState | undefined> {
-		const key = `${workingDirectory.toString()}\0${baseBranchName ?? ''}`;
+	private _readGitState(workingDirectory: URI, baseBranchRef: string | undefined, fresh: boolean): Promise<ISessionGitState | undefined> {
+		const key = `${workingDirectory.toString()}\0${baseBranchRef ?? ''}`;
 		const freshKey = `${key}\0fresh`;
 		const inFlight = this._gitStateReads.get(freshKey) ?? (fresh ? undefined : this._gitStateReads.get(key));
 		if (inFlight) {
 			return inFlight;
 		}
-		const read = this._gitService.getSessionGitState(workingDirectory, baseBranchName);
+		const read = this._gitService.getSessionGitState(workingDirectory, baseBranchRef);
 		const readKey = fresh ? freshKey : key;
 		this._gitStateReads.set(readKey, read);
 		const clear = () => {
@@ -604,6 +604,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			...(currentGitState?.hasGitRemote !== undefined ? { hasGitRemote: currentGitState.hasGitRemote } : {}),
 			...(currentGitState?.hasGitHubRemote !== undefined ? { hasGitHubRemote: currentGitState.hasGitHubRemote } : {}),
 			...(currentGitState?.baseBranchName !== undefined ? { baseBranchName: currentGitState.baseBranchName } : {}),
+			...(currentGitState?.baseBranchRef !== undefined ? { baseBranchRef: currentGitState.baseBranchRef } : {}),
 			...(currentGitState?.defaultBranchName !== undefined ? { defaultBranchName: currentGitState.defaultBranchName } : {}),
 			...(currentGitState?.defaultRemoteBranchName !== undefined ? { defaultRemoteBranchName: currentGitState.defaultRemoteBranchName } : {}),
 			...(currentGitState?.githubOwner !== undefined ? { githubOwner: currentGitState.githubOwner } : {}),
@@ -633,10 +634,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return { pending: [], unmatched: [...urls] };
 		}
 		const workingDirectory = URI.parse(workingDirectoryString);
-		const baseBranchName = await this.resolveSessionBaseBranchName(chat);
+		const baseBranchRef = await this.resolveSessionBaseBranchRef(chat);
 		let gitState: ISessionGitState | undefined;
 		try {
-			gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
+			gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchRef);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Could not read the checkout while recording a pull request for ${folder.sessionUri}`, error);
 		}
@@ -744,10 +745,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				const chatEntries = valid.filter(entry => entry.chat === chat);
 				const { workingDirectory, branchName, owner, repo } = chatEntries[0];
 				const directory = URI.parse(workingDirectory);
-				const baseBranchName = await this.resolveSessionBaseBranchName(chat);
+				const baseBranchRef = await this.resolveSessionBaseBranchRef(chat);
 				let gitState: ISessionGitState | undefined;
 				try {
-					gitState = await this._gitService.getSessionGitState(directory, baseBranchName);
+					gitState = await this._gitService.getSessionGitState(directory, baseBranchRef);
 				} catch (error) {
 					this._logService.warn(`[AgentHostGitStateService] Could not read the checkout for a pending pull request in ${session}`, error);
 					continue;
@@ -788,7 +789,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				}
 				let latestGitState: ISessionGitState | undefined;
 				try {
-					latestGitState = await this._gitService.getSessionGitState(directory, baseBranchName);
+					latestGitState = await this._gitService.getSessionGitState(directory, baseBranchRef);
 				} catch (error) {
 					this._logService.warn(`[AgentHostGitStateService] Could not confirm the checkout for a pending pull request in ${session}`, error);
 					continue;
@@ -953,9 +954,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		});
 	}
 
-	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
+	/**
+	 * Resolves the base branch recorded for `sessionKey` exactly as recorded (e.g. `refs/remotes/origin/main`), falling
+	 * back to the full ref its Git state names. Without either, it is `undefined` and the git service derives the default
+	 * branch's ref.
+	 */
+	async resolveSessionBaseBranchRef(sessionKey: string): Promise<string | undefined> {
 		const state = this._getStateForGitScope(sessionKey);
-		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchName;
+		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchRef;
 		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder;
 		if (!isSessionFolder && this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
 			return gitStateBaseBranch;
@@ -973,7 +979,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 		try {
 			const persisted = await this._sessionStateStore.readBaseBranchWithoutImport(URI.parse(session), isChat && !this._chatOwnership.isRegisteredDefaultChat(sessionKey) ? sessionKey : undefined);
-			return resolveDiffBaseBranchName(persisted, gitStateBaseBranch);
+			return persisted || gitStateBaseBranch;
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Failed to read the persisted base branch for ${sessionKey}`, error);
 			return gitStateBaseBranch;

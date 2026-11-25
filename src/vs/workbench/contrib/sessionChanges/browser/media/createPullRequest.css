@@ -197,7 +197,8 @@
 	cursor: pointer;
 }
 
-.create-pull-request-widget .create-pr-agent-merge {
+.create-pull-request-widget .create-pr-agent-merge,
+.create-pull-request-widget .create-pr-autopilot {
 	gap: var(--vscode-spacing-size80);
 }
 
@@ -219,6 +220,11 @@
 
 .create-pull-request-widget .create-pr-agent-merge-option:last-child {
 	grid-column: 1 / -1;
+}
+
+/* Autopilot's rules use the longer labels of the pull request's own Autopilot rules, so they are listed one per row. */
+.create-pull-request-widget .create-pr-autopilot .create-pr-agent-merge-actions {
+	grid-template-columns: 1fr;
 }
 
 .create-pull-request-widget .create-pr-agent-merge-option > .monaco-checkbox {

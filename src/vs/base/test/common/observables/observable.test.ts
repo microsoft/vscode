@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../common/cancellation.js';
 import { setUnexpectedErrorHandler } from '../../../common/errors.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { DisposableStore, toDisposable } from '../../../common/lifecycle.js';
@@ -1311,6 +1312,18 @@ suite('observables', () => {
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				'rejected {\"state\":\"error\"}'
 			]);
+		});
+
+		test('removes its cancellation listener once settled', async () => {
+			const onCancellationRequested = ds.add(new Emitter<void>());
+			const token: CancellationToken = { isCancellationRequested: false, onCancellationRequested: onCancellationRequested.event };
+			const myObservable = observableValue('myObservable', 'initializing');
+
+			const settledLater = waitForState(myObservable, state => state === 'ready', undefined, token);
+			myObservable.set('ready', undefined);
+			const settledImmediately = waitForState(myObservable, state => state === 'ready', undefined, token);
+
+			assert.deepStrictEqual([await settledLater, await settledImmediately, onCancellationRequested.hasListeners()], ['ready', 'ready', false]);
 		});
 
 		test('derived as lazy', () => {

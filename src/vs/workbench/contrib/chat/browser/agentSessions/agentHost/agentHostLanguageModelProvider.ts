@@ -17,7 +17,7 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../../platform/agentHo
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigPropertySchema, ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelFusionInlineChatTier, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelRouterRoutesMeta, readAgentModelRouterSwitchingMeta, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelFusionInlineChatTier, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
@@ -180,7 +180,10 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// Fusion's discount comes only from the service's promotions, never from Auto's own billing discount.
 				const modelDiscount = hasDiscount && !fusion ? discountPercent : undefined;
 				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
-				const tooltip = notices?.rowWarning ?? description;
+				// A model router keeps its description, and its warning is shown beside it as one.
+				const routerWarning = readModelRouterUri(m) ? notices?.rowWarning : undefined;
+				const tooltip = routerWarning ? description : notices?.rowWarning ?? description;
+				const warningText = routerWarning ? { modelRouter: routerWarning, ...notices?.warningText } : notices?.warningText;
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				// A host that derives its list from the Copilot SDK advertises no billing and no
 				// token counts, so fall back to the workbench's own catalogue entry for the same
@@ -202,7 +205,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						family: m.id,
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
-						...this._detailsResourceFor(m),
+						...this._modelRouterDetailsFor(m),
 						...(isAuto && modelDiscount !== undefined && { autoModelDiscountPercent: modelDiscount }),
 						...(fusion && { autoModelFusion: true }),
 						...(fusionInlineChatTier !== undefined && { autoModelFusionInlineChatTier: fusionInlineChatTier }),
@@ -214,7 +217,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						isDefaultForLocation: {},
 						isUserSelectable: true,
 						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,
-						warningText: notices?.warningText,
+						warningText,
 						infoText: notices?.infoText,
 						pricing: isAuto ? undefined : multiplierNumeric !== undefined ? `${multiplierNumeric}x` : known?.pricing,
 						multiplierNumeric: isAuto ? undefined : multiplierNumeric ?? known?.multiplierNumeric,
@@ -249,19 +252,25 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			});
 	}
 
+	/** A model router's file, its routes and whether it switches between them, which its details in the model picker show. Other models have none of these. */
+	private _modelRouterDetailsFor(model: SessionModelInfo): Pick<ILanguageModelChatMetadata, 'detailsResource' | 'modelRouterRoutes' | 'modelRouterSwitching'> {
+		const routerUri = readModelRouterUri(model);
+		if (!routerUri) {
+			return {};
+		}
+		const modelRouterSwitching = readAgentModelRouterSwitchingMeta(model);
+		return {
+			detailsResource: this._fromAgentHost(URI.parse(routerUri)),
+			modelRouterRoutes: readAgentModelRouterRoutesMeta(model),
+			...(modelRouterSwitching ? { modelRouterSwitching } : {}),
+		};
+	}
+
 	/**
 	 * The picker detail and description of a model that routes across others: Auto advertises its
 	 * discount, HydraFusion that it is a research preview, and a model router its own description.
 	 * Other models have neither.
 	 */
-	private _detailsResourceFor(model: SessionModelInfo): { detailsResource?: URI } {
-		const routerUri = readModelRouterUri(model);
-		if (!routerUri) {
-			return {};
-		}
-		return { detailsResource: this._fromAgentHost(URI.parse(routerUri)) };
-	}
-
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
 			const fusion = isAgentModelFusion(model);

@@ -38,7 +38,9 @@ declare module 'vscode' {
 		/**
 		 * Adds a remote agent host, as if the user had added it with the "Add Remote Agent Host..." command.
 		 * The Agents window connects to the host, lists its sessions and shows it among its remotes, where the
-		 * user can connect, disconnect and rename it, but not remove it.
+		 * user can connect, disconnect and rename it, but not remove it. Editor windows connect to it too, as
+		 * to the hosts their workspace lists in `chat.workspaceRemoteAgentHosts`, so its agents are available
+		 * in Chat.
 		 *
 		 * The host stays added until the returned disposable is disposed or the extension is deactivated, for
 		 * example because it is disabled or uninstalled. To change the host, dispose its registration and

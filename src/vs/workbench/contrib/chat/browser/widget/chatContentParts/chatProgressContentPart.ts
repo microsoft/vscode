@@ -35,6 +35,8 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
 import { getChatWorkingProgressIcon, getCompactCodicon } from '../../chatIcons.js';
 import { ChatWorkingProgressLogo } from '../chatWorkingLogo.js';
+import { ChatLiveResponseStats } from '../chatLiveResponseStats.js';
+import { ChatConfiguration, ChatResponseStats } from '../../../common/constants.js';
 import { autorun, constObservable, derived, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { animateChatProgress } from '../chatProgressAnimation.js';
@@ -362,6 +364,8 @@ export class ChatProgressSubPart extends Disposable {
 
 const WORKING_LABEL_MIN_DWELL_MS = 1200;
 const WORKING_LABEL_ROTATION_MS = 10_000;
+/** How long a phrase stays when it changes periodically instead of with the activity. */
+const WORKING_LABEL_PERIOD_MS = 20_000;
 const DELAYED_PROGRESS_MESSAGE_TIMEOUT_MS = 90_000;
 const lastPickedWorkingLabelByElement = new WeakMap<ChatTreeItem, { label: string; pickedAt: number; progressStep?: number }>();
 const lastPickedLegacyWorkingLabelByElement = new Map<string, { label: string; pickedAt: number }>();
@@ -398,6 +402,11 @@ function pickNextWorkingLabel(configurationService: IConfigurationService, curre
 	return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+/** Whether phrases change periodically, so that the response stats shown after them are not moved by every activity. */
+function changesWorkingLabelPeriodically(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<ChatResponseStats>(ChatConfiguration.ResponseStats) === ChatResponseStats.ProgressWithMessage;
+}
+
 /** Replaces the phrase {@link pickWorkingLabel} keeps for the running activity, so a long one does not look stalled. */
 function replaceWorkingLabel(element: ChatTreeItem, configurationService: IConfigurationService): void {
 	const existing = lastPickedWorkingLabelByElement.get(element);
@@ -407,7 +416,10 @@ function replaceWorkingLabel(element: ChatTreeItem, configurationService: IConfi
 	}
 }
 
-/** Keeps labels stable within an activity and gives new phrases a minimum dwell time. */
+/**
+ * Keeps labels stable within an activity and gives new phrases a minimum dwell time. A phrase that
+ * changes periodically stays for its whole period instead, whatever the activity.
+ */
 export function pickWorkingLabel(element: ChatTreeItem, configurationService: IConfigurationService, progressStep?: number): string {
 	if (progressStep === undefined) {
 		return pickLegacyWorkingLabel(element.id, configurationService);
@@ -417,7 +429,8 @@ export function pickWorkingLabel(element: ChatTreeItem, configurationService: IC
 	if (existing) {
 		const sameActivity = progressStep !== undefined && existing.progressStep === progressStep;
 		existing.progressStep = progressStep;
-		if (sameActivity || now - existing.pickedAt < WORKING_LABEL_MIN_DWELL_MS) {
+		const age = now - existing.pickedAt;
+		if (changesWorkingLabelPeriodically(configurationService) ? age < WORKING_LABEL_PERIOD_MS : sameActivity || age < WORKING_LABEL_MIN_DWELL_MS) {
 			return existing.label;
 		}
 	}
@@ -449,6 +462,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	private showingDelayedProgressMessage = false;
 	private showingUnresponsiveToolMessage = false;
 	private responseComplete = false;
+	private showsResponseStats = false;
 	private readonly contextElement: ChatTreeItem;
 	private readonly workingLogo: ChatWorkingProgressLogo | undefined;
 	private readonly labelTransition: ChatActivityLabelTransition | undefined;
@@ -508,6 +522,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 					if (this.targetContent.value !== this.currentContent.value) {
 						this.updateMessage(this.targetContent);
 					}
+					this.updateGenericLabelState();
 				},
 			}));
 		}
@@ -518,6 +533,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		this.progressStep = workingProgress.progressStep;
 		this.showDelayedProgressMessage = workingProgress.showDelayedProgressMessage ?? false;
 		this.contextElement = context.element;
+		this.updateGenericLabelState();
 		transaction(tx => {
 			this.backgroundActivity.set(workingProgress.backgroundActivity, tx);
 			this.backgroundActivityLabel.set(this.workingLabel, tx);
@@ -587,6 +603,23 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			this._register(pills.onDidRemoveFocusedPill(() => chatWidgetService.getWidgetBySessionResource(response.sessionResource)?.focusInput()));
 			this._register(autorun(reader => {
 				this.domNode.classList.toggle('chat-working-progress-has-activities', pills.isVisible.read(reader));
+			}));
+		}
+		if (this.workingLogo && isResponseVM(context.element)) {
+			const response = constObservable(context.element.model);
+			// The response's stats lead the footer, where styles hide a generic phrase while they show, or end it after its label.
+			const leadingStats = this._register(instantiationService.createInstance(ChatLiveResponseStats, ChatResponseStats.Progress, response));
+			leadingStats.element.classList.add('chat-working-progress-leading-stats');
+			this.progressIconElement?.after(leadingStats.element);
+			const trailingStats = this._register(instantiationService.createInstance(ChatLiveResponseStats, ChatResponseStats.ProgressWithMessage, response));
+			trailingStats.element.classList.add('chat-working-progress-trailing-stats');
+			this.domNode.appendChild(trailingStats.element);
+			this._register(autorun(reader => {
+				const showsTrailingStats = trailingStats.isShown.read(reader);
+				this.showsResponseStats = leadingStats.isShown.read(reader) || showsTrailingStats;
+				// Styles rest the separator of the trailing stats in the chevron slot of the activities.
+				this.domNode.classList.toggle('chat-working-progress-has-trailing-stats', showsTrailingStats);
+				this.updateActiveState();
 			}));
 		}
 		this.delayedProgressMessageScheduler = this.workingLogo
@@ -698,7 +731,8 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		const active = this.isActive && !this.responseComplete;
 		this.domNode.classList.toggle('chat-working-progress-active', active);
 		this.workingLogo.setActive(active);
-		this.setShimmerActive(active);
+		// Stats that count up in the footer already show that the response is working.
+		this.setShimmerActive(active && !this.showsResponseStats);
 	}
 
 	/** Shows a label, which the persistent footer wipes to, and restarts the phrase rotation when it is a new one. */
@@ -758,10 +792,34 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		this.updateImageGenerationMessageScheduler();
 	}
 
-	/** Only generic phrases rotate, once one has been shown for a while without new activity. Other labels name a state that still holds. */
+	/** Whether the label is a generic phrase instead of one that names a state. */
+	private showsGenericLabel(): boolean {
+		return !this.explicitContent && !this.imageGeneration && !this.showingDelayedProgressMessage;
+	}
+
+	/** Marks the persistent footer while the label it shows is a generic phrase. */
+	private updateGenericLabelState(): void {
+		if (this.workingLogo) {
+			this.domNode.classList.toggle('chat-working-progress-generic-label', this.showsGenericLabel());
+		}
+	}
+
+	/**
+	 * Only generic phrases rotate: once one has been shown for a while without new activity, or at the
+	 * end of its period when phrases change periodically. Other labels name a state that still holds.
+	 */
 	private shouldRotateWorkingLabel(): boolean {
-		return !this.explicitContent && !this.imageGeneration && !this.showingDelayedProgressMessage
-			&& this.progressStep !== undefined && this.isActive && !this.responseComplete;
+		return this.showsGenericLabel() && this.progressStep !== undefined && this.isActive && !this.responseComplete;
+	}
+
+	/** How long until the phrase shown is due to rotate, when it is scheduled now. */
+	private getWorkingLabelRotationDelay(): number {
+		if (!changesWorkingLabelPeriodically(this.workingConfigurationService)) {
+			return WORKING_LABEL_ROTATION_MS;
+		}
+		// A period runs from when the phrase was picked, so new activity does not extend it.
+		const pickedAt = lastPickedWorkingLabelByElement.get(this.contextElement)?.pickedAt ?? Date.now();
+		return Math.max(0, pickedAt + WORKING_LABEL_PERIOD_MS - Date.now());
 	}
 
 	private updateWorkingLabelRotationScheduler(reset = false): void {
@@ -771,7 +829,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		if (!this.shouldRotateWorkingLabel()) {
 			this.workingLabelRotationScheduler.cancel();
 		} else if (reset || !this.workingLabelRotationScheduler.isScheduled()) {
-			this.workingLabelRotationScheduler.schedule();
+			this.workingLabelRotationScheduler.schedule(this.getWorkingLabelRotationDelay());
 		}
 	}
 
@@ -779,7 +837,10 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		if (!this.shouldRotateWorkingLabel()) {
 			return;
 		}
-		replaceWorkingLabel(this.contextElement, this.workingConfigurationService);
+		// A periodic phrase is replaced where it is picked, once its period is over.
+		if (!changesWorkingLabelPeriodically(this.workingConfigurationService)) {
+			replaceWorkingLabel(this.contextElement, this.workingConfigurationService);
+		}
 		this.showWorkingContent(this.resolveWorkingContent());
 	}
 

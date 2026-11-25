@@ -32,8 +32,8 @@ import { ChangesetKind } from '../../../../../../platform/agentHost/common/chang
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../../../workbench/contrib/browserView/common/browserView.js';
-import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { cloudSandboxAddress, cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { CLOUD_SANDBOX_TASK_SCHEME, cloudSandboxAddress, cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -57,7 +57,7 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestData, type IChatSendRequestOptions, type IChatRequestAcceptedEvent } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import type { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import type { IChatModel, IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -446,7 +446,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	stubFocusedSessionHostFromSessionsService(instantiationService);
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override acquireSessionTools = () => new ImmortalReference(constObservable([]));
-		override acquireScope = (_sessionType: string, _roots: readonly URI[] | undefined) => ({
+		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
 			customizations: constObservable([]),
 			customAgents: constObservable([]),
 			tools: constObservable([]),
@@ -646,6 +646,133 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			unpublished: { listed: [], found: [] },
 		});
 	}));
+
+	test('resource lookups follow a Cloud task rebinding to another environment, also for observers of the same update', () => {
+		const { catalog } = createTaskCatalog([]);
+		catalog.setTasks([{ taskId: 'task', name: 'Task', environmentId: 'first-env', sessionId: 'first-session' }]);
+		const management = createManagementService(catalog);
+		const row = catalog.getSessions()[0];
+		const firstAlias = row.previousIdentities![0].resource;
+		const second: ICloudSandboxTask = { taskId: 'task', name: 'Renamed', environmentId: 'second-env', sessionId: 'second-session' };
+		const secondAlias = createCloudSandboxTaskSession(second).session.previousIdentities![0].resource;
+		const lookups = () => ({ byFirstAlias: management.getSession(firstAlias)?.resource.toString(), bySecondAlias: management.getSession(secondAlias)?.resource.toString() });
+		const warm = lookups();
+		const observed: ReturnType<typeof lookups>[] = [];
+		disposables.add(autorun(reader => {
+			if (row.title.read(reader) === 'Renamed') {
+				observed.push(lookups());
+			}
+		}));
+
+		catalog.setTasks([second]);
+
+		const rebound = { byFirstAlias: undefined, bySecondAlias: row.resource.toString() };
+		assert.deepStrictEqual({ warm, observed, after: lookups(), secondAlias: row.previousIdentities![0].resource.toString() }, {
+			warm: { byFirstAlias: row.resource.toString(), bySecondAlias: undefined },
+			observed: [rebound],
+			after: rebound,
+			secondAlias: secondAlias.toString(),
+		});
+	});
+
+	test('a Cloud task catalog looks up a runtime session, a task alias and a miss without enumerating its tasks or runtime sessions', () => {
+		const task: ICloudSandboxTask = { taskId: 'task', name: 'Task', environmentId: 'env', sessionId: 'task-session' };
+		const others = [0, 1, 2].map(i => ({ taskId: `other-${i}`, name: `Other ${i}`, environmentId: 'env', sessionId: `other-session-${i}` }));
+		const { runtime, catalog } = createTaskCatalog([task]);
+		catalog.setTasks([task, ...others]);
+		catalog.attach(task.taskId, runtime, task);
+		runtime.seedProvisionalSession(createSession('external', { session: AgentSession.uri('ahp-session', 'external'), provider: 'copilot', summary: 'External' }));
+		runtime.publishWithheldSession('external', { announce: true });
+		const row = catalog.getAllSessions().find(session => isEqual(session.resource, cloudSandboxTaskResource(task.taskId)))!;
+		const external = catalog.getAllSessions().find(session => session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME)!;
+		const alias = row.previousIdentities![0].resource;
+		const externalResource = external.resource;
+		let reads = 0;
+		for (const session of catalog.getAllSessions()) {
+			// Listing the catalog reads every task's aliases and every runtime session's resource
+			const property = session.resource.scheme === CLOUD_SANDBOX_TASK_SCHEME ? 'previousIdentities' : 'resource';
+			const descriptor = Object.getOwnPropertyDescriptor(session, property)!;
+			Object.defineProperty(session, property, { configurable: true, get: () => { reads++; return descriptor.get ? descriptor.get.call(session) : descriptor.value; } });
+		}
+
+		const found = {
+			miss: catalog.getSession(URI.parse('remote-unrelated:/missing'))?.sessionId,
+			runtime: catalog.getSession(externalResource) === external,
+			alias: catalog.getSession(alias) === row,
+		};
+
+		assert.deepStrictEqual({ found, reads }, { found: { miss: undefined, runtime: true, alias: true }, reads: 0 });
+	});
+
+	test('resource lookups find a Cloud task its runtime publishes silently', () => {
+		const task: ICloudSandboxTask = { taskId: 'new-task', sessionId: 'new-session', environmentId: 'environment', name: 'Preparing' };
+		const { runtime, catalog } = createTaskCatalog([task]);
+		const resource = cloudSandboxTaskResource(task.taskId);
+		catalog.attach(task.taskId, runtime, task);
+		runtime.seedProvisionalSession(createSession(task.sessionId!, { session: AgentSession.uri('ahp-session', task.sessionId!), provider: 'copilot', summary: task.name }));
+		catalog.setTasks([task]);
+		const management = createManagementService(catalog);
+		const lookUp = () => ({ task: management.getSession(resource)?.resource.toString(), runtime: runtime.getSession(resource)?.sessionId, runtimeListed: runtime.getAllSessions().map(session => session.sessionId) });
+		const withheld = lookUp();
+
+		runtime.publishWithheldSession(task.sessionId!, { announce: false });
+
+		const published = lookUp();
+		assert.deepStrictEqual({ withheld, published }, {
+			withheld: { task: undefined, runtime: undefined, runtimeListed: [] },
+			published: { task: resource.toString(), runtime: published.runtimeListed[0], runtimeListed: [published.runtimeListed[0]] },
+		});
+	});
+
+	test('resource lookups find cached sessions as soon as a reconnect republishes them, before the host lists them', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('cached', { summary: 'Cached' }));
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+		const resource = provider.getSessions()[0].resource;
+		const management = createManagementService(provider);
+		provider.unpublishCachedSessions();
+		const hidden = management.getSession(resource)?.resource.toString();
+
+		const listing = new DeferredPromise<IAgentSessionMetadata[]>();
+		const reconnected = disposables.add(new MockAgentConnection());
+		reconnected.listSessions = async () => listing.p;
+		provider.setConnection(reconnected);
+		const republished = { listed: provider.getSessions().map(session => session.resource.toString()), found: management.getSession(resource)?.resource.toString() };
+		await listing.complete([]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ hidden, republished }, {
+			hidden: undefined,
+			republished: { listed: [resource.toString()], found: resource.toString() },
+		});
+	}));
+
+	test('resource lookups stop finding a pending first turn as soon as its host is unpublished', async () => {
+		const provider = createProvider(disposables, connection, { openSession: true });
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const management = createManagementService(provider);
+		const pending = { listed: provider.getAllSessions().map(s => s.resource.toString()), found: management.getSession(session.resource)?.resource.toString() };
+
+		provider.unpublishCachedSessions();
+		const hidden = { listed: provider.getAllSessions().map(s => s.resource.toString()), found: management.getSession(session.resource)?.resource.toString() };
+
+		fireSessionAdded(connection, AgentSession.id(session.resource));
+		await request.catch(() => undefined);
+
+		assert.deepStrictEqual({ pending, hidden }, {
+			pending: { listed: [session.resource.toString()], found: session.resource.toString() },
+			hidden: { listed: [], found: undefined },
+		});
+	});
 
 	test('a restored visible chat keeps its facade while runtime fields and interactivity hydrate', () => {
 		const entry = createCloudSandboxTaskSession({ taskId: 'task', name: 'Summary' });
@@ -1111,6 +1238,24 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			reused: workspace.folders[0].root.toString(),
 			claimed: workspace.uri.toString(),
 		});
+	});
+
+	test('generic Connect waits for actual readiness and rejects a failed connection', async () => {
+		const pending = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+		const calls: string[] = [];
+		const remote = new class extends NullRemoteAgentHostService {
+			override reconnect(address: string): void { calls.push(address); }
+			override waitForConnection(): Promise<IRemoteAgentHostConnectionInfo> { return pending.p; }
+		}();
+		const provider = createProvider(disposables, connection, { noConnection: true, remoteAgentHostService: remote });
+		let resolved = false;
+		const connecting = provider.connect().then(() => { resolved = true; });
+		const rejected = assert.rejects(connecting, /SSH sign-in rejected/);
+		await timeout(0);
+		const premature = resolved;
+		await pending.error(new Error('SSH sign-in rejected'));
+		await rejected;
+		assert.deepStrictEqual({ premature, resolved, calls }, { premature: false, resolved: false, calls: ['localhost:4321'] });
 	});
 
 	test('rejects cloning on disconnected or unsupported hosts', async () => {
@@ -2879,6 +3024,54 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via refresh -------
 
+	test('session list readiness includes an authoritative empty result and resets on disconnection', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, connection);
+		const before = provider.sessionListVersion.get();
+		await timeout(0);
+		const resolved = provider.sessionListVersion.get() > 0;
+		provider.setConnection(disposables.add(new MockAgentConnection()));
+		const replacing = provider.sessionListVersion.get();
+		await timeout(0);
+		provider.clearConnection();
+		assert.deepStrictEqual({ before, resolved, replacing, disconnected: provider.sessionListVersion.get() }, {
+			before: 0, resolved: true, replacing: 0, disconnected: 0,
+		});
+	}));
+
+	test('a listing that resolves after unpublishing does not mark the hidden list ready', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const pending = new DeferredPromise<IAgentSessionMetadata[]>();
+		connection.listSessions = async () => pending.p;
+		const provider = createProvider(disposables, connection);
+		provider.unpublishCachedSessions();
+		await pending.complete([createSession('listed')]);
+		await timeout(0);
+		assert.deepStrictEqual({ ready: provider.sessionListVersion.get() > 0, sessions: provider.getSessions().length }, { ready: false, sessions: 0 });
+	}));
+
+	for (const address of ['ssh:build', 'wsl:Ubuntu', 'tunnel:desktop']) {
+		test(`disconnect invalidates session list readiness before unpublishing ${address}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			connection.addSession(createSession('working', { status: ProtocolSessionStatus.InProgress }));
+			const provider = createProvider(disposables, connection, { address }, {
+				disconnectOnDemand: async () => { provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected); },
+			});
+			provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+			await timeout(0);
+			const before = { ready: provider.sessionListVersion.get() > 0, sessions: provider.getSessions().length };
+			const changes: { ready: boolean; sessions: number; connected: boolean }[] = [];
+			disposables.add(provider.onDidChangeSessions(() => changes.push({
+				ready: provider.sessionListVersion.get() > 0,
+				sessions: provider.getSessions().length,
+				connected: RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get()),
+			})));
+			await provider.disconnect();
+			assert.deepStrictEqual({ before, changes, ready: provider.sessionListVersion.get() > 0 }, {
+				before: { ready: true, sessions: 1 },
+				changes: [{ ready: false, sessions: 0, connected: true }],
+				ready: false,
+			});
+		}));
+	}
+
 	test('getSessions populates from connection.listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('list-1', { summary: 'First' }));
 		connection.addSession(createSession('list-2', { summary: 'Second' }));
@@ -3767,6 +3960,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const unarchiveConnection = new MockAgentConnection();
 		const unarchiveProvider = createProvider(disposables, unarchiveConnection, { localAgentHostService });
+		await timeout(0);
 		fireSessionAdded(unarchiveConnection, 'dev-container-worktree-unarchive', { title: 'Dev Container Worktree Unarchive', metadata });
 		const sessionToUnarchive = unarchiveProvider.getSessions().find(candidate => candidate.title.get() === 'Dev Container Worktree Unarchive');
 		assert.ok(sessionToUnarchive);
@@ -3801,6 +3995,76 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			'stop-container',
 			`archive:${handle}`,
 		]);
+	});
+
+	test('a failed Dev Container worktree archive at commit does not fail the new session', async () => {
+		const localAgentHostService = new class extends mock<IAgentHostService>() {
+			override async setDetachedWorktreeArchived(): Promise<void> {
+				throw new Error('Archiving prepared worktrees is not supported.');
+			}
+		}();
+		const provider = createProvider(disposables, connection, { localAgentHostService, openSession: true });
+		const metadata = { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } };
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id, { metadata });
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+
+		await provider.archiveSession(session.sessionId);
+		fireSessionAdded(connection, AgentSession.id(session.resource), { metadata });
+		const committed = await request;
+
+		assert.deepStrictEqual({ resource: committed.resource.toString(), isArchived: committed.isArchived.get() }, { resource: session.resource.toString(), isArchived: false });
+	});
+
+	test('unarchiving a new session while its Dev Container worktree archive is pending is not undone', async () => {
+		const archiveStarted = new DeferredPromise<void>();
+		const releaseArchive = new DeferredPromise<void>();
+		const delegated: boolean[] = [];
+		const localAgentHostService = new class extends mock<IAgentHostService>() {
+			override async setDetachedWorktreeArchived(_handle: string, archived: boolean): Promise<void> {
+				delegated.push(archived);
+				if (archived) {
+					archiveStarted.complete();
+					await releaseArchive.p;
+				}
+			}
+		}();
+		const provider = createProvider(disposables, connection, { localAgentHostService, openSession: true });
+		const metadata = { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } };
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id, { metadata });
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+
+		await provider.archiveSession(session.sessionId);
+		fireSessionAdded(connection, AgentSession.id(session.resource), { metadata });
+		await archiveStarted.p;
+		const unarchive = provider.unarchiveSession(session.sessionId);
+		releaseArchive.complete();
+		const [committed] = await Promise.all([request, unarchive]);
+
+		assert.deepStrictEqual({
+			delegated,
+			dispatched: connection.dispatchedActions.flatMap(dispatched => dispatched.action.type === ActionType.SessionIsArchivedChanged ? [dispatched.action.isArchived] : []),
+			isArchived: committed.isArchived.get(),
+		}, {
+			delegated: [true, false],
+			dispatched: [true, false],
+			isArchived: false,
+		});
 	});
 
 	for (const seconds of [1, 10, 65]) {
@@ -4209,6 +4473,60 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			lifecycleCalls: ['stop', 'stop', 'remove'],
 		});
 	}));
+
+	for (const rejected of [false, true]) {
+		test(`overlapping Dev Container archives wait for sibling confirmation before teardown, rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			connection.echoDispatchedActions = true;
+			connection.addSession(createSession('bulk-first', { summary: 'Bulk First' }));
+			connection.addSession(createSession('bulk-second', { summary: 'Bulk Second' }));
+			const lifecycleCalls: string[] = [];
+			const provider = createProvider(disposables, connection, {
+				configurationService: new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 0 }),
+				devContainerLifecycle: {
+					connect: async () => { lifecycleCalls.push('connect'); },
+					stop: async () => { lifecycleCalls.push('stop'); return true; },
+					remove: async () => { lifecycleCalls.push('remove'); return true; },
+				},
+			});
+			await timeout(0);
+			const sessions = provider.getSessions();
+			let active = 0;
+			let maximumActive = 0;
+			let dispatches = 0;
+			sinon.stub(connection, 'dispatch').callsFake((channel, action) => {
+				const index = dispatches++;
+				active++;
+				maximumActive = Math.max(maximumActive, active);
+				void (async () => {
+					await timeout(index === 0 ? 10 : 20);
+					active--;
+					connection.fireAction({
+						channel, action, serverSeq: index + 1, origin: undefined,
+						...(rejected && index === 1 ? { rejectionReason: 'archive denied' } : {}),
+					});
+				})();
+			});
+
+			const first = provider.archiveSessions([sessions[0].sessionId]);
+			const second = provider.archiveSessions([sessions[1].sessionId]);
+			await timeout(15);
+			const whileSiblingPending = [...lifecycleCalls];
+			const results = await Promise.all([first, second]);
+
+			assert.deepStrictEqual({
+				whileSiblingPending, lifecycleCalls,
+				active, maximumActive, dispatches,
+				outcomes: results.map(batch => batch.map(result => result.status)),
+				archived: sessions.map(session => session.isArchived.get()),
+			}, {
+				whileSiblingPending: [],
+				lifecycleCalls: rejected ? [] : ['stop'],
+				active: 0, maximumActive: 1, dispatches: 2,
+				outcomes: [['fulfilled'], [rejected ? 'rejected' : 'fulfilled']],
+				archived: [true, !rejected],
+			});
+		}));
+	}
 
 	test('does not remove a Dev Container or worktree when the host rejects archive', async () => {
 		const handle = '00000000-0000-4000-8000-000000000001';
@@ -5008,6 +5326,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		);
 	}));
 
+	test('forgetSessions removes sessions and their persisted cache without asking the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		connection.addSession(createSession('forget-me', { summary: 'Forget Me' }));
+		const provider = createProvider(disposables, connection, { storageService });
+		await timeout(0);
+		await storageService.flush();
+		provider.clearConnection();
+		const removed: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => removed.push(...e.removed.map(s => s.title.get()))));
+
+		provider.forgetSessions();
+		await storageService.flush();
+
+		const restored = createProvider(disposables, new MockAgentConnection(), { storageService, noConnection: true });
+		assert.deepStrictEqual({
+			sessions: provider.getSessions().length,
+			removed,
+			restored: restored.getSessions().length,
+			hostDeletions: connection.disposedSessions.length,
+		}, { sessions: 0, removed: ['Forget Me'], restored: 0, hostDeletions: 0 });
+	}));
+
 	test('retains application and stable environment identity in disconnected caches after renaming a host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		connection.addSession({
@@ -5149,6 +5489,75 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual(sendOptions.map(options => options.agentHostSessionConfig), [{ isolation: 'worktree' }]);
 	});
+
+	function sentResponse(response: Pick<IChatResponseModel, 'result' | 'isCanceled'>, ended: Promise<void> = Promise.resolve()): ChatSendResult {
+		return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({ responseCreatedPromise: Promise.resolve(upcastPartial<IChatResponseModel>(response)), responseCompletePromise: ended }) };
+	}
+
+	for (const { request, response, expected } of [
+		{ request: 'is declined before it is sent', response: { result: {}, isCanceled: false }, expected: 'cancelled' },
+		{ request: 'is cancelled', response: { result: undefined, isCanceled: true }, expected: 'cancelled' },
+		{ request: 'fails', response: { result: { errorDetails: { message: 'Model unavailable' } }, isCanceled: false }, expected: 'Model unavailable' },
+	]) {
+		test(`a new session whose first request ${request} without its host starting the session is not left working`, async () => {
+			const provider = createProvider(disposables, connection, { openSession: true, sendRequest: async () => sentResponse(response) });
+			const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+			provider.setAuthenticationPending(false);
+			const chat = await provider.createNewChat(session.sessionId);
+
+			const error = await provider.sendRequest(session.sessionId, chat.resource, { query: 'What is on my shopping list?' }).then(() => undefined, (e: Error) => e);
+
+			assert.deepStrictEqual({
+				error: error instanceof CancellationError ? 'cancelled' : error?.message,
+				sessions: provider.getSessions().map(s => s.title.get()),
+			}, { error: expected, sessions: [] });
+		});
+	}
+
+	test('a new session whose host lists it only after its first request ended is committed, also after a failed listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const ended = new DeferredPromise<void>();
+		const listedAfterSend = new DeferredPromise<void>();
+		let sent = false;
+		let failNextListing = true;
+		// Like a host that announces a session whose first request failed just after the request's error.
+		const host = new class extends MockAgentConnection {
+			override async listSessions(): Promise<IAgentSessionMetadata[]> {
+				if (ended.isSettled) {
+					if (failNextListing) {
+						failNextListing = false;
+						throw new Error('Listing failed');
+					}
+					return super.listSessions();
+				}
+				if (sent) {
+					listedAfterSend.complete();
+				}
+				return [];
+			}
+		}();
+		disposables.add(toDisposable(() => host.dispose()));
+		const provider = createProvider(disposables, host, {
+			openSession: true,
+			sendRequest: async resource => {
+				sent = true;
+				host.addSession(createSession(AgentSession.id(resource), { summary: 'Failed Start', status: ProtocolSessionStatus.Error }));
+				return sentResponse({ result: { errorDetails: { message: 'Model unavailable' } }, isCanceled: false }, ended.p);
+			},
+		});
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false);
+		const chat = await provider.createNewChat(session.sessionId);
+
+		const sending = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await listedAfterSend.p;
+		ended.complete();
+		const committed = await sending;
+
+		assert.deepStrictEqual({
+			committed: committed.title.get(),
+			sessions: provider.getSessions().map(s => s.title.get()),
+		}, { committed: 'Failed Start', sessions: ['Failed Start'] });
+	}));
 
 	// ---- Session data adapter -------
 

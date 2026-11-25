@@ -25,7 +25,7 @@ import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutConte
 import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { setSessionActivityBarSize } from '../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
-import { CustomViewVisibleContext, SessionActivityBarDockedContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
+import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 
@@ -64,13 +64,15 @@ for (const [position, title, menuTitle] of [
 			await configurationService.updateValue(SESSIONS_FLOATING_DETAILS_SETTING, false);
 		}
 	});
-	MenuRegistry.appendMenuItem(Menus.DetailsPosition, {
-		command: {
-			...assertReturnsDefined(MenuRegistry.getCommand(`workbench.action.agentSessions.detailsPosition.${position}`)),
-			title: menuTitle,
-		},
-		order: position === 'top' ? 1 : position === 'bottom' ? 2 : position === 'left' ? 3 : 4,
-	});
+	const positionCommand = {
+		...assertReturnsDefined(MenuRegistry.getCommand(`workbench.action.agentSessions.detailsPosition.${position}`)),
+		title: menuTitle,
+	};
+	const positionOrder = position === 'top' ? 1 : position === 'bottom' ? 2 : position === 'left' ? 3 : 4;
+	MenuRegistry.appendMenuItems([
+		{ id: Menus.DetailsPosition, item: { command: positionCommand, order: positionOrder } },
+		{ id: Menus.DetailsToggle, item: { command: positionCommand, group: '2_organize', order: positionOrder } },
+	]);
 }
 
 registerAction2(class extends Action2 {
@@ -91,13 +93,14 @@ registerAction2(class extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(Menus.DetailsPosition, {
-	command: {
-		...assertReturnsDefined(MenuRegistry.getCommand('workbench.action.agentSessions.toggleFloatingDetails')),
-		title: localize('detailsPositionFloating', "Floating"),
-	},
-	order: 5,
-});
+const floatingDetailsCommand = {
+	...assertReturnsDefined(MenuRegistry.getCommand('workbench.action.agentSessions.toggleFloatingDetails')),
+	title: localize('detailsPositionFloating', "Floating"),
+};
+MenuRegistry.appendMenuItems([
+	{ id: Menus.DetailsPosition, item: { command: floatingDetailsCommand, order: 5 } },
+	{ id: Menus.DetailsToggle, item: { command: floatingDetailsCommand, group: '2_organize', order: 5 } },
+]);
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarContext, {
 	title: localize('layoutDensity', "Layout Density"),
@@ -350,7 +353,7 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarAccessibility, {
 });
 
 // The Session Activity Bar hosts these toggles in place of the title bar while it shows its layout actions.
-const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarLayoutActionsContext.negate(), SessionActivityBarDockedContext.negate());
+const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarLayoutActionsContext.negate());
 const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext);
 
 const showPanelCommand = {
@@ -404,7 +407,7 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.PanelTitle, {
 	order: 2
 });
 
-// Floating window controls: always-on-top
+// Window controls: always-on-top. Floating windows always show the toggle, the main window only while it is on.
 MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarRightLayout, {
 	command: {
 		id: 'workbench.action.toggleWindowAlwaysOnTop',
@@ -416,7 +419,10 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarRightLayout, {
 		},
 	},
 	// Not in windows with layout modes, such as chat windows, whose title bars show their layout actions there.
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext, LayoutModeContext.toNegated()),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.and(IsAuxiliaryWindowContext, LayoutModeContext.toNegated()),
+		ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), IsWindowAlwaysOnTopContext)
+	),
 	group: 'navigation',
 	order: 0
 });

@@ -143,7 +143,6 @@ export namespace ChatContextKeys {
 	export const chatSessionIsEmpty = new RawContextKey<boolean>('chatSessionIsEmpty', true, { type: 'boolean', description: localize('chatSessionIsEmpty', "True when the current chat session has no requests.") });
 	export const hasPendingRequests = new RawContextKey<boolean>('chatHasPendingRequests', false, { type: 'boolean', description: localize('chatHasPendingRequests', "True when there are pending requests in the queue.") });
 	export const chatSessionHasDebugData = new RawContextKey<boolean>('chatSessionHasDebugData', false, { type: 'boolean', description: localize('chatSessionHasDebugData', "True when the current chat session has debug log data.") });
-	export const chatSessionHasDebugTools = new RawContextKey<boolean>('chatSessionHasDebugTools', false, { type: 'boolean', description: localize('chatSessionHasDebugTools', "True when debug tools are enabled in the current chat session.") });
 
 	export const remoteJobCreating = new RawContextKey<boolean>('chatRemoteJobCreating', false, { type: 'boolean', description: localize('chatRemoteJobCreating', "True when a remote coding agent job is being created.") });
 	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));
@@ -196,6 +195,7 @@ export namespace ChatContextKeys {
 	export const hasPendingDelegationTarget = new RawContextKey<boolean>('chatHasPendingDelegationTarget', false, { type: 'boolean', description: localize('chatHasPendingDelegationTarget', "True when a delegation (continue in) target is selected but the request has not been submitted yet.") });
 	export const chatSessionSupportsFork = new RawContextKey<boolean>('chatSessionSupportsFork', false, { type: 'boolean', description: localize('chatSessionSupportsFork', "True when the current chat session provider supports forking conversations.") });
 	export const chatSessionSupportsSideChat = new RawContextKey<boolean>('chatSessionSupportsSideChat', false, { type: 'boolean', description: localize('chatSessionSupportsSideChat', "True when the current chat session provider supports side chats.") });
+	export const sideChatsInSidePane = new RawContextKey<boolean>('chatSideChatsInSidePane', false, { type: 'boolean', description: localize('chatSideChatsInSidePane', "True when side chats open as tabs of the side panel of the Agents window.") });
 	export const chatSessionSupportsRename = new RawContextKey<boolean>('chatSessionSupportsRename', false, { type: 'boolean', description: localize('chatSessionSupportsRename', "True when the current chat session supports renaming.") });
 	export const agentSessionSection = new RawContextKey<string>('agentSessionSection', '', { type: 'string', description: localize('agentSessionSection', "The section of the current agent session section item.") });
 	export const isArchivedAgentSession = new RawContextKey<boolean>('agentSessionIsArchived', false, { type: 'boolean', description: localize('agentSessionIsArchived', "True when the agent session item is archived.") });

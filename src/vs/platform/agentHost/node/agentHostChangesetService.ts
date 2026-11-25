@@ -54,7 +54,7 @@ import {
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { isChatWorkspaceless } from './agentChatContext.js';
 import { IAgentConfigurationService, getSessionSummaryWorkingDirectories } from './agentConfigurationService.js';
-import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetFiles, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
@@ -71,7 +71,7 @@ import { dedupeSessionFileDiffs } from './agentHostMultiRootDiff.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetComputed, type IMultiRootTurnDiffMetrics, type StaticChangesetOutcome, type TurnChangesetOutcome } from './agentHostChangesetTelemetry.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, type IAgent } from '../common/agent.js';
+import { AgentSession } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -182,6 +182,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	/** Per-`(session, turnId)` debounce timers for mid-turn per-turn changeset recomputation. */
 	private readonly _perTurnDebouncedDiffTimers = this._register(new DisposableMap<string>());
 	private readonly _perTurnDebouncedDiffTimerKeys = new Set<string>();
+	/** Latest queued background recompute per owner and turn, excluding the running job. */
+	private readonly _queuedTurnRecomputes = new Map<string, { last: Promise<ProtocolURI> | undefined }>();
 	private readonly _activeStaticComputes = new Set<ProtocolURI>();
 	private readonly _incrementalTrackerBaselines = new WeakSet<readonly ChangesetFile[]>();
 	private readonly _scheduledStaticRecomputes = new Map<string, {
@@ -225,21 +227,18 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._worktree = worktree;
 		this._diffComputeService = this._createDiffComputeService();
 		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._observeUncommittedRoot(owner)));
-		this._register(this._providerService.onDidRegisterProvider(provider => this._observeProviderTurnEdits(provider)));
 		this._register(this._fileEditCoordinator.onDidChangeEditing(resource => this._publishWorkingSetEditing(resource)));
-		for (const provider of this._providerService.getProviders()) {
-			this._observeProviderTurnEdits(provider);
-		}
-	}
-
-	private _observeProviderTurnEdits(provider: IAgent): void {
-		if (provider.onDidStoreTurnEdits) {
-			this._register(provider.onDidStoreTurnEdits(({ chat, turnIds }) => {
-				if (this._chatOwnership.getChatOwner(chat.toString())) {
-					this._onTrackedEditsChanged(chat.toString(), turnIds);
-				}
-			}));
-		}
+		this._register(this._fileEditCoordinator.onDidStoreFileEdit(({ chat: chatUri, turnId }) => {
+			const chat = chatUri.toString();
+			if (this._chatOwnership.getChatOwner(chat) === undefined) {
+				return;
+			}
+			if (turnId && this._stateManager.getActiveTurnId(chat) === turnId) {
+				this.onToolCallEditsApplied(chat, turnId);
+			} else {
+				this._onTrackedEditsChanged(chat, turnId ? [turnId] : []);
+			}
+		}));
 	}
 
 	/** Creates the diff-count service; overridable so tests can supply a synchronous in-process computer. */
@@ -696,9 +695,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					void this.computeUncommittedChangeset(session);
 					break;
 				case ChangesetKind.Turn:
-					if (parsed.turnId !== undefined) {
-						void this.computeTurnChangeset(session, parsed.turnId, 'fileEditTracker');
-					}
+					void this.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
 					break;
 			}
 		}
@@ -706,7 +703,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	computeTurnChangeset(session: ProtocolURI, turnId: string, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
 		// Turn telemetry is emitted at the turn boundary (onTurnComplete); this subscribe-triggered recompute does not report.
-		return this._queueTurnChangeset(session, turnId, false, undefined, strategy);
+		return this._queueTurnChangeset(session, turnId, 'explicit', undefined, strategy);
 	}
 
 	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, provider: string | undefined, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
@@ -1555,9 +1552,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	onToolCallEditsApplied(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void {
 		this._scheduleDebouncedDiffComputation(session, turnId, clientContext);
-		// The Working Set follows each edit, so it can be reviewed while the turn runs.
-		// It only reads the tracked edits, and a computation that hasn't started yet covers later edits too.
-		this.refreshWorkingSetChangeset(session);
+		this._refreshWorkingSetChangesets(session);
 		this._scheduleChatChangesSummary(session, true);
 		// Per-turn URIs have no catalogue chip aggregates, so skip the
 		// recompute entirely when no client is observing this turn. The
@@ -1769,6 +1764,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			if (key.startsWith(prefix)) {
 				this._perTurnDebouncedDiffTimers.deleteAndDispose(key);
 				this._perTurnDebouncedDiffTimerKeys.delete(key);
+			}
+		}
+		for (const key of this._queuedTurnRecomputes.keys()) {
+			if (key.startsWith(prefix)) {
+				this._queuedTurnRecomputes.delete(key);
 			}
 		}
 	}
@@ -1995,13 +1995,42 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * are logged inside `computeTurnChangeset` and do not fail the turn.
 	 */
 	private _scheduleTurnRecompute(session: ProtocolURI, turnId: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
-		void this._queueTurnChangeset(session, turnId, reportTelemetry, clientContext, 'fileEditTracker');
+		void this._queueTurnChangeset(session, turnId, reportTelemetry ? 'turnComplete' : 'background', clientContext, 'fileEditTracker');
 	}
 
-	private _queueTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
-		const provider = reportTelemetry ? this._getTelemetryProvider(session) : undefined;
-		this._markChangesetComputing(buildTurnChangesetUri(session, turnId));
-		return this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this._computeTurnChangeset(session, turnId, provider, clientContext, strategy));
+	private _queueTurnChangeset(session: ProtocolURI, turnId: string, source: 'explicit' | 'turnComplete' | 'background', clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
+		const key = `${session}\u0000turn\u0000${turnId}`;
+		const turnUri = buildTurnChangesetUri(session, turnId);
+		const provider = source === 'turnComplete' ? this._getTelemetryProvider(session) : undefined;
+		const compute = () => this._computeTurnChangeset(session, turnId, provider, clientContext, strategy);
+		if (source !== 'background') {
+			this._markChangesetComputing(turnUri);
+			return this._diffComputationSequencer.queue(key, compute);
+		}
+		if (this._store.isDisposed) {
+			return Promise.resolve(turnUri);
+		}
+
+		const pending = this._queuedTurnRecomputes.get(key) ?? { last: undefined };
+		// A queued background job reads the latest edits when it starts. Only
+		// join the tail so explicit and turn-complete jobs keep their ordering.
+		if (pending.last && pending.last === this._diffComputationSequencer.peek(key)) {
+			return pending.last;
+		}
+		this._queuedTurnRecomputes.set(key, pending);
+		const job: Promise<ProtocolURI> = this._diffComputationSequencer.queue(key, async () => {
+			if (this._queuedTurnRecomputes.get(key) !== pending) {
+				return turnUri; // The owner was removed.
+			}
+			// Once a job starts it may miss later writes, so allow a follow-up.
+			if (pending.last === job) {
+				this._queuedTurnRecomputes.delete(key);
+			}
+			return this._store.isDisposed ? turnUri : compute();
+		});
+		pending.last = job;
+		this._markChangesetComputing(turnUri);
+		return job;
 	}
 
 	private _scheduleUncommittedRecompute(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
@@ -2621,13 +2650,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * Resolves the Branch Changes base branch, reused by the diff computation
-	 * and the review-status lookup so both are keyed on the same baseline.
+	 * Resolves the Branch Changes base branch exactly as recorded, reused by the
+	 * diff computation and the review-status lookup so both are keyed on the
+	 * same baseline.
 	 */
 	private async _resolveBranchBaseBranch(session: ProtocolURI): Promise<string | undefined> {
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, session)?.sourceUri ?? session;
 		const snapshot = await this._sessionStateStore.load(URI.parse(this._containingSessionUri(source)));
-		return resolveDiffBaseBranchName(this._getBranchBaseBranch(source, snapshot), undefined);
+		return this._getBranchBaseBranch(source, snapshot);
 	}
 
 	/** Selects the persisted folder base before the Git-state fallback for both the catalogue and diff computation. */
@@ -2637,9 +2667,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const persistedBaseBranch = snapshot && (!sourceIsDefaultChat || isSessionFolder)
 			? readSessionBaseBranch(snapshot, sourceIsDefaultChat ? undefined : source)
 			: undefined;
-		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchName
+		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchRef
 			?? (isSessionFolder && (!isAhpChatChannel(source) || sourceIsDefaultChat)
-				? readSessionGitState(this._stateManager.getSessionState(this._containingSessionUri(source))?._meta)?.baseBranchName
+				? readSessionGitState(this._stateManager.getSessionState(this._containingSessionUri(source))?._meta)?.baseBranchRef
 				: undefined);
 		if (!persistedBaseBranch && gitStateBaseBranch) {
 			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${source}: ${gitStateBaseBranch}`);

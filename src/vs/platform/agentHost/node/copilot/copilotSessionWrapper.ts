@@ -88,6 +88,10 @@ export class CopilotSessionWrapper extends Disposable {
 		readonly launchImageGenerationWatermark: boolean,
 		/** The trust the SDK session was created with for its working directory; `undefined` for a resume or no grant. */
 		readonly launchWorkingDirectoryTrust: NonNullable<CreateSessionOptions['filesystem']>['trustWorkingDirectory'],
+		/** Whether the SDK session was launched with the hooks of custom agents, which requires every session folder to be trusted. */
+		readonly launchCustomAgentHooksEnabled: boolean,
+		/** Whether VS Code's `chat.useHooks` setting allowed hooks when the SDK session was launched. */
+		readonly launchHooksEnabled: boolean,
 		/** Whether the SDK session was created with session telemetry, which carries its restricted telemetry. */
 		readonly launchSessionTelemetryEnabled: boolean,
 		readonly launchMcpSkillsEnabled: boolean,

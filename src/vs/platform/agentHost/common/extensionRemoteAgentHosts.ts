@@ -27,8 +27,9 @@ export const IExtensionRemoteAgentHostsService = createDecorator<IExtensionRemot
 
 /**
  * Remote agent hosts that running extensions register with the `chat.registerRemoteAgentHost` API.
- * Every window keeps the registrations of its own extensions. The window that should connect to them
- * registers a connection factory for {@link connectableEntries}; only the Agents window does.
+ * Every window keeps the registrations of its own extensions, and registers a connection factory for
+ * {@link connectableEntries}: the Agents window with their session providers, an editor window to show
+ * their agents and sessions in Chat, as it shows the hosts its workspace lists.
  */
 export interface IExtensionRemoteAgentHostsService {
 	readonly _serviceBrand: undefined;
