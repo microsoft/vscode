@@ -7,6 +7,7 @@ import { registerAction2 } from '../../../../../platform/actions/common/actions.
 import { DebugAgentHostInDevToolsAction } from '../../../../../workbench/contrib/chat/electron-browser/actions/debugAgentHostAction.js';
 import '../../../../../workbench/contrib/chat/electron-browser/actions/exportAgentHostDebugLogsService.js';
 import { registerNetworkDiagnosticsAction } from '../../../../../workbench/contrib/chat/electron-browser/actions/networkDiagnosticsAction.js';
+import { OpenModelRoutersFolderAction } from '../../../../../workbench/contrib/chat/electron-browser/actions/openModelRoutersFolderAction.js';
 import { ProfileAgentHostAction, StopAgentHostProfileAction } from '../../../../../workbench/contrib/chat/electron-browser/actions/profileAgentHostAction.js';
 import { RestartLocalAgentHostAction } from '../../../../../workbench/contrib/chat/electron-browser/actions/restartAgentHostAction.js';
 
@@ -15,3 +16,4 @@ registerAction2(RestartLocalAgentHostAction);
 registerAction2(ProfileAgentHostAction);
 registerAction2(StopAgentHostProfileAction);
 registerNetworkDiagnosticsAction();
+registerAction2(OpenModelRoutersFolderAction);

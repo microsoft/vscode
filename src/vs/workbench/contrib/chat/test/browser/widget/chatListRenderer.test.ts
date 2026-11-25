@@ -9213,6 +9213,66 @@ suite('ChatListRenderer', () => {
 		});
 	}));
 
+	for (const kind of ['label', 'activities'] as const) {
+		test(`persistent progress in a narrow row truncates the response stats that follow its ${kind} first`, () => {
+			const { disposables, instantiationService, configurationService, response, container } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			configurationService.setUserConfiguration(ChatConfiguration.ResponseStats, ChatResponseStats.ProgressWithMessage);
+			const sections = observableValue<readonly IChatPillSection[]>(kind, [{
+				title: 'Activities', entries: [{ id: 'running', label: 'Running tests', open: () => { } }],
+			}]);
+			const working = {
+				kind: 'working' as const,
+				content: new MarkdownString('1 background command running'),
+				backgroundActivity: kind === 'activities' ? { backgroundShells: '1 background command running' } : undefined,
+			};
+			const context = new class extends mock<IChatContentPartRenderContext>() {
+				override readonly element = response;
+				override readonly content = [working];
+				override readonly contentIndex = 0;
+				override readonly suppressProgressShimmer = true;
+				override readonly backgroundActivityPillSections = kind === 'activities' ? { backgroundShells: backgroundShellsForSections(sections) } : undefined;
+			}();
+			const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+			const value = dom.append(dom.append(container, dom.$('.interactive-item-container.interactive-response.chat-persistent-progress')), dom.$('.value'));
+			value.appendChild(part.domNode);
+			const row = part.domNode;
+			const text = row.querySelector<HTMLElement>(kind === 'activities' ? '.chat-pill-label' : '.rendered-markdown.progress-step > p');
+			const stats = row.querySelector<HTMLElement>('.chat-working-progress-trailing-stats');
+			assert.ok(text && stats);
+			const measureText = () => {
+				const range = mainWindow.document.createRange();
+				range.selectNodeContents(text);
+				return range.getBoundingClientRect();
+			};
+			const wideText = measureText();
+			const wideStats = stats.getBoundingClientRect();
+			/** How the row lays out when it ends at `end`. */
+			const layout = (end: number) => {
+				value.style.width = `${end - row.getBoundingClientRect().left}px`;
+				return {
+					textWraps: measureText().height > wideText.height + 1,
+					textTruncated: text.scrollWidth > text.clientWidth,
+					statsOverText: stats.getBoundingClientRect().left < text.getBoundingClientRect().right - 1,
+					statsTruncated: stats.scrollWidth > stats.clientWidth,
+					overflowsRow: row.scrollWidth > row.clientWidth,
+				};
+			};
+			const whole = { textWraps: false, textTruncated: false, statsOverText: false, statsTruncated: false, overflowsRow: false };
+
+			assert.deepStrictEqual({
+				wide: layout(wideStats.right + 100),
+				endsInStats: layout((wideStats.left + wideStats.right) / 2),
+				endsInText: layout((wideText.left + wideText.right) / 2),
+			}, {
+				wide: whole,
+				endsInStats: { ...whole, statsTruncated: true },
+				// Only a row too narrow for the label or activities alone wraps the label, or truncates the activities.
+				endsInText: { ...whole, statsTruncated: true, textWraps: kind === 'label', textTruncated: kind === 'activities' },
+			});
+		});
+	}
+
 	test('persistent progress shimmers its text only while the response stats do not show in it', async () => {
 		const { configurationService, request, container, renderer, template, node } = createPersistentProgressRenderer();
 		renderer.renderElement(node, 0, template);
@@ -14919,6 +14979,79 @@ suite('ChatListRenderer', () => {
 				codeBlockIndices: [0, 1],
 				finalTextRendered: true,
 			});
+		});
+	}
+
+	for (const rendersAgain of [false, true]) {
+		test(`a row that moves in the DOM remounts its Mermaid output once, also when the list does not render it again (rendersAgain=${rendersAgain})`, async () => {
+			const disposables = store.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+			configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+			configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+			instantiationService.stub(IAiEditTelemetryService, { createSuggestionId: () => undefined! });
+			const outputStates = new Map<string, IOutputPartState>();
+			instantiationService.stub(IChatOutputPartStateCache, {
+				get: key => outputStates.get(key),
+				set: (key, state) => outputStates.set(key, state),
+			});
+			const remounts: boolean[] = [];
+			instantiationService.stub(IChatOutputRendererService, {
+				hasCodeBlockRenderer: identifier => identifier === 'mermaid',
+				renderCodeBlock: async (_identifier, _data, parent) => {
+					const output = dom.append(parent, dom.$('div', undefined, 'Rendered diagram'));
+					return {
+						webview: upcastPartial<RenderedOutputPart['webview']>({ onDidUpdateState: Event.None }),
+						onDidChangeHeight: Event.None,
+						reinitialize: () => remounts.push(parent.isConnected),
+						dispose: () => output.remove(),
+					};
+				},
+			});
+
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const request = model.addRequest({
+				text: 'Diagram',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 7), new Range(1, 1, 1, 8), 'Diagram')],
+			}, { variables: [] }, 0);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer, {} as ChatEditorOptions, {},
+				{
+					getListLength: () => 1, onDidScroll: () => Disposable.None, container,
+					currentChatMode: () => ChatModeKind.Agent, isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { }, stickyScrollTopPadding: 0,
+				},
+				undefined, viewModel,
+			));
+			const template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```mermaid\ngraph TD\n```') });
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+
+			// As moving the view that shows the chat in the workbench moves the list's rows, without the list rendering them again
+			const moved = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => moved.remove()));
+			moved.appendChild(container);
+			if (rendersAgain) {
+				renderer.renderElement(node, 0, template);
+			}
+			await timeout(0);
+
+			assert.deepStrictEqual({ remounts, mounted: template.renderedPartsMounted }, { remounts: [true], mounted: true });
+			request.response?.complete();
 		});
 	}
 

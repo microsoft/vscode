@@ -42,7 +42,8 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ArchiveSessionAction, registerSessionsListReadStateMenus } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../../workbench/common/chatSessionCommands.js';
-import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { SessionsView, SessionsViewId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
@@ -560,6 +561,24 @@ suite('Sessions - Session management actions', () => {
 			confirmations: [],
 			archived: [active.sessionId, waiting.sessionId, completed.sessionId],
 		});
+	});
+
+	test('archives a multi-selection without waiting for each session in turn', async () => {
+		const sessions = ['One', 'Two', 'Three'].map(title => createTestSession(title).session);
+		const harness = createActionHarness(sessions, undefined);
+		const started: string[] = [];
+		const completion = new DeferredPromise<void>();
+		harness.managementService.archiveSession = async session => {
+			started.push(session.sessionId);
+			await completion.p;
+		};
+
+		const archive = harness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		const startedBeforeCompletion = [...started];
+		await completion.complete();
+		await archive;
+
+		assert.deepStrictEqual(startedBeforeCompletion, sessions.map(session => session.sessionId));
 	});
 
 	test('plays the confetti signal optimistically when keyboard archive is requested', async () => {

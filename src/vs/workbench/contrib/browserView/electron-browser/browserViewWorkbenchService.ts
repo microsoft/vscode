@@ -15,7 +15,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
-import { getWindowById } from '../../../../base/browser/dom.js';
+import { getWindow, getWindowById } from '../../../../base/browser/dom.js';
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -887,10 +887,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	 */
 	private async _openEditorForCreatedView(view: BrowserEditorInput, owner: IBrowserViewOwner, options: IBrowserViewEditorOpenOptions): Promise<void> {
 		// Give registered handlers a chance to prevent the editor from opening.
-		for (const handler of this._openHandlers) {
-			if (!handler.shouldOpenEditor(view, owner, options)) {
-				return;
-			}
+		if (!this._shouldOpenEditor(view, owner, options)) {
+			return;
 		}
 
 		// Resolve target group: auxiliary window, parent's group, or default
@@ -905,7 +903,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		} else {
 			// Keep the browser docked in the main editor area even when editors
 			// are forced modal via `workbench.editor.useModal: 'all'`.
-			targetGroup = await this.getPreferredGroup();
+			const widget = owner.type === 'agent' ? this.chatWidgetService.getWidgetBySessionResource(URI.parse(owner.sessionId)) : undefined;
+			targetGroup = await this.getPreferredGroup(undefined, widget ? getWindow(widget.domNode).vscodeWindowId : undefined);
 		}
 
 		const editorOptions = {
@@ -932,7 +931,21 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}
 
+		// The active session may have changed while resolving the target group.
+		if (!this._shouldOpenEditor(view, owner, options)) {
+			return;
+		}
+
 		void this.editorService.openEditor(view, editorOptions, group);
+	}
+
+	private _shouldOpenEditor(view: BrowserEditorInput, owner: IBrowserViewOwner, options: IBrowserViewEditorOpenOptions): boolean {
+		for (const handler of this._openHandlers) {
+			if (!handler.shouldOpenEditor(view, owner, options)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**

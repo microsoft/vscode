@@ -23,7 +23,6 @@
 		"@vscode/tree-sitter-wasm": "0.0.5-php.2",
 		"applicationinsights": "^2.9.7",
 		"jsonc-parser": "^3.3.1",
-		"monaco-editor": "0.44.0",
 		"openai": "^6.7.0",
 		"undici": "^7.24.1",
 		"vscode-languageserver-protocol": "^3.17.5",

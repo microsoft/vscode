@@ -812,6 +812,18 @@ suite('AgentHostLanguageModelProvider', () => {
 		});
 	});
 
+	test('a model router keeps its description, with its warning beside it', async () => {
+		const provider = createProvider();
+		provider.updateModels([makeModel('router', { ...createModelRouterModelMeta('A router.', URI.file('/routers/daily.model-router.yaml')), rowWarning: 'Route 2 (gone) is skipped.' })]);
+
+		const metadata = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata;
+		assert.deepStrictEqual({ tooltip: metadata.tooltip, statusIcon: metadata.statusIcon?.id, warningText: metadata.warningText }, {
+			tooltip: 'A router.',
+			statusIcon: Codicon.warning.id,
+			warningText: { modelRouter: 'Route 2 (gone) is skipped.' },
+		});
+	});
+
 	test('derives the picker group from the model-id prefix, not the harness provider', async () => {
 		const provider = createProvider();
 		// The agent host reports every model under the harness provider (`copilotcli`);

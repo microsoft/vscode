@@ -62,7 +62,17 @@ type ConfigurationValue = { value: unknown | undefined /* Remove */ };
 export type ConfigurationKeyValuePairs = [string, ConfigurationValue][];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ConfigurationMigrationFn = (value: any, valueAccessor: (key: string) => any) => ConfigurationValue | ConfigurationKeyValuePairs | Promise<ConfigurationValue | ConfigurationKeyValuePairs>;
-export type ConfigurationMigration = { key: string; migrateFn: ConfigurationMigrationFn; includeApplication?: boolean };
+export type ConfigurationMigration = {
+	key: string;
+	migrateFn: ConfigurationMigrationFn;
+	includeApplication?: boolean;
+	/**
+	 * Migrates the local and the remote user settings each where it is, rather than the user settings they merge into,
+	 * whose writes go to the local or the remote settings by key: a value set only in the remote settings is then not
+	 * moved to a new key in the local settings.
+	 */
+	migrateUserSettingsSeparately?: boolean;
+};
 
 export interface IConfigurationMigrationRegistry {
 	registerConfigurationMigrations(configurationMigrations: ConfigurationMigration[]): void;
@@ -130,6 +140,9 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 		];
 		if (migration.includeApplication) {
 			targetPairs.unshift(['application', ConfigurationTarget.APPLICATION]);
+		}
+		if (migration.migrateUserSettingsSeparately) {
+			targetPairs.splice(targetPairs.findIndex(([dataKey]) => dataKey === 'user'), 1);
 		}
 		for (const [dataKey, target] of targetPairs) {
 			const inspectValue = inspectData[dataKey] as IInspectValue<unknown> | undefined;

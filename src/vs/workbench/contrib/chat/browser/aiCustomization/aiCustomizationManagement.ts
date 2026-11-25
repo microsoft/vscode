@@ -40,6 +40,7 @@ export type AICustomizationManagementOpenEditorTarget =
 		readonly sessionResource?: URI;
 		readonly revealUri?: URI;
 		readonly showDiscover?: boolean;
+		readonly showPluginMarketplaces?: boolean;
 		readonly searchQuery?: string;
 		readonly migration?: boolean;
 		readonly migrationCategory?: CustomizationMigrationCategoryId;
@@ -52,7 +53,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	pendingSessionType: string | undefined,
 	chatSessionResource: URI | undefined,
 	getSessionResourceForHarness: (sessionType: string) => URI,
-): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly hasExplicitSessionResource: boolean; readonly showDiscover?: boolean; readonly searchQuery?: string; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId; readonly migrationHint?: ICustomizationMigrationHint } {
+): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly hasExplicitSessionResource: boolean; readonly showDiscover?: boolean; readonly showPluginMarketplaces?: boolean; readonly searchQuery?: string; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId; readonly migrationHint?: ICustomizationMigrationHint } {
 	if (target && typeof target === 'object' && hasKey(target, { widget: true })) {
 		const pendingTarget = target.widget.input.pendingDelegationTarget;
 		return {
@@ -71,6 +72,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 		section: options?.section,
 		revealUri: options?.revealUri,
 		showDiscover: options?.showDiscover,
+		showPluginMarketplaces: options?.showPluginMarketplaces,
 		searchQuery: options?.searchQuery,
 		migration: options?.migration,
 		migrationCategory: options?.migrationCategory,

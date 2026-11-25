@@ -84,6 +84,23 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
+	test('preserves the marketplace subpage when plugin counts update the sidebar selection', () => {
+		const selections: AICustomizationManagementSection[] = [];
+		const harness = {
+			pluginMarketplacesVisible: true,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			showMarketplaceInDiscover: () => false,
+			ensureSectionsListReflectsActiveSection: (section: AICustomizationManagementSection) => selections.push(section),
+		};
+		const selectSection = Reflect.get(AICustomizationManagementEditor.prototype, 'selectSection') as (
+			this: typeof harness, section: AICustomizationManagementSection,
+		) => void;
+		selectSection.call(harness, AICustomizationManagementSection.Plugins);
+		assert.deepStrictEqual({ visible: harness.pluginMarketplacesVisible, selections }, {
+			visible: true, selections: [AICustomizationManagementSection.Plugins],
+		});
+	});
+
 	test('includes the customization target in the modal title', () => {
 		const input = store.add(new AICustomizationManagementEditorInput());
 		const labels = [[input.getName(), input.getDescription()]];

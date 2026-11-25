@@ -77,7 +77,8 @@ import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '..
 import { IWindowCommandContext } from '../../../../workbench/common/windowCommandContext.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsGrouping, SessionsList, SessionsListFocusedChatItemContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsGrouping, SessionsListFocusedChatItemContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionsView, SessionsViewGroupingContext, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
@@ -876,7 +877,7 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 		const sessionsList = getSessionsList(accessor);
 		// Like a drop on the list, reveal and select the new session in the list once it shows it.
 		return runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService), {
-			watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+			watch: sessionsList && (watched => sessionsList.watchMove(watched)),
 		});
 	}
 });
@@ -915,7 +916,7 @@ function getMoveRunner(accessor: ServicesAccessor): (move: SessionsListMove) => 
 	const logService = accessor.get(ILogService);
 	const sessionsList = getSessionsList(accessor);
 	return move => runSessionsListMove(move, sessionsManagementService, notificationService, logService, {
-		watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+		watch: sessionsList && (watched => sessionsList.watchMove(watched)),
 	});
 }
 

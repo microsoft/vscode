@@ -249,9 +249,34 @@ function getSnapBuildPath(arch: string): string {
 	return `.build/linux/snap/${arch}/${product.applicationName}-${arch}`;
 }
 
-function prepareSnapPackage(arch: string) {
+type LinuxPackageArchitecture = 'x64' | 'arm64' | 'armhf';
+type SnapArchitecture = 'x64' | 'arm64';
+
+const snapArchitectureConfig: Record<SnapArchitecture, {
+	architecture: string;
+	buildOn: string[];
+	multiarch: string;
+}> = {
+	x64: {
+		architecture: 'amd64',
+		buildOn: ['amd64'],
+		multiarch: 'x86_64-linux-gnu',
+	},
+	arm64: {
+		architecture: 'arm64',
+		buildOn: ['amd64', 'arm64'],
+		multiarch: 'aarch64-linux-gnu',
+	},
+};
+
+function prepareSnapPackage(arch: SnapArchitecture) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const destination = getSnapBuildPath(arch);
+	const {
+		architecture,
+		buildOn,
+		multiarch,
+	} = snapArchitectureConfig[arch];
 
 	return function () {
 		// A desktop file that is placed in snap/gui will be placed into meta/gui verbatim.
@@ -282,7 +307,9 @@ function prepareSnapPackage(arch: string) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@VERSION@@', commit!.substr(0, 8)))
 			// Possible run-on values https://snapcraft.io/docs/architectures
-			.pipe(replace('@@ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
+			.pipe(replace('@@ARCHITECTURE@@', architecture))
+			.pipe(replace('@@BUILD_ON@@', buildOn.join(', ')))
+			.pipe(replace('@@MULTIARCH@@', multiarch))
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
@@ -294,12 +321,12 @@ function prepareSnapPackage(arch: string) {
 	};
 }
 
-function buildSnapPackage(arch: string) {
+function buildSnapPackage(arch: SnapArchitecture) {
 	const cwd = getSnapBuildPath(arch);
 	return () => exec('snapcraft', { cwd });
 }
 
-const BUILD_TARGETS = [
+const BUILD_TARGETS: readonly { arch: LinuxPackageArchitecture }[] = [
 	{ arch: 'x64' },
 	{ arch: 'armhf' },
 	{ arch: 'arm64' },
@@ -317,7 +344,14 @@ BUILD_TARGETS.forEach(({ arch }) => {
 	task.task(prepareRpmTask);
 	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, buildRpmPackage(arch));
 	task.task(buildRpmTask);
+});
 
+const SNAP_BUILD_TARGETS: readonly { arch: SnapArchitecture }[] = [
+	{ arch: 'x64' },
+	{ arch: 'arm64' },
+];
+
+SNAP_BUILD_TARGETS.forEach(({ arch }) => {
 	const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
 	task.task(prepareSnapTask);
 	const buildSnapTask = task.define(`vscode-linux-${arch}-build-snap`, task.series(prepareSnapTask, buildSnapPackage(arch)));

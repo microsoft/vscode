@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { Dimension } from '../../../../base/browser/dom.js';
+import { Dimension, getWindow } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { DeferredPromise, installFakeRunWhenIdle, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -18,10 +19,13 @@ import { AccessibilitySupport } from '../../../../platform/accessibility/common/
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuService } from '../../../../platform/actions/common/actions.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
@@ -29,9 +33,13 @@ import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../
 import { getMultiDiffEditorVariantConfiguration, multiDiffEditorVariants } from '../../../browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EditorOption, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING } from '../../../common/multiDiffEditor.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
 import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../testCodeEditor.js';
@@ -39,6 +47,13 @@ import { createCodeEditorServices } from '../testCodeEditor.js';
 suite('MultiDiffEditorWidget', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		// Unlike test editors, the editors of a multi diff editor have every registered editor contribution, and create most
+		// of them when the window is idle. A run of all test files registers workbench contributions too, which need services
+		// that these tests do not provide.
+		disposables.add(installFakeRunWhenIdle(() => Disposable.None));
+	});
 
 	teardown(() => {
 		sinon.restore();
@@ -358,6 +373,334 @@ suite('MultiDiffEditorWidget', () => {
 				topAfterReveal: 0,
 				topAfterGrowth: 0,
 			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	/**
+	 * Shows a file below a small one in a widget of 800x300 pixels, and scrolls to the file. Their diffs are computed
+	 * before, unless the caller computes them later.
+	 */
+	async function showFileBelowAnother(originalContent: string, modifiedContent: string, options: { readonly renderSideBySide?: boolean; readonly diffWordWrap?: 'on' | 'off'; readonly editorOptions?: IDiffEditorOptions; readonly computeDiffsLater?: boolean; readonly withoutInnerChanges?: boolean } = {}) {
+		const diffProviderFactory = new DelayedDiffProviderFactoryService(options.withoutInnerChanges);
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, diffProviderFactory);
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const models = [['a\nb', 'a\nc'], [originalContent, modifiedContent]].map(([original, modified], index) => [
+			instantiateTextModel(instantiationService, original, undefined, undefined, URI.parse(`inmemory://original/${index}.js`)),
+			instantiateTextModel(instantiationService, modified, undefined, undefined, URI.parse(`inmemory://modified/${index}.js`)),
+		]);
+		const documentItems = models.map(([original, modified]) => disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(original.uri, original),
+			modified: new DiffItemSource(modified.uri, modified),
+			options: options.editorOptions,
+		}, { dispose() { } })));
+		const widget = instantiationService.createInstance(MultiDiffEditorWidget, container, {} satisfies IWorkbenchUIElementFactory, { variant: 'noCardsNonCompact' });
+		if (options.renderSideBySide !== undefined) {
+			widget.setRenderSideBySide(options.renderSideBySide);
+		}
+		if (options.diffWordWrap) {
+			widget.setDiffWordWrap(options.diffWordWrap);
+		}
+		widget.layout(new Dimension(800, 300));
+		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) });
+		disposables.add(toDisposable(() => {
+			widget.dispose();
+			viewModel.dispose();
+			models.flat().forEach(model => model.dispose());
+		}));
+		const computeDiffs = async () => {
+			diffProviderFactory.computeDiffs();
+			await waitForState(viewModel.items, items => items.length === 2);
+			for (const item of viewModel.items.get()) {
+				await waitForState(item.diffEditorViewModel.isDiffUpToDate, value => value);
+			}
+		};
+		if (options.computeDiffsLater) {
+			// A view model shows its items without their diffs after a second.
+			await waitForState(viewModel.items, items => items.length === 2);
+		} else {
+			await computeDiffs();
+		}
+		widget.setViewModel(viewModel);
+		const resource = { original: models[1][0].uri, modified: models[1][1].uri };
+		widget.reveal(resource, { highlight: false });
+		await waitForState(widget.getLayoutDebugState(), state => state.items[1]?.hasTemplate === true);
+		return { widget, resource, computeDiffs };
+	}
+
+	/** Returns whether a position is in the visible part of an editor's content. */
+	function isVisible(editor: ICodeEditor, position: Position): boolean {
+		const left = editor.getOffsetForColumn(position.lineNumber, position.column);
+		return editor.getVisibleRanges().some(range => range.containsPosition(position))
+			&& editor.getScrollLeft() <= left && left <= editor.getScrollLeft() + editor.getLayoutInfo().contentWidth;
+	}
+
+	/** Returns the ranges that reveals highlight in an editor. */
+	function getHighlights(editor: ICodeEditor): Range[] {
+		return editor.getModel()!.getAllDecorations().filter(decoration => decoration.options.description === 'symbol-navigate-action-highlight').map(decoration => decoration.range);
+	}
+
+	test('reveals a range far into a file by scrolling the list, so that later layouts keep it visible', async () => {
+		// Every third line changes, so that no unchanged region is hidden and the file is much taller than the viewport.
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line).join('\n'));
+
+		try {
+			const itemTop = widget.getViewState().scrollState.top;
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			const showsLine = () => editor.getVisibleRanges().some(range => range.startLineNumber <= 301 && 301 <= range.endLineNumber);
+			const before = showsLine();
+			widget.reveal(resource, { range: new Range(301, 1, 301, 1), side: 'modified', highlight: false });
+			const scrolledList = widget.getViewState().scrollState.top > itemTop;
+			const after = showsLine();
+			widget.layout(new Dimension(800, 301));
+
+			assert.deepStrictEqual({ before, scrolledList, after, afterLayout: showsLine() }, { before: false, scrolledList: true, after: true, afterLayout: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals the row of a wrapped line that shows the range', async () => {
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const modifiedLines = lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line);
+		modifiedLines[300] = Array.from({ length: 500 }, (_, index) => `word${index}`).join(' ');
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: true, diffWordWrap: 'on' });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			const end = new Position(301, modifiedLines[300].length + 1);
+			widget.reveal(resource, { range: Range.fromPositions(end), side: 'modified', highlight: false });
+
+			assert.deepStrictEqual({
+				endIsScreensBelowLineTop: editor.getTopForPosition(end.lineNumber, end.column) - editor.getTopForLineNumber(end.lineNumber) > 300,
+				visible: isVisible(editor, end),
+			}, { endIsScreensBelowLineTop: true, visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals a range of the original document in the modified editor of an inline diff', async () => {
+		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
+		const modifiedLines = [
+			...Array.from({ length: 200 }, (_, index) => `inserted ${index + 1}`),
+			...lines.map((line, index) => index === 149 ? `changed ${index + 1}` : line),
+		];
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			// Without a side, the range refers to the original document, whose line 150 is line 350 of the modified one.
+			widget.reveal(resource, { range: new Range(150, 1, 150, 9), highlight: true });
+
+			assert.deepStrictEqual({ highlights: getHighlights(editor), visible: isVisible(editor, new Position(350, 1)) }, { highlights: [new Range(350, 1, 350, 12)], visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals a range once the diff of its file is computed, unless another reveal supersedes it', () => runWithFakedTimers({}, async () => {
+		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
+		const modifiedLines = [
+			...Array.from({ length: 200 }, (_, index) => `inserted ${index + 1}`),
+			...lines.map((line, index) => index === 149 || index === 249 ? `changed ${index + 1}` : line),
+		];
+		const { widget, resource, computeDiffs } = await showFileBelowAnother(lines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false, computeDiffsLater: true });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			// Only the diff tells that the line 150 of the original document is line 350 of the modified one.
+			widget.reveal(resource, { range: new Range(250, 1, 250, 9), highlight: true });
+			widget.reveal(resource, { range: new Range(150, 1, 150, 9), highlight: true });
+			await computeDiffs();
+			// The reveal continues after the transaction that sets the diff.
+			await timeout(0);
+
+			assert.deepStrictEqual({ highlights: getHighlights(editor), visible: isVisible(editor, new Position(350, 1)) }, { highlights: [new Range(350, 1, 350, 12)], visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	}));
+
+	test('reveals deleted text of an inline diff in the view zone that shows it', async () => {
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		// The modified editor shows the deleted lines 101 to 300 in a view zone, which ends where its line 101 starts.
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), [...lines.slice(0, 100), ...lines.slice(300)].join('\n'), { renderSideBySide: false });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			const showsDeletedLine = (lineNumber: number) => {
+				const top = editor.getTopForLineNumber(101) - (301 - lineNumber) * lineHeight;
+				return editor.getScrollTop() <= top && top + lineHeight <= editor.getScrollTop() + editor.getLayoutInfo().height;
+			};
+			widget.reveal(resource, { range: new Range(150, 1, 150, 9), highlight: false });
+			const showsRange = showsDeletedLine(150);
+			widget.reveal(resource, { range: Range.fromPositions(new Position(250, 3)), highlight: false });
+
+			assert.deepStrictEqual({ showsRange, showsPosition: showsDeletedLine(250) }, { showsRange: true, showsPosition: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('highlights text next to replaced text of an inline diff without the replacement', async () => {
+		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
+		const originalLines = [...lines];
+		originalLines[149] = 'one foo two';
+		const modifiedLines = [...Array.from({ length: 200 }, (_, index) => `inserted ${index + 1}`), ...lines];
+		modifiedLines[349] = 'one baz two';
+		const { widget, resource } = await showFileBelowAnother(originalLines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			// "one " ends where "foo" starts, which "baz" replaced, and " two" starts where it ends.
+			widget.reveal(resource, { range: new Range(150, 1, 150, 5), highlight: true });
+			widget.reveal(resource, { range: new Range(150, 8, 150, 12), highlight: true });
+
+			assert.deepStrictEqual(getHighlights(editor), [new Range(350, 1, 350, 5), new Range(350, 8, 350, 12)]);
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals and highlights the modified lines of a change without inner changes in an inline diff, and the rest of a range after them', async () => {
+		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
+		const modifiedLines = [
+			...Array.from({ length: 200 }, (_, index) => `inserted ${index + 1}`),
+			...lines.map((line, index) => index === 149 ? `changed ${index + 1}` : line),
+		];
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false, withoutInnerChanges: true });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			widget.reveal(resource, { range: new Range(150, 1, 150, 9), highlight: true });
+			widget.reveal(resource, { range: new Range(150, 1, 152, 5), highlight: true });
+
+			assert.deepStrictEqual({ highlights: getHighlights(editor), visible: isVisible(editor, new Position(350, 1)) }, { highlights: [new Range(350, 1, 351, 1), new Range(350, 1, 352, 5)], visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals the row of a wrapped deleted line of an inline diff that shows the range', async () => {
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const originalLines = [...lines];
+		originalLines[199] = Array.from({ length: 500 }, (_, index) => `word${index}`).join(' ');
+		// Deletes the lines 101 to 300.
+		const { widget, resource } = await showFileBelowAnother(originalLines.join('\n'), [...lines.slice(0, 100), ...lines.slice(300)].join('\n'), { renderSideBySide: false, diffWordWrap: 'on' });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			const originalEditor = widget.tryGetCodeEditor(resource.original)!.editor;
+			widget.reveal(resource, { range: Range.fromPositions(new Position(200, originalLines[199].length + 1)), highlight: false });
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			// The hidden original editor aligns its lines with the view zone, which shows the last row of line 200 above line 201.
+			const top = originalEditor.getTopForLineNumber(201) - lineHeight;
+
+			assert.deepStrictEqual({
+				wrapsOverScreens: top - originalEditor.getTopForLineNumber(200) > 300,
+				showsRow: editor.getScrollTop() <= top && top + lineHeight <= editor.getScrollTop() + editor.getLayoutInfo().height,
+			}, { wrapsOverScreens: true, showsRow: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals deleted and replaced text that a true inline diff shows in the wrapped rows of modified lines', async () => {
+		const words = (prefix: string) => Array.from({ length: 300 }, (_, index) => `${prefix}${index}`).join(' ');
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const originalLines = [...lines];
+		originalLines[149] = words('a');
+		originalLines[150] = words('b');
+		originalLines[151] = `keep ${words('c')} keep`;
+		originalLines[152] = `keep ${words('d')} keep`;
+		const modifiedLines = [...lines];
+		// The changed words of the long lines 150 and 151 make them one change with line 152, whose words are deleted, and
+		// line 153, whose words are replaced.
+		modifiedLines[149] = words('a').replace('a5 ', 'x5 ');
+		modifiedLines[150] = words('b').replace('b5 ', 'y5 ');
+		modifiedLines[151] = 'keep keep';
+		modifiedLines[152] = 'keep ZZZ keep';
+		const { widget, resource } = await showFileBelowAnother(originalLines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false, diffWordWrap: 'on', editorOptions: { experimental: { useTrueInlineView: true } } });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			// The modified editor shows the deleted words in front of the text after them, where a word far into them is rows below their start.
+			const revealsWord = (lineNumber: number, word: string) => {
+				const column = originalLines[lineNumber - 1].indexOf(word) + 1;
+				widget.reveal(resource, { range: new Range(lineNumber, column, lineNumber, column + word.length), highlight: false });
+				editor.render(true);
+				return [...editor.getDomNode()!.querySelectorAll('.view-line')].some(line => line.textContent?.includes(word));
+			};
+
+			assert.deepStrictEqual({
+				deleted: revealsWord(152, 'c250'),
+				replaced: revealsWord(153, 'd250'),
+			}, { deleted: true, replaced: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('expands a collapsed file to reveal a range in it', async () => {
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line).join('\n'));
+
+		try {
+			const item = widget.viewModel.get()!.items.get()[1];
+			item.collapsed.set(true, undefined);
+			widget.reveal(resource, { range: new Range(301, 1, 301, 1), side: 'modified', highlight: false });
+
+			assert.deepStrictEqual({
+				collapsed: item.collapsed.get(),
+				visible: isVisible(widget.tryGetCodeEditor(resource.modified)!.editor, new Position(301, 1)),
+			}, { collapsed: false, visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals a range beyond the right edge by scrolling all files horizontally, and keeps the editor where the list scrolled it', async () => {
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const originalLines = [...lines];
+		originalLines[300] = Array.from({ length: 100 }, (_, index) => `word${index}`).join(' ');
+		// Surrounding lines make the editor's own reveal scroll vertically.
+		const { widget, resource } = await showFileBelowAnother(originalLines.join('\n'), lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line).join('\n'), { renderSideBySide: true, diffWordWrap: 'off', editorOptions: { cursorSurroundingLines: 10 } });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.original)!.editor;
+			const end = new Position(301, originalLines[300].length + 1);
+			const range = new Range(301, end.column - 5, 301, end.column);
+			widget.reveal(resource, { range, highlight: false });
+			const scrollTop = editor.getScrollTop();
+			const sharesScrollLeft = widget.getViewState().scrollState.left === editor.getScrollLeft();
+			const visible = isVisible(editor, end);
+			// Revealing the range again neither scrolls the list nor widens the editor, either of which would render the list.
+			widget.reveal(resource, { range, highlight: false });
+
+			assert.deepStrictEqual({ sharesScrollLeft, visible, keepsScrollTop: editor.getScrollTop() === scrollTop }, { sharesScrollLeft: true, visible: true, keepsScrollTop: true });
 		} finally {
 			widget.setViewModel(undefined);
 		}
@@ -715,7 +1058,7 @@ suite('MultiDiffEditorWidget', () => {
 		widget.layout(new Dimension(800, 200));
 		const viewModel = widget.createViewModel(model);
 		await waitForState(viewModel.items, items => items.length === documentItems.length);
-		viewModel.items.get()[0].lastTemplateData.set({ expandedContentHeight: 2000, selections: undefined }, undefined);
+		viewModel.items.get()[0].lastTemplateData.set({ expandedContentHeight: 2000, selections: undefined, splitViewRatio: undefined }, undefined);
 		widget.setViewModel(viewModel);
 		widget.reveal({ original: originalUris[0], modified: modifiedUris[0] }, { highlight: false });
 
@@ -757,6 +1100,198 @@ suite('MultiDiffEditorWidget', () => {
 			}
 		}
 	}));
+
+	test('keeps the split view ratio with its file when templates are recycled', () => runWithFakedTimers({}, async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new PendingDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const documentItems: RefCounted<IDocumentDiffItem>[] = [];
+		const resources: { original: URI; modified: URI }[] = [];
+		for (let index = 0; index < 3; index++) {
+			const originalUri = URI.parse(`inmemory://original/test-${index}.js`);
+			const modifiedUri = URI.parse(`inmemory://modified/test-${index}.js`);
+			const original = disposables.add(instantiateTextModel(instantiationService, '', undefined, undefined, originalUri));
+			const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, modifiedUri));
+			documentItems.push(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
+				options: { accessibilitySupport: 'off' },
+			}, { dispose() { } }));
+			resources.push({ original: originalUri, modified: modifiedUri });
+		}
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCardsNonCompact' },
+		);
+		// Each item is taller than the viewport, so revealing an item releases the template of the previous one.
+		widget.layout(new Dimension(1200, 200));
+		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) });
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel);
+		const revealEditor = (index: number) => {
+			widget.reveal(resources[index], { highlight: false });
+			return widget.getActiveControl()!;
+		};
+
+		try {
+			const firstEditor = revealEditor(0);
+			firstEditor.setSplitViewRatio(0.3);
+			const lastEditor = revealEditor(2);
+			const lastItemRatio = lastEditor.getSplitViewRatio();
+			const restoredFirstItemRatio = revealEditor(0).getSplitViewRatio();
+
+			assert.deepStrictEqual({
+				recycledTemplate: lastEditor === firstEditor,
+				lastItemRatio,
+				restoredFirstItemRatio,
+			}, {
+				recycledTemplate: true,
+				lastItemRatio: undefined,
+				restoredFirstItemRatio: 0.3,
+			});
+		} finally {
+			widget.setViewModel(undefined);
+			viewModel.dispose();
+			widget.dispose();
+			for (const documentItem of documentItems) {
+				documentItem.dispose();
+			}
+		}
+	}));
+
+	test('resizes the split of all files together while it is synced', () => runWithFakedTimers({}, async () => {
+		const configurationService = new TestConfigurationService({ [MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING]: false });
+		const setSynced = (synced: boolean) => {
+			configurationService.setUserConfiguration(MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING, synced);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING]),
+				change: { keys: [MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING], overrides: [] },
+				affectsConfiguration: key => key === MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING,
+			});
+		};
+		const services = new ServiceCollection();
+		services.set(IConfigurationService, configurationService);
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new PendingDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const documentItems: RefCounted<IDocumentDiffItem>[] = [];
+		const resources: { original: URI; modified: URI }[] = [];
+		for (let index = 0; index < 4; index++) {
+			const originalUri = URI.parse(`inmemory://original/test-${index}.js`);
+			const modifiedUri = URI.parse(`inmemory://modified/test-${index}.js`);
+			const original = disposables.add(instantiateTextModel(instantiationService, '', undefined, undefined, originalUri));
+			const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, modifiedUri));
+			documentItems.push(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
+				options: { accessibilitySupport: 'off' },
+			}, { dispose() { } }));
+			resources.push({ original: originalUri, modified: modifiedUri });
+		}
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCardsNonCompact' },
+		);
+		// Two of the four 500px high files fit into the viewport.
+		widget.layout(new Dimension(1200, 800));
+		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) });
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel);
+		const ratios = () => resources.map(resource => {
+			const editor = widget.tryGetCodeEditor(resource.modified)?.diffEditor;
+			if (!(editor instanceof DiffEditorWidget)) {
+				return 'not rendered';
+			}
+			const ratio = editor.getSplitViewRatio();
+			return ratio === undefined ? 'default' : Math.round(ratio * 100) / 100;
+		});
+		const dragSash = (index: number, deltaX: number) => {
+			const editor = widget.tryGetCodeEditor(resources[index].modified)?.diffEditor;
+			assert.ok(editor instanceof DiffEditorWidget);
+			const sash = editor.getContainerDomNode().querySelector('.monaco-sash.vertical')!;
+			const targetWindow = getWindow(sash);
+			sash.dispatchEvent(new MouseEvent('mousedown', { clientX: 600 }));
+			targetWindow.dispatchEvent(new MouseEvent('mousemove', { clientX: 600 + deltaX }));
+			targetWindow.dispatchEvent(new MouseEvent('mouseup', { clientX: 600 + deltaX }));
+		};
+
+		try {
+			widget.reveal(resources[0], { highlight: false });
+			dragSash(0, -240);
+			const notSynced = ratios();
+			setSynced(true);
+			const syncedToLastResize = ratios();
+			dragSash(1, 120);
+			const resizedTogether = ratios();
+			widget.reveal(resources[3], { highlight: false });
+			const revealedWhileSynced = ratios();
+			setSynced(false);
+			dragSash(3, -120);
+			const resizedAlone = ratios();
+			widget.reveal(resources[0], { highlight: false });
+			const revealedAfterSyncing = ratios();
+			// Syncing is turned off while the files are detached, such as while another editor is active.
+			setSynced(true);
+			widget.setViewModel(undefined);
+			setSynced(false);
+			widget.setViewModel(viewModel);
+			widget.reveal(resources[3], { highlight: false });
+			const turnedOffWhileDetached = ratios();
+
+			assert.deepStrictEqual({ notSynced, syncedToLastResize, resizedTogether, revealedWhileSynced, resizedAlone, revealedAfterSyncing, turnedOffWhileDetached }, {
+				notSynced: [0.3, 'default', 'not rendered', 'not rendered'],
+				syncedToLastResize: [0.3, 0.3, 'not rendered', 'not rendered'],
+				resizedTogether: [0.4, 0.4, 'not rendered', 'not rendered'],
+				revealedWhileSynced: ['not rendered', 'not rendered', 0.4, 0.4],
+				resizedAlone: ['not rendered', 'not rendered', 0.4, 0.3],
+				revealedAfterSyncing: [0.4, 0.4, 'not rendered', 'not rendered'],
+				turnedOffWhileDetached: ['not rendered', 'not rendered', 0.3, 0.3],
+			});
+		} finally {
+			widget.setViewModel(undefined);
+			viewModel.dispose();
+			widget.dispose();
+			for (const documentItem of documentItems) {
+				documentItem.dispose();
+			}
+		}
+	}));
 });
 
 class PendingDiffProviderFactoryService implements IDiffProviderFactoryService {
@@ -769,5 +1304,35 @@ class PendingDiffProviderFactoryService implements IDiffProviderFactoryService {
 				return new Promise(() => { });
 			}
 		}();
+	}
+}
+
+/** Computes diffs like {@link TestDiffProviderFactoryService}, once {@link computeDiffs} is called. */
+class DelayedDiffProviderFactoryService implements IDiffProviderFactoryService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _diffProviderFactory = new TestDiffProviderFactoryService();
+	private readonly _canComputeDiffs = new DeferredPromise<void>();
+
+	/**
+	 * @param _withoutInnerChanges Whether the changes have no inner changes, like the changes of the legacy diff algorithm
+	 * that have 20 or more lines on a side.
+	 */
+	constructor(private readonly _withoutInnerChanges = false) { }
+
+	computeDiffs(): void {
+		this._canComputeDiffs.complete();
+	}
+
+	createDiffProvider(): IDocumentDiffProvider {
+		const diffProvider = this._diffProviderFactory.createDiffProvider();
+		return {
+			onDidChange: diffProvider.onDidChange,
+			computeDiff: async (original, modified, options, cancellationToken) => {
+				await this._canComputeDiffs.p;
+				const diff = await diffProvider.computeDiff(original, modified, options, cancellationToken);
+				return this._withoutInnerChanges ? { ...diff, changes: diff.changes.map(change => new DetailedLineRangeMapping(change.original, change.modified, undefined)) } : diff;
+			},
+		};
 	}
 }

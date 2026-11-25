@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions, SESSIONS_FILES_VIEW_ID, VIEW_ID } from '../common/files.js';
 import { ExplorerItem, ExplorerModel } from '../common/explorerModel.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from '../../../../platform/files/common/files.js';
+import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions, FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
 import { dirname, basename } from '../../../../base/common/resources.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -20,7 +20,7 @@ import { IBulkEditService, ResourceFileEdit } from '../../../../editor/browser/s
 import { UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { IExplorerView, IExplorerService } from './files.js';
 import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgressOptions } from '../../../../platform/progress/common/progress.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Promises, RunOnceScheduler } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -256,36 +256,58 @@ export class ExplorerService implements IExplorerService {
 		return [...items];
 	}
 
-	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
-		const cancellationTokenSource = new CancellationTokenSource();
+	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window; token?: CancellationToken }): Promise<void> {
+		const cancellationTokenSource = new CancellationTokenSource(options.token);
 		const location = options.progressLocation ?? ProgressLocation.Window;
+		const cancellable = !options.token && this.canCancelBulkEdit(edit);
 		let progressOptions;
 		if (location === ProgressLocation.Window) {
 			progressOptions = {
 				location: location,
 				title: options.progressLabel,
-				cancellable: edit.length > 1,
+				cancellable,
 			} satisfies IProgressOptions;
 		} else {
 			progressOptions = {
 				location: location,
 				title: options.progressLabel,
-				cancellable: edit.length > 1,
+				cancellable,
 				delay: 500,
 			} satisfies IProgressCompositeOptions;
 		}
-		const promise = this.progressService.withProgress(progressOptions, async progress => {
-			await this.bulkEditService.apply(edit, {
-				undoRedoSource: UNDO_REDO_SOURCE,
-				label: options.undoLabel,
-				code: 'undoredo.explorerOperation',
-				progress,
-				token: cancellationTokenSource.token,
-				confirmBeforeUndo: options.confirmBeforeUndo
-			});
-		}, () => cancellationTokenSource.cancel());
-		await this.progressService.withProgress({ location: ProgressLocation.Explorer, delay: 500 }, () => promise);
-		cancellationTokenSource.dispose();
+		try {
+			const promise = this.progressService.withProgress(progressOptions, async progress => {
+				await this.bulkEditService.apply(edit, {
+					undoRedoSource: UNDO_REDO_SOURCE,
+					label: options.undoLabel,
+					code: 'undoredo.explorerOperation',
+					progress,
+					token: cancellationTokenSource.token,
+					confirmBeforeUndo: options.confirmBeforeUndo
+				});
+			}, () => cancellationTokenSource.cancel());
+			await this.progressService.withProgress({ location: ProgressLocation.Explorer, delay: 500 }, () => promise);
+		} finally {
+			cancellationTokenSource.dispose();
+		}
+	}
+
+	/**
+	 * Cancelling can stop file edits between moves or copies, and while the contents
+	 * of a file are copied. Copies that a file system provider performs natively
+	 * and renames within a provider cannot be stopped once started.
+	 */
+	private canCancelBulkEdit(edits: ResourceFileEdit[]): boolean {
+		let transfers = 0;
+		let canStopTransfer = false;
+		for (const { oldResource, newResource, options } of edits) {
+			if (oldResource && newResource) {
+				transfers++;
+				canStopTransfer ||= oldResource.scheme !== newResource.scheme || (!!options?.copy && !this.fileService.hasCapability(oldResource, FileSystemProviderCapabilities.FileFolderCopy));
+			}
+		}
+
+		return transfers > 1 || canStopTransfer;
 	}
 
 	hasViewFocus(): boolean {

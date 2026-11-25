@@ -160,6 +160,8 @@ const CHAT_PET_DEFAULT_RIGHT_INSET = 32;
 const CHAT_PET_MIN_SCALE = 0.4;
 const CHAT_PET_SCALE_STEP = 0.2;
 const CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG = 20;
+/** Source bounds `[left, top, right, bottom]` of the dots, which are horizontally centered in the speech bubble. */
+const CHAT_PET_SPEECH_BUBBLE_DOTS_BOUNDS = [60, 40, 76, 44] as const;
 const CHAT_PET_SLEEP_RIGHT_OVERHANG = (CHAT_PET_SLEEP_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 const CHAT_PET_TYPING_RIGHT_OVERHANG = (CHAT_PET_TYPING_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 const CHAT_PET_PAINTING_RIGHT_OVERHANG = (CHAT_PET_PAINTING_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
@@ -550,6 +552,22 @@ export function drawChatPetAchievementStar(context: CanvasRenderingContext2D, co
 			}
 		}
 	}
+}
+
+/**
+ * Mirrors the dots of the speech bubble drawn on the canvas in place. A bubble placed to the left of the pet is
+ * flipped as a whole so that its tail keeps pointing at the pet; mirroring the dots back keeps them appearing
+ * from left to right.
+ */
+function mirrorChatPetSpeechBubbleDots(context: CanvasRenderingContext2D): void {
+	const [left, top, right, bottom] = CHAT_PET_SPEECH_BUBBLE_DOTS_BOUNDS;
+	const width = right - left;
+	const height = bottom - top;
+	context.save();
+	context.translate(left + right, 0);
+	context.scale(-1, 1);
+	context.drawImage(context.canvas, left, top, width, height, left, top, width, height);
+	context.restore();
 }
 
 export function isChatPetImageSource(image: Pick<HTMLImageElement, 'getAttribute'>, source: string): boolean {
@@ -1315,6 +1333,7 @@ export class ChatPetWidget extends Disposable {
 	private readonly _sprites: readonly ChatPetSpriteElement[];
 	private readonly _speechBubble: ChatPetSpriteElement;
 	private _speechBubbleState: 'rendering' | 'achievementUnlocked' | undefined;
+	private _speechBubbleLeft = false;
 	private readonly _eyes: HTMLElement;
 	private readonly _propellerPoseContainer: HTMLElement;
 	private readonly _propellerContainer: HTMLElement;
@@ -3295,7 +3314,12 @@ export class ChatPetWidget extends Disposable {
 		this._jumpGameRetry.value?.layout();
 		const buttonBounds = this._button.element.getBoundingClientRect();
 		const inputBounds = this.dragBounds.getBoundingClientRect();
-		this._button.element.classList.toggle('speech-bubble-left', shouldPlaceChatPetSpeechBubbleLeft(this._renderedState, buttonBounds.right, inputBounds.right, this._scale));
+		const speechBubbleLeft = shouldPlaceChatPetSpeechBubbleLeft(this._renderedState, buttonBounds.right, inputBounds.right, this._scale);
+		this._button.element.classList.toggle('speech-bubble-left', speechBubbleLeft);
+		if (speechBubbleLeft !== this._speechBubbleLeft) {
+			this._speechBubbleLeft = speechBubbleLeft;
+			this._speechBubble.redrawFrame?.();
+		}
 		const wideSpriteOffset = getChatPetWideSpriteHorizontalOffset(this._renderedState, this._facingController.direction, buttonBounds.left, buttonBounds.right, inputBounds.left, inputBounds.right, this._scale);
 		setChatPetWideLayerOffset(wideSpriteOffset, [
 			...(this._activeSprite ? [this._activeSprite.container] : []),
@@ -4222,12 +4246,17 @@ export class ChatPetWidget extends Disposable {
 				this._speechAnimation,
 				undefined,
 				false,
-				state === 'achievementUnlocked' ? () => {
+				() => {
 					const context = this._speechBubble.canvas.getContext('2d');
-					if (context) {
-						drawChatPetAchievementStar(context, this._speechBubble.color);
+					if (!context) {
+						return;
 					}
-				} : undefined,
+					if (state === 'achievementUnlocked') {
+						drawChatPetAchievementStar(context, this._speechBubble.color);
+					} else if (this._speechBubbleLeft) {
+						mirrorChatPetSpeechBubbleDots(context);
+					}
+				},
 			);
 		}
 	}

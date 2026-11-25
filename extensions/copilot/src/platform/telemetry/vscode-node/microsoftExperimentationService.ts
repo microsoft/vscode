@@ -265,6 +265,7 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 		filters.set('github_core_copilotsku', token?.sku);
 		filters.set('github_core_issn', token?.isSn() ? '1' : '0');
 		filters.set('github_core_isfcv1', token?.isFcv1() ? '1' : '0');
+		filters.set('github_core_isproxima', token?.isProxima() ? '1' : '0');
 		filters.set('vscode_core_copilotchatextensionversion', trimVersionSuffix(packageJson.version));
 
 		this._logService.trace(`[CopilotAssignmentsFilterProvider]::getFilters Filters: ${JSON.stringify(Array.from(filters.entries()))}`);

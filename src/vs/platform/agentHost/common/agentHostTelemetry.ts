@@ -216,6 +216,13 @@ export interface IAgentProviderTurnTelemetryContext {
  */
 export type AgentHostPrewarmSkipReason = 'notRequested' | 'awaitingActiveClient' | 'customizationsPending' | 'untrustedFolder' | 'disabled' | 'warmFailed' | 'expired' | 'released';
 
+/**
+ * Tool call `error.code` for a call naming a tool the session does not offer,
+ * usually a name the model invented. Tool invocation telemetry reports such a
+ * call apart from a tool that ran and failed.
+ */
+export const TOOL_NOT_FOUND_ERROR_CODE = 'toolNotFound';
+
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {
 	return {
 		clientType,

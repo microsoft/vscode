@@ -60,6 +60,8 @@ import { IChatViewFactory } from '../chatViewFactory.js';
 import { DefaultChatViewFactory } from '../chat/defaultChatViewFactory.js';
 // The chat background's commands, for the chat part's chats, which show over it
 import '../chatBackgroundActions.js';
+// The commands that the pull request and issue pills of its chats open them with
+import '../github/gitHubReferenceActions.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../chat/newChatVoice.js';
 import { ISessionChatPillsDebugService, SessionChatPillsDebugService } from '../chat/sessionChatInputToolbarDebug.js';
 import { ISessionArchiveNudgeService, SessionArchiveNudgeService } from '../chat/sessionArchiveNudge.js';

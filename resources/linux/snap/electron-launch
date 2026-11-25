@@ -48,11 +48,12 @@ function append_dir() {
 }
 
 function copy_env_variable() {
-  local -n var="$1"
-  if [[ "+$var" ]]; then
-    export "${!var}_VSCODE_SNAP_ORIG=${var}"
+  local key="$1"
+  local -n var="$key"
+  if [[ -v $key ]]; then
+    export "${key}_VSCODE_SNAP_ORIG=${var}"
   else
-    export "${!var}_VSCODE_SNAP_ORIG=''"
+    export "${key}_VSCODE_SNAP_ORIG="
   fi
 }
 
@@ -83,16 +84,6 @@ fi
 
 export SNAP_LAUNCHER_ARCH_TRIPLET="$ARCH"
 
-function is_subpath() {
-  dir="$(realpath "$1")"
-  parent="$(realpath "$2")"
-  [ "${dir##"${parent}"/}" != "${dir}" ] && return 0 || return 1
-}
-
-function can_open_file() {
-  [ -f "$1" ] && [ -r "$1" ]
-}
-
 # Preserve system variables that get modified below
 copy_env_variable XDG_CONFIG_DIRS
 copy_env_variable XDG_DATA_DIRS
@@ -102,9 +93,16 @@ copy_env_variable GSETTINGS_SCHEMA_DIR
 copy_env_variable GDK_PIXBUF_MODULE_FILE
 copy_env_variable GDK_PIXBUF_MODULEDIR
 copy_env_variable GDK_BACKEND
+copy_env_variable XDG_SESSION_TYPE
+copy_env_variable MOZ_ENABLE_WAYLAND
+copy_env_variable LIBGL_DRIVERS_PATH
+copy_env_variable SPA_PLUGIN_DIR
+copy_env_variable PIPEWIRE_CONFIG_NAME
+copy_env_variable PIPEWIRE_MODULE_DIR
 copy_env_variable GTK_PATH
 copy_env_variable GTK_EXE_PREFIX
 copy_env_variable GTK_IM_MODULE_FILE
+unset WAYLAND_SOCKET
 
 # XDG Config
 prepend_dir XDG_CONFIG_DIRS "$SNAP/etc/xdg"
@@ -131,36 +129,81 @@ ensure_dir_exists "$SNAP_USER_COMMON/.cache"
 
 # Create $XDG_RUNTIME_DIR if not exists (to be removed when LP: #1656340 is fixed)
 # shellcheck disable=SC2174
-ensure_dir_exists "$XDG_RUNTIME_DIR" -m 700
+if [[ -n "${XDG_RUNTIME_DIR:-}" && "$XDG_RUNTIME_DIR" = /* ]]; then
+  ensure_dir_exists "$XDG_RUNTIME_DIR" -m 700
+fi
 
 # Ensure the app finds locale definitions (requires locales-all to be installed)
 append_dir LOCPATH "$SNAP/usr/lib/locale"
 
-# If detect wayland server socket, then set environment so applications prefer
-# wayland, and setup compat symlink (until we use user mounts. Remember,
-# XDG_RUNTIME_DIR is /run/user/<uid>/snap.$SNAP so look in the parent directory
-# for the socket. For details:
-# https://forum.snapcraft.io/t/wayland-dconf-and-xdg-runtime-dir/186/10
-# Applications that don't support wayland natively may define DISABLE_WAYLAND
-# (to any non-empty value) to skip that logic entirely.
+# Detect Wayland using the protocol-defined WAYLAND_SOCKET/WAYLAND_DISPLAY/XDG_RUNTIME_DIR
+# contract. Relative display names are resolved below XDG_RUNTIME_DIR; absolute names
+# are used verbatim by libwayland.
 wayland_available=false
-if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]]; then
-    wdisplay="wayland-0"
-    if [ -n "$WAYLAND_DISPLAY" ]; then
-        wdisplay="$WAYLAND_DISPLAY"
+if [[ -z "$DISABLE_WAYLAND" ]]; then
+    if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+        wayland_name="$WAYLAND_DISPLAY"
+    elif [[ "${XDG_SESSION_TYPE:-}" = "wayland" ]]; then
+        wayland_name="wayland-0"
+    else
+        wayland_name=""
     fi
-    wayland_sockpath="$XDG_RUNTIME_DIR/../$wdisplay"
-    wayland_snappath="$XDG_RUNTIME_DIR/$wdisplay"
-    if [ -S "$wayland_sockpath" ]; then
-        # if running under wayland, use it
-        #export WAYLAND_DEBUG=1
-        # shellcheck disable=SC2034
-        wayland_available=true
-        # create the compat symlink for now
-        if [ ! -e "$wayland_snappath" ]; then
-            ln -s "$wayland_sockpath" "$wayland_snappath"
+
+    if [[ -n "$wayland_name" ]]; then
+        if [[ "$wayland_name" = /* ]]; then
+            wayland_socket="$wayland_name"
+            wayland_fallback=""
+        elif [[ -n "${XDG_RUNTIME_DIR:-}" && "$XDG_RUNTIME_DIR" = /* ]]; then
+            wayland_socket="$XDG_RUNTIME_DIR/$wayland_name"
+            wayland_fallback="$XDG_RUNTIME_DIR/../$wayland_name"
+        else
+            wayland_socket=""
+            wayland_fallback=""
+        fi
+
+        if [[ -n "$wayland_socket" && -S "$wayland_socket" ]]; then
+            wayland_available=true
+        elif [[ -n "${wayland_fallback:-}" && -S "$wayland_fallback" ]]; then
+            wayland_available=true
+            if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+                if [[ -L "$wayland_socket" || (-f "$wayland_socket" && ! -S "$wayland_socket") ]]; then
+                    rm -f "$wayland_socket"
+                fi
+                if [[ ! -e "$wayland_socket" && ! -L "$wayland_socket" && -S "$wayland_fallback" ]]; then
+                    ln -s "$wayland_fallback" "$wayland_socket"
+                fi
+            fi
         fi
     fi
+
+    if [ "$wayland_available" = true ]; then
+        export XDG_SESSION_TYPE="wayland"
+        if [[ -z "${GDK_BACKEND:-}" ]]; then
+            export GDK_BACKEND="wayland"
+        fi
+        if [[ -z "${MOZ_ENABLE_WAYLAND:-}" ]]; then
+            export MOZ_ENABLE_WAYLAND="1"
+        fi
+    else
+        export XDG_SESSION_TYPE="x11"
+        if [[ -n "${DISPLAY:-}" && -z "${GDK_BACKEND:-}" ]]; then
+            export GDK_BACKEND="x11"
+        fi
+    fi
+fi
+
+if [[ -n "${DISABLE_WAYLAND:-}" ]]; then
+    if [[ -z "${GDK_BACKEND:-}" ]]; then
+        export GDK_BACKEND="x11"
+    fi
+fi
+
+if [ "$wayland_available" = true ]; then
+    export SPA_PLUGIN_DIR="$SNAP/usr/lib/$ARCH/spa-0.2"
+    if [[ -f "$SNAP/usr/share/pipewire/client.conf" ]]; then
+        export PIPEWIRE_CONFIG_NAME="$SNAP/usr/share/pipewire/client.conf"
+    fi
+    export PIPEWIRE_MODULE_DIR="$SNAP/usr/lib/$ARCH/pipewire-0.3"
 fi
 
 # Keep an array of data dirs, for looping through them
@@ -170,17 +213,9 @@ IFS=':' read -r -a data_dirs_array <<< "$XDG_DATA_DIRS"
 export FONTCONFIG_PATH="/etc/fonts"
 export FONTCONFIG_FILE="/etc/fonts/fonts.conf"
 
-# Build mime.cache needed for gtk and qt icon
-# TODO(deepak1556): Re-enable this once we move to core22
-# Refs https://github.com/microsoft/vscode/issues/230454#issuecomment-2418352959
+# Clearing stale MIME data avoids native file dialog crashes with the newer GTK stack.
 if [ "$needs_update" = true ]; then
   rm -rf "$SNAP_USER_DATA/.local/share/mime"
-#  if [ ! -f "$SNAP/usr/share/mime/mime.cache" ]; then
-#    if command -v $SNAP/usr/bin/update-mime-database >/dev/null; then
-#      cp --preserve=timestamps -dR "$SNAP/usr/share/mime" "$XDG_DATA_HOME"
-#      async_exec $SNAP/usr/bin/update-mime-database "$XDG_DATA_HOME/mime"
-#    fi
-#  fi
 fi
 
 # Gio modules and cache (including gsettings module)
@@ -194,7 +229,7 @@ function compile_giomodules {
   fi
 }
 if [ "$needs_update" = true ]; then
-  async_exec compile_giomodules "/snap/core20/current/usr/lib/$ARCH"
+  async_exec compile_giomodules "/snap/core24/current/usr/lib/$ARCH"
 fi
 
 # Setup compiled gsettings schema
@@ -223,7 +258,7 @@ function compile_schemas {
   fi
 }
 if [ "$needs_update" = true ]; then
-  async_exec compile_schemas "/snap/core20/current/usr/lib/$ARCH/glib-2.0/glib-compile-schemas"
+  async_exec compile_schemas "/snap/core24/current/usr/lib/$ARCH/glib-2.0/glib-compile-schemas"
 fi
 
 # Gdk-pixbuf loaders
@@ -234,11 +269,6 @@ if [ "$needs_update" = true ] || [ ! -f "$GDK_PIXBUF_MODULE_FILE" ]; then
   if [ -f "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" ]; then
     async_exec "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" > "$GDK_PIXBUF_MODULE_FILE"
   fi
-fi
-
-# shellcheck disable=SC2154
-if [ "$wayland_available" = true ]; then
-  export GDK_BACKEND="wayland"
 fi
 
 append_dir GTK_PATH "$SNAP/usr/lib/$ARCH/gtk-3.0"
@@ -258,7 +288,7 @@ if [ "$needs_update" = true ]; then
   rm -rf "$GTK_IM_MODULE_DIR"
   ensure_dir_exists "$GTK_IM_MODULE_DIR"
   ln -s "$SNAP"/usr/lib/"$ARCH"/gtk-3.0/3.0.0/immodules/*.so "$GTK_IM_MODULE_DIR"
-  async_exec "$SNAP/usr/lib/$ARCH/libgtk-3-0/gtk-query-immodules-3.0" > "$GTK_IM_MODULE_FILE"
+  async_exec "$SNAP/usr/lib/$ARCH/libgtk-3-0t64/gtk-query-immodules-3.0" > "$GTK_IM_MODULE_FILE"
 fi
 
 # shellcheck disable=SC2154
@@ -266,4 +296,15 @@ fi
 
 wait_for_async_execs
 
-exec "$@" --ozone-platform=x11
+declare -a launch_args=()
+if [[ -n "${DISABLE_WAYLAND:-}" ]]; then
+    launch_args+=(--ozone-platform=x11)
+fi
+
+binary="$1"
+shift
+snap_libgl="$SNAP/usr/lib/dri:$SNAP/usr/lib/$ARCH/dri"
+if [[ -n "${LIBGL_DRIVERS_PATH:-}" ]]; then
+    snap_libgl="$snap_libgl:$LIBGL_DRIVERS_PATH"
+fi
+LIBGL_DRIVERS_PATH="$snap_libgl" exec "$binary" "${launch_args[@]}" "$@"

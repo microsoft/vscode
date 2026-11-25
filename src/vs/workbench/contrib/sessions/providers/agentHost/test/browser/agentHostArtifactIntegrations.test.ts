@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, ImmortalReference, IReference } from '../../../../../../../base/common/lifecycle.js';
@@ -13,6 +14,7 @@ import { deepFreeze } from '../../../../../../../base/common/objects.js';
 import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
@@ -22,7 +24,7 @@ import { AgentHostArtifactIntegrationsConfigKey } from '../../../../../../../pla
 import { AgentMergeConfigKey } from '../../../../../../../platform/agentHost/common/agentMerge.js';
 import { ArtifactChatAction } from '../../../../../../../platform/agentHost/common/artifactIntegrationChat.js';
 import { SESSION_META_ARTIFACTS_KEY, SessionArtifactType } from '../../../../../../../platform/agentHost/common/sessionArtifacts.js';
-import { gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
+import { gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey, gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import { ActionEnvelope, ActionType, INotification, NotificationType } from '../../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { InitializeResult } from '../../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { ArtifactDetails, ArtifactIntegrationDescriptor, ArtifactIntegrationsSettingId, ArtifactRun, ArtifactSnapshot, IArtifactDetailsModel, IArtifactModel, isArtifactRunSettled } from '../../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
@@ -33,6 +35,9 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, IFileService, IFileSystemWatcher } from '../../../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IAuthenticationService } from '../../../../../../services/authentication/common/authentication.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../../chat/browser/actions/chatActions.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../../../chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
@@ -40,7 +45,7 @@ import { IChatEntitlementService } from '../../../../../../services/chat/common/
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { AgentHostArtifactIntegrations, createHostFacingArtifactAccess, IArtifactWorkspaceConfigurationContext, mapArtifactModelChats } from '../../browser/agentHostArtifactIntegrations.js';
-import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer, gitHubPullRequestArtifactWorkspaceSettingsPublishDelay } from '../../browser/githubPullRequestArtifactWorkspaceConfiguration.js';
+import { GitHubPullRequestArtifactWorkspaceConfiguration, gitHubPullRequestArtifactFolderSettingsRetryDelay, gitHubPullRequestArtifactWorkspaceSettingsPublishDelay } from '../../browser/githubPullRequestArtifactWorkspaceConfiguration.js';
 import { createClientArtifactRuntime } from '../../../../browser/clientArtifactRuntime.js';
 
 suite('Agent Host artifact chat mapping', () => {
@@ -512,31 +517,45 @@ suite('Agent Host artifact workspace settings', () => {
 		});
 	}
 
-	async function createWorkspaceSettingsFixture() {
+	async function createWorkspaceSettingsFixture(integrated = true) {
 		const { instantiation } = createInstantiation(store);
-		let inspected: IConfigurationValue<readonly string[]> = { userValue: ['Global *'], workspaceValue: ['Workspace *'], workspaceFolderValue: ['Folder *'] };
+		// Like the Agents window for any chat but the focused one, this window has not opened the folder, so its configuration has no folder value.
+		let inspected: IConfigurationValue<readonly string[]> = { userValue: ['Global *'], workspaceValue: ['Workspace *'] };
 		const configuration = new class extends TestConfigurationService {
 			override inspect<T>(): IConfigurationValue<T> { return inspected as IConfigurationValue<T>; }
 		}({ [ArtifactIntegrationsSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, configuration);
+		const settingsFileChanges = store.add(new Emitter<FileChangesEvent>());
+		let readError: Error | undefined;
+		const fileService = store.add(new class extends FileService {
+			// The in-memory provider reports no correlated changes, so the test reports changes to the settings file.
+			override createWatcher(): IFileSystemWatcher { return { onDidChange: settingsFileChanges.event, dispose: () => { } }; }
+			override readFile(...args: Parameters<FileService['readFile']>) { return readError ? Promise.reject(readError) : super.readFile(...args); }
+		}(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		const settingsFile = URI.file('/repo/.vscode/settings.json');
+		const writeFolderSettings = (ignoredChecks: readonly string[]) => fileService.writeFile(settingsFile, VSBuffer.fromString(JSON.stringify({ [gitHubPullRequestMarkReadyIgnoredChecksSetting]: ignoredChecks })));
+		await writeFolderSettings(['Folder *']);
+		instantiation.stub(IFileService, fileService);
 		instantiation.stub(IArtifactIntegrationRegistry, store.add(new ArtifactIntegrationRegistry()));
 		instantiation.stub(IRemoteAgentHostConnectionCustomizationService, new RemoteAgentHostConnectionCustomizationService());
 		instantiation.stub(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ sentiment: { hidden: false }, onDidChangeSentiment: Event.None }));
 		const snapshot = constObservable<ArtifactSnapshot>({
 			authority: { id: 'host', targetHost: 'self', location: 'host' }, session: 'session',
 			artifact: { id: 'pr', label: 'PR', resource: 'https://github.com/octo/repo/pull/42' }, runs: [],
-			contributions: [{
+			contributions: integrated ? [{
 				integrationId: gitHubPullRequestArtifactIntegrationId, label: 'GitHub', actions: [], options: [],
 				configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
 				view: { availability: { kind: 'available' }, sections: [], stateActions: [], generalActions: [], automationAvailability: [] },
-			}],
+			}] : [],
 		});
 		const server = store.add(new ArtifactIntegrationServer({
 			acquireArtifact: async () => new ImmortalReference(upcastPartial<IArtifactModel>({ snapshot })),
 		}));
 		const connected = observableValue('connected', true);
-		const actions = store.add(new Emitter<ActionEnvelope>());
+		let actionSubscriptions = 0;
+		const actions = store.add(new Emitter<ActionEnvelope>({ onDidAddListener: () => actionSubscriptions++ }));
 		const patches: { channel: string; config: Record<string, unknown> }[] = [];
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly onDidNotification = Event.None;
@@ -557,17 +576,22 @@ suite('Agent Host artifact workspace settings', () => {
 			'test-host',
 			undefined,
 			emptyClientHost(snapshot),
-			createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer(configuration),
+			instantiation.createInstance(GitHubPullRequestArtifactWorkspaceConfiguration).synchronize,
 		));
 		integrations.setConnection(connection);
 		const key = gitHubPullRequestArtifactWorkspaceSettingsKey('pr');
 		return {
-			integrations, connected, actions, patches,
+			integrations, connection, connected, actions, patches,
+			actionSubscriptions: () => actionSubscriptions,
 			setInspected: (value: IConfigurationValue<readonly string[]>) => { inspected = value; },
+			writeFolderSettings,
+			changeSettingsFile: () => settingsFileChanges.fire(new FileChangesEvent([{ resource: settingsFile, type: FileChangeType.UPDATED }], false)),
+			failReads: (error: Error | undefined) => { readError = error; },
 			workspace: (workingDirectory: string) => observableValue<IArtifactWorkspaceConfigurationContext | undefined>('workspace', { chat: 'chat', workingDirectory, resource: URI.file('/repo') }),
-			patch: (workingDirectory: string | null) => ({ channel: 'session', config: { [key]: workingDirectory === null ? null : { chat: 'chat', workingDirectory, ignoredChecks: ['Folder *'] } } }),
+			patch: (workingDirectory: string | null, ignoredChecks = ['Folder *']) => ({ channel: 'session', config: { [key]: workingDirectory === null ? null : { chat: 'chat', workingDirectory, ignoredChecks } } }),
 			replaceSessionConfig: (channel: string) => actions.fire({ channel, serverSeq: 1, origin: undefined, action: { type: ActionType.SessionConfigChanged, config: {}, replace: true } }),
-			settle: () => timeout(gitHubPullRequestArtifactWorkspaceSettingsPublishDelay),
+			// The folder's settings are read before the publish delay starts.
+			settle: () => timeout(gitHubPullRequestArtifactWorkspaceSettingsPublishDelay * 2),
 		};
 	}
 
@@ -590,6 +614,58 @@ suite('Agent Host artifact workspace settings', () => {
 		f.replaceSessionConfig('session');
 		await f.settle();
 		assert.deepStrictEqual(f.patches, [f.patch('file:///repo'), f.patch('file:///repo'), f.patch('file:///repo'), f.patch(null)]);
+	}));
+
+	for (const integrated of [true, false]) {
+		test(`subscribes to session actions ${integrated ? 'once for a pull request artifact' : 'not at all for other artifacts'}, however often the same connection is set`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const f = await createWorkspaceSettingsFixture(integrated);
+			store.add(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///repo')));
+			await f.settle();
+			// The sessions provider sets its connection again whenever its sessions change.
+			for (let i = 0; i < 3; i++) {
+				f.integrations.setConnection(f.connection);
+			}
+			f.replaceSessionConfig('session');
+			await f.settle();
+			assert.deepStrictEqual({ subscriptions: f.actionSubscriptions(), patches: f.patches }, {
+				subscriptions: integrated ? 1 : 0,
+				patches: integrated ? [f.patch('file:///repo'), f.patch('file:///repo')] : [],
+			});
+		}));
+	}
+
+	test('reads the working directory\'s own settings, which this window need not have open, before the workspace value', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = await createWorkspaceSettingsFixture();
+		const workspace = f.workspace('file:///repo');
+		store.add(await f.integrations.acquireArtifact('session', 'pr', workspace));
+		await f.settle();
+		workspace.set({ chat: 'chat', workingDirectory: 'file:///worktree', resource: URI.file('/worktree') }, undefined);
+		await f.settle();
+		assert.deepStrictEqual(f.patches, [f.patch('file:///repo'), f.patch('file:///worktree', ['Workspace *'])]);
+	}));
+
+	test('republishes the working directory\'s settings when its settings file changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = await createWorkspaceSettingsFixture();
+		store.add(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///repo')));
+		await f.settle();
+		await f.writeFolderSettings(['Edited *']);
+		f.changeSettingsFile();
+		await f.settle();
+		assert.deepStrictEqual(f.patches, [f.patch('file:///repo'), f.patch('file:///repo', ['Edited *'])]);
+	}));
+
+	test('publishes no fallback while the working directory\'s settings cannot be read, and reads them again later', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = await createWorkspaceSettingsFixture();
+		store.add(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///repo')));
+		await f.settle();
+		f.failReads(new FileOperationError('Permission denied', FileOperationResult.FILE_PERMISSION_DENIED));
+		f.changeSettingsFile();
+		await f.settle();
+		f.failReads(undefined);
+		await f.writeFolderSettings(['Edited *']);
+		await timeout(gitHubPullRequestArtifactFolderSettingsRetryDelay);
+		await f.settle();
+		assert.deepStrictEqual(f.patches, [f.patch('file:///repo'), f.patch('file:///repo', ['Edited *'])]);
 	}));
 
 	test('publishes one context for all live references to an artifact, from the most recently acquired one', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

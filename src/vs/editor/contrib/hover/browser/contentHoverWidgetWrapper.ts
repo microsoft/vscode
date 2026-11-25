@@ -60,9 +60,6 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._register(this._contentHoverWidget.onDidResize(() => {
 			this._participants.forEach(participant => participant.handleResize?.());
 		}));
-		this._register(this._contentHoverWidget.onDidScroll((e) => {
-			this._participants.forEach(participant => participant.handleScroll?.(e));
-		}));
 		this._register(this._contentHoverWidget.onContentsChanged(() => {
 			this._participants.forEach(participant => participant.handleContentsChanged?.());
 		}));
