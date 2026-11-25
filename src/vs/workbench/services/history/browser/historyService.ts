@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IResourceEditorInput, IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent, GroupModelChangeKind } from '../../../common/editor.js';
+import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, ISideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent, GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { GoFilter, GoScope, IHistoryService, MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../common/history.js';
@@ -949,14 +949,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// offer these entries from the history to the user still unless
 			// they are excluded.
 			else {
-				const resourceInputs: IResourceEditorInput[] = [];
-				const sideInputs = editor.primary.matches(editor.secondary) ? [editor.primary] : [editor.primary, editor.secondary];
-				for (const sideInput of sideInputs) {
-					const candidateResourceInput = this.editorHelper.preferResourceEditorInput(sideInput);
-					if (isResourceEditorInput(candidateResourceInput) && this.includeInHistory(candidateResourceInput)) {
-						resourceInputs.push(candidateResourceInput);
-					}
-				}
+
+				// Sides in a folder that a folder location switch left stay out of the list
+				const resourceInputs = this.toResourceInputs(editor).filter(resourceInput => !this.isInLeftFolder(resourceInput));
 
 				// Insert the untyped resource inputs where our disposed
 				// side-by-side editor input is in the history stack
@@ -969,6 +964,22 @@ export class HistoryService extends Disposable implements IHistoryService {
 				this.removeFromHistory(editor);
 			}
 		}
+	}
+
+	/**
+	 * The untyped resource inputs of the sides of a side-by-side editor that can be in the history.
+	 */
+	private toResourceInputs(editor: ISideBySideEditorInput): IResourceEditorInput[] {
+		const resourceInputs: IResourceEditorInput[] = [];
+		const sideInputs = editor.primary.matches(editor.secondary) ? [editor.primary] : [editor.primary, editor.secondary];
+		for (const sideInput of sideInputs) {
+			const candidateResourceInput = this.editorHelper.preferResourceEditorInput(sideInput);
+			if (isResourceEditorInput(candidateResourceInput) && this.includeInHistory(candidateResourceInput)) {
+				resourceInputs.push(candidateResourceInput);
+			}
+		}
+
+		return resourceInputs;
 	}
 
 	private includeInHistory(editor: EditorInput | IResourceEditorInput): boolean {
@@ -1102,14 +1113,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (removedFolders.length) {
 			const entriesByFolder = removedFolders.map(() => new Array<EditorInput | IResourceEditorInput>());
 			this.history = this.history.filter(entry => {
-				const folder = entry.resource ? this.findClosestFolder(entry.resource, previousFolders) : undefined;
+				const resource = this.getPrimaryResource(entry);
+				const folder = resource ? this.findClosestFolder(resource, previousFolders) : undefined;
 				const index = folder ? removedFolders.findIndex(removedFolder => this.uriIdentityService.extUri.isEqual(removedFolder, folder)) : -1;
 				if (index === -1) {
 					return true;
 				}
 
 				this.editorHelper.clearOnEditorDispose(entry, this.editorHistoryListeners);
-				entriesByFolder[index].push(entry);
+
+				// Only resource inputs can be put away: a side-by-side editor, such as a diff, is put away as its sides in that folder
+				entriesByFolder[index].push(...(isSideBySideEditorInput(entry) ?
+					this.toResourceInputs(entry).filter(side => this.uriIdentityService.extUri.isEqual(this.findClosestFolder(side.resource, previousFolders), folder)) :
+					[entry]
+				));
 
 				return false;
 			});
@@ -1122,14 +1139,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 					putAwayHistory.set(key, entries);
 				}
 			});
-
-			for (const key of putAwayHistory.keys()) {
-				if (putAwayHistory.size <= HistoryService.MAX_PUT_AWAY_FOLDERS) {
-					break;
-				}
-
-				putAwayHistory.delete(key); // least recently put away first
-			}
 		}
 
 		for (const folder of addedFolders) {
@@ -1150,6 +1159,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 				}
 			}
 		}
+
+		// Evict after restoring, so that the list of an added folder is never evicted
+		for (const key of putAwayHistory.keys()) {
+			if (putAwayHistory.size <= HistoryService.MAX_PUT_AWAY_FOLDERS) {
+				break;
+			}
+
+			putAwayHistory.delete(key); // least recently put away first
+		}
 	}
 
 	private findClosestFolder(resource: URI, folders: readonly URI[]): URI | undefined {
@@ -1163,12 +1181,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return closest;
 	}
 
-	private isInLeftFolder(editor: EditorInput): boolean {
+	private getPrimaryResource(editor: EditorInput | IResourceEditorInput): URI | undefined {
+		return isEditorInput(editor) ? EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : editor.resource;
+	}
+
+	private isInLeftFolder(editor: EditorInput | IResourceEditorInput): boolean {
 		if (!this.leftFolders.length) {
 			return false;
 		}
 
-		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = this.getPrimaryResource(editor);
 		if (!resource) {
 			return false;
 		}

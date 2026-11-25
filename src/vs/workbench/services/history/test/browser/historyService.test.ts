@@ -787,10 +787,16 @@ suite('HistoryService', function () {
 
 		async function createFolderServices(...folders: URI[]) {
 			const contextService = new FoldersTestContextService(testWorkspace(...folders));
-			const [part, historyService, , , instantiationService] = await createServices(undefined, undefined, contextService);
+			const [part, historyService, editorService, , instantiationService] = await createServices(undefined, undefined, contextService);
 			historyService.getHistory(); // load
 
 			const open = async (path: string) => { await part.activeGroup.openEditor(disposables.add(new UntypedTestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID)), { pinned: true }); };
+			const openSideBySide = async (secondary: string, primary: string) => {
+				const editor = disposables.add(new SideBySideEditorInput(undefined, undefined, disposables.add(new UntypedTestFileEditorInput(URI.file(secondary), TEST_EDITOR_INPUT_ID)), disposables.add(new UntypedTestFileEditorInput(URI.file(primary), TEST_EDITOR_INPUT_ID)), editorService));
+				await part.activeGroup.openEditor(editor, { pinned: true });
+
+				return editor;
+			};
 			const closeAll = () => part.activeGroup.closeAllEditors();
 			const reload = (options?: { save?: boolean }) => {
 				if (options?.save !== false) {
@@ -802,7 +808,7 @@ suite('HistoryService', function () {
 				return reloaded;
 			};
 
-			return { contextService, historyService, instantiationService, open, closeAll, reload };
+			return { contextService, historyService, instantiationService, open, openSideBySide, closeAll, reload };
 		}
 
 		function paths(historyService: IHistoryService): (string | undefined)[] {
@@ -951,6 +957,63 @@ suite('HistoryService', function () {
 			const legacy = disposables.add(instantiationService.createInstance(HistoryService));
 
 			assert.deepStrictEqual(paths(legacy), ['/worktree/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('side-by-side editors are put away as their sides, and their sides in the folder that was left do not come back', async () => {
+			const { contextService, historyService, instantiationService, openSideBySide, closeAll } = await createFolderServices(folder);
+
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			const worktreeDiff = await openSideBySide('/repo/app.ts', '/worktree/app.ts');
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const backAtFolder = paths(historyService);
+
+			const folderDiff = await openSideBySide('/worktree/c.ts', '/repo/c.ts');
+			await closeAll();
+			worktreeDiff.dispose();
+			folderDiff.dispose();
+			const afterClose = paths(historyService);
+
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			const backAtWorktree = paths(historyService);
+
+			assert.deepStrictEqual({ backAtFolder, afterClose, backAtWorktree }, {
+				backAtFolder: [],
+				afterClose: ['/repo/c.ts'],
+				backAtWorktree: ['/worktree/app.ts']
+			});
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('the lists of the least recently put away folders are evicted first', async () => {
+			const { contextService, historyService, instantiationService, open } = await createFolderServices(URI.file('/f0'));
+			const switchTo = async (index: number, options?: { open: boolean }) => {
+				contextService.setFolders([URI.file(`/f${index}`)], { isFolderLocationChange: true });
+				if (options?.open !== false) {
+					await open(`/f${index}/a.txt`);
+				}
+			};
+
+			// f0 is put away again after f1, so it is the more recent one
+			await open('/f0/a.txt');
+			await switchTo(1);
+			await switchTo(0, { open: false });
+
+			// 21 folders with a list are put away: one more than the cap
+			for (let i = 2; i <= 21; i++) {
+				await switchTo(i);
+			}
+
+			await switchTo(0, { open: false });
+			const atF0 = paths(historyService);
+
+			await switchTo(1, { open: false });
+			const atF1 = paths(historyService);
+
+			assert.deepStrictEqual({ atF0, atF1 }, { atF0: ['/f0/a.txt'], atF1: [] });
 
 			return workbenchTeardown(instantiationService);
 		});
