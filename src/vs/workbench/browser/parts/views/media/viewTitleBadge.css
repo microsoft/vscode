@@ -63,6 +63,13 @@
 	}
 }
 
+/* Not even room for the icon: no partial pill */
+@container view-title-badge (max-width: 19px) {
+	.monaco-workbench .view-title-badge {
+		visibility: hidden;
+	}
+}
+
 .monaco-workbench .part > .title > .title-label.has-title-badge {
 	display: flex;
 	flex: 1 1 auto;
