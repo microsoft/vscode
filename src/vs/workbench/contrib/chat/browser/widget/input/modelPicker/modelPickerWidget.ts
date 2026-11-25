@@ -23,7 +23,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IActionListHeaderLink } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { LocalModelEnabledSettingId } from '../../../../../../../platform/agentHost/common/localModel.js';
-import { ModelRouterEnabledSettingId, ModelRouterSkillName } from '../../../../../../../platform/agentHost/common/modelRouterConfig.js';
+import { ModelRouterEnabledSettingId } from '../../../../../../../platform/agentHost/common/modelRouterConfig.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -34,7 +34,7 @@ import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCop
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { getAddModelsUnavailableReason, SessionType } from '../../../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
+import { ChatConfiguration, MANAGE_CHAT_COMMAND_ID, MODEL_ROUTERS_EDITOR_ID } from '../../../../common/constants.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
@@ -683,14 +683,14 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Hands the user to the skill that writes model routers, by starting the prompt with its command. Offered where
-	 * that skill is: a local Copilot chat with model routers turned on.
+	 * Opens the model routers in the Language Models editor, where a router is made. Offered where that editor lists
+	 * them: a local Copilot chat with model routers turned on.
 	 */
 	private _getCreateModelRouter(): (() => void) | undefined {
-		const applies = !!this._delegate.startPromptWith
-			&& this._configurationService.getValue<boolean>(ModelRouterEnabledSettingId) === true
-			&& this._delegate.getSessionType?.() === SessionType.AgentHostCopilot;
-		return applies ? () => this._delegate.startPromptWith?.(`/${ModelRouterSkillName}`) : undefined;
+		const sessionType = this._delegate.getSessionType?.();
+		const applies = this._configurationService.getValue<boolean>(ModelRouterEnabledSettingId) === true
+			&& sessionType === SessionType.AgentHostCopilot;
+		return applies ? () => { this._commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, undefined, sessionType, MODEL_ROUTERS_EDITOR_ID); } : undefined;
 	}
 
 	/** Updates an open picker's on-device rows in place, keeping keyboard focus on the row, and an on-device model's readout. */

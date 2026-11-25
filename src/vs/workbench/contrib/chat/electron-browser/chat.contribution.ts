@@ -34,6 +34,7 @@ import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/c
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import '../browser/aiCustomization/copilotCanvases.contribution.js';
+import '../browser/chatManagement/modelRouters.contribution.js';
 import './codexCustomizationSettings.contribution.js';
 import './agentSessions/computerUseHelperApp.contribution.js';
 import './actions/chatAppWindowScreenshotActions.js';

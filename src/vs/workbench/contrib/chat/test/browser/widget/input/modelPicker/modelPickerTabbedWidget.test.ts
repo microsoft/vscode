@@ -2992,6 +2992,17 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('the add button makes a router from the Routers tab, and not from another tab', () => {
+		let created = 0;
+		const fromCopilot = createPicker({ models: copilotModels, showManageModels: true, onCreateModelRouter: () => created++ });
+		element(fromCopilot.popup, '[data-id="addProvider"]').click();
+		const createdFromCopilot = created;
+		const fromRouters = createPicker({ models: copilotModels, showManageModels: true, onCreateModelRouter: () => created++ });
+		element(fromRouters.popup, '.chat-model-picker-tabbar [aria-label="Routers"]').click();
+		element(fromRouters.popup, '[data-id="addProvider"]').click();
+		assert.deepStrictEqual({ createdFromCopilot, created, visible: fromRouters.picker.isVisible }, { createdFromCopilot: 0, created: 1, visible: false });
+	});
+
 	test('Fusion\'s tiers controlled by a read-only schema cannot be changed, Max included', async () => {
 		const fusion = createFusionModel();
 		const max = createHydraFusionMaxModel();

@@ -9,7 +9,7 @@ import type { IAgentModelInfo } from '../../common/agent.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaPropertyFromLimits } from '../../common/agentModelConfiguration.js';
 import { readAgentModelRouterRoutesMeta, withAgentModelExperimentalMeta, withAgentModelRouterRoutesMeta } from '../../common/meta/agentModelMeta.js';
-import { IModelRouter, IModelRouterDiagnostic, matchModelReference, ModelReferenceMatch, MODEL_ROUTER_MAX_DECISION_TEXT_BYTES, MODEL_ROUTER_MAX_FILE_BYTES, ModelRouterDiagnosticSeverity, modelRouterDecisionTextBytes, modelRouterNameFromFileName, modelRouterNameFromModelId, parseModelRouter, resolveModelRouter, summarizeModelRouterRoutes } from '../../common/modelRouter.js';
+import { IModelRouter, IModelRouterDiagnostic, matchModelReference, ModelReferenceMatch, MODEL_ROUTER_MAX_DECISION_TEXT_BYTES, MODEL_ROUTER_MAX_FILE_BYTES, ModelRouterDiagnosticSeverity, modelRouterDecisionTextBytes, modelRouterNameFromDisplayName, modelRouterNameFromFileName, modelRouterNameFromModelId, parseModelRouter, resolveModelRouter, summarizeModelRouterRoutes, withModelRouterSwitching, writeModelRouter } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 
@@ -139,6 +139,56 @@ suite('modelRouter', () => {
 				longGuidance: ['Route 1\'s `guidance` is too long: at most 4000 characters.'],
 				playbooks: ['Write `playbooks` as `routes`: a list where each route has `model` and `when`, and can have a `name` and `guidance`.'],
 				roles: ['`roles` are no longer read. To have a custom agent used, name it in a route\'s `guidance`.'],
+			});
+		});
+
+		test('writes a router that reads back the same, with text that plain YAML would misread', () => {
+			const full: IModelRouter = {
+				name: 'daily-driver',
+				displayName: 'Daily: "Driver"',
+				description: 'Opus for features.\nHaiku for the rest.',
+				effort: 'medium',
+				contextSize: 'long',
+				switching: 'auto',
+				// A line that ends in spaces is a line break in Markdown, and stays one.
+				guidance: 'Prefer the cheapest model that can do the job.  \n\nWhen unsure: ask.',
+				routes: [
+					{ name: 'feature', models: ['claude-opus-5.5', 'vendor/opus,large'], when: 'Building a feature:\n  several files, or a plan.', examples: ['add a "dark mode" setting', 'refactor #12: the parser', 'yes'], effort: 'high', contextSize: 'default', mainAgentGuidance: 'Plan first.\nThen run the tests.' },
+					{ models: ['anthropic/claude-haiku-4-5'], when: 'Errors like "E1: failed" #1, and it\'s quick.', examples: [], mainAgentGuidance: 'Answer in one line.' },
+				],
+			};
+			// What the parser assumes is not written, and a router named after its file needs no name.
+			const { name, ...plain }: IModelRouter = { name: 'plain', description: 'Two models.', effort: 'auto', switching: 'first-turn', guidance: '', routes: [{ models: ['a'], when: 'One.', examples: [] }, { models: ['b'], when: 'Two.', examples: [] }] };
+			assert.deepStrictEqual({
+				fileName: modelRouterNameFromDisplayName(' Daily: "Driver" '),
+				full: parseModelRouter(writeModelRouter(full), 'renamed.model-router.yaml'),
+				plain: writeModelRouter(plain),
+				plainRead: parseModelRouter(writeModelRouter(plain), `${name}.model-router.yaml`).router,
+			}, {
+				fileName: 'daily-driver',
+				full: { router: full, diagnostics: [], name: 'daily-driver' },
+				plain: 'version: 1\ndescription: Two models.\nroutes:\n  - model: a\n    when: One.\n  - model: b\n    when: Two.\n',
+				plainRead: { name, ...plain },
+			});
+		});
+
+		test('sets `switching` in a file without changing anything else in it', () => {
+			const withoutKey = '# My routes\ndescription: d\nroutes:\n  - model: a\n';
+			const withKey = 'switching: first-turn # stay put\r\nroutes: []\r\n';
+			assert.deepStrictEqual({
+				added: withModelRouterSwitching(withoutKey, 'auto'),
+				changed: withModelRouterSwitching(withKey, 'auto'),
+				unchanged: withModelRouterSwitching(withKey, 'first-turn'),
+				quotedKey: withModelRouterSwitching('"switching": \'first-turn\'\n"routes": []\n', 'auto'),
+				byteOrderMark: withModelRouterSwitching('\uFEFFswitching: first-turn\nroutes: []\n', 'auto'),
+				read: parseModelRouter(withModelRouterSwitching(valid, 'auto'), 'daily-driver.model-router.yaml').router?.switching,
+			}, {
+				added: '# My routes\ndescription: d\nswitching: auto\nroutes:\n  - model: a\n',
+				changed: 'switching: auto # stay put\r\nroutes: []\r\n',
+				unchanged: withKey,
+				quotedKey: '"switching": auto\n"routes": []\n',
+				byteOrderMark: '\uFEFFswitching: auto\nroutes: []\n',
+				read: 'auto',
 			});
 		});
 
@@ -391,13 +441,13 @@ suite('modelRouter', () => {
 				// Effort is chosen with the route, so it is not chosen when one route is left.
 				oneRoute: summarize(router(routes.slice(1, 2))),
 				// A row from another host lists only what reads as a route.
-				malformed: readAgentModelRouterRoutesMeta({ ...model('row'), _meta: { 'vscode.chat.modelRouterRoutes': [{ model: 'A', effort: 3, contextTokens: -1 }, { name: 'x' }, 'y'] } }),
+				malformed: readAgentModelRouterRoutesMeta({ ...model('row'), _meta: { 'vscode.chat.modelRouterRoutes': [{ model: 'A', when: 4, effort: 3, contextTokens: -1 }, { name: 'x' }, 'y'] } }),
 				otherModel: readAgentModelRouterRoutesMeta(model('row')),
 			}, {
-				chosen: [{ name: 'build', model: 'a', effort: 'high' }, { model: 'b', effort: 'auto' }, { model: 'c', contextTokens: 1_000_000 }],
+				chosen: [{ name: 'build', model: 'a', when: 'A.', effort: 'high' }, { model: 'b', when: 'B.', effort: 'auto' }, { model: 'c', when: 'C.', contextTokens: 1_000_000 }],
 				kept: 1,
-				effortOff: [{ name: 'build', model: 'a' }, { model: 'b' }, { model: 'c', contextTokens: 1_000_000 }],
-				oneRoute: [{ model: 'b' }],
+				effortOff: [{ name: 'build', model: 'a', when: 'A.' }, { model: 'b', when: 'B.' }, { model: 'c', when: 'C.', contextTokens: 1_000_000 }],
+				oneRoute: [{ model: 'b', when: 'B.' }],
 				malformed: [{ model: 'A' }],
 				otherModel: [],
 			});
