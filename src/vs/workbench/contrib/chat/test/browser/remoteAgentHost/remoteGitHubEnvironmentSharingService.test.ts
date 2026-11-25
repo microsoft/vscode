@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentHostGitHubEnvironmentStatus } from '../../../../../../platform/agentHost/common/meta/agentHostGitHubEnvironmentMeta.js';
-import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
@@ -43,11 +43,14 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const remotes = new Map<string, { configured: boolean; connected: boolean; connection: IAgentConnection }>();
+		const displayNames = new Map<string, string>();
 		let session: AuthenticationSession = { id: 'session', accessToken: 'token-1', account: { id: 'account', label: 'Account' }, scopes: [] };
 		let signedIn = true;
 		let enabled = true;
 		// Label of the button the user picks when asked, `undefined` to cancel.
 		let promptAnswer: string | undefined;
+		const environments = observableValue<readonly IMissionControlHost[]>('hosts', []);
+		let heldRefresh: DeferredPromise<void> | undefined;
 
 		const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = connectionsChanged.event;
@@ -56,15 +59,25 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 				return [...remotes].map(([address, remote]) => ({ address, name: address, status: remote.connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected }));
 			}
 			override getConnection(address: string) { return remotes.get(address)?.connection; }
+			override getDisplayNameOverride(address: string) { return displayNames.get(address); }
 			override getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined {
-				return remotes.get(address)?.configured ? { name: address, connection: { type: RemoteAgentHostEntryType.WSL, address, distro: address } } : undefined;
+				if (!remotes.get(address)?.configured) {
+					return undefined;
+				}
+				return address.startsWith('tunnel:')
+					? { name: address.slice('tunnel:'.length), connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: address, clusterId: 'cluster' } }
+					: { name: address, connection: { type: RemoteAgentHostEntryType.WSL, address, distro: address } };
 			}
 		}();
 		const service = store.add(new RemoteGitHubEnvironmentSharingService(
 			remoteAgentHostService,
 			new class extends mock<IMissionControlEnvironmentService>() {
 				override get enabled() { return enabled; }
-				override async refresh() { calls.push('refresh environments'); }
+				override readonly hosts = environments;
+				override async refresh() {
+					calls.push('refresh environments');
+					await heldRefresh?.p;
+				}
 			}(),
 			new class extends mock<IMissionControlAvailabilityService>() { override readonly available = observableValue('available', true); }(),
 			configuration,
@@ -92,6 +105,19 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 		return {
 			service, calls, storage,
 			setPromptAnswer(answer: string | undefined) { promptAnswer = answer; },
+			/** Holds environment refreshes until the returned function finishes them, optionally discovering an environment. */
+			holdRefresh() {
+				const held = heldRefresh = new DeferredPromise<void>();
+				return (discovered?: string) => {
+					calls.push(discovered ? `refreshed, discovering ${discovered}` : 'refreshed');
+					if (discovered) {
+						environments.set([...environments.get(), { id: discovered, status: 'online', kind: 'user-local', name: discovered }], undefined);
+					}
+					heldRefresh = undefined;
+					held.complete();
+				};
+			},
+			setDisplayName(address: string, name: string) { displayNames.set(address, name); },
 			addRemote(address: string, capable = true) {
 				let instance = 0;
 				let unregisterFails = false;
@@ -107,8 +133,8 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 				const connection = new class extends mock<IAgentConnection>() {
 					override readonly initializeResult = initialize;
 					override readonly gitHubEnvironment = status;
-					override async registerGitHubEnvironment(accountId: string, credential: string) {
-						calls.push(`register ${address} ${accountId} ${credential}`);
+					override async registerGitHubEnvironment(accountId: string, credential: string, name?: string) {
+						calls.push(`register ${address} ${accountId} ${credential}${name !== undefined ? ` as ${name}` : ''}`);
 						const current = held;
 						held = undefined;
 						if (current) {
@@ -222,6 +248,23 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 		});
 	});
 
+	test('registers remotes under the name this window shows, except WSL remotes, which name themselves', async () => {
+		const context = fixture();
+		context.addRemote('tunnel:nov16');
+		context.addRemote('tunnel:renamed');
+		context.addRemote('wsl:Ubuntu');
+		context.setDisplayName('tunnel:renamed', ' My Tunnel ');
+		await context.flush();
+		for (const address of ['tunnel:nov16', 'tunnel:renamed', 'wsl:Ubuntu']) {
+			await context.service.setShared(address, true);
+		}
+		assert.deepStrictEqual(context.calls, [
+			'register tunnel:nov16 account token-1 as nov16',
+			'register tunnel:renamed account token-1 as My Tunnel',
+			'register wsl:Ubuntu account token-1',
+		]);
+	});
+
 	test('asks whether to keep sharing a shared remote before disconnecting it', async () => {
 		const context = fixture();
 		store.add(context.service.registerKeepSharingHandler((address, environmentId) => context.calls.push(`keep ${address} ${environmentId}`)));
@@ -290,6 +333,43 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
 				'refresh environments',
 				'keep wsl:Ubuntu environment-wsl:Ubuntu',
+			],
+		});
+	});
+
+	test('waits for a recently shared remote\'s environment to be discovered before continuing its sessions through it', async () => {
+		const context = fixture();
+		store.add(context.service.registerKeepSharingHandler((address, environmentId) => context.calls.push(`keep ${address} ${environmentId}`)));
+		context.addRemote('wsl:Ubuntu');
+		await context.flush();
+		await context.service.setShared('wsl:Ubuntu', true);
+		context.setPromptAnswer('Keep Sharing');
+		const keepSharing = async (discovered?: string) => {
+			const finishRefresh = context.holdRefresh();
+			const disconnect = context.service.confirmDisconnect('wsl:Ubuntu', 'Ubuntu');
+			await timeout(0);
+			context.calls.push('refreshing');
+			finishRefresh(discovered);
+			return disconnect;
+		};
+		const undiscovered = await keepSharing('environment-wsl:Ubuntu');
+		const discovered = await keepSharing();
+
+		assert.deepStrictEqual({ undiscovered, discovered, calls: context.calls }, {
+			undiscovered: true,
+			discovered: true,
+			calls: [
+				'register wsl:Ubuntu account token-1',
+				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
+				'refresh environments',
+				'refreshing',
+				'refreshed, discovering environment-wsl:Ubuntu',
+				'keep wsl:Ubuntu environment-wsl:Ubuntu',
+				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
+				'refresh environments',
+				'keep wsl:Ubuntu environment-wsl:Ubuntu',
+				'refreshing',
+				'refreshed',
 			],
 		});
 	});

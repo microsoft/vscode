@@ -7,7 +7,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, globalTransaction, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, globalTransaction, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -28,6 +28,14 @@ import { IVirtualizedItemBindingContext, VirtualizedItemBinding, VirtualizedItem
 import { IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from './workbenchUIElementFactory.js';
 
 export const binaryFilePlaceholderContentHeight = 100;
+
+/** Shares one split view ratio between the diff editors of a multi diff editor. */
+export interface ISplitViewRatioSync {
+	/** Whether every diff editor uses {@link ratio}. */
+	readonly enabled: IObservable<boolean>;
+	/** The split view ratio the user chose last in any of the diff editors. */
+	readonly ratio: ISettableObservable<number | undefined>;
+}
 
 export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiffItemViewModel, DiffEditorItemBinding> {
 	private readonly _viewModel;
@@ -72,6 +80,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		private readonly _variantConfiguration: IMultiDiffEditorVariantConfiguration,
 		private readonly _optionsOverride: IObservable<IDiffEditorOptions> | undefined,
+		private readonly _splitViewRatioSync: ISplitViewRatioSync,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService _parentContextKeyService: IContextKeyService,
 	) {
@@ -265,6 +274,19 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			this._originalWidth.set(width, undefined);
 		}));
 
+		this._register(this.editor.onDidResizeSplitView(() => {
+			if (this._viewModel.get()) {
+				this._splitViewRatioSync.ratio.set(this.editor.getSplitViewRatio(), undefined);
+			}
+		}));
+
+		this._register(autorun(reader => {
+			if (!this._viewModel.read(reader) || !this._splitViewRatioSync.enabled.read(reader)) {
+				return;
+			}
+			this.editor.setSplitViewRatio(this._splitViewRatioSync.ratio.read(reader));
+		}));
+
 		this._register(this.editor.onDidContentSizeChange(e => {
 			globalTransaction(tx => {
 				this._modifiedContentWidth.set(this.editor.getModifiedEditor().getContentWidth(), tx);
@@ -440,6 +462,8 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				this._dataStore.clear();
 				this._viewModel.set(item, tx);
 				this.editor.updateOptions(updateOptions(value.options ?? {}));
+				// The template is recycled across items, so restore the split this item had.
+				this.editor.setSplitViewRatio(item.lastTemplateData.get().splitViewRatio, tx);
 				this.editor.setDiffModel(item.diffEditorViewModelRef, tx);
 			});
 		} finally {

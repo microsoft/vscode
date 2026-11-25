@@ -6,10 +6,11 @@
 import assert from 'assert';
 import { tmpdir } from 'os';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getWorktreeAddFailureMessage, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IRefQuery, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { Branch, EMPTY_TREE_OBJECT, getBaseBranchLabel, getBranchCompletions, GitRefType, IRefQuery, parseBaseBranchRef } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -391,26 +392,6 @@ suite('AgentHostGitService', () => {
 			assert.deepStrictEqual({ before, after: after?.fsPath, probes }, {
 				before: [undefined, undefined], after: directory.fsPath, probes: 2,
 			});
-		});
-	});
-
-	test('maps branches and GitHub pull request refs to origin tracking refs', () => {
-		assert.deepStrictEqual({
-			branch: getRemoteTrackingRef('feature'),
-			pullRequest: getRemoteTrackingRef('refs/pull/42/head'),
-		}, {
-			branch: {
-				branchName: 'feature',
-				remoteBranch: 'origin/feature',
-				remoteRef: 'refs/remotes/origin/feature',
-				sourceRef: 'refs/heads/feature',
-			},
-			pullRequest: {
-				branchName: 'pull/42/head',
-				remoteBranch: 'origin/pull/42/head',
-				remoteRef: 'refs/remotes/origin/pull/42/head',
-				sourceRef: 'refs/pull/42/head',
-			},
 		});
 	});
 
@@ -911,6 +892,14 @@ suite('AgentHostGitService', () => {
 			);
 		});
 
+		test('names the subcommand after leading -c options', () => {
+			const err = Object.assign(new Error('Command failed'), { code: 128 });
+			assert.strictEqual(
+				formatGitError(['-c', 'checkout.workers=0', 'worktree', 'add', '/tmp/y', 'main'], 30_000, false, err, 'fatal: invalid reference: main\n'),
+				'git worktree exited with code 128: fatal: invalid reference: main',
+			);
+		});
+
 		test('falls back to error message when there is no signal or exit code', () => {
 			const err = new Error('spawn git ENOENT');
 			assert.strictEqual(
@@ -978,21 +967,42 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
-	suite('resolveDiffBaseBranchName', () => {
-		test('prefers the persisted base branch, then git state, then undefined', () => {
-			assert.deepStrictEqual(
-				[
-					resolveDiffBaseBranchName('persisted', 'gitState'),
-					resolveDiffBaseBranchName(undefined, 'gitState'),
-					resolveDiffBaseBranchName('persisted', undefined),
-					resolveDiffBaseBranchName('origin/main', undefined),
-					resolveDiffBaseBranchName('refs/remotes/origin/release', undefined),
-					resolveDiffBaseBranchName(undefined, undefined),
-					resolveDiffBaseBranchName('', 'origin/main'),
-					resolveDiffBaseBranchName('', undefined),
+	test('getWorktreeAddFailureMessage explains well-known git worktree add failures', () => {
+		const gitLfsMissing = 'The repository uses Git LFS, but Git LFS isn\'t installed or can\'t be found on the PATH.';
+		assert.deepStrictEqual([
+			'Preparing worktree (new branch \'agents/a\')\nerror: unable to create file src/a: Filename too long\nfatal: Could not reset index file to revision \'HEAD\'.\n',
+			'Preparing worktree (new branch \'agents/a\')\ngit-lfs filter-process: git-lfs: command not found\nfatal: the remote end hung up unexpectedly\n',
+			'Preparing worktree (new branch \'agents/a\')\nHEAD is now at 14e5e32 lfs\n\nThis repository is configured for Git LFS but \'git-lfs\' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting the \'post-checkout\' file in the hooks directory (set by \'core.hookspath\'; usually \'.git/hooks\').\n\n',
+			'Preparing worktree (new branch \'agents/a\')\nfatal: cannot lock ref \'refs/heads/agents/a\': Unable to create \'/repo/.git/refs/heads/agents/a.lock\': File exists.\n\nAnother git process seems to be running in this repository, or the lock file may be stale\n',
+			'Preparing worktree (new branch \'agents/a\')\nerror: unable to write file \'big.bin\'\nfatal: Could not reset index file to revision \'HEAD\'.\n',
+		].map(getWorktreeAddFailureMessage), [
+			isWindows
+				? 'A file path in the worktree is too long for Windows. If the full path is longer than 260 characters, run `git config --global core.longpaths true` to allow long paths in Git. If a file or folder name is longer than 255 characters, shorten it in the repository.'
+				: 'A file path in the worktree is too long for the file system.',
+			gitLfsMissing,
+			gitLfsMissing,
+			'Another Git process is using the repository. If no Git process is running, delete the lock file \'/repo/.git/refs/heads/agents/a.lock\'.',
+			undefined,
+		]);
+	});
+
+	suite('base branch refs', () => {
+		test('parses local and remote refs at the longest remote name, and labels them without the ref prefix', () => {
+			const refs = ['refs/heads/main', 'refs/heads/lszomoru/agents/foo', 'refs/remotes/origin/main', 'refs/remotes/fork/me/release/1.90', 'refs/remotes/gone/main', 'refs/tags/v1'];
+			assert.deepStrictEqual({
+				parsed: refs.map(ref => parseBaseBranchRef(ref, ['origin', 'fork/me'])),
+				labels: ['refs/heads/main', 'refs/remotes/fork/me/release/1.90', 'origin/main'].map(getBaseBranchLabel),
+			}, {
+				parsed: [
+					{ kind: 'local', ref: 'refs/heads/main', branch: 'main' },
+					{ kind: 'local', ref: 'refs/heads/lszomoru/agents/foo', branch: 'lszomoru/agents/foo' },
+					{ kind: 'remote', ref: 'refs/remotes/origin/main', remote: 'origin', branch: 'main' },
+					{ kind: 'remote', ref: 'refs/remotes/fork/me/release/1.90', remote: 'fork/me', branch: 'release/1.90' },
+					undefined,
+					undefined,
 				],
-				['persisted', 'gitState', 'persisted', 'main', 'release', undefined, 'main', undefined],
-			);
+				labels: ['main', 'fork/me/release/1.90', 'origin/main'],
+			});
 		});
 	});
 

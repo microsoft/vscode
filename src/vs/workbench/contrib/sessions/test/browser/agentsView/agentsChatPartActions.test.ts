@@ -29,7 +29,7 @@ import { KeybindingsRegistry } from '../../../../../../platform/keybinding/commo
 import { Menus } from '../../../browser/menus.js';
 import { SessionIsCreatedContext, SessionSupportsRenameContext } from '../../../common/contextkeys.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
-import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
+import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsListCommon.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';

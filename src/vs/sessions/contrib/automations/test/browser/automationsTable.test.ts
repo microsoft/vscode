@@ -42,7 +42,7 @@ import { TableAutomationService, TableEnvironmentService, TableRemoteService, ta
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
-import { SessionItemIsAutomationContext, SessionItemIsInSessionsListContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionItemIsAutomationContext, SessionItemIsInSessionsListContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionIsArchivedContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 

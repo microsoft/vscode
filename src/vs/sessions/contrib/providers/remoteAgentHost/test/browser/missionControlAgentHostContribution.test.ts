@@ -18,7 +18,7 @@ import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId,
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -429,6 +429,73 @@ suite('Mission Control native provider inventory', () => {
 			actions: ['connect:kept', 'disconnect:kept', 'connect:kept'],
 			listedByEnvironment: 0,
 			adoptions: { replaced: [], remote: [`${environment.id} /session /${environment.id}/session->/session/chat`] },
+		});
+	});
+
+	test('points a shared remote\'s environment at its direct connection while connected, mapping only the environment\'s resources and keeping their metadata, also when another address shares it', () => {
+		const { hosts, sharedRemoteEnvironmentIds, shares, created, providersService, setAddressStatus } = fixture();
+		// The remote added again under another address shares the same environment.
+		shares.set(new Map([['ssh:old', { state: 'enabled', environmentId: 'kept' }], ['ssh:kept', { state: 'enabled', environmentId: 'kept' }]]), undefined);
+		hosts.set([{ id: 'kept', name: 'Kept SSH Host', kind: 'user-local', status: 'online' }], undefined);
+		const folder = URI.from({ scheme: 'file', path: '/home/project' });
+		const environmentFolder = toAgentHostUri(folder, agentHostAuthority('cloudsandbox:kept'));
+		const otherFolder = toAgentHostUri(folder, agentHostAuthority('cloudsandbox:other'));
+		// An attached snapshot is read with `resourceRead` and shows its file's path.
+		const content = URI.from({ scheme: 'ahp-session', path: '/session/changeset/1' });
+		const file = URI.joinPath(folder, 'a.ts');
+		const environmentSnapshot = toAgentHostContentUri(content, agentHostAuthority('cloudsandbox:kept'), file);
+		const successor = created[0].options.successor!;
+		const read = () => {
+			const value = successor.get();
+			return value && { providerId: value.providerId, folder: value.mapResource(environmentFolder)?.toString(), snapshot: value.mapResource(environmentSnapshot)?.toString(), other: value.mapResource(otherFolder)?.toString() };
+		};
+		sharedRemoteEnvironmentIds.set(new Set(['kept']), undefined);
+		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connected);
+		const unregistered = read();
+		const remote = store.add(new TestProvider('ssh:kept', 'Kept SSH Host', {}));
+		store.add(providersService.registerProvider(remote));
+		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connecting);
+		const connecting = read();
+		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connected);
+		const connected = read();
+		setAddressStatus('ssh:kept', undefined);
+		assert.deepStrictEqual({ unregistered, connecting, connected, disconnected: read() }, {
+			unregistered: undefined,
+			connecting: undefined,
+			connected: { providerId: remote.id, folder: toAgentHostUri(folder, agentHostAuthority('ssh:kept')).toString(), snapshot: toAgentHostContentUri(content, agentHostAuthority('ssh:kept'), file).toString(), other: undefined },
+			disconnected: undefined,
+		});
+	});
+
+	test('points a remote disconnected with Keep Sharing at its environment until the remote is gone, instead of the environment at the remote', () => {
+		const { hosts, sharedRemoteEnvironmentIds, shares, created, providersService, setAddressStatus, keepSharing } = fixture();
+		shares.set(new Map([['ssh:kept', { state: 'enabled', environmentId: 'kept' }]]), undefined);
+		sharedRemoteEnvironmentIds.set(new Set(['kept']), undefined);
+		hosts.set([{ id: 'kept', name: 'Kept SSH Host', kind: 'user-local', status: 'online' }], undefined);
+		const remote = store.add(new TestProvider('ssh:kept', 'Kept SSH Host', {}));
+		const registration = providersService.registerProvider(remote);
+		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connected);
+		const folder = URI.from({ scheme: 'file', path: '/home/project' });
+		const remoteFolder = toAgentHostUri(folder, agentHostAuthority('ssh:kept'));
+		const environmentFolder = toAgentHostUri(folder, agentHostAuthority('cloudsandbox:kept'));
+		const { successor, predecessor } = created[0].options;
+		const read = () => {
+			const continued = predecessor!.get();
+			return {
+				successor: successor!.get()?.providerId,
+				predecessor: continued && { providerId: continued.providerId, folder: continued.mapResource(remoteFolder)?.toString(), other: continued.mapResource(environmentFolder)?.toString() },
+			};
+		};
+		const connected = read();
+		keepSharing('ssh:kept', 'kept');
+		const keptSharing = read();
+		sharedRemoteEnvironmentIds.set(new Set(), undefined);
+		registration.dispose();
+		setAddressStatus('ssh:kept', undefined);
+		assert.deepStrictEqual({ connected, keptSharing, disconnected: read() }, {
+			connected: { successor: remote.id, predecessor: undefined },
+			keptSharing: { successor: undefined, predecessor: { providerId: remote.id, folder: environmentFolder.toString(), other: undefined } },
+			disconnected: { successor: undefined, predecessor: undefined },
 		});
 	});
 

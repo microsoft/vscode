@@ -26,7 +26,7 @@ import { IEditorCommandsContext, isEditorCommandsContext } from '../../../../wor
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
 import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
-import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
+import { OpenMultiDiffEditorLayoutDebugAction, ToggleSyncSplitViewAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -362,6 +362,32 @@ async function toggleSessionsWordWrap(accessor: ServicesAccessor, target: 'edito
 
 registerAction2(ToggleSessionsEditorWordWrapAction);
 registerAction2(ToggleSessionsDiffEditorWordWrapAction);
+
+// Resize All Diffs Together shows right below the multi diff editors' Word Wrap, except while their diffs are inline.
+const resizeAllDiffsTogether = {
+	id: ToggleSyncSplitViewAction.ID,
+	title: ToggleSyncSplitViewAction.TITLE,
+	toggled: ToggleSyncSplitViewAction.TOGGLED,
+};
+const notInlineDiffView = SessionsDiffViewModeContext.notEqualsTo('inline');
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+	command: resizeAllDiffsTogether,
+	group: '1_diff',
+	order: 25,
+	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, MainEditorAreaVisibleContext, notInlineDiffView),
+});
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
+	command: resizeAllDiffsTogether,
+	group: 'secondary/1_diff',
+	order: 25,
+	when: ContextKeyExpr.and(desktopChangesEditorTitleVisible, notInlineDiffView),
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: resizeAllDiffsTogether,
+	group: '1_diff',
+	order: 25,
+	when: ContextKeyExpr.and(agentsMultiDiffEditorsActive, DesktopLayoutContext.negate(), notInlineDiffView),
+});
 
 /** Anchor action hosting the Create Pull Request button bar in the title bar. */
 class ChangesHeaderActionsAction extends Action2 {

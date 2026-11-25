@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { buildFolderChangesetOwnerUri, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
-import { EMPTY_TREE_OBJECT, IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -89,9 +89,9 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		const persistedBaseBranch = readSessionBaseBranch(await this._sessionStateStore.load(URI.parse(scope.sessionUri)), this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? undefined : scope.sourceUri);
 
 		const workingDirectory = URI.parse(scope.workingDirectories[0]);
-		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(scope.sourceUri)?.baseBranchName
-			?? (!isAhpChatChannel(scope.sourceUri) || this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? readSessionGitState(sessionState._meta)?.baseBranchName : undefined);
-		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, gitStateBaseBranch);
+		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(scope.sourceUri)?.baseBranchRef
+			?? (!isAhpChatChannel(scope.sourceUri) || this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? readSessionGitState(sessionState._meta)?.baseBranchRef : undefined);
+		const baseBranch = persistedBaseBranch || gitStateBaseBranch;
 		await this._sequencer.queue(parsed.ownerUri, async () => {
 			for (const resource of resources) {
 				await this._setReviewed(parsed.ownerUri, workingDirectory, baseBranch, URI.parse(resource), reviewed);

@@ -32,6 +32,7 @@ import { TestAccessibilityService } from '../../../../../platform/accessibility/
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { FileOperationError, FileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -131,6 +132,7 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 	test('offers the file list unless the input opts out', async () => {
 		stubBinaryDocuments();
 		const { editor } = createEditor(300);
+		editor.setVisible(true);
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const open = async (input: MultiDiffEditorInput) => {
 			await editor.setInput(input, undefined, {}, CancellationToken.None);
@@ -146,6 +148,45 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 				withFileList: [true, true],
 				withoutFileList: [false, false],
 				withFileListAgain: [true, true],
+			});
+		} finally {
+			await editor.clearInput();
+		}
+	});
+
+	test('sets whether it offers the file list whenever it becomes the active editor of its group, and not while another editor of the group is', async () => {
+		stubBinaryDocuments();
+		// The context of the editor group, which its editors share. A mocked one would drop the keys an editor bound before another binds them.
+		const contextKeyService = disposables.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		const { editor } = createEditor(300);
+		const read = () => [MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext].map(key => contextKeyService.getContextKeyValue(key.key) === true);
+		// Like its editor group, which shows the pane before it sets the input, and clears the input before it hides the pane.
+		const show = async (input: MultiDiffEditorInput) => {
+			editor.setVisible(true);
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			return read();
+		};
+		const input = createInput('shown', ['/repo/a.png']);
+
+		try {
+			const shown = await show(input);
+			await editor.clearInput();
+			editor.setVisible(false);
+			// Another editor of the group sets the keys of the context the group shares with its editors, such as the
+			// Agents window's Changes editor, which offers no file list there.
+			MultiDiffEditorFileListAvailableContext.bindTo(contextKeyService).set(false);
+			MultiDiffEditorFileListEnabledContext.bindTo(contextKeyService).set(false);
+			// The user hides and shows the list again, such as in another window.
+			toggleMultiDiffEditorFileList(instantiationService.get(IStorageService));
+			toggleMultiDiffEditorFileList(instantiationService.get(IStorageService));
+			const otherEditorActive = read();
+			const shownAgain = await show(input);
+
+			assert.deepStrictEqual({ shown, otherEditorActive, shownAgain }, {
+				shown: [true, true],
+				otherEditorActive: [false, false],
+				shownAgain: [true, true],
 			});
 		} finally {
 			await editor.clearInput();
@@ -172,6 +213,7 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 	test('Focus File List stays in the Command Palette after the user hides the list, and shows the list before focusing it', async () => {
 		stubBinaryDocuments();
 		const { container, editor } = createEditor(100);
+		editor.setVisible(true);
 		const input = disposables.add(instantiationService.createInstance(MultiDiffEditorInput, URI.parse('multi-diff-editor:focus'), 'Test', [new MultiDiffEditorItem(undefined, URI.file('/repo/a.png'), undefined)], false));
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 		const contextKeyService = instantiationService.get(IContextKeyService);

@@ -39,7 +39,7 @@ class FixtureMenuService implements IMenuService {
 		const submitActions = this._hasAgentFeedbackActions
 			? [
 				toAction({ id: submitFeedbackActionId, label: 'Submit', class: 'codicon codicon-send', run: () => { } }),
-				toAction({ id: clearAllFeedbackActionId, label: 'Clear', class: 'codicon codicon-clear-all', run: () => { } }),
+				toAction({ id: clearAllFeedbackActionId, label: 'Clear All', class: 'codicon codicon-clear-all', run: () => { } }),
 			] as unknown as (MenuItemAction | SubmenuItemAction)[]
 			: [];
 

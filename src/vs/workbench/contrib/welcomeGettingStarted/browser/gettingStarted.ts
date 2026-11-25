@@ -74,7 +74,8 @@ import { IWorkbenchThemeService } from '../../../services/themes/common/workbenc
 import { GettingStartedIndexList } from './gettingStartedList.js';
 import { createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic, AgentsWindowGraphicDesign } from '../../chat/browser/agentSessions/agentsWindowGraphic.js';
-import { AgentsWindowGraphicVariant, getWelcomePageCardSurface } from '../../chat/common/constants.js';
+import { WelcomeSignInCard } from '../../chat/browser/agentSessions/welcomeSignInCard.js';
+import { AgentsWindowGraphicVariant, getWelcomePageCardSurface, WelcomeSignInStyle } from '../../chat/common/constants.js';
 import { GettingStartedFocusOutline } from './gettingStartedFocusOutline.js';
 import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
@@ -961,6 +962,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const footerChildren: HTMLElement[] = [];
 		const agentsWindowGraphic = this.categoriesSlideDisposables.add(this.instantiationService.createInstance(AgentsWindowGraphic));
+		const signInCard = this.categoriesSlideDisposables.add(this.instantiationService.createInstance(WelcomeSignInCard));
 		const agentsBanner = createAgentsBanner(
 			{
 				cssClass: 'getting-started-category.agents-banner',
@@ -972,6 +974,13 @@ export class GettingStartedPage extends EditorPane {
 					isExposed: this.categoriesSlideShown,
 					bannerCopyResolved: agentsWindowGraphic.bannerCopyResolved,
 					hide: () => agentsWindowGraphic.hide(),
+				},
+				signInCard: {
+					element: signInCard.element,
+					style: signInCard.style,
+					hidden: signInCard.hidden,
+					isExposed: this.categoriesSlideShown,
+					hide: () => signInCard.hide(),
 				},
 			},
 			this.commandService,
@@ -1046,6 +1055,10 @@ export class GettingStartedPage extends EditorPane {
 			categoriesContainer.setAttribute('data-agents-window-graphic', shownGraphic ?? AgentsWindowGraphicVariant.None);
 			categoriesContainer.setAttribute('data-agents-window-section-style', agentsWindowGraphic.sectionStyle.read(reader));
 			categoriesContainer.setAttribute('data-welcome-card-surface', cardSurface.read(reader));
+			// The sign-in card replaces the sign-in button at the bottom of the page.
+			const shownSignInCard = agentsBanner.visible.read(reader) ? agentsBanner.shownSignInCard.read(reader) : undefined;
+			categoriesContainer.setAttribute('data-welcome-sign-in', shownSignInCard ?? WelcomeSignInStyle.Button);
+			categoriesContainer.classList.toggle('welcome-sign-in-card-shown', shownSignInCard !== undefined);
 			layoutAgentsWindowGraphic();
 		}));
 		this.layoutAgentsWindowGraphic = layoutAgentsWindowGraphic;

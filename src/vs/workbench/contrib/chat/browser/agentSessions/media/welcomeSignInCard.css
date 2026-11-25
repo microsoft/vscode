@@ -1,0 +1,77 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The page that shows the card lays out its parts and its sign-in button around them. */
+
+.welcome-sign-in-card-content {
+	display: contents;
+}
+
+.welcome-sign-in-card-mark {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	color: var(--vscode-foreground);
+}
+
+.welcome-sign-in-card-mark .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.welcome-sign-in-card-text {
+	min-width: 0;
+}
+
+.welcome-sign-in-card-title {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 24px;
+}
+
+.welcome-sign-in-card-benefits {
+	display: grid;
+	gap: var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size80) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+/* The benefits wrap in a narrow card, with the icon next to their first line. */
+.welcome-sign-in-card-benefits > li {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 20px;
+}
+
+/* The icon's box is as tall as a line of text, so that the icon is centered on the line. The extra class outranks the workbench's base codicon size. */
+.welcome-sign-in-card-content .welcome-sign-in-card-benefits > li > .codicon {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	height: 20px;
+	color: var(--vscode-icon-foreground);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.welcome-sign-in-card-summary {
+	min-width: 0;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 20px;
+}
+
+.hc-black .welcome-sign-in-card-mark,
+.hc-light .welcome-sign-in-card-mark {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	background-color: transparent;
+}

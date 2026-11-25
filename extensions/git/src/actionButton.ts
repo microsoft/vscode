@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n, LogOutputChannel } from 'vscode';
+import { Command, Disposable, Event, EventEmitter, SourceControl, SourceControlActionButton, Uri, workspace, l10n, LogOutputChannel } from 'vscode';
 import type { Branch } from './api/git';
 import { RefType, Status } from './api/git.constants';
 import { OperationKind } from './operation';
@@ -62,6 +62,7 @@ export class ActionButton {
 
 	constructor(
 		private readonly repository: Repository,
+		private readonly sourceControl: SourceControl,
 		private readonly postCommitCommandCenter: CommitCommandsCenter,
 		private readonly logger: LogOutputChannel) {
 		this._state = {
@@ -75,6 +76,9 @@ export class ActionButton {
 			repositoryHasUnresolvedConflicts: false
 		};
 
+		// The repository can have run git status and operations already, for example when it is attached again
+		this.onDidRunGitStatus();
+		this.onDidChangeOperations();
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 
@@ -147,7 +151,7 @@ export class ActionButton {
 				command: 'git.commit',
 				title: l10n.t('{0} Continue', '$(check)'),
 				tooltip: this.state.isCommitInProgress ? l10n.t('Continuing Rebase...') : l10n.t('Continue Rebase'),
-				arguments: [this.repository.sourceControl.sourceControl, null]
+				arguments: [this.sourceControl, null]
 			};
 		}
 
@@ -157,7 +161,7 @@ export class ActionButton {
 				command: 'git.commit',
 				title: l10n.t('{0} Continue', '$(check)'),
 				tooltip: this.state.isCommitInProgress ? l10n.t('Continuing Merge...') : l10n.t('Continue Merge'),
-				arguments: [this.repository.sourceControl.sourceControl, null]
+				arguments: [this.sourceControl, null]
 			};
 		}
 
@@ -167,7 +171,7 @@ export class ActionButton {
 				command: 'git.commit',
 				title: l10n.t('{0} Commit', '$(check)'),
 				tooltip: this.state.isCommitInProgress ? l10n.t('Committing Changes...') : l10n.t('Commit Changes'),
-				arguments: [this.repository.sourceControl.sourceControl, null]
+				arguments: [this.sourceControl, null]
 			};
 		}
 
@@ -223,7 +227,7 @@ export class ActionButton {
 					(this.repository.HEAD?.name ?
 						l10n.t({ message: 'Publish Branch "{0}"', args: [this.state.HEAD?.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
 						l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })),
-				arguments: [this.repository.sourceControl.sourceControl],
+				arguments: [this.sourceControl],
 			},
 			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
 		};
@@ -249,7 +253,7 @@ export class ActionButton {
 				tooltip: this.state.isSyncInProgress ?
 					l10n.t('Synchronizing Changes...')
 					: this.repository.syncTooltip,
-				arguments: [this.repository.sourceControl.sourceControl],
+				arguments: [this.sourceControl],
 			},
 			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
 		};
@@ -287,7 +291,7 @@ export class ActionButton {
 			isMergeInProgress: this.repository.mergeInProgress,
 			isRebaseInProgress: !!this.repository.rebaseCommit,
 			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit(),
-			repositoryHasUnresolvedConflicts: this.repository.sourceControl.mergeGroup.resourceStates.length > 0
+			repositoryHasUnresolvedConflicts: this.repository.mergeChanges.length > 0
 		};
 	}
 
@@ -297,7 +301,7 @@ export class ActionButton {
 		const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges', 'all');
 
-		const resources = [...this.repository.sourceControl.indexGroup.resourceStates];
+		const resources = [...this.repository.indexChanges];
 
 		if (
 			// Smart commit enabled (all)
@@ -305,12 +309,12 @@ export class ActionButton {
 			// Smart commit disabled, smart suggestion enabled
 			(!enableSmartCommit && suggestSmartCommit)
 		) {
-			resources.push(...this.repository.sourceControl.workingTreeGroup.resourceStates);
+			resources.push(...this.repository.workingTreeChanges);
 		}
 
 		// Smart commit enabled (tracked only)
 		if (enableSmartCommit && smartCommitChanges === 'tracked') {
-			resources.push(...this.repository.sourceControl.workingTreeGroup.resourceStates.filter(r => r.type !== Status.UNTRACKED));
+			resources.push(...this.repository.workingTreeChanges.filter(r => r.type !== Status.UNTRACKED));
 		}
 
 		return resources.length !== 0;

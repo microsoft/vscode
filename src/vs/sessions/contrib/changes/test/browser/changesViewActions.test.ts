@@ -86,7 +86,7 @@ function getToggledExpression(toggled: ContextKeyExpression | ICommandActionTogg
 }
 
 /** The Changes editor's own actions, which a chat window shows in the editor's header row rather than in its tab row. */
-const CHANGES_EDITOR_OWN_ACTIONS = ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.expandAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'Diff View'];
+const CHANGES_EDITOR_OWN_ACTIONS = ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.expandAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'multiDiffEditor.toggleSyncSplitView', 'Diff View'];
 
 suite('Changes View Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -421,7 +421,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = changesets;
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
-			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
+			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
 		const contextKeyService = new MockContextKeyService();
@@ -495,7 +495,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = constObservable([branch]);
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
-			override readonly activeSessionBaseBranchFullNameObs = baseBranch;
+			override readonly activeSessionBaseBranchRefObs = baseBranch;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
 		const contextKeyService = new MockContextKeyService();
@@ -573,7 +573,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
-			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
+			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = summary;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
@@ -682,7 +682,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
-			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
+			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 2, additions: 5, deletions: 1 });
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
@@ -779,7 +779,7 @@ suite('Changes View Actions', () => {
 				tabRow: getLabels(Menus.SessionsEditorTitle, contextKeyService),
 			};
 		};
-		const diffActions = ['secondary/1_diff', ['Collapse All Diffs', 'Word Wrap', 'Diff View']] as const;
+		const diffActions = ['secondary/1_diff', ['Collapse All Diffs', 'Word Wrap', 'Resize All Diffs Together', 'Diff View']] as const;
 		// The dropdown of Toggle Details offers how the side pane shows its files; where the editor shows its own files
 		// list, such as in a chat window, the list follows the view mode and position of the multi diff editors.
 		assert.deepStrictEqual({ withFileList: render(true), withoutFileList: render(false) }, {
@@ -925,10 +925,37 @@ suite('Changes View Actions', () => {
 			chatWindow: main,
 			mainShowsRunCodeReview: true,
 			ownActionsInTheHeaderRow: {
-				expanded: ['secondary/1_diff:workbench.action.agentSessions.collapseAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:Diff View'],
-				allCollapsed: ['secondary/1_diff:workbench.action.agentSessions.expandAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:Diff View'],
+				expanded: ['secondary/1_diff:workbench.action.agentSessions.collapseAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:multiDiffEditor.toggleSyncSplitView', 'secondary/1_diff:Diff View'],
+				allCollapsed: ['secondary/1_diff:workbench.action.agentSessions.expandAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:multiDiffEditor.toggleSyncSplitView', 'secondary/1_diff:Diff View'],
 			},
 			hiddenShowsNoOwnActions: true,
+		});
+	});
+
+	test('Resize All Diffs Together shows below Word Wrap in the Changes editor, except while its diffs are inline', () => {
+		const shownIn = (viewMode: string) => {
+			const context = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsTopRightEditorGroupContext.key]: true,
+				[MainEditorAreaVisibleContext.key]: true,
+				[SessionsDiffViewModeContext.key]: viewMode,
+			})) {
+				context.setValue(key, value);
+			}
+			return MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+				.filter(isIMenuItem)
+				.filter(item => item.group === 'secondary/1_diff' && (item.when?.evaluate(context) ?? true))
+				.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+				.map(item => item.command.id);
+		};
+		const sideBySide = ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'multiDiffEditor.toggleSyncSplitView'];
+		assert.deepStrictEqual({ automatic: shownIn('automatic'), sideBySide: shownIn('sideBySide'), inline: shownIn('inline') }, {
+			automatic: sideBySide,
+			sideBySide,
+			inline: ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap'],
 		});
 	});
 

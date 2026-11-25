@@ -321,7 +321,7 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 		if (options.cursor === undefined && !isFolder) {
 			const you = l10n.t('You');
 
-			const index = repo.sourceControl.indexGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
+			const index = repo.indexChanges.find(r => r.resourceUri.fsPath === uri.fsPath);
 			if (index) {
 				const date = this.repoOperationDate ?? new Date();
 
@@ -345,7 +345,7 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 			}
 
 			if (showUncommitted) {
-				const working = repo.sourceControl.workingTreeGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
+				const working = repo.workingTreeChanges.find(r => r.resourceUri.fsPath === uri.fsPath);
 				if (working) {
 					const date = new Date();
 

@@ -24,7 +24,8 @@ import { ISessionsProvidersService } from '../../../../workbench/contrib/session
 import { getSessionGroupSectionId, ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SESSIONS_LIST_UNGROUPED_PLACEMENT, SessionsGrouping, SessionsList, SessionsListSessionPosition, SessionsListSnapshotNode, SessionsSorting } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_UNGROUPED_PLACEMENT, SessionsList, SessionsListSessionPosition, SessionsListSnapshotNode } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { getSessionFilterOptions, SessionFilter, sessionFilterKey } from '../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 
