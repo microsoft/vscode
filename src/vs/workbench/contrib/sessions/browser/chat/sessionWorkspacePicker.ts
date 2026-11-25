@@ -84,7 +84,7 @@ const FILTER_THRESHOLD = 10;
 
 /**
  * The icon of a worktree in a composer's folder picker: New Worktree, each worktree of the window's folder, and the
- * picker's chip at one. The Sessions list keeps its own icon for its Worktree groups.
+ * picker's chip at one.
  */
 const WORKSPACE_PICKER_WORKTREE_ICON = Codicon.worktree;
 

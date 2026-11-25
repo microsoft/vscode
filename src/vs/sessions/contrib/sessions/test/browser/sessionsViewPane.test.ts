@@ -387,13 +387,15 @@ suite('Sessions - SessionsViewPane', () => {
 		}
 		const notOffered = { shown: editorWindow.grouping, saved: saved() };
 		storageService.store('sessionsViewPane.grouping', 'worktree', StorageScope.PROFILE, StorageTarget.USER);
-		const worktree = { saved: saved(), agentsWindow: createHost(undefined).grouping, editorWindow: createHost(EDITOR_WINDOW_SESSIONS_GROUPINGS).grouping };
+		const agentsWindowGrouping = createGroupingHost(configurationService, storageService).grouping;
+		const editorWindowGrouping = createGroupingHost(configurationService, storageService, EDITOR_WINDOW_SESSIONS_GROUPINGS).grouping;
+		const worktree = { agentsWindow: agentsWindowGrouping, editorWindow: editorWindowGrouping, saved: saved() };
 
 		assert.deepStrictEqual({ editorWindowDefault, fallback, notOffered, worktree, unknown: getStoredSessionsGrouping('unknown-grouping', DEFAULT_SESSIONS_GROUPINGS) }, {
 			editorWindowDefault: SessionsGrouping.Date,
 			fallback: { shown: SessionsGrouping.Date, saved: SessionsGrouping.Repository },
 			notOffered: { shown: SessionsGrouping.Date, saved: SessionsGrouping.Repository },
-			worktree: { saved: 'worktree', agentsWindow: SessionsGrouping.Workspace, editorWindow: SessionsGrouping.Date },
+			worktree: { agentsWindow: SessionsGrouping.Workspace, editorWindow: SessionsGrouping.Date, saved: 'worktree' },
 			unknown: undefined,
 		});
 	});
