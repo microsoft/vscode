@@ -53,7 +53,7 @@ export class CloneManager {
 
 		const cachedRepository = this.repositoryCache.get(url);
 		if (cachedRepository && (cachedRepository.length > 0)) {
-			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref, options.returnRepositoryPath);
+			return this.tryOpenExistingRepository(cachedRepository, url, options);
 		}
 		return this.cloneRepository(url, options.parentPath, options);
 	}
@@ -211,7 +211,8 @@ export class CloneManager {
 		}
 	}
 
-	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: ApiPostCloneAction, parentPath?: string, ref?: string, returnRepositoryPath?: boolean): Promise<string | undefined> {
+	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, options: CloneOptions): Promise<string | undefined> {
+		const { postCloneAction, returnRepositoryPath } = options;
 		// Ignore cached entries whose requested path no longer exists.
 		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
 			const cachedPath = returnRepositoryPath ? folder.repositoryPath : folder.workspacePath;
@@ -225,7 +226,7 @@ export class CloneManager {
 
 		if (!existingCachedRepositories.length) {
 			// fallback to clone
-			return (await this.cloneRepository(url, parentPath, { ref, postCloneAction }) ?? undefined);
+			return (await this.cloneRepository(url, options.parentPath, options) ?? undefined);
 		}
 
 		// First, find the cached repo that exists in the current workspace
@@ -244,7 +245,7 @@ export class CloneManager {
 		if (!existingRepository) {
 			const pick = await this.chooseExistingRepository(existingCachedRepositories);
 			if (pick === 'cloneAgain') {
-				return (await this.cloneRepository(url, parentPath, { ref, postCloneAction })) ?? undefined;
+				return (await this.cloneRepository(url, options.parentPath, options)) ?? undefined;
 			}
 			existingRepository = pick;
 		}

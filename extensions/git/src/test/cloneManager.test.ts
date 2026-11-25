@@ -8,14 +8,14 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { CloneManager } from '../cloneManager';
+import { CloneManager, type CloneOptions } from '../cloneManager';
 import type { RepositoryCacheInfo } from '../repositoryCache';
 import * as sinon from 'sinon';
 import { CancellationTokenSource, ProgressLocation, QuickPickItem, window } from 'vscode';
 import type { ICloneOptions } from '../git';
 
 interface ICloneManagerHarness {
-	cloneRepository(url: string, parentPath?: string): Promise<string | undefined>;
+	cloneRepository(url: string, parentPath?: string, options?: CloneOptions): Promise<string | undefined>;
 	chooseExistingRepository?(existingCachedRepositories: RepositoryCacheInfo[]): Promise<RepositoryCacheInfo | 'cloneAgain' | undefined>;
 	doPostCloneAction?(target: string, postCloneAction?: 'none'): Promise<void>;
 }
@@ -24,10 +24,7 @@ const tryOpenExistingRepository = Reflect.get(CloneManager.prototype, 'tryOpenEx
 	this: ICloneManagerHarness,
 	cachedRepository: RepositoryCacheInfo[],
 	url: string,
-	postCloneAction?: 'none',
-	parentPath?: string,
-	ref?: string,
-	returnRepositoryPath?: boolean,
+	options: CloneOptions,
 ) => Promise<string | undefined>;
 
 suite('CloneManager', () => {
@@ -80,18 +77,18 @@ suite('CloneManager', () => {
 	test('clones again when a cached repository path was deleted', async () => {
 		const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-clone-manager-'));
 		const repositoryPath = path.join(workspacePath, 'deleted-repository');
-		const calls: { url: string; parentPath: string | undefined }[] = [];
+		const calls: { url: string; parentPath: string | undefined; recursive: boolean | undefined }[] = [];
 		try {
 			const result = await tryOpenExistingRepository.call({
-				cloneRepository: async (url, parentPath) => {
-					calls.push({ url, parentPath });
+				cloneRepository: async (url, parentPath, options) => {
+					calls.push({ url, parentPath, recursive: options?.recursive });
 					return '/repos/recloned';
 				},
-			}, [{ workspacePath, repositoryPath }], 'https://github.com/microsoft/vscode.git', 'none', '/repos', undefined, true);
+			}, [{ workspacePath, repositoryPath }], 'https://github.com/microsoft/vscode.git', { postCloneAction: 'none', parentPath: '/repos', recursive: true, returnRepositoryPath: true });
 
 			assert.deepStrictEqual({ result, calls }, {
 				result: '/repos/recloned',
-				calls: [{ url: 'https://github.com/microsoft/vscode.git', parentPath: '/repos' }],
+				calls: [{ url: 'https://github.com/microsoft/vscode.git', parentPath: '/repos', recursive: true }],
 			});
 		} finally {
 			await fs.promises.rm(workspacePath, { recursive: true, force: true });
@@ -119,8 +116,8 @@ suite('CloneManager', () => {
 		};
 		try {
 			const cache = [{ workspacePath, repositoryPath: workspacePath }];
-			const fromCommand = await tryOpenExistingRepository.call(harness, cache, url);
-			const fromApi = await tryOpenExistingRepository.call(harness, cache, url, 'none', undefined, undefined, true);
+			const fromCommand = await tryOpenExistingRepository.call(harness, cache, url, {});
+			const fromApi = await tryOpenExistingRepository.call(harness, cache, url, { postCloneAction: 'none', returnRepositoryPath: true });
 
 			assert.deepStrictEqual({ fromCommand, fromApi, quickPicks, cloned, opened }, {
 				fromCommand: '/repos/recloned',
@@ -128,6 +125,36 @@ suite('CloneManager', () => {
 				quickPicks: [[path.basename(workspacePath), 'Clone again']],
 				cloned: [undefined],
 				opened: [workspacePath],
+			});
+		} finally {
+			await fs.promises.rm(workspacePath, { recursive: true, force: true });
+		}
+	});
+
+	test('clone again keeps the options of the clone command', async () => {
+		const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-clone-manager-'));
+		const url = 'https://github.com/microsoft/vscode.git';
+		const cloned: { parentPath: string | undefined; options: CloneOptions | undefined }[] = [];
+		sinon.stub(window, 'showQuickPick').callsFake(async (items: readonly QuickPickItem[] | Thenable<readonly QuickPickItem[]>) => {
+			const resolved = await items;
+			return resolved.find(item => item.label === 'Clone again');
+		});
+		const harness = {
+			repositoryCache: { get: () => [{ workspacePath, repositoryPath: workspacePath }] },
+			cloneRepository: async (_url: string, parentPath?: string, options?: CloneOptions) => {
+				cloned.push({ parentPath, options: options && { recursive: options.recursive, ref: options.ref } });
+				return '/repos/recloned';
+			},
+			chooseExistingRepository: Reflect.get(CloneManager.prototype, 'chooseExistingRepository'),
+			tryOpenExistingRepository,
+		};
+		try {
+			// git.cloneRecursive calls clone() with { recursive: true }
+			const result = await CloneManager.prototype.clone.call(harness, url, { parentPath: '/repos', recursive: true, ref: 'release' });
+
+			assert.deepStrictEqual({ result, cloned }, {
+				result: '/repos/recloned',
+				cloned: [{ parentPath: '/repos', options: { recursive: true, ref: 'release' } }],
 			});
 		} finally {
 			await fs.promises.rm(workspacePath, { recursive: true, force: true });
