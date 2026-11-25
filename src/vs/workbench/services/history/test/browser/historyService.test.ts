@@ -878,7 +878,7 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
-		test('adding and removing folders of a multi-root workspace puts away and restores their lists without the guard', async () => {
+		test('adding and removing folders of a multi-root workspace keeps the list', async () => {
 			const other = URI.file('/other');
 			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder, other);
 
@@ -895,9 +895,9 @@ suite('HistoryService', function () {
 			const added = paths(historyService);
 
 			assert.deepStrictEqual({ removed, openedAfterRemove, added }, {
-				removed: ['/repo/a.txt'],
-				openedAfterRemove: ['/other/c.txt', '/repo/a.txt'],
-				added: ['/other/b.txt', '/other/c.txt', '/repo/a.txt']
+				removed: ['/other/b.txt', '/repo/a.txt'],
+				openedAfterRemove: ['/other/c.txt', '/other/b.txt', '/repo/a.txt'],
+				added: ['/other/c.txt', '/other/b.txt', '/repo/a.txt']
 			});
 
 			return workbenchTeardown(instantiationService);

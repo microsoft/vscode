@@ -1086,9 +1086,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return;
 		}
 
+		// Only a Folder Location switch swaps the lists: adding or removing folders keeps the entries
+		if (!event.isFolderLocationChange) {
+			this.leftFolders = [];
+			return;
+		}
+
 		const removed = event.removed.map(folder => folder.uri);
 		const added = event.added.map(folder => folder.uri);
-		this.leftFolders = event.isFolderLocationChange ? removed : [];
+		this.leftFolders = removed;
 
 		if (!this.historyLoaded) {
 			return; // loading the history compares the folders it was stored for with the current ones
@@ -1290,20 +1296,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		this.historyLoaded = true;
 
-		// The folders can differ from the ones the history was stored for, for example
-		// when the window restarts at another location of its folder: swap the lists
-		const storedFolders = this.loadHistoryFoldersFromStorage();
+		// The folder can differ from the one the history was stored for when the window
+		// restarts at another location of its folder: swap the lists. In a single-folder
+		// workspace, another folder can only be another location of it.
+		const storedFolders = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.loadHistoryFoldersFromStorage() : undefined;
 		if (storedFolders) {
 			const currentFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 			const removed = storedFolders.filter(storedFolder => !currentFolders.some(currentFolder => this.uriIdentityService.extUri.isEqual(storedFolder, currentFolder)));
 			const added = currentFolders.filter(currentFolder => !storedFolders.some(storedFolder => this.uriIdentityService.extUri.isEqual(storedFolder, currentFolder)));
 			if (removed.length || added.length) {
-
-				// In a single-folder workspace, another folder can only be another location of it
-				if (removed.length && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-					this.leftFolders = removed;
-				}
-
+				this.leftFolders = removed;
 				this.swapFolderHistory(storedFolders, removed, added);
 			}
 		}
