@@ -590,6 +590,19 @@ suite('SessionsListModelService', () => {
 		assert.deepStrictEqual(sessions.map(session => service.getInboxState(session)?.kind), ['done', 'done']);
 	});
 
+	test('undoing overlapping snoozes with different deadlines latest first, as one notice does, restores each session as it was before both', () => {
+		const first = createSession('first');
+		const second = createSession('second');
+		const third = createSession('third');
+		sessions.push(first, second, third);
+		service.setInboxState([third], 'hold');
+		const undoEarlier = service.setInboxState([first, second], Date.now() + 60_000);
+		const undoLater = service.setInboxState([first, second, third], Date.now() + 120_000);
+		undoLater();
+		undoEarlier();
+		assert.deepStrictEqual(sessions.map(session => service.getInboxState(session)?.kind), [undefined, undefined, 'hold']);
+	});
+
 	test('rejects invalid inbox deadlines without changing existing state', () => {
 		const session = createSession('triage');
 		service.setInboxState([session], 'done');

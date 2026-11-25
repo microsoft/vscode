@@ -1868,10 +1868,13 @@ function createSessionsListActions(): DisposableStore {
 			const listModelService = accessor.get(ISessionsListModelService);
 			const undoService = accessor.get(ISessionsListUndoService);
 
+			// Without Undo, such as in the web, the sessions are deleted right away.
+			const undoable = undoService.canOfferUndo({ commits: true });
 			const confirmed = await dialogService.confirm({
 				message: sessions.length === 1
 					? localize('deleteSession.confirm', "Are you sure you want to delete this session?")
 					: localize('deleteSessions.confirm', "Are you sure you want to delete {0} sessions?", sessions.length),
+				detail: undoable ? undefined : localize('deleteSession.detail', "This action cannot be undone."),
 				primaryButton: localize('deleteSession.delete', "Delete")
 			});
 			if (!confirmed.confirmed) {

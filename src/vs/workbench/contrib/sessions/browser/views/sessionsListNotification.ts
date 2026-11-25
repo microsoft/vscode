@@ -25,7 +25,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { ISessionsListNotice, ISessionsListNoticeHandle, ISessionsListUndoPresenter } from '../sessionsListUndoService.js';
+import { ISessionsListNotice, ISessionsListNoticeHandle } from '../sessionsListUndoService.js';
 
 export const SessionsListNotificationFocused = new RawContextKey<boolean>('sessionsListNotificationFocused', false);
 
@@ -37,7 +37,8 @@ class DismissActionViewItem extends ActionViewItem {
 	}
 }
 
-export class SessionsListNotification extends Disposable implements ISessionsListUndoPresenter {
+/** Presents the notices of a sessions list for its view, which registers it with the sessions list's Undo service. */
+export class SessionsListNotification extends Disposable {
 
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 	private accessibilityHelp: (() => AccessibleContentProvider) | undefined;

@@ -35,8 +35,8 @@ export interface ISessionsListChange {
 	undo(): Promise<void>;
 	/**
 	 * Completes the change once Undo is no longer offered for it: its notice expires, is dismissed or replaced, or the
-	 * window closes, which waits for it; in the web, which can't wait, leaving the page asks to stay until it completes.
-	 * Without a sessions list to offer Undo, it runs right away. A failure is reported.
+	 * window closes, which waits for it. Where Undo can't be offered for it, it runs right away: without a visible sessions
+	 * list, and in the web, which can't wait for it as the page unloads. A failure is reported.
 	 */
 	commit?(): Promise<void>;
 }
@@ -68,6 +68,8 @@ export interface ISessionsListNoticeHandle {
 
 /** Shows the notice of a sessions list, which offers Undo for the changes of {@link ISessionsListUndoService}. */
 export interface ISessionsListUndoPresenter {
+	/** Whether the user can see its notice, such as while its view is expanded in a visible part of the window. */
+	isVisible(): boolean;
 	/** Shows `notice` in place of the notice shown before, which closes. */
 	show(notice: ISessionsListNotice): ISessionsListNoticeHandle;
 }
@@ -79,12 +81,19 @@ export interface ISessionsListUndoService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Offers to undo `change`, which the caller has made. Returns false when no sessions list shows notices: the change
+	 * Whether {@link offerUndo} would now offer Undo for a change, rather than complete it right away, so that a caller can
+	 * tell the user before making it, such as in a confirmation. `commits` says whether the change
+	 * {@link ISessionsListChange.commit}s once Undo is no longer offered.
+	 */
+	canOfferUndo(options?: { readonly commits?: boolean }): boolean;
+
+	/**
+	 * Offers to undo `change`, which the caller has made. Returns false when it can't ({@link canOfferUndo}): the change
 	 * is then complete, its {@link ISessionsListChange.commit} already running.
 	 */
 	offerUndo(change: ISessionsListChange): boolean;
 
-	/** Lets `presenter` show what Undo is offered for, until disposed. The latest registered presenter shows it. */
+	/** Lets `presenter` show what Undo is offered for, until disposed. The latest registered visible presenter shows it. */
 	registerPresenter(presenter: ISessionsListUndoPresenter): IDisposable;
 }
 
@@ -126,20 +135,14 @@ export class SessionsListUndoService extends Disposable implements ISessionsList
 				});
 			}
 		}));
-		if (isWeb) {
-			// The web can't wait for changes to complete as the page unloads, so end Undo as leaving begins and ask the browser
-			// to keep the page while what Undo was offered for completes, as for files that are being saved.
-			this._register(lifecycleService.onBeforeShutdown(event => {
-				if (this.current) {
-					this.end(this.current);
-				}
-				event.veto(this.pendingCommits.size > 0, 'veto.sessionsListUndo');
-			}));
-		}
+	}
+
+	canOfferUndo(options?: { readonly commits?: boolean }): boolean {
+		return !!this.presenterFor(!!options?.commits);
 	}
 
 	offerUndo(change: ISessionsListChange): boolean {
-		const presenter = this.presenters.at(-1);
+		const presenter = this.presenterFor(!!change.commit);
 		if (!presenter) {
 			this.complete([change]);
 			return false;
@@ -177,6 +180,16 @@ export class SessionsListUndoService extends Disposable implements ISessionsList
 				this.end(this.current);
 			}
 		});
+	}
+
+	/** Where Undo for a change can be offered: the latest registered presenter the user can see, if any. */
+	private presenterFor(commits: boolean): ISessionsListUndoPresenter | undefined {
+		// The web can't wait for a change to complete as the page unloads, and leaving the page may be cancelled, so a
+		// change that completes once Undo ends, such as deleting sessions, completes right away there instead.
+		if (commits && isWeb) {
+			return undefined;
+		}
+		return this.presenters.findLast(presenter => presenter.isVisible());
 	}
 
 	private async undo(entry: IUndoableChanges): Promise<void> {

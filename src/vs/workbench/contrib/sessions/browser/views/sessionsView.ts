@@ -618,8 +618,13 @@ export class SessionsView extends ViewPane {
 			bottom: createNoticeHost(sessionsContent),
 		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
-		this.listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
-		this._register(this.undoService.registerPresenter(this.listNotification));
+		const listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
+		this.listNotification = listNotification;
+		this._register(this.undoService.registerPresenter({
+			// A collapsed view, or one in a hidden part of the window, would count down a notice the user can't see.
+			isVisible: () => this.isBodyVisible(),
+			show: notice => listNotification.show(notice),
+		}));
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {

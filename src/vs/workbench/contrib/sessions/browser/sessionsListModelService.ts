@@ -73,7 +73,10 @@ export interface ISessionsListModelService {
 	isSessionPinned(session: ISession): boolean;
 
 	getInboxState(session: ISession, reader?: IReader): SessionInboxState | undefined;
-	/** Changes local triage state, returning an undo that does not overwrite subsequent decisions. */
+	/**
+	 * Changes local triage state, returning an undo that does not overwrite subsequent decisions. Undoing changes latest
+	 * first undoes each of them, also where they changed the same sessions.
+	 */
 	setInboxState(sessions: readonly ISession[], action: SessionInboxAction): () => void;
 
 	// -- Automation sessions --
@@ -451,12 +454,15 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}
 		const previous = new Map<string, StoredSessionInboxState | undefined>();
 		const applied = new Map<string, ISessionInboxUndoToken>();
+		// The undo of the change before, which undoing this one makes possible again, as when one notice undoes both.
+		const previousTokens = new Map<string, ISessionInboxUndoToken | undefined>();
 		const next = new Map(this._inboxState.get());
 		for (const session of sessions) {
 			if (session.isArchived.get() || previous.has(session.sessionId)) {
 				continue;
 			}
 			previous.set(session.sessionId, next.get(session.sessionId));
+			previousTokens.set(session.sessionId, this._inboxUndoTokens.get(session.sessionId));
 			const state: StoredSessionInboxState = action === undefined ? { kind: 'resumed' }
 				: typeof action === 'number' ? { kind: 'snoozed', until: action }
 					: action === 'hold' ? { kind: 'hold' }
@@ -473,7 +479,12 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			for (const [id, state] of previous) {
 				const token = applied.get(id)!;
 				if (this._inboxUndoTokens.get(id) === token && restored.get(id) === token.state) {
-					this._inboxUndoTokens.delete(id);
+					const previousToken = previousTokens.get(id);
+					if (previousToken) {
+						this._inboxUndoTokens.set(id, previousToken);
+					} else {
+						this._inboxUndoTokens.delete(id);
+					}
 					if (state) {
 						restored.set(id, state);
 					} else {

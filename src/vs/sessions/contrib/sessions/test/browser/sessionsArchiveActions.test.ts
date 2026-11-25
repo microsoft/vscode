@@ -714,7 +714,7 @@ suite('Sessions - Delete session undo', () => {
 		harness.instantiationService.stub(ISessionsNavigationService, upcastPartial<ISessionsNavigationService>({
 			closeSession: async session => { closed.push(session.sessionId); },
 		}));
-		harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+		harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ canOfferUndo: () => true, offerUndo: change => { notices.push(change); return true; } }));
 		const deleteSessions = (targets: ISession[]) => harness.instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessionsViewPane.deleteSession')!.handler(accessor, targets));
 		const visible = () => {
 			list.refresh();
@@ -733,5 +733,32 @@ suite('Sessions - Delete session undo', () => {
 			undone: { visible: ['one', 'two', 'three'], deleted: [] },
 			committed: { visible: ['one', 'two'], deleted: ['three'] },
 		});
+	});
+
+	test('without Undo, such as in the web or without a visible Sessions view, deleting says it can\'t be undone and deletes right away', async () => {
+		const sessions = ['one', 'two'].map(id => {
+			const entry = createTestSession(id);
+			entry.capabilities.set({ supportsMultipleChats: false, supportsDelete: true }, undefined);
+			return entry.session;
+		});
+		// The harness's Undo service has no Sessions view to offer Undo in.
+		const harness = createListHarness(store, [...sessions]);
+		const deleted: string[] = [];
+		harness.managementService.deleteSessions = async targets => { deleted.push(...targets.map(session => session.sessionId)); };
+		const confirmations: IConfirmation[] = [];
+		harness.instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm(confirmation: IConfirmation) {
+				confirmations.push(confirmation);
+				return { confirmed: true };
+			}
+		});
+		const closed: string[] = [];
+		harness.instantiationService.stub(ISessionsNavigationService, upcastPartial<ISessionsNavigationService>({
+			closeSession: async session => { closed.push(session.sessionId); },
+		}));
+
+		await harness.instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessionsViewPane.deleteSession')!.handler(accessor, sessions));
+
+		assert.deepStrictEqual({ detail: confirmations[0].detail, deleted, closed }, { detail: 'This action cannot be undone.', deleted: ['one', 'two'], closed: [] });
 	});
 });
