@@ -50,14 +50,16 @@ suite('Preview command links', () => {
 		const command = vscode.commands.registerCommand('markdown.test.previewCommand', (...args: unknown[]) => { calls.push(args); });
 		try {
 			const uri = vscode.Uri.file('/preview/a b/100%.md');
-			const args = [uri.toJSON(), { nested: { scheme: 'file', path: '/leave-as-json' } }, 'a+b', '%20'];
+			// Both serialized Uri instances and the documented {scheme, path} form
+			// should revive, while ordinary command data must keep every property.
+			const args = [uri.toJSON(), { scheme: uri.scheme, path: uri.path }, { scheme: 'dark', marker: true }, { nested: { scheme: 'file', path: '/leave-as-json' } }, 'a+b', '%20'];
 			const result = await dispatchPreviewCommand(`command:markdown.test.previewCommand?${encodeURIComponent(JSON.stringify(args))}`, {
 				createUri: components => vscode.Uri.from(components),
 				getPermission: id => getPreviewCommandPermission(id, true, { globalValue: ['markdown.test.previewCommand'] }),
 				executeCommand: (id, ...args) => vscode.commands.executeCommand(id, ...args),
 			});
-			assert.deepStrictEqual({ result, isUri: calls[0]?.[0] instanceof vscode.Uri, args: calls[0] }, {
-				result: 'executed', isUri: true, args: [uri, ...args.slice(1)],
+			assert.deepStrictEqual({ result, isUri: calls[0]?.slice(0, 2).map(arg => arg instanceof vscode.Uri), args: calls[0] }, {
+				result: 'executed', isUri: [true, true], args: [uri, uri, ...args.slice(2)],
 			});
 		} finally {
 			command.dispose();

@@ -75,17 +75,42 @@ describe('Preview command dispatch', () => {
 		});
 	}
 
-	it('revives only top-level URI objects and copies only standard components', async () => {
+	it('preserves ordinary command data with scheme properties', async () => {
 		const { calls, host } = createHost();
-		const components = { scheme: 'file', authority: '', path: '/a b/100%.md', query: 'a=b', fragment: 'section' };
-		const nested = { nested: components };
-		const otherObject = { ...components, $mid: 2 };
-		const args = [{ ...components, $mid: 1, fsPath: 'ignored' }, nested, otherObject];
-		await dispatchPreviewCommand(`command:vscode.open?${encodeURIComponent(JSON.stringify(args))}`, host);
-		assert.deepEqual(calls, [{ id: 'vscode.open', args: [{ revivedUri: components }, nested, otherObject] }]);
+		const values = [
+			{ scheme: 'dark', marker: true },
+			{ scheme: 'dark' },
+			{ scheme: 'dark', path: '/theme', marker: true },
+			{ scheme: '', marker: true },
+			{ scheme: 42, path: '/theme' },
+			{ scheme: 'file', path: '/example.md', $mid: 2 },
+			{ scheme: 'file', path: '/example.md', $mid: null },
+			{ scheme: 'file', path: '/example.md', fsPath: '/extra-data' },
+		];
+		// setContext accepts arbitrary JSON values. A scheme property alone must
+		// neither change that value into a URI nor discard its command-specific data.
+		const results = [];
+		for (const value of values) {
+			results.push(await dispatchPreviewCommand(`command:setContext?${encodeURIComponent(JSON.stringify(['lab.actions', value]))}`, host));
+		}
+		assert.deepEqual({ results, calls }, {
+			results: values.map(() => 'executed'),
+			calls: values.map(value => ({ id: 'setContext', args: ['lab.actions', value] })),
+		});
 	});
 
-	for (const arg of [{ scheme: '' }, { scheme: 'bad scheme' }, { scheme: 'file', path: 42 }, { scheme: 'file', query: null }]) {
+	it('revives marked and narrowly shaped unmarked top-level URI objects', async () => {
+		const { calls, host } = createHost();
+		const components = { scheme: 'file', authority: '', path: '/a b/100%.md', query: 'a=b', fragment: 'section' };
+		const minimal = { scheme: 'file', path: '/example.md' };
+		const nested = { nested: components };
+		const otherObject = { ...components, $mid: 2 };
+		const args = [{ ...components, $mid: 1, fsPath: 'ignored' }, components, minimal, nested, otherObject];
+		await dispatchPreviewCommand(`command:vscode.open?${encodeURIComponent(JSON.stringify(args))}`, host);
+		assert.deepEqual(calls, [{ id: 'vscode.open', args: [{ revivedUri: components }, { revivedUri: components }, { revivedUri: minimal }, nested, otherObject] }]);
+	});
+
+	for (const arg of [{ $mid: 1 }, { $mid: 1, scheme: 42 }, { $mid: 1, scheme: '' }, { scheme: '', path: '/example.md' }, { scheme: 'bad scheme', path: '/example.md' }, { scheme: 'file', path: 42 }, { scheme: 'file', path: '/example.md', query: null }]) {
 		it(`rejects invalid URI components: ${JSON.stringify(arg)}`, async () => {
 			const { calls, host } = createHost();
 			assert.deepEqual([await dispatchPreviewCommand(`command:test.run?${encodeURIComponent(JSON.stringify([arg]))}`, host), calls], ['invalidUri', []]);
@@ -95,7 +120,7 @@ describe('Preview command dispatch', () => {
 	it('sanitizes native URI construction errors', async () => {
 		const { calls, host } = createHost();
 		host.createUri = () => { throw new Error('private URI'); };
-		assert.deepEqual([await dispatchPreviewCommand('command:test.run?%5B%7B%22scheme%22%3A%22file%22%7D%5D', host), calls], ['invalidUri', []]);
+		assert.deepEqual([await dispatchPreviewCommand('command:test.run?%5B%7B%22%24mid%22%3A1%2C%22scheme%22%3A%22file%22%7D%5D', host), calls], ['invalidUri', []]);
 	});
 
 	it('rechecks current trust and permissions on each invocation', async () => {
@@ -119,7 +144,7 @@ describe('Preview command dispatch', () => {
 
 	it('authorizes after URI revival and dispatches immediately after authorization', async () => {
 		const order: string[] = [];
-		await dispatchPreviewCommand('command:test.run?%5B%7B%22scheme%22%3A%22file%22%7D%5D', {
+		await dispatchPreviewCommand('command:test.run?%5B%7B%22%24mid%22%3A1%2C%22scheme%22%3A%22file%22%7D%5D', {
 			createUri: () => { order.push('uri'); return {}; },
 			getPermission: () => { order.push('permission'); return 'allowed'; },
 			executeCommand: async () => { order.push('execute'); },

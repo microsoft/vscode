@@ -7,6 +7,9 @@ import type { URI } from 'vscode-uri';
 
 type UriComponents = Parameters<typeof URI.from>[0];
 
+const uriComponentFields = ['authority', 'path', 'query', 'fragment'] as const;
+const uriComponentKeys = new Set<string>(['scheme', ...uriComponentFields]);
+
 type PreviewCommandPermission = 'allowed' | 'untrustedWorkspace' | 'invalidConfiguration' | 'notAllowed';
 
 /**
@@ -85,21 +88,29 @@ export async function dispatchPreviewCommand(href: unknown, host: PreviewCommand
 
 	try {
 		// Commands such as vscode.open require real Uri instances. Revive only
-		// top-level URI-shaped arguments, preserving nested command payloads and
-		// ordinary objects. Copy known fields rather than trusting URI internals.
+		// top-level URI arguments, preserving nested command payloads and ordinary
+		// objects. Copy known fields rather than trusting serialized URI internals.
 		args = args.map(arg => {
 			if (!arg || typeof arg !== 'object' || Array.isArray(arg)) {
 				return arg;
 			}
 			const record = arg as Record<string, unknown>;
-			if (typeof record.scheme !== 'string' || (record.$mid !== undefined && record.$mid !== 1)) {
+			const hasMarker = Object.hasOwn(record, '$mid');
+			// A serialized Uri explicitly opts in with $mid: 1. Without that marker,
+			// accept only scheme/path objects containing standard URI components, as
+			// used by the documented {scheme, path} example. Additional properties
+			// indicate ordinary command data and must not be silently discarded.
+			const isMarkedUri = hasMarker && record.$mid === 1;
+			const isUnmarkedUri = !hasMarker && typeof record.scheme === 'string'
+				&& Object.hasOwn(record, 'path') && Object.keys(record).every(key => uriComponentKeys.has(key));
+			if (!isMarkedUri && !isUnmarkedUri) {
 				return arg;
 			}
-			if (!/^[a-z][a-z0-9+.-]*$/i.test(record.scheme)) {
+			if (typeof record.scheme !== 'string' || !/^[a-z][a-z0-9+.-]*$/i.test(record.scheme)) {
 				throw new Error();
 			}
 			const components: UriComponents = { scheme: record.scheme };
-			for (const field of ['authority', 'path', 'query', 'fragment'] as const) {
+			for (const field of uriComponentFields) {
 				if (record[field] !== undefined) {
 					if (typeof record[field] !== 'string') {
 						throw new Error();
