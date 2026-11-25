@@ -620,8 +620,10 @@ export class SessionsView extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 		const listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
 		this.listNotification = listNotification;
+		// A collapsed view, or one in a hidden part of the window, would count down a notice the user can't see.
+		listNotification.setVisible(this.isBodyVisible());
+		this._register(this.onDidChangeBodyVisibility(() => listNotification.setVisible(this.isBodyVisible())));
 		this._register(this.undoService.registerPresenter({
-			// A collapsed view, or one in a hidden part of the window, would count down a notice the user can't see.
 			isVisible: () => this.isBodyVisible(),
 			show: notice => listNotification.show(notice),
 		}));

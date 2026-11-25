@@ -15,6 +15,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -42,6 +43,8 @@ export class SessionsListNotification extends Disposable {
 
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 	private accessibilityHelp: (() => AccessibleContentProvider) | undefined;
+	/** Whether the user can see the notices, such as while the view is expanded in a visible part of the window. */
+	private readonly visible = observableValue(this, true);
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -53,6 +56,11 @@ export class SessionsListNotification extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
+	}
+
+	/** Pauses the countdown of the notice while the user can't see it, so that Undo does not run out unseen. */
+	setVisible(visible: boolean): void {
+		this.visible.set(visible, undefined);
 	}
 
 	/** Shows a change or result for ten seconds, offering Undo when the notice can revert it. */
@@ -90,7 +98,7 @@ export class SessionsListNotification extends Disposable {
 		const dismiss = store.add(new RunOnceScheduler(() => this.notification.clear(), duration));
 		dismiss.schedule();
 		const updateTimer = () => {
-			const paused = hovered || focused || undoing || helpOpen;
+			const paused = hovered || focused || undoing || helpOpen || !this.visible.get();
 			if (paused && dismiss.isScheduled()) {
 				remaining = Math.max(0, remaining - (Date.now() - started));
 				dismiss.cancel();
@@ -107,6 +115,10 @@ export class SessionsListNotification extends Disposable {
 		const focusTracker = store.add(DOM.trackFocus(element));
 		store.add(focusTracker.onDidFocus(() => { focused = true; updateTimer(); }));
 		store.add(focusTracker.onDidBlur(() => { focused = false; updateTimer(); }));
+		store.add(autorun(reader => {
+			this.visible.read(reader);
+			updateTimer();
+		}));
 		if (undoButton && notice.undo) {
 			const button = undoButton;
 			const undo = notice.undo;

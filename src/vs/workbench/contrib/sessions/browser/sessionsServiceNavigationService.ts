@@ -68,6 +68,8 @@ export class SessionsServiceNavigationService implements ISessionsNavigationServ
 	}
 
 	async closeSession(session: ISession): Promise<void> {
+		// Reopen Closed Chat or Session must not bring back a session that is going away, nor lose what it reopens instead.
+		this.sessionsService.forgetClosedSession(session);
 		const panes = () => this.sessionsService.panes.get().filter(pane => pane.session.get()?.sessionId === session.sessionId);
 		// A detached pane closes by returning its chat to the session's slot, which then leaves the grid with the session.
 		for (const pane of panes()) {
@@ -77,7 +79,7 @@ export class SessionsServiceNavigationService implements ISessionsNavigationServ
 		}
 		// Closing a session the grid does not show would still cancel a pending open or restore.
 		if (panes().length > 0) {
-			this.sessionsService.closeSession(session);
+			this.sessionsService.closeSession(session, { skipHistory: true });
 		}
 	}
 }

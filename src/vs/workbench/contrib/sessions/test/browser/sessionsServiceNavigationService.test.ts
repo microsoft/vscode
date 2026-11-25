@@ -91,7 +91,7 @@ suite('SessionsServiceNavigationService', () => {
 		});
 	});
 
-	test('closes a session with its detached panes, and leaves the grid alone when it does not show the session', async () => {
+	test('closes a session with its detached panes, and leaves the grid alone when it does not show the session; Reopen Closed Chat or Session does not bring it back', async () => {
 		const closed = async (panes: readonly { readonly session: ISession; readonly kind: SessionGridPaneKind }[]) => {
 			const calls: string[] = [];
 			const live = observableValue<readonly ISessionGridPane[]>('panes', panes.map(({ session, kind }) => upcastPartial<ISessionGridPane>({ session: constObservable(session), kind })));
@@ -104,7 +104,8 @@ suite('SessionsServiceNavigationService', () => {
 					const hasSlot = remaining.some(candidate => candidate.kind === SessionGridPaneKind.Slot && candidate.session.get() === pane.session.get());
 					live.set(hasSlot ? remaining : [...remaining, upcastPartial<ISessionGridPane>({ session: pane.session, kind: SessionGridPaneKind.Slot })], undefined);
 				},
-				closeSession: target => { calls.push(`closeSession ${target?.sessionId}`); },
+				closeSession: (target, options) => { calls.push(`closeSession ${target?.sessionId} skipHistory=${options?.skipHistory}`); },
+				forgetClosedSession: target => { calls.push(`forgetClosedSession ${target.sessionId}`); },
 			});
 			await new SessionsServiceNavigationService(sessionsService, upcastPartial<ISessionsPartService>({})).closeSession(session);
 			return calls;
@@ -115,9 +116,9 @@ suite('SessionsServiceNavigationService', () => {
 			detachedOnly: await closed([{ session, kind: SessionGridPaneKind.Detached }]),
 			notShown: await closed([{ session: other, kind: SessionGridPaneKind.Slot }]),
 		}, {
-			slotAndDetached: ['closePane detached a', 'closeSession a'],
-			detachedOnly: ['closePane detached a', 'closeSession a'],
-			notShown: [],
+			slotAndDetached: ['forgetClosedSession a', 'closePane detached a', 'closeSession a skipHistory=true'],
+			detachedOnly: ['forgetClosedSession a', 'closePane detached a', 'closeSession a skipHistory=true'],
+			notShown: ['forgetClosedSession a'],
 		});
 	});
 });
