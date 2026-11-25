@@ -863,13 +863,31 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		const group = new ExtHostSourceControlResourceGroup(this.#proxy, this._commands, this.handle, id, label, multiDiffEditorEnableViewChanges, this._extension);
 		const disposable = Event.once(group.onDidDispose)(() => this.createdResourceGroups.delete(group));
 		this.createdResourceGroups.set(group, disposable);
+		queueMicrotask(() => this.addResourceGroupsWithResourceStates());
 		this.eventuallyAddResourceGroups();
 		return group;
 	}
 
+	/**
+	 * Adds the created groups once the code that creates them has run, if it gave any of them resource states, so that
+	 * a source control created from a known state, such as a repository that is shown again, shows its resources with
+	 * its input box.
+	 */
+	private addResourceGroupsWithResourceStates(): void {
+		if ([...this.createdResourceGroups.keys()].some(group => group.resourceStates.length > 0)) {
+			this.addResourceGroups();
+		}
+	}
+
+	/**
+	 * Adds the groups created without resource states 100 ms after their creation, with the resource states that they
+	 * got by then, such as from a first status, so that they are not shown empty first. Sends the resource states that
+	 * the groups added at once got by then too.
+	 */
 	@debounce(100)
 	eventuallyAddResourceGroups(): void {
 		this.addResourceGroups();
+		this.updateResourceStates();
 	}
 
 	private addResourceGroups(): void {
