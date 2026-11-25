@@ -13,7 +13,7 @@ import type { AuthenticateParams, AuthenticateResult } from '../../../../../../p
 import { AgentHostByokDirectEndpointsSettingId, AgentHostByokModelsEnabledSettingId, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, type IAgentHostConnectionInfo } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
-import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokModelSourceId } from '../../../../../../platform/agentHost/common/byokModelSource.js';
+import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokModelSourceId, MAX_BYOK_ENDPOINTS_MODELS } from '../../../../../../platform/agentHost/common/byokModelSource.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSource, type ModelSourceState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, type ActionEnvelope, type ClientModelSourceAction, type RootAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -291,6 +291,25 @@ suite('AgentHostModelSourceRegistrar', () => {
 		});
 	});
 
+	test('registers a changed group again when another window already registered the same change', async () => {
+		const changed = [{ id: 'gpt-x', url: PUBLIC_URL }, { id: 'gpt-y', url: PUBLIC_URL }];
+		const probe = createRegistrar({ models: changed });
+		await timeout(0);
+		const { state: _state, credentialResource: _resource, accountId: _account, ...updated } = probe.modelSources()[0];
+		const { connection, root, models, changeGroups } = createRegistrar();
+		await timeout(0);
+
+		// Another window registers the change first, which makes it the source's only contributor.
+		root.apply({ type: ActionType.RootModelSourceSet, modelSource: updated });
+		changeGroups(() => {
+			models.groups[0] = { ...models.groups[0], models: changed.map(model => ({ ...model, toolCalling: true })) };
+			models.metadata.set('customendpoint/Example/gpt-y', metadataOf('customendpoint', 'gpt-y'));
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(connection.actions.map(action => action.type === ActionType.RootModelSourceSet && action.modelSource.nonce === updated.nonce), [false, true]);
+	});
+
 	test('never sends a key for a host definition that would send it elsewhere, whatever its nonce', async () => {
 		const { connection, root, modelSources } = createRegistrar();
 		await timeout(0);
@@ -443,6 +462,20 @@ suite('getByokModelSources', () => {
 			],
 			whileXaiReloads: ['azure/Keyed', 'openai/OpenAI', 'anthropic/Claude', 'gemini/Gemini', 'xai/Grok', 'openrouter/Router', 'ollama/Local'],
 		});
+	});
+
+	test('registers at most the models a definition holds, leaving the rest on the bridge', () => {
+		const ids = Array.from({ length: MAX_BYOK_ENDPOINTS_MODELS + 1 }, (_, index) => `vendor/model-${String(index).padStart(4, '0')}`);
+		const models: IFakeLanguageModels = {
+			groups: [{ name: 'Router', vendor: 'openrouter', apiKey: '${input:chat.lm.secret.router}' }],
+			metadata: new Map(ids.map(id => [`openrouter/Router/${id}`, metadataOf('openrouter', id)])),
+			resolvedVendors: new Set(['openrouter']),
+			keys: new Map(),
+		};
+		const { languageModelsService, languageModelsConfigurationService } = createLanguageModelServices(models);
+		const [source] = getByokModelSources(languageModelsService, languageModelsConfigurationService, new NullLogService());
+
+		assert.deepStrictEqual({ count: source.definition.models.length, last: source.definition.models.at(-1)?.id }, { count: MAX_BYOK_ENDPOINTS_MODELS, last: ids.at(-2) });
 	});
 
 	test('a remote agent host gets only public https endpoints', () => {

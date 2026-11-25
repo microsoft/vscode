@@ -7409,6 +7409,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (credential) {
 				entry.assertScopedCredential(credential);
 			}
+			// A turn that ended because its model source was unavailable resumes on the same model, once it's available again.
+			await this._reselectUnavailableModelSource(current, entry, token);
 			await entry.resume(turnId, this._resolveSdkMode(current.ownerSession, current.chat), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
 			if (!token.isCancellationRequested) {
 				this._deliverPendingSteering(chat, entry);
@@ -9570,12 +9572,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			await this._applyPendingModelSelection(current, entry, token);
-			// A model whose source was withdrawn, or is going away, is selected again, or the turn fails; it never runs on
-			// another model.
-			const selection = entry.deselectedModel ?? entry.appliedModelSelection;
-			if (selection && (entry.deselectedModel || this._modelSourceModels.some(model => model.draining && model.id === selection.id))) {
-				await this._applyModelSelection(current, entry, selection, token);
-			}
+			await this._reselectUnavailableModelSource(current, entry, token);
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 				let claimed: CopilotAgentSession | undefined;
@@ -11098,6 +11095,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const model = this._pendingModelSelections.get(context.chatKey);
 		if (model) {
 			await this._applyModelSelection(context, entry, model, token);
+		}
+	}
+
+	/**
+	 * Selects a model whose source was withdrawn, or is going away, again before a turn runs on it. Throws
+	 * {@link AgentModelSourceUnavailableError} while it can't be: a turn never runs on another model.
+	 */
+	private async _reselectUnavailableModelSource(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, token: CancellationToken): Promise<void> {
+		const selection = entry.deselectedModel ?? entry.appliedModelSelection;
+		if (selection && (entry.deselectedModel || this._modelSourceModels.some(model => model.draining && model.id === selection.id))) {
+			await this._applyModelSelection(context, entry, selection, token);
 		}
 	}
 

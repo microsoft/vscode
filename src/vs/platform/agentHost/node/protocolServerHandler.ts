@@ -11,7 +11,6 @@ import { supportsAgentHostClientCertificates } from '../common/meta/agentHostCli
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
-import { MODEL_SOURCE_GRACE_PERIOD } from './agentHostModelSourceRegistry.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { cancelOnDispose, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { lstat, realpath, stat } from 'fs/promises';
@@ -1914,16 +1913,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _handleClientDisconnected(clientId: string): void {
 		const record = this._clients.get(clientId);
 		if (record?.state === 'grace') {
-			const remainingGrace = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - (Date.now() - record.lastSeenAt));
-			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
-				record.disconnectTimeouts.deleteAndDispose('managed-settings');
+			// A client that reconnects within the grace period keeps the managed settings and model sources it contributes.
+			record.disconnectTimeouts.set('contributions', disposableTimeout(() => {
+				record.disconnectTimeouts.deleteAndDispose('contributions');
 				this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
-			}, remainingGrace));
-			// A client that reconnects within the advertised grace period keeps the model sources it contributes.
-			record.disconnectTimeouts.set('model-sources', disposableTimeout(() => {
-				record.disconnectTimeouts.deleteAndDispose('model-sources');
 				this._agentService.removeClientModelSources?.(clientId);
-			}, Math.max(0, MODEL_SOURCE_GRACE_PERIOD - (Date.now() - record.lastSeenAt))));
+			}, Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - (Date.now() - record.lastSeenAt))));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);

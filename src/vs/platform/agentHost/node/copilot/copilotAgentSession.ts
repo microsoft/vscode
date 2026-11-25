@@ -2358,10 +2358,10 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _requestedModelDeselected = false;
 	/**
-	 * Whether the runtime omits reasoning summaries for this session, which it keeps across model changes, so
-	 * {@link setModel} restores its default when the session leaves a model that omits them. `undefined` when unknown.
+	 * Whether the runtime may omit reasoning summaries for this session, which it keeps across model changes, so
+	 * {@link setModel} restores its default when the session leaves a model that omits them.
 	 */
-	private _reasoningSummaryOmitted: boolean | undefined = false;
+	private _reasoningSummaryOmitted = false;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
 	/** In-flight user closes by canvas channel, so concurrent requests from several clients share one RPC. */
@@ -5331,7 +5331,7 @@ export class CopilotAgentSession extends Disposable {
 			// The launcher omits reasoning summaries for the same models. A resumed session on a model source's model
 			// may have journaled `none` from a model it can no longer select, so its next model change sets the default.
 			this._reasoningSummaryOmitted = omitsReasoningSummary(launchModel, wrapper.launchByokConfig)
-				|| (this._launchPlan.kind === 'resume' && !!launchModel && isModelSourceModelId(launchModel) ? undefined : false);
+				|| (this._launchPlan.kind === 'resume' && !!launchModel && isModelSourceModelId(launchModel));
 			this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
 			this._canvasExtensions = undefined;
 			this._ignoredRestoredCanvasInstanceIds.clear();
@@ -8710,7 +8710,7 @@ export class CopilotAgentSession extends Disposable {
 		// The runtime keeps a session's reasoning summary across model changes, so leaving a model that omits it
 		// restores the runtime's default.
 		const omitReasoningSummary = omitsReasoningSummary(model, this._registeredByokConfig);
-		const reasoningSummary = omitReasoningSummary ? 'none' : this._reasoningSummaryOmitted !== false ? 'detailed' : undefined;
+		const reasoningSummary = omitReasoningSummary ? 'none' : this._reasoningSummaryOmitted ? 'detailed' : undefined;
 		try {
 			if (isAutoModel(model) && contextTier === 'default') {
 				const result = await this._awaitControlPlaneRpc('session.options.update', this._wrapper.session.rpc.options.update({

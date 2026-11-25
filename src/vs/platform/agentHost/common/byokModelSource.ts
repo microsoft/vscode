@@ -98,7 +98,12 @@ export function parseByokModelSourceId(id: string): { readonly vendor: string; r
 	}
 }
 
-const MAX_MODELS = 256;
+/**
+ * Most models a definition holds. Aggregators such as OpenRouter list several
+ * hundred; a client leaves any more on its own path rather than registering
+ * a definition the host declines whole.
+ */
+export const MAX_BYOK_ENDPOINTS_MODELS = 512;
 const MAX_STRING_LENGTH = 256;
 const MAX_URL_LENGTH = 2048;
 const MAX_REASONING_EFFORTS = 16;
@@ -140,7 +145,7 @@ function canonicalJson(value: unknown): string {
  */
 export function readByokEndpointsDefinition(definition: unknown): IByokEndpointsDefinition {
 	if (!isRecord(definition) || !hasOnlyKeys(definition, ['models', 'requiresCredential'])
-		|| !Array.isArray(definition.models) || definition.models.length === 0 || definition.models.length > MAX_MODELS
+		|| !Array.isArray(definition.models) || definition.models.length === 0 || definition.models.length > MAX_BYOK_ENDPOINTS_MODELS
 		|| typeof definition.requiresCredential !== 'boolean') {
 		throw new Error(localize('byokModelSource.invalid', "The model source definition is not valid."));
 	}

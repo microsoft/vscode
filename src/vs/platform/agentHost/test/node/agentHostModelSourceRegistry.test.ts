@@ -241,8 +241,9 @@ suite('AgentHostModelSourceRegistry', () => {
 			remaining: (state.rootState.modelSources ?? []).map(modelSource => modelSource.id),
 			servedAfterDeparture: agent.lastServed,
 		}, {
-			rejections: 3,
-			registered: { invalid: 'error', keyless: 'ready', retained: 'ready', shared: 'ready', updated: 'ready', removed: 'ready' },
+			// A definition the agent can't read isn't stored for every client to read.
+			rejections: 4,
+			registered: { keyless: 'ready', retained: 'ready', shared: 'ready', updated: 'ready', removed: 'ready' },
 			servedBeforeDeparture: { keyless: false, retained: false, shared: false, updated: false, removed: false },
 			// A source another client still contributes stays, and so does a host-retained one.
 			remaining: ['retained', 'shared'],

@@ -11,7 +11,7 @@ import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '.
 import { equals } from '../../../base/common/objects.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import type { AuthenticateParams, IAgent, IAgentModelSource } from '../common/agent.js';
+import type { AuthenticateParams, IAgent, IAgentModelSource, IAgentModelSourceDescription } from '../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import type { ModelSourceAuthenticateTarget } from '../common/state/protocol/commands.js';
 import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSource, type ModelSourceState, type ProtectedResourceMetadata, type RootState } from '../common/state/protocol/state.js';
@@ -26,9 +26,6 @@ export interface IAgentHostModelSourceRegistryState {
 	dispatchClientAction(channel: string, action: ClientModelSourceAction, origin: ActionOrigin, clientContext?: IAgentHostClientTelemetryContext): unknown;
 	rejectClientAction(channel: string, action: StateAction, origin: ActionOrigin, reason: string): void;
 }
-
-/** How long the host keeps counting a disconnected client as a contributor. */
-export const MODEL_SOURCE_GRACE_PERIOD = 30_000;
 
 /** The host-reported fields of a model source, which a client never sends. */
 const HOST_REPORTED_FIELDS = ['state', 'credentialResource', 'accountId'] as const;
@@ -98,14 +95,14 @@ export class AgentHostModelSourceRegistry extends Disposable {
 				this._remove(action.id);
 				return;
 			case ActionType.RootModelSourceSet: {
-				const rejection = this._validate(action);
-				if (rejection) {
-					this._logService.warn(`[AgentHostModelSourceRegistry] Rejected model source ${typeof action.modelSource?.id === 'string' ? action.modelSource.id : '(invalid)'}: ${rejection}`);
-					this._state.rejectClientAction(ROOT_STATE_URI, action, origin, rejection);
+				const validation = this._validate(action);
+				if (typeof validation === 'string') {
+					this._logService.warn(`[AgentHostModelSourceRegistry] Rejected model source ${typeof action.modelSource?.id === 'string' ? action.modelSource.id : '(invalid)'}: ${validation}`);
+					this._state.rejectClientAction(ROOT_STATE_URI, action, origin, validation);
 					return;
 				}
 				this._state.dispatchClientAction(ROOT_STATE_URI, action, origin, clientContext);
-				this._apply(action.modelSource, clientId);
+				this._apply(action.modelSource, validation, clientId);
 				return;
 			}
 		}
@@ -199,7 +196,8 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		}, error => this._logService.warn(`[AgentHostModelSourceRegistry] Failed to wait for the turns on model source ${id}: ${toErrorMessage(error)}`));
 	}
 
-	private _validate(action: Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceSet }>): string | undefined {
+	/** What the agent read from the action's definition, or why the host declines the action. */
+	private _validate(action: Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceSet }>): IAgentModelSourceDescription | string {
 		const { modelSource } = action;
 		const definition = modelSource?.definition;
 		if (typeof modelSource?.id !== 'string' || !modelSource.id || typeof modelSource.nonce !== 'string' || !modelSource.nonce
@@ -222,14 +220,19 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		if (existing && this._isReregistration(existing, modelSource) && !equals(existing.definition, definition)) {
 			return 'A model source registered again with the same nonce must have the same definition';
 		}
-		return undefined;
+		// Every client reads root state, so a definition the agent can't serve isn't stored there.
+		try {
+			return agent.describeModelSource({ id: modelSource.id, format: modelSource.format, definition });
+		} catch (error) {
+			return toErrorMessage(error);
+		}
 	}
 
 	private _isReregistration(entry: IModelSourceEntry, modelSource: ModelSource): boolean {
 		return entry.provider === modelSource.provider && entry.format === modelSource.format && entry.nonce === modelSource.nonce;
 	}
 
-	private _apply(modelSource: ModelSource, clientId: string): void {
+	private _apply(modelSource: ModelSource, description: IAgentModelSourceDescription, clientId: string): void {
 		const { definition } = modelSource;
 		const previous = this._entries.get(modelSource.id);
 		if (previous && this._isReregistration(previous, modelSource)) {
@@ -248,7 +251,6 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		if (previous) {
 			this._disposeEntry(previous);
 		}
-		const agent = this._getAgent(modelSource.provider)!;
 		// An update makes the dispatching client the only contributor: the others registered a different definition.
 		const entry: IModelSourceEntry = {
 			provider: modelSource.provider,
@@ -259,28 +261,14 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			credential: undefined,
 			credentialSince: 0,
 			accountId: undefined,
-			credentialResource: undefined,
-			state: { kind: ModelSourceStatus.Starting },
+			credentialResource: description.credentialResource,
+			state: description.credentialResource ? { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required } : { kind: ModelSourceStatus.Ready },
 			// Models whose upstream identity didn't change keep their IDs, and stay listed while a new credential is requested.
-			listed: previous?.listed === true && previous.provider === modelSource.provider,
+			listed: !description.credentialResource || (previous?.listed === true && previous.provider === modelSource.provider),
 			lease: new MutableDisposable(),
 			drain: new MutableDisposable(),
 		};
 		this._entries.set(modelSource.id, entry);
-		try {
-			const description = agent.describeModelSource!({ id: modelSource.id, format: modelSource.format, definition });
-			entry.credentialResource = description.credentialResource;
-			if (description.credentialResource) {
-				entry.state = { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required };
-			} else {
-				entry.state = { kind: ModelSourceStatus.Ready };
-				entry.listed = true;
-			}
-		} catch (error) {
-			this._logService.warn(`[AgentHostModelSourceRegistry] Model source ${modelSource.id} cannot be served: ${toErrorMessage(error)}`);
-			entry.state = { kind: ModelSourceStatus.Error, error: { errorType: 'invalidModelSource', message: toErrorMessage(error) } };
-			entry.listed = false;
-		}
 		this._report(modelSource.id, entry);
 		if (previous && previous.provider !== modelSource.provider) {
 			this._syncAgent(previous.provider);

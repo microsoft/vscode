@@ -14,7 +14,7 @@ import { IAgentHostConnectionsService, type IAgentHostConnectionInfo } from '../
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { CUSTOM_ENDPOINT_BYOK_VENDOR, findCustomEndpointModelSettings, resolveCustomEndpointRuntimeEndpoint, type CustomEndpointRuntimeEndpointResolution, type ICustomEndpointModelSettings } from '../../../../../../platform/agentHost/common/byokCustomEndpoint.js';
 import { ANTHROPIC_BYOK_ENDPOINT, GEMINI_BYOK_ENDPOINT, getGeminiByokModelId, getOllamaByokEndpoint, getOpenAIByokEndpoint, OPENROUTER_BYOK_ENDPOINT, resolveAzureRuntimeEndpoint, resolveCustomOAIRuntimeEndpoint, XAI_BYOK_ENDPOINT } from '../../../../../../platform/agentHost/common/byokVendorEndpoints.js';
-import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokEndpointsCredentialResource, getByokEndpointsNonce, getByokModelSourceId, isByokModelSourceId, parseByokModelSourceId, readByokEndpointsDefinition, type IByokEndpoint, type IByokEndpointModel, type IByokEndpointsDefinition } from '../../../../../../platform/agentHost/common/byokModelSource.js';
+import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, MAX_BYOK_ENDPOINTS_MODELS, getByokEndpointsCredentialResource, getByokEndpointsNonce, getByokModelSourceId, isByokModelSourceId, parseByokModelSourceId, readByokEndpointsDefinition, type IByokEndpoint, type IByokEndpointModel, type IByokEndpointsDefinition } from '../../../../../../platform/agentHost/common/byokModelSource.js';
 import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSource, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -239,11 +239,12 @@ export function getByokModelSources(languageModelsService: ILanguageModelsServic
 				const resolution = vendorSources.resolve(configured, metadata);
 				// Without a key, the runtime would authenticate Azure requests with the machine's Azure identity.
 				const model = resolution.endpoint && (secretKey || resolution.endpoint.type !== 'azure') ? toByokEndpointModel(identifier, metadata, resolution) : undefined;
-				if (model && !identifiers.has(model.id)) {
+				// Models past the most a definition holds keep using the bridge, in the order the provider lists them.
+				if (model && !identifiers.has(model.id) && models.length < MAX_BYOK_ENDPOINTS_MODELS) {
 					models.push(model);
 					identifiers.set(model.id, identifier);
 				} else {
-					logService.trace(`[AgentHostModelSourceRegistrar] ${identifier} keeps using the bridge: ${resolution.bridgeReason ?? 'unsupported'}`);
+					logService.trace(`[AgentHostModelSourceRegistrar] ${identifier} keeps using the bridge: ${!model ? resolution.bridgeReason ?? 'unsupported' : identifiers.has(model.id) ? 'duplicate' : 'tooManyModels'}`);
 				}
 			}
 			if (models.length) {
@@ -551,8 +552,12 @@ class ConnectionModelSourceRegistrar extends Disposable {
 
 	/** This window's copy of each source it registered, or found registered differently, so a local change can be told apart. */
 	private readonly _known = new Map<string, IDesiredModelSource>();
-	/** Sources this window registered, or registered again, since it connected or last reconnected. */
-	private readonly _contributed = new Set<string>();
+	/**
+	 * The nonce of each source this window registered, or registered again, since it connected or last reconnected.
+	 * Another client's update makes that client the only contributor, so this window registers again once the host
+	 * has its definition.
+	 */
+	private readonly _contributed = new Map<string, string>();
 	/** Sources another client removed after this window registered them. Not added back until a reconnect or a local change. */
 	private readonly _removedElsewhere = new Set<string>();
 	/** The nonce of each source the host declined; not registered again until it changes. */
@@ -630,9 +635,13 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				this._removing.delete(id);
 			}
 		}
-		for (const id of [...this._contributed]) {
-			if (!current.has(id) && !this._inFlight.has(id)) {
-				this._contributed.delete(id);
+		for (const [id, nonce] of [...this._contributed]) {
+			const existing = current.get(id);
+			if (this._inFlight.has(id) || existing?.nonce === nonce) {
+				continue;
+			}
+			this._contributed.delete(id);
+			if (!existing) {
 				this._removedElsewhere.add(id);
 			}
 		}
@@ -680,7 +689,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				continue;
 			}
 			// Registering the unchanged source again keeps its status and key, and counts this window as a contributor.
-			if (!this._contributed.has(id)) {
+			if (this._contributed.get(id) !== modelSource.nonce) {
 				this._dispatchModelSource(entry);
 				continue;
 			}
@@ -760,7 +769,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				this._logService.warn(`[AgentHostModelSourceRegistrar] The agent host declined the BYOK provider group ${modelSource.displayName}: ${envelope.rejectionReason}`);
 				this._rejected.set(id, modelSource.nonce);
 			} else {
-				this._contributed.add(id);
+				this._contributed.set(id, modelSource.nonce);
 				this._sync();
 			}
 		}, error => {
@@ -794,9 +803,9 @@ class ConnectionModelSourceRegistrar extends Disposable {
 			if (!isCurrent() || !apiKey) {
 				return;
 			}
-			// Another client may have changed the host's definition while the key was read.
+			// Another client may have changed the source, or revoked its key, while the key was read.
 			const latest = this._currentModelSource(existing.id);
-			if (!latest || !canSendKey(latest, entry)) {
+			if (!latest || !canSendKey(latest, entry) || !needsCredential(latest, source.accountId, accountId => this._delegate.wasReplaced(source, accountId))) {
 				return;
 			}
 			await this._connection.authenticate({
@@ -854,27 +863,20 @@ function needsCredential(existing: ModelSource, accountId: string | undefined, w
 
 /**
  * Whether this window may send its key for the host's copy of a source: the
- * same agent, format, and credential resource, and a definition whose every
- * endpoint the key reaches is one this window's copy sends it to. It compares
- * the definition itself, since another client chooses the `nonce`.
+ * same agent, format, nonce, and credential resource, and a definition that is
+ * this window's own. It checks the definition itself, since another client
+ * chooses the `nonce`.
  */
 function canSendKey(existing: ModelSource, { modelSource, definition }: IDesiredModelSource): boolean {
 	const resource = getByokEndpointsCredentialResource(definition)?.resource;
-	if (resource === undefined || existing.provider !== modelSource.provider || existing.format !== modelSource.format || existing.credentialResource?.resource !== resource) {
+	if (resource === undefined || !isSameModelSource(existing, modelSource) || existing.credentialResource?.resource !== resource) {
 		return false;
 	}
-	let held: IByokEndpointsDefinition;
 	try {
-		held = readByokEndpointsDefinition(existing.definition);
+		return getByokEndpointsNonce(readByokEndpointsDefinition(existing.definition)) === modelSource.nonce;
 	} catch {
 		return false;
 	}
-	const endpoints = new Set(definition.models.map(model => endpointKey(model.endpoint)));
-	return held.requiresCredential && held.models.every(model => endpoints.has(endpointKey(model.endpoint)));
-}
-
-function endpointKey(endpoint: IByokEndpoint): string {
-	return JSON.stringify([endpoint.type, endpoint.wireApi ?? null, endpoint.baseUrl, endpoint.azureApiVersion ?? null]);
 }
 
 /** Whether the host's source has this window's definition: the same agent, format, and nonce. */
