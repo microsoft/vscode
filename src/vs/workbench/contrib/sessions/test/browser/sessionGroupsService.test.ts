@@ -785,43 +785,68 @@ suite('SessionGroupsService', () => {
 		});
 	});
 
-	test('adopts the groups and top-level order that Settings Sync roamed once, and keeps them on this device', () => {
-		const deviceStorage = disposables.add(new InMemoryStorageService());
-		const syncedGroups = JSON.stringify({ groups: [{ id: 'work', name: 'Work', createdAt: 1 }], membership: { s1: 'work' } });
-		const syncedOrder = JSON.stringify({ order: ['workspace:vscode', 'group:work'], promoted: [] });
+	/** The groups and top-level order services of a device whose profile storage is `deviceStorage`, as a window loads them. */
+	function loadDevice(deviceStorage: InMemoryStorageService): { readonly groups: SessionGroupsService; readonly order: SessionSectionOrderService } {
+		instantiationService.stub(IStorageService, deviceStorage);
+		const order = disposables.add(new SessionSectionOrderService(deviceStorage));
+		instantiationService.stub(ISessionSectionOrderService, order);
+		return { order, groups: disposables.add(instantiationService.createInstance(SessionGroupsService)) };
+	}
+
+	const syncedGroups = JSON.stringify({ groups: [{ id: 'work', name: 'Work', createdAt: 1 }], membership: { s1: 'work' } });
+	const syncedOrder = JSON.stringify({ order: ['workspace:vscode', 'group:work'], promoted: [] });
+
+	/** Settings Sync downloads the groups and top-level order that older builds roamed. */
+	function downloadSyncedState(deviceStorage: InMemoryStorageService): void {
 		deviceStorage.store('sessionsListControl.groups', syncedGroups, StorageScope.PROFILE, StorageTarget.USER);
 		deviceStorage.store('sessionsListControl.sectionOrder', syncedOrder, StorageScope.PROFILE, StorageTarget.USER);
-		instantiationService.stub(IStorageService, deviceStorage);
-		const load = () => {
-			const order = disposables.add(new SessionSectionOrderService(deviceStorage));
-			instantiationService.stub(ISessionSectionOrderService, order);
-			return { order, groups: disposables.add(instantiationService.createInstance(SessionGroupsService)) };
-		};
+	}
 
-		const adopted = load();
-		const afterAdopting = {
-			group: adopted.groups.getGroupOfSession('s1'),
-			order: adopted.order.resolveOrder(['group:work', 'workspace:vscode']),
+	test('adopts the groups and top-level order that Settings Sync roamed, also when they arrive after a load, until deleting them', () => {
+		const deviceStorage = disposables.add(new InMemoryStorageService());
+		// Each load stores that the archived session left its group, which does not stop adopting the synced state.
+		sessions = [createSession('archived', true)];
+		const describeDevice = ({ groups, order }: ReturnType<typeof loadDevice>) => ({
+			group: groups.getGroupOfSession('s1'),
+			order: order.resolveOrder(['group:work', 'workspace:vscode']),
 			onDevice: deviceStorage.keys(StorageScope.PROFILE, StorageTarget.MACHINE).sort(),
-		};
-		// Deleting the adopted state must not adopt the synced state again on the next load.
+		});
+
+		const beforeSync = describeDevice(loadDevice(deviceStorage));
+		downloadSyncedState(deviceStorage);
+		const adopted = loadDevice(deviceStorage);
+		const afterSync = describeDevice(adopted);
 		adopted.groups.deleteGroup('work');
 		adopted.order.retain([]);
-		const reloaded = load();
+		const afterDeleting = describeDevice(loadDevice(deviceStorage));
 
 		assert.deepStrictEqual({
-			afterAdopting,
-			afterDeletingAndReloading: { groups: reloaded.groups.getGroups(), order: reloaded.order.resolveOrder(['group:work', 'workspace:vscode']) },
+			beforeSync,
+			afterSync,
+			afterDeleting,
 			synced: [deviceStorage.get('sessionsListControl.groups', StorageScope.PROFILE), deviceStorage.get('sessionsListControl.sectionOrder', StorageScope.PROFILE)],
 		}, {
-			afterAdopting: {
+			beforeSync: { group: undefined, order: ['group:work', 'workspace:vscode'], onDevice: ['sessionsListControl.localGroups'] },
+			afterSync: {
 				group: 'work',
 				order: ['workspace:vscode', 'group:work'],
-				onDevice: ['sessionsListControl.localGroups', 'sessionsListControl.localGroups.adoptedLegacyState', 'sessionsListControl.localSectionOrder', 'sessionsListControl.localSectionOrder.adoptedLegacyState'],
+				onDevice: ['sessionsListControl.localGroups', 'sessionsListControl.localGroups.ownedByDevice', 'sessionsListControl.localSectionOrder', 'sessionsListControl.localSectionOrder.ownedByDevice'],
 			},
-			afterDeletingAndReloading: { groups: [], order: ['group:work', 'workspace:vscode'] },
+			afterDeleting: {
+				group: undefined,
+				order: ['group:work', 'workspace:vscode'],
+				onDevice: ['sessionsListControl.localGroups', 'sessionsListControl.localGroups.ownedByDevice', 'sessionsListControl.localSectionOrder.ownedByDevice'],
+			},
 			synced: [syncedGroups, syncedOrder],
 		});
+	});
+
+	test('keeps the groups this device made before Settings Sync downloads the roamed ones', () => {
+		const deviceStorage = disposables.add(new InMemoryStorageService());
+		loadDevice(deviceStorage).groups.createGroup('Local');
+		downloadSyncedState(deviceStorage);
+
+		assert.deepStrictEqual(loadDevice(deviceStorage).groups.getGroups().map(group => group.name), ['Local']);
 	});
 
 	/** Each group's name mapped to its parent's name, or `null` for a top-level group. */

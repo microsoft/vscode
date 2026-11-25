@@ -11,9 +11,9 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ISession, isSessionArchiveConfirmed } from '../../../services/sessions/common/session.js';
-import { readMachineSessionsListState } from '../../../services/sessions/common/sessionsListStorage.js';
+import { readMachineSessionsListState, storeMachineSessionsListState } from '../../../services/sessions/common/sessionsListStorage.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from '../../../services/sessions/browser/sessionSectionOrderService.js';
 
@@ -1086,7 +1086,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		// Invalidate derived children before synchronous change listeners query the updated state.
 		this._defaultChildIds = undefined;
 		if (this._groups.size === 0 && this._explicitlyUngroupedSessionIds.size === 0 && this._sectionAppearance.size === 0) {
-			this.storageService.remove(SessionGroupsService.STORAGE_KEY, StorageScope.PROFILE);
+			storeMachineSessionsListState(this.storageService, SessionGroupsService.STORAGE_KEY, undefined, false);
 			return;
 		}
 		const childOrders = this.getLiveChildOrders();
@@ -1098,7 +1098,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			[EXPLICITLY_UNGROUPED_FIELD]: [...this._explicitlyUngroupedSessionIds],
 			...(childOrders.length > 0 ? { subgroupOrders: Object.fromEntries(childOrders) } : {}),
 		};
-		this.storageService.store(SessionGroupsService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.MACHINE);
+		// Sessions left ungrouped alone are bookkeeping, which the user did not make: archived sessions leave their group on every load.
+		storeMachineSessionsListState(this.storageService, SessionGroupsService.STORAGE_KEY, JSON.stringify(state), this._groups.size > 0 || this._sectionAppearance.size > 0);
 	}
 
 	/** The child orders of existing groups, with only their current subgroups and grouping sections. */

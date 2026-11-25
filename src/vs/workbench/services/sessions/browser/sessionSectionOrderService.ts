@@ -6,8 +6,8 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { readMachineSessionsListState } from '../common/sessionsListStorage.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { readMachineSessionsListState, storeMachineSessionsListState } from '../common/sessionsListStorage.js';
 
 /**
  * Service that owns the manual ordering of the sessions list's top-level
@@ -220,12 +220,10 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 	}
 
 	private save(): void {
-		if (this._order.length === 0 && this._promoted.size === 0) {
-			this.storageService.remove(SessionSectionOrderService.STORAGE_KEY, StorageScope.PROFILE);
-			return;
-		}
+		// Only the user orders sections, so any stored order is user made.
+		const empty = this._order.length === 0 && this._promoted.size === 0;
 		const state: ISerializedState = { order: this._order, promoted: [...this._promoted] };
-		this.storageService.store(SessionSectionOrderService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.MACHINE);
+		storeMachineSessionsListState(this.storageService, SessionSectionOrderService.STORAGE_KEY, empty ? undefined : JSON.stringify(state), !empty);
 	}
 }
 
