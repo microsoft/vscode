@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isHTMLSpanElement } from '../../../../../base/browser/dom.js';
+import { $, isHTMLSpanElement } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Color, RGBA } from '../../../../../base/common/color.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -16,6 +17,7 @@ import { appendStylizedStringToContainer, calcANSI8bitColor, handleANSIOutput } 
 import { DebugSession } from '../../browser/debugSession.js';
 import { DebugLinkHoverBehavior, LinkDetector } from '../../browser/linkDetector.js';
 import { DebugModel } from '../../common/debugModel.js';
+import '../../browser/media/repl.css';
 import { createTestSession } from './callStack.test.js';
 import { createMockDebugModel } from './mockDebugModel.js';
 
@@ -1049,6 +1051,42 @@ suite('Debug - ANSI Handling', () => {
 			assert(grayOut.r === grayOut.b);
 			assert(grayOut.r === Math.round((i - 232) / 23 * 255));
 		}
+	});
+
+	test('ANSI blink animation respects reduced motion', () => {
+		const workbench = $('.monaco-workbench');
+		const repl = $('.repl');
+		const replTree = $('.repl-tree');
+		const output = $('.output.expression');
+		workbench.appendChild(repl);
+		repl.appendChild(replTree);
+		replTree.appendChild(output);
+		mainWindow.document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: disposables };
+		const rendered = handleANSIOutput('\x1b[5mslow\x1b[0m \x1b[6mrapid\x1b[0m', linkDetector, session.root, [], hoverBehavior);
+		output.appendChild(rendered);
+
+		const slowBlink = output.querySelector<HTMLElement>('.code-blink')!;
+		const rapidBlink = output.querySelector<HTMLElement>('.code-rapid-blink')!;
+
+		assert(slowBlink, 'slow blink element exists');
+		assert(rapidBlink, 'rapid blink element exists');
+
+		// By default (motion enabled), animation is active
+		assert.strictEqual(mainWindow.getComputedStyle(slowBlink).animationName, 'code-blink-key');
+		assert.strictEqual(mainWindow.getComputedStyle(rapidBlink).animationName, 'code-blink-key');
+
+		// With reduced motion class on the workbench container, animation is disabled
+		workbench.classList.add('monaco-reduce-motion');
+		assert.strictEqual(mainWindow.getComputedStyle(slowBlink).animationName, 'none');
+		assert.strictEqual(mainWindow.getComputedStyle(rapidBlink).animationName, 'none');
+
+		// Without monaco-workbench class but with standalone monaco-reduce-motion ancestor
+		workbench.className = 'repl-container monaco-reduce-motion';
+		assert.strictEqual(mainWindow.getComputedStyle(slowBlink).animationName, 'none');
+		assert.strictEqual(mainWindow.getComputedStyle(rapidBlink).animationName, 'none');
 	});
 
 });
