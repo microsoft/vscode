@@ -15,6 +15,8 @@ import { Disposable, IReference, MutableDisposable } from '../../../../base/comm
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
 import { env } from '../../../../base/common/process.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ProxyChannel, type IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import type { IAgentHostCustomizationManagementService } from '../../../../platform/agentHost/common/agentHostCustomizationManagement.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -92,7 +94,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		onWillApplyAction: Event.None,
 		onDidApplyAction: Event.None,
 	};
-	private _connectStarted = false;
+	private _connectPromise: Promise<void> | undefined;
+	private _pluginManagementSupported: boolean | undefined;
 	private _useHostProxy = false;
 	private readonly _labelFormatter = this._register(new MutableDisposable());
 
@@ -124,8 +127,20 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		// Create the protocol client eagerly so consumers can subscribe to
 		// rootState etc. before the AHP handshake completes. The transport's
 		// `connect()` will be awaited by `_connect()` below.
+		const channel = connection.getChannel(AgentHostIpcChannels.RemoteProxy);
+		const managementAwareChannel: IChannel = {
+			call: async <T>(command: string, args: unknown) => {
+				if (command === 'connect') {
+					const result = await channel.call<{ pluginManagement?: boolean } | undefined>(command, args);
+					this._pluginManagementSupported = result?.pluginManagement === true;
+					return result as T;
+				}
+				return channel.call<T>(command, args);
+			},
+			listen: (event, args) => channel.listen(event, args),
+		};
 		const createTransport = () => new AgentHostIpcChannelTransport(
-			connection.getChannel(AgentHostIpcChannels.RemoteProxy),
+			managementAwareChannel,
 			undefined,
 			AgentHostClientConnectionKind.RemoteExtensionHost,
 			async () => {
@@ -183,14 +198,75 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		}));
 	}
 
-	private async _connect(): Promise<void> {
-		if (this._connectStarted || !this._protocolClient) {
-			return;
+	private _connect(): Promise<void> {
+		if (!this._protocolClient) {
+			return Promise.resolve();
 		}
-		this._connectStarted = true;
-		this._logService.info(`${LOG_PREFIX} Connecting to remote agent host...`);
-		await this._remoteAgentService.getRawEnvironment();
-		await this._protocolClient.connect();
+		return this._connectPromise ??= (async () => {
+			this._logService.info(`${LOG_PREFIX} Connecting to remote agent host...`);
+			await this._remoteAgentService.getRawEnvironment();
+			await this._requireClient().connect();
+		})();
+	}
+
+	private _getCustomizationManagementService(): IAgentHostCustomizationManagementService {
+		const connection = this._remoteAgentService.getConnection();
+		if (!connection) {
+			throw new Error('Remote agent connection is unavailable.');
+		}
+		const channel = connection.getChannel(AgentHostIpcChannels.RemoteProxy);
+		return ProxyChannel.toService<IAgentHostCustomizationManagementService>({
+			call: async (command, args) => {
+				await this._connect();
+				if (!this._pluginManagementSupported) {
+					throw new Error('The agent host does not support plugin management.');
+				}
+				return channel.call(command, args);
+			},
+			listen: event => { throw new Error(`Invalid customization management event: ${event}`); },
+		});
+	}
+
+	get installPlugin(): IAgentHostCustomizationManagementService['installPlugin'] | undefined {
+		return this._pluginManagementSupported === false ? undefined : (...args) => this._getCustomizationManagementService().installPlugin(...args);
+	}
+
+	get listPluginInstallations(): IAgentHostCustomizationManagementService['listPluginInstallations'] | undefined {
+		return this._pluginManagementSupported === false ? undefined : async (...args) => {
+			const plugins = await this._getCustomizationManagementService().listPluginInstallations(...args);
+			return plugins.map(plugin => ({
+				...plugin,
+				...(plugin.resource ? { resource: this.resourceUris.fromAgentHost(plugin.resource) } : {}),
+			}));
+		};
+	}
+
+	get uninstallPlugin(): IAgentHostCustomizationManagementService['uninstallPlugin'] | undefined {
+		return this._pluginManagementSupported === false ? undefined : (...args) => this._getCustomizationManagementService().uninstallPlugin(...args);
+	}
+
+	get setPluginEnabled(): IAgentHostCustomizationManagementService['setPluginEnabled'] | undefined {
+		return this._pluginManagementSupported === false ? undefined : (...args) => this._getCustomizationManagementService().setPluginEnabled(...args);
+	}
+
+	get listPluginMarketplaces(): IAgentHostCustomizationManagementService['listPluginMarketplaces'] | undefined {
+		return this._pluginManagementSupported === false ? undefined : (...args) => this._getCustomizationManagementService().listPluginMarketplaces(...args);
+	}
+
+	get addPluginMarketplace(): IAgentHostCustomizationManagementService['addPluginMarketplace'] | undefined {
+		return this._pluginManagementSupported === false ? undefined : (...args) => this._getCustomizationManagementService().addPluginMarketplace(...args);
+	}
+
+	get browsePluginMarketplace(): IAgentHostCustomizationManagementService['browsePluginMarketplace'] | undefined {
+		return this._pluginManagementSupported === false ? undefined : (...args) => this._getCustomizationManagementService().browsePluginMarketplace(...args);
+	}
+
+	get removePluginMarketplace(): IAgentHostCustomizationManagementService['removePluginMarketplace'] | undefined {
+		return this._pluginManagementSupported === false ? undefined : (...args) => this._getCustomizationManagementService().removePluginMarketplace(...args);
+	}
+
+	get refreshPluginMarketplaces(): IAgentHostCustomizationManagementService['refreshPluginMarketplaces'] | undefined {
+		return this._pluginManagementSupported === false ? undefined : (...args) => this._getCustomizationManagementService().refreshPluginMarketplaces(...args);
 	}
 
 	private _updateLabelFormatter(): void {

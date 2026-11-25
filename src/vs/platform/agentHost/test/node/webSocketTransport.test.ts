@@ -13,6 +13,7 @@ import { connectionTokenQueryName } from '../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { WebSocketProtocolServer } from '../../node/webSocketTransport.js';
+import { agentHostManagementProtocol } from '../../common/agentHostCustomizationManagement.js';
 import { getProtocolMessageSize } from '../../common/state/sessionTransport.js';
 import { ProtocolLivenessMonitor } from '../../common/protocolLivenessMonitor.js';
 
@@ -53,6 +54,33 @@ suite('WebSocketProtocolServer', () => {
 		const text = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientId":"test","protocolVersions":["1.0.0"]}}';
 		socket.send(text);
 		assert.deepStrictEqual(await message, JSON.parse(text));
+	});
+
+	for (const token of [undefined, 'wrong']) {
+		test(`rejects plugin management with ${token ? 'an invalid' : 'no'} endpoint token`, async () => {
+			const server = store.add(await WebSocketProtocolServer.create({
+				port: 0,
+				connectionTokenValidate: token => token === 'valid',
+				customizationManagementChannel: {
+					call: async <T>() => undefined as T,
+					listen: () => Event.None,
+				},
+			}, new NullLogService()));
+			await server.whenListening;
+			await assert.rejects(() => connect(`ws://127.0.0.1:${server.boundPort}/${token ? `?${connectionTokenQueryName}=${token}` : ''}`, agentHostManagementProtocol), /403/);
+		});
+	}
+
+	test('does not expose plugin management on unauthenticated endpoints', async () => {
+		const server = store.add(await WebSocketProtocolServer.create({
+			port: 0,
+			customizationManagementChannel: {
+				call: async <T>() => undefined as T,
+				listen: () => Event.None,
+			},
+		}, new NullLogService()));
+		await server.whenListening;
+		await assert.rejects(() => connect(`ws://127.0.0.1:${server.boundPort}/`, agentHostManagementProtocol), /404/);
 	});
 
 	test('partial uploads keep the watchdog alive beyond its silence deadline', async () => {
@@ -134,10 +162,10 @@ suite('WebSocketProtocolServer', () => {
 	});
 });
 
-async function connect(url: string): Promise<wsTypes.WebSocket> {
+async function connect(url: string, protocol?: string): Promise<wsTypes.WebSocket> {
 	const { WebSocket } = await import('ws');
 	return new Promise((resolve, reject) => {
-		const socket = new WebSocket(url);
+		const socket = new WebSocket(url, protocol);
 		socket.once('open', () => resolve(socket));
 		socket.once('error', reject);
 	});

@@ -23,7 +23,7 @@ import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolC
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import type { IAgentHostTcpConnection } from '../../../../../platform/agentHost/common/agentHostTcpConnection.js';
-import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentHostDebugLogsArtifact, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import type { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -94,13 +94,16 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function createService(protocolClient: Partial<AgentHostProtocolClient>, remoteAuthority?: string): EditorRemoteAgentHostServiceClient {
+	function createService(protocolClient: Partial<AgentHostProtocolClient>, remoteAuthority?: string, channel?: IChannel): EditorRemoteAgentHostServiceClient {
 		const remoteAgentService = remoteAuthority
-			? new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection({
+			? new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel ?? {
 				call: <T>() => Promise.resolve(undefined as T),
 				listen: () => Event.None,
 			}, remoteAuthority)))
 			: new TestRemoteAgentService();
+		if (channel && remoteAgentService instanceof DeferredRemoteAgentService) {
+			remoteAgentService.environmentReady.complete(null);
+		}
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
 			[IRemoteAgentHostLocationPreferenceService, upcastPartial<IRemoteAgentHostLocationPreferenceService>({ getPreference: () => undefined })],
@@ -120,10 +123,109 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			onDidChangeConnectionState: Event.None,
 			dispose: () => { },
 			...protocolClient,
+			...(channel ? {
+				connect: async () => {
+					await protocolClient.connect?.();
+					await disposables.add(createTransport!()).connect();
+				},
+			} : {}),
 		});
 		instantiationService.set(IInstantiationService, instantiationService);
-		return disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+		const createInstanceSpy = sinon.spy(instantiationService, 'createInstance');
+		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+		const createTransport = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)?.args[2] as (() => IClientTransport) | undefined;
+		return service;
 	}
+
+	test('forwards only plugin management arguments and maps inventory resources to the remote window', async () => {
+		const calls: { command: string; args: unknown }[] = [];
+		const session = URI.parse('vendor-session:/opaque');
+		const chat = URI.parse('vendor-chat:/opaque');
+		const hostResource = URI.file('/plugins/sample');
+		const remoteAuthority = 'wsl+test';
+		const service = createService({
+			connect: async () => { },
+			resourceUris: createEditorRemoteAgentHostResourceUriMapper(remoteAuthority, agentHostAuthority(`vscode-remote://${remoteAuthority}`)),
+		}, remoteAuthority, {
+			call: async <T>(command: string, args: unknown) => {
+				if (command === 'connect') {
+					return { pluginManagement: true } as T;
+				}
+				calls.push({ command, args });
+				return (command === 'listPluginInstallations'
+					? [{ name: 'sample', marketplace: 'test', resource: hostResource.toJSON(), enabled: false }]
+					: undefined) as T;
+			},
+			listen: () => Event.None,
+		});
+		const install = { source: 'sample@test' };
+		const uninstall = { name: 'sample', marketplace: 'test' };
+		await service.installPlugin!('copilotcli', install, session, chat);
+		const inventory = await service.listPluginInstallations!('copilotcli', session, chat);
+		await service.uninstallPlugin!('copilotcli', uninstall, session, chat);
+		await service.setPluginEnabled!('copilotcli', 'sample@test', true, 'global', session, chat);
+		await service.setPluginEnabled!('copilotcli', 'sample@test', null, 'repository', session, chat);
+		await service.listPluginMarketplaces!('copilotcli', session, chat);
+		await service.addPluginMarketplace!('copilotcli', session, 'owner/repo', chat);
+		await service.browsePluginMarketplace!('copilotcli', session, 'test', chat);
+		await service.removePluginMarketplace!('copilotcli', session, 'test', true, chat);
+		await service.refreshPluginMarketplaces!('copilotcli', session, 'test', chat);
+
+		assert.deepStrictEqual({ calls, inventory }, {
+			calls: [
+				{ command: 'installPlugin', args: ['copilotcli', install, session, chat] },
+				{ command: 'listPluginInstallations', args: ['copilotcli', session, chat] },
+				{ command: 'uninstallPlugin', args: ['copilotcli', uninstall, session, chat] },
+				{ command: 'setPluginEnabled', args: ['copilotcli', 'sample@test', true, 'global', session, chat] },
+				{ command: 'setPluginEnabled', args: ['copilotcli', 'sample@test', null, 'repository', session, chat] },
+				{ command: 'listPluginMarketplaces', args: ['copilotcli', session, chat] },
+				{ command: 'addPluginMarketplace', args: ['copilotcli', session, 'owner/repo', chat] },
+				{ command: 'browsePluginMarketplace', args: ['copilotcli', session, 'test', chat] },
+				{ command: 'removePluginMarketplace', args: ['copilotcli', session, 'test', true, chat] },
+				{ command: 'refreshPluginMarketplaces', args: ['copilotcli', session, 'test', chat] },
+			],
+			inventory: [{ name: 'sample', marketplace: 'test', resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: hostResource.path }), enabled: false }],
+		});
+	});
+
+	test('waits for the data connection and propagates remote plugin policy failures', async () => {
+		const connected = new DeferredPromise<void>();
+		const calls: string[] = [];
+		const service = createService({ connect: () => connected.p }, 'ssh-remote+test', {
+			call: async <T>(command: string): Promise<T> => {
+				if (command === 'connect') {
+					return { pluginManagement: true } as T;
+				}
+				calls.push(command);
+				throw new Error('Disabled by runtime policy');
+			},
+			listen: () => Event.None,
+		});
+		service.startAgentHost();
+		const install = service.installPlugin!('copilotcli', { source: 'sample@test' });
+		await Promise.resolve();
+		const beforeConnected = [...calls];
+		await connected.complete();
+		await assert.rejects(install, /Disabled by runtime policy/);
+		assert.deepStrictEqual({ beforeConnected, calls }, { beforeConnected: [], calls: ['installPlugin'] });
+	});
+
+	test('keeps older or alternate hosts without the IPC capability read-only', async () => {
+		const calls: string[] = [];
+		const service = createService({ connect: async () => { } }, 'ssh-remote+test', {
+			call: async <T>(command: string): Promise<T> => {
+				calls.push(command);
+				return undefined as T;
+			},
+			listen: () => Event.None,
+		});
+		await assert.rejects(() => service.installPlugin!('copilotcli', { source: 'sample@test' }), /does not support plugin management/);
+		assert.deepStrictEqual({
+			calls,
+			methods: [service.installPlugin, service.listPluginInstallations, service.uninstallPlugin, service.setPluginEnabled,
+				service.listPluginMarketplaces, service.addPluginMarketplace, service.browsePluginMarketplace, service.removePluginMarketplace, service.refreshPluginMarketplaces],
+		}, { calls: ['connect'], methods: Array(9).fill(undefined) });
+	});
 
 	function createTransportFactory(channel: IChannel, resolveAuthority: IRemoteAuthorityResolverService['resolveAuthority'], isSessionsWindow = false, logService = new NullLogService(), certificates?: { useHostProxy: boolean; systemCertificates: boolean; authority?: string }, onOptions?: (options: IAgentHostProtocolClientOptions) => void, remoteAuthority = 'codespaces+test', getPreference: IRemoteAgentHostLocationPreferenceService['getPreference'] = () => undefined): () => IClientTransport {
 		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel, certificates ? certificates.authority ?? 'wsl+test' : remoteAuthority)));

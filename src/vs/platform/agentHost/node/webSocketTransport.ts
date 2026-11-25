@@ -6,10 +6,13 @@
 // WebSocket transport for the sessions process protocol.
 // Uses JSON serialization with URI revival for cross-process communication.
 
-import { Emitter } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
+import { ChannelServer, type IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../log/common/log.js';
+import { agentHostCustomizationManagementChannelName, agentHostManagementProtocol, agentHostPluginManagementHeader } from '../common/agentHostCustomizationManagement.js';
 import { AgentHostTransportKind } from '../common/agentHostTelemetry.js';
 import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcParseErrorResponse, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -32,6 +35,8 @@ export interface IWebSocketServerOptions {
 	 * must include a valid token in the `tkn` query parameter.
 	 */
 	readonly connectionTokenValidate?: (token: unknown) => boolean;
+	/** Available only on token-authenticated VS Code hosts. */
+	readonly customizationManagementChannel?: IServerChannel;
 }
 
 // ---- Per-connection transport -----------------------------------------------
@@ -113,6 +118,7 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 	private readonly _wss: wsTypes.WebSocketServer;
 	private readonly _httpServer: httpTypes.Server | undefined;
 	private readonly _WebSocket: typeof wsTypes.WebSocket;
+	private readonly _managementConnections = this._register(new DisposableMap<wsTypes.WebSocket, DisposableStore>());
 
 	private readonly _onConnection = this._register(new Emitter<IProtocolTransport>());
 	readonly onConnection = this._onConnection.event;
@@ -175,8 +181,13 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 		const opts: IWebSocketServerOptions = typeof options === 'number' ? { port: options } : options;
 		const host = opts.host ?? '127.0.0.1';
 
-		const verifyClient = opts.connectionTokenValidate
-			? (info: { req: httpTypes.IncomingMessage }, cb: (res: boolean, code?: number, message?: string) => void) => {
+		const verifyClient = (info: { req: httpTypes.IncomingMessage }, cb: (res: boolean, code?: number, message?: string) => void) => {
+			const protocols = info.req.headers['sec-websocket-protocol']?.split(',').map(protocol => protocol.trim()) ?? [];
+			if (protocols.includes(agentHostManagementProtocol) && (!opts.customizationManagementChannel || !opts.connectionTokenValidate)) {
+				cb(false, 404, 'Management is unavailable');
+				return;
+			}
+			if (opts.connectionTokenValidate) {
 				let tokens: string[];
 				try {
 					tokens = new URL(info.req.url ?? '', 'http://localhost').searchParams.getAll(connectionTokenQueryName);
@@ -191,9 +202,9 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 					cb(false, 403, 'Forbidden');
 					return;
 				}
-				cb(true);
 			}
-			: undefined;
+			cb(true);
+		};
 
 		if (opts.socketPath) {
 			// For socket paths, create an HTTP server listening on the path
@@ -223,7 +234,30 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 			});
 		}
 
+		this._wss.on('headers', headers => {
+			if (opts.customizationManagementChannel && opts.connectionTokenValidate) {
+				headers.push(`${agentHostPluginManagementHeader}: 1`);
+			}
+		});
+
 		this._wss.on('connection', (wsConn, request) => {
+			if (wsConn.protocol === agentHostManagementProtocol) {
+				const store = new DisposableStore();
+				this._managementConnections.set(wsConn, store);
+				const messages = store.add(new Emitter<VSBuffer>());
+				const channelServer = store.add(new ChannelServer({
+					onMessage: messages.event,
+					send: buffer => wsConn.send(buffer.buffer),
+				}, 'remote'));
+				channelServer.registerChannel(agentHostCustomizationManagementChannelName, opts.customizationManagementChannel!);
+				store.add(Event.fromNodeEventEmitter<wsTypes.RawData>(wsConn, 'message')(data => {
+					messages.fire(VSBuffer.wrap(Array.isArray(data) ? Buffer.concat(data) : Buffer.isBuffer(data) ? data : Buffer.from(data)));
+				}));
+				store.add(Event.fromNodeEventEmitter<Error>(wsConn, 'error')(error => this._logService.warn('[WebSocketProtocol] Management connection failed', error)));
+				store.add(Event.once(Event.fromNodeEventEmitter(wsConn, 'close'))(() => this._managementConnections.deleteAndDispose(wsConn)));
+				store.add(toDisposable(() => wsConn.close()));
+				return;
+			}
 			this._logService.trace('[WebSocketProtocol] New client connection');
 			const transport = new WebSocketProtocolTransport(wsConn, this._WebSocket, request.socket);
 			this._onConnection.fire(transport);

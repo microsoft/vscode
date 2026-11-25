@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../base/common/async.js';
-import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { ProxyChannel, type IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
@@ -44,6 +44,7 @@ import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
 import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
 import { AgentHostManagementService } from './agentHostManagementService.js';
+import { createAgentHostCustomizationManagementChannel } from '../common/agentHostCustomizationManagement.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
 import { getLogLevel, ILogService, isDevConsoleLogForwardingEnabled, registerDevConsoleLogForwarder } from '../../log/common/log.js';
@@ -457,6 +458,7 @@ async function startAgentHost(): Promise<void> {
 	);
 	management.setMissionControl(missionControl.environment);
 	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(management, disposables));
+	const customizationManagementChannel = createAgentHostCustomizationManagementChannel(management, disposables);
 	if (!(server instanceof UtilityProcessServer)) {
 		server.registerChannel(AgentHostIpcChannels.ConnectionTracker, ProxyChannel.fromService(connectionTrackerService, disposables));
 	}
@@ -543,6 +545,7 @@ async function startAgentHost(): Promise<void> {
 			const localEndpoint = await startLocalAgentHostEndpoint(
 				environmentService.userDataPath,
 				logService,
+				customizationManagementChannel,
 			);
 			if (localEndpoint) {
 				const endpointMetadata = localEndpoint.metadata;
@@ -603,6 +606,7 @@ async function startAgentHost(): Promise<void> {
 		count => connectionCountEmitter.fire(count),
 		handler => protocolHandlers.push(handler),
 		githubEnvironment,
+		customizationManagementChannel,
 	);
 	configuredWebSocketServer.settleWith(configuredWebSocketServerStart);
 	// Startup is complete once the last ingress has settled — successfully or
@@ -632,6 +636,7 @@ interface ILocalAgentHostEndpoint {
 async function startLocalAgentHostEndpoint(
 	userDataPath: string,
 	logService: ILogService,
+	customizationManagementChannel: IServerChannel,
 ): Promise<ILocalAgentHostEndpoint | undefined> {
 	let metadata: ILocalAgentHostEndpointMetadata | undefined;
 	let server: WebSocketProtocolServer | undefined;
@@ -645,6 +650,7 @@ async function startLocalAgentHostEndpoint(
 			{
 				socketPath: endpointMetadata.endpoint.path,
 				connectionTokenValidate: token => token === endpointMetadata.connectionToken,
+				customizationManagementChannel,
 			},
 			logService,
 		);
@@ -700,6 +706,7 @@ async function startWebSocketServer(
 	onConnectionCountChanged: (count: number) => void,
 	onProtocolHandlerCreated: (handler: ProtocolServerHandler) => void,
 	githubEnvironment: IProtocolServerGitHubEnvironment | undefined,
+	customizationManagementChannel: IServerChannel,
 ): Promise<void> {
 	const port = process.env['VSCODE_AGENT_HOST_PORT'];
 	const socketPath = process.env['VSCODE_AGENT_HOST_SOCKET_PATH'];
@@ -715,6 +722,7 @@ async function startWebSocketServer(
 		socketPath
 			? {
 				socketPath,
+				customizationManagementChannel,
 				connectionTokenValidate: connectionToken
 					? (token) => token === connectionToken
 					: undefined,
@@ -722,6 +730,7 @@ async function startWebSocketServer(
 			: {
 				port: parseInt(port!, 10),
 				host,
+				customizationManagementChannel,
 				connectionTokenValidate: connectionToken
 					? (token) => token === connectionToken
 					: undefined,

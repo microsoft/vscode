@@ -946,9 +946,9 @@ export interface IAgentHostManagementService {
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	/** Local-only bridge for refreshing live Copilot sessions after Connector membership or authorization changes. */
 	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void>;
-	/** Local-only bridge for provider-owned persisted plugin inventory. */
+	/** Trusted IPC bridge for provider-owned persisted plugin inventory. */
 	listPluginInstallations(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
-	/** Local-only bridge for provider-owned plugin uninstall transactions. */
+	/** Trusted IPC bridge for provider-owned plugin uninstall transactions. */
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
@@ -958,7 +958,7 @@ export interface IAgentHostManagementService {
 	/** Opens a canvas, or continues one that returned `consentRequired` with the user's answer. */
 	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult>;
 	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void>;
-	/** Local-only bridge for provider-owned plugin install transactions. */
+	/** Trusted IPC bridge for provider-owned plugin install transactions. */
 	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
 	/** Local-only bridge for retrying the plugins a live chat's managed settings require. */
 	retryManagedPlugins(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
@@ -1700,11 +1700,11 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Refresh live local Copilot sessions after Connector membership or authorization changes. */
 	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
-	/** Uninstall a plugin through its local Agent Host provider. */
+	/** Lists persisted plugins through the owning Agent Host provider. */
 	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
-	/** Install a plugin through its local Agent Host provider. */
+	/** Installs a plugin through the owning Agent Host provider. */
 	installPlugin?(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
 	/** Retry the plugins a live chat's managed settings require through its local Agent Host provider. */
 	retryManagedPlugins?(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;

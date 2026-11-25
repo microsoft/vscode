@@ -12,11 +12,14 @@
 // `src/vs/platform/agentHost/browser/`. Together they reuse the existing
 // `AgentHostProtocolClient` over IPC instead of a raw WebSocket.
 
+import { disposableTimeout } from '../../base/common/async.js';
+import { VSBuffer } from '../../base/common/buffer.js';
 import { Emitter, Event } from '../../base/common/event.js';
-import { Disposable, IDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../base/common/network.js';
 import { isObject } from '../../base/common/types.js';
-import { IPCServer, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
+import { ChannelClient, type IChannel, IPCServer, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
+import { agentHostCustomizationManagementChannelName, agentHostManagementProtocol, agentHostPluginManagementHeader, isAgentHostCustomizationManagementCommand } from '../../platform/agentHost/common/agentHostCustomizationManagement.js';
 import { isRemoteAgentHostLocationPreference } from '../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import type { IAgentHostIpcConnectionOptions } from '../../platform/agentHost/common/agentService.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -70,10 +73,12 @@ async function loadNet(): Promise<typeof netTypes> {
  * a custom factory via {@link AgentHostChannel.upstreamFactory}.
  */
 export interface IUpstreamConnection extends IDisposable {
+	readonly pluginManagementSupported: boolean;
 	readonly onFrame: Event<string>;
 	readonly onClose: Event<void>;
 	connect(options?: IAgentHostIpcConnectionOptions): Promise<void>;
 	send(frame: string): void;
+	callCustomizationManagement<T>(command: string, args: unknown): Promise<T>;
 }
 
 export type UpstreamConnectionFactory = (endpoint: IAgentHostUpstreamEndpoint) => IUpstreamConnection;
@@ -113,6 +118,7 @@ const defaultUpstreamFactory = (logService: ILogService): UpstreamConnectionFact
 	(endpoint) => new WebSocketUpstreamConnection(endpoint, logService);
 
 class LazyUpstreamConnection extends Disposable implements IUpstreamConnection {
+	get pluginManagementSupported(): boolean { return this._connection?.pluginManagementSupported === true; }
 	private readonly _onFrame = this._register(new Emitter<string>());
 	readonly onFrame: Event<string> = this._onFrame.event;
 
@@ -157,6 +163,17 @@ class LazyUpstreamConnection extends Disposable implements IUpstreamConnection {
 		connection.send(frame);
 	}
 
+	async callCustomizationManagement<T>(command: string, args: unknown): Promise<T> {
+		if (!this._connectPromise) {
+			throw new Error('Connect to the agent host before managing plugins.');
+		}
+		await this._connectPromise;
+		if (!this._connection) {
+			throw new Error('Agent host connection is closed.');
+		}
+		return this._connection.callCustomizationManagement<T>(command, args);
+	}
+
 	private async _connect(options?: IAgentHostIpcConnectionOptions): Promise<void> {
 		const endpoint = await this._resolveEndpoint(options);
 		if (this._store.isDisposed) {
@@ -193,6 +210,8 @@ class LazyUpstreamConnection extends Disposable implements IUpstreamConnection {
 }
 
 class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnection {
+	private _pluginManagementSupported = false;
+	get pluginManagementSupported(): boolean { return this._pluginManagementSupported; }
 	private readonly _onFrame = this._register(new Emitter<string>());
 	readonly onFrame: Event<string> = this._onFrame.event;
 
@@ -202,6 +221,8 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 	private _ws: wsTypes.WebSocket | undefined;
 	private _connectPromise: Promise<void> | undefined;
 	private _closeFired = false;
+	private readonly _managementConnection = this._register(new MutableDisposable<DisposableStore>());
+	private _managementClient: Promise<IChannel> | undefined;
 
 	constructor(
 		private readonly _endpoint: IAgentHostUpstreamEndpoint,
@@ -224,6 +245,9 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 
 		const socket = new ws.WebSocket(url, wsOptions);
 		this._ws = socket;
+		socket.once('upgrade', response => {
+			this._pluginManagementSupported = response.headers[agentHostPluginManagementHeader] === '1';
+		});
 
 		return new Promise<void>((resolve, reject) => {
 			const onOpen = () => {
@@ -276,6 +300,56 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 		ws.send(frame);
 	}
 
+	async callCustomizationManagement<T>(command: string, args: unknown): Promise<T> {
+		if (!this.pluginManagementSupported) {
+			throw new Error('The agent host does not support plugin management.');
+		}
+		const channel = await (this._managementClient ??= this._connectManagement());
+		return channel.call<T>(command, args);
+	}
+
+	private async _connectManagement(): Promise<IChannel> {
+		const ws = await loadWs();
+		const options = await this._buildWsOptions();
+		if (this._store.isDisposed || this._closeFired) {
+			throw new Error('Agent host connection is closed.');
+		}
+		const store = new DisposableStore();
+		this._managementConnection.value = store;
+		const socket = new ws.WebSocket(this._buildUrl(), agentHostManagementProtocol, options);
+		store.add(toDisposable(() => {
+			if (socket.readyState === ws.WebSocket.CONNECTING) {
+				socket.once('error', error => this._logService.debug('[AgentHostChannel] Management connection cancelled', error));
+			}
+			socket.close();
+		}));
+		const messages = store.add(new Emitter<VSBuffer>());
+		const client = store.add(new ChannelClient({
+			onMessage: messages.event,
+			send: buffer => socket.send(buffer.buffer),
+		}));
+		store.add(Event.fromNodeEventEmitter<wsTypes.RawData>(socket, 'message')(data => {
+			messages.fire(VSBuffer.wrap(Array.isArray(data) ? Buffer.concat(data) : Buffer.isBuffer(data) ? data : Buffer.from(data)));
+		}));
+		return new Promise<IChannel>((resolve, reject) => {
+			const fail = (error: Error) => {
+				reject(error);
+				if (this._managementConnection.value === store) {
+					this._managementClient = undefined;
+					this._managementConnection.clear();
+				}
+			};
+			store.add(toDisposable(() => reject(new Error('Agent host management connection closed.'))));
+			const timeout = store.add(disposableTimeout(() => fail(new Error('The agent host does not support management IPC.')), 10_000));
+			store.add(Event.once(client.onDidInitialize)(() => {
+				timeout.dispose();
+				resolve(client.getChannel(agentHostCustomizationManagementChannelName));
+			}));
+			store.add(Event.fromNodeEventEmitter<Error>(socket, 'error')(error => fail(error)));
+			store.add(Event.once(Event.fromNodeEventEmitter(socket, 'close'))(() => fail(new Error('Agent host management connection closed.'))));
+		});
+	}
+
 	override dispose(): void {
 		this._ws?.close();
 		this._fireClose();
@@ -287,6 +361,8 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 			return;
 		}
 		this._closeFired = true;
+		this._managementConnection.clear();
+		this._managementClient = undefined;
 		this._onClose.fire();
 	}
 
@@ -344,14 +420,22 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 
 	async call<T>(ctx: TContext, command: string, arg?: unknown): Promise<T> {
 		const conn = this._getOrCreate(ctx);
+		if (isAgentHostCustomizationManagementCommand(command)) {
+			if (!Array.isArray(arg)) {
+				throw new Error('Invalid customization management arguments');
+			}
+			return conn.callCustomizationManagement<T>(command, arg);
+		}
 		switch (command) {
-			case 'connect':
+			case 'connect': {
 				if (arg !== undefined && !isConnectionOptions(arg)) {
 					throw new Error('Invalid agent host connection options');
 				}
 				this._logService.info(`[AgentHostChannel] Renderer ctx=${String(ctx)} requested connect to upstream`);
 				await conn.connect(arg);
-				return undefined as T;
+				const result = { pluginManagement: conn.pluginManagementSupported };
+				return result as T;
+			}
 			case 'send':
 				if (typeof arg !== 'string') {
 					throw new Error('send: arg must be a string frame');
