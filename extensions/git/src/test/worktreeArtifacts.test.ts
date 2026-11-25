@@ -27,7 +27,7 @@ suite('git.artifactProvider.worktrees', () => {
 	const originalGitConfigCount = process.env.GIT_CONFIG_COUNT;
 
 	async function openRepository(repositoryRoot: string): Promise<Repository> {
-		await model.openRepository(repositoryRoot, true, true);
+		await model.openRepository(repositoryRoot, { openIfClosed: true, openIfParent: true });
 		const repository = model.getRepository(repositoryRoot);
 		assert.ok(repository);
 		return repository;

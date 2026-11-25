@@ -505,7 +505,7 @@ export class ApiImpl implements API {
 			return null;
 		}
 
-		await this.#model.openRepository(root.fsPath, true, true);
+		await this.#model.openRepository(root.fsPath, { openIfClosed: true, openIfParent: true });
 		return this.getRepository(root) || null;
 	}
 

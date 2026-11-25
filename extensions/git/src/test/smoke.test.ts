@@ -567,7 +567,7 @@ suite('git smoke test', function () {
 		];
 		try {
 			// Outside the workspace, so it opens as a repository in a parent folder would
-			const repository = (await model.openRepository(repositoryPath, false, true))!;
+			const repository = (await model.openRepository(repositoryPath, { openIfParent: true }))!;
 			await repository.status();
 
 			// As a switch of a workspace folder location detaches the repository of the location that it leaves
