@@ -29,7 +29,7 @@ import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
-import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder, Workspace } from '../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -943,6 +943,26 @@ suite('HistoryService', function () {
 				afterRestart: ['/repo/a.txt'],
 				afterOpen: ['/repo/a.txt']
 			});
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('a restart of a multi-root workspace with other folders keeps the list', async () => {
+			const other = URI.file('/other');
+			const { contextService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
+			const multiRootWorkspace = (...folders: URI[]) => new Workspace('test-workspace', folders.map(toWorkspaceFolder), false, URI.file('/test.code-workspace'), () => false);
+
+			contextService.setWorkspace(multiRootWorkspace(folder, other));
+			await open('/repo/a.txt');
+			await open('/other/b.txt');
+			await closeAll();
+			reload();
+
+			// Restart with a folder removed while the window was closed
+			contextService.setWorkspace(multiRootWorkspace(folder));
+			const restarted = reload({ save: false });
+
+			assert.deepStrictEqual(paths(restarted), ['/other/b.txt', '/repo/a.txt']);
 
 			return workbenchTeardown(instantiationService);
 		});
