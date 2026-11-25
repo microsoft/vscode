@@ -9,7 +9,7 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAction, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
+import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAction, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, ClientChangesetAction, type ClientModelSourceAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
 import { automationReducer, automationRunReducer, changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import { canvasReducer } from './protocol/channels-canvas/reducer.js';
@@ -1254,7 +1254,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * `channel` is the protocol URI string identifying the channel the
 	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction | ClientModelSourceAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof SessionStateSubscription) {

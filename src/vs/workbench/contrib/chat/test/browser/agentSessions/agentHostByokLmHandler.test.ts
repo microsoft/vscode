@@ -17,6 +17,7 @@ import { ContextKeyService } from '../../../../../../platform/contextkey/browser
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AgentHostByokLmHandler } from '../../../browser/agentSessions/agentHost/agentHostByokLmHandler.js';
+import { AgentHostModelSourceStatusService } from '../../../browser/agentSessions/agentHost/agentHostModelSourceRegistrar.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -117,7 +118,7 @@ suite('AgentHostByokLmHandler', () => {
 
 	function createHandler(service: ILanguageModelsService): AgentHostByokLmHandler {
 		const { contextKeyService } = createPolicyContext(true);
-		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
+		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService, store.add(new AgentHostModelSourceStatusService())));
 	}
 
 	test('updates model discovery and blocks requests when BYOK policy changes', async () => {
@@ -126,7 +127,7 @@ suite('AgentHostByokLmHandler', () => {
 			() => responseOf([]),
 		);
 		const { contextKeyService, clientByokEnabled } = createPolicyContext(true);
-		const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
+		const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService, store.add(new AgentHostModelSourceStatusService())));
 		let modelChangeCount = 0;
 		store.add(handler.onDidChangeModels(() => modelChangeCount++));
 
@@ -173,6 +174,30 @@ suite('AgentHostByokLmHandler', () => {
 		assert.deepStrictEqual(models, [
 			{ vendor: 'acme', id: 'claude', name: 'acme claude', modelIdentifier: 'id-acme', maxContextWindowTokens: 100_000, maxPromptTokens: 100_000, maxOutputTokens: 20_000, supportsVision: true },
 		]);
+	});
+
+	test('listModels leaves out the models the local agent host serves from this window\'s model sources', async () => {
+		const service = new TestLanguageModelsService(
+			new Map<string, ILanguageModelChatMetadata>([
+				['customendpoint/Example/gpt-x', byokModel('customendpoint', 'gpt-x')],
+				['acme/claude', byokModel('acme', 'claude')],
+			]),
+			() => responseOf([]),
+		);
+		const { contextKeyService } = createPolicyContext(true);
+		const status = store.add(new AgentHostModelSourceStatusService());
+		const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService, status));
+		let modelChangeCount = 0;
+		store.add(handler.onDidChangeModels(() => modelChangeCount++));
+		const listed = async () => (await handler.listModels(CancellationToken.None)).map(model => model.modelIdentifier);
+
+		const before = await listed();
+		status.setServedModels(new Set(['customendpoint/Example/gpt-x']), new Set());
+		assert.deepStrictEqual({ before, served: await listed(), modelChangeCount }, {
+			before: ['customendpoint/Example/gpt-x', 'acme/claude'],
+			served: ['acme/claude'],
+			modelChangeCount: 1,
+		});
 	});
 
 	test('listModels carries the LM service identifier (the Manage Models visibility key)', async () => {

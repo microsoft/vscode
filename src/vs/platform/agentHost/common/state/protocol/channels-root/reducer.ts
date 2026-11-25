@@ -37,6 +37,35 @@ export function rootReducer(state: RootState, action: RootAction, log?: (msg: st
 				},
 			};
 
+		case ActionType.RootModelSourceRegisterRequested:
+			return state;
+
+		case ActionType.RootModelSourceSet: {
+			const list = state.modelSources ?? [];
+			const idx = list.findIndex(source => source.id === action.modelSource.id);
+			const next = list.slice();
+			if (idx < 0) {
+				next.push(action.modelSource);
+			} else {
+				next[idx] = action.modelSource;
+			}
+			return { ...state, modelSources: next };
+		}
+
+		case ActionType.RootModelSourceRemoved: {
+			const list = state.modelSources;
+			if (!list) {
+				return state;
+			}
+			const idx = list.findIndex(source => source.id === action.modelSourceId);
+			if (idx < 0) {
+				return state;
+			}
+			const next = list.slice();
+			next.splice(idx, 1);
+			return { ...state, modelSources: next };
+		}
+
 		default:
 			softAssertNever(action, log);
 			return state;

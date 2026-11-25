@@ -76,7 +76,7 @@ import { AGENT_HOST_FILE_SCHEME, IAgentPluginManager, ISyncedCustomization } fro
 import { withCustomizationSourceUri } from '../../common/meta/agentCustomizationMeta.js';
 import type { IAgentChatInputResponseMeta } from '../../common/meta/agentChatInputResponseMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { type IAgentPluginInstallation, type IAgentTelemetryContext, type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, type IAgentExtensionConsentRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, isAgentExtensionEnabledAndSettled, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution, type IAgentChatHistoryChange, type IAgentPrewarmClaim, type IAgentWarmChatSelection } from '../../common/agent.js';
+import { type IAgentPluginInstallation, type IAgentTelemetryContext, type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, type IAgentExtensionConsentRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentModelSource, type IAgentModelSourceDescription, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, isAgentExtensionEnabledAndSettled, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution, type IAgentChatHistoryChange, type IAgentPrewarmClaim, type IAgentWarmChatSelection } from '../../common/agent.js';
 import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, MODEL_ROUTER_MAX_FILE_BYTES, modelRouterModelId, resolveModelRouter, summarizeModelRouterRoutes, userModelRouterFolder } from '../../common/modelRouter.js';
 import { resolveModelRouterGuidance } from '../../common/modelRouterGuidance.js';
 import { AgentDecisionsUnavailableError, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
@@ -93,7 +93,7 @@ import { AUTO_MODEL_ID, isAutoModel, isGpt56Model } from './modelIdentifiers.js'
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, isMcpServerAuthenticateTarget, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { CopilotCustomizationInstallations } from './customizations/copilotCustomizationInstallations.js';
@@ -145,7 +145,8 @@ import { COMPUTER_USE_PLUGIN_RELEASE, COMPUTER_USE_PLUGIN_TARGET, ComputerUsePlu
 import { CopilotComputerUsePermissionSetup } from './copilotComputerUsePermissionSetup.js';
 import { reportComputerUsePluginInstall, type ComputerUsePluginInstallResult } from './copilotComputerUseTelemetry.js';
 import { ILocalModelSetupService } from './localModelBridge/localModelSetupService.js';
-import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelProvider } from './localModelBridge/localModelProvider.js';
+import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelProvider, type ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
+import { COPILOT_MODEL_SOURCE_FORMATS, describeCopilotModelSource, getCopilotModelSourceModels, type ICopilotModelSourceModel } from './copilotModelSources.js';
 import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './localModelBridge/localModelThinking.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { findRelocatedAgentName, parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
@@ -979,6 +980,7 @@ class CopilotChatEntry extends Disposable {
 		onDidRequireAuth: () => void,
 		private readonly _onDidChangeRuntimePlugins: () => void,
 		private readonly _onDidReloadRuntimeContributions: () => void,
+		onDidRejectModelSourceCredential: (rejection: { readonly model: string; readonly turnStartedAt: number }) => void,
 	) {
 		super();
 		if (anchor) {
@@ -987,6 +989,7 @@ class CopilotChatEntry extends Disposable {
 		this._register(chatSession);
 		this._register(chatSession.onMcpNotification(notification => onMcpNotification.fire(notification)));
 		this._register(chatSession.onDidRequireAuth(onDidRequireAuth));
+		this._register(chatSession.onDidRejectModelSourceCredential(onDidRejectModelSourceCredential));
 		this._register(chatSession.onDidChangeRuntimePlugins(() => this._onDidChangeRuntimePlugins()));
 		this._register(chatSession.onDidReloadRuntimeContributions(() => this._onDidReloadRuntimeContributions()));
 		this._register(autorun(reader => activeClient.pluginController.mcpServerStates.set(chatSession.mcpServerStates.read(reader), undefined)));
@@ -1384,6 +1387,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _autoTierMetadataPublished = false;
 	/** The last logged Auto presentation, so it is logged when it changes rather than on every publish. */
 	private _loggedAutoPresentation: string | undefined;
+	/** The models of the registered model sources this agent serves, with their runtime providers. */
+	private _modelSourceModels: readonly ICopilotModelSourceModel[] = [];
+	/** Waiters for draining model sources whose models running turns still use. */
+	private readonly _modelSourceIdleWaiters = new Set<{ readonly id: string; readonly resolve: () => void }>();
+	private readonly _onDidRejectModelSourceCredential = this._register(new Emitter<{ readonly id: string; readonly turnStartedAt: number }>());
+	readonly onDidRejectModelSourceCredential = this._onDidRejectModelSourceCredential.event;
 	private _byokModels: readonly IAgentModelInfo[] = [];
 	private _lastByokModelsEnabledConfig: unknown = Symbol('uninitialized');
 
@@ -2505,6 +2514,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		for (const session of this._allLiveSessions()) {
 			void this._scheduleConnectorRefresh(session);
 		}
+		this._releaseDrainingModelSources();
 		if (this._sessionTelemetryRevoked) {
 			queueMicrotask(() => {
 				this._disposeIdleTelemetryRevokedSessions().catch(err =>
@@ -2773,6 +2783,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			capabilities: {
 				multipleChats: { fork: true, sideChat: true },
 				multipleWorkingDirectories: { immutablePrimary: true },
+				modelSourceRegistration: { formats: COPILOT_MODEL_SOURCE_FORMATS.map(format => ({ format })) },
 			},
 		};
 	}
@@ -2781,7 +2792,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
 			// Keep the legacy GitHub requirement until the account-choice gate is retired; default-on cleanup is separate.
-			this._entraAuthentication || this._byokModels.length > 0 ? { ...copilotResource, required: false } : copilotResource,
+			this._entraAuthentication || this._byokModels.length > 0 || this._modelSourceModels.length > 0 ? { ...copilotResource, required: false } : copilotResource,
 			this._gitHubEndpointService.getRepoResource(),
 			...(this._entraAuthentication ? this._accountService.getProtectedResources(reader) : []),
 		];
@@ -4091,7 +4102,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return false;
 		}
 		// Published models are copies of the BYOK models when they have a config schema, so they are matched by id.
-		return models.some(candidate => candidate.id === model.id) && this._byokModels.some(candidate => candidate.id === model.id);
+		// A registered source's model is usable only while the runtime can call it, e.g. not while it needs a key.
+		return models.some(candidate => candidate.id === model.id)
+			&& (this._byokModels.some(candidate => candidate.id === model.id) || this._modelSourceModels.some(candidate => candidate.servable && !candidate.draining && candidate.id === model.id));
 	}
 
 	async authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean> {
@@ -4294,6 +4307,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
+		if (params.target && !isMcpServerAuthenticateTarget(params.target)) {
+			return false;
+		}
 		const hasGitHubToReturnTo = !params.token && !!(this._githubCredentials.token || this._getKeptGitHubCredential());
 		if (await this._entraAuthentication?.authenticate(params, this.getProtectedResources().find(resource => resource.resource === params.resource), !hasGitHubToReturnTo)) {
 			if (!params.token) {
@@ -4936,7 +4952,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// a model, so a chat on that model stays on it and is shown as that tier. Without CAPI's tiers, none is offered.
 		const hydraFusionModels = this._getUnlistedHydraFusionModels(this._autoTierMetadata);
 		this._logAutoPresentation(fusion);
-		this._models.set(this._withModelRouterRows([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()].map(model => this._withModelConfigAliases(model))), undefined);
+		this._models.set(this._withModelRouterRows([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getModelSourceRows(), ...this._getLocalModelRows()].map(model => this._withModelConfigAliases(model))), undefined);
 		for (const entry of this._chatEntriesBySdkId.values()) {
 			entry.chatSession.refreshModelConfiguration();
 		}
@@ -5071,14 +5087,127 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._byokModels.length) {
 			// Sessions launched before these models were reported (notably chats
 			// restored during startup) must register them before they can select them.
-			// A session still mid-launch is not in `_chatEntriesBySdkId` yet and is
-			// missed here; `CopilotAgentSession.setModel` syncs again, which covers it.
-			for (const entry of this._chatEntriesBySdkId.values()) {
-				entry.chatSession.syncByokModels().catch(err =>
-					this._logService.warn(`[Copilot:${entry.chatSession.sessionId}] Failed to register BYOK models on live session`, err)
-				);
+			this._syncByokModelsOnLiveSessions();
+		}
+	}
+
+	/**
+	 * Brings every live session's BYOK registration up to date. A session still
+	 * mid-launch is not in `_chatEntriesBySdkId` yet and is missed here;
+	 * `CopilotAgentSession.setModel` syncs again, which covers it.
+	 */
+	private _syncByokModelsOnLiveSessions(): void {
+		for (const entry of this._chatEntriesBySdkId.values()) {
+			entry.chatSession.syncByokModels().catch(err =>
+				this._logService.warn(`[Copilot:${entry.chatSession.sessionId}] Failed to register BYOK models on live session`, err)
+			);
+		}
+	}
+
+	describeModelSource(source: Pick<IAgentModelSource, 'id' | 'format' | 'definition'>): IAgentModelSourceDescription {
+		return describeCopilotModelSource(source);
+	}
+
+	setModelSources(sources: readonly IAgentModelSource[]): void {
+		const models: ICopilotModelSourceModel[] = [];
+		for (const source of sources) {
+			try {
+				models.push(...getCopilotModelSourceModels(source));
+			} catch (error) {
+				this._logService.warn(`[Copilot] Model source ${source.id} cannot be served: ${getErrorMessage(error)}`);
 			}
 		}
+		const hadModels = this._modelSourceModels.length > 0;
+		this._modelSourceModels = models;
+		this._logService.trace(`[Copilot] Serving ${models.length} model(s) of ${sources.length} registered model source(s)`);
+		this._publishModels();
+		// Live sessions must also stop calling a withdrawn source, and stop sending a revoked credential.
+		if (models.length || hadModels) {
+			this._syncByokModelsOnLiveSessions();
+		}
+		this._settleModelSourceIdleWaiters();
+	}
+
+	whenModelSourceIdle(id: string, token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested || !this._isModelSourceInUse(id)) {
+			return Promise.resolve();
+		}
+		return new Promise<void>(resolve => {
+			const listener = token.onCancellationRequested(() => waiter.resolve());
+			const waiter = {
+				id,
+				resolve: () => {
+					listener.dispose();
+					this._modelSourceIdleWaiters.delete(waiter);
+					resolve();
+				},
+			};
+			this._modelSourceIdleWaiters.add(waiter);
+		});
+	}
+
+	/** Whether a running turn uses a model of the model source `id`. */
+	private _isModelSourceInUse(id: string): boolean {
+		const models = new Set(this._modelSourceModels.filter(model => model.modelSourceId === id).map(model => model.id));
+		return this._allLiveSessions().some(session => session.hasActiveTurn && session.requestedModelId !== undefined && models.has(session.requestedModelId));
+	}
+
+	private _settleModelSourceIdleWaiters(): void {
+		for (const waiter of [...this._modelSourceIdleWaiters]) {
+			if (!this._isModelSourceInUse(waiter.id)) {
+				waiter.resolve();
+			}
+		}
+	}
+
+	/** Withdraws draining sources from sessions whose turns on them ended, and lets the host remove the sources no turn uses. */
+	private _releaseDrainingModelSources(): void {
+		if (!this._modelSourceModels.some(model => model.draining)) {
+			return;
+		}
+		this._syncByokModelsOnLiveSessions();
+		this._settleModelSourceIdleWaiters();
+	}
+
+	/**
+	 * The runtime provider and model of a session's selected model when a registered model source serves it, which
+	 * replace the session's earlier ones on every sync. A session registers no other source's provider, so it never
+	 * holds another source's credential, and the runtime keeps its background model calls when no source is selected.
+	 * A draining source's provider stays only while the session runs a turn on it, so that turn finishes.
+	 */
+	private _getModelSourceSessionConfig(selectedModel: string | undefined, hasActiveTurn: boolean): ILocalModelSessionConfigContribution {
+		const model = selectedModel !== undefined ? this._modelSourceModels.find(candidate => candidate.servable && candidate.id === selectedModel && (!candidate.draining || hasActiveTurn)) : undefined;
+		return {
+			providers: model ? [model.runtimeProvider] : [],
+			models: model ? [model.runtimeModel] : [],
+		};
+	}
+
+	/**
+	 * The registered model source's model that `model` is an alias of, such as the
+	 * id VS Code's BYOK bridge served it under, with the same configuration; else `model`.
+	 */
+	private _resolveModelSourceAlias<T extends ModelSelection | undefined>(model: T): T | ModelSelection {
+		const source = model && this._modelSourceModels.find(candidate => candidate.servable && !candidate.draining && candidate.model.aliases?.includes(model.id));
+		return source ? { ...model, id: source.id } : model;
+	}
+
+	private _getModelSourceRows(): IAgentModelInfo[] {
+		// A draining source's models are withdrawn from the catalog; only turns already running on them continue.
+		return this._modelSourceModels.filter(candidate => !candidate.draining).map(({ id, modelSourceId, model }): IAgentModelInfo => {
+			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(model.reasoningEfforts, model.defaultReasoningEffort, model.id);
+			return {
+				provider: this.id,
+				id,
+				name: model.name ?? model.id,
+				maxContextWindow: model.maxContextWindowTokens,
+				maxPromptTokens: model.maxInputTokens,
+				maxOutputTokens: model.maxOutputTokens,
+				supportsVision: model.vision ?? false,
+				...(thinkingLevel ? { configSchema: { type: 'object', properties: { [ThinkingLevelConfigKey]: thinkingLevel } } satisfies ConfigSchema } : {}),
+				modelSourceId,
+			};
+		});
 	}
 
 	/**
@@ -7335,6 +7464,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (credential) {
 				entry.assertScopedCredential(credential);
 			}
+			// A turn that ended because its model source was unavailable resumes on the same model, once it's available again.
+			await this._reselectUnavailableModelSource(current, entry, token);
 			await entry.resume(turnId, this._resolveSdkMode(current.ownerSession, current.chat), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
 			if (!token.isCancellationRequested) {
 				this._deliverPendingSteering(chat, entry);
@@ -9114,7 +9245,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._canvasHandoffs.set(entry.chatChannelUri, canvasHandoff);
 		}
 		let replacement: CopilotAgentSession | undefined;
-		const modelSelection = this._pendingModelSelections.get(context.chatKey) ?? entry.appliedModelSelection;
+		const modelSelection = this._pendingModelSelections.get(context.chatKey) ?? entry.appliedModelSelection ?? entry.deselectedModel;
 		if (modelSelection) {
 			this._pendingModelSelections.set(context.chatKey, modelSelection);
 		}
@@ -9496,6 +9627,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			await this._applyPendingModelSelection(current, entry, token);
+			await this._reselectUnavailableModelSource(current, entry, token);
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 				let claimed: CopilotAgentSession | undefined;
@@ -11021,7 +11153,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _applyModelSelection(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, model: ModelSelection, token: CancellationToken): Promise<void> {
+	/**
+	 * Selects a model whose source was withdrawn, or is going away, again before a turn runs on it. Throws
+	 * {@link AgentModelSourceUnavailableError} while it can't be: a turn never runs on another model.
+	 */
+	private async _reselectUnavailableModelSource(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, token: CancellationToken): Promise<void> {
+		const selection = entry.deselectedModel ?? entry.appliedModelSelection;
+		if (selection && (entry.deselectedModel || this._modelSourceModels.some(model => model.draining && model.id === selection.id))) {
+			await this._applyModelSelection(context, entry, selection, token);
+		}
+	}
+
+	private async _applyModelSelection(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, selected: ModelSelection, token: CancellationToken): Promise<void> {
+		const model = this._resolveModelSourceAlias(selected);
 		const policy = await this._managedSettingsResolver.resolve((await this._ensureClientForChat(context.chat)).rpc.managedSettings, this._getSessionCredentials(context.chat).githubCredentials.token, entry.workingDirectory?.scheme === Schemas.file ? entry.workingDirectory.fsPath : undefined, token);
 		const credentials = context.credentials ?? this._credentialSources.get(context.chatKey);
 		const catalog = this._getScopedModelCatalog(credentials);
@@ -11367,6 +11511,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const scopedEntry = credentials && this._scopedModelCatalogs.get(credentials);
 		const catalog = () => scopedEntry?.catalog;
 		const availableModels = () => credentials ? catalog()?.models ?? [] : this._models.get();
+		const launchModel = launchPlan.kind === 'create' ? launchPlan.model : launchPlan.fallback.model;
+		const aliasedModel = this._resolveModelSourceAlias(launchModel);
+		if (aliasedModel !== launchModel) {
+			launchPlan = launchPlan.kind === 'create'
+				? { ...launchPlan, model: aliasedModel }
+				: { ...launchPlan, fallback: { ...launchPlan.fallback, model: aliasedModel } };
+		}
 		if (credentials) {
 			const model = launchPlan.kind === 'create' ? launchPlan.model : launchPlan.fallback.model;
 			const context = {
@@ -11383,6 +11534,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			modelPolicyModels: () => credentials ? availableModels() : this._capiModels.map(model => this._asPresented(model)),
 			autoTierSupport: () => credentials ? getScopedAutoModeTierSupport(this._getScopedModelCatalog(credentials)) : getAdvertisedAutoModeTierSupport(),
 			managedSettingsResolver: this._managedSettingsResolver,
+			modelSources: (selectedModel, hasActiveTurn) => this._getModelSourceSessionConfig(selectedModel, hasActiveTurn),
 		};
 		const { owner, chatChannelUri } = identity;
 		const chatKey = chatChannelUri.toString();
@@ -11549,6 +11701,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			void activeClient.pluginController.refreshDiscovery();
 		}, () => {
 			void activeClient.pluginController.publishIfRuntimePluginsChanged();
+		}, ({ model, turnStartedAt }) => {
+			const source = this._modelSourceModels.find(candidate => candidate.id === model);
+			if (source) {
+				this._onDidRejectModelSourceCredential.fire({ id: source.modelSourceId, turnStartedAt });
+			}
 		});
 	}
 

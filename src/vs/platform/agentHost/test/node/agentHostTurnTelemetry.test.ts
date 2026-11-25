@@ -23,7 +23,7 @@ import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentPolicyError, AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentModelSourceUnavailableError, AgentPolicyError, AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
@@ -35,7 +35,8 @@ import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/
 import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete } from '../common/chatActionBuilders.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, createErrorResponsePart, type Message, MessageKind, type ModelSelection, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, createErrorResponsePart, getErrorResponsePart, type Message, MessageKind, type ModelSelection, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { AhpErrorCodes } from '../../common/state/sessionProtocol.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
@@ -2515,6 +2516,16 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-2', 'keep this prompt', 'model-a');
 		await timeout(10);
 		assert.deepStrictEqual(agent.sendMessageCalls.map(call => call.prompt), ['keep this prompt']);
+	});
+
+	test('ends a turn on an unavailable model source with a resumable ModelSourceUnavailable error', async () => {
+		setupSession(false);
+		agent.changeModel = async () => { throw new AgentModelSourceUnavailableError('The model is unavailable.'); };
+		startTurn('turn-1', 'keep this prompt', 'model-a');
+		await timeout(10);
+
+		const part = getErrorResponsePart(stateManager.getSessionState(defaultChatUri)?.turns[0]);
+		assert.deepStrictEqual({ errorCode: part?.error.errorCode, resumable: part?.resumable }, { errorCode: AhpErrorCodes.ModelSourceUnavailable, resumable: true });
 	});
 
 	test('cancelling pending model selection does not report a policy or creation failure', async () => {

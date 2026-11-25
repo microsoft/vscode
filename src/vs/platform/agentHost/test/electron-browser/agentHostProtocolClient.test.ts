@@ -51,7 +51,7 @@ import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/pro
 import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
-import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { AuthenticateTargetKind, isMcpServerAuthenticateTarget, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
@@ -1847,7 +1847,7 @@ suite('AgentHostProtocolClient', () => {
 	test('retains targeted MCP authentication independently for reconnect replay', async () => {
 		const { client, transport } = createClient();
 		const resource = 'https://mcp.slack.com';
-		const target = (customizationId: string) => ({ kind: AuthenticateTargetKind.McpServer, session: 'other-agent://tenant/session', customizationId });
+		const target = (customizationId: string) => ({ kind: AuthenticateTargetKind.McpServer as const, session: 'other-agent://tenant/session', customizationId });
 		const send = async (params: AuthenticateParams) => {
 			const pending = client.authenticate(params);
 			const request = transport.sentMessages[transport.sentMessages.length - 1] as JsonRpcRequest;
@@ -1859,7 +1859,7 @@ suite('AgentHostProtocolClient', () => {
 		await send({ resource, scopes: ['read'], token: 'second-token', target: target('second') });
 		await send({ resource, scopes: ['read'], token: '', target: target('first') });
 
-		assert.deepStrictEqual([...client['_authentication'].values()].map(entry => [entry.params.token, entry.params.target?.customizationId]), [
+		assert.deepStrictEqual([...client['_authentication'].values()].map(entry => [entry.params.token, isMcpServerAuthenticateTarget(entry.params.target) ? entry.params.target.customizationId : undefined]), [
 			['provider-token', undefined],
 			['second-token', 'second'],
 		]);
@@ -1910,7 +1910,7 @@ suite('AgentHostProtocolClient', () => {
 				return `copilot-sealed.v1.${request.key.key_id}.ciphertext`;
 			}));
 			await initialize(client, transport);
-			const target = { kind: AuthenticateTargetKind.McpServer, session: 'opaque-session://tenant/id', customizationId: 'server/one' };
+			const target = { kind: AuthenticateTargetKind.McpServer as const, session: 'opaque-session://tenant/id', customizationId: 'server/one' };
 			const provider = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'provider-token', scopes: ['write', 'read'], expiresIn: 300 }));
 			const mcp = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'mcp-token', scopes: ['read'], target }));
 			assert.deepStrictEqual({
@@ -6681,7 +6681,7 @@ suite('AgentHostProtocolClient', () => {
 				transports[0].fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
 				await acknowledgeRoot(transports[0], 0);
 				await connecting;
-				const target = { kind: AuthenticateTargetKind.McpServer, session: 'opaque-session://tenant/id', customizationId: 'mcp/server' };
+				const target = { kind: AuthenticateTargetKind.McpServer as const, session: 'opaque-session://tenant/id', customizationId: 'mcp/server' };
 				const authenticatingMcp = client.authenticate({ resource, target, token: 'mcp-token' });
 				const mcp = await waitForRequestAtWithin(transports[0], 'authenticate', 1);
 				transports[0].fireMessage({ jsonrpc: '2.0', id: mcp.id, result: {} });

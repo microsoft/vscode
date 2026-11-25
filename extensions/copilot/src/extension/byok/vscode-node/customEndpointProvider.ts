@@ -14,60 +14,12 @@ import { IChatWebSocketManager } from '../../../platform/networking/node/chatWeb
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { customEndpointUsesAzureApiKey, CustomEndpointApiType, inferCustomEndpointApiType, resolveCustomEndpointUrl } from '../../../util/vs/platform/agentHost/common/customEndpointUrl';
 import { resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
-
-export type CustomEndpointApiType = 'chat-completions' | 'responses' | 'messages';
-
-export function resolveCustomEndpointUrl(modelId: string, url: string, apiType?: CustomEndpointApiType): string {
-	// The fully resolved url was already passed in
-	if (hasExplicitApiPath(url)) {
-		return url;
-	}
-
-	// Remove the trailing slash
-	if (url.endsWith('/')) {
-		url = url.slice(0, -1);
-	}
-
-	const defaultApiPath = apiTypeToPath(apiType);
-
-	// Check if URL already contains any version pattern like /v1, /v2, etc
-	const versionPattern = /\/v\d+$/;
-	if (versionPattern.test(url)) {
-		return `${url}${defaultApiPath}`;
-	}
-
-	// For standard OpenAI-compatible endpoints, just append the standard path
-	return `${url}/v1${defaultApiPath}`;
-}
-
-function apiTypeToPath(apiType: CustomEndpointApiType | undefined): string {
-	switch (apiType) {
-		case 'responses': return '/responses';
-		case 'messages': return '/messages';
-		case 'chat-completions':
-		default:
-			return '/chat/completions';
-	}
-}
-
-export function hasExplicitApiPath(url: string): boolean {
-	return url.includes('/responses') || url.includes('/chat/completions') || url.includes('/messages');
-}
-
-function inferApiTypeFromUrl(url: string): CustomEndpointApiType {
-	if (url.includes('/messages')) {
-		return 'messages';
-	}
-	if (url.includes('/responses')) {
-		return 'responses';
-	}
-	return 'chat-completions';
-}
 
 function apiTypeToSupportedEndpoints(apiType: CustomEndpointApiType): ModelSupportedEndpoint[] | undefined {
 	switch (apiType) {
@@ -156,8 +108,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<OpenAIEndpoint> {
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
 		const apiTypeOverride = modelConfiguration?.apiType ?? model.configuration?.apiType;
-		const url = resolveCustomEndpointUrl(model.id, model.url, apiTypeOverride);
-		const apiType: CustomEndpointApiType = apiTypeOverride ?? inferApiTypeFromUrl(url);
+		const url = resolveCustomEndpointUrl(model.url, apiTypeOverride);
+		const apiType: CustomEndpointApiType = apiTypeOverride ?? inferCustomEndpointApiType(url);
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
@@ -295,7 +247,7 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 			headers['anthropic-version'] = '2023-06-01';
 			Object.assign(headers, this.getAnthropicBetaHeader());
 		} else if (!userSuppliedAuth) {
-			if (this._modelUrl.includes('openai.azure')) {
+			if (customEndpointUsesAzureApiKey(this._modelUrl)) {
 				headers['api-key'] = this._apiKey;
 			} else {
 				headers['Authorization'] = `Bearer ${this._apiKey}`;

@@ -97,7 +97,8 @@ export function getModelTelemetryContext(agent: IAgent, modelId: string): { mode
 	} else if (model === undefined) {
 		modelTelemetryKind = 'unknown';
 	} else {
-		modelTelemetryKind = readAgentModelByokIdentifier(model) === undefined ? 'trusted' : 'byok';
+		// A registered model source's models are the user's own, like window BYOK models.
+		modelTelemetryKind = readAgentModelByokIdentifier(model) === undefined && model.modelSourceId === undefined ? 'trusted' : 'byok';
 	}
 	return { model: modelId, modelTelemetryKind };
 }

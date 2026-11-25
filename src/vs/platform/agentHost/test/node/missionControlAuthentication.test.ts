@@ -326,7 +326,7 @@ suite('Mission Control sealed authentication', () => {
 			identityTokens.push(new Headers(init?.headers).get('Authorization')!);
 			return Response.json({ id: 123, type: 'User' });
 		}, false));
-		const target = { kind: AuthenticateTargetKind.McpServer, session: 'ahp-session:/target', customizationId: 'mcp' };
+		const target = { kind: AuthenticateTargetKind.McpServer as const, session: 'ahp-session:/target', customizationId: 'mcp' };
 		await assert.rejects(auth.authenticate({ resource, token: '', target }), /Authenticate the relay identity/);
 		await auth.authenticate({ resource, token: seal(sealing, 'owner-token') });
 		const accepted = await auth.authenticate({ resource, token: seal(sealing, 'mcp-token', undefined, 'mcp-auth-token'), target });

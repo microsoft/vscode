@@ -24,7 +24,7 @@ import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, raceTimeout, Throttler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -82,7 +82,8 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnable
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, type IAgent, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentPrewarmClaim, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentSession, type IAgent, AgentExtensionConsentOption, AgentModelSourceUnavailableError, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentPrewarmClaim, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT } from '../../common/byokModelSource.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -1640,6 +1641,7 @@ class TestableCopilotAgent extends CopilotAgent {
 				fake.dispose();
 			},
 			onDidRequireAuth: Event.None,
+			onDidRejectModelSourceCredential: Event.None,
 			onDidChangeRuntimePlugins: Event.None,
 			onDidReloadRuntimeContributions: Event.None,
 			hasRunningDetachedShells: async () => false,
@@ -4104,6 +4106,60 @@ suite('CopilotAgent', () => {
 			failed, restarted: client.startCallCount - starts, stopped: client.stopCallCount,
 			models: runtimes.map(runtime => runtime.setModelCalls.map(([model]) => model)),
 		}, { failed: true, restarted: 1, stopped: 1, models: [[], ['model-x']] });
+	});
+
+	test('a chat on a bridged BYOK model moves to its registered model source, which alone is registered on the session', async () => {
+		const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/copilot-model-source-`);
+		const sessionId = 'model-source';
+		const session = AgentSession.uri('copilotcli', sessionId);
+		const chat = defaultChatUri(session);
+		const context = exactChatContext(session, chat, session);
+		const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+		const runtimes: MockCopilotSession[] = [];
+		client.createSession = async () => {
+			const runtime = new MockCopilotSession(sessionId);
+			runtimes.push(runtime);
+			return runtime as unknown as CopilotSession;
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()) });
+		afterTest(async () => {
+			await disposeAgent(agent);
+			await fs.rm(workingDirectory, { recursive: true, force: true });
+		});
+		await agent.authenticate('https://api.github.com', 'token');
+		await agent.refreshModels();
+		const endpoint = { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' } as const;
+		agent.setModelSources([
+			{ id: 'vscode.byok/copilotcli/customendpoint/Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, credential: 'key-1', definition: { requiresCredential: true, models: [{ id: 'gpt-x', endpoint, aliases: ['customendpoint/Example/gpt-x'] }] } },
+			{ id: 'vscode.byok/copilotcli/customendpoint/Other', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, credential: 'key-2', definition: { requiresCredential: true, models: [{ id: 'other', endpoint }] } },
+		]);
+		const sourceModel = agent.models.get().find(model => model.modelSourceId === 'vscode.byok/copilotcli/customendpoint/Example')!;
+		await provisionSession(agent, { session, workingDirectories: [URI.file(workingDirectory)] });
+		await agent.chats.prepareTurn!(chat, 'turn-1', [URI.file(workingDirectory)], context);
+
+		await agent.chats.changeModel(chat, { id: 'customendpoint/Example/gpt-x' }, context);
+		const registered = runtimes.map(runtime => runtime.providerSyncCalls.at(-1));
+
+		// The source's last contributor left: its models leave the catalog, and new work on them fails.
+		agent.setModelSources([
+			{ id: 'vscode.byok/copilotcli/customendpoint/Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, credential: 'key-1', draining: true, definition: { requiresCredential: true, models: [{ id: 'gpt-x', endpoint, aliases: ['customendpoint/Example/gpt-x'] }] } },
+		]);
+		const listedWhileDraining = agent.models.get().some(model => model.id === sourceModel.id);
+		const reselect = await agent.chats.changeModel(chat, { id: sourceModel.id }, context).then(() => 'selected', (error: Error) => getErrorCode(error));
+		// No turn runs on it, so the host may remove it at once.
+		await agent.whenModelSourceIdle('vscode.byok/copilotcli/customendpoint/Example', CancellationToken.None);
+
+		assert.deepStrictEqual({
+			setModelCalls: runtimes.map(runtime => runtime.setModelCalls.map(([model]) => model)),
+			registered,
+			listedWhileDraining,
+			reselect,
+		}, {
+			setModelCalls: [[sourceModel.id]],
+			registered: [[sourceModel.id]],
+			listedWhileDraining: false,
+			reselect: 'modelSourceUnavailable',
+		});
 	});
 
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
@@ -8082,7 +8138,7 @@ suite('CopilotAgent', () => {
 				provider: 'copilotcli',
 				displayName: 'Copilot',
 				description: 'Copilot SDK agent running in the local agent host process',
-				capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } },
+				capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true }, modelSourceRegistration: { formats: [{ format: 'code.visualstudio.com/byok-endpoints@1' }] } },
 			},
 			agentHostCapabilities: { workspaceConversion: true },
 		});
@@ -22006,6 +22062,7 @@ suite('CopilotAgent', () => {
 				canvasRuntimeEnabled: false,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
+				onDidRejectModelSourceCredential: Event.None,
 				onDidChangeRuntimePlugins: Event.None,
 				onDidReloadRuntimeContributions: Event.None,
 				topLevelMcpCustomizations: () => [],
@@ -25082,6 +25139,7 @@ suite('CopilotAgent', () => {
 					canvasRuntimeEnabled: false,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
+					onDidRejectModelSourceCredential: Event.None,
 					onDidChangeRuntimePlugins: Event.None,
 					onDidReloadRuntimeContributions: Event.None,
 					topLevelMcpCustomizations: () => [],
@@ -28164,6 +28222,7 @@ suite('CopilotAgent', () => {
 				hasActiveTurn: false,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
+				onDidRejectModelSourceCredential: Event.None,
 				onDidChangeRuntimePlugins: Event.None,
 				onDidReloadRuntimeContributions: Event.None,
 				mcpServerStates: observableValue('test', []),
@@ -30281,6 +30340,7 @@ suite('CopilotAgent', () => {
 					canvasRuntimeEnabled: false,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
+					onDidRejectModelSourceCredential: Event.None,
 					onDidChangeRuntimePlugins: Event.None,
 					onDidReloadRuntimeContributions: Event.None,
 					mcpServerStates: observableValue('test', []),
@@ -32960,6 +33020,40 @@ suite('CopilotAgent', () => {
 			}, {
 				resumeCalls: ['failed-turn'],
 				logs: [`[Copilot:config-refresh-session] Session configuration changed, refreshing session: operation=resumeTurn, sdkSessionId=config-refresh-session, chat=${chat.toString()}, turnId=failed-turn, reason=workingDirectoryChanged, clients=[(none)]`],
+			});
+		});
+
+		test('resumes a turn on a registered model source only once its model is selected again', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const session = AgentSession.uri('copilotcli', 'config-refresh-session');
+			const chat = defaultChatUri(session);
+			const model = 'modelsource~0123456789abcdef/gpt-x';
+			let available = false;
+			const setModelCalls: string[] = [];
+			const stub = Object.assign(refreshSessionStub([]), {
+				deselectedModel: { id: model } as ModelSelection | undefined,
+				appliedModelSelection: undefined,
+				async setModel(id: string) {
+					setModelCalls.push(id);
+					if (!available) {
+						throw new AgentModelSourceUnavailableError('The model is unavailable.');
+					}
+					this.deselectedModel = undefined;
+				},
+			});
+			agent.getOrCreateActiveClient(chat, session, { clientId: 'client' });
+			setDefaultSessionStub(agent, 'config-refresh-session', stub);
+			afterTest(() => disposeAgent(agent));
+			const context = exactChatContext(session, chat, session);
+
+			const unavailable = await agent.chats.resumeTurn!(chat, 'failed-turn', context).then(() => undefined, (error: Error) => getErrorCode(error));
+			available = true;
+			await agent.chats.resumeTurn!(chat, 'failed-turn', context);
+
+			assert.deepStrictEqual({ unavailable, setModelCalls, resumeCalls: stub.resumeCalls }, {
+				unavailable: 'modelSourceUnavailable',
+				setModelCalls: [model, model],
+				resumeCalls: ['failed-turn'],
 			});
 		});
 

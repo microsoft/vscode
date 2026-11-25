@@ -56,7 +56,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
-import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentModelSourceUnavailableError, AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
@@ -77,7 +77,7 @@ import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.j
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { supportsAgentHostManagedWorktrees, supportsForceWorktreeCleanup } from '../../common/meta/agentHostWorktreeCleanupMeta.js';
 import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type Message, type RootState, type SessionState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
-import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type JsonPrimitive } from '../../common/state/protocol/state.js';
+import { ChatInputResponseKind, ModelSourceStatus, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type JsonPrimitive } from '../../common/state/protocol/state.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -262,6 +262,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	prepareSessionWorktreeCleanup?: IAgentService['prepareSessionWorktreeCleanup'];
 	listManagedWorktrees?: IAgentService['listManagedWorktrees'];
 	cleanupManagedWorktree?: IAgentService['cleanupManagedWorktree'];
+	dispatchModelSourceAction?: IAgentService['dispatchModelSourceAction'];
 	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }(), new class extends mock<AgentHostStateManager>() { }()));
 
 	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
@@ -1456,6 +1457,17 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 	}
+
+	test('reports a request that selects an unavailable model source\'s model with ModelSourceUnavailable', async () => {
+		const failed = sinon.stub(agentService, 'createSession').rejects(new AgentModelSourceUnavailableError('The model is unavailable.'));
+		disposables.add(toDisposable(() => failed.restore()));
+		const transport = connectClient('model-source-client');
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'createSession', { channel: sessionUri, provider: 'copilotcli' }));
+		const result = await response;
+		assert.ok(hasKey(result, { error: true }));
+		assert.deepStrictEqual(JSON.parse(JSON.stringify(result.error)), { code: AhpErrorCodes.ModelSourceUnavailable, message: 'The model is unavailable.' });
+	});
 
 	test('handshake with initialSubscriptions returns snapshots', () => {
 		stateManager.createSession(makeSessionSummary());
@@ -8402,6 +8414,33 @@ suite('ProtocolServerHandler', () => {
 			dispatched: agentService.handledActions,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: action' } },
+			dispatched: [],
+		});
+	});
+
+	test('routes model source actions to the agent service, and rejects them on hosts without a registry', async () => {
+		const transport = connectClient('client-1', [ROOT_STATE_URI]);
+		const lastRejection = () => (findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined)?.rejectionReason;
+		const action = { type: ActionType.RootModelSourceRemoved, modelSourceId: 'source' } as const;
+		transport.simulateMessage(request(2, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action }));
+		await handler.whenIdle();
+		const rejection = lastRejection();
+		// Only the host publishes a source.
+		transport.simulateMessage(request(3, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 2, action: { type: ActionType.RootModelSourceSet, modelSource: { id: 'source', provider: 'copilot', displayName: 'Example', state: { kind: ModelSourceStatus.Ready } } } }));
+		await handler.whenIdle();
+		const publishRejection = lastRejection();
+
+		const routed: { type: string; clientId: string }[] = [];
+		agentService.dispatchModelSourceAction = (modelSourceAction, clientId) => {
+			routed.push({ type: modelSourceAction.type, clientId });
+		};
+		transport.simulateMessage(notification('dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 3, action }));
+		await handler.whenIdle();
+
+		assert.deepStrictEqual({ rejection, publishRejection, routed, dispatched: agentService.handledActions }, {
+			rejection: `Unsupported action: ${ActionType.RootModelSourceRemoved}`,
+			publishRejection: `Server-only action: ${ActionType.RootModelSourceSet}`,
+			routed: [{ type: ActionType.RootModelSourceRemoved, clientId: 'client-1' }],
 			dispatched: [],
 		});
 	});

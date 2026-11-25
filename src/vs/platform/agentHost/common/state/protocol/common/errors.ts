@@ -94,6 +94,14 @@ export const AhpErrorCodes = {
 	Conflict: -32011,
 	/** The host could not open the requested TCP connection. */
 	TcpConnectionOpenFailed: -32012,
+	/**
+	 * A request or turn needs a registered model source that can't serve it,
+	 * for example because the source needs a credential or was removed. A turn
+	 * carries it in its error part's `ErrorInfo.errorCode`.
+	 *
+	 * @see {@link /guide/model-sources#unavailable-sources | Model Sources guide}
+	 */
+	ModelSourceUnavailable: -32013,
 } as const;
 
 /** Union type of all AHP application error codes. */

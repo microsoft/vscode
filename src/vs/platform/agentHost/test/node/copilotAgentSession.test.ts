@@ -1563,6 +1563,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	resolveByokSessionConfig?: () => ICopilotByokSessionConfig;
 	/** The on-device model provider installed on the client, if the user opted in. */
 	localModelProvider?: ILocalModelProvider;
+	/** The provider and model of the registered model source serving the selected model. */
+	modelSources?: CopilotSessionLaunchPlan['modelSources'];
 	sandboxPolicy?: ReturnType<IAgentConfigurationService['getSessionSandboxPolicy']>;
 	/** The sessions and storages whose attachments the chat reads, besides its own session (a moved chat's origin). */
 	attachmentScopes?: readonly string[];
@@ -1676,6 +1678,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		disabledRootMcpServers: options?.disabledRootMcpServers,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
 		localModelProvider: options?.localModelProvider,
+		modelSources: options?.modelSources,
 		modelPolicyModels: options?.modelPolicyModels,
 	};
 	const model = options?.modelId ? { id: options.modelId } : undefined;
@@ -4165,6 +4168,137 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({ providerSyncCalls: mockSession.providerSyncCalls, setModelCalls: mockSession.setModelCalls.map(([model]) => model) }, {
 			providerSyncCalls: [],
 			setModelCalls: ['copilot/auto'],
+		});
+	});
+
+	suite('registered model sources', () => {
+
+		const sourceA = { name: 'modelsource~aaaa', type: 'openai' as const, wireApi: 'completions' as const, baseUrl: 'https://a.example.test/v1', apiKey: 'key-a' };
+		const sourceB = { name: 'modelsource~bbbb', type: 'anthropic' as const, baseUrl: 'https://b.example.test', apiKey: 'key-b' };
+		const modelA = { id: 'm1', provider: sourceA.name, modelId: 'm1' };
+		const modelB = { id: 'm2', provider: sourceB.name, modelId: 'm2' };
+
+		function createSources() {
+			const available = new Set([sourceA.name, sourceB.name]);
+			const modelSources = (selected: string | undefined) => {
+				const [provider, model] = [sourceA, sourceB].map((candidate, index) => [candidate, [modelA, modelB][index]] as const).find(([candidate, row]) => `${candidate.name}/${row.id}` === selected && available.has(candidate.name)) ?? [];
+				return { providers: provider ? [provider] : [], models: model ? [model] : [] };
+			};
+			return { available, modelSources };
+		}
+
+		test('registers only the selected model\'s source, and never runs on another model after it is withdrawn', async () => {
+			const { available, modelSources } = createSources();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				modelId: `${sourceA.name}/m1`,
+				launchByokConfig: { providers: [sourceA], models: [modelA] },
+				modelSources,
+			});
+
+			// Switching withdraws the previous source: a session never holds another source's key.
+			await session.setModel(`${sourceB.name}/m2`);
+			available.delete(sourceB.name);
+			await session.syncByokModels();
+			mockSession.fire('session.model_deselected', { previousModel: `${sourceB.name}/m2`, reason: 'providerWithdrawn' } as unknown as SessionEventPayload<'session.model_deselected'>['data']);
+			const deselected = session.deselectedModel?.id;
+			const unavailable = await session.setModel(`${sourceB.name}/m2`).then(() => undefined, (error: Error) => error.message);
+			available.add(sourceB.name);
+			await session.setModel(`${sourceB.name}/m2`);
+
+			assert.deepStrictEqual({
+				providerSyncCalls: mockSession.providerSyncCalls.map(call => call.providers?.map(provider => provider.name)),
+				setModelCalls: mockSession.setModelCalls.map(([model]) => model),
+				deselected,
+				unavailable: unavailable !== undefined,
+				reselected: session.deselectedModel,
+			}, {
+				providerSyncCalls: [[sourceB.name], [], [sourceB.name]],
+				setModelCalls: [`${sourceB.name}/m2`, `${sourceB.name}/m2`],
+				deselected: `${sourceB.name}/m2`,
+				unavailable: true,
+				reselected: undefined,
+			});
+		});
+
+		test('a sync while switching models keeps the provider of the model being switched to', async () => {
+			const { modelSources } = createSources();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				modelId: `${sourceA.name}/m1`,
+				launchByokConfig: { providers: [sourceA], models: [modelA] },
+				modelSources,
+			});
+			const gate = new DeferredPromise<void>();
+			mockSession.modelGate = gate.p;
+
+			const switched = session.setModel(`${sourceB.name}/m2`);
+			await timeout(0);
+			// A registry change syncs live sessions while the runtime is still switching.
+			const concurrentSync = session.syncByokModels();
+			gate.complete();
+			await switched;
+			await concurrentSync;
+
+			assert.deepStrictEqual(mockSession.providerSyncCalls.map(call => call.providers?.map(provider => provider.name)), [[sourceB.name]]);
+		});
+
+		test('a Responses model omits reasoning summaries, and leaving it restores the default', async () => {
+			const sourceR = { name: 'modelsource~rrrr', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'https://r.example.test/v1', apiKey: 'key-r' };
+			const modelR = { id: 'm3', provider: sourceR.name, modelId: 'm3' };
+			const { session, mockSession } = await createAgentSession(disposables, {
+				modelId: `${sourceA.name}/m1`,
+				launchByokConfig: { providers: [sourceA], models: [modelA] },
+				modelSources: selected => selected === `${sourceR.name}/m3` ? { providers: [sourceR], models: [modelR] } : selected === `${sourceA.name}/m1` ? { providers: [sourceA], models: [modelA] } : { providers: [], models: [] },
+			});
+
+			await session.setModel(`${sourceR.name}/m3`);
+			await session.setModel(`${sourceA.name}/m1`);
+			await session.setModel('gpt-5.4');
+
+			assert.deepStrictEqual(mockSession.setModelCalls.map(([model, options]) => [model, options?.reasoningSummary]), [
+				[`${sourceR.name}/m3`, 'none'],
+				[`${sourceA.name}/m1`, 'detailed'],
+				['gpt-5.4', undefined],
+			]);
+		});
+
+		test('a source that is going away keeps serving the running turn, and is withdrawn once it ends', async () => {
+			let draining = false;
+			const { session, mockSession } = await createAgentSession(disposables, {
+				modelId: `${sourceA.name}/m1`,
+				launchByokConfig: { providers: [sourceA], models: [modelA] },
+				modelSources: (selected, hasActiveTurn) => selected === `${sourceA.name}/m1` && (!draining || hasActiveTurn) ? { providers: [sourceA], models: [modelA] } : { providers: [], models: [] },
+			});
+
+			session.resetTurnState('turn-1');
+			draining = true;
+			await session.syncByokModels();
+			const whileRunning = mockSession.providerSyncCalls.length;
+			session.discardActiveTurn();
+			await session.syncByokModels();
+
+			assert.deepStrictEqual({ whileRunning, afterTurn: mockSession.providerSyncCalls.map(call => call.providers?.map(provider => provider.name)) }, {
+				whileRunning: 0,
+				afterTurn: [[]],
+			});
+		});
+
+		test('reports a rejected key to its model source instead of asking for GitHub sign-in', async () => {
+			const { modelSources } = createSources();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				modelId: `${sourceA.name}/m1`,
+				launchByokConfig: { providers: [sourceA], models: [modelA] },
+				modelSources,
+			});
+			const rejected: string[] = [];
+			let gitHubSignIns = 0;
+			disposables.add(session.onDidRejectModelSourceCredential(({ model }) => rejected.push(model)));
+			disposables.add(session.onDidRequireAuth(() => gitHubSignIns++));
+
+			mockSession.fire('session.error', { errorType: 'authentication', statusCode: 401, message: 'Unauthorized' } as SessionEventPayload<'session.error'>['data']);
+			// A Copilot API response carries Copilot's request IDs.
+			mockSession.fire('session.error', { errorType: 'authentication', statusCode: 401, message: 'Unauthorized', serviceRequestId: 'copilot-request' } as SessionEventPayload<'session.error'>['data']);
+
+			assert.deepStrictEqual({ rejected, gitHubSignIns }, { rejected: [`${sourceA.name}/m1`], gitHubSignIns: 1 });
 		});
 	});
 

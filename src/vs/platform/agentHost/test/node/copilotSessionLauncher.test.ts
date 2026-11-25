@@ -1859,6 +1859,27 @@ suite('composeByokSessionConfig', () => {
 		});
 	});
 
+	test('replaces registered model sources on every sync, so a removed source or a revoked key is withdrawn', () => {
+		const withKey = { providers: [{ name: 'modelsource~0123456789abcdef', type: 'openai' as const, wireApi: 'completions' as const, baseUrl: 'https://models.example.test/v1', apiKey: 'key-1' }], models: [{ id: 'gpt-x', provider: 'modelsource~0123456789abcdef' }] };
+		const rotated = { providers: [{ ...withKey.providers[0], apiKey: 'key-2' }], models: withKey.models };
+		const none = { providers: [], models: [] };
+		const launched = withLocalModelSessionConfig({ providers: [acme], models: [claude] }, undefined, withKey);
+		assert.deepStrictEqual({
+			launched,
+			unchanged: composeByokSessionConfig(launched, { providers: [acme], models: [claude] }, undefined, withKey),
+			rotated: composeByokSessionConfig(launched, {}, undefined, rotated),
+			removed: composeByokSessionConfig(launched, {}, undefined, none),
+			// Only the agent registers model source providers; a renderer vendor of that shape is dropped.
+			spoofed: composeByokSessionConfig(launched, { providers: [{ ...acme, name: 'modelsource~fedcba9876543210' }], models: [{ id: 'other', provider: 'modelsource~fedcba9876543210' }] }, undefined, withKey),
+		}, {
+			launched: { providers: [acme, ...withKey.providers], models: [claude, ...withKey.models] },
+			unchanged: undefined,
+			rotated: { providers: [acme, ...rotated.providers], models: [claude, ...rotated.models] },
+			removed: { providers: [acme], models: [claude] },
+			spoofed: undefined,
+		});
+	});
+
 	test('resolves the direct family from the provider-qualified selection id', () => {
 		const provider = store.add(new FakeLocalModelProvider([MAI_ROW]));
 		assert.deepStrictEqual([
@@ -2011,6 +2032,34 @@ suite('CopilotSessionLauncher runtime-default tool search', () => {
 				...['disabled', 'filtered', 'app-tool', 'unsupported-family'].map(name => ({
 					name, model: undefined, toolSearch: { enabled: false }, client: false, server: false, configured: false,
 				})),
+			]);
+		});
+
+		test(`defers a registered model source's tools only past the OpenAI-compatible limit, and omits Responses reasoning summaries, on ${kind}`, async () => {
+			const search = { name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, inputSchema: { type: 'object' as const, properties: {} } };
+			const provider = { name: 'modelsource~0123456789abcdef', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'https://api.openai.com/v1', apiKey: 'key-1' };
+			const sourceModel = `${provider.name}/gpt-5`;
+			const results = [];
+			for (const model of [sourceModel, 'gpt-5']) {
+				let captured: ResumeSessionOptions | undefined;
+				const client = returningSession(upcastPartial<CopilotSession>({
+					sessionId: 'model-source', on: () => () => { }, disconnect: async () => { },
+					rpc: upcastPartial<CopilotSession['rpc']>({ agent: upcastPartial<CopilotSession['rpc']['agent']>(emptyAgentCatalog), options: { update: async () => ({ success: true }) } }),
+				}), config => { captured = config; });
+				const base = {
+					client, sessionId: 'model-source', workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+					snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [search], plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+					modelSources: (selected: string | undefined) => selected === sourceModel ? { providers: [provider], models: [{ id: 'gpt-5', provider: provider.name, modelId: 'gpt-5' }] } : { providers: [], models: [] },
+				};
+				const plan: CopilotSessionLaunchPlan = kind === 'create' ? { ...base, kind, model: { id: model } } : { ...base, kind, fallback: { model: { id: model } } };
+				store.add(await createTestLauncher().launch(plan, testRuntime));
+				results.push({ model, toolSearch: captured?.tools?.search, reasoningSummary: captured?.inference?.reasoningSummary });
+			}
+			assert.deepStrictEqual(results, [
+				{ model: sourceModel, toolSearch: { enabled: true, deferThreshold: 128 }, reasoningSummary: 'none' },
+				{ model: 'gpt-5', toolSearch: { enabled: false }, reasoningSummary: undefined },
 			]);
 		});
 	}

@@ -70,7 +70,7 @@ import { AgentChatMoveRefusedError, type AgentChatMoveDestination } from '../com
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { MessageAttachmentKind, type AutomationEntry, type ChatState, type RootConfigState } from '../common/state/protocol/state.js';
-import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isClientModelSourceAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
 import { compareProtocolVersions, isActionKnownToVersion, PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { AgentHostTcpBudget } from '../common/agentHostTcpConnection.js';
 import { agentHostStateReceiveLimits, negotiateChannelFlowControl } from '../common/agentHostChannel.js';
@@ -92,6 +92,7 @@ import {
 	JsonRpcRequest,
 	isJsonRpcNotification,
 	isJsonRpcRequest,
+	isModelSourceAuthenticateTarget,
 	JSON_RPC_INTERNAL_ERROR,
 	JsonRpcErrorCodes,
 	ProtocolError,
@@ -233,6 +234,9 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 	}
 	if (err instanceof Error && getErrorCode(err) === 'policyResolutionFailed') {
 		return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, err.message, toPolicyResolutionErrorData());
+	}
+	if (err instanceof Error && getErrorCode(err) === 'modelSourceUnavailable') {
+		return jsonRpcError(id, AhpErrorCodes.ModelSourceUnavailable, err.message);
 	}
 	const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
 	return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, message);
@@ -1912,9 +1916,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _handleClientDisconnected(clientId: string): void {
 		const record = this._clients.get(clientId);
 		if (record?.state === 'grace') {
-			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
-				record.disconnectTimeouts.deleteAndDispose('managed-settings');
+			// A client that reconnects within the grace period keeps the managed settings and model sources it contributes.
+			record.disconnectTimeouts.set('contributions', disposableTimeout(() => {
+				record.disconnectTimeouts.deleteAndDispose('contributions');
 				this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
+				this._agentService.removeClientModelSources?.(clientId);
 			}, Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - (Date.now() - record.lastSeenAt))));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
@@ -2532,7 +2538,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					...(this._config.scopedRelayCredentials ? { credentials: this._getScopedAuthentication(_client) } : {}),
 				});
 			} catch (err) {
-				if (err instanceof ProtocolError || getErrorCode(err) === 'policyResolutionFailed') {
+				if (err instanceof ProtocolError || getErrorCode(err) === 'policyResolutionFailed' || getErrorCode(err) === 'modelSourceUnavailable') {
 					throw err;
 				}
 				throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, err instanceof Error ? err.message : String(err));
@@ -2798,6 +2804,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return {};
 		},
 		authenticate: async (_client, params) => {
+			// Model sources are shared across the host, so a relay client's key or source would reach other principals.
+			if (isModelSourceAuthenticateTarget(params.target) && (_client.transport.relayClientId !== undefined || this._config.scopedRelayCredentials)) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Model source credentials are not accepted from relay clients');
+			}
 			if (this._config.scopedRelayCredentials) {
 				if (_client.transport.relayPassive && params.resource !== _client.transport.relayAuthentication?.resource) {
 					throw new ProtocolError(AhpErrorCodes.PermissionDenied, readOnlyConnectionMessage);
@@ -3136,8 +3146,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			rejection = readOnlyConnectionMessage;
 		} else if (IS_CLIENT_DISPATCHABLE[action.type] !== true) {
 			rejection = `Server-only action: ${action.type}`;
-		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
+		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type) || (isClientModelSourceAction(action) && !this._agentService.dispatchModelSourceAction)) {
 			rejection = `Unsupported action: ${action.type}`;
+		} else if (isClientModelSourceAction(action) && (client.transport.relayClientId !== undefined || this._config.scopedRelayCredentials)) {
+			// Model sources are shared across the host, so a relay client's source would reach other principals.
+			rejection = 'Model sources are unavailable to relay clients';
 		}
 		if (!rejection && client.transport.relayClientId !== undefined && this._config.relayResourceRoots && action.type === ActionType.SessionWorkingDirectorySet) {
 			try {
@@ -3204,6 +3217,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			return this._agentService.dispatchAction(params.channel, action, client.clientId, params.clientSeq, client.telemetryContext,
 				this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
+		} else if (isClientModelSourceAction(action)) {
+			if (!isAhpRootChannel(params.channel)) {
+				this._stateManager.rejectClientAction(params.channel, action, origin, 'Model source actions require the root channel.');
+				return;
+			}
+			this._agentService.dispatchModelSourceAction?.(action, client.clientId, params.clientSeq, client.telemetryContext);
 		}
 	}
 

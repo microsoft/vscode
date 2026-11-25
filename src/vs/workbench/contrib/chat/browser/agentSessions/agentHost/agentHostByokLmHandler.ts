@@ -34,6 +34,7 @@ import {
 	ILanguageModelsService,
 } from '../../../common/languageModels.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
+import { IAgentHostModelSourceStatusService } from './agentHostModelSourceRegistrar.js';
 
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
 const USAGE_MIME_TYPE = 'usage';
@@ -70,6 +71,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		@ILogService private readonly _logService: ILogService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAgentHostModelSourceStatusService private readonly _modelSourceStatusService: IAgentHostModelSourceStatusService,
 	) {
 		super();
 		// Re-emit (debounced) whenever the renderer's language models change, so the
@@ -82,6 +84,9 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			this._onDidChangeModels.fire();
 		}));
 		this._register(Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS))(() => {
+			this._onDidChangeModels.fire();
+		}));
+		this._register(this._modelSourceStatusService.onDidChange(() => {
 			this._onDidChangeModels.fire();
 		}));
 	}
@@ -180,12 +185,14 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			return [];
 		}
 
+		// The local agent host serves these itself, from this window's model sources.
+		const servedModels = this._modelSourceStatusService.locallyServedModels;
 		const models: IByokLmModelInfo[] = [];
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
 			// Only genuine renderer BYOK models — exclude agent-host copies, which
 			// carry a `targetChatSessionType` and would otherwise re-enter the bridge.
-			if (metadata?.isBYOK && !metadata.targetChatSessionType) {
+			if (metadata?.isBYOK && !metadata.targetChatSessionType && !servedModels.has(identifier)) {
 				const reasoningEffortSchema = metadata.configurationSchema?.properties?.reasoningEffort;
 				const supportedReasoningEfforts = reasoningEffortSchema?.enum?.filter((value): value is string => typeof value === 'string');
 				const defaultReasoningEffort = typeof reasoningEffortSchema?.default === 'string' ? reasoningEffortSchema.default : undefined;

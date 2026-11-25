@@ -60,6 +60,7 @@ import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilo
 import { createCopilotSkillProvider } from './copilotBuiltinSkills.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
+import { isModelSourceModelId, isModelSourceProviderName, omitsReasoningSummary } from './copilotModelSources.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { CopilotToolName, EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
@@ -70,7 +71,7 @@ import { applyPromptOverridesFromString, resolveConfiguredPromptOverride } from 
 import { isProgressUpdatesPromptModel } from './prompts/progressUpdatesInstructions.js';
 import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
 import { getCopilotExtensionDataDirectory, type SandboxConfig } from './sandboxConfigForSdk.js';
-import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, TOOL_SEARCH_DEFER_THRESHOLD, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, OPENAI_COMPATIBLE_MAX_TOOLS, TOOL_SEARCH_DEFER_THRESHOLD, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
 import { isModelRouterModelId } from '../../common/modelRouter.js';
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
@@ -503,6 +504,11 @@ interface ICopilotSessionLaunchBase {
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
 	readonly localModelProvider?: ILocalModelProvider;
+	/**
+	 * The provider and model of the registered model source serving `selectedModel`, if any, replaced as a whole on
+	 * every sync. A source that is going away serves only a session running a turn on it.
+	 */
+	readonly modelSources?: (selectedModel: string | undefined, hasActiveTurn: boolean) => ILocalModelSessionConfigContribution;
 	readonly availableModels?: () => readonly IAgentModelInfo[];
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	/** The Auto tiers this chat's catalog accepts: a scoped caller's own catalog, else the host-wide one. */
@@ -1039,39 +1045,60 @@ export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, curre
 
 // #region On-device model rows
 
-/** Drops every entry of the on-device sentinel provider; only the provider's own contribution may register it. */
-function withoutLocalModelEntries(config: ICopilotByokSessionConfig): Required<ICopilotByokSessionConfig> {
+/**
+ * Drops every host-owned entry: the on-device sentinel provider's and registered model sources'.
+ * Only their own contributions may register them, so they are replaced as a whole rather than merged.
+ */
+function withoutHostOwnedEntries(config: ICopilotByokSessionConfig): Required<ICopilotByokSessionConfig> {
+	const isHostOwned = (provider: string) => provider === LOCAL_MODEL_SENTINEL_PROVIDER_NAME || isModelSourceProviderName(provider);
 	return {
-		providers: (config.providers ?? []).filter(provider => provider.name !== LOCAL_MODEL_SENTINEL_PROVIDER_NAME),
-		models: (config.models ?? []).filter(model => model.provider !== LOCAL_MODEL_SENTINEL_PROVIDER_NAME),
+		providers: (config.providers ?? []).filter(provider => !isHostOwned(provider.name)),
+		models: (config.models ?? []).filter(model => !isHostOwned(model.provider)),
 	};
 }
 
-/** The BYOK config a session launches with: the external BYOK config plus the on-device provider's contribution (even when external BYOK is off). */
-export function withLocalModelSessionConfig(byok: ICopilotByokSessionConfig, local: ILocalModelSessionConfigContribution | undefined): ICopilotByokSessionConfig {
-	if (!local || (local.providers.length === 0 && local.models.length === 0)) {
+/**
+ * The BYOK config a session launches with: the external BYOK config plus the on-device provider's contribution and
+ * the registered model sources' (even when external BYOK is off).
+ */
+export function withLocalModelSessionConfig(byok: ICopilotByokSessionConfig, local: ILocalModelSessionConfigContribution | undefined, modelSources?: ILocalModelSessionConfigContribution): ICopilotByokSessionConfig {
+	const hostOwned = [local, modelSources].filter((contribution): contribution is ILocalModelSessionConfigContribution => !!contribution && (contribution.providers.length > 0 || contribution.models.length > 0));
+	if (hostOwned.length === 0) {
 		return byok;
 	}
-	const external = withoutLocalModelEntries(byok);
-	return { providers: [...external.providers, ...local.providers], models: [...external.models, ...local.models] };
+	const external = withoutHostOwnedEntries(byok);
+	return {
+		providers: [...external.providers, ...hostOwned.flatMap(contribution => contribution.providers)],
+		models: [...external.models, ...hostOwned.flatMap(contribution => contribution.models)],
+	};
 }
 
 /**
  * The BYOK snapshot to sync onto a live session: external BYOK stays additive ({@link mergeByokSessionConfig}), while
- * on-device rows are replaced, so an uninstalled model's row is withdrawn. `undefined` when nothing changes.
+ * on-device rows and registered model sources are replaced, so an uninstalled model's row, a removed source, or a
+ * revoked credential is withdrawn. `undefined` when nothing changes.
  */
-export function composeByokSessionConfig(applied: ICopilotByokSessionConfig, external: ICopilotByokSessionConfig, local: ILocalModelSessionConfigContribution | undefined): ICopilotByokSessionConfig | undefined {
-	if (!local) {
+export function composeByokSessionConfig(applied: ICopilotByokSessionConfig, external: ICopilotByokSessionConfig, local: ILocalModelSessionConfigContribution | undefined, modelSources?: ILocalModelSessionConfigContribution): ICopilotByokSessionConfig | undefined {
+	if (!local && !modelSources) {
 		return mergeByokSessionConfig(applied, external);
 	}
-	const appliedExternal = withoutLocalModelEntries(applied);
-	const mergedExternal = mergeByokSessionConfig(appliedExternal, withoutLocalModelEntries(external)) ?? appliedExternal;
+	const appliedExternal = withoutHostOwnedEntries(applied);
+	const mergedExternal = mergeByokSessionConfig(appliedExternal, withoutHostOwnedEntries(external)) ?? appliedExternal;
 	const composed: ICopilotByokSessionConfig = {
-		providers: [...(mergedExternal.providers ?? []), ...local.providers],
-		models: [...(mergedExternal.models ?? []), ...local.models],
+		providers: [...(mergedExternal.providers ?? []), ...(local?.providers ?? []), ...(modelSources?.providers ?? [])],
+		models: [...(mergedExternal.models ?? []), ...(local?.models ?? []), ...(modelSources?.models ?? [])],
 	};
 	const registered: ICopilotByokSessionConfig = { providers: applied.providers ?? [], models: applied.models ?? [] };
 	return objectsEqual(composed, registered) ? undefined : composed;
+}
+
+/**
+ * Whether a session can open with `model` selected. A registered model source's model whose provider couldn't be
+ * registered, e.g. while its credential is missing, opens unselected instead of resolving as another model; the
+ * session then refuses turns until the model can be selected again.
+ */
+function isSelectableAtLaunch(model: string | undefined, config: ICopilotSessionConfig): boolean {
+	return !model || !isModelSourceModelId(model) || !!config.inference?.models?.some(candidate => `${candidate.provider}/${candidate.id}` === model);
 }
 
 /**
@@ -1399,7 +1426,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...openConfig,
 			...this._eagerDiagnostics(),
 			sessionId: plan.sessionId,
-			model: plan.model?.id,
+			model: isSelectableAtLaunch(plan.model?.id, config) ? plan.model?.id : undefined,
 			inference: {
 				...openConfig.inference,
 				reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
@@ -1672,7 +1699,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (localModelConfig?.models.length) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${localModelConfig.models.length} on-device model row(s)`);
 		}
-		const byok = withLocalModelSessionConfig(externalByok, localModelConfig);
+		const modelSourceConfig = plan.modelSources?.(plan.kind === 'create' ? plan.model?.id : plan.fallback.model?.id, false);
+		if (modelSourceConfig?.models.length) {
+			this._logService.info(`[Copilot:${plan.sessionId}] Wired the selected model of a registered model source`);
+		}
+		const byok = withLocalModelSessionConfig(externalByok, localModelConfig, modelSourceConfig);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories([
 			...plugins.flatMap(p => p.instructions),
@@ -1744,9 +1775,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
 		// An omitted model delegates selection to the runtime, rather than opting out of the client's tool-search choice.
-		const toolSearchEnabled = effectiveModel === undefined || agentHostModelSupportsToolSearch(effectiveModel.id);
+		// A registered model source's model gets tool search too, but only once its tools exceed what OpenAI-compatible
+		// APIs accept: the runtime sends a model source's model every tool, and has no tool limit of its own for it.
+		const modelSourceLaunch = model !== undefined && isModelSourceModelId(model.id);
+		const toolSearchEnabled = effectiveModel === undefined || modelSourceLaunch || agentHostModelSupportsToolSearch(effectiveModel.id);
+		const deferThreshold = modelSourceLaunch ? OPENAI_COMPATIBLE_MAX_TOOLS : TOOL_SEARCH_DEFER_THRESHOLD;
 		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<NonNullable<CreateSessionOptions['tools']>['search']> =>
-			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: TOOL_SEARCH_DEFER_THRESHOLD } : { enabled: false };
+			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold } : { enabled: false };
 		const toolSearchActive = resolveToolSearch(filterClientToolNames(trustedClientToolNames(plan.snapshot.tools), availableTools, excludedTools)).enabled === true;
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);
 		const extensionTools = [...createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService), ...runtime.createModelRouterTools?.() ?? []];
@@ -1858,6 +1893,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				...byok,
 				// A resumed session keeps its journaled effort unless an override is configured.
 				...(plan.kind === 'resume' ? { reasoningEffort: toRuntimeReasoningEffort(model, resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId)) } : {}),
+				...(omitsReasoningSummary(model?.id, byok) ? { reasoningSummary: 'none' as const } : {}),
 				capabilities: modelCapabilities,
 			},
 			events: {

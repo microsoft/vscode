@@ -144,6 +144,8 @@ import {
 	type SessionWorkingDirectoryRemovedAction,
 	type SessionWorkingDirectoryReplacedAction,
 	type RootConfigChangedAction,
+	type RootModelSourceRegisterRequestedAction,
+	type RootModelSourceRemovedAction,
 } from './protocol/actions.js';
 
 import type { SessionSummary } from './protocol/state.js';
@@ -194,6 +196,14 @@ export type ClientAutomationRunAction = IClientAutomationRunAction_;
 export type IAgentsChangedAction = RootAgentsChangedAction;
 export type IActiveSessionsChangedAction = RootActiveSessionsChangedAction;
 export type IRootConfigChangedAction = RootConfigChangedAction;
+
+/** A change to the host's model source registry that a client dispatches on the root channel. */
+export type ClientModelSourceAction = RootModelSourceRegisterRequestedAction | RootModelSourceRemovedAction;
+
+/** Whether `action` is a {@link ClientModelSourceAction}. */
+export function isClientModelSourceAction(action: { readonly type: string }): action is ClientModelSourceAction {
+	return action.type === ActionType.RootModelSourceRegisterRequested || action.type === ActionType.RootModelSourceRemoved;
+}
 
 // Chat/turn actions — short aliases (turns now live on the chat channel)
 export type ITurnStartedAction = ChatTurnStartedAction;
