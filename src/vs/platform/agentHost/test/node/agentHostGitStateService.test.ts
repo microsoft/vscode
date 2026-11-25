@@ -3186,9 +3186,9 @@ suite('AgentHostGitStateService', () => {
 		await h.service.refreshSessionGitState(SESSION, undefined);
 		await timeout(5_000);
 		// As after a Git operation or an edit
-		await h.service.refreshSessionGitState(SESSION, undefined, undefined, { force: true });
+		await h.service.refreshSessionGitState(SESSION, undefined, { force: true });
 		await timeout(5_000);
-		await h.service.refreshSessionGitState(SESSION, undefined, undefined, { force: true });
+		await h.service.refreshSessionGitState(SESSION, undefined, { force: true });
 		await timeout(5_000);
 
 		assert.deepStrictEqual({
