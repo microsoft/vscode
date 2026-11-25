@@ -411,11 +411,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const connection = disposables.add(new MockAgentConnection());
 
 		const bundleUri = `${SYNCED_CUSTOMIZATION_SCHEME}:///test-authority`;
-		const bundleRef: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data', load: { kind: CustomizationLoadStatus.Loaded } };
-		const synced: Customization = {
-			...bundleRef,
-			clientId: 'test-client',
-		};
+		const bundleRef = { type: CustomizationType.Plugin as const, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data' };
 
 		connection.setRootState({ agents: [createAgentInfo([])] });
 
@@ -470,15 +466,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			new MockPromptsService(), labelService,
 		));
 
-		connection.fireAction({
-			channel: agentHostSessionId,
-			serverSeq: 1,
-			origin: undefined,
-			action: {
-				type: ActionType.SessionCustomizationsChanged,
-				customizations: [synced],
-			},
-		});
+		provider.setDraftCustomizations(observableValue('draftCustomizations', [bundleRef]));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		// The synthetic bundle itself should NOT appear as a top-level item
@@ -750,9 +738,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 	test('provider parses skill metadata, rewrites folder URIs to SKILL.md, and skips unreadable folder skills', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const plugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/skills-bundle', uri: 'file:///plugins/skills-bundle', name: 'Skills Bundle', };
-
-		connection.setRootState({ agents: [createAgentInfo([plugin])] });
+		const plugin = { type: CustomizationType.Plugin as const, id: 'file:///plugins/skills-bundle', uri: 'file:///plugins/skills-bundle', name: 'Skills Bundle' };
 
 		// Build a synthetic plugin that contains a `skills/` directory with:
 		//  - `valid-skill/` folder (SKILL.md parses with name + description)
@@ -787,9 +773,10 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			undefined,
 			fileService,
 			new NullLogService(),
-			createTestCustomAgentsService(connection, [plugin]),
+			createTestCustomAgentsService(connection, []),
 			new MockPromptsService(), labelService,
 		));
+		provider.setDraftCustomizations(observableValue('draftCustomizations', [plugin]));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 
@@ -804,7 +791,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		// Each expanded (non-bundle) item must carry a `pluginUri` so that
 		// downstream slash-command resolution can build a `plugin:`-prefixed
 		// command id via `getCanonicalPluginCommandId`.
-		const expectedPluginUri = 'vscode-agent-host://test-authority/plugins/skills-bundle?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0';
+		const expectedPluginUri = plugin.uri;
 		for (const skillItem of skillItems) {
 			assert.strictEqual(skillItem.pluginUri?.toString(), expectedPluginUri, `skill ${skillItem.name} should carry pluginUri`);
 		}
@@ -851,15 +838,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			new MockPromptsService(), labelService,
 		));
 
-		connection.fireAction({
-			channel: agentHostSessionId,
-			serverSeq: 1,
-			origin: undefined,
-			action: {
-				type: ActionType.SessionCustomizationsChanged,
-				customizations: [{ ...bundle, clientId: 'test-client' }],
-			},
-		});
+		provider.setDraftCustomizations(observableValue('draftCustomizations', [bundle]));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		const rule = items.find(i => i.type === PromptsType.instructions);
@@ -902,15 +881,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			createTestCustomAgentsService(connection, []),
 			new MockPromptsService(), labelService,
 		));
-		connection.fireAction({
-			channel: agentHostSessionId,
-			serverSeq: 1,
-			origin: undefined,
-			action: {
-				type: ActionType.SessionCustomizationsChanged,
-				customizations: [{ ...bundle, clientId: 'test-client' }],
-			},
-		});
+		provider.setDraftCustomizations(observableValue('draftCustomizations', [bundle]));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		const rule = items.find(item => item.type === PromptsType.instructions);
@@ -964,15 +935,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			new MockPromptsService(), labelService,
 		));
 
-		connection.fireAction({
-			channel: agentHostSessionId,
-			serverSeq: 1,
-			origin: undefined,
-			action: {
-				type: ActionType.SessionCustomizationsChanged,
-				customizations: [{ ...bundle, clientId: 'test-client' }],
-			},
-		});
+		provider.setDraftCustomizations(observableValue('draftCustomizations', [bundle]));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		const rule = items.find(i => i.type === PromptsType.instructions);
@@ -983,9 +946,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 	test('CustomizationHarnessService.getSlashCommands prefixes discovered skill names with the plugin id', async () => {
 		const connection = disposables.add(new MockAgentConnection());
 
-		const plugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/skills-bundle', uri: 'file:///plugins/skills-bundle', name: 'Skills Bundle', };
-
-		connection.setRootState({ agents: [createAgentInfo([plugin])] });
+		const plugin = { type: CustomizationType.Plugin as const, id: 'file:///plugins/skills-bundle', uri: 'file:///plugins/skills-bundle', name: 'Skills Bundle' };
 
 		const skillsDirChildren: IFileStat[] = [
 			{ name: 'lint', resource: URI.parse('vscode-agent-host://test/plugins/skills-bundle/skills/lint'), isFile: false, isDirectory: true, isSymbolicLink: false, children: undefined },
@@ -1014,9 +975,10 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			undefined,
 			fileService,
 			new NullLogService(),
-			createTestCustomAgentsService(connection, [plugin]),
+			createTestCustomAgentsService(connection, []),
 			new MockPromptsService(), labelService,
 		));
+		provider.setDraftCustomizations(observableValue('draftCustomizations', [plugin]));
 
 		const harnessId = 'remote-agent-host-test';
 		const testSessionResource = URI.parse('remote-agent-host-test:///test-session');

@@ -12,6 +12,9 @@ export type MultiDiffEditorVariant = (typeof multiDiffEditorVariants)[number];
 
 export type IMultiDiffResourceId = { original: URI | undefined; modified: URI | undefined };
 
+/** Whether resizing the split view of one file in a multi diff editor resizes all of its files. */
+export const MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING = 'multiDiffEditor.syncSplitView';
+
 export interface IMultiDiffEditorOptions extends ITextEditorOptions {
 	viewState?: IMultiDiffEditorOptionsViewState;
 }

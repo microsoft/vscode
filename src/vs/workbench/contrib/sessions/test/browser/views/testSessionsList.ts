@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hasKey, isDefined } from '../../../../../../base/common/types.js';
-import { SessionListItem, SessionsList, SessionsListItemReference } from '../../../browser/views/sessionsList.js';
+import { SessionsList, SessionsListItemReference } from '../../../browser/views/sessionsList.js';
+import { SessionListItem } from '../../../browser/views/sessionsListCommon.js';
 
 /**
  * A sessions list whose focus, selection, collapse state, and rendered rows can be

@@ -54,7 +54,7 @@ import {
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { isChatWorkspaceless } from './agentChatContext.js';
 import { IAgentConfigurationService, getSessionSummaryWorkingDirectories } from './agentConfigurationService.js';
-import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetFiles, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
@@ -2201,12 +2201,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			repositoryFingerprints = fingerprinted?.repositories;
 			const published = this._stateManager.getChangesetState(changesetUri);
 			const reusable = published?.status === ChangesetStatus.Ready ? published : statusBeforeRefresh?.status === ChangesetStatus.Ready ? statusBeforeRefresh : undefined;
-			// A computation asked to report telemetry, as at the end of a turn, runs even when nothing changed.
-			if (provider === undefined && branchFingerprint !== undefined && reusable && branchFingerprint === this._branchDiffFingerprints.get(session)) {
+			if (branchFingerprint !== undefined && reusable && branchFingerprint === this._branchDiffFingerprints.get(session)) {
 				this._logService.trace(`[AgentHostChangesetService] Branch changeset of ${session} is current; skipping its computation`);
 				this._restoreStaticChangesetStatus(changesetUri, reusable);
 				// The operations follow Git state the fingerprint does not cover, such as the commits ahead of the upstream.
 				this._changesetOperationService.updateOperations(session, changesetUri);
+				// A computation asked to report telemetry, as at the end of a turn, reports that its result was current.
+				outcome = 'unchanged';
+				emitStaticTelemetry();
 				return;
 			}
 			if (this._store.isDisposed) {
@@ -2650,13 +2652,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * Resolves the Branch Changes base branch, reused by the diff computation
-	 * and the review-status lookup so both are keyed on the same baseline.
+	 * Resolves the Branch Changes base branch exactly as recorded, reused by the
+	 * diff computation and the review-status lookup so both are keyed on the
+	 * same baseline.
 	 */
 	private async _resolveBranchBaseBranch(session: ProtocolURI): Promise<string | undefined> {
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, session)?.sourceUri ?? session;
 		const snapshot = await this._sessionStateStore.load(URI.parse(this._containingSessionUri(source)));
-		return resolveDiffBaseBranchName(this._getBranchBaseBranch(source, snapshot), undefined);
+		return this._getBranchBaseBranch(source, snapshot);
 	}
 
 	/** Selects the persisted folder base before the Git-state fallback for both the catalogue and diff computation. */
@@ -2666,9 +2669,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const persistedBaseBranch = snapshot && (!sourceIsDefaultChat || isSessionFolder)
 			? readSessionBaseBranch(snapshot, sourceIsDefaultChat ? undefined : source)
 			: undefined;
-		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchName
+		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchRef
 			?? (isSessionFolder && (!isAhpChatChannel(source) || sourceIsDefaultChat)
-				? readSessionGitState(this._stateManager.getSessionState(this._containingSessionUri(source))?._meta)?.baseBranchName
+				? readSessionGitState(this._stateManager.getSessionState(this._containingSessionUri(source))?._meta)?.baseBranchRef
 				: undefined);
 		if (!persistedBaseBranch && gitStateBaseBranch) {
 			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${source}: ${gitStateBaseBranch}`);

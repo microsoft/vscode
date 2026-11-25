@@ -732,6 +732,7 @@
 	}
 }
 
+/* NOTE- BLOCKQUOTE_HORIZONTAL_INSET in chatMarkdownContentPart.ts sizes request code blocks to this padding and border */
 .interactive-item-container .value .rendered-markdown blockquote {
 	margin: 0px;
 	padding: 0px 16px 0 10px;
@@ -1098,6 +1099,8 @@ following list content ends up with no space above it. Add a matching top margin
 have to be updated for changes to the rules above, or to support more deeply nested lists. */
 .interactive-item-container .value .rendered-markdown ul .interactive-result-code-block {
 	margin-left: -24px;
+	/* The dedented block is wider than the list item */
+	max-width: none;
 }
 
 .interactive-item-container .value .rendered-markdown ul ul .interactive-result-code-block {
@@ -1106,6 +1109,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .value .rendered-markdown ol .interactive-result-code-block {
 	margin-left: -28px;
+	/* The dedented block is wider than the list item */
+	max-width: none;
 }
 
 .interactive-item-container .value .rendered-markdown ol ol .interactive-result-code-block {
@@ -4542,6 +4547,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 		margin-bottom: var(--vscode-spacing-size60);
 		position: relative;
+	}
+
+	/* Request code blocks are laid out to the row width, see CodeBlockPart.layout */
+	.interactive-item-container.interactive-request .value .rendered-markdown.chat-markdown-has-code-block {
+		box-sizing: border-box;
+		max-width: 100%;
 	}
 
 	.chat-request-disclosure {

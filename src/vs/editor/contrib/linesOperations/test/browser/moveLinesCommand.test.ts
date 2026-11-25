@@ -313,6 +313,43 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 		unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
 	};
 
+	test('issue #117255: moving lines preserves a selection ending at the next line', () => {
+		const disposables = new DisposableStore();
+		const languageService = disposables.add(new LanguageService());
+		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+		const mode = disposables.add(new IndentRulesMode(indentRules, languageService, languageConfigurationService));
+		const originalLines = ['foo;', '', 'foo: {', '}'];
+		const movedLines = ['foo: {', '    foo;', '    ', '}'];
+
+		for (const [originalSelection, movedSelection] of [
+			[new Selection(1, 1, 3, 1), new Selection(2, 5, 4, 1)],
+			[new Selection(3, 1, 1, 1), new Selection(4, 1, 2, 5)]
+		]) {
+			testMoveLinesDownWithIndentCommand(mode.languageId, originalLines, originalSelection, movedLines, movedSelection, languageConfigurationService);
+			testMoveLinesUpWithIndentCommand(mode.languageId, movedLines, movedSelection, originalLines, originalSelection, languageConfigurationService);
+		}
+
+		disposables.dispose();
+	});
+
+	test('moving lines preserves a selection ending within removed indentation', () => {
+		const disposables = new DisposableStore();
+		const languageService = disposables.add(new LanguageService());
+		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+		const mode = disposables.add(new IndentRulesMode(indentRules, languageService, languageConfigurationService));
+
+		testMoveLinesUpWithIndentCommand(
+			mode.languageId,
+			['if (true) {', '    foo;', '    bar;', '}'],
+			new Selection(2, 5, 3, 3),
+			['foo;', 'bar;', 'if (true) {', '}'],
+			new Selection(1, 1, 2, 2),
+			languageConfigurationService
+		);
+
+		disposables.dispose();
+	});
+
 	// https://github.com/microsoft/vscode/issues/28552#issuecomment-307862797
 	test('first line indentation adjust to 0', () => {
 		const languageService = new LanguageService();

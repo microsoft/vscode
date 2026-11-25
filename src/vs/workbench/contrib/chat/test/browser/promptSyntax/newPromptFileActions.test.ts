@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SnippetController2 } from '../../../../../../editor/contrib/snippet/browser/snippetController2.js';
@@ -13,8 +14,9 @@ import { CommandsRegistry } from '../../../../../../platform/commands/common/com
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { INewPromptOptions, NEW_SKILL_COMMAND_ID, registerNewPromptFileActions } from '../../../browser/promptSyntax/newPromptFileActions.js';
 
@@ -99,6 +101,65 @@ suite('New skill file', () => {
 		}, {
 			content: expectedContent,
 			selectedText: 'Describe what this skill does and when to use it. Include keywords that help agents identify relevant tasks.',
+		});
+	});
+
+	test('rejects the name of an existing skill and keeps its content', async () => {
+		const { instantiationService, fileService } = setup();
+		await fileService.writeFile(skillFileUri, VSBuffer.fromString('existing'));
+		let opened = false;
+		instantiationService.stub(IOpenerService, { open: async () => opened = true });
+		await fileService.createFolder(URI.joinPath(targetFolder, 'folder-without-skill'));
+		await fileService.writeFile(URI.joinPath(targetFolder, 'plain-file'), VSBuffer.fromString(''));
+		let validation: Record<string, unknown> | undefined;
+		instantiationService.stub(IQuickInputService, {
+			input: async (options?: IInputOptions) => {
+				validation = {
+					existing: await options?.validateInput?.(' test-skill '),
+					available: await options?.validateInput?.('other-skill'),
+					folderWithoutSkill: await options?.validateInput?.('folder-without-skill'),
+					file: await options?.validateInput?.('plain-file'),
+				};
+				return undefined;
+			}
+		});
+
+		await createSkill(instantiationService);
+
+		assert.deepStrictEqual({
+			validation,
+			opened,
+			content: (await fileService.readFile(skillFileUri)).value.toString(),
+		}, {
+			validation: {
+				existing: 'A skill with this name already exists',
+				available: undefined,
+				folderWithoutSkill: undefined,
+				file: 'A file with this name already exists',
+			},
+			opened: false,
+			content: 'existing',
+		});
+	});
+
+	test('reports an error when the skill cannot be created', async () => {
+		const { instantiationService, fileService } = setup();
+		await fileService.writeFile(skillFileUri, VSBuffer.fromString('existing'));
+		let opened = false;
+		instantiationService.stub(IOpenerService, { open: async () => opened = true });
+		const errors: string[] = [];
+		instantiationService.stub(INotificationService, { error: (message: NotificationMessage) => errors.push(String(message)) });
+
+		await createSkill(instantiationService);
+
+		assert.deepStrictEqual({
+			errors: errors.map(error => error.startsWith(`Unable to create skill 'test-skill': `)),
+			opened,
+			content: (await fileService.readFile(skillFileUri)).value.toString(),
+		}, {
+			errors: [true],
+			opened: false,
+			content: 'existing',
 		});
 	});
 });

@@ -637,9 +637,6 @@ importers:
       typescript:
         specifier: npm:@typescript/typescript6@^6.0.2
         version: '@typescript/typescript6@6.0.2'
-      util:
-        specifier: ^0.12.4
-        version: 0.12.5
       vinyl-fs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -2057,9 +2054,6 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
-      typescript:
-        specifier: ^5.8.0
-        version: 5.9.3
 
   test/integration/browser:
     devDependencies:
@@ -11469,11 +11463,6 @@ packages:
 
   typescript@5.5.4:
     resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -22909,8 +22898,6 @@ snapshots:
   typescript@4.9.5: {}
 
   typescript@5.5.4: {}
-
-  typescript@5.9.3: {}
 
   typescript@6.0.0-dev.20260113: {}
 

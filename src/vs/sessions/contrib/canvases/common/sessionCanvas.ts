@@ -53,7 +53,7 @@ export interface ISessionCanvasRegistryService {
 export const ISessionCanvasCatalogService = createDecorator<ISessionCanvasCatalogService>('sessionCanvasCatalogService');
 
 /**
- * The canvas types that New Canvas offered last, kept across restarts so that it can offer them while it lists them again.
+ * The canvas types that Open Canvas offered last, kept across restarts so that it can offer them while it lists them again.
  */
 export interface ISessionCanvasCatalogService {
 	readonly _serviceBrand: undefined;

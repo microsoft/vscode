@@ -54,8 +54,8 @@ export interface ICore {
 interface IChangeRule {
 	/** Name of the action output that reports whether the checks need to run. */
 	readonly output: string;
-	/** Paths that affect the checks. Entries ending in `/` match a folder; other entries match a file. */
-	readonly paths: readonly string[];
+	/** Paths that affect the checks. Entries ending in `/` match a folder, regular expressions match any path, and other entries match a file. */
+	readonly paths: readonly (string | RegExp)[];
 }
 
 const sharedPaths = [
@@ -72,6 +72,16 @@ const rules: readonly IChangeRule[] = [
 			'package.json',
 			'product.json',
 			'.github/workflows/pr-linux-cli-test.yml',
+		],
+	},
+	{
+		// The Dependency Release Age job checks the package versions that the lockfiles add, and the pnpm version of the
+		// packageManager field of package.json (see build/lib/dependencyReleaseAge.ts).
+		output: 'dependencies',
+		paths: [
+			/(^|\/)(pnpm-lock\.yaml|package-lock\.json|Cargo\.lock|pnpm-workspace\.yaml|\.pnpmfile\.mjs|\.npmrc|\.cargo\/config(\.toml)?)$/,
+			'package.json',
+			'build/lib/dependencyReleaseAge.ts',
 		],
 	},
 	{
@@ -231,8 +241,8 @@ const coreTestRules: readonly ICoreTestRule[] = [
 	},
 ];
 
-function matchesAny(path: string, patterns: readonly string[]): boolean {
-	return patterns.some(pattern => pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern);
+function matchesAny(path: string, patterns: readonly (string | RegExp)[]): boolean {
+	return patterns.some(pattern => typeof pattern !== 'string' ? pattern.test(path) : pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern);
 }
 
 /** The changed files that GitHub listed, and when it did not list all of them, a description of what it listed. */

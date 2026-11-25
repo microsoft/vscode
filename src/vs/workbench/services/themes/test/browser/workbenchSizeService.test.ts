@@ -249,6 +249,7 @@ suite('WorkbenchSizeService', () => {
 			const style = createStyleSheet(undefined, undefined, store.add(new DisposableStore()));
 			style.textContent = generateColorThemeCSS(theme, '.semantic-size-test', undefined, undefined, service).code;
 			const root = append(document.body, $('.monaco-workbench.semantic-size-test.modern-ui.floating-panels'));
+			root.style.setProperty('--vscode-editorGroup-border', '#778899');
 			store.add(toDisposable(() => root.remove()));
 			const grid = append(root, $('.monaco-grid-view'));
 			const sidebar = append(grid, $('.part.sidebar.left'));
@@ -261,10 +262,16 @@ suite('WorkbenchSizeService', () => {
 			strokeProbe.style.borderWidth = 'var(--modern-ui-floating-card-stroke-width)';
 			const editorStrokeWidth = parseFloat(getWindow(strokeProbe).getComputedStyle(strokeProbe).borderTopWidth);
 			const contentRadius = `${Math.max(0, radius - editorStrokeWidth)}px`;
-			const read = () => [sidebar, panel, editor, content, rail].map(element => {
-				const css = getWindow(element).getComputedStyle(element);
-				return [css.borderTopLeftRadius, css.borderTopRightRadius, css.borderBottomRightRadius, css.borderBottomLeftRadius];
-			});
+			const read = () => {
+				const radii = [sidebar, panel, editor, content, rail].map(element => {
+					const css = getWindow(element).getComputedStyle(element);
+					return [css.borderTopLeftRadius, css.borderTopRightRadius, css.borderBottomRightRadius, css.borderBottomLeftRadius];
+				});
+				// The editor card clips its content to its padding edge, whose corners are the card's less its stroke.
+				const card = getWindow(editor).getComputedStyle(editor);
+				const contentClip = card.overflow === 'hidden' ? radii[2].map(cardRadius => `${Math.max(0, parseFloat(cardRadius) - parseFloat(card.borderTopWidth))}px`) : [];
+				return [...radii, contentClip];
+			};
 			const regular = read();
 			const primitive = getWindow(root).getComputedStyle(root).getPropertyValue('--vscode-cornerRadius-large').trim();
 			root.classList.add('modern-ui-compact');
@@ -276,10 +283,13 @@ suite('WorkbenchSizeService', () => {
 					['0px', '2px', '2px', '0px'],
 					[`${radius}px`, `${radius}px`, `${radius}px`, `${radius}px`],
 					[`${radius}px`, `${radius}px`, `${radius}px`, `${radius}px`],
-					[contentRadius, contentRadius, contentRadius, contentRadius],
+					// The content rounds no second clip inside the card...
+					['0px', '0px', '0px', '0px'],
 					['2px', '0px', '0px', '2px'],
+					// ...whose clip keeps the content's corners concentric with its stroke.
+					[contentRadius, contentRadius, contentRadius, contentRadius],
 				],
-				compact: Array.from({ length: 5 }, () => ['0px', '0px', '0px', '0px']),
+				compact: Array.from({ length: 6 }, () => ['0px', '0px', '0px', '0px']),
 				primitive: '8px',
 				newPanel: `${radius}px`,
 			});

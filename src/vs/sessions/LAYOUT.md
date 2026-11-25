@@ -52,7 +52,7 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Editor | File, browser, diff, and other editor inputs |
 | Auxiliary Bar | Session details such as changes and files |
 | Panel | Terminal and other panel views |
-| Custom View Grid | Full-surface contributed views that replace session content |
+| Custom View Grid | Contributed views that replace session content and keep the desktop bottom Panel |
 | Session Activity Bar column | The active chat's Session Activity Bar; a fixed-width grid view, not a part, shown only while that strip is in it |
 
 ### Chat windows
@@ -146,9 +146,11 @@ Session providers register internal per-session directories as resource label ho
 
 ## Custom views
 
-`ICustomViewService` owns the active contributed full-surface view.
+`ICustomViewService` owns the active contributed view.
 
-A custom view is mutually exclusive with the Sessions Part, grid Editor, Auxiliary Bar, and Panel. The title bar and Sidebar remain available. Covered parts retain desired visibility separately from effective grid visibility so their state can be restored when the custom view closes.
+A custom view is mutually exclusive with the Sessions Part, grid Editor, and Auxiliary Bar. On the desktop layout every custom view keeps the bottom Panel; on the phone layout it also replaces the Panel. Each custom-view opening starts with the Panel hidden, and the custom view shows no Panel toggle: only commands and keybindings open it. Its transient panel visibility is independent of the covered session's desired visibility, which is restored when the custom view closes. The title bar and Sidebar remain available. Covered parts retain desired visibility separately from effective grid visibility so their state can be restored when the custom view closes.
+
+`SessionsTerminalContribution` isolates interactive panel terminals by custom-view identity while a custom view is active. Session terminals are hidden rather than reused by the custom view; custom-view terminals stay alive but are hidden when leaving it and cannot be adopted by a session, even with the same working directory. Returning to that custom view in the same window restores its terminals without opening the Panel. Terminal creation still uses the local user-home default, and session terminal routing resumes when the custom view closes. Tool terminals and terminals shown in chat windows retain their existing ownership.
 
 Inbox projects constituent notifications into exclusive session workflow tabs. Hold and occurrence-scoped Done state belong to Inbox, not the provider runtime or the session's archived state. Selecting a row previews evidence without marking the session read. Opening the full session clears completion notifications through the existing read state, but outstanding questions, approvals, CI failures, and review requests remain independent.
 

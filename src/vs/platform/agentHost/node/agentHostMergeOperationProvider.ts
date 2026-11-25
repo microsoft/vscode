@@ -10,7 +10,6 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { ChangesetKind } from '../common/changesetUri.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, SessionLifecycle, type ChangesetOperation, type SessionState } from '../common/state/sessionState.js';
@@ -36,7 +35,7 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		const handler = this._instantiationService.createInstance(
 			AgentHostMergeOperationHandler,
 			(sessionKey: string) => this._stateManager.getSessionState(sessionKey),
-			(sessionKey: string) => this._gitStateService.resolveSessionBaseBranchName(sessionKey),
+			(sessionKey: string) => this._gitStateService.resolveSessionBaseBranchRef(sessionKey),
 			(sessionKey: string, source?: IAgentHostCredentialSource) => this._onGitStateChanged(sessionKey, source),
 			(sessionKey: string, commit: string) => this._gitStateService.recordSessionMerge(sessionKey, commit),
 		);
@@ -54,7 +53,7 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		}
 
 		const branchName = gitState?.branchName;
-		const baseBranchName = resolveDiffBaseBranchName(undefined, gitState?.baseBranchName);
+		const baseBranchName = gitState?.baseBranchName;
 		if (!branchName || !baseBranchName || branchName === baseBranchName || hasSessionPullRequestForBranch(gitHubState, branchName)) {
 			return undefined;
 		}

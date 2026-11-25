@@ -974,7 +974,7 @@ export function createNoopGitStateService(): IAgentHostGitStateService {
 		refreshSessionGitState: async (_sessionKey: string, _workingDirectory?: URI) => { },
 		getMaterializedWorktreeMeta: (_sessionKey: string, _branchName: string) => undefined,
 		setFolderGitState: async () => { },
-		resolveSessionBaseBranchName: async (_sessionKey: string) => undefined,
+		resolveSessionBaseBranchRef: async (_sessionKey: string) => undefined,
 		setSessionGitHubState: async (_sessionKey: string, _state: ISessionGitHubState) => { },
 		recordSessionMerge: async (_sessionKey: string, _commit: string) => { },
 		attachSessionGitHubPullRequest: async (_sessionKey: string, _workingDirectory?: URI) => { },

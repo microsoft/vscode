@@ -9,14 +9,15 @@ import { CancellationToken, cancelOnDispose } from '../../../../base/common/canc
 import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
@@ -24,14 +25,14 @@ import { IRange, Range } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
-import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
+import { IMultiDiffResourceId, MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { translatePosition } from '../diffEditor/utils.js';
 import { allowsTrueInlineDiffRendering } from '../diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
 import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrollLayout.js';
-import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
+import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate, ISplitViewRatioSync } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem } from './model.js';
 import { formatDiffItemKey, formatUri, ILoggedDiffItem, MultiDiffEditorLogger } from './multiDiffEditorLogging.js';
 import { IMultiDiffEditorVariantConfiguration } from './multiDiffEditorOptions.js';
@@ -85,15 +86,21 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _diffLayoutOptions: IObservable<IDiffEditorOptions | undefined>,
 		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
 		private readonly _paddingBottomPx: IObservable<number>,
+		splitViewRatio: ISettableObservable<number | undefined>,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this._logger = this._register(new MultiDiffEditorLogger(logService));
 		this._optionsOverride = derived(this, reader => {
 			return { ...this._diffEditorOptions, ...this._diffLayoutOptions.read(reader) };
 		});
+		const splitViewRatioSync: ISplitViewRatioSync = {
+			enabled: observableConfigValue(MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING, false, configurationService),
+			ratio: splitViewRatio,
+		};
 		this._spaceBetweenPx = observableValue(this, 0);
 		const paddingBottomItem = this._paddingBottomPx.map<ICompressedVirtualizedScrollItem>(this, size => ({
 			size: constObservable(size),
@@ -135,6 +142,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						this._workbenchUIElementFactory,
 						this._variantConfiguration,
 						this._optionsOverride,
+						splitViewRatioSync,
 					),
 					onDidBind: binding => {
 						const selections = binding.item.lastTemplateData.get().selections;
@@ -273,6 +281,27 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			if (renderSideBySide !== undefined) {
 				ctxRenderSideBySide.set(renderSideBySide);
 			}
+		}));
+
+		// Files keep the shared split once they stop being synced, including files that are not rendered: when syncing is
+		// turned off, and when their view model is detached or replaced, as syncing could be turned off before it is back.
+		let syncedItems = new Set<DocumentDiffItemViewModel>();
+		this._register(autorun(reader => {
+			const items = new Set(splitViewRatioSync.enabled.read(reader) ? this._viewModel.read(reader)?.items.read(reader) : undefined);
+			const unsyncedItems = [...syncedItems].filter(item => !items.has(item) && item.isAlive.read(undefined));
+			syncedItems = items;
+			if (unsyncedItems.length === 0) {
+				return;
+			}
+			const ratio = splitViewRatioSync.ratio.read(undefined);
+			transaction(tx => {
+				for (const item of unsyncedItems) {
+					const data = item.lastTemplateData.read(undefined);
+					if (data.splitViewRatio !== ratio) {
+						item.lastTemplateData.set({ ...data, splitViewRatio: ratio }, tx);
+					}
+				}
+			});
 		}));
 
 		this._logger.logStateChanges({

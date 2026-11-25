@@ -56,7 +56,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING } from '../../../../../platform/chat/common/chatSettings.js';
+import { AGENTS_WINDOW_SWITCHER_EXPAND_ON_HOVER_TREATMENT, AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING } from '../../../../../platform/chat/common/chatSettings.js';
 import { observeAgentsWindowTitleBarIconExposure } from '../../../../../platform/chat/browser/agentsWindowTitleBarIcons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -66,7 +66,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { CopilotHarnessIntroductionButtonVariant, copilotHarnessIntroductionButtonVariants, CopilotHarnessIntroductionCopyVariant, copilotHarnessIntroductionCopyVariants, copilotHarnessIntroductionFeedbackCommandId, copilotHarnessIntroductionLearnMoreCommandId, getCopilotHarnessIntroductionContent } from '../../browser/agentSessions/copilotHarnessIntroduction.js';
 import { isNewConversation } from '../../browser/widget/input/chatInputModelUtils.js';
 import { AgentsWindowUsage } from '../../common/agentsWindowUsage.js';
-import { registerAgentsWindowTreatments } from '../../browser/agentSessions/agentsWindowTreatments.js';
+import { registerExperimentTreatments } from '../../../../services/assignment/common/experimentTreatments.js';
 import { IAgentHostEditorActivityService } from './agentHostEditorActivity.js';
 
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
@@ -416,8 +416,8 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 }
 
 /**
- * Renders the "Open in Agents" titlebar entry as an icon-only button that
- * expands to reveal a label on hover / keyboard focus.
+ * Renders the "Open in Agents" titlebar entry as an icon-only button that may
+ * expand on hover, and always expands on keyboard focus.
  */
 class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
@@ -430,6 +430,9 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 	private treatmentLabel: string | undefined;
 	private treatmentsResolved = false;
 	private expansionTreatmentResolved = false;
+	private sharedExpansionTreatmentResolved = false;
+	private expansionTreatment: boolean | undefined;
+	private sharedExpansionTreatment: boolean | undefined;
 	private isHovered = false;
 
 	constructor(
@@ -474,13 +477,25 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		this._register(addDisposableListener(container, EventType.MOUSE_LEAVE, () => {
 			this.isHovered = false;
 		}));
-		this._register(registerAgentsWindowTreatments<boolean>(
+		this._register(registerExperimentTreatments<boolean>(
 			[OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT],
 			'OpenWorkspaceInAgentsTitleBarWidget',
 			([expandOnHover]) => {
 				this.expansionTreatmentResolved = true;
-				this.logExpansionExperimentTrigger();
-				container.classList.toggle('expand-on-hover', expandOnHover ?? true);
+				this.expansionTreatment = expandOnHover;
+				this.updateHoverExpansion();
+			},
+			this.assignmentService,
+			this.logService,
+			value => typeof value === 'boolean',
+		));
+		this._register(registerExperimentTreatments<boolean>(
+			[AGENTS_WINDOW_SWITCHER_EXPAND_ON_HOVER_TREATMENT],
+			'OpenWorkspaceInAgentsTitleBarWidget',
+			([expandOnHover]) => {
+				this.sharedExpansionTreatment = expandOnHover;
+				this.sharedExpansionTreatmentResolved = true;
+				this.updateHoverExpansion();
 			},
 			this.assignmentService,
 			this.logService,
@@ -497,7 +512,7 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		this.labelElement = append(container, $('span.open-in-agents-titlebar-widget-label'));
 		this.updateLabel();
 		if (this.isEligible) {
-			this.treatments.value = registerAgentsWindowTreatments(
+			this.treatments.value = registerExperimentTreatments(
 				[OpenWorkspaceInAgentsTitleBarWidget.LABEL_TREATMENT],
 				'OpenWorkspaceInAgentsTitleBarWidget',
 				([label]) => {
@@ -527,10 +542,21 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		}
 	}
 
+	private updateHoverExpansion(): void {
+		this.logExpansionExperimentTrigger();
+		if (this.sharedExpansionTreatmentResolved) {
+			this.element?.classList.toggle('expand-on-hover', this.sharedExpansionTreatment ?? this.expansionTreatment ?? true);
+		}
+	}
+
 	private logExpansionExperimentTrigger(): void {
-		if (this.isHovered && this.expansionTreatmentResolved) {
+		if (!this.isHovered || !this.sharedExpansionTreatmentResolved) {
+			return;
+		}
+		if (this.expansionTreatmentResolved && this.sharedExpansionTreatment === undefined) {
 			logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT);
 		}
+		logExperimentTrigger(this.telemetryService, AGENTS_WINDOW_SWITCHER_EXPAND_ON_HOVER_TREATMENT);
 	}
 
 	protected override updateLabel(): void {
@@ -667,7 +693,7 @@ export class CopilotHarnessIntroductionContribution extends Disposable implement
 				this.update();
 			}
 		}));
-		this._register(registerAgentsWindowTreatments(
+		this._register(registerExperimentTreatments(
 			[CopilotHarnessIntroductionContribution.COPY_TREATMENT, CopilotHarnessIntroductionContribution.BUTTONS_TREATMENT],
 			'CopilotHarnessIntroduction',
 			([copy, buttons]) => {

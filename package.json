@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.149.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "8d776751f96e7726cf67d97f7f00fbc95a505f57",
+  "distro": "3b9653dfde3841020faad36fd828dfbe4e6d0656",
   "nativeBuild": {
     "runtime": "electron",
     "target": "43.8.10",
@@ -264,7 +264,6 @@
     "tslib": "^2.6.3",
     "typanion": "^3.14.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "util": "^0.12.4",
     "vinyl-fs": "^3.0.3",
     "xml2js": "^0.5.0"
   },

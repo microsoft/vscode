@@ -7,7 +7,7 @@ import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedDisposable, disposableObservableValue, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../base/common/observable.js';
@@ -77,6 +77,12 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	private readonly _sashLayout: SashLayout;
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
+	private readonly _onDidResizeSplitView = this._register(new Emitter<void>());
+	/**
+	 * Fires when the user resizes the split view by dragging or resetting a sash,
+	 * but not when {@link setSplitViewRatio} is called.
+	 */
+	public readonly onDidResizeSplitView = this._onDidResizeSplitView.event;
 	private readonly _boundarySashes;
 
 	private _accessibleDiffViewerShouldBeVisible;
@@ -325,7 +331,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			width: this._rootSizeObserver.width.map((w, reader) => w - (this._overviewRulerPart.read(reader)?.width ?? 0)),
 		};
 
-		this._sashLayout = new SashLayout(this._options, dimensions);
+		this._sashLayout = new SashLayout(this._options, dimensions, () => this._onDidResizeSplitView.fire());
 
 		this._sash = derivedDisposable(this, reader => {
 			const showSash = this._options.renderSideBySide.read(reader);

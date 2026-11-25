@@ -15,6 +15,7 @@ export class SashLayout {
 	}, (value, tx) => {
 		const contentWidth = this.dimensions.width.get();
 		this.sashRatio.set(value / contentWidth, tx);
+		this._onDidResizeByUser();
 	});
 
 	/** The user-chosen ratio of the original side, or `undefined` to use the default ratio. */
@@ -22,11 +23,17 @@ export class SashLayout {
 
 	public resetSash(): void {
 		this.sashRatio.set(undefined, undefined);
+		this._onDidResizeByUser();
 	}
 
+	/**
+	 * @param _onDidResizeByUser Called after the user drags or resets a sash,
+	 * but not when {@link sashRatio} is set directly.
+	 */
 	constructor(
 		private readonly _options: DiffEditorOptions,
 		public readonly dimensions: { height: IObservable<number>; width: IObservable<number> },
+		private readonly _onDidResizeByUser: () => void = () => { },
 	) {
 	}
 

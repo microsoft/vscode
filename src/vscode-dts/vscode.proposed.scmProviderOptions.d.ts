@@ -33,20 +33,12 @@ declare module 'vscode' {
 		contextValue?: string;
 
 		/**
-		 * Whether the source control is hidden from the Source Control views and does not own the
-		 * resources under its root, see {@link scm.createSourceControl}. It can be changed while the
-		 * source control exists. Changes made in the same tick are applied together, so showing one
-		 * source control and hiding another one is a single change of the views.
-		 */
-		isHidden: boolean;
-
-		/**
 		 * Fired when the parent source control is disposed.
 		 */
 		readonly onDidDisposeParent: Event<void>;
 	}
 
 	export namespace scm {
-		export function createSourceControl(id: string, label: string, rootUri?: Uri, iconPath?: IconPath, isHidden?: boolean, parent?: SourceControl): SourceControl;
+		export function createSourceControl(id: string, label: string, rootUri?: Uri, iconPath?: IconPath, parent?: SourceControl): SourceControl;
 	}
 }

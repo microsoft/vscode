@@ -7,15 +7,19 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { renderCustomizationDetailLink } from './aiCustomizationPresentation.js';
 import { ConnectorRowAction, getConnectorActionLabel, getConnectorRowPresentation } from './connectorPresentation.js';
-import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
+import { copilotConnectorsSourcePageUri, ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
 
 const $ = DOM.$;
 
@@ -74,6 +78,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 	private readonly otherInfoFactsEl: HTMLElement;
 	private readonly emptyEl: HTMLElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
+	private readonly factHoverGroupId = generateUuid();
 	private readonly narrowLayoutUpdate = this._register(new MutableDisposable());
 	private readonly actionCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private current: ICopilotConnector | undefined;
@@ -87,6 +92,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 		@ICopilotConnectorsService private readonly connectorsService: ICopilotConnectorsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -223,12 +229,13 @@ export class EmbeddedConnectorDetail extends Disposable {
 		this.appendFact(this.factsEl, localize('connectorIdentifierFact', "Identifier"), connector.name);
 		this.appendFact(this.factsEl, localize('connectorVersionFact', "Version"), connector.version);
 		this.appendFact(this.factsEl, localize('connectorAuthorFact', "Author"), this.formatAuthor(connector.author));
+		this.appendLinkFact(this.factsEl, localize('connectorSourceFact', "Source"), copilotConnectorsSourcePageUri, CustomizationMarketplaceSources.CopilotConnectors.displayName);
+		this.appendLinkFact(this.factsEl, localize('connectorHomepageFact', "Homepage"), connector.homepage ?? connector.documentation);
 		this.renderContains(connector);
 		let otherInformationCount = 0;
 		otherInformationCount += this.appendLinkFact(this.otherInfoFactsEl, localize('connectorAuthorWebsiteFact', "Author Website"), connector.author?.url) ? 1 : 0;
 		otherInformationCount += this.appendFact(this.otherInfoFactsEl, localize('connectorKeywordsFact', "Keywords"), this.formatList(connector.keywords)) ? 1 : 0;
 		otherInformationCount += this.appendFact(this.otherInfoFactsEl, localize('connectorLicenseFact', "License"), connector.license) ? 1 : 0;
-		otherInformationCount += this.appendLinkFact(this.otherInfoFactsEl, localize('connectorHomepageFact', "Homepage"), connector.homepage ?? connector.documentation) ? 1 : 0;
 		otherInformationCount += this.appendLinkFact(this.otherInfoFactsEl, localize('connectorRepositoryFact', "Repository"), connector.repository) ? 1 : 0;
 		otherInformationCount += this.appendFact(this.otherInfoFactsEl, localize('connectorTierFact', "Tier"), connector.tier) ? 1 : 0;
 		otherInformationCount += this.appendFact(this.otherInfoFactsEl, localize('connectorExportSupportedFact', "Export Supported"), connector.isExportSupported === undefined ? undefined : connector.isExportSupported ? localize('connectorYes', "Yes") : localize('connectorNo', "No")) ? 1 : 0;
@@ -265,19 +272,29 @@ export class EmbeddedConnectorDetail extends Disposable {
 		return DOM.append(row, $('.embedded-detail-fact-value'));
 	}
 
-	private appendLinkFact(parent: HTMLElement, label: string, uri: URI | undefined): boolean {
+	private appendLinkFact(parent: HTMLElement, label: string, uri: URI | string | undefined, linkLabel?: string): boolean {
 		if (!uri) {
 			return false;
 		}
 		const value = this.appendFactRow(parent, label);
 		const link = DOM.append(value, $('a.embedded-detail-fact-link')) as HTMLAnchorElement;
-		link.href = uri.toString(true);
-		link.textContent = uri.toString(true);
-		this.renderDisposables.add(DOM.addDisposableListener(link, 'click', event => {
-			event.preventDefault();
-			void this.openerService.open(uri);
-		}));
+		const href = typeof uri === 'string' ? uri : uri.toString(true);
+		renderCustomizationDetailLink(link, {
+			label: linkLabel ?? href,
+			target: uri,
+			onOpen: target => void this.openExternal(target),
+			hoverService: this.hoverService,
+			hoverGroupId: this.factHoverGroupId,
+		}, this.renderDisposables);
 		return true;
+	}
+
+	private async openExternal(uri: URI | string): Promise<void> {
+		try {
+			await this.openerService.open(uri, { openExternal: true, allowCommands: false, allowContributedOpeners: false });
+		} catch (error) {
+			this.notificationService.error(localize('connectorDetailOpenError', "Could not open the connector link. {0}", getErrorMessage(error)));
+		}
 	}
 
 	private formatAuthor(author: ICopilotConnector['author']): string {

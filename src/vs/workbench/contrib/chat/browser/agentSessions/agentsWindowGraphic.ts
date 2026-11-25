@@ -17,7 +17,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, ChatConfiguration, getAgentsWindowGraphicVariant, getAgentsWindowSectionStyle } from '../../common/constants.js';
-import { registerAgentsWindowTreatments } from './agentsWindowTreatments.js';
+import { registerExperimentTreatments } from '../../../../services/assignment/common/experimentTreatments.js';
 
 /** A graphic that can be shown. */
 export type AgentsWindowGraphicDesign = AgentsWindowGraphicVariant.WindowComparison | AgentsWindowGraphicVariant.Banner;
@@ -126,7 +126,7 @@ export class AgentsWindowGraphic extends Disposable {
 
 		this._register(autorun(reader => {
 			if (this.design.read(reader) === AgentsWindowGraphicVariant.Banner) {
-				reader.store.add(registerAgentsWindowTreatments(
+				reader.store.add(registerExperimentTreatments(
 					[AGENTS_WINDOW_BANNER_TITLE_TREATMENT, AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT],
 					'AgentsWindowGraphic',
 					([title, description]) => this._bannerCopy.set({ title, description }, undefined),

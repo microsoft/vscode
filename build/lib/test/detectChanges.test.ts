@@ -17,6 +17,7 @@ const coreTestOutputs = ['unit-tests', 'browser-integration', 'product-tests'];
 /** The outputs of the changes that only Compile & Hygiene reads. */
 const onlyCompileAndHygiene = {
 	'cli': 'false',
+	'dependencies': 'false',
 	'copilot-shim': 'false',
 	'copilot': 'false',
 	'unit-tests': 'false',
@@ -224,6 +225,7 @@ suite('Detect Changes', () => {
 		}, {
 			outputs: {
 				'cli': 'false',
+				'dependencies': 'false',
 				'copilot-shim': 'false',
 				'copilot': 'false',
 				'unit-tests': 'false',
@@ -273,7 +275,7 @@ suite('Detect Changes', () => {
 			patch: ['@@ -1,7 +1,7 @@', ' {', '   "name": "code-oss-dev",', ...changedLines, '   "author": {'].join('\n'),
 		});
 		const distroUpdate = packageJsonChange(`-${distroLine}`, `+  "distro": "${'0'.repeat(40)}",`);
-		const everyCheck = { ...onlyCompileAndHygiene, 'cli': 'true', 'copilot': 'true', 'unit-tests': 'true', 'browser-integration': 'true', 'product-tests': 'true', 'monaco-editor': 'true', 'telemetry': 'true' };
+		const everyCheck = { ...onlyCompileAndHygiene, 'cli': 'true', 'dependencies': 'true', 'copilot': 'true', 'unit-tests': 'true', 'browser-integration': 'true', 'product-tests': 'true', 'monaco-editor': 'true', 'telemetry': 'true' };
 		assert.deepStrictEqual({
 			distroUpdate: await detect([distroUpdate]),
 			withAzurePipelinesDefinition: await detect([distroUpdate, { filename: 'build/azure-pipelines/product-build.yml' }]),
@@ -284,10 +286,27 @@ suite('Detect Changes', () => {
 		}, {
 			distroUpdate: onlyCompileAndHygiene,
 			withAzurePipelinesDefinition: onlyCompileAndHygiene,
-			withSources: { ...everyCheck, 'cli': 'false', 'copilot': 'false' },
+			withSources: { ...everyCheck, 'cli': 'false', 'dependencies': 'false', 'copilot': 'false' },
 			withOtherField: everyCheck,
 			withoutPatch: everyCheck,
 		});
+	});
+
+	test('Dependency Release Age runs for changes to a lockfile, the pnpm configuration or the root package.json', async () => {
+		const dependencies = async (...filenames: string[]) => (await detect(filenames.map(filename => ({ filename })))).dependencies;
+		assert.deepStrictEqual(await Promise.all([
+			dependencies('pnpm-lock.yaml'),
+			dependencies('remote/pnpm-lock.yaml'),
+			dependencies('build/agent-sdk/agents/claude/package-lock.json'),
+			dependencies('cli/Cargo.lock'),
+			dependencies('build/pnpm-workspace.yaml'),
+			dependencies('remote/.pnpmfile.mjs'),
+			dependencies('build/.npmrc'),
+			dependencies('cli/.cargo/config.toml'),
+			dependencies('package.json'),
+			dependencies('extensions/git/package.json'),
+			dependencies('src/vs/base/common/async.ts'),
+		]), ['true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'false', 'false']);
 	});
 
 	test('both sides of a rename participate in selection', async () => {

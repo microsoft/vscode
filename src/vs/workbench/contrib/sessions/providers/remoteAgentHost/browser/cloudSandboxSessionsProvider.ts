@@ -435,6 +435,11 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			: sessions.filter(session => !this._withheldSessions.has(this._sessionKeyFromChatId(session.sessionId) ?? ''));
 	}
 
+	override getSession(resource: URI): ISession | undefined {
+		const session = super.getSession(resource);
+		return session && this._withheldSessions.has(this._sessionKeyFromChatId(session.sessionId) ?? '') ? undefined : session;
+	}
+
 	protected override _isSessionEvictable(rawId: string): boolean {
 		if (this._deleteSessionsOnDemand?.ownsSession(URI.parse(rawId))) {
 			return false;

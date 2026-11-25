@@ -1393,6 +1393,8 @@ suite('ChatWidget', () => {
 			chatSessionsService: { getChatSessionContribution: () => undefined },
 			welcomePart: store.add(new MutableDisposable()),
 			welcomeMessageContainer: container,
+			welcomeContentContainer: dom.$('.chat-welcome-content'),
+			welcomeContentSpacer: dom.$('.chat-welcome-content-spacer'),
 			instantiationService: {
 				createInstance: (_ctor: object, content: IChatViewWelcomeContent) => {
 					contents.push(content);
@@ -3157,14 +3159,16 @@ suite('ChatWidget - acceptInput submission', () => {
 		assert.deepStrictEqual({ requests: fixture.chatService.sendRequest.callCount }, { requests: 1 });
 	});
 
-	for (const changeModel of [true, false]) {
-		test(`inline edits submit their own picker settings without changing the main composer (${changeModel ? 'different model' : 'same model'})`, async () => {
+	for (const scenario of ['latest', 'unchanged', 'fallback', 'older', 'queued', 'rejected', 'composer configuration changed', 'composer model switched back'] as const) {
+		test(`inline edit model selection on resubmit (${scenario})`, async () => {
 			const fixture = createSubmissionWidget();
 			await fixture.configurationService.setUserConfiguration('chat.editRequests', 'inline');
 			const mainModelId = 'agent-host-copilot:gpt-5.6-sol-fast';
-			const editedModelId = changeModel ? 'agent-host-copilot:claude-haiku-5.5' : mainModelId;
+			const editedModelId = 'agent-host-copilot:claude-haiku-5.5';
 			const mainConfiguration = { thinkingLevel: 'medium', contextSize: 272000 };
 			const editedConfiguration = { thinkingLevel: 'high', contextSize: 1000000 };
+			const keepsEditedModel = scenario === 'latest' || scenario === 'older';
+			const expectedComposerConfiguration = scenario === 'composer configuration changed' ? { ...mainConfiguration, thinkingLevel: 'low' } : mainConfiguration;
 			const mainModeInfo: ChatInputPart['currentModeInfo'] = {
 				kind: ChatModeKind.Ask,
 				isBuiltin: true,
@@ -3183,19 +3187,28 @@ suite('ChatWidget - acceptInput submission', () => {
 			const mainMode = constObservable(upcastPartial<IChatMode>({ id: 'ask' }));
 			const editedMode = constObservable(upcastPartial<IChatMode>({ id: 'edited-agent', agents: constObservable(['edited-subagent']) }));
 			const editedTools = { editedTool: true, otherTool: false };
-			const intendedModel: IIntendedModelSelection = { modelId: mainModelId, reason: ModelSelectionReason.UserSelection };
+			let composerModelId = mainModelId;
+			let composerModelSelectionRevision = 0;
+			const intendedModel = (): IIntendedModelSelection => ({ modelId: composerModelId, reason: ModelSelectionReason.UserSelection });
 			Object.defineProperties(fixture.input, {
-				currentLanguageModel: { value: mainModelId },
+				currentLanguageModel: { get: () => composerModelId },
 				currentModeInfo: { value: mainModeInfo },
 				currentModeObs: { value: mainMode },
-				dnd: { value: { setDisabledOverlay: () => { } } },
 			});
 			fixture.input.getModelConfiguration.returns(mainConfiguration);
+			fixture.input.switchModelByIdentifier.callsFake((id, _storeSelection, _userAction, configuration) => {
+				composerModelId = id;
+				fixture.input.getModelConfiguration.withArgs(id).returns(configuration);
+				return true;
+			});
 			fixture.inputPartDisposable.value = upcastPartial<ChatInputPart>({
+				get currentLanguageModel() { return composerModelId; },
+				get modelSelectionRevision() { return composerModelSelectionRevision; },
 				dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
 				clearToolConfirmationCarousel: fixture.input.clearToolConfirmationCarousel,
 				toggleChatInputOverlay: fixture.input.toggleChatInputOverlay,
 				setEditing: fixture.input.setEditing,
+				switchModelByIdentifier: fixture.input.switchModelByIdentifier,
 				setCurrentLanguageModel: fixture.input.setCurrentLanguageModel,
 				requestModelByIdentifier: fixture.input.requestModelByIdentifier,
 				setChatMode: fixture.input.setChatMode,
@@ -3203,8 +3216,19 @@ suite('ChatWidget - acceptInput submission', () => {
 				focus: fixture.input.focus,
 				dispose: () => { },
 			});
-			Object.defineProperty(fixture.original.model.inputModel, 'intendedModel', { value: intendedModel });
+			Object.defineProperty(fixture.original.model.inputModel, 'intendedModel', { get: intendedModel });
 			Object.defineProperty(fixture.original.model, 'setCheckpoint', { value: () => { } });
+			if (scenario === 'older') {
+				Object.defineProperty(fixture.original.model, 'getRequests', {
+					value: () => [
+						upcastPartial<IChatRequestModel>({ id: 'existing-request' }),
+						upcastPartial<IChatRequestModel>({ id: 'latest-request' }),
+					]
+				});
+			}
+			if (scenario === 'rejected') {
+				fixture.chatService.sendRequest.onFirstCall().resolves({ kind: 'rejected', reason: 'test rejection' });
+			}
 
 			const inlineInput = store.add(new MutableDisposable<ChatInputPart>());
 			inlineInput.value = upcastPartial<ChatInputPart>({
@@ -3212,6 +3236,7 @@ suite('ChatWidget - acceptInput submission', () => {
 				getAttachedContext: fixture.input.getAttachedContext,
 				getAttachedAndImplicitContext: fixture.input.getAttachedAndImplicitContext,
 				currentLanguageModel: editedModelId,
+				hasUserSelectedModel: scenario !== 'fallback',
 				getModelConfiguration: () => editedConfiguration,
 				currentModeKind: ChatModeKind.Agent,
 				currentModeInfo: editedModeInfo,
@@ -3222,7 +3247,11 @@ suite('ChatWidget - acceptInput submission', () => {
 				getPromptText: () => 'Edited request',
 				dispose: () => { },
 			});
-			let editing: IChatRequestViewModel | undefined = upcastPartial<IChatRequestViewModel>({ id: 'existing-request' });
+			let editing: IChatRequestViewModel | undefined = upcastPartial<IChatRequestViewModel>({
+				id: scenario === 'queued' ? 'queued-request' : 'existing-request',
+				modelId: scenario === 'unchanged' ? editedModelId : mainModelId,
+				pendingKind: scenario === 'queued' ? ChatRequestQueueKind.Queued : undefined,
+			});
 			Object.defineProperties(fixture.original.viewModel, {
 				editing: { get: () => editing },
 				setEditing: { value: (request: IChatRequestViewModel | undefined) => { editing = request; } },
@@ -3243,7 +3272,29 @@ suite('ChatWidget - acceptInput submission', () => {
 				_requestToolsSources: { value: new WeakMap() },
 			});
 
-			await fixture.widget.acceptInput();
+			if (scenario === 'composer configuration changed' || scenario === 'composer model switched back') {
+				const sendStarted = new DeferredPromise<void>();
+				const sendResult = new DeferredPromise<ChatSendResult>();
+				fixture.chatService.sendRequest.onFirstCall().callsFake(() => {
+					void sendStarted.complete();
+					return sendResult.p;
+				});
+				const resubmitting = fixture.widget.acceptInput();
+				await sendStarted.p;
+				if (scenario === 'composer configuration changed') {
+					fixture.input.getModelConfiguration.withArgs(mainModelId).returns(expectedComposerConfiguration);
+					composerModelSelectionRevision++;
+				} else {
+					for (const modelId of [editedModelId, mainModelId]) {
+						composerModelId = modelId;
+						composerModelSelectionRevision++;
+					}
+				}
+				await sendResult.complete(fixture.sent);
+				await resubmitting;
+			} else {
+				await fixture.widget.acceptInput();
+			}
 			await fixture.widget.acceptInput('Follow up', { preserveInput: true });
 
 			const requests = fixture.chatService.sendRequest.getCalls().map(call => {
@@ -3263,7 +3314,8 @@ suite('ChatWidget - acceptInput submission', () => {
 				mainSelection: fixture.widget.getSelectedModelRequestOptions(),
 				mainMode: fixture.widget.input.currentModeInfo,
 				intendedModel: fixture.original.model.inputModel.intendedModel,
-				mainPickerWrites: [
+				modelSwitches: fixture.input.switchModelByIdentifier.getCalls().map(call => call.args),
+				otherPickerWrites: [
 					fixture.input.setCurrentLanguageModel.callCount,
 					fixture.input.requestModelByIdentifier.callCount,
 					fixture.input.setChatMode.callCount,
@@ -3280,17 +3332,21 @@ suite('ChatWidget - acceptInput submission', () => {
 					instructions: { modeKind: ChatModeKind.Agent, enabledTools: editedTools, enabledSubAgents: ['edited-subagent'] },
 				}, {
 					input: 'Follow up',
-					model: mainModelId,
-					configuration: mainConfiguration,
+					model: keepsEditedModel ? editedModelId : mainModelId,
+					configuration: keepsEditedModel ? editedConfiguration : expectedComposerConfiguration,
 					mode: ChatModeKind.Ask,
 					modeInfo: mainModeInfo,
 					tools: {},
 					instructions: { modeKind: ChatModeKind.Ask, enabledTools: undefined, enabledSubAgents: undefined },
 				}],
-				mainSelection: { userSelectedModelId: mainModelId, userSelectedModelConfiguration: mainConfiguration },
+				mainSelection: {
+					userSelectedModelId: keepsEditedModel ? editedModelId : mainModelId,
+					userSelectedModelConfiguration: keepsEditedModel ? editedConfiguration : expectedComposerConfiguration,
+				},
 				mainMode: mainModeInfo,
-				intendedModel,
-				mainPickerWrites: [0, 0, 0, 0],
+				intendedModel: { modelId: keepsEditedModel ? editedModelId : mainModelId, reason: ModelSelectionReason.UserSelection },
+				modelSwitches: keepsEditedModel ? [[editedModelId, false, true, editedConfiguration]] : [],
+				otherPickerWrites: [0, 0, 0, 0],
 			});
 		});
 	}

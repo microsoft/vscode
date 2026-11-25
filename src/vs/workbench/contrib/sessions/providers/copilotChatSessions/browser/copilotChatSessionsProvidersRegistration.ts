@@ -32,6 +32,7 @@ export function registerCopilotChatSessionsProviders(accessor: ServicesAccessor)
 	const disposables = new DisposableStore();
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider, 'default'));
+	provider.registerAutomationTaskConversations();
 	disposables.add(sessionsProvidersService.registerProvider(provider));
 
 	if (isWeb) {
