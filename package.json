@@ -114,7 +114,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@microsoft/copilot-sdk": "2.0.2-unstable.45286541461.g05667ac",
+    "@microsoft/copilot-sdk": "2.0.2",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -277,5 +277,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.114-unstable.r45286541461.g05667ac"
+  "copilotRuntimeVersion": "1.0.115"
 }

@@ -91,7 +91,7 @@ import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isHostNoticeTurn, isSubagentSession, lastAttributableTurnId, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
-import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
+import { CopilotSessionWrapper, type CopilotProvisionalFusionStreamEvent, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
@@ -2486,6 +2486,11 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shownProvisionalFusionMessageIds = new Set<string>();
 	/** Fusion reasoning already shown, by message and text, so a message's committed copy doesn't show it again. */
 	private readonly _shownFusionReasoning = new Set<string>();
+	/**
+	 * What each staged Fusion phase has streamed since its last complete message, by phase tool call id.
+	 * The phase's complete provisional message then shows only what its stream did not.
+	 */
+	private readonly _streamedFusionPhaseOutput = new Map<string, { text: boolean; reasoning: boolean }>();
 	/** `task_complete` calls already shown in a provisional phase, reported again when their phase commits. */
 	private readonly _provisionalFusionTaskCompletions = new Map<string, ITaskCompletion>();
 	/**
@@ -11700,7 +11705,7 @@ export class CopilotAgentSession extends Disposable {
 			this._emitMarkdownDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e));
 		}));
 
-		// Fusion phases stream no reasoning deltas, so a phase's reasoning arrives only with its complete message.
+		// A phase's streamed reasoning arrives again in its complete message, which shows the reasoning only when it did not stream.
 		const renderFusionReasoning = (e: SessionEventPayload<'assistant.message'>, contentParentToolCallId: string | undefined): void => {
 			const reasoning = e.data.reasoningText;
 			const key = JSON.stringify([e.data.messageId, reasoning]);
@@ -11714,7 +11719,7 @@ export class CopilotAgentSession extends Disposable {
 				part: { kind: ResponsePartKind.Reasoning, id: generateUuid(), content: reasoning },
 			}, contentParentToolCallId);
 		};
-		const renderMessage = (e: SessionEventPayload<'assistant.message'>, contentParentToolCallId: string | undefined, isLastMessageChunk: boolean, isFusionMessage = false): void => {
+		const renderMessage = (e: SessionEventPayload<'assistant.message'>, contentParentToolCallId: string | undefined, isLastMessageChunk: boolean, isFusionMessage = false, contentStreamed = false): void => {
 			if (this._shouldDropLateRootTurnEvent('assistant.message')) {
 				return;
 			}
@@ -11724,8 +11729,8 @@ export class CopilotAgentSession extends Disposable {
 			const markdownScope = contentParentToolCallId ?? '';
 			const state = this._getResponsePartState(contentParentToolCallId);
 			const isEmptyFinalAnswer = isLastMessageChunk && e.data.phase === 'final_answer' && !e.data.content && !e.data.toolRequests?.length;
-			// Fusion sends distinct complete chunks without preceding text deltas.
-			if (e.data.content && (isFusionMessage || (!state?.markdownPartIds.has(markdownScope) && !this._reasoningTiming.hasMarkdown(contentParentToolCallId)))) {
+			// A committed Fusion message never streamed into its chat, so it is a whole new chunk; a provisional one shows only what its phase did not stream.
+			if (e.data.content && !contentStreamed && (isFusionMessage || (!state?.markdownPartIds.has(markdownScope) && !this._reasoningTiming.hasMarkdown(contentParentToolCallId)))) {
 				const partId = generateUuid();
 				state?.markdownPartIds.set(markdownScope, partId);
 				this._emitAction({
@@ -12540,10 +12545,59 @@ export class CopilotAgentSession extends Disposable {
 			handleToolComplete(e);
 		}));
 
+		/**
+		 * Streams a staged phase's model output where that phase's complete message would show:
+		 * a phase with a chat streams there, and an inline phase streams only its reasoning,
+		 * as its answer waits for the commit. A response can't take back text the runtime later discards.
+		 */
+		const streamFusionPhaseOutput = (e: CopilotProvisionalFusionStreamEvent): void => {
+			if (e.type !== 'assistant.message_delta' && e.type !== 'assistant.reasoning_delta') {
+				// The deltas and the complete message carry everything a message start or whole reasoning block does.
+				return;
+			}
+			// A review phase shows its critique when it completes.
+			if (!e.data.deltaContent || e.data.fusion?.conversationScope === 'review') {
+				return;
+			}
+			const phaseToolCallId = this._fusionPhaseToolCallId(undefined, e.data.fusion);
+			if (phaseToolCallId === undefined) {
+				return;
+			}
+			const isInlinePhase = this._fusionPhases.get(phaseToolCallId)?.presentation === 'inline';
+			if (e.type === 'assistant.message_delta' && isInlinePhase) {
+				return;
+			}
+			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId) ?? { text: false, reasoning: false };
+			this._streamedFusionPhaseOutput.set(phaseToolCallId, streamed);
+			const contentParentToolCallId = isInlinePhase ? undefined : this._fusionPhaseContentParentToolCallId(phaseToolCallId);
+			if (e.type === 'assistant.reasoning_delta') {
+				streamed.reasoning = true;
+				this._emitReasoningDelta(e.data.deltaContent, contentParentToolCallId);
+			} else {
+				streamed.text = true;
+				this._emitMarkdownDelta(e.data.deltaContent, contentParentToolCallId);
+			}
+		};
+		/** What a phase streamed for the message this chunk belongs to; its streamed reasoning is not shown again, here or in the committed copy. */
+		const takeStreamedFusionPhaseOutput = (e: SessionEventPayload<'assistant.message'>, phaseToolCallId: string): { readonly text: boolean; readonly reasoning: boolean } => {
+			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId) ?? { text: false, reasoning: false };
+			if (streamed.reasoning && e.data.reasoningText) {
+				this._shownFusionReasoning.add(JSON.stringify([e.data.messageId, e.data.reasoningText]));
+			}
+			if (isLastAssistantMessageChunk(e)) {
+				this._streamedFusionPhaseOutput.delete(phaseToolCallId);
+			}
+			return streamed;
+		};
+
 		store.add(wrapper.onProvisionalFusionEvent(e => {
 			if (e.type === 'tool.execution_complete') {
 				handleMeteredToolUsage(e);
 			} else if (e.type === 'tool.execution_start' ? this._shouldDropEarlierFusionToolStart(e) : this._shouldDropEarlierFusionEvent(e)) {
+				return;
+			}
+			if (e.type === 'assistant.message_start' || e.type === 'assistant.message_delta' || e.type === 'assistant.reasoning_delta' || e.type === 'assistant.reasoning') {
+				streamFusionPhaseOutput(e);
 				return;
 			}
 			if (e.type === 'assistant.message') {
@@ -12555,6 +12609,7 @@ export class CopilotAgentSession extends Disposable {
 				if (phaseToolCallId === undefined) {
 					return;
 				}
+				const streamed = takeStreamedFusionPhaseOutput(e, phaseToolCallId);
 				if (this._fusionPhases.get(phaseToolCallId)?.presentation === 'inline') {
 					const call = this._provisionalInlineFusionMessageChunks.accept(e, phaseToolCallId);
 					if (call?.messages.some(chunk => chunk.data.toolRequests?.some(request => !isTaskCompleteTool(request.name)))) {
@@ -12568,10 +12623,14 @@ export class CopilotAgentSession extends Disposable {
 							renderFusionReasoning(chunk, undefined);
 						}
 					}
+					if (streamed.reasoning && isLastAssistantMessageChunk(e)) {
+						// No answer follows the streamed reasoning until the commit, so its thinking time ends with this model call.
+						this._reasoningTiming.finish(undefined);
+					}
 					return;
 				}
 				this._shownProvisionalFusionMessageIds.add(e.data.messageId);
-				renderMessage(e, this._fusionPhaseContentParentToolCallId(phaseToolCallId), isLastAssistantMessageChunk(e), true);
+				renderMessage(e, this._fusionPhaseContentParentToolCallId(phaseToolCallId), isLastAssistantMessageChunk(e), true, streamed.text);
 				return;
 			}
 			if (e.type === 'tool.execution_start') {
@@ -14527,6 +14586,7 @@ export class CopilotAgentSession extends Disposable {
 		this._surfacedProvisionalFusionToolCallIds.clear();
 		this._shownProvisionalFusionMessageIds.clear();
 		this._shownFusionReasoning.clear();
+		this._streamedFusionPhaseOutput.clear();
 		this._provisionalFusionTaskCompletions.clear();
 		this._pendingFusionMessageChunks.clear();
 		this._provisionalInlineFusionMessageChunks.clear();
