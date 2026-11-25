@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { EditorOption, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
-import { IPosition } from '../../../common/core/position.js';
+import { IPosition, Position } from '../../../common/core/position.js';
 import { IRange } from '../../../common/core/range.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { ScrollType } from '../../../common/editorCommon.js';
@@ -348,6 +348,28 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		lineBreaksComputer?.addRequest(position.lineNumber, null);
 		const row = lineBreaksComputer?.finalize()[0]?.translateToOutputPosition(position.column - 1).outputLineIndex ?? 0;
 		return this._headerHeight + originalEditor.getTopForLineNumber(position.lineNumber) + row * modifiedEditor.getOption(EditorOption.lineHeight);
+	}
+
+	/**
+	 * Returns the offset from the top of the item of a character of text that the modified editor shows in front of a
+	 * position, like the deleted text of a true inline diff, that is of the row that shows it when its line wraps.
+	 *
+	 * @param offset The offset of the character in the text that the editor shows in front of the position.
+	 */
+	public getInjectedTextOffset(position: IPosition, offset: number): number {
+		this._flushVerticalState();
+		const viewModel = this.editor.getModifiedEditor()._getViewModel();
+		if (!viewModel) {
+			return this.getPositionOffset('modified', position);
+		}
+		// A position maps to the view position in front of the text that the editor shows in front of it.
+		let viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(Position.lift(position));
+		let remaining = offset;
+		while (remaining >= viewModel.getLineMaxColumn(viewPosition.lineNumber) - viewPosition.column && viewPosition.lineNumber < viewModel.getLineCount()) {
+			remaining -= viewModel.getLineMaxColumn(viewPosition.lineNumber) - viewPosition.column;
+			viewPosition = new Position(viewPosition.lineNumber + 1, viewModel.getLineMinColumn(viewPosition.lineNumber + 1));
+		}
+		return this._headerHeight + viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 	}
 
 	/**

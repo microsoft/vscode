@@ -618,6 +618,35 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
+	test('reveals deleted text that a true inline diff shows in the wrapped rows of a modified line', async () => {
+		const words = (prefix: string) => Array.from({ length: 300 }, (_, index) => `${prefix}${index}`).join(' ');
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const originalLines = [...lines];
+		originalLines[149] = words('a');
+		originalLines[150] = words('b');
+		originalLines[151] = `keep ${words('c')} keep`;
+		const modifiedLines = [...lines];
+		// The changed words of the long lines 150 and 151 make them one change with line 152, whose words are deleted.
+		modifiedLines[149] = words('a').replace('a5 ', 'x5 ');
+		modifiedLines[150] = words('b').replace('b5 ', 'y5 ');
+		modifiedLines[151] = 'keep keep';
+		const { widget, resource } = await showFileBelowAnother(originalLines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false, diffWordWrap: 'on', editorOptions: { experimental: { useTrueInlineView: true } } });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			// The modified editor shows the deleted words in front of the second "keep", where the word "c250" is rows below their start.
+			const column = originalLines[151].indexOf('c250') + 1;
+			widget.reveal(resource, { range: new Range(152, column, 152, column + 4), highlight: false });
+			editor.render(true);
+
+			assert.deepStrictEqual({
+				showsWord: [...editor.getDomNode()!.querySelectorAll('.view-line')].some(line => line.textContent?.includes('c250')),
+			}, { showsWord: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
 	test('expands a collapsed file to reveal a range in it', async () => {
 		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
 		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line).join('\n'));

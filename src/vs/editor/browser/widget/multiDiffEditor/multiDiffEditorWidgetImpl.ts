@@ -22,12 +22,13 @@ import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
-import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { translatePosition } from '../diffEditor/utils.js';
+import { allowsTrueInlineDiffRendering } from '../diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
 import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrollLayout.js';
 import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
@@ -512,18 +513,29 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		viewItem.viewModel.collapsed.set(false, undefined);
 		let side: 'original' | 'modified' = options.side ?? (viewItem.viewModel.originalUri ? 'original' : 'modified');
 		let range = options.range;
+		let offset: number | undefined;
 		if (side === 'original' && !template.editor.renderSideBySide) {
 			// An inline diff shows the original document where the modified document has it, except for deleted text.
-			const modifiedRange = mapToModifiedDocument(range, template.editor.getDiffComputationResult()?.changes2 ?? []);
-			if (!modifiedRange) {
-				// Deleted text shows in view zones of the modified editor, which can neither reveal nor highlight a range in them.
-				this._scrollToItemOffset(index, template.getDeletedTextOffset(range.getStartPosition()));
-				return;
+			const mappings = template.editor.getDiffComputationResult()?.changes2 ?? [];
+			const start = range.getStartPosition();
+			const modifiedRange = mapToModifiedDocument(range, mappings);
+			if (modifiedRange) {
+				range = modifiedRange;
+			} else {
+				const change = mappings.find(mapping => mapping.original.contains(start.lineNumber));
+				const deletion = change && template.editor.useTrueInlineDiffRendering && allowsTrueInlineDiffRendering(change) ? findInnerChange(change, start) : undefined;
+				if (!deletion) {
+					// Deleted text shows in view zones of the modified editor, which can neither reveal nor highlight a range in them.
+					this._scrollToItemOffset(index, template.getDeletedTextOffset(start));
+					return;
+				}
+				// A true inline diff shows deleted text in the line of the modified editor, in front of where it was deleted.
+				range = Range.fromPositions(deletion.modifiedRange.getStartPosition());
+				offset = template.getInjectedTextOffset(range.getStartPosition(), start.column - deletion.originalRange.startColumn);
 			}
-			range = modifiedRange;
 			side = 'modified';
 		}
-		this._scrollToItemOffset(index, template.getPositionOffset(side, range.getStartPosition()));
+		this._scrollToItemOffset(index, offset ?? template.getPositionOffset(side, range.getStartPosition()));
 		const scrollLeft = template.revealRangeHorizontally(side, range);
 		if (scrollLeft !== undefined) {
 			// All items share the horizontal scroll position.
@@ -800,12 +812,15 @@ function mapToModifiedDocument(range: Range, mappings: readonly DetailedLineRang
 	if (change && !change.innerChanges && change.modified.isEmpty) {
 		return undefined;
 	}
-	// The text after an inner change starts at its end.
-	const innerChange = change?.innerChanges?.find(inner => inner.originalRange.containsPosition(start) && !inner.originalRange.getEndPosition().equals(start));
-	if (innerChange?.modifiedRange.isEmpty()) {
+	if (change && findInnerChange(change, start)?.modifiedRange.isEmpty()) {
 		return undefined;
 	}
 	return Range.fromPositions(translateEdge(start, mappings, 'start'), translateEdge(range.getEndPosition(), mappings, 'end'));
+}
+
+/** Returns the inner change whose original text contains a position. The text after an inner change starts at its end. */
+function findInnerChange(change: DetailedLineRangeMapping, position: Position): RangeMapping | undefined {
+	return change.innerChanges?.find(inner => inner.originalRange.containsPosition(position) && !inner.originalRange.getEndPosition().equals(position));
 }
 
 /**
