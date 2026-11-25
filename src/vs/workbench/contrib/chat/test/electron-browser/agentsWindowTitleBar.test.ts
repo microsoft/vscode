@@ -503,21 +503,36 @@ suite('Agents Window titlebar copy experiment', () => {
 		});
 	});
 
-	test('logs the fallback hover after the shared lookup resolves without an assignment', async () => {
-		const h = createHarness(2);
-		await h.expansionRequests[0].complete(false);
-		await timeout(0);
-		h.container.dispatchEvent(new MouseEvent('mouseenter'));
-		h.container.dispatchEvent(new MouseEvent('mouseleave'));
-		await h.resolveSharedExpansion(undefined);
-		assert.deepStrictEqual({
-			expandOnHover: h.container.classList.contains('expand-on-hover'),
-			triggers: h.snapshot().triggers,
-		}, {
-			expandOnHover: false,
-			triggers: [expansionTreatmentName],
+	for (const sharedExpansion of [undefined, true, false]) {
+		test(`defers fallback behavior until the initial shared lookup resolves (${sharedExpansion})`, async () => {
+			const h = createHarness(2);
+			await h.expansionRequests[0].complete(false);
+			await timeout(0);
+			h.container.dispatchEvent(new MouseEvent('mouseenter'));
+			const beforeSharedAssignment = {
+				expandOnHover: h.container.classList.contains('expand-on-hover'),
+				triggers: h.snapshot().triggers,
+			};
+			h.container.dispatchEvent(new MouseEvent('mouseleave'));
+			await h.resolveSharedExpansion(sharedExpansion);
+			const afterSharedAssignment = {
+				expandOnHover: h.container.classList.contains('expand-on-hover'),
+				triggers: h.snapshot().triggers,
+			};
+			h.container.dispatchEvent(new MouseEvent('mouseenter'));
+			assert.deepStrictEqual({
+				beforeSharedAssignment,
+				afterSharedAssignment,
+				triggersAfterHover: h.snapshot().triggers,
+			}, {
+				beforeSharedAssignment: { expandOnHover: true, triggers: [] },
+				afterSharedAssignment: { expandOnHover: sharedExpansion ?? false, triggers: [] },
+				triggersAfterHover: sharedExpansion === undefined
+					? [expansionTreatmentName, sharedExpansionTreatmentName]
+					: [sharedExpansionTreatmentName],
+			});
 		});
-	});
+	}
 
 	test('uses the last resolved shared treatment while refetches are pending', async () => {
 		const h = createHarness(2);
