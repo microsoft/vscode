@@ -65,7 +65,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getSessionFilterEnvironments, getSessionFilterOptions, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
-import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
+import { ISessionsListChange, ISessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { MobileSessionFilterChips } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSessionFilterChips.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -136,7 +136,7 @@ suite('Sessions - View Menu', () => {
 				};
 			},
 		});
-		const notices: ISessionsListNotice[] = [];
+		const notices: ISessionsListChange[] = [];
 		// The session the window shows, and the sessions opened as from the list
 		const shown = observableValue<ISession | undefined>('shown', undefined);
 		const opened: string[] = [];
@@ -160,7 +160,7 @@ suite('Sessions - View Menu', () => {
 			workspaceGroupCappedContextKey: capped,
 			filterContextKeys: new Map<string, { key: IContextKey<boolean>; read: () => boolean }>(),
 			archivedFilterRegistration: store.add(new DisposableStore()),
-			listNotification: upcastPartial<SessionsListNotification>({ show: notice => { notices.push(notice); } }),
+			undoService: upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }),
 			sessionsManagementService: {
 				onDidChangeSessions: sessionsChanged.event,
 				onDidChangeSessionTypes: Event.None,
@@ -800,9 +800,9 @@ suite('Sessions - View Menu', () => {
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 		harness.instantiationService.stub(ISessionsListModelService, model);
 		model.setInboxState([sessions[2]], 'hold');
-		const notices: ISessionsListNotice[] = [];
-		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-			upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+		const notices: ISessionsListChange[] = [];
+		harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => upcastPartial<SessionsView>({}));
 		await CommandsRegistry.getCommand(ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID)!.handler(harness.instantiationService, sessions);
 		const acknowledged = sessions.map(session => model.getInboxState(session)?.kind);
 		assert.deepStrictEqual({
@@ -902,9 +902,9 @@ suite('Sessions - View Menu', () => {
 		harness.instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			closeSession: session => { closed.push(session!.sessionId); },
 		}));
-		const notices: ISessionsListNotice[] = [];
-		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-			upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox, listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+		const notices: ISessionsListChange[] = [];
+		harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox }));
 		const run = (id: string) => CommandsRegistry.getCommand(id)!.handler(harness.instantiationService, sessions);
 		const states = () => sessions.map(session => {
 			assert.strictEqual(session.isRead.get(), false);
@@ -913,11 +913,11 @@ suite('Sessions - View Menu', () => {
 		model.setInboxState([sessions[0]], 'untilActivity');
 		await run('sessionsViewPane.inboxResume');
 		const resumed = states();
-		await notices[0].undo!();
+		await notices[0].undo();
 		const restored = states();
 		await run('sessionsViewPane.inboxHold');
 		const held = states();
-		await notices[1].undo!();
+		await notices[1].undo();
 		const holdUndone = states();
 		assert.deepStrictEqual({ resumed, restored, held, holdUndone, archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown), closed }, {
 			resumed: [undefined, undefined, undefined], restored: ['untilActivity', undefined, undefined],
@@ -936,9 +936,9 @@ suite('Sessions - View Menu', () => {
 		harness.instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			closeSession: session => { closed.push(session!.sessionId); },
 		}));
-		const notices: ISessionsListNotice[] = [];
-		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-			upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox, listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+		const notices: ISessionsListChange[] = [];
+		harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox }));
 		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items[0]);
 		const counts: { notices: number; closed: number }[] = [];
 		for (const action of ['inboxAcknowledge', 'inboxHold', 'inboxResume', 'inboxSnooze']) {
@@ -1023,9 +1023,9 @@ suite('Sessions - View Menu', () => {
 			SessionsViewGroupingContext.bindTo(context).set(SessionsGrouping.Inbox);
 			harness.instantiationService.stub(IContextKeyService, context);
 			harness.instantiationService.stub(IMenuService, store.add(harness.instantiationService.createInstance(MenuService)));
-			const notices: ISessionsListNotice[] = [];
-			harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-				upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+			const notices: ISessionsListChange[] = [];
+			harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+			harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => upcastPartial<SessionsView>({}));
 			let shown: IContextMenuDelegate | undefined;
 			harness.instantiationService.stub(IContextMenuService, {
 				showContextMenu: (delegate: IContextMenuDelegate) => { shown = delegate; },
@@ -1898,9 +1898,9 @@ suite('Sessions - View Menu', () => {
 		const before = state();
 		await run('sessionsViewPane.resetFilters');
 		const reset = state();
-		await notices[0].undo!();
+		await notices[0].undo();
 
-		assert.deepStrictEqual({ before, reset, notices: notices.map(notice => notice.message), undone: state() }, {
+		assert.deepStrictEqual({ before, reset, notices: notices.map(notice => notice.message(notice.count)), undone: state() }, {
 			before: { local: false, localChecked: false, showDoneChecked: true, showRecent: false },
 			reset: { local: true, localChecked: true, showDoneChecked: false, showRecent: true },
 			notices: ['Filters reset'],

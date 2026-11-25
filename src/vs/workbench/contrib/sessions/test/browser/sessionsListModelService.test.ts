@@ -851,6 +851,61 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
+	test('provisionally hidden sessions are not listed until every hold on them is released', () => {
+		const session = createSession('session');
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		service.showAutomationSessions([automation]);
+		const changes: string[] = [];
+		disposables.add(service.onDidChange(event => changes.push(...event.changes.map(change => `${change.kind} ${change.sessionId}`))));
+		const listed = () => [session, automation].filter(candidate => service.isSessionListed(candidate)).map(candidate => candidate.sessionId);
+		const first = service.hideSessionsProvisionally([session, automation]);
+		const second = service.hideSessionsProvisionally([session]);
+		const whileHeld = listed();
+		first.dispose();
+		const afterFirst = listed();
+		second.dispose();
+		second.dispose();
+
+		assert.deepStrictEqual({ whileHeld, afterFirst, released: listed(), changes }, {
+			whileHeld: [],
+			afterFirst: ['automation'],
+			released: ['session', 'automation'],
+			changes: [
+				'provisionallyHidden session', 'provisionallyHidden automation',
+				'provisionallyHidden automation',
+				'provisionallyHidden session',
+			],
+		});
+	});
+
+	test('undoing a hide lists each automation session as it was before: explicitly shown, by the setting, or still hidden', () => {
+		const [shown, bySetting, alreadyHidden] = ['shown', 'bySetting', 'alreadyHidden'].map(id => createSession(id, SessionStatus.Completed, { isAutomation: true }));
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.Always);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING,
+			affectedKeys: new Set([SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]),
+			change: { keys: [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+		const state = () => ({
+			listed: [shown, bySetting, alreadyHidden].filter(session => service.isSessionListed(session)).map(session => session.sessionId),
+			shown: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
+			hidden: storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE),
+		});
+		service.showAutomationSessions([shown]);
+		service.hideAutomationSessions([alreadyHidden]);
+		const before = state();
+		const undo = service.hideAutomationSessions([shown, bySetting, alreadyHidden]);
+		const hidden = state();
+		undo();
+
+		assert.deepStrictEqual({ hidden, undone: state() }, {
+			hidden: { listed: [], shown: undefined, hidden: JSON.stringify(['alreadyHidden', 'shown', 'bySetting']) },
+			undone: before,
+		});
+	});
+
 	test('each listing mode keeps explicit choices', () => {
 		const hidden = createSession('hidden', SessionStatus.Completed, { isAutomation: true });
 		const shown = createSession('shown', SessionStatus.Completed, { isAutomation: true });

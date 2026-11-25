@@ -13,7 +13,8 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Concern | Owner |
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
-| Pin, per-sort ordering, and automation-session listing state | `ISessionsListModelService` |
+| Pin, per-sort ordering, automation-session listing state, and sessions provisionally left out of the list | `ISessionsListModelService` |
+| Undo of changes made from the list, and completing provisional changes | `ISessionsListUndoService` |
 | Order of a session's nested chats | The session's provider |
 | Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
@@ -129,9 +130,17 @@ New Nested Session opens the New Session composer for a nested chat of any sessi
 
 ### Archived sessions
 
-Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
+Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing an archive from the list's Undo notice: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
 
 Providers may defer archived inventory until the archived section is expanded. Showing archived items in the filter exposes the section even without cached rows, but does not itself request inventory. The list acquires management-owned discovery demand while that section is expanded and visible; collapsing or hiding it releases demand without discarding cached history. Local tree refreshes do not refresh provider inventory.
+
+### Deleted sessions
+
+Providers can't restore deleted sessions, so deleting sessions from the list is a provisional change (see [Undo](#undo)): `ISessionsListModelService` leaves them out of the list and the window stops showing them, and the management service deletes them only once Undo is no longer offered. Undo lists them again without involving the provider.
+
+## Undo
+
+`ISessionsListUndoService` offers Undo for changes made from the list, in the notice of the window's Sessions view (the most recently rendered one, if there are several), which presents it. A change joins the notice that offers to undo changes of the same kind, which then counts them all, restarts its countdown, and undoes all of them, latest first; a change of another kind replaces the notice, ending Undo for the changes it offered. A change that can't be reverted once made stays provisional while Undo is offered for it, and completes once Undo no longer is: when its notice expires, is dismissed or replaced, its Sessions view goes away, or the window closes, which waits for it. Without a Sessions view, a change completes right away.
 
 ## Durable user intent
 
