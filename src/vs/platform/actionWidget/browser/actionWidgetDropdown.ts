@@ -9,8 +9,10 @@ import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../ba
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
+import { MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -89,11 +91,19 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 * dropdown cannot evaluate at display time.
 	 */
 	keybinding?: ResolvedKeybinding;
+	/** Optional actions shown in a nested submenu panel. */
+	submenuActions?: IAction[];
+	/** Options for the nested submenu action list. */
+	submenuOptions?: IActionListOptions;
+	/** A button that opens the nested submenu in place of its chevron. */
+	submenuButton?: IActionListItem<unknown>['submenuButton'];
 }
 
 // TODO @lramos15 - Should we just make IActionProvider templated?
 export interface IActionWidgetDropdownActionProvider {
 	getActions(): IActionWidgetDropdownAction[];
+	/** Fires when {@link getActions} would return other actions, which an open dropdown then shows. */
+	readonly onDidChangeActions?: Event<void>;
 }
 
 export interface IActionWidgetDropdownListOptionsProvider {
@@ -140,6 +150,7 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 export class ActionWidgetDropdown extends BaseDropdown {
 
 	private _enabled: boolean = true;
+	private readonly _actionsChangeListener = this._register(new MutableDisposable());
 
 	constructor(
 		container: HTMLElement,
@@ -151,18 +162,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 		super(container, _options);
 	}
 
-	override show(): void {
-		if (!this._enabled) {
-			return;
-		}
-
-		const actionBarActions = this._options.actionBarActions ?? this._options.actionBarActionProvider?.getActions() ?? [];
-		const actions = this._options.actions ?? this._options.actionProvider?.getActions() ?? [];
-
-		// Track the currently selected option before opening
-		const optionBeforeOpen: IActionWidgetDropdownAction | undefined = actions.find(a => a.checked);
-		let selectedOption: IActionWidgetDropdownAction | undefined = optionBeforeOpen;
-
+	private _createItems(actions: readonly IActionWidgetDropdownAction[], actionBarActions: readonly IAction[]): IActionListItem<IActionWidgetDropdownAction>[] {
 		const actionWidgetItems: IActionListItem<IActionWidgetDropdownAction>[] = [];
 
 		const actionsByCategory = new Map<string, IActionWidgetDropdownAction[]>();
@@ -211,6 +211,9 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					additionalBadges: action.additionalBadges,
 					hover: action.hover,
 					toolbarActions: action.toolbarActions,
+					submenuActions: action.submenuActions,
+					submenuOptions: action.submenuOptions,
+					submenuButton: action.submenuButton,
 					className: action.className,
 					inlineToggle: action.inlineToggle,
 					standaloneToggle: action.standaloneToggle,
@@ -239,28 +242,6 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			}
 		}
 
-		const previouslyFocusedElement = getActiveElement();
-
-
-		const auxiliaryActionIds = new Set(actionBarActions.map(action => action.id));
-
-		const actionWidgetDelegate: IActionListDelegate<IActionWidgetDropdownAction> = {
-			onSelect: (action, preview) => {
-				if (!auxiliaryActionIds.has(action.id)) {
-					selectedOption = action;
-				}
-				this.actionWidgetService.hide();
-				action.run();
-			},
-			onHide: () => {
-				this.hide();
-				if (isHTMLElement(previouslyFocusedElement)) {
-					previouslyFocusedElement.focus();
-				}
-				this._emitCloseEvent(optionBeforeOpen, selectedOption);
-			}
-		};
-
 		if (actionBarActions.length) {
 			if (actionWidgetItems.length) {
 				actionWidgetItems.push({
@@ -286,13 +267,50 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			}
 		}
 
-		const nonSeparatorItems = actionWidgetItems.filter(i => i.kind === ActionListItemKind.Action);
+		return actionWidgetItems;
+	}
+
+	override show(): void {
+		if (!this._enabled) {
+			return;
+		}
+
+		const actionBarActions = this._options.actionBarActions ?? this._options.actionBarActionProvider?.getActions() ?? [];
+		const actions = this._options.actions ?? this._options.actionProvider?.getActions() ?? [];
+
+		// Track the currently selected option before opening
+		const optionBeforeOpen: IActionWidgetDropdownAction | undefined = actions.find(a => a.checked);
+		let selectedOption: IActionWidgetDropdownAction | undefined = optionBeforeOpen;
+
+		let actionWidgetItems = this._createItems(actions, actionBarActions);
+
+		const previouslyFocusedElement = getActiveElement();
+
+
+		const auxiliaryActionIds = new Set(actionBarActions.map(action => action.id));
+
+		const actionWidgetDelegate: IActionListDelegate<IActionWidgetDropdownAction> = {
+			onSelect: (action, preview) => {
+				if (!auxiliaryActionIds.has(action.id)) {
+					selectedOption = action;
+				}
+				this.actionWidgetService.hide();
+				action.run();
+			},
+			onHide: () => {
+				this.hide();
+				if (isHTMLElement(previouslyFocusedElement)) {
+					previouslyFocusedElement.focus();
+				}
+				this._emitCloseEvent(optionBeforeOpen, selectedOption);
+			}
+		};
 
 		const accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IActionWidgetDropdownAction>>> = {
 			isChecked(element) {
 				return element.kind === ActionListItemKind.Action ? element.item?.checked : undefined;
 			},
-			getSetSize: () => nonSeparatorItems.length,
+			getSetSize: () => actionWidgetItems.filter(i => i.kind === ActionListItemKind.Action).length,
 			getPosInSet: (_element, index) => {
 				// Count only Action items up to this index; clamp to at least 1
 				// since aria-posinset must be in the range 1..aria-setsize
@@ -336,9 +354,18 @@ export class ActionWidgetDropdown extends BaseDropdown {
 				initialFocusItemId: this._options.getInitialFocusActionId?.() ?? listOptions.initialFocusItemId,
 			}
 		);
+
+		const actionProvider = this._options.actions ? undefined : this._options.actionProvider;
+		if (actionProvider?.onDidChangeActions) {
+			this._actionsChangeListener.value = actionProvider.onDidChangeActions(() => {
+				actionWidgetItems = this._createItems(actionProvider.getActions(), actionBarActions);
+				this.actionWidgetService.updateItems(actionWidgetItems, undefined, { preserveHover: true, preserveScrollPosition: true });
+			});
+		}
 	}
 
 	override hide(): void {
+		this._actionsChangeListener.clear();
 		const wasVisible = this.isVisible();
 		super.hide();
 		if (wasVisible) {
