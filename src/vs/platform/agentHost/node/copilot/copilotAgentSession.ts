@@ -720,9 +720,9 @@ function getCanvasOpenFailure(error: unknown): AgentCanvasOpenFailure | undefine
 	return canvasOpenFailurePatterns.find(([pattern]) => pattern.test(message))?.[1];
 }
 
-/** How often, and how many times, to list extensions while a revoked name's relaunch is still starting without a process. */
+/** How often, and for how long after the first read, to list extensions while a revoked name's relaunch is still starting without a process. */
 const PROJECT_EXTENSION_SETTLE_POLL_MS = 100;
-const PROJECT_EXTENSION_SETTLE_POLLS = 10;
+const PROJECT_EXTENSION_SETTLE_MS = 1_000;
 
 /** A live extension and, while it runs, its process. */
 interface ICopilotRuntimeExtension extends IAgentExtensionInfo {
@@ -7629,20 +7629,22 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Lists extensions, briefly waiting while one with a revoked name is starting without a process to tell which it is. */
 	private async _settledRuntimeExtensions(wrapper: CopilotSessionWrapper, revokedNames: ReadonlySet<string>, isCurrent: () => boolean): Promise<ICopilotRuntimeExtensionInventory | undefined> {
-		for (let poll = 1; ; poll++) {
-			const inventory = await this._listRuntimeExtensions(wrapper);
-			if (!isCurrent()) {
-				return undefined;
-			}
-			const unidentified = inventory.extensions.some(extension => extension.source === 'project' && extension.status === 'starting' && extension.pid === undefined && revokedNames.has(extension.name));
-			if (!unidentified || poll >= PROJECT_EXTENSION_SETTLE_POLLS) {
-				return inventory;
-			}
+		const unidentified = (inventory: ICopilotRuntimeExtensionInventory) => inventory.extensions.some(extension => extension.source === 'project' && extension.status === 'starting' && extension.pid === undefined && revokedNames.has(extension.name));
+		let inventory = await this._listRuntimeExtensions(wrapper);
+		// Later reads only get what remains of the wait, so a runtime that answers slowly can't stretch it.
+		const deadline = Date.now() + PROJECT_EXTENSION_SETTLE_MS;
+		while (isCurrent() && unidentified(inventory) && deadline - Date.now() > PROJECT_EXTENSION_SETTLE_POLL_MS) {
 			await timeout(PROJECT_EXTENSION_SETTLE_POLL_MS);
 			if (!isCurrent()) {
-				return undefined;
+				break;
 			}
+			const next = await raceTimeout(this._listRuntimeExtensions(wrapper), Math.max(0, deadline - Date.now()));
+			if (!next) {
+				break;
+			}
+			inventory = next;
 		}
+		return isCurrent() ? inventory : undefined;
 	}
 
 	/**

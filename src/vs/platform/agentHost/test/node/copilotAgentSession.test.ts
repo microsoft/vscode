@@ -7297,6 +7297,31 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('bounds the wait for a revoked project extension that keeps starting without a process, however slowly the runtime lists extensions', () => runWithFakedTimers({}, async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.extensions.push({ id: 'project:revoked', name: 'revoked', source: 'project', status: 'starting' });
+		const listMs = 5_000;
+		const list = mockSession.rpc.extensions.list;
+		Object.assign(mockSession.rpc.extensions, {
+			list: async () => {
+				await timeout(listMs);
+				return list();
+			},
+		});
+		const started = Date.now();
+
+		const outcome = await session.reconcileProjectExtensionsAfterTrustChange({ expanded: false, revokedExtensionNames: new Set(['revoked']) })
+			.then(() => 'confirmed', (error: Error) => error.name);
+
+		// The first list, then for each of the two reloads, one list and at most a second more.
+		assert.deepStrictEqual({ outcome, reloads: mockSession.extensionReloadCalls, elapsedMs: Date.now() - started }, {
+			outcome: 'CopilotProjectExtensionRevocationError',
+			reloads: 2,
+			elapsedMs: listMs + 2 * (listMs + 1_000),
+		});
+		session.dispose();
+	}));
+
 	suite('CopilotSessionWrapper', () => {
 		function createWrapper(mockSession: MockCopilotSession, logService: ILogService = new NullLogService()): CopilotSessionWrapper {
 			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, false, undefined, true, true, true, false, logService));
