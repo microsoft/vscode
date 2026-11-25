@@ -2317,6 +2317,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				chatPart.fillsEditorArea = false;
 			}
 		}
+		// The sashes beside it move, and where they meet the panel's depends on what fills the editor area
+		this.updateSashEndpoints();
 
 		// The editor and panel cannot be hidden at the same time
 		// unless we have a maximized auxiliary bar or a chat part shows
