@@ -39,8 +39,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { MULTI_DIFF_EDITOR_ID, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, sortMultiDiffEditorFileListItems, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindMultiDiffEditorFileListContextKeys, MULTI_DIFF_EDITOR_ID, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, sortMultiDiffEditorFileListItems, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
 import { MultiDiffEditorWithFileListWidget } from './multiDiffEditorWithFileListWidget.js';
 
 type ResourceOrder = (resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[];
@@ -68,6 +67,8 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	private readonly _inputResourceOrder = this._register(new MutableDisposable());
 	/** Whether the input offers the changed files list. */
 	private readonly _fileListAvailable = observableValue(this, true);
+	/** Whether the pane is visible, as the active editor of its group. */
+	private readonly _paneVisible = observableValue(this, false);
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -113,10 +114,12 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
 		const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
 		this._fileListResourceOrder = fileListViewMode.map(this, viewMode => fileListResourceOrders[viewMode]);
-		this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, reader => this._fileListAvailable.read(reader)));
-		this._register(bindContextKey(MultiDiffEditorFileListEnabledContext, this.contextKeyService, reader => fileListVisible.read(reader)));
-		this._register(bindContextKey(MultiDiffEditorFileListViewModeContext, this.contextKeyService, reader => fileListViewMode.read(reader)));
-		this._register(bindContextKey(MultiDiffEditorFileListPositionContext, this.contextKeyService, reader => fileListPosition.read(reader)));
+		this._register(bindMultiDiffEditorFileListContextKeys(this.contextKeyService, this._paneVisible, {
+			available: this._fileListAvailable,
+			visible: fileListVisible,
+			viewMode: fileListViewMode,
+			position: fileListPosition,
+		}));
 		this._multiDiffEditorWithFileListWidget = this._register(this.instantiationService.createInstance(
 			MultiDiffEditorWithFileListWidget,
 			parent,
@@ -187,6 +190,11 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {
 		this._applyOptions(options);
+	}
+
+	protected override setEditorVisible(visible: boolean): void {
+		this._paneVisible.set(visible, undefined);
+		super.setEditorVisible(visible);
 	}
 
 	private _applyOptions(options: IMultiDiffEditorOptions | undefined): void {

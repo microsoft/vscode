@@ -4,6 +4,11 @@
 	"type": "commonjs",
 	"devDependencies": {
 		"@playwright/test": "^1.61.1",
+		"@types/glob": "^5.0.38",
+		"@types/minimatch": "^3.0.3",
+		"@types/minimist": "^1.2.1",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "24.x",
 		"@vscode/v8-heap-parser": "^0.1.0",
 		"glob": "^5.0.13",
 		"istanbul-lib-coverage": "^3.2.0",

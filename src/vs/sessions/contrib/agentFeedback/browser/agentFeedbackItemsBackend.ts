@@ -93,7 +93,8 @@ export function orderFeedbackItems(items: readonly IAgentFeedback[]): IAgentFeed
 
 /**
  * Client-side, in-memory feedback store used for every non-agent-host
- * provider. State is not persisted and is cleared on session close.
+ * provider. State is not persisted; the service clears a session's items when
+ * the session is deleted.
  */
 export class InMemoryAgentFeedbackItemsBackend extends Disposable implements IAgentFeedbackItemsBackend {
 

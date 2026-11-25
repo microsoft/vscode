@@ -59,7 +59,7 @@ export const chatProgressConfigurationProperties = {
 	},
 	[ChatConfiguration.ResponseStats]: {
 		type: 'string',
-		default: product.quality === 'insider' ? ChatResponseStats.ProgressWithMessage : ChatResponseStats.Off,
+		default: ChatResponseStats.ProgressWithMessage,
 		enum: Object.values(ChatResponseStats),
 		enumItemLabels: [
 			localize('chat.responseStats.off.label', "Off"),

@@ -59,7 +59,10 @@ export class GitBlobResourceProvider implements IAgentHostResourceProvider {
 			if (!workingDirectory) {
 				throw new ProtocolError(AhpErrorCodes.NotFound, `No session repository resolves git-blob path: ${fields.absolutePath || fields.repoRelativePath}`);
 			}
-			const blob = await this._gitService.showBlob(workingDirectory, fields.sha, fields.repoRelativePath);
+			const submoduleRoot = fields.absolutePath
+				? await this._gitService.getSubmoduleRoot?.(workingDirectory, workingDirectory.with({ path: fields.absolutePath }))
+				: undefined;
+			const blob = await this._gitService.showBlob(submoduleRoot ?? workingDirectory, fields.sha, fields.repoRelativePath);
 			if (!blob) {
 				throw new ProtocolError(AhpErrorCodes.NotFound, `git blob not found: ${fields.sha}:${fields.repoRelativePath}`);
 			}

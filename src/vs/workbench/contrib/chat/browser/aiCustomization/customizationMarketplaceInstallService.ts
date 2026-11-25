@@ -34,7 +34,7 @@ import { IPluginInstallService } from '../../common/plugins/pluginInstallService
 import { parseMarketplaceReference, parseProviderMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { getConnectorRowPresentation } from './connectorPresentation.js';
-import { CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
+import { copilotConnectorsSourcePageUri, CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
 import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
 import { getPluginCustomizationMarketplaceSourceIdFromIdentifier, getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplaceProvider.js';
 import { CustomizationMarketplaceInstallationAssociationCache as CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationAssociationTarget as CustomizationMarketplaceInstallationRecordTarget, getInstallationAssociationResourceKey as getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationAssociation as ICustomizationMarketplaceInstallationRecord, removeLegacyCustomizationMarketplaceInstallationRecords, toAssociatedMarketplaceResource as toRecordedMarketplaceResource } from './customizationMarketplaceInstallationAssociation.js';
@@ -428,7 +428,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				};
 				const existing = this.findConnectorRecord(connector.name, account);
 				const record = await this.createConnectorRecord(resource, account, existing?.id);
-				const didChange = !existing || existing.version !== record.version || existing.displayName !== record.displayName || existing.description !== record.description || !isCustomizationMarketplaceIconEqual(existing.icon, record.icon);
+				const didChange = !existing || existing.version !== record.version || existing.displayName !== record.displayName || existing.description !== record.description || !isCustomizationMarketplaceIconEqual(existing.icon, record.icon) || !isEqual(existing.url, record.url) || existing.homepage !== record.homepage;
 				if (didChange) {
 					this.recordStore.upsert(record);
 					this.recordStates.set(record.id, { kind: 'checking' });
@@ -460,6 +460,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			description: resource.description,
 			mediaType: resource.mediaType,
 			icon: resource.icon,
+			url: copilotConnectorsSourcePageUri,
+			homepage: resource.homepage,
 			installation,
 			target: {
 				kind: 'copilotConnector',

@@ -14,7 +14,7 @@ import { hasKey } from '../../../base/common/types.js';
 import type { IValidator } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
 import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, devContainerConnectEnvironmentParamsValidator, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, devContainerEnvironmentParamsValidator, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
-import { IDevContainerAgentHostMainService, type IDevContainerAgentHostConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostMainService, isValidDevContainerConnectionName, type IDevContainerAgentHostConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
 import { devContainerEnvironmentImages, isDevContainerEnvironmentId } from '../common/devContainerEnvironments.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
@@ -95,14 +95,14 @@ export class DevContainerAgentHostProtocol extends Disposable {
 			case DevContainerConnectExtensionMethod: {
 				const config = this._validate(devContainerConnectParamsValidator, params);
 				const workspaceFolder = normalizeDevContainerWorkspaceFolder(config.workspaceFolder, OS);
-				if (!isAbsolute(workspaceFolder) || workspaceFolder.includes('\0') || !config.name.trim() || config.name.includes('\0')) {
+				if (!isAbsolute(workspaceFolder) || workspaceFolder.includes('\0') || !isValidDevContainerConnectionName(config.name)) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workspaceFolder must be an absolute host path and name must be non-empty');
 				}
 				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), ...(config.persistUserState !== undefined ? { persistUserState: config.persistUserState } : {}), workspaceFolder });
 			}
 			case DevContainerConnectEnvironmentExtensionMethod: {
 				const config = this._validate(devContainerConnectEnvironmentParamsValidator, params);
-				if (!isDevContainerEnvironmentId(config.environmentId) || !devContainerEnvironmentImages.includes(config.image) || !config.name.trim() || config.name.includes('\0')) {
+				if (!isDevContainerEnvironmentId(config.environmentId) || !devContainerEnvironmentImages.includes(config.image) || !isValidDevContainerConnectionName(config.name)) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'environmentId must be a valid identifier, image must be supported, and name must be non-empty');
 				}
 				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), ...(config.persistUserState !== undefined ? { persistUserState: config.persistUserState } : {}), environmentId: config.environmentId, image: config.image });

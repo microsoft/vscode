@@ -815,7 +815,7 @@ registerAction2(class extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const harnessService = accessor.get(ICustomizationHarnessService);
 		const widget = chatWidgetService.lastFocusedWidget;
-		const { section, revealUri, sessionResource, hasExplicitSessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
+		const { section, revealUri, sessionResource, hasExplicitSessionResource, showDiscover, showPluginMarketplaces, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
 			target,
 			widget?.input.pendingDelegationTarget,
 			widget?.viewModel?.sessionResource,
@@ -842,6 +842,8 @@ registerAction2(class extends Action2 {
 			await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
 		} else if (showDiscover && pane instanceof AICustomizationManagementEditor) {
 			pane.showDiscover(searchQuery);
+		} else if (showPluginMarketplaces && pane instanceof AICustomizationManagementEditor) {
+			pane.showPluginMarketplaces();
 		} else if (section && pane instanceof AICustomizationManagementEditor) {
 			if (pane.selectSectionById(section)) {
 				if (searchQuery !== undefined) {

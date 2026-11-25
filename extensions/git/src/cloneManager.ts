@@ -213,11 +213,11 @@ export class CloneManager {
 
 	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, options: CloneOptions): Promise<string | undefined> {
 		const { postCloneAction, returnRepositoryPath } = options;
-		// Ignore cached entries whose requested path no longer exists.
+		// Ignore cached entries whose repository, or the workspace that would be opened, no longer exists.
 		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
-			const cachedPath = returnRepositoryPath ? folder.repositoryPath : folder.workspacePath;
-			const stat = await fs.promises.stat(cachedPath).catch(() => undefined);
-			if (stat) {
+			const cachedPaths = returnRepositoryPath ? [folder.repositoryPath] : [folder.repositoryPath, folder.workspacePath];
+			const stats = await Promise.all(cachedPaths.map(cachedPath => fs.promises.stat(cachedPath).catch(() => undefined)));
+			if (stats.every(stat => stat !== undefined)) {
 				return folder;
 			}
 			return undefined;

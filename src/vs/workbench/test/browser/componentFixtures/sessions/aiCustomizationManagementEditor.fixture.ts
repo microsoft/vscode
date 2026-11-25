@@ -1088,7 +1088,7 @@ const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 		icon: URI.parse(connectorIconDataUri),
 		version: '1.0.0',
 		author: { name: 'Microsoft', url: URI.parse('https://www.microsoft.com') },
-		homepage: URI.parse('https://github.com/features/copilot'),
+		homepage: 'https://github.com/features/copilot',
 		releaseTag: 'Preview',
 		tags: ['mail', 'productivity'],
 		keywords: ['outlook', 'messages'],
@@ -1285,6 +1285,7 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
+	readonly showPluginMarketplaces?: boolean;
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly copilotConnectorsEnabled?: boolean;
 	readonly copilotConnectors?: readonly ICopilotConnector[];
@@ -1397,10 +1398,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Prompts,
 	];
 	const mcpServerCompatibility = options.mcpServerCompatibility;
-	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration ? {
+	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration || options.showPluginMarketplaces ? {
 		onDidChange: Event.None,
 		onDidChangeMarketplaces: Event.None,
-		list: async () => [],
+		list: async () => options.showPluginMarketplaces ? [
+			{ name: 'claude-code-plugins', source: 'github.com/anthropics/claude-code', isDefault: true, managed: false, available: true },
+			{ name: 'vscode-team-kit', source: 'github.com/microsoft/vscode-team-kit', isDefault: false, managed: false, available: true },
+			{ name: 'contoso-enterprise-marketplace', source: 'github.com/contoso/plugins', isDefault: false, managed: true, available: true },
+			{ name: 'contoso-archived-marketplace', source: 'github.com/contoso/archived-plugins', isDefault: false, managed: true, available: false },
+		] : [],
 		add: async (_sessionResource, source) => ({ name: 'vscode-team-kit', source, isDefault: false, managed: false, available: true }),
 		queryMarketplace: async () => ({ items: [], total: 0 }),
 		remove: async () => ({ removed: true }),
@@ -2287,6 +2293,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
+	if (options.showPluginMarketplaces) {
+		editor.showPluginMarketplaces();
+		await editor.getPluginMarketplacesWidget()?.refresh();
+		assert(ctx.container.querySelector<HTMLElement>('.plugin-marketplaces-widget')?.checkVisibility() === true, 'The marketplace management subpage must be visible.');
+		assert(ctx.container.querySelectorAll('.marketplace-list-item-name').length === 4, 'The marketplace rows must finish rendering.');
+	}
 	if (options.mcpInstallRequest) {
 		void instantiationService.get(ICustomizationInstallationConfigurationService).collect(options.mcpInstallRequest, CancellationToken.None);
 		assert(ctx.container.querySelector('.mcp-install-container .mcp-install-form') !== null, 'The install form must open as a page of the editor.');
@@ -4767,6 +4779,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	PluginMarketplaces: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The Marketplaces subpage of Plugins shows a back button, title, Browse All and Add Marketplace buttons, a "Search marketplaces..." box, and a User group with default, user-added, organization-managed, and organization-managed unavailable marketplaces.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			showPluginMarketplaces: true,
+		}),
+	}),
+
 	SessionsPluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
@@ -5368,6 +5391,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			mcpSearchQuery: 'workiq',
 			openFirstItem: true,
 			openItemLabel: 'Work IQ Mail',
+		}),
+	}),
+
+	ConnectorDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The connector name and connection action remain within the detail header at a narrow width, with the homepage link in the Details table.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			copilotConnectorsEnabled: true,
+			mcpSearchQuery: 'workiq',
+			openFirstItem: true,
+			openItemLabel: 'workiq-mail-mcp',
+			width: 550,
+			height: 500,
 		}),
 	}),
 

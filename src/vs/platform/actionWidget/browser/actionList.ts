@@ -992,8 +992,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _submenuSide: 'left' | 'right' | undefined;
 	private _submenuPointerOrigin: { readonly x: number; readonly y: number } | undefined;
 	private _submenuPointerGraceDeadline: number | undefined;
-	/** The row currently reporting `aria-expanded`, reset when its panel closes. */
-	private _expandedTrigger: HTMLElement | undefined;
+	private _panelAnchor: HTMLElement | undefined;
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
@@ -1108,7 +1107,7 @@ export class ActionListWidget<T> extends Disposable {
 		}));
 		if (this._usesSubmenuPointerIntent()) {
 			this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_MOVE, event => {
-				if (dom.isHTMLElement(event.target) && this._expandedTrigger?.contains(event.target)) {
+				if (dom.isHTMLElement(event.target) && this._panelAnchor?.contains(event.target)) {
 					this._updateSubmenuPointer(event);
 				}
 			}));
@@ -2892,10 +2891,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._currentSubmenuElement = element;
 		this._clearSubmenuContainer();
 
-		// Marks the row the panel belongs to as open, so a screen reader can tell what
-		// ArrowRight opened. Reset in `_clearSubmenuContainer`.
-		anchor.setAttribute('aria-expanded', 'true');
-		this._expandedTrigger = anchor;
+		this._setPanelAnchor(anchor, element);
 
 		// Set after clearing, which is what removes the previous item's class.
 		this._submenuPanelClassName = element.hover?.panelClassName;
@@ -3105,13 +3101,7 @@ export class ActionListWidget<T> extends Disposable {
 				this._hideSubmenu();
 				return;
 			}
-			if (this._expandedTrigger !== row) {
-				if (this._expandedTrigger?.hasAttribute('aria-expanded')) {
-					this._expandedTrigger.setAttribute('aria-expanded', 'false');
-				}
-				this._expandedTrigger = row ?? undefined;
-			}
-			row?.setAttribute('aria-expanded', 'true');
+			this._setPanelAnchor(row ?? undefined, currentElement);
 			const parentRect = this.domNode.getBoundingClientRect();
 			const alignToParent = persistent || currentElement.hover?.alignToParent || currentElement.hover?.alignToParentBottom;
 			const edgeRect = alignToParent
@@ -3328,6 +3318,20 @@ export class ActionListWidget<T> extends Disposable {
 		return submenuItems;
 	}
 
+	private _setPanelAnchor(row?: HTMLElement, element?: IActionListItem<T>): void {
+		if (this._panelAnchor !== row) {
+			this._panelAnchor?.classList.remove('panel-anchor');
+			if (this._panelAnchor?.hasAttribute('aria-haspopup') && this._panelAnchor.ariaExpanded === 'true') {
+				this._panelAnchor.ariaExpanded = 'false';
+			}
+			this._panelAnchor = row;
+		}
+		row?.classList.add('panel-anchor');
+		if (row && element && hasExpandablePanel(element) && row.ariaExpanded !== 'true') {
+			row.ariaExpanded = 'true';
+		}
+	}
+
 	private _hideSubmenu(): void {
 		this._cancelSubmenuHide();
 		this._cancelSubmenuShow();
@@ -3361,12 +3365,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		this._submenuContainer.removeAttribute('role');
 		this._submenuContainer.removeAttribute('aria-label');
-		// The row that opened the panel is no longer expanded. Skipped when the row has
-		// since been recycled onto an item with no panel, which drops the attribute.
-		if (this._expandedTrigger?.hasAttribute('aria-expanded')) {
-			this._expandedTrigger.setAttribute('aria-expanded', 'false');
-		}
-		this._expandedTrigger = undefined;
+		this._setPanelAnchor();
 		dom.clearNode(this._submenuContainer);
 		this._submenuContainer.style.width = '';
 		this._submenuContainer.style.boxSizing = this._options?.persistentHover ? 'border-box' : '';

@@ -303,6 +303,8 @@ suite('SessionsTerminalContribution', () => {
 	let agentHostTerminalAddresses: string[];
 	/** The agent host each agent host terminal runs on, keyed by instance id. */
 	let agentHostTerminalAddressById: Map<number, string>;
+	/** The cwd each agent host terminal was created to start in, keyed by instance id. */
+	let agentHostTerminalRequestedCwdById: Map<number, URI>;
 	let agentHostProfilesAvailable: boolean;
 	let terminalCreationBarriers: Map<string, DeferredPromise<void>>;
 	let terminalCreationStarted: string[];
@@ -332,6 +334,7 @@ suite('SessionsTerminalContribution', () => {
 		createdTerminals = [];
 		agentHostTerminalAddresses = [];
 		agentHostTerminalAddressById = new Map();
+		agentHostTerminalRequestedCwdById = new Map();
 		agentHostProfilesAvailable = true;
 		terminalCreationBarriers = new Map();
 		terminalCreationStarted = [];
@@ -457,12 +460,16 @@ suite('SessionsTerminalContribution', () => {
 				const instance = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
 				agentHostTerminalAddresses.push(address);
 				agentHostTerminalAddressById.set(instance.instanceId, address);
+				agentHostTerminalRequestedCwdById.set(instance.instanceId, cwd);
 				createdTerminals.push({ cwd });
 				terminalInstances.set(instance.instanceId, instance);
 				return instance;
 			}
 			override getAgentHostAddress(instance: ITerminalInstance): string | undefined {
 				return agentHostTerminalAddressById.get(instance.instanceId);
+			}
+			override getRequestedCwd(instance: ITerminalInstance): URI | undefined {
+				return agentHostTerminalRequestedCwdById.get(instance.instanceId);
 			}
 		});
 
@@ -817,6 +824,55 @@ suite('SessionsTerminalContribution', () => {
 
 		assert.deepStrictEqual(createdTerminals.map(t => t.cwd.fsPath), [URI.file('/worktree-a').fsPath]);
 	});
+
+	test('shows the Agent Host terminal of a task that opens the terminal view before its shell starts', async () => {
+		terminalViewVisible = false;
+		const cwd = URI.file('/worktree-a');
+		sessionProviders.set(LOCAL_AGENT_HOST_PROVIDER_ID, { id: LOCAL_AGENT_HOST_PROVIDER_ID } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:local-host', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, worktree: cwd, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		// The task runs in a new Agent Host terminal in the session's folder, makes it the active terminal and opens the
+		// terminal view, before the host reports the folder the terminal's shell started in.
+		const taskTerminal = startAgentHostTaskTerminal(cwd);
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances], active: activeInstanceId }, { created: [], backgrounded: [], active: taskTerminal.instanceId });
+	});
+
+	test('keeps the Agent Host terminal of a task active when it opens the terminal view of a session with a terminal', async () => {
+		const cwd = URI.file('/worktree-a');
+		sessionProviders.set(LOCAL_AGENT_HOST_PROVIDER_ID, { id: LOCAL_AGENT_HOST_PROVIDER_ID } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:local-host', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, worktree: cwd, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		const sessionTerminal = terminalInstances.get(activeInstanceId!)!;
+		addCommandToInstance(sessionTerminal, 1);
+		terminalViewVisible = false;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: false });
+
+		const taskTerminal = startAgentHostTaskTerminal(cwd);
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances], active: activeInstanceId }, { created: ['__local__'], backgrounded: [], active: taskTerminal.instanceId });
+	});
+
+	/** A task's new Agent Host terminal in `cwd`, made the active terminal while its shell starts, as `AgentHostSessionTaskRunner` does. */
+	function startAgentHostTaskTerminal(cwd: URI): TestTerminalInstance {
+		const taskTerminal = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		taskTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Task: build', isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		taskTerminal._testSetProcessStarting();
+		terminalInstances.set(taskTerminal.instanceId, taskTerminal);
+		terminalGroupCount++;
+		agentHostTerminalAddressById.set(taskTerminal.instanceId, '__local__');
+		agentHostTerminalRequestedCwdById.set(taskTerminal.instanceId, cwd);
+		onDidCreateInstance.fire(taskTerminal);
+		activeInstanceId = taskTerminal.instanceId;
+		return taskTerminal;
+	}
 
 	// --- Missing local working directory: defer until it exists ---
 

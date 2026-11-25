@@ -47,6 +47,11 @@ export interface IViewModelLines extends IDisposable {
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null>;
 
 	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[];
+	/**
+	 * The model range from which {@link getDecorationsInRange} reads the decorations of the view range `range`,
+	 * or `null` if it reads them from several model ranges (when `range` contains hidden lines).
+	 */
+	getDecorationsModelRange(range: Range): Range | null;
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
@@ -931,16 +936,26 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return this.modelLineProjections[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
 	}
 
-	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
+	public getDecorationsModelRange(range: Range): Range | null {
 		const modelStart = this.convertViewPositionToModelPosition(range.startLineNumber, range.startColumn);
 		const modelEnd = this.convertViewPositionToModelPosition(range.endLineNumber, range.endColumn);
 
 		if (modelEnd.lineNumber - modelStart.lineNumber <= range.endLineNumber - range.startLineNumber) {
 			// most likely there are no hidden lines => fast path
 			// fetch decorations from column 1 to cover the case of wrapped lines that have whole line decorations at column 1
-			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations);
+			return new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column);
+		}
+		return null;
+	}
+
+	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
+		const modelRange = this.getDecorationsModelRange(range);
+		if (modelRange) {
+			return this.model.getDecorationsInRange(modelRange, ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations);
 		}
 
+		const modelStart = this.convertViewPositionToModelPosition(range.startLineNumber, range.startColumn);
+		const modelEnd = this.convertViewPositionToModelPosition(range.endLineNumber, range.endColumn);
 		let result: IModelDecoration[] = [];
 		const modelStartLineIndex = modelStart.lineNumber - 1;
 		const modelEndLineIndex = modelEnd.lineNumber - 1;
@@ -1270,6 +1285,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
 		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations);
+	}
+
+	public getDecorationsModelRange(range: Range): Range {
+		return range;
 	}
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {

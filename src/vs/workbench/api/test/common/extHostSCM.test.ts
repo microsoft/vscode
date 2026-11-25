@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import { MainContext, MainThreadCommandsShape, MainThreadSCMShape, MainThreadTelemetryShape, SCMProviderFeatures } from '../../common/extHost.protocol.js';
+import { MainContext, MainThreadCommandsShape, MainThreadSCMShape, MainThreadTelemetryShape, SCMGroupFeatures, SCMProviderFeatures, SCMRawResourceSplices } from '../../common/extHost.protocol.js';
 import { ArgumentProcessor, ExtHostCommands } from '../../common/extHostCommands.js';
 import { ExtHostDocuments } from '../../common/extHostDocuments.js';
 import { ExtHostSCM } from '../../common/extHostSCM.js';
@@ -44,7 +44,7 @@ suite('ExtHostSCM', () => {
 		const scm = new ExtHostSCM(rpc, commands, {} as ExtHostDocuments, log);
 		const sourceControl = store.add(scm.createSourceControl({
 			...nullExtensionDescription, enabledApiProposals: ['scmArtifactProvider']
-		}, 'test', 'Test', undefined, undefined, undefined, undefined));
+		}, 'test', 'Test', undefined, undefined, undefined));
 		sourceControl.artifactProvider = provider;
 		await rpc.sync();
 		assert.notStrictEqual(handle, -1);
@@ -148,7 +148,7 @@ suite('ExtHostSCM', () => {
 			new NullLogService()
 		);
 
-		const sourceControl = extHostSCM.createSourceControl(extension, 'git', 'Git', URI.file('/repo'), undefined, undefined, undefined);
+		const sourceControl = extHostSCM.createSourceControl(extension, 'git', 'Git', URI.file('/repo'), undefined, undefined);
 		assert.ok(extHostSCM.getLastInputBox(extension));
 
 		sourceControl.dispose();
@@ -193,7 +193,7 @@ suite('ExtHostSCM', () => {
 			new NullLogService()
 		);
 
-		const sourceControl = extHostSCM.createSourceControl(extension, 'worktree', 'Git', URI.file('/worktree'), undefined, undefined, undefined);
+		const sourceControl = extHostSCM.createSourceControl(extension, 'worktree', 'Git', URI.file('/worktree'), undefined, undefined);
 		sourceControl.activeRepositoryName = 'repo';
 		sourceControl.activeRepositoryName = 'repo';
 		sourceControl.activeRepositoryName = undefined;
@@ -217,64 +217,50 @@ suite('ExtHostSCM', () => {
 		await rpcProtocol.sync();
 	});
 
-	test('visibility changes of source controls in the same tick are sent together', async () => {
-		const registrations: number[] = [];
-		const batches: [number, boolean][][] = [];
-		const rpcProtocol = new TestRPCProtocol();
-		rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
-			override async $registerSourceControl(handle: number): Promise<void> {
-				registrations.push(handle);
-			}
-			override async $setSourceControlsHidden(changes: [number, boolean][]): Promise<void> {
-				batches.push(changes);
-			}
-			override async $unregisterSourceControl(): Promise<void> { }
-		});
-		rpcProtocol.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
-			override $publicLog2(): void { }
-		});
-
-		const commands = new class extends mock<ExtHostCommands>() {
-			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
-		};
-		const extension = { ...nullExtensionDescription, enabledApiProposals: ['scmProviderOptions'] };
-		const extHostSCM = new ExtHostSCM(rpcProtocol, commands, {} as ExtHostDocuments, new NullLogService());
-
-		const current = extHostSCM.createSourceControl(extension, 'current', 'Git', URI.file('/current'), undefined, undefined, undefined);
-		const warm = extHostSCM.createSourceControl(extension, 'warm', 'Git', URI.file('/warm'), undefined, true, undefined);
-		warm.isHidden = false;
-		current.isHidden = true;
-		current.isHidden = true;
-		await rpcProtocol.sync();
-
-		assert.deepStrictEqual({
-			isHidden: [current.isHidden, warm.isHidden],
-			batches: batches.map(batch => batch.map(([handle, isHidden]) => [registrations.indexOf(handle), isHidden]))
-		}, {
-			isHidden: [true, false],
-			batches: [[[1, false], [0, true]]]
-		});
-
-		current.dispose();
-		warm.dispose();
-		await rpcProtocol.sync();
-	});
-
-	test('a source control that is shown sends its pending resources before it is shown', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('a disposed source control is unregistered without unregistering its resource groups one by one first', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const calls: string[] = [];
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
 			override async $registerSourceControl(): Promise<void> { }
-			override async $registerGroups(_handle: number, groups: unknown[], splices: unknown[]): Promise<void> {
-				calls.push(`groups ${groups.length}, splices ${splices.length}`);
+			override async $registerGroups(): Promise<void> { }
+			override async $unregisterGroup(): Promise<void> { calls.push('unregister group'); }
+			override async $unregisterSourceControl(): Promise<void> { calls.push('unregister source control'); }
+		});
+		rpcProtocol.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
+			override $publicLog2(): void { }
+		});
+
+		const commands = new class extends mock<ExtHostCommands>() {
+			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
+		};
+		const extHostSCM = new ExtHostSCM(rpcProtocol, commands, {} as ExtHostDocuments, new NullLogService());
+
+		const sourceControl = extHostSCM.createSourceControl(nullExtensionDescription, 'git', 'Git', URI.file('/repo'), undefined, undefined);
+		const removed = sourceControl.createResourceGroup('removed', 'Removed');
+		sourceControl.createResourceGroup('kept', 'Kept');
+		await timeout(200);
+
+		removed.dispose();
+		sourceControl.dispose();
+		await rpcProtocol.sync();
+
+		assert.deepStrictEqual(calls, ['unregister group', 'unregister source control']);
+	}));
+
+	test('resource groups created with resource states are added at once, and the resource states that groups get in their first 100 ms follow at the end of those 100 ms', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const calls: string[] = [];
+		const groupIds = new Map<number, string>();
+		const describeStates = (splices: SCMRawResourceSplices[]) => splices.map(([handle, groupSplices]) => `${groupIds.get(handle)}: ${groupSplices.reduce((count, [, , resources]) => count + resources.length, 0)}`).join(', ');
+		const rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
+			override async $registerSourceControl(): Promise<void> { }
+			override async $registerGroups(_handle: number, groups: [number, string, string, SCMGroupFeatures, boolean][], splices: SCMRawResourceSplices[]): Promise<void> {
+				groups.forEach(([handle, id]) => groupIds.set(handle, id));
+				calls.push(`${Date.now()} ms: add ${groups.map(([, id]) => id).join(', ')} with ${describeStates(splices)}`);
 			}
-			override async $spliceResourceStates(_handle: number, splices: unknown[]): Promise<void> {
-				calls.push(`splices ${splices.length}`);
+			override async $spliceResourceStates(_handle: number, splices: SCMRawResourceSplices[]): Promise<void> {
+				calls.push(`${Date.now()} ms: splice ${describeStates(splices)}`);
 			}
-			override async $setSourceControlsHidden(changes: [number, boolean][]): Promise<void> {
-				calls.push(`hidden ${changes.map(([, isHidden]) => isHidden)}`);
-			}
-			override async $unregisterGroup(): Promise<void> { }
 			override async $unregisterSourceControl(): Promise<void> { }
 		});
 		rpcProtocol.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
@@ -284,34 +270,35 @@ suite('ExtHostSCM', () => {
 		const commands = new class extends mock<ExtHostCommands>() {
 			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
 		};
-		const extension = { ...nullExtensionDescription, enabledApiProposals: ['scmProviderOptions'] };
 		const extHostSCM = new ExtHostSCM(rpcProtocol, commands, {} as ExtHostDocuments, new NullLogService());
 
-		const sourceControl = extHostSCM.createSourceControl(extension, 'warm', 'Git', URI.file('/warm'), undefined, true, undefined);
-		const group = sourceControl.createResourceGroup('changes', 'Changes');
-		group.resourceStates = [{ resourceUri: URI.file('/warm/a.txt') }];
-		sourceControl.isHidden = false;
-		await rpcProtocol.sync();
-
-		sourceControl.isHidden = true;
-		await rpcProtocol.sync();
-		group.resourceStates = [{ resourceUri: URI.file('/warm/b.txt') }];
-		sourceControl.isHidden = false;
-		await rpcProtocol.sync();
-
-		// Nothing is sent again once the pending updates were sent
+		// A source control shown again from a known state, and one opened before its first status
+		const shown = extHostSCM.createSourceControl(nullExtensionDescription, 'git', 'Git', URI.file('/shown'), undefined, undefined);
+		const known = shown.createResourceGroup('known', 'Known');
+		const refreshed = shown.createResourceGroup('refreshed', 'Refreshed');
+		known.resourceStates = [{ resourceUri: URI.file('/shown/a.txt') }];
+		const opened = extHostSCM.createSourceControl(nullExtensionDescription, 'git', 'Git', URI.file('/opened'), undefined, undefined);
+		const empty = opened.createResourceGroup('empty', 'Empty');
+		// A group created with resource states after the check of an empty group of the same source control has run
+		const extended = extHostSCM.createSourceControl(nullExtensionDescription, 'git', 'Git', URI.file('/extended'), undefined, undefined);
+		extended.createResourceGroup('first', 'First');
+		await Promise.resolve();
+		extended.createResourceGroup('second', 'Second').resourceStates = [{ resourceUri: URI.file('/extended/d.txt') }];
+		await timeout(50);
+		refreshed.resourceStates = [{ resourceUri: URI.file('/shown/b.txt') }];
+		empty.resourceStates = [{ resourceUri: URI.file('/opened/c.txt') }];
 		await timeout(200);
 
 		assert.deepStrictEqual(calls, [
-			'groups 1, splices 1',
-			'hidden false',
-			'hidden true',
-			'splices 1',
-			'hidden false',
+			'0 ms: add known, refreshed with known: 1',
+			'0 ms: add first, second with second: 1',
+			'100 ms: splice refreshed: 1',
+			'100 ms: add empty with empty: 1'
 		]);
 
-		group.dispose();
-		sourceControl.dispose();
+		shown.dispose();
+		opened.dispose();
+		extended.dispose();
 		await rpcProtocol.sync();
 	}));
 });

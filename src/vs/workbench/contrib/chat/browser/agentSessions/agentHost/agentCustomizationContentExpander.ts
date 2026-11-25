@@ -130,6 +130,7 @@ export class AgentCustomizationContentExpander {
 				type: PromptsType.skill,
 				name: name,
 				description,
+				argumentHint: meta.argumentHint,
 				source,
 				delivery,
 				extensionId: undefined,
@@ -196,7 +197,7 @@ export class AgentCustomizationContentExpander {
 	 * metadata. Returns `undefined` when the file is not markdown, or
 	 * when it cannot be read/parsed.
 	 */
-	private async readPromptMetadata(promptFileUri: URI, token: CancellationToken): Promise<{ name: string | undefined; description: string | undefined; userInvocable: boolean | undefined } | undefined> {
+	private async readPromptMetadata(promptFileUri: URI, token: CancellationToken): Promise<{ name: string | undefined; description: string | undefined; argumentHint: string | undefined; userInvocable: boolean | undefined } | undefined> {
 		if (extname(promptFileUri.path) !== '.md') {
 			return undefined;
 		}
@@ -209,11 +210,12 @@ export class AgentCustomizationContentExpander {
 			if (frontmatter) {
 				const name = frontmatter.getStringValue('name');
 				const description = frontmatter.getStringValue('description');
+				const argumentHint = frontmatter.getStringValue('argument-hint');
 				const userInvocableStr = frontmatter.getStringValue('user-invocable');
 				const userInvocable = userInvocableStr === 'true' ? true : userInvocableStr === 'false' ? false : undefined;
-				return { name, description, userInvocable };
+				return { name, description, argumentHint, userInvocable };
 			}
-			return { name: undefined, description: undefined, userInvocable: undefined };
+			return { name: undefined, description: undefined, argumentHint: undefined, userInvocable: undefined };
 		} catch (err) {
 			if (!isExpectedFileAccessError(err, token)) {
 				this.logService.trace(`[AgentCustomizationContentExpander] Failed to read prompt metadata ${promptFileUri.toString()}: ${err}`);

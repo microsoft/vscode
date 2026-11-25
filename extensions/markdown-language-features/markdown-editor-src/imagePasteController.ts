@@ -8,6 +8,7 @@ import { Disposable } from '@vscode/observables';
 import type { MarkdownEditorHost, MarkdownEditorRenderer } from '../src/preview/markdownEditorProtocol';
 import { ClipboardMediaStore } from '../src/preview/markdownEditorMediaTransfer';
 import { clipboardFormatsUnavailableMessage, getNativeClipboardMedia } from './clipboardMedia';
+import type { EditorTextVersions } from './editorTextVersions';
 
 export class ImagePasteController extends Disposable implements IClipboardStrategy {
 	readonly #strategy: AsyncClipboardStrategy;
@@ -21,7 +22,7 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 		readonly editor: EditorModel,
 		readonly view: EditorView,
 		readonly host: Pick<MarkdownEditorHost, 'pasteImages'>,
-		readonly epoch: () => number,
+		readonly versions: EditorTextVersions,
 		readonly clipboard: Clipboard = navigator.clipboard,
 	) {
 		super();
@@ -85,7 +86,7 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 		this.#media = undefined;
 		const source = this.editor.sourceText.get();
 		const selection = this.editor.selection.get();
-		const epoch = this.epoch();
+		const version = this.versions.current;
 		const interaction = this.#interaction;
 		if (this.editor.readonlyMode.get() || !selection) {
 			this.#showError('Switch to editing mode and place the caret before pasting.');
@@ -95,7 +96,7 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 		try {
 			const { images, text } = await read();
 			if (this.#disposed || request !== this.#request) { return; }
-			if (source !== this.editor.sourceText.get() || selection !== this.editor.selection.get() || epoch !== this.epoch()
+			if (source !== this.editor.sourceText.get() || selection !== this.editor.selection.get() || !this.versions.isCurrent(version)
 				|| this.editor.readonlyMode.get() || document.activeElement !== context.element) {
 				throw new Error('The editor changed while reading the clipboard. Paste again.');
 			}
@@ -108,13 +109,14 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 			this.#status.hidden = false;
 			media = this.#media = new ClipboardMediaStore(images);
 			const result = await this.host.pasteImages({
-				start: selection.range.start, endExclusive: selection.range.endExclusive, editEpoch: epoch, images: [...media.images],
+				start: selection.range.start, endExclusive: selection.range.endExclusive, version, images: [...media.images],
 			});
 			if (this.#disposed || request !== this.#request) { return; }
 			this.#status.hidden = true;
-			if (result.offset !== undefined && result.editEpoch === this.epoch() && interaction === this.#interaction
+			const caret = result.offset === undefined ? undefined : this.versions.fromHost(result.version, result.offset);
+			if (caret !== undefined && interaction === this.#interaction
 				&& !this.editor.readonlyMode.get() && document.activeElement === context.element) {
-				this.editor.selection.set(Selection.collapsed(result.offset), undefined);
+				this.editor.selection.set(Selection.collapsed(caret), undefined);
 			}
 		} catch (error) {
 			if (!this.#disposed && request === this.#request) {

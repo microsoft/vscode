@@ -8,6 +8,11 @@
 	overflow: hidden;
 }
 
+/* Chromium applies one rounded clip per quad; nesting the list's clip forces offscreen render surfaces. */
+:is(.modern-ui, .agent-sessions-workbench) .editor-widget.suggest-widget .monaco-list {
+	border-radius: 0;
+}
+
 :is(.modern-ui, .agent-sessions-workbench) .workbench-suggest-widget,
 :is(.modern-ui, .agent-sessions-workbench) .workbench-suggest-widget .monaco-list {
 	border-radius: var(--vscode-cornerRadius-large);
@@ -28,7 +33,7 @@
 	border-bottom-right-radius: var(--vscode-cornerRadius-large);
 }
 
-:is(.modern-ui, .agent-sessions-workbench) :is(.editor-widget.suggest-widget, .workbench-suggest-widget).with-status-bar .monaco-list {
+:is(.modern-ui, .agent-sessions-workbench) .workbench-suggest-widget.with-status-bar .monaco-list {
 	border-bottom-left-radius: 0;
 	border-bottom-right-radius: 0;
 }

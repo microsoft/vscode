@@ -14,6 +14,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService.js';
+import { USUAL_WORD_SEPARATORS } from '../../../../../../editor/common/core/wordHelper.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -231,8 +232,10 @@ suite('ChatSessionsService - input completion triggers', () => {
 		registration.dispose();
 		changed.fire();
 		await timeout(0);
+		// Besides the characters the host announces, the provider triggers on the characters that end a word.
+		const registered = (...announced: string[]) => [...new Set([...announced, ...USUAL_WORD_SEPARATORS])];
 		assert.deepStrictEqual({ initial, acquired, replaced, removed: triggers() }, {
-			initial: [], acquired: [['@']], replaced: [['#', '/']], removed: [],
+			initial: [], acquired: [registered('@')], replaced: [registered('#', '/')], removed: [],
 		});
 	});
 });

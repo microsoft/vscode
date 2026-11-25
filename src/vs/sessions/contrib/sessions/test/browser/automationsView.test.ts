@@ -16,7 +16,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
-import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { $, EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
@@ -88,6 +88,7 @@ import { AutomationsCardsWidget, AutomationsCustomViewContribution, SHOW_DISABLE
 import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../../onboardingTours/browser/tours/automationsTour.js';
 import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../automations/browser/automationsEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
@@ -1094,11 +1095,18 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation({ enabled: false }), automation({ id: 'shared', ownership: 'repository' })]);
 		const templates = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
 		const disabled = widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!;
+		const empty = widget.element.querySelector<HTMLElement>('.automations-ownership-empty')!;
 		assert.deepStrictEqual({
 			templatesVisible: templates.checkVisibility(), disabledDisplay: disabled.style.display,
 			onboardingAvailable: !!resolveOnboardingTarget(getWindow(widget.element), 'sessions.automations.templates'),
-			emptyVisible: widget.element.querySelector<HTMLElement>('.automations-ownership-empty')!.checkVisibility(),
-		}, { templatesVisible: true, disabledDisplay: 'none', onboardingAvailable: true, emptyVisible: true });
+			emptyVisible: empty.checkVisibility(),
+			title: empty.querySelector('h3')?.textContent,
+			description: empty.querySelector('p')?.textContent,
+			createVisible: empty.querySelector<HTMLElement>('.automations-cards-create-button')!.checkVisibility(),
+		}, {
+			templatesVisible: true, disabledDisplay: 'none', onboardingAvailable: true, emptyVisible: true,
+			title: 'No enabled automations', description: 'Your disabled automations are hidden. Show disabled', createVisible: true,
+		});
 	});
 
 	test('only hidden disabled automations show the empty state and templates until revealed', () => {
@@ -1182,9 +1190,9 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
-	test('hidden disabled shared cards have their own inline recovery without changing personal cards', () => {
+	test('hidden disabled shared cards hide their section until revealed from view options', () => {
 		const storage = hiddenDisabledStorage();
-		const { widget, automationService, disabledFilter } = setup('archive', NullHoverService, undefined, storage);
+		const { widget, automationService, disabledFilter, toggleDisabled } = setup('archive', NullHoverService, undefined, storage);
 		setShowSharedAutomationsByOthers(storage, true);
 		automationService.setCatalogueState('ready');
 		automationService.setAutomations([
@@ -1193,22 +1201,33 @@ suite('AutomationsCardsWidget', () => {
 			automation({ id: 'other-shared', ownership: 'repository', isCreatedByCurrentUser: false, enabled: false }),
 		]);
 		const sections = [...widget.element.querySelectorAll<HTMLElement>('.automations-ownership-section')];
-		const reveal = sections[1].querySelector<HTMLElement>('.monaco-link')!;
-		const before = sections.map(section => ({
+		const state = () => sections.map(section => ({
+			visible: section.checkVisibility(),
 			cards: [...section.querySelectorAll<HTMLElement>('.automations-card-wrapper')].filter(card => card.checkVisibility()).length,
-			recovery: section.querySelector<HTMLElement>('.automations-show-disabled')!.checkVisibility(),
+			guidance: section.querySelector('summary')!.getAttribute('aria-description'),
 		}));
-		reveal.focus();
-		dispatchKeydown(reveal, { key: ' ', keyCode: 32 });
+		const before = state();
+		toggleDisabled();
+		const shown = state();
+		toggleDisabled();
 		assert.deepStrictEqual({
-			before, checked: disabledFilter().checked,
+			before, shown, hiddenAgain: state(), checked: disabledFilter().checked,
 			stored: storage.getBoolean(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE),
-			focusedShared: sections[1].contains(document.activeElement),
-			visibleShared: [...sections[1].querySelectorAll<HTMLElement>('.automations-card-wrapper')].filter(card => card.checkVisibility()).length,
-			recoveryVisible: reveal.checkVisibility(),
+			sharedEmptyStates: sections[1].querySelectorAll('.automations-ownership-empty').length,
 		}, {
-			before: [{ cards: 1, recovery: false }, { cards: 0, recovery: true }],
-			checked: true, stored: true, focusedShared: true, visibleShared: 2, recoveryVisible: false,
+			before: [
+				{ visible: true, cards: 1, guidance: 'Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.' },
+				{ visible: false, cards: 0, guidance: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access. Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.' },
+			],
+			shown: [
+				{ visible: true, cards: 1, guidance: null },
+				{ visible: true, cards: 2, guidance: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.' },
+			],
+			hiddenAgain: [
+				{ visible: true, cards: 1, guidance: 'Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.' },
+				{ visible: false, cards: 0, guidance: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access. Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.' },
+			],
+			checked: false, stored: false, sharedEmptyStates: 0,
 		});
 	});
 
@@ -1256,20 +1275,89 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('refresh enabling the last hidden shared card moves focus out of its empty state', () => {
+	test('refresh enabling the last hidden shared card reveals its section without moving focus', () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
 		const personal = automation();
 		const shared = automation({ id: 'shared', ownership: 'repository', isCreatedByCurrentUser: true, enabled: false });
 		automationService.setAutomations([personal, shared]);
 		const section = widget.element.querySelectorAll<HTMLElement>('.automations-ownership-section')[1];
-		const reveal = section.querySelector<HTMLElement>('.monaco-link')!;
-		reveal.focus();
+		const personalCard = widget.element.querySelector<HTMLElement>('.automations-card-main')!;
+		personalCard.focus();
+		const personalSummary = widget.element.querySelector('.automations-ownership-summary')!;
+		const hiddenGuidance = personalSummary.getAttribute('aria-description');
 		automationService.setAutomations([personal, { ...shared, enabled: true }]);
 		assert.deepStrictEqual({
-			focusedSummary: document.activeElement === section.querySelector('summary'),
+			focusedPersonal: document.activeElement === personalCard,
 			focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
-			recoveryVisible: reveal.checkVisibility(),
-		}, { focusedSummary: true, focusVisible: true, recoveryVisible: false });
+			sharedVisible: section.checkVisibility(),
+			hiddenGuidance,
+			shownGuidance: personalSummary.getAttribute('aria-description'),
+		}, {
+			focusedPersonal: true, focusVisible: true, sharedVisible: true,
+			hiddenGuidance: 'Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.',
+			shownGuidance: null,
+		});
+	});
+
+	for (const name of ['sessions-automations-help', 'sessions-automations-view']) {
+		for (const sharedEnabled of [false, true]) {
+			test(`${name} restores visible focus after a refresh (sharedEnabled=${sharedEnabled})`, () => {
+				const { widget, automationService, instantiationService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
+				automationService.setCatalogueState('ready');
+				const personal = automation();
+				const shared = automation({ id: 'shared', ownership: 'repository' });
+				automationService.setAutomations([personal, shared]);
+				const sections = [...widget.element.querySelectorAll<HTMLElement>('.automations-ownership-section')];
+				const personalSummary = sections[0].querySelector<HTMLElement>('summary')!;
+				const sharedSummary = sections[1].querySelector<HTMLElement>('summary')!;
+				const focusedParts: Parts[] = [];
+				instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+					override focusPart(part: Parts): void {
+						focusedParts.push(part);
+						personalSummary.focus();
+					}
+				}());
+				stubSessionsHostLayout(instantiationService);
+				sharedSummary.focus();
+				const implementation = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === name)!;
+				const provider = disposables.add(instantiationService.invokeFunction(accessor => implementation.getProvider(accessor))!);
+				const accessibleEditor = $('button');
+				document.body.append(accessibleEditor);
+				disposables.add(toDisposable(() => accessibleEditor.remove()));
+				accessibleEditor.focus();
+				automationService.setAutomations([personal, { ...shared, enabled: sharedEnabled }]);
+				provider.onClose();
+				assert.deepStrictEqual({
+					sharedVisible: sections[1].checkVisibility(),
+					restoredSummary: document.activeElement === (sharedEnabled ? sharedSummary : personalSummary),
+					focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
+					focusedParts,
+				}, {
+					sharedVisible: sharedEnabled, restoredSummary: true, focusVisible: true,
+					focusedParts: sharedEnabled ? [] : [Parts.CUSTOM_VIEW_GRID_PART],
+				});
+			});
+		}
+	}
+
+	test('filtering the shared section while its collapsed summary is focused restores visible focus', () => {
+		const { widget, automationService, toggleDisabled } = setup();
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([automation(), automation({ id: 'shared', ownership: 'repository', enabled: false })]);
+		const sections = [...widget.element.querySelectorAll<HTMLDetailsElement>('.automations-ownership-section')];
+		sections[1].open = false;
+		sections[1].querySelector<HTMLElement>('summary')!.focus();
+		toggleDisabled();
+		const hidden = {
+			sharedVisible: sections[1].checkVisibility(),
+			focusedPersonal: document.activeElement === sections[0].querySelector('summary'),
+			focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
+		};
+		toggleDisabled();
+		assert.deepStrictEqual({ hidden, shown: { visible: sections[1].checkVisibility(), expanded: sections[1].open } }, {
+			hidden: { sharedVisible: false, focusedPersonal: true, focusVisible: true },
+			shown: { visible: true, expanded: false },
+		});
 	});
 
 	for (const shared of [false, true]) {
@@ -1290,7 +1378,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
-	test('editing a shared card out of the filter restores focus to the shared section', async () => {
+	test('editing the last shared card out of the filter restores focus to the personal section', async () => {
 		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
 		automationService.setCatalogueState('ready');
 		const shared = automation({ id: 'shared', ownership: 'repository', isCreatedByCurrentUser: true });
@@ -1302,7 +1390,11 @@ suite('AutomationsCardsWidget', () => {
 		main.focus();
 		main.click();
 		await timeout(0);
-		assert.strictEqual(document.activeElement, section.querySelector('summary'));
+		assert.deepStrictEqual({
+			focusedPersonal: document.activeElement === widget.element.querySelector('.automations-ownership-summary'),
+			sharedVisible: section.checkVisibility(),
+			focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
+		}, { focusedPersonal: true, sharedVisible: false, focusVisible: true });
 	});
 
 	test('creating a disabled shared card restores focus to the shared section', async () => {
@@ -1450,6 +1542,35 @@ suite('AutomationsCardsWidget', () => {
 			fallback: { details: ['owner/private', 'Cancelled', 'now'], cancelledInLabel: true },
 			completedNative: { details: ['workspace', 'now'], cancelledInLabel: false },
 		});
+	});
+
+	test('loaded automation history keeps metadata separators through status changes', async () => {
+		const { widget, automationService } = setup();
+		automationService.setAutomations([automation()]);
+		const loadedRun = run({ externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
+		const fallback = run({ id: 'fallback', sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/fallback') });
+		const snapshots = [];
+		for (const status of ['completed', 'running', 'completed'] as const) {
+			automationService.setRuns([{ ...loadedRun, status }, { ...fallback, status }]);
+			await waitForSessionActions();
+			snapshots.push(['.automations-run-session-list .session-item', '.automations-temporary-run'].map(selector => {
+				const row = widget.element.querySelector(selector)!;
+				return [...row.querySelectorAll<HTMLElement>('.session-separator')]
+					.filter(separator => getWindow(separator).getComputedStyle(separator).display !== 'none')
+					.map(separator => ({
+						content: getWindow(separator).getComputedStyle(separator, '::before').content,
+						hidden: separator.getAttribute('aria-hidden'),
+						next: separator.nextElementSibling?.classList.item(0),
+					}));
+			}));
+		}
+		const timeSeparator = { content: '"·"', hidden: 'true', next: 'session-time' };
+		const statusSeparator = { content: '"·"', hidden: 'true', next: 'session-description' };
+		assert.deepStrictEqual(snapshots, [
+			[[timeSeparator], [timeSeparator]],
+			[[statusSeparator, timeSeparator], [statusSeparator, timeSeparator]],
+			[[timeSeparator], [timeSeparator]],
+		]);
 	});
 
 	test('native cloud rows announce the status shown before the time', async () => {
@@ -2220,20 +2341,36 @@ suite('AutomationsCardsWidget', () => {
 		const { widget, automationService } = setup();
 		automationService.setAutomations([automation()]);
 		const updatedAt = new Date().toISOString();
-		automationService.setRuns([run({
+		const cloudRun = run({
 			sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/task'),
 			startedAt: '2026-01-01T00:00:00Z', updatedAt, status: 'completed',
-		})]);
+		});
+		automationService.setRuns([cloudRun]);
 		const row = widget.element.querySelector('.automations-temporary-run')!;
 		const details = row.querySelector('.session-details-row')!;
+		const separators = details.querySelectorAll<HTMLElement>('.session-separator');
+		const separatorStyles = () => [...separators].map(separator => ({
+			display: getWindow(separator).getComputedStyle(separator).display,
+			content: getWindow(separator).getComputedStyle(separator, '::before').content,
+		}));
+		const completedSeparators = separatorStyles();
+		automationService.setRuns([{ ...cloudRun, status: 'running' }]);
+		const runningSeparators = separatorStyles();
+		automationService.setRuns([cloudRun]);
 		assert.deepStrictEqual({
 			cloud: !!details.querySelector('.session-details-icon .codicon-cloud-compact'),
 			repository: details.querySelector('.session-badge')?.textContent,
-			separators: details.querySelectorAll('.session-separator.has-separator').length,
+			completedSeparators,
+			runningSeparators,
 			time: details.querySelector('.session-time')?.textContent,
 			description: details.querySelector('.session-description')?.textContent,
 			accessibleStatus: row.getAttribute('aria-label')?.includes('Completed on GitHub'),
-		}, { cloud: true, repository: 'owner/private', separators: 1, time: 'now', description: '', accessibleStatus: true });
+		}, {
+			cloud: true, repository: 'owner/private',
+			completedSeparators: [{ display: 'none', content: 'none' }, { display: 'block', content: '"·"' }],
+			runningSeparators: [{ display: 'block', content: '"·"' }, { display: 'block', content: '"·"' }],
+			time: 'now', description: '', accessibleStatus: true,
+		});
 	});
 
 	test('event trigger labels remain visible throughout history row hover and focus states', async () => {

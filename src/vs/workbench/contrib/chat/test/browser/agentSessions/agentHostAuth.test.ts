@@ -19,6 +19,8 @@ import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } f
 import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
+import { gitHubCopilotResource, gitHubRepoResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
+import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -3373,6 +3375,65 @@ suite('authenticateProtectedResources', () => {
 		assert.deepStrictEqual({ requests, sharedHostToken }, {
 			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: '' }],
 			sharedHostToken: undefined,
+		});
+	});
+
+	for (const forwardedRemoved of [true, false]) {
+		test(`a window on Microsoft forwards the remaining GitHub account when another is removed (removed account forwarded: ${forwardedRemoved})`, async () => {
+			const copilot = { ...gitHubCopilotResource(deriveGitHubEndpoints(undefined)), required: false };
+			const scopes = copilot.scopes_supported!;
+			const accountA: AuthenticationSession = { id: 'a', scopes, accessToken: 'a-token', account: { id: 'account-a', label: 'A' } };
+			const accountB: AuthenticationSession = { id: 'b', scopes, accessToken: 'b-token', account: { id: 'account-b', label: 'B' } };
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: () => Promise.resolve('github'),
+				getSessions: () => Promise.resolve([accountB]),
+			});
+			const instantiationService = createAuthInstantiationService(disposables, authService);
+			instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+				override readonly currentDefaultAccount: IDefaultAccount = { sessionId: 'microsoft-session', accountName: 'M', enterprise: false, authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false } };
+			}());
+			const cache = new AgentHostAuthTokenCache();
+			if (forwardedRemoved) {
+				await cache.authenticate(copilot.resource, scopes, accountA.accessToken, async () => { }, accountA.account.id, undefined, undefined, { sessionId: accountA.id, accountId: accountA.account.id });
+			}
+			const tokens: string[] = [];
+			await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, [{ protectedResources: [copilot] }] as unknown as readonly AgentInfo[], 'github', [{ id: accountA.id, scopes }], {
+				logPrefix: '[Test]', authTokenCache: cache, authenticate: async request => { tokens.push(request.token); },
+			});
+			assert.deepStrictEqual(tokens, [accountB.accessToken]);
+		});
+	}
+
+	test('a window on Microsoft sends no GitHub Copilot credential on the connect path', async () => {
+		const copilot = { ...gitHubCopilotResource(deriveGitHubEndpoints(undefined)), required: false };
+		const repo = gitHubRepoResource(deriveGitHubEndpoints(undefined));
+		const session = (id: string, scopes: string[]): AuthenticationSession => ({ id, scopes, accessToken: `${id}-token`, account: { id: 'account', label: 'Account' } });
+		const defaultAccount = (provider: string, sessionId: string): IDefaultAccount => ({ sessionId, accountName: 'Account', enterprise: false, authenticationProvider: { id: provider, name: provider, enterprise: false } });
+		const forwardedFor = async (account: IDefaultAccount, sessions: AuthenticationSession[]) => {
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: () => Promise.resolve('github'),
+				getSessions: (_provider, requested) => Promise.resolve(requested ? sessions.filter(s => requested.every(scope => s.scopes.includes(scope))) : sessions),
+			});
+			const instantiationService = createAuthInstantiationService(disposables, authService);
+			instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+				override readonly currentDefaultAccount = account;
+			}());
+			const resources: string[] = [];
+			await instantiationService.invokeFunction(authenticateProtectedResources, [{ protectedResources: [copilot, repo] }] as unknown as readonly AgentInfo[], {
+				logPrefix: '[Test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async request => { resources.push(request.resource); },
+			});
+			return resources;
+		};
+		const wide = session('wide', ['read:user', 'user:email', 'repo']);
+		const narrow = session('narrow', ['read:user', 'user:email']);
+		assert.deepStrictEqual({
+			onMicrosoft: await forwardedFor(defaultAccount('microsoft', 'microsoft-session'), [wide]),
+			onGitHubWithRepo: await forwardedFor(defaultAccount('github', wide.id), [wide]),
+			onGitHubWithoutRepo: await forwardedFor(defaultAccount('github', narrow.id), [narrow]),
+		}, {
+			onMicrosoft: [],
+			onGitHubWithRepo: [copilot.resource, repo.resource],
+			onGitHubWithoutRepo: [copilot.resource],
 		});
 	});
 

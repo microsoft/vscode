@@ -280,3 +280,40 @@ div.chat-welcome-view {
 		background-color: var(--vscode-list-hoverBackground);
 	}
 }
+
+/* Content that contributions show in the center of the empty Chat, below the welcome message */
+.interactive-session .chat-welcome-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size120);
+	box-sizing: border-box;
+	width: 100%;
+	padding: 0 var(--vscode-spacing-size160);
+}
+
+.interactive-session .chat-welcome-content:not(:has(.chat-welcome-content-item:not(:empty))) {
+	display: none;
+}
+
+/* Its height comes from the view above the widget; it shrinks first, so the content never overlaps that view,
+	but it keeps clear of the controls that float above the input */
+.interactive-session .chat-welcome-content-spacer {
+	flex: 0 1 0;
+	min-height: var(--vscode-chat-persistent-content-height, 0px);
+}
+
+.interactive-session .chat-welcome-content:not(:has(.chat-welcome-content-item:not(:empty))) + .chat-welcome-content-spacer {
+	display: none;
+}
+
+.interactive-session .chat-welcome-content-item {
+	display: flex;
+	justify-content: center;
+	width: 100%;
+}
+
+.interactive-session .chat-welcome-content-item:empty {
+	display: none;
+}

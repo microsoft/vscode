@@ -33,7 +33,7 @@ import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, isPro
 import { CHAT_OPEN_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewContainerId, ChatViewId } from '../chat.js';
 import { ChatSetupAnonymous, ChatSetupError, ChatSetupStep, ChatSetupResultValue, InstallChatEvent, InstallChatClassification, refreshTokens, maybeEnableAuthExtension } from './chatSetup.js';
-import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { IDefaultAccount, MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID } from '../../../../../base/common/defaultAccount.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, GheParseResultKind, gitHubEnterpriseUrisSetting, isValidGitHubEnterpriseUri, parseGheInstanceInput } from '../../../../services/accounts/common/githubEnterprise.js';
@@ -187,6 +187,8 @@ export class ChatSetupController extends Disposable {
 				return undefined;
 			}
 
+			await this.leaveMicrosoftAccount();
+
 			// Await Install
 			this.setStep(ChatSetupStep.Installing);
 			success = await this.install(entitlement ?? this.context.state.entitlement, watch, options);
@@ -233,6 +235,26 @@ export class ChatSetupController extends Disposable {
 		const result = await this.agentHostService.authenticate({ resource: error.resource.resource, scopes: error.resource.scopes_supported, token: '' });
 		if (result.authenticated === false) {
 			throw new Error(localize('copilotMicrosoftResetRejected', "The agent host could not clear the incomplete Microsoft Copilot setup."));
+		}
+	}
+
+	/** Tells an agent host that is already connected and advertises the Microsoft requirement that setup continues without a Microsoft account. */
+	private async leaveMicrosoftAccount(): Promise<void> {
+		if (this.configurationService.getValue(AgentHostCopilotM365EnabledSettingId) !== true || this.agentHostService.connectionAvailable?.get() === false
+			|| this.defaultAccountService.currentDefaultAccount?.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID) {
+			return;
+		}
+		const state = this.agentHostService.rootState.value;
+		const discovery = state && !(state instanceof Error)
+			? state.agents.flatMap(agent => agent.protectedResources ?? []).find(resource => resource.resource === copilotEntraDiscoveryResource)
+			: undefined;
+		if (!discovery) {
+			return;
+		}
+		try {
+			await this.agentHostService.authenticate({ resource: discovery.resource, scopes: discovery.scopes_supported, token: '' });
+		} catch (error) {
+			this.logService.warn('[chat setup] The agent host could not be told to leave the Microsoft account', error);
 		}
 	}
 
@@ -365,6 +387,25 @@ export class ChatSetupController extends Disposable {
 				this.setStep(ChatSetupStep.Installing);
 				await this.doInstall();
 				this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
+				const isDefaultAccount = () => {
+					const defaultAccount = this.defaultAccountService.currentDefaultAccount;
+					return defaultAccount?.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID && defaultAccount.accountName === identity.account.label;
+				};
+				const wasDefaultAccount = isDefaultAccount();
+				await this.defaultAccountService.rememberMicrosoftAccount(identity.account);
+				try {
+					// The remembered account outlives this attempt, so an attempt abandoned during the update above must not leave it behind.
+					this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
+				} catch (error) {
+					if (!wasDefaultAccount) {
+						await this.defaultAccountService.forgetMicrosoftAccount();
+					}
+					throw error;
+				}
+				if (!isDefaultAccount()) {
+					await this.defaultAccountService.forgetMicrosoftAccount();
+					throw new Error(localize('copilotMicrosoftNotDefault', "Microsoft sign-in could not be completed for this window. Try again."));
+				}
 				return true;
 			})();
 			return await Promise.race([setup, failed.p]);
