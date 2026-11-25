@@ -738,7 +738,7 @@ interface ICopilotRuntimeExtensionInventory {
 /** A session couldn't confirm that the project extensions whose workspace trust was revoked stopped. */
 export class CopilotProjectExtensionRevocationError extends Error {
 	constructor(revokedExtensionNames: ReadonlySet<string>, cause: unknown) {
-		super(`Couldn't confirm that project extensions whose workspace trust was revoked (${[...revokedExtensionNames].join(', ')}) stopped: ${getErrorMessage(cause)}`);
+		super(localize('projectExtensionRevocationUnconfirmed', "Couldn't confirm that project extensions whose workspace trust was revoked ({0}) stopped: {1}", [...revokedExtensionNames].join(', '), getErrorMessage(cause)));
 		this.name = 'CopilotProjectExtensionRevocationError';
 	}
 }
