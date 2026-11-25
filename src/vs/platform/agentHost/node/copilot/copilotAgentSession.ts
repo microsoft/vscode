@@ -12571,10 +12571,6 @@ export class CopilotAgentSession extends Disposable {
 		 * as its answer waits for the commit. A response can't take back text the runtime later discards.
 		 */
 		const streamFusionPhaseOutput = (e: CopilotProvisionalFusionStreamEvent): void => {
-			if (e.type !== 'assistant.message_delta' && e.type !== 'assistant.reasoning_delta') {
-				// The deltas and the complete message carry everything a message start or whole reasoning block does.
-				return;
-			}
 			// A review phase shows its critique when it completes.
 			if (!e.data.deltaContent || e.data.fusion?.conversationScope === 'review') {
 				return;
@@ -12631,7 +12627,7 @@ export class CopilotAgentSession extends Disposable {
 			} else if (e.type === 'tool.execution_start' ? this._shouldDropEarlierFusionToolStart(e) : this._shouldDropEarlierFusionEvent(e)) {
 				return;
 			}
-			if (e.type === 'assistant.message_start' || e.type === 'assistant.message_delta' || e.type === 'assistant.reasoning_delta' || e.type === 'assistant.reasoning') {
+			if (e.type === 'assistant.message_delta' || e.type === 'assistant.reasoning_delta') {
 				streamFusionPhaseOutput(e);
 				return;
 			}
@@ -14667,7 +14663,6 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	/** Cancellation closes these chats as cancelled, so an abort only drops local routing. */
 	/**
 	 * Ends a phase's streamed thinking when the phase ends, in the scope it streamed into; a fallback phase streams elsewhere.
 	 * An inline phase streams into the response, so only reasoning it left unfinished there is ended.
@@ -14688,6 +14683,7 @@ export class CopilotAgentSession extends Disposable {
 		this._reasoningTiming.clear(toolCallId);
 	}
 
+	/** Cancellation closes these chats as cancelled, so an abort only drops local routing. */
 	private _forgetFusionPhaseChats(): void {
 		for (const toolCallId of this._fusionPhaseChats) {
 			this._finishFusionPhaseChatReasoning(toolCallId);

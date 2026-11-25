@@ -16,7 +16,7 @@ import { copilotFusionEventTypes, isProvisionalFusionConversationEvent, type Cop
 export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
 
 /** Streamed model output of a provisional (not yet committed) Fusion phase. */
-export type CopilotProvisionalFusionStreamEvent = SessionEventPayload<'assistant.message_start'> | SessionEventPayload<'assistant.message_delta'> | SessionEventPayload<'assistant.reasoning_delta'> | SessionEventPayload<'assistant.reasoning'>;
+export type CopilotProvisionalFusionStreamEvent = SessionEventPayload<'assistant.message_delta'> | SessionEventPayload<'assistant.reasoning_delta'>;
 
 /** Conversation events emitted by a provisional (not yet committed) Fusion phase. */
 export type CopilotProvisionalFusionEvent = SessionEventPayload<'tool.execution_start'> | SessionEventPayload<'tool.execution_complete'> | SessionEventPayload<'assistant.message'> | CopilotProvisionalFusionStreamEvent;
@@ -105,14 +105,13 @@ export class CopilotSessionWrapper extends Disposable {
 		const unsubscribeAll = session.on(event => {
 			this._onEvent.fire(event);
 			if (isProvisionalFusionConversationEvent(event)) {
+				// A phase's message start and whole reasoning add nothing to its deltas and complete message.
 				switch (event.type) {
 					case 'tool.execution_start':
 					case 'tool.execution_complete':
 					case 'assistant.message':
-					case 'assistant.message_start':
 					case 'assistant.message_delta':
 					case 'assistant.reasoning_delta':
-					case 'assistant.reasoning':
 						this._onProvisionalFusionEvent.fire(event);
 				}
 				return;
