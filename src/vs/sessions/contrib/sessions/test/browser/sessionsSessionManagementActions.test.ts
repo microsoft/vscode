@@ -18,10 +18,13 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { RedoCommand, UndoCommand } from '../../../../../editor/browser/editorExtensions.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { RawWorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -49,7 +52,7 @@ import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/
 import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { SessionsView, SessionsViewId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { InSessionsViewContext, SessionsView, SessionsViewId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 import { ITestSessionsService, ITestSessionWithChat, stubPaneHost, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
@@ -70,6 +73,33 @@ function getKeybindingRule(commandId: string, keybinding: number, operatingSyste
 
 suite('Sessions - Session management actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Undo and Redo of the Edit menu step through sessions list changes while the list, but not one of its inputs, has focus', async () => {
+		const calls: string[] = [];
+		let focus: Record<string, ContextKeyValue> = {};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IContextKeyService, upcastPartial<IContextKeyService>({ getContext: () => context(focus) }));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ICodeEditorService, upcastPartial<ICodeEditorService>({ getFocusedCodeEditor: () => null, getActiveCodeEditor: () => null }));
+		instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({
+			canUndo: () => true,
+			undo: async () => { calls.push('undo'); },
+			canRedo: () => true,
+			redo: async () => { calls.push('redo'); },
+		}));
+		const run = async (values: Record<string, ContextKeyValue>) => {
+			focus = values;
+			await instantiationService.invokeFunction(accessor => UndoCommand.runCommand(accessor, undefined));
+			await instantiationService.invokeFunction(accessor => RedoCommand.runCommand(accessor, undefined));
+			return calls.splice(0);
+		};
+
+		assert.deepStrictEqual({
+			list: await run({ [InSessionsViewContext.key]: true }),
+			input: await run({ [InSessionsViewContext.key]: true, [InputFocusedContext.key]: true }),
+			elsewhere: await run({}),
+		}, { list: ['undo', 'redo'], input: [], elsewhere: [] });
+	});
 
 	test('offers Open Customizations for one desktop session and hides it on phones or when AI is disabled', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu).filter(isIMenuItem).find(item => item.command.id === 'sessionsViewPane.openCustomizations');
@@ -269,6 +299,7 @@ suite('Sessions - Session management actions', () => {
 		const calls: { readonly method: string; readonly sessionIds: readonly string[] }[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({
+			isSessionListed: () => true,
 			showAutomationSessions: sessions => { calls.push({ method: 'show', sessionIds: sessions.map(session => session.sessionId) }); },
 			hideAutomationSessions: sessions => {
 				calls.push({ method: 'hide', sessionIds: sessions.map(session => session.sessionId) });

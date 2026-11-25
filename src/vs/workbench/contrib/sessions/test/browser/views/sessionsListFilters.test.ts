@@ -295,11 +295,15 @@ suite('SessionsListFilters', () => {
 		filters.setScheduledOnly(true);
 		const restored = createFilters(storage);
 		const persisted = restored.isScheduledOnly();
-		const undo = restored.capture();
+		const captured = restored.capture();
 		restored.reset();
-		const reset = restored.isScheduledOnly();
-		undo();
-		assert.deepStrictEqual({ persisted, reset, undone: restored.isScheduledOnly() }, { persisted: true, reset: false, undone: true });
+		const reset = { scheduledOnly: restored.isScheduledOnly(), current: captured.isCurrent() };
+		captured.restore();
+		assert.deepStrictEqual({ persisted, reset, undone: { scheduledOnly: restored.isScheduledOnly(), current: captured.isCurrent() } }, {
+			persisted: true,
+			reset: { scheduledOnly: false, current: false },
+			undone: { scheduledOnly: true, current: true },
+		});
 	});
 
 	test('Inbox scope distinguishes exact workspaces and environments without separating harnesses', () => {
@@ -347,10 +351,10 @@ suite('SessionsListFilters', () => {
 		filters.setInboxEnvironment({ id: 'local', label: 'This Computer' });
 		const reloaded = createFilters(storage);
 		const scope = reloaded.inboxScope;
-		const undo = reloaded.capture();
+		const captured = reloaded.capture();
 		reloaded.reset();
 		const reset = { scope: reloaded.inboxScope, ordinary: reloaded.matches(session) };
-		undo();
+		captured.restore();
 		const restored = { scope: reloaded.inboxScope, ordinary: reloaded.matches(session), inbox: reloaded.matches(session, true) && reloaded.matchesInboxScope(session) };
 		reloaded.setInboxWorkspace(undefined);
 		reloaded.setInboxEnvironment(undefined);

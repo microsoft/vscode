@@ -117,6 +117,16 @@ suite('Sessions - View Menu', () => {
 		const providersChanged = store.add(new Emitter<void>());
 		let excludeArchived = true;
 		let workspaceGroupCapped = true;
+		const captureFilters = () => {
+			const captured = { excludeArchived, workspaceGroupCapped, filters: filters.capture() };
+			return {
+				restore: () => {
+					({ excludeArchived, workspaceGroupCapped } = captured);
+					captured.filters.restore();
+				},
+				isCurrent: () => excludeArchived === captured.excludeArchived && workspaceGroupCapped === captured.workspaceGroupCapped && captured.filters.isCurrent(),
+			};
+		};
 		const sessionsControl = upcastPartial<SessionsList>({
 			filters,
 			onDidUpdate: sessionsChanged.event,
@@ -125,15 +135,13 @@ suite('Sessions - View Menu', () => {
 			setExcludeArchived: excluded => { excludeArchived = excluded; },
 			isWorkspaceGroupCapped: () => workspaceGroupCapped,
 			setWorkspaceGroupCapped: value => { workspaceGroupCapped = value; },
+			captureFilters,
 			resetFilters: () => {
-				const previous = { excludeArchived, workspaceGroupCapped, restoreFilters: filters.capture() };
+				const previous = captureFilters();
 				excludeArchived = true;
 				workspaceGroupCapped = true;
 				filters.reset();
-				return () => {
-					({ excludeArchived, workspaceGroupCapped } = previous);
-					previous.restoreFilters();
-				};
+				return () => previous.restore();
 			},
 		});
 		const notices: ISessionsListChange[] = [];
@@ -171,6 +179,7 @@ suite('Sessions - View Menu', () => {
 				getProviders: () => providers ?? environments.map(environment => ({ id: environment.id, environment })),
 			},
 			_register: <T extends IDisposable>(disposable: T): T => store.add(disposable),
+			_store: store,
 			sessionsControl,
 			registerSessionFilters: Reflect.get(SessionsView.prototype, 'registerSessionFilters') as (control: SessionsList) => void,
 			registerScheduledFilter: Reflect.get(SessionsView.prototype, 'registerScheduledFilter') as (control: SessionsList) => void,
@@ -919,9 +928,14 @@ suite('Sessions - View Menu', () => {
 		const held = states();
 		await notices[1].undo();
 		const holdUndone = states();
-		assert.deepStrictEqual({ resumed, restored, held, holdUndone, archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown), closed }, {
+		await notices[1].redo();
+		const holdRedone = states();
+		const conflictsUnchanged = notices[1].conflicts?.(true);
+		model.setInboxState([sessions[1]], undefined);
+		assert.deepStrictEqual({ resumed, restored, held, holdUndone, holdRedone, conflicts: { unchanged: conflictsUnchanged, triagedElsewhere: notices[1].conflicts?.(true) }, archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown), closed }, {
 			resumed: [undefined, undefined, undefined], restored: ['untilActivity', undefined, undefined],
 			held: ['hold', 'hold', undefined], holdUndone: ['untilActivity', undefined, undefined],
+			holdRedone: ['hold', 'hold', undefined], conflicts: { unchanged: false, triagedElsewhere: true },
 			archived: [false, false, true], countdowns: [true, true],
 			closed: [],
 		});
@@ -1899,12 +1913,19 @@ suite('Sessions - View Menu', () => {
 		await run('sessionsViewPane.resetFilters');
 		const reset = state();
 		await notices[0].undo();
+		const undone = state();
+		await notices[0].redo();
+		const redone = state();
+		const conflictsUnchanged = notices[0].conflicts?.(true);
+		await run(localAction.command.id);
 
-		assert.deepStrictEqual({ before, reset, notices: notices.map(notice => notice.message(notice.count)), undone: state() }, {
+		assert.deepStrictEqual({ before, reset, notices: notices.map(notice => notice.message(notice.count)), undone, redone, conflicts: { unchanged: conflictsUnchanged, filterEdited: notices[0].conflicts?.(true) } }, {
 			before: { local: false, localChecked: false, showDoneChecked: true, showRecent: false },
 			reset: { local: true, localChecked: true, showDoneChecked: false, showRecent: true },
 			notices: ['Filters reset'],
 			undone: { local: false, localChecked: false, showDoneChecked: true, showRecent: false },
+			redone: { local: true, localChecked: true, showDoneChecked: false, showRecent: true },
+			conflicts: { unchanged: false, filterEdited: true },
 		});
 	});
 

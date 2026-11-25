@@ -5,6 +5,8 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { getComparisonKey, IExtUri } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
@@ -117,14 +119,22 @@ export function compareSessionEnvironments(a: ISessionEnvironment, b: ISessionEn
 	return rank(a.id) - rank(b.id) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id);
 }
 
+/** Sessions list state that {@link ISessionsListResettableState.capture} captured. */
+export interface ISessionsListCapturedState {
+	/** Restores the state as captured. */
+	restore(): void;
+	/** Whether the state is as captured. */
+	isCurrent(): boolean;
+}
+
 /**
  * Sessions list state that Reset Filters returns to its default. Reset Filters
  * captures every such state before resetting it, so that undoing the reset
  * restores the list exactly as it was.
  */
 export interface ISessionsListResettableState {
-	/** Captures the current state and returns a function that restores it. */
-	capture(): () => void;
+	/** Captures the current state. */
+	capture(): ISessionsListCapturedState;
 	/** Returns the state to its default. */
 	reset(): void;
 }
@@ -453,18 +463,21 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 				|| !this.isExcluded({ kind: 'application', environment: session.environment, id: application.id }));
 	}
 
-	capture(): () => void {
-		const excluded = [...this.excluded];
+	capture(): ISessionsListCapturedState {
+		const excluded = new Map(this.excluded);
 		const inboxScope = this._inboxScope;
 		const worktree = this._worktree;
-		return () => {
-			this._inboxScope = inboxScope;
-			this._worktree = worktree;
-			this.excluded.clear();
-			for (const [key, value] of excluded) {
-				this.excluded.set(key, value);
-			}
-			this.save();
+		return {
+			restore: () => {
+				this._inboxScope = inboxScope;
+				this._worktree = worktree;
+				this.excluded.clear();
+				for (const [key, value] of excluded) {
+					this.excluded.set(key, value);
+				}
+				this.save();
+			},
+			isCurrent: () => this._worktree === worktree && equals(this._inboxScope, inboxScope) && mapsStrictEqualIgnoreOrder(this.excluded, excluded),
 		};
 	}
 

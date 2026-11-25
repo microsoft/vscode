@@ -70,7 +70,7 @@ const CORE_SERVICES = new Set([
 	'labelService', 'languageModelsService', 'languageModelToolsService', 'layoutService', 'lifecycleService', 'listService', 'loggerService', 'logService',
 	'managedSettingsService', 'markdownRendererService', 'menuService', 'micCaptureService', 'modelService', 'notificationService', 'onboardingScenarioService', 'openerService', 'paneCompositePartService', 'pathService', 'productService', 'progressService',
 	'quickInputService', 'remoteAgentHostService', 'remoteAgentService', 'requestService', 'sessionChatPillVisibilityService', 'speechService', 'storageService', 'telemetryService', 'textModelService',
-	'themeService', 'ttsPlaybackService', 'uriIdentityService', 'viewDescriptorService', 'viewsService', 'voiceClientService', 'voicePlaybackService', 'voiceSessionController', 'workingCopyService',
+	'themeService', 'ttsPlaybackService', 'undoRedoService', 'uriIdentityService', 'viewDescriptorService', 'viewsService', 'voiceClientService', 'voicePlaybackService', 'voiceSessionController', 'workingCopyService',
 	'workspaceContextService', 'workspacesService', 'workspaceTrustManagementService', 'workspaceTrustRequestService',
 ]);
 
