@@ -28,7 +28,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { getConfiguredCustomMcpGalleryUrl, IQueryOptions, isProductMcpGalleryEnabled, mcpAccessConfig, McpAccessValue, normalizeMcpGalleryUrl } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IEditableMcpServerConfiguration, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -4184,7 +4184,16 @@ export class McpListWidget extends Disposable {
 		}
 		const name = localServer.definition.label;
 		return new Action(MCP_UNINSTALL_ACTION_ID, localize('uninstall', "Uninstall"), undefined, true, async () => {
-			const editable = origin && await this.mcpWorkbenchService.resolveEditableMcpServerConfiguration(origin, name).catch(() => undefined);
+			let editable: IEditableMcpServerConfiguration | undefined;
+			if (origin) {
+				try {
+					editable = await this.mcpWorkbenchService.resolveEditableMcpServerConfiguration(origin, name);
+				} catch (error) {
+					// An unreadable or invalid file is not an unsupported source; report why it can't be read.
+					this.notificationService.error(localize('mcpUninstallFailed', "Unable to uninstall MCP server '{0}': {1}", name, getErrorMessage(error)));
+					return;
+				}
+			}
 			if (editable && origin) {
 				const { confirmed } = await this.dialogService.confirm({
 					type: 'warning',

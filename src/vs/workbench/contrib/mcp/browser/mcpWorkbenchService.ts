@@ -868,7 +868,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			};
 		}
 
-		const resource = await this.copilotGlobalConfigurationService.getConfigurationResource();
+		// Native discovery lists this file even while the agent host is disabled, so its servers stay editable.
+		const resource = await this.copilotGlobalConfigurationService.getConfigurationResource({ includeWhenAgentHostDisabled: true });
 		if (!resource || !this.uriIdentityService.extUri.isEqual(resource, source)) {
 			return undefined;
 		}

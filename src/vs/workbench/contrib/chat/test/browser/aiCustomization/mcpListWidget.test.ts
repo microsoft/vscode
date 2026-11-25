@@ -37,6 +37,7 @@ import { mcpAccessConfig, McpAccessValue, mcpGalleryServiceEnablementConfig, mcp
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceFormat } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
@@ -2710,7 +2711,7 @@ suite('mcpListWidget', () => {
 				},
 				setAriaProvider: (provider: (entry: Entry) => IObservable<string>) => { widget.getMcpEntryAriaLabel = provider; },
 				setRuntimeServers: (next: readonly IMcpServer[]) => runtimeServers.set(next, undefined),
-				menu: (entry: Entry, localServer?: IMcpServer, overrides?: { readonly mcpWorkbenchService?: Partial<IMcpWorkbenchService>; readonly dialogService?: Partial<IDialogService> }) => {
+				menu: (entry: Entry, localServer?: IMcpServer, overrides?: { readonly mcpWorkbenchService?: Partial<IMcpWorkbenchService>; readonly dialogService?: Partial<IDialogService>; readonly notificationService?: Partial<INotificationService> }) => {
 					const instantiationService = workbenchInstantiationService({}, store);
 					const enablement = createMcpService(ContributionEnablementState.EnabledProfile);
 					localEnablementCalls = enablement.calls;
@@ -3171,17 +3172,27 @@ suite('mcpListWidget', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
 			const sharedFile = URI.file('/Users/test/.copilot/mcp-config.json');
+			const brokenFile = URI.file('/Users/test/broken/mcp-config.json');
 			const removed: string[] = [];
 			const dialogs: string[] = [];
+			const errors: string[] = [];
 			const overrides = {
 				mcpWorkbenchService: {
-					resolveEditableMcpServerConfiguration: async (source: URI, name: string) => isEqual(source, sharedFile) ? {
-						config: { type: McpServerType.LOCAL, command: 'server' },
-						format: McpResourceFormat.CopilotGlobal,
-						save: async () => { },
-						remove: async () => { removed.push(name); },
-					} as const : undefined,
+					resolveEditableMcpServerConfiguration: async (source: URI, name: string) => {
+						if (isEqual(source, brokenFile)) {
+							throw new Error('invalid JSON');
+						}
+						return isEqual(source, sharedFile) ? {
+							config: { type: McpServerType.LOCAL, command: 'server' },
+							format: McpResourceFormat.CopilotGlobal,
+							save: async () => { },
+							remove: async () => { removed.push(name); },
+						} as const : undefined;
+					},
 				},
+				notificationService: {
+					error: (message: unknown) => { errors.push(String(message)); },
+				} as Partial<INotificationService>,
 				dialogService: {
 					confirm: async (confirmation: { readonly message: string; readonly detail?: string }) => {
 						dialogs.push(`${confirmation.message} ${confirmation.detail}`);
@@ -3199,19 +3210,21 @@ suite('mcpListWidget', () => {
 				uninstall({ type: 'builtin-item', id: 'claude', label: 'Claude', description: '', localServer: builtinLocalServer(URI.file('/Users/test/Library/Application Support/Claude/claude_desktop_config.json')) }),
 				uninstall({ type: 'builtin-item', id: 'extension', label: 'Extension', description: '', extensionId: new ExtensionIdentifier('publisher.extension'), localServer: builtinLocalServer() }),
 				uninstall({ type: 'builtin-item', id: 'copilot', label: 'Copilot', description: '', extensionId: new ExtensionIdentifier('GitHub.copilot-chat'), localServer: builtinLocalServer() }),
+				uninstall({ type: 'builtin-item', id: 'broken', label: 'Broken', description: '', localServer: builtinLocalServer(brokenFile) }),
 			];
 			for (const action of actions) {
 				await action?.run();
 			}
 
-			assert.deepStrictEqual({ offered: actions.map(action => action?.label), removed, dialogs }, {
-				offered: ['Uninstall', 'Uninstall', 'Uninstall', undefined],
+			assert.deepStrictEqual({ offered: actions.map(action => action?.label), removed, dialogs, errors }, {
+				offered: ['Uninstall', 'Uninstall', 'Uninstall', undefined, 'Uninstall'],
 				removed: ['Server One'],
 				dialogs: [
 					'Are you sure you want to uninstall the MCP server \'Server One\'? It will be removed from ~/.copilot/mcp-config.json. Other MCP clients that read this file, such as the Copilot CLI, will no longer have it either.',
 					'The MCP server \'Server One\' is configured outside of VS Code VS Code cannot remove servers from ~/Library/Application Support/Claude/claude_desktop_config.json. To remove it, delete it from that file. You can also disable the server here. [Show Configuration]',
 					'The MCP server \'Server One\' is provided by the extension \'Example Extension\' To remove it, uninstall or disable the extension. You can also disable the server here. [Show Extension]',
 				],
+				errors: ['Unable to uninstall MCP server \'Server One\': invalid JSON'],
 			});
 		});
 
