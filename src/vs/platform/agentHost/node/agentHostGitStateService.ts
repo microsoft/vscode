@@ -32,7 +32,7 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestAssociationResolver.js';
-import { isSessionChatInFolder, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { isSessionChatInFolder, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -962,8 +962,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	async resolveSessionBaseBranchRef(sessionKey: string): Promise<string | undefined> {
 		const state = this._getStateForGitScope(sessionKey);
 		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchRef;
-		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder;
-		if (!isSessionFolder && this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
+		const isChat = isAhpChatChannel(sessionKey);
+		// Chats sharing a folder scope read the base of the chat representing it, which the Branch Changes diff reads and the base's writers record.
+		const source = isChat ? resolveBranchChangesetScopeForOwner(this._stateManager, resolveBranchChangesetScopeForSource(this._stateManager, sessionKey).ownerUri)?.sourceUri ?? sessionKey : sessionKey;
+		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, source).isSessionFolder;
+		if (!isSessionFolder && this._chatOwnership.isRegisteredDefaultChat(source)) {
 			return gitStateBaseBranch;
 		}
 
@@ -972,13 +975,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return gitStateBaseBranch;
 		}
 		// `sessionKey` may be a chat: its base branch is the one recorded for its folder scope in its session's state.
-		const isChat = isAhpChatChannel(sessionKey);
 		const session = isChat ? this._chatOwnership.getChatOwner(sessionKey) : sessionKey;
 		if (session === undefined) {
 			return gitStateBaseBranch;
 		}
 		try {
-			const persisted = await this._sessionStateStore.readBaseBranchWithoutImport(URI.parse(session), isChat && !this._chatOwnership.isRegisteredDefaultChat(sessionKey) ? sessionKey : undefined);
+			const persisted = await this._sessionStateStore.readBaseBranchWithoutImport(URI.parse(session), isChat && !this._chatOwnership.isRegisteredDefaultChat(source) ? source : undefined);
 			return persisted || gitStateBaseBranch;
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Failed to read the persisted base branch for ${sessionKey}`, error);

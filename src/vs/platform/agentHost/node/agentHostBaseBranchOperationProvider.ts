@@ -11,6 +11,7 @@ import type { IChangesetOperationContext, IChangesetOperationContribution, IChan
 import { IAgentHostGitService, IRefQuery, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchRef } from '../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
+import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { createBaseBranchCandidatesResult, LIST_BASE_BRANCHES_OPERATION_ID, readSetBaseBranchMeta, SET_BASE_BRANCH_OPERATION_ID } from '../common/meta/agentBaseBranchOperationMeta.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -47,8 +48,10 @@ export class AgentHostBaseBranchOperationContribution extends Disposable impleme
 			return undefined;
 		}
 		const scope = resolveChangesetOwnerScope(this._stateManager, ownerKey ?? parseChangesetUri(changesetUri)?.ownerUri ?? sessionKey);
-		// Like `AgentHostChangesetService._getBranchBaseBranch`, the diff ignores the recorded base of a default chat outside the session folder.
+		// The diff of a multi-root scope compares every repository against one base, but only the first folder's branches are listed and validated.
+		// Like `AgentHostChangesetService._getBranchBaseBranch`, it also ignores the recorded base of a default chat outside the session folder.
 		if (scope.workingDirectories.length === 0
+			|| isMultiRootSession(scope.workingDirectories)
 			|| (this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) && !resolveGitHubStateFolder(this._stateManager, scope.sourceUri).isSessionFolder)) {
 			return undefined;
 		}

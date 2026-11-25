@@ -1722,6 +1722,34 @@ suite('AgentHostGitStateService', () => {
 		});
 	}));
 
+	test('resolves peer chats of a legacy-catalog session that share the session folder to the base recorded for it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'feature', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' } });
+		const inheritingPeer = buildChatUri(SESSION, 'inheriting');
+		const sameFolderPeer = buildChatUri(SESSION, 'same-folder');
+		h.stateManager.addChat(SESSION, inheritingPeer, creationTimeChatStorageResource(SESSION, inheritingPeer, buildDefaultChatUri(SESSION)));
+		h.stateManager.addChat(SESSION, sameFolderPeer, creationTimeChatStorageResource(SESSION, sameFolderPeer, buildDefaultChatUri(SESSION)), { workingDirectories: [WORKING_DIRECTORY] });
+		const session = URI.parse(SESSION);
+		await h.stateStore.write(session, sessionStatePatch({
+			chats: [
+				{ chat: inheritingPeer, isDefault: false, fields: {} },
+				{ chat: sameFolderPeer, isDefault: false, fields: { workingDirectories: [WORKING_DIRECTORY] } },
+			],
+		}), SessionStateMirrorFlush.Immediate);
+		// Where the base branch operation records a new base of the session folder's Branch Changes.
+		await h.stateStore.writeMetadata(session, session, { [META_DIFF_BASE_BRANCH]: 'refs/heads/release' }, SessionStateMirrorFlush.Immediate);
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'release', baseBranchRef: 'refs/heads/release' });
+
+		const resolved = await Promise.all([inheritingPeer, sameFolderPeer, buildDefaultChatUri(SESSION), SESSION].map(key => h.service.resolveSessionBaseBranchRef(key)));
+		await h.service.refreshSessionGitState(inheritingPeer, undefined);
+
+		assert.deepStrictEqual({ authority: h.stateStore.peek(session)?.authority, resolved, baseBranches: h.gitBaseBranches }, {
+			authority: 1,
+			resolved: ['refs/heads/release', 'refs/heads/release', 'refs/heads/release', 'refs/heads/release'],
+			baseBranches: ['refs/heads/release'],
+		});
+	}));
+
 	test('uses the destination base after clearing a moved peer baseline without changing its sibling', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const main = buildDefaultChatUri(SESSION);
 		const peer = buildChatUri(SESSION, 'peer');

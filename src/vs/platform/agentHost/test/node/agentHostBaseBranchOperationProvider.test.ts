@@ -160,18 +160,21 @@ suite('AgentHostBaseBranchOperationContribution', () => {
 		});
 	});
 
-	test('advertises the operations on Branch Changes only where the diff reads the recorded base', () => {
+	test('advertises the operations on single-folder Branch Changes only where the diff reads the recorded base', () => {
 		const h = createHarness();
 		const operationIds = (changesetUri: string, changesetKind: ChangesetKind) =>
 			h.contribution.getOperations({ sessionKey: session, changesetUri, changesetKind })?.map(operation => operation.id);
 
 		const branchOperations = h.contribution.getOperations({ sessionKey: session, changesetUri: h.branchChangeset(defaultChat), changesetKind: ChangesetKind.Branch });
 		const uncommitted = operationIds(buildUncommittedChangesetUri(defaultChat), ChangesetKind.Uncommitted);
+		const multiRootChat = buildChatUri(session, 'multi-root');
+		h.stateManager.addChat(session, multiRootChat, creationTimeChatStorageResource(session, multiRootChat, defaultChat), { workingDirectories: [repository, otherRepository] });
+		const multiRoot = operationIds(h.branchChangeset(multiRootChat), ChangesetKind.Branch);
 		h.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: URI.file('/worktree').toString() });
 		const defaultChatOutsideSessionFolder = operationIds(h.branchChangeset(defaultChat), ChangesetKind.Branch);
 		const peerOutsideSessionFolder = operationIds(h.branchChangeset(otherFolderChat), ChangesetKind.Branch);
 
-		assert.deepStrictEqual({ branchOperations, uncommitted, defaultChatOutsideSessionFolder, peerOutsideSessionFolder }, {
+		assert.deepStrictEqual({ branchOperations, uncommitted, multiRoot, defaultChatOutsideSessionFolder, peerOutsideSessionFolder }, {
 			branchOperations: [{
 				id: LIST_BASE_BRANCHES_OPERATION_ID,
 				label: 'List Base Branches',
@@ -188,6 +191,7 @@ suite('AgentHostBaseBranchOperationContribution', () => {
 				status: ChangesetOperationStatus.Idle,
 			}],
 			uncommitted: undefined,
+			multiRoot: undefined,
 			defaultChatOutsideSessionFolder: undefined,
 			peerOutsideSessionFolder: [LIST_BASE_BRANCHES_OPERATION_ID, SET_BASE_BRANCH_OPERATION_ID],
 		});
