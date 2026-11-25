@@ -8329,7 +8329,8 @@ suite('AgentService (node dispatcher)', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({
-				actions: envelopes.map(envelope => envelope.action),
+				// The session's Git state, refreshed for its new folder, changes its metadata too
+				actions: envelopes.map(envelope => envelope.action).filter(action => action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved),
 				confirmed: getStateManager(svc).getSessionState(session.toString())?.workingDirectories,
 			}, {
 				actions: [

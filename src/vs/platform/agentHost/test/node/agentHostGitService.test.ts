@@ -490,8 +490,10 @@ suite('AgentHostGitService', () => {
 			const fresh = await git.getRepositoryRoot(URI.file(folder), { fresh: true });
 			const afterFresh = await git.getRepositoryRoot(URI.file(folder));
 
+			// As the URI writes the folder's path, a Windows drive letter in lower case
+			const expected = URI.file(folder).fsPath;
 			assert.deepStrictEqual({ warmed: warmed?.fsPath, cached: cached?.fsPath, fresh, afterFresh, probes }, {
-				warmed: folder, cached: folder, fresh: undefined, afterFresh: undefined, probes: 1,
+				warmed: expected, cached: expected, fresh: undefined, afterFresh: undefined, probes: 1,
 			});
 		});
 
