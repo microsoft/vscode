@@ -280,9 +280,12 @@ suite('ModelRoutersWidget', () => {
 		name().setSelectionRange(2, 4);
 		const before = offered();
 		listModels();
-		assert.deepStrictEqual({ before, after: offered(), focused: mainWindow.document.activeElement === name(), value: name().value, selection: [name().selectionStart, name().selectionEnd] }, {
+		// The two routes start on different models, which routes without a name need.
+		const chosen = [...container.querySelectorAll('.model-router-form-route')].map(route => route.querySelector('select')!.selectedOptions[0]?.textContent);
+		assert.deepStrictEqual({ before, after: offered(), chosen, focused: mainWindow.document.activeElement === name(), value: name().value, selection: [name().selectionStart, name().selectionEnd] }, {
 			before: [],
 			after: ['Opus', 'Haiku'],
+			chosen: ['Opus', 'Haiku'],
 			focused: true,
 			value: 'feature',
 			selection: [2, 4],

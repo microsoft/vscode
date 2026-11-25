@@ -177,7 +177,8 @@ export class ModelRoutersViewModel extends Disposable {
 			if (parseModelRouter(content, basename(file)).router?.switching !== switching) {
 				throw new Error(localize('modelRouters.error.switching', "Change `switching` in {0} instead.", basename(file)));
 			}
-			// The write is refused when the file has changed since it was read.
+			// An editor can have changed the file while it was read. The write is also refused when the file itself has changed since.
+			this.assertSaved(file);
 			await this.fileService.writeFile(file, VSBuffer.fromString(content), { etag, mtime });
 		});
 	}
@@ -254,6 +255,8 @@ export class ModelRoutersViewModel extends Disposable {
 				// The text is compared, as the file service lets a change of the same length through.
 				isChanged = value.toString() !== read.content;
 				if (!isChanged) {
+					// An editor can have changed the file while it was read
+					this.assertSaved(read.file);
 					await this.fileService.writeFile(read.file, VSBuffer.fromString(content), { etag, mtime });
 				}
 			} catch (error) {
