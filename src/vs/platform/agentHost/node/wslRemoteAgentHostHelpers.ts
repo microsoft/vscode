@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import { join } from '../../../base/common/path.js';
 import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import { AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
-import type { IWSLDistro } from '../common/wslRemoteAgentHost.js';
+import { WSL_MUSL_SERVER_LIBRARIES, type IWSLDistro } from '../common/wslRemoteAgentHost.js';
 import {
 	buildAgentHostBaseCommand,
 	buildCleanupOldCLIsCommand,
@@ -254,9 +254,6 @@ export function parseRunningDistros(output: string): string[] {
 		.filter(line => line.length > 0);
 }
 
-/** Libraries the server's Node.js needs that musl distributions such as Alpine don't install by default. */
-const MUSL_SERVER_LIBRARIES = ['libstdc++.so.6', 'libgcc_s.so.1'];
-
 /** What {@link composeDistroProbeScript} reports about a distribution. */
 export interface IWSLDistroProbe {
 	readonly unameS: string;
@@ -265,15 +262,17 @@ export interface IWSLDistroProbe {
 	readonly libc: string;
 	/** Whether the installed CLI runs, so it can be reused instead of being installed again. */
 	readonly cliRunnable: boolean;
-	/** Libraries from {@link MUSL_SERVER_LIBRARIES} that are missing on a musl distribution. */
+	/** Libraries from {@link WSL_MUSL_SERVER_LIBRARIES} that are missing on a musl distribution. */
 	readonly missingLibraries: readonly string[];
+	/** Whether the distribution has Alpine's `apk` package manager, which can install missing libraries. */
+	readonly hasApk: boolean;
 }
 
 /**
  * Compose the POSIX `sh` script that reports, one `key=value` per line, the
  * platform for picking the CLI build, whether the CLI at `cliBin` runs (a CLI
  * of the wrong platform or libc doesn't and is replaced), and which libraries
- * the server needs are missing on musl.
+ * the server needs are missing on musl and whether `apk` can install them.
  */
 export function composeDistroProbeScript(cliBin: string): string {
 	return [
@@ -281,7 +280,8 @@ export function composeDistroProbeScript(cliBin: string): string {
 		'printf \'arch=%s\\n\' "$(uname -m)"',
 		`libc=$(${DETECT_MUSL_COMMAND})`,
 		'printf \'libc=%s\\n\' "$libc"',
-		`if [ "$libc" = musl ]; then for lib in ${MUSL_SERVER_LIBRARIES.join(' ')}; do [ -e "/usr/lib/$lib" ] || [ -e "/lib/$lib" ] || printf 'missing=%s\\n' "$lib"; done; fi`,
+		`if [ "$libc" = musl ]; then for lib in ${WSL_MUSL_SERVER_LIBRARIES.join(' ')}; do [ -e "/usr/lib/$lib" ] || [ -e "/lib/$lib" ] || printf 'missing=%s\\n' "$lib"; done; fi`,
+		'if command -v apk >/dev/null 2>&1; then echo apk=yes; fi',
 		`if ${cliBin} --version >/dev/null 2>&1; then echo cli=ok; fi`,
 	].join('; ');
 }
@@ -309,6 +309,7 @@ export function parseDistroProbe(output: string): IWSLDistroProbe {
 		libc: values.get('libc') ?? '',
 		cliRunnable: values.get('cli') === 'ok',
 		missingLibraries,
+		hasApk: values.get('apk') === 'yes',
 	};
 }
 

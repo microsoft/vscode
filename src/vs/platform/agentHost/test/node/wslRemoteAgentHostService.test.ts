@@ -76,7 +76,7 @@ class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainServic
 
 	/** Completes the distro probe; by default the installed CLI runs on glibc x64. */
 	resolvePlatform(probe: Partial<IWSLDistroProbe> = {}): void {
-		this._probe.complete({ unameS: 'Linux', unameM: 'x86_64', libc: '', cliRunnable: true, missingLibraries: [], ...probe });
+		this._probe.complete({ unameS: 'Linux', unameM: 'x86_64', libc: '', cliRunnable: true, missingLibraries: [], hasApk: false, ...probe });
 	}
 
 	deferNextWebSocket(): DeferredPromise<MockWebSocket> {
@@ -239,12 +239,18 @@ suite('WSL Remote Agent Host Service', () => {
 		});
 	});
 
-	test('reports missing musl libraries before downloading or launching anything', async () => {
-		const service = disposables.add(createService());
-		const result = service.connect({ distro: 'Alpine', name: 'Alpine' });
-		service.resolvePlatform({ libc: 'musl', cliRunnable: false, missingLibraries: ['libstdc++.so.6', 'libgcc_s.so.1'] });
-		await assert.rejects(result, /can't run in 'Alpine' without libstdc\+\+\.so\.6, libgcc_s\.so\.1/);
-		assert.deepStrictEqual({ downloads: service.cliDownloads, spawned: service.children.length }, { downloads: [], spawned: 0 });
+	test('reports missing musl libraries before downloading or launching anything, with the apk command only where apk exists', async () => {
+		const connect = async (hasApk: boolean) => {
+			const service = disposables.add(createService());
+			const result = service.connect({ distro: 'Alpine', name: 'Alpine' });
+			service.resolvePlatform({ libc: 'musl', cliRunnable: false, missingLibraries: ['libstdc++.so.6', 'libgcc_s.so.1'], hasApk });
+			const message = await result.then(() => '', (error: Error) => error.message);
+			return { names: message.includes('without libstdc++.so.6, libgcc_s.so.1'), apkCommand: message.includes('apk add --update-cache libstdc++'), downloads: service.cliDownloads.length, spawned: service.children.length };
+		};
+		assert.deepStrictEqual({ apk: await connect(true), noApk: await connect(false) }, {
+			apk: { names: true, apkCommand: true, downloads: 0, spawned: 0 },
+			noApk: { names: true, apkCommand: false, downloads: 0, spawned: 0 },
+		});
 	});
 
 	test('closes the CLI download response when its body stalls after the headers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

@@ -108,11 +108,11 @@ suite('WSL Remote Agent Host Helpers', () => {
 	suite('parseDistroProbe', () => {
 		test('parses musl, missing libraries and a CLI that does not run, ignoring unrelated output', () => {
 			assert.deepStrictEqual({
-				alpine: parseDistroProbe('os=Linux\r\narch=x86_64\nlibc=musl\nmissing=libstdc++.so.6\nmissing=libgcc_s.so.1\n'),
+				alpine: parseDistroProbe('os=Linux\r\narch=x86_64\nlibc=musl\nmissing=libstdc++.so.6\nmissing=libgcc_s.so.1\napk=yes\n'),
 				ubuntu: parseDistroProbe('note: profile output\nos=Linux\narch=aarch64\nlibc=\ncli=ok\n'),
 			}, {
-				alpine: { unameS: 'Linux', unameM: 'x86_64', libc: 'musl', cliRunnable: false, missingLibraries: ['libstdc++.so.6', 'libgcc_s.so.1'] },
-				ubuntu: { unameS: 'Linux', unameM: 'aarch64', libc: '', cliRunnable: true, missingLibraries: [] },
+				alpine: { unameS: 'Linux', unameM: 'x86_64', libc: 'musl', cliRunnable: false, missingLibraries: ['libstdc++.so.6', 'libgcc_s.so.1'], hasApk: true },
+				ubuntu: { unameS: 'Linux', unameM: 'aarch64', libc: '', cliRunnable: true, missingLibraries: [], hasApk: false },
 			});
 		});
 	});

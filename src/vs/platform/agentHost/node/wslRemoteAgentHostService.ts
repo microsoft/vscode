@@ -29,6 +29,7 @@ import {
 	type IWSLConnectProgress,
 	type IWSLConnectResult,
 	type IWSLDistro,
+	WSL_INSTALL_SERVER_LIBRARIES_COMMAND,
 } from '../common/wslRemoteAgentHost.js';
 import { buildCLIDownloadUrl, getRemoteCLIBin, resolveRemotePlatform } from './sshRemoteAgentHostHelpers.js';
 import {
@@ -290,7 +291,10 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			// launches without another asynchronous step.
 			const probe = await this._probeDistro(distro, getRemoteCLIBin(this._serverDataFolderName, this._quality, this._commit));
 			if (probe.missingLibraries.length) {
-				throw new Error(localize('wslMissingLibraries', "The VS Code server can't run in '{0}' without {1}. Install the libstdc++ package in the distribution as root, for example with 'apk add --update-cache libstdc++', then connect again.", distro, probe.missingLibraries.join(', ')));
+				// The command and library names are placeholders so they stay untranslated for the troubleshooting page to recognize.
+				throw new Error(probe.hasApk
+					? localize('wslMissingLibrariesApk', "The VS Code server can't run in '{0}' without {1}. Install the libstdc++ package in the distribution as root with '{2}', then connect again.", distro, probe.missingLibraries.join(', '), WSL_INSTALL_SERVER_LIBRARIES_COMMAND)
+					: localize('wslMissingLibraries', "The VS Code server can't run in '{0}' without {1}. Install the libstdc++ and libgcc packages in the distribution as root, then connect again.", distro, probe.missingLibraries.join(', ')));
 			}
 			if (!probe.cliRunnable) {
 				await this._downloadAndInstallCLI(distro, probe, reportProgress);

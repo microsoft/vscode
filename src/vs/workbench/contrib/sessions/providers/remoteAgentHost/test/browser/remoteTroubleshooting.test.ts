@@ -147,7 +147,9 @@ suite('getRemoteTroubleshootingGuide', () => {
 			stopped: summarize(remote('wsl', { availability: 'offline', startsOnConnect: true }), info),
 			notInstalled: summarize(remote('wsl', { availability: 'offline' }), info),
 			download: summarize(remote('wsl', { availability: 'online', lastConnectionError: 'Failed to download the server: getaddrinfo ENOTFOUND update.code.visualstudio.com' }), info),
-			missingLibraries: summarize(remote('wsl', { detail: 'Alpine', availability: 'online', lastConnectionError: 'The VS Code server can\'t run in \'Alpine\' without libstdc++.so.6, libgcc_s.so.1.' }), info),
+			missingLibraries: summarize(remote('wsl', { detail: 'Alpine', availability: 'online', lastConnectionError: 'The VS Code server can\'t run in \'Alpine\' without libstdc++.so.6, libgcc_s.so.1. Install the libstdc++ package in the distribution as root with \'apk add --update-cache libstdc++\', then connect again.' }), info),
+			missingLibrariesWithoutApk: summarize(remote('wsl', { detail: 'Void', availability: 'online', lastConnectionError: 'The VS Code server can\'t run in \'Void\' without libstdc++.so.6. Install the libstdc++ and libgcc packages in the distribution as root, then connect again.' }), info),
+			glibcPrerequisite: summarize(remote('wsl', { detail: 'Ubuntu', availability: 'online', lastConnectionError: 'Agent host exited (code=1). Output: error: find libstdc++.so or ldconfig for GNU environments' }), info),
 			failed: summarize(remote('wsl', { availability: 'online', lastConnectionError: 'The agent host exited' }), info),
 			connected: summarize(remote('wsl', { availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected }), info),
 		}, {
@@ -157,9 +159,14 @@ suite('getRemoteTroubleshootingGuide', () => {
 			},
 			download: { primary: 'retry', actions: ['restartDistribution'], guidance: ['The VS Code CLI or server couldn\'t be downloaded'], facts: { 'Distribution state': 'Running' } },
 			missingLibraries: {
-				primary: 'retry', actions: ['restartDistribution'], guidance: ['The VS Code server needs the libstdc++ package, which Alpine and other musl-based distributions don\'t install by default'],
+				primary: 'retry', actions: ['restartDistribution'], guidance: ['The VS Code server needs the libstdc++ and libgcc libraries, which Alpine and other musl-based distributions don\'t install by default'],
 				command: 'wsl -d Alpine -u root apk add --update-cache libstdc++', facts: { 'Distribution state': 'Running' },
 			},
+			missingLibrariesWithoutApk: {
+				primary: 'retry', actions: ['restartDistribution'], guidance: ['The VS Code server needs the libstdc++ and libgcc libraries, which Alpine and other musl-based distributions don\'t install by default'],
+				facts: { 'Distribution state': 'Running' },
+			},
+			glibcPrerequisite: { primary: 'retry', actions: ['restartDistribution'], guidance: ['Restart the distribution to stop its agent host, then connect again to start a new one.'], facts: { 'Distribution state': 'Running' } },
 			failed: { primary: 'retry', actions: ['restartDistribution'], guidance: ['Restart the distribution to stop its agent host, then connect again to start a new one.'], facts: { 'Distribution state': 'Running' } },
 			connected: { primary: 'newSession', actions: ['disconnect', 'restartDistribution'], guidance: [], facts: { 'Distribution state': 'Running' } },
 		});
