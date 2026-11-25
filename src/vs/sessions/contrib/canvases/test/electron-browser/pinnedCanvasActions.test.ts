@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -25,8 +26,9 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { CanvasesPinnedToSidebarContext, IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
-import { ADD_CANVAS_TO_SIDEBAR_COMMAND_ID, REMOVE_CANVAS_FROM_SIDEBAR_COMMAND_ID, TOGGLE_CANVAS_PINNED_TO_SIDEBAR_COMMAND_ID } from '../../electron-browser/pinnedCanvasActions.js';
+import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { ADD_CANVAS_TO_SIDEBAR_COMMAND_ID, CLOSE_PINNED_CANVAS_COMMAND_ID, CLOSE_SIDEBAR_PINNED_CANVAS_COMMAND_ID, REMOVE_CANVAS_FROM_SIDEBAR_COMMAND_ID, TOGGLE_CANVAS_PINNED_TO_SIDEBAR_COMMAND_ID } from '../../electron-browser/pinnedCanvasActions.js';
 import { ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
 
 suite('PinnedCanvasActions', () => {
@@ -107,6 +109,28 @@ suite('PinnedCanvasActions', () => {
 			contextMenu: { group: '2_organize', icon: Codicon.unpin, available: true, canvasesDisabled: false },
 			page: { group: '2_organize', icon: Codicon.unpin, available: true, canvasesDisabled: false },
 		});
+	});
+
+	test('marks the chat done only when Close Canvas is chosen on a sidebar pin, not on the canvas page', async () => {
+		const entry = upcastPartial<IPinnedCanvas>({ id: 'pin' });
+		const calls: unknown[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ICustomViewService, upcastPartial<ICustomViewService>({ activeCustomView: constObservable(upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID })) }));
+		instantiationService.stub(IPinnedCanvasService, upcastPartial<IPinnedCanvasService>({
+			entries: constObservable([entry]),
+			selected: constObservable(entry),
+			closeCanvas: async (target, options) => { calls.push({ target: (target as IPinnedCanvas).id, ...options }); },
+		}));
+		const run = (menu: MenuId, commandId: string, arg?: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(getMenuItem(menu, commandId).command.id)!.handler(accessor, arg));
+
+		// A sidebar row passes its pin ID, and the canvas page passes nothing.
+		await run(Menus.SidebarCanvasContext, CLOSE_SIDEBAR_PINNED_CANVAS_COMMAND_ID, entry.id);
+		await run(AgentsWindowMenus.CustomViewCanvas, CLOSE_PINNED_CANVAS_COMMAND_ID);
+
+		assert.deepStrictEqual(calls, [
+			{ target: 'pin', markChatDone: true },
+			{ target: 'pin', markChatDone: false },
+		]);
 	});
 
 	test('toggles the canvas of the invoking tab without closing it', () => {

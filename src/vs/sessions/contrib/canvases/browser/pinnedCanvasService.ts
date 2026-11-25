@@ -24,9 +24,10 @@ import { CanvasExtensionConsentDeniedError, CanvasOpenFailedError, notifyCanvasO
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsNavigationService } from '../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
+import { getChatCapabilities, IChat, isActiveSessionStatus, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasIdentity, IPinnedCanvasService, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState, PinnedCanvasTarget } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { CanvasesPinnedToSidebarContext, IClosePinnedCanvasOptions, IPinnedCanvas, IPinnedCanvasIdentity, IPinnedCanvasService, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState, PinnedCanvasTarget } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { getCanvasReferenceKey, ICanvas, ICanvasOpenOptions, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
 const PINNED_CANVASES_STORAGE_KEY = 'sessions.pinnedCanvases';
@@ -337,6 +338,7 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsNavigationService private readonly sessionsNavigationService: ISessionsNavigationService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -611,7 +613,7 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 		await this.sessionsService.openChat(session, entry.identity.chat);
 	}
 
-	async closeCanvas(target: PinnedCanvasTarget): Promise<void> {
+	async closeCanvas(target: PinnedCanvasTarget, options?: IClosePinnedCanvasOptions): Promise<void> {
 		const entry = this.getEntry(target);
 		const reference = entry?.reference.get();
 		const canvas = entry?.canvas.get();
@@ -625,6 +627,26 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 			await this.sessionsManagementService.closeCanvas(session, chat, canvas);
 		} catch (error) {
 			this.notificationService.error(localize('pinnedCanvas.closeFailed', "Could not close canvas {0}: {1}", entry.title.get(), toErrorMessage(error)));
+			return;
+		}
+		if (options?.markChatDone) {
+			await this.markChatDone(session, chat);
+		}
+	}
+
+	private async markChatDone(session: ISession, chat: IChat): Promise<void> {
+		try {
+			if (isEqual(chat.resource, session.mainChat.get().resource)) {
+				// Marking a session done stops all of its chats, and closing a canvas must not stop work that is still running.
+				if (!session.isArchived.get() && !session.chats.get().some(candidate => isActiveSessionStatus(candidate.status.get()))) {
+					await this.sessionsManagementService.archiveSession(session);
+				}
+			} else if (!chat.isArchived.get() && !isActiveSessionStatus(chat.status.get()) && getChatCapabilities(chat, session, undefined).canArchive) {
+				await this.sessionsManagementService.archiveChat(session, chat);
+				await this.sessionsNavigationService.closeArchivedChat(session, chat);
+			}
+		} catch (error) {
+			this.notificationService.error(localize('pinnedCanvas.markChatDoneFailed', "Closed the canvas, but could not mark chat {0} as done: {1}", chat.title.get(), toErrorMessage(error)));
 		}
 	}
 

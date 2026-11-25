@@ -30,7 +30,8 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsNavigationService } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
+import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { PinnedCanvasService } from '../../browser/pinnedCanvasService.js';
@@ -62,7 +63,7 @@ suite('PinnedCanvasService', () => {
 
 	function createChat(resource: string, canvases: readonly ICanvas[] | undefined) {
 		const membership = observableValue<readonly ICanvas[] | undefined>('canvases', canvases);
-		const chat = upcastPartial<IChat>({ resource: URI.parse(resource), title: observableValue('title', `Chat ${resource}`), canvases: membership, isArchived: observableValue('isArchived', false) });
+		const chat = upcastPartial<IChat>({ resource: URI.parse(resource), title: observableValue('title', `Chat ${resource}`), canvases: membership, isArchived: observableValue('isArchived', false), status: observableValue('status', SessionStatus.Completed), capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }) });
 		return { chat, membership };
 	}
 
@@ -71,6 +72,7 @@ suite('PinnedCanvasService', () => {
 			providerId: 'local-agent-host',
 			resource: URI.parse(resource),
 			chats: observableValue('chats', chats),
+			mainChat: constObservable(chats[0]),
 			isArchived: observableValue('isArchived', false),
 		});
 	}
@@ -79,7 +81,7 @@ suite('PinnedCanvasService', () => {
 		return { providerId: session.providerId, session: session.resource, chat: chat.resource, canvas: canvas.resource };
 	}
 
-	function createHarness(options: { readonly sessions: readonly ISession[]; readonly storage?: InMemoryStorageService; readonly activeSession?: ITestSessionWithChat; readonly observesChatCanvases?: boolean; readonly closeCompleted?: Promise<void>; readonly openCanvas?: () => Promise<void> }) {
+	function createHarness(options: { readonly sessions: readonly ISession[]; readonly storage?: InMemoryStorageService; readonly activeSession?: ITestSessionWithChat; readonly observesChatCanvases?: boolean; readonly closeCompleted?: Promise<void>; readonly closeCanvas?: (canvas: ICanvas) => Promise<void>; readonly openCanvas?: () => Promise<void> }) {
 		const disposables = store.add(new DisposableStore());
 		const sessionsChanged = disposables.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = disposables.add(new Emitter<IChatDeletedEvent>());
@@ -95,6 +97,8 @@ suite('PinnedCanvasService', () => {
 		const chatCanvases = new Map<string, ISettableObservable<readonly ICanvas[] | undefined>>();
 		const chatObservations: string[] = [];
 		const openedCanvases: string[] = [];
+		/** Canvas closes, archives and grid navigation, in order. */
+		const lifecycle: string[] = [];
 
 		const storage = options.storage ?? disposables.add(new InMemoryStorageService());
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -129,8 +133,15 @@ suite('PinnedCanvasService', () => {
 			},
 			closeCanvas: async (session, chat, canvas) => {
 				await options.closeCompleted;
+				await options.closeCanvas?.(canvas);
+				lifecycle.push(`close ${canvas.resource}`);
 				canvasClosed.fire({ session, chatResource: chat.resource, canvasResource: canvas.resource });
 			},
+			archiveSession: async session => { lifecycle.push(`archive session ${session.resource}`); },
+			archiveChat: async (_session, chat) => { lifecycle.push(`archive chat ${chat.resource}`); },
+		}));
+		instantiationService.stub(ISessionsNavigationService, upcastPartial<ISessionsNavigationService>({
+			closeArchivedChat: async (_session, chat) => { lifecycle.push(`close archived chat ${chat.resource}`); },
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(options.activeSession),
@@ -168,7 +179,7 @@ suite('PinnedCanvasService', () => {
 			canvas: entry.reference.get()?.canvas.toString(),
 		}));
 		return {
-			service, storage, customViewService, observed, released, openedChats, openedCanvases, notifications, notificationActions, contextKeyService, chatObservations,
+			service, storage, customViewService, observed, released, openedChats, openedCanvases, notifications, notificationActions, contextKeyService, chatObservations, lifecycle,
 			sessionsChanged, chatDeleted, sessionArchived, canvasClosed, setLive, setChatCanvases, setCanvasesEnabled, snapshot,
 			dispose: () => disposables.dispose(),
 		};
@@ -261,6 +272,56 @@ suite('PinnedCanvasService', () => {
 			afterClose: ['Canvas kept', 'Canvas deleted', 'Canvas archived'],
 			afterDelete: ['Canvas kept', 'Canvas archived'],
 			afterArchive: ['Canvas kept'],
+		});
+	});
+
+	test('marks the chat of a closed canvas done when asked, marking its session done for a main chat', async () => {
+		const [main, side, plain] = ['main', 'side', 'plain'].map(id => createCanvas(id));
+		const mainChat = createChat('chat:/main', [main, plain]);
+		const sideChat = createChat('chat:/side', [side]);
+		const session = createSession('session:/a', [mainChat.chat, sideChat.chat]);
+		const harness = createHarness({ sessions: [session] });
+		for (const [chat, canvas] of [[mainChat.chat, main], [sideChat.chat, side], [mainChat.chat, plain]] as const) {
+			harness.service.pin(reference(session, chat, canvas));
+			harness.setLive(canvas, canvas.resource);
+		}
+
+		await harness.service.closeCanvas(reference(session, mainChat.chat, plain));
+		await harness.service.closeCanvas(reference(session, sideChat.chat, side), { markChatDone: true });
+		await harness.service.closeCanvas(reference(session, mainChat.chat, main), { markChatDone: true });
+
+		assert.deepStrictEqual(harness.lifecycle, [
+			'close ahp-canvas:/chat/plain',
+			'close ahp-canvas:/chat/side',
+			'archive chat chat:/side',
+			'close archived chat chat:/side',
+			'close ahp-canvas:/chat/main',
+			'archive session session:/a',
+		]);
+	});
+
+	test('closes the canvas without marking anything done while work is running or when the close fails', async () => {
+		const [main, side, failing] = ['main', 'side', 'failing'].map(id => createCanvas(id));
+		const mainChat = createChat('chat:/main', [main]);
+		const sideChat = createChat('chat:/side', [side]);
+		const failingChat = createChat('chat:/failing', [failing]);
+		const session = createSession('session:/a', [mainChat.chat, sideChat.chat]);
+		const otherSession = createSession('session:/b', [failingChat.chat]);
+		const harness = createHarness({ sessions: [session, otherSession], closeCanvas: canvas => canvas.resource.toString() === failing.resource.toString() ? Promise.reject(new Error('host gone')) : Promise.resolve() });
+		for (const [owner, chat, canvas] of [[session, mainChat.chat, main], [session, sideChat.chat, side], [otherSession, failingChat.chat, failing]] as const) {
+			harness.service.pin(reference(owner, chat, canvas));
+			harness.setLive(canvas, canvas.resource);
+		}
+
+		// The side chat is running, so neither it nor the session it belongs to is marked done.
+		(sideChat.chat.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+		await harness.service.closeCanvas(reference(session, sideChat.chat, side), { markChatDone: true });
+		await harness.service.closeCanvas(reference(session, mainChat.chat, main), { markChatDone: true });
+		await harness.service.closeCanvas(reference(otherSession, failingChat.chat, failing), { markChatDone: true });
+
+		assert.deepStrictEqual({ lifecycle: harness.lifecycle, notifications: harness.notifications }, {
+			lifecycle: ['close ahp-canvas:/chat/side', 'close ahp-canvas:/chat/main'],
+			notifications: ['Could not close canvas Canvas failing: host gone'],
 		});
 	});
 
