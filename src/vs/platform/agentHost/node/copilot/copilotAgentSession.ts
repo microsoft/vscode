@@ -2489,10 +2489,10 @@ export class CopilotAgentSession extends Disposable {
 	/** Fusion reasoning already shown, by message and text, so a message's committed copy doesn't show it again. */
 	private readonly _shownFusionReasoning = new Set<string>();
 	/**
-	 * What each staged Fusion phase has streamed since its last complete message, by phase tool call id.
-	 * The phase's complete provisional message then shows only what its stream did not.
+	 * The text and reasoning each staged Fusion phase has streamed since its last complete message, by phase tool call id.
+	 * Each chunk of the phase's complete provisional message then shows only what its stream did not.
 	 */
-	private readonly _streamedFusionPhaseOutput = new Map<string, { text: boolean; reasoning: boolean }>();
+	private readonly _streamedFusionPhaseOutput = new Map<string, { text: string; reasoning: string }>();
 	/** `task_complete` calls already shown in a provisional phase, reported again when their phase commits. */
 	private readonly _provisionalFusionTaskCompletions = new Map<string, ITaskCompletion>();
 	/**
@@ -3081,6 +3081,12 @@ export class CopilotAgentSession extends Disposable {
 		const incomingFusion = startsNewRun && echo ? this._fusionRequestCorrelation.getPrecedingResolution(echo) : undefined;
 		const preservesFusionState = (!startsNewRun || incomingFusion !== undefined) && steeredFromTurnId !== undefined && !this._fusionTurnCancelled;
 		this._logService.trace(`[Copilot:${this.sessionId}] Pending message promoted: pendingId=${steering.pendingMessage.id}, steeredFromTurn=${steeredFromTurnId}, runtimeDelivery=${runtimeDelivery ?? 'unknown'}, preservesFusionState=${preservesFusionState}`);
+		if (preservesFusionState) {
+			// An open phase chat's thinking belongs to the preempted turn; its next reasoning starts a part in the steering turn.
+			for (const toolCallId of this._fusionPhaseChats) {
+				this._reasoningTiming.finish(toolCallId);
+			}
+		}
 		this._completeActiveTurn(false, preservesFusionState);
 		const newTurnId = generateUuid();
 		steering.promotedTurnId = newTurnId;
@@ -12581,27 +12587,32 @@ export class CopilotAgentSession extends Disposable {
 			if (e.type === 'assistant.message_delta' && isInlinePhase) {
 				return;
 			}
-			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId) ?? { text: false, reasoning: false };
+			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId) ?? { text: '', reasoning: '' };
 			this._streamedFusionPhaseOutput.set(phaseToolCallId, streamed);
 			const contentParentToolCallId = isInlinePhase ? undefined : this._fusionPhaseContentParentToolCallId(phaseToolCallId);
 			if (e.type === 'assistant.reasoning_delta') {
-				streamed.reasoning = true;
+				streamed.reasoning += e.data.deltaContent;
 				this._emitReasoningDelta(e.data.deltaContent, contentParentToolCallId);
 			} else {
-				streamed.text = true;
+				streamed.text += e.data.deltaContent;
 				this._emitMarkdownDelta(e.data.deltaContent, contentParentToolCallId);
 			}
 		};
-		/** What a phase streamed for the message this chunk belongs to; its streamed reasoning is not shown again, here or in the committed copy. */
-		const takeStreamedFusionPhaseOutput = (e: SessionEventPayload<'assistant.message'>, phaseToolCallId: string): { readonly text: boolean; readonly reasoning: boolean } => {
-			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId) ?? { text: false, reasoning: false };
-			if (streamed.reasoning && e.data.reasoningText) {
+		/**
+		 * Whether this chunk's text and reasoning already streamed, compared with what its phase actually streamed,
+		 * so a chunk that arrives only whole still shows. Streamed reasoning is not shown again, here or in the committed copy.
+		 */
+		const takeStreamedFusionPhaseOutput = (e: SessionEventPayload<'assistant.message'>, phaseToolCallId: string): { readonly text: boolean; readonly reasoning: boolean; readonly streamedReasoning: boolean } => {
+			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId);
+			const wasStreamed = (whole: string | undefined, stream: string | undefined) => !!whole?.trim() && !!stream?.includes(whole.trim());
+			const result = { text: wasStreamed(e.data.content, streamed?.text), reasoning: wasStreamed(e.data.reasoningText, streamed?.reasoning), streamedReasoning: !!streamed?.reasoning };
+			if (result.reasoning && e.data.reasoningText) {
 				this._shownFusionReasoning.add(JSON.stringify([e.data.messageId, e.data.reasoningText]));
 			}
 			if (isLastAssistantMessageChunk(e)) {
 				this._streamedFusionPhaseOutput.delete(phaseToolCallId);
 			}
-			return streamed;
+			return result;
 		};
 
 		store.add(wrapper.onProvisionalFusionEvent(e => {
@@ -12637,7 +12648,7 @@ export class CopilotAgentSession extends Disposable {
 							renderFusionReasoning(chunk, undefined);
 						}
 					}
-					if (streamed.reasoning && isLastAssistantMessageChunk(e)) {
+					if (streamed.streamedReasoning && isLastAssistantMessageChunk(e)) {
 						// No answer follows the streamed reasoning until the commit, so its thinking time ends with this model call.
 						this._reasoningTiming.finish(undefined);
 					}
@@ -14647,6 +14658,20 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/** Cancellation closes these chats as cancelled, so an abort only drops local routing. */
+	/**
+	 * Ends a phase's streamed thinking when the phase ends, in the scope it streamed into; a fallback phase streams elsewhere.
+	 * An inline phase streams into the response, so only reasoning it left unfinished there is ended.
+	 */
+	private _finishFusionPhaseReasoning(phaseToolCallId: string): void {
+		const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId);
+		this._streamedFusionPhaseOutput.delete(phaseToolCallId);
+		if (this._fusionPhases.get(phaseToolCallId)?.presentation !== 'inline') {
+			this._reasoningTiming.finish(phaseToolCallId);
+		} else if (streamed?.reasoning) {
+			this._reasoningTiming.finish(undefined);
+		}
+	}
+
 	/** Ends the thinking streamed into a phase chat before the chat closes, as a closed chat receives no later output to end it. */
 	private _finishFusionPhaseChatReasoning(toolCallId: string): void {
 		this._reasoningTiming.finish(toolCallId);
@@ -14844,8 +14869,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		// `accept` drops repeated phase records and records for a finished workflow, so report only phases it accepted.
 		if (update?.phase && (event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed')) {
-			// A phase's streamed thinking ends with the phase; a fallback phase streams into another chat.
-			this._reasoningTiming.finish(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
+			this._finishFusionPhaseReasoning(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
 			this._reportFusionPhase(event, turn.id, turn.clientContext, this._fusionProgress.syntheticModel);
 		}
 		if (update?.phase && event.type === 'assistant.fusion_phase_completed' && event.data.conversationScope === 'review') {

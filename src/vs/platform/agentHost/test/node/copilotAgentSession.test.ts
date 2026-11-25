@@ -27816,31 +27816,80 @@ Use the attached image as context.
 			]);
 		});
 
-		for (const failure of ['phase failure', 'session error'] as const) {
-			test(`a repair phase that fails after streaming only reasoning ends its thinking time on ${failure}`, async () => {
+		for (const [failure, phaseKind] of [['phase failure', 'repair'], ['session error', 'repair'], ['phase failure', 'primary']] as const) {
+			test(`a ${phaseKind} phase that fails after streaming only reasoning ends its thinking time on ${failure}`, async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
 				session.resetTurnState('fusion-turn');
-				const repair = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'repair' } as const;
-				const fusion = { ...liveFusion('phase-3'), phaseKind: repair.phaseKind, role: repair.role, conversationScope: repair.conversationScope };
+				const phase = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind } as const;
+				const fusion = { ...liveFusion('phase-3'), phaseKind: phase.phaseKind, role: phase.role, conversationScope: phase.conversationScope };
 				const thinkingEnded = () => signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined ? [signal.parentToolCallId ?? 'root'] : []);
 
 				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
-				mockSession.fire('assistant.fusion_phase_started', repair);
-				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'repair-reasoning', deltaContent: 'Fixing empty input', fusion }, { ephemeral: true });
+				mockSession.fire('assistant.fusion_phase_started', phase);
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'phase-reasoning', deltaContent: 'Fixing empty input', fusion }, { ephemeral: true });
 				const whileStreaming = thinkingEnded();
 				if (failure === 'phase failure') {
-					mockSession.fire('assistant.fusion_phase_failed', { ...fusionTestData.phaseFailed, ...repair });
+					mockSession.fire('assistant.fusion_phase_failed', { ...fusionTestData.phaseFailed, ...phase });
 				} else {
 					mockSession.fire('session.error', { errorType: 'runtime', message: 'Repair failed.' });
 				}
 
+				const scope = phaseKind === 'repair' ? 'fusion:fusion-1:phase-3' : 'root';
 				assert.deepStrictEqual({ whileStreaming, afterFailure: thinkingEnded(), transcript: streamedFusionTranscript(signals) }, {
 					whileStreaming: [],
-					afterFailure: ['fusion:fusion-1:phase-3'],
-					transcript: ['fusion:fusion-1:phase-3: reasoning Fixing empty input'],
+					afterFailure: [scope],
+					transcript: [`${scope}: reasoning Fixing empty input`],
 				});
 			});
 		}
+
+		test('a phase message chunk that arrives only whole still shows after a chunk that streamed', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const repair = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'repair' } as const;
+			const fusion = { ...liveFusion('phase-3'), phaseKind: repair.phaseKind, role: repair.role, conversationScope: repair.conversationScope };
+			const provisional = { ephemeral: true } as const;
+
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', repair);
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'r-0', deltaContent: 'Parser first', fusion }, provisional);
+			mockSession.fire('assistant.message_delta', { messageId: 'call-0', deltaContent: 'Checking the parser', fusion }, provisional);
+			mockSession.fire('assistant.message', { messageId: 'call-0', apiCallId: 'call', chunkIndex: 0, chunkCount: 2, content: 'Checking the parser', reasoningText: 'Parser first', fusion }, provisional);
+			mockSession.fire('assistant.message', { messageId: 'call-1', apiCallId: 'call', chunkIndex: 1, chunkCount: 2, content: 'Then the lexer', reasoningText: 'Lexer next', fusion }, provisional);
+
+			assert.deepStrictEqual(streamedFusionTranscript(signals), [
+				'fusion:fusion-1:phase-3: reasoning Parser first',
+				'fusion:fusion-1:phase-3: text Checking the parser',
+				'fusion:fusion-1:phase-3: reasoning Lexer next',
+				'fusion:fusion-1:phase-3: text Then the lexer',
+			]);
+		});
+
+		test('steering while a phase chat streams reasoning ends that reasoning in the preempted turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			const fusion = { ...liveFusion('phase-1'), phaseKind: fusionTestData.started.phaseKind, role: fusionTestData.started.role, conversationScope: fusionTestData.started.conversationScope };
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'r-1', deltaContent: 'Before steering', fusion }, { ephemeral: true });
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'r-2', deltaContent: 'After steering', fusion }, { ephemeral: true });
+
+			const contentByPart = new Map<string, string>();
+			const ended: string[] = [];
+			for (const signal of signals) {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Reasoning) {
+					contentByPart.set(signal.action.part.id, signal.action.part.content);
+				} else if (signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined) {
+					ended.push(contentByPart.get(signal.action.partId) ?? signal.action.partId);
+				}
+			}
+			assert.deepStrictEqual({ parts: [...contentByPart.values()], ended }, { parts: ['Before steering', 'After steering'], ended: ['Before steering'] });
+		});
 
 		test('all provisional Fusion message chunks are shown and only the committed answer is replayed', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
