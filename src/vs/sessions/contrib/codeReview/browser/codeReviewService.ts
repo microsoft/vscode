@@ -257,6 +257,10 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		const workspace = chat?.workspace.get();
 		const pullRequestContent = parsePRContentUri(resource);
 		if (pullRequestContent) {
+			// Review comments are added to the changed side of the pull request.
+			if (pullRequestContent.isBase) {
+				return undefined;
+			}
 			const { owner, repo, prNumber } = pullRequestContent;
 			const sessionPullRequests = workspace?.folders
 				.flatMap(folder => getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get()))

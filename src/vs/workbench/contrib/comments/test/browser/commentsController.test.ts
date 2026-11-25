@@ -9,6 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -28,6 +29,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { CommentController } from '../../browser/commentsController.js';
 import { ICommentInfo, ICommentService } from '../../browser/commentService.js';
 import { ReviewZoneWidget } from '../../browser/commentThreadZoneWidget.js';
+import { ICommentThreadChangedEvent } from '../../common/commentModel.js';
 import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../common/commentsConfiguration.js';
 
 suite('CommentController', () => {
@@ -41,6 +43,7 @@ suite('CommentController', () => {
 			override readonly range = new Range(line, 1, line, 1);
 			override readonly comments = [];
 			override readonly isDisposed = false;
+			override resource: string | null = null;
 		}();
 	}
 
@@ -49,8 +52,9 @@ suite('CommentController', () => {
 	 * updated and disposed, and runs the test with a way to compute the comments again.
 	 * @param display Lets the test decide when displaying a thread's widget finishes.
 	 */
-	async function withCommentWidgets(getThreads: () => readonly CommentThread<IRange>[], display: () => Promise<void>, run: (recompute: () => Promise<void>, events: readonly string[]) => Promise<void>): Promise<void> {
+	async function withCommentWidgets(getThreads: () => readonly CommentThread<IRange>[], display: () => Promise<void>, run: (recompute: () => Promise<void>, events: readonly string[], add: (thread: CommentThread<IRange>) => void) => Promise<void>): Promise<void> {
 		const onDidUpdateCommentingRanges = store.add(new Emitter<{ uniqueOwner: string }>());
+		const onDidUpdateCommentThreads = store.add(new Emitter<ICommentThreadChangedEvent>());
 		const commentService = new class extends mock<ICommentService>() {
 			override readonly isCommentingEnabled = true;
 			override readonly onDidDeleteDataProvider = Event.None;
@@ -58,7 +62,7 @@ suite('CommentController', () => {
 			override readonly onDidUpdateCommentingRanges = onDidUpdateCommentingRanges.event;
 			override readonly onDidSetResourceCommentInfos = Event.None;
 			override readonly onDidChangeCommentingEnabled = Event.None;
-			override readonly onDidUpdateCommentThreads = Event.None;
+			override readonly onDidUpdateCommentThreads = onDidUpdateCommentThreads.event;
 			override readonly onDidChangeCurrentCommentThread = Event.None;
 			override getDocumentComments(resource: URI): Promise<ICommentInfo[]> {
 				return Promise.resolve([{ uniqueOwner: 'test', threads: [...getThreads()], commentingRanges: { resource, ranges: [new Range(1, 1, 3, 1)], fileComments: false } }]);
@@ -81,7 +85,7 @@ suite('CommentController', () => {
 			[IQuickInputService, new class extends mock<IQuickInputService>() { }()],
 			[IViewsService, new class extends mock<IViewsService>() { }()],
 			[IEditorService, new class extends mock<IEditorService>() { }()],
-			[IUriIdentityService, new class extends mock<IUriIdentityService>() { }()],
+			[IUriIdentityService, new class extends mock<IUriIdentityService>() { override readonly extUri = extUri; }()],
 		);
 
 		await withAsyncTestCodeEditor(['line 1', 'line 2', 'line 3'], { serviceCollection: services }, async (editor, _viewModel, instantiationService) => {
@@ -122,7 +126,10 @@ suite('CommentController', () => {
 				await run(async () => {
 					onDidUpdateCommentingRanges.fire({ uniqueOwner: 'test' });
 					await timeout(0);
-				}, events);
+				}, events, thread => {
+					thread.resource = editor.getModel().uri.toString();
+					onDidUpdateCommentThreads.fire({ uniqueOwner: 'test', owner: 'test', ownerLabel: 'Test', added: [thread], removed: [], changed: [], pending: [] });
+				});
 			} finally {
 				controller.dispose();
 			}
@@ -150,6 +157,25 @@ suite('CommentController', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(events, ['display:thread-1', 'display:thread-1', 'dispose:thread-1', 'display:thread-2']);
+		});
+	});
+
+	test('shows a thread once when it is added while the comments are computed again', async () => {
+		let display = Promise.resolve();
+		const thread = createThread(1);
+		let threads: CommentThread<IRange>[] = [];
+		await withCommentWidgets(() => threads, () => display, async (recompute, events, add) => {
+			// Displaying the thread waits until the test lets it finish.
+			const gate = new DeferredPromise<void>();
+			display = gate.p;
+			threads = [thread];
+			add(thread);
+			await timeout(0);
+			await recompute();
+			gate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual(events, ['display:thread-1', 'display:thread-1', 'dispose:thread-1']);
 		});
 	});
 

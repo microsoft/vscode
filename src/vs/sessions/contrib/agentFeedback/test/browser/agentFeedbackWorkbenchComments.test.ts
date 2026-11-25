@@ -639,6 +639,7 @@ suite('Agent Feedback Workbench Comments', () => {
 		const commentableByOthers = await createTemplate(2);
 		const templateCommentableByOthers = getTemplateState(commentableByOthers);
 		contribution.deleteCommentThreadMain(commentableByOthers.threadId);
+		commentingOwners = ['vscode.agentFeedback'];
 		// The comment widget updates the range of a new comment before each of its actions runs, even when it hasn't moved.
 		await contribution.updateCommentThreadTemplate(inDiff.commentThreadHandle, new Range(2, 1, 2, 1));
 		await timeout(0);

@@ -46,6 +46,7 @@ import { getSessionEditorComments, ISessionEditorComment, SessionEditorCommentSo
 
 const AGENT_FEEDBACK_COMMENT_CONTROLLER_ID = 'vscode.agentFeedback';
 
+
 function getThreadKey(sessionResource: URI, commentId: string): string {
 	return `${sessionResource.toString()}\n${commentId}`;
 }
@@ -281,7 +282,7 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 	private _nextThreadHandle = 1;
 	private _nextTemplateId = 1;
 	/** A revealed comment whose thread has not been created yet. */
-	private _pendingRevealThreadKey: string | undefined;
+	private _pendingRevealThreadKey: string | undefined;
 
 	constructor(
 		@ICommentService private readonly _commentService: ICommentService,
@@ -580,7 +581,8 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 
 	/**
 	 * Offers adding the comment being written in a new thread to the pull requests whose changes include its code. Only
-	 * GitHub knows which code that is, so the offer is made once it answers.
+	 * GitHub knows which code that is, so the offer is made once it answers. GitHub is only asked again when the inputs
+	 * of its answer change, or when it couldn't answer.
 	 */
 	private async _updatePullRequests(template: AgentFeedbackCommentThread): Promise<void> {
 		const check = ++template.pullRequestsCheck;

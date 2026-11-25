@@ -1197,7 +1197,10 @@ export class CommentController extends Disposable implements IEditorContribution
 			? this.instantiationService.createInstance(ReviewFloatingWidget, this.editor, uniqueOwner, thread, pending, pendingEdits, this._floatingWidgetHost)
 			: this.instantiationService.createInstance(ReviewZoneWidget, this.editor, uniqueOwner, thread, pending, pendingEdits);
 		await commentWidget.display(thread.range, shouldReveal);
-		if (generation !== undefined && generation !== this._commentWidgetsGeneration) {
+		const isReplaced = generation !== undefined && generation !== this._commentWidgetsGeneration;
+		// A full and an incremental update can display the same thread at the same time.
+		const isDuplicate = this._commentWidgets.some(widget => widget.uniqueOwner === uniqueOwner && (widget.commentThread === thread || widget.commentThread.threadId === thread.threadId));
+		if (isReplaced || isDuplicate) {
 			commentWidget.dispose();
 			return;
 		}
@@ -1537,11 +1540,12 @@ export class CommentController extends Disposable implements IEditorContribution
 		}
 
 		const threadsToDisplay: { uniqueOwner: string; thread: languages.CommentThread; pendingComment: languages.PendingComment | undefined; pendingEdits: { [key: number]: languages.PendingComment } | undefined }[] = [];
+		const keptThreads = new Set(keptWidgets.map(widget => widget.commentThread));
 		for (const info of this._commentInfos) {
 			const providerCacheStore = this._pendingNewCommentCache[info.uniqueOwner];
 			const providerEditsCacheStore = this._pendingEditsCache[info.uniqueOwner];
 			for (const thread of info.threads) {
-				if (!keptWidgets.some(widget => widget.uniqueOwner === info.uniqueOwner && widget.commentThread === thread)) {
+				if (!keptThreads.has(thread)) {
 					threadsToDisplay.push({ uniqueOwner: info.uniqueOwner, thread, pendingComment: providerCacheStore?.[thread.threadId], pendingEdits: providerEditsCacheStore?.[thread.threadId] });
 				}
 			}

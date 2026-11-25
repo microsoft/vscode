@@ -525,6 +525,17 @@ suite('CodeReviewService', () => {
 		assert.deepStrictEqual(service.getPRReviewCommentPullRequests(session, resource).map(pullRequest => `${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number} ${pullRequest.uri.toString()}`), ['other/repo#7 https://github.com/other/repo/pull/7']);
 	});
 
+	test('offers no pull request for the base side of pull request content resources', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
+		const resource = toPRContentUri('src/a.ts', { owner: 'owner', repo: 'repo', prNumber: 1, commitSha: 'base123', isBase: true, status: 'modified' });
+
+		assert.deepStrictEqual({
+			pullRequests: service.getPRReviewCommentPullRequests(session, resource),
+			targets: await service.getPRReviewCommentTargets(session, resource, new Range(4, 1, 4, 1), 'context'),
+		}, { pullRequests: [], targets: [] });
+	});
+
 	test('parses right-side commentable lines from a unified patch', () => {
 		assert.deepStrictEqual([...commentableRightLines([
 			'@@ -2,3 +4,4 @@',
