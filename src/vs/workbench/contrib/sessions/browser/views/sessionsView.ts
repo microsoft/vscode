@@ -9,6 +9,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { getOrSet } from '../../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
@@ -39,7 +40,7 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterActionId, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, SessionsWorktreeOpener } from './sessionsListFilters.js';
+import { getSessionFilterActionId, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -953,6 +954,8 @@ export class SessionsView extends ViewPane {
 			session => this.sessionsService.openSession(session.resource, { preserveFocus: false, source: 'sessionsList', forceMainChat: true }).then(() => this._handleSessionOpened(session)).catch(onUnexpectedError),
 			sessionsControl.filters.onDidChange,
 		));
+		// Keeps each filter's command id across rebuilds, since a menu still open resolves the command of a row when it is clicked
+		const filterActionIds = new Map<string, number>();
 		const changed = observableSignalFromEvent(this, Event.any(
 			this.sessionsManagementService.onDidChangeSessions,
 			this.sessionsManagementService.onDidChangeSessionTypes,
@@ -1046,7 +1049,7 @@ export class SessionsView extends ViewPane {
 					: option.filter.kind === 'application' ? Menus.SessionsViewSource
 						: option.filter.kind === 'worktree' ? Menus.SessionsViewWorktree
 							: Menus.SessionsViewHarness;
-				const id = getSessionFilterActionId(option.filter, index);
+				const id = getSessionFilterActionId(option.filter, getOrSet(filterActionIds, sessionFilterKey(option.filter), filterActionIds.size));
 				const contextKey = new RawContextKey(id, option.checked).bindTo(this.scopedContextKeyService);
 				contextKey.set(option.checked);
 				reader.store.add(toDisposable(() => contextKey.reset()));

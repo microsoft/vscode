@@ -90,16 +90,16 @@ export function sessionFilterKey(filter: SessionFilter): string {
 
 /**
  * The action id of a filter option, which is also the name of its context key. It names built-in harnesses,
- * environments and applications. Any other, such as a remote agent host or a worktree, is named by its kind and the
- * option's index, which keeps the id unique.
+ * environments and applications. Any other, such as a remote agent host or a worktree, is named by its kind and
+ * `opaqueId`, a number the caller keeps for the option, so its id stays the same as the options change.
  */
-export function getSessionFilterActionId(filter: SessionFilter, index: number): string {
+export function getSessionFilterActionId(filter: SessionFilter, opaqueId: number): string {
 	const ids = filter.kind === 'application' ? [filter.environment, filter.id] : filter.kind === 'worktree' ? [] : [filter.id];
 	const names = filter.kind === 'application'
 		? [getSessionsTelemetryEnvironmentId(filter.environment), getKnownSessionApplicationIdOrOther(filter.id)]
 		: filter.kind === 'environment' ? [getSessionsTelemetryEnvironmentId(filter.id)] : ids;
 	const named = filter.kind !== 'worktree' && names.every((name, i) => name === ids[i]);
-	return ['sessionsViewPane.filter', filter.kind, ...names, ...named ? [] : [index]].join('.');
+	return ['sessionsViewPane.filter', filter.kind, ...names, ...named ? [] : [opaqueId]].join('.');
 }
 
 /**

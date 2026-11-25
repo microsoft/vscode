@@ -171,7 +171,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			icon: resolvedIcon,
 			pullRequestState: state,
 			promotedAction: recordedReferenceId && artifactActions?.remove ? withChatPillHoverLabel(toAction({
-				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
+				id: 'sessionChatPills.removePullRequest',
 				label: localize('sessionChatPills.removePullRequest', "Remove \"{0}\" Artifact", pullRequest?.title || ref.title || `#${ref.number}`),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
@@ -253,7 +253,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			id: recordedReferenceId ?? uri.toString(),
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
 			promotedAction: recordedReferenceId && artifactActions?.remove ? withChatPillHoverLabel(toAction({
-				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
+				id: 'sessionChatPills.removeIssue',
 				label: localize('sessionChatPills.removeIssue', "Remove \"{0}\" Artifact", issue?.title || ref.title || `#${ref.number}`),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.(recordedReferenceIds, resourceLabel),

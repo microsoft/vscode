@@ -37,7 +37,7 @@ suite('SessionsListFilters', () => {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService()), configurationService, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 	}
 
-	test('names built-in filter options in their action ids and only the kind of any other, kept unique by index', () => {
+	test('names built-in filter options in their action ids and only the kind of any other, kept unique by the number it is given', () => {
 		const filters: SessionFilter[] = [
 			{ kind: 'harness', id: 'copilot' },
 			{ kind: 'environment', id: 'local' },

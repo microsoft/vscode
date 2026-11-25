@@ -2625,7 +2625,7 @@ suite('SessionChatInputToolbar', () => {
 			const pill = toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 			assert.ok(pill);
 			pill.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-			const action = menu.find(action => action.id.startsWith('sessionChatPills.removeIssue.'));
+			const action = menu.find(action => action.id === 'sessionChatPills.removeIssue');
 			assert.ok(action);
 			await action.run();
 		};
@@ -2719,7 +2719,7 @@ suite('SessionChatInputToolbar', () => {
 					pill.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 				}
 				pill.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-				const remove = menu.find(action => action.id === (isArtifact ? `sessionChatPills.remove${isPullRequest ? 'PullRequest' : 'Issue'}.recorded` : 'sessions.artifacts.remove'));
+				const remove = menu.find(action => action.id === (isArtifact ? `sessionChatPills.remove${isPullRequest ? 'PullRequest' : 'Issue'}` : 'sessions.artifacts.remove'));
 				assert.ok(remove);
 				const removeLabel = remove.label;
 				await remove.run();
@@ -3443,7 +3443,7 @@ suite('SessionChatInputToolbar', () => {
 				return undefined;
 			}
 			target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-			return menu.find(action => action.id.startsWith('sessionChatPills.removePullRequest.'));
+			return menu.find(action => action.id === 'sessionChatPills.removePullRequest');
 		};
 		const unavailable = !!removal();
 		capabilities.set({ supportsMultipleChats: false, supportsRemoveArtifacts: true }, undefined);
