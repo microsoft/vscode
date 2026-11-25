@@ -530,7 +530,7 @@ export const SSHConnectFailureCode = {
 	Configuration: 'SSHConnectConfiguration',
 	/** Connecting, verifying the host key or authenticating, for any other reason. */
 	Connection: 'SSHConnectConnection',
-	/** The connection failed, was lost or timed out before the SSH handshake completed. */
+	/** The connection failed, was lost or timed out before the SSH handshake completed, without a ProxyJump or ProxyCommand whose failure could have any cause. */
 	Network: 'SSHConnectNetwork',
 	/** The server only offers host key types ssh2 cannot negotiate, such as OpenSSH host certificates. */
 	HostKeyFormat: 'SSHConnectHostKeyFormat',

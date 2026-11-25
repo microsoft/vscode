@@ -1754,7 +1754,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 				clearDeadline();
 				deadlineTimer = this._armHandshakeDeadline(ms, () => {
-					rejectConnect(createSSHConnectFailure(`SSH handshake to ${config.host} timed out`, SSHConnectFailureCode.Network), true);
+					rejectConnect(createSSHConnectFailure(`SSH handshake to ${config.host} timed out`, viaProxy ? SSHConnectFailureCode.Connection : SSHConnectFailureCode.Network), true);
 				});
 			};
 
