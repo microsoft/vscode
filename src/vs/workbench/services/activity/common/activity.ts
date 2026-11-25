@@ -17,6 +17,18 @@ export interface IActivity {
 	readonly badge: IBadge;
 }
 
+/**
+ * A pill that follows the title of a view, in its header or, while it is the only view of its container, in the
+ * container's title.
+ */
+export interface IViewTitleBadge {
+	readonly icon: ThemeIcon;
+	readonly label: string;
+	readonly tooltip: string;
+	/** Read with the title, as the pill itself is hidden from screen readers. */
+	readonly ariaLabel: string;
+}
+
 export const IActivityService = createDecorator<IActivityService>('activityService');
 
 export interface IActivityService {
@@ -42,6 +54,21 @@ export interface IActivityService {
 	 * Show activity for the given view
 	 */
 	showViewActivity(viewId: string, badge: IActivity): IDisposable;
+
+	/**
+	 * Emitted with the id of the view whose title badge changed.
+	 */
+	readonly onDidChangeViewTitleBadge: Event<string>;
+
+	/**
+	 * Show the given badge after the title of the given view. The last one shown wins.
+	 */
+	showViewTitleBadge(viewId: string, badge: IViewTitleBadge): IDisposable;
+
+	/**
+	 * Returns the badge shown after the title of the given view
+	 */
+	getViewTitleBadge(viewId: string): IViewTitleBadge | undefined;
 
 	/**
 	 * Show accounts activity

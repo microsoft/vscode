@@ -5,6 +5,7 @@
 
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -447,7 +448,7 @@ suite('AgentHostWorktreeLocations', () => {
 
 	test('resolving never waits on what may not come: without a local agent host it is unknown at once, and a later provider resolves', async () => {
 		const provider = createProvider([], { started: false });
-		const other: IWorkspaceFolderLocationProvider = { id: 'other', provideLocations: async () => [], resolveLocation: async (_primary, location) => ({ uri: location, label: 'other' }) };
+		const other: IWorkspaceFolderLocationProvider = { id: 'other', provideLocations: async () => [], resolveLocation: async (_primary, location) => ({ uri: location, label: 'other', icon: Codicon.folder }) };
 		const service = createService(provider, other);
 
 		assert.deepStrictEqual({

@@ -117,7 +117,7 @@
 	opacity: 0.6;
 }
 
-/* Alternate folder location: icon, name and branch-style description */
+/* Alternate folder location: name and the location's icon and label */
 .agent-status-label.has-folder-location {
 	display: flex;
 	align-items: center;
@@ -129,8 +129,7 @@
 	justify-content: flex-start;
 }
 
-.agent-status-label .folder-location-name-group,
-.agent-status-label .folder-location-branch-group {
+.agent-status-label .folder-location-group {
 	display: flex;
 	align-items: center;
 	gap: 4px;
@@ -138,14 +137,13 @@
 }
 
 .agent-status-label .folder-location-name,
-.agent-status-label .folder-location-branch {
+.agent-status-label .folder-location-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.agent-status-label .folder-location-icon,
-.agent-status-label .folder-location-branch-icon {
+.agent-status-label .folder-location-icon {
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 }
