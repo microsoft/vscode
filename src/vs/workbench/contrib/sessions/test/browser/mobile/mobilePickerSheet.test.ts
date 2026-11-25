@@ -191,6 +191,20 @@ suite('MobileContentSheet', () => {
 		});
 	}
 
+	test('a navigation page leaves Escape to a focused overlay above it', async () => {
+		const { container, closed, getDisposeCount } = open({ navigationPage: true });
+		const button = container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!;
+		const help = dom.append(container, dom.$('button'));
+		help.focus();
+		const escape = () => new mainWindow.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+		const passedThrough = help.dispatchEvent(escape());
+		const stillOpen = !container.querySelector('.mobile-picker-sheet.closing');
+		button.focus();
+		const handled = !button.dispatchEvent(escape());
+		await closed;
+		assert.deepStrictEqual({ passedThrough, stillOpen, handled, disposed: getDisposeCount() }, { passedThrough: true, stillOpen: true, handled: true, disposed: 1 });
+	});
+
 	for (const closeOuterFirst of [false, true]) {
 		test(`nested sheets dismiss one layer and restore live focus targets (outer closed: ${closeOuterFirst})`, async () => {
 			const container = dom.append(mainWindow.document.body, dom.$('div'));

@@ -21,6 +21,8 @@ The Agents Window contributes:
 - Sessions-specific workspace and harness adapters under `vs/sessions/contrib/chat/`;
 - Sessions sidebar entry points under `vs/sessions/contrib/sessions/`.
 
+The isolated phone entry owns a read-only inspector for the explicitly selected session. Its provider observes only the host-confirmed inventory and holds the session subscription until the inspector closes, without activating a chat or loading its draft. The management editor's inventory may include window-wide discoveries and must not serve as a fallback. Missing capabilities, unpublished inventories, and unparsed containers are distinct from a confirmed empty list.
+
 Shared workbench code owns reusable discovery and management behavior. Sessions code adapts active-session context and provider-backed harnesses without adding Sessions dependencies to `vs/workbench`.
 
 Harness-specific built-in skills belong to their provider. Copilot Agent Host supplies `troubleshoot` through the SDK skill provider on both create and resume, enriching its Markdown lazily with the exact host-local SDK conversation log and session-state directory. Explicit session-reference attachments take precedence over the current conversation. The extension troubleshooting skill handles extension debug logs and is registered only for Local sessions. SDK-provided invocation names take precedence over same-named disk skills under the SDK catalog contract. Virtual-workspace Copilot sessions retain their disabled skill discovery.

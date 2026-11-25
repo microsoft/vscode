@@ -264,6 +264,35 @@ suite('AccessibleView', () => {
 		assert.deepStrictEqual(counts, [1, 2, 2, 3, 3]);
 	});
 
+	test('updating the content keeps focus inside the accessible editor', async () => {
+		const container = document.body.appendChild(document.createElement('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		const contextViewService = new RenderingContextViewService(container);
+		const instantiationService = workbenchInstantiationService({}, disposables);
+		instantiationService.stub(IContextViewService, contextViewService);
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+		const modelService = instantiationService.get(IModelService);
+		disposables.add(toDisposable(() => modelService.getModels().forEach(model => model.dispose())));
+		const accessibleView = disposables.add(instantiationService.createInstance(AccessibleView));
+		const changed = disposables.add(new Emitter<void>());
+		let content = 'Loading';
+		const provider = disposables.add(new AccessibleContentProvider(AccessibleViewProviderId.Editor, { type: AccessibleViewType.View }, () => content, () => { }, 'test.verbosity'));
+		provider.onDidChangeContent = changed.event;
+
+		try {
+			accessibleView.show(provider);
+			await timeout(0);
+			const focused = document.activeElement;
+			assert.ok(accessibleView.editorWidget.getDomNode()?.contains(focused));
+			content = 'Ready';
+			changed.fire();
+			await timeout(0);
+			assert.deepStrictEqual({ content: accessibleView.editorWidget.getValue(), focusKept: document.activeElement === focused }, { content, focusKept: true });
+		} finally {
+			contextViewService.hideContextView();
+		}
+	});
+
 	test('releases the listeners of every render when the view hides', async () => {
 		const contextViewService = new RenderingContextViewService();
 		const instantiationService = workbenchInstantiationService({}, disposables);
@@ -376,18 +405,20 @@ suite('AccessibleView', () => {
 });
 
 /**
- * Renders into a detached container and disposes the render result on hide, like the real context view.
+ * Renders into a container and disposes the render result on hide, like the real context view.
  */
 class RenderingContextViewService extends mock<IContextViewService>() {
 	showCount = 0;
 	private _delegate: IContextViewDelegate | undefined;
 	private _rendered: IDisposable | undefined;
 
+	constructor(private readonly container?: HTMLElement) { super(); }
+
 	override showContextView(delegate: IContextViewDelegate): IOpenContextView {
 		this.hideContextView();
 		this.showCount++;
 		this._delegate = delegate;
-		this._rendered = delegate.render(document.createElement('div')) ?? undefined;
+		this._rendered = delegate.render(this.container ?? document.createElement('div')) ?? undefined;
 		return { close: () => this.hideContextView() };
 	}
 

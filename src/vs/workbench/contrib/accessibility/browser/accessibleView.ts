@@ -678,7 +678,9 @@ export class AccessibleView extends Disposable {
 				return;
 			}
 			model.setLanguage(provider.options.language ?? 'markdown');
-			container.appendChild(this._container);
+			if (this._container.parentElement !== container) {
+				container.appendChild(this._container);
+			}
 			let actionsHint = '';
 			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || provider.actions?.length;
 			if (verbose && !showAccessibleViewHelp && hasActions) {

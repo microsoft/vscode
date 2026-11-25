@@ -6,6 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { combinedDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { IReader } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { AbstractAgentHostCustomizationService, type IAgentHostCustomizationTarget } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
@@ -113,6 +114,11 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 				void provider.setRootConfigValue(property, value);
 			},
 		};
+	}
+
+	acquireSessionCustomizationState(resource: URI, reader: IReader) {
+		const session = this._getSession(resource);
+		return session && this._getAHSProvider(session)?.acquireSessionCustomizationState?.(session.sessionId, reader);
 	}
 
 	override getCustomAgents(resource: URI): readonly AgentCustomization[] {
