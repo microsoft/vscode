@@ -219,7 +219,12 @@ export class CodexAppServerClient extends Disposable implements ICodexAppServerC
 
 	private _exited = false;
 	private _disposed = false;
-	private _buf = '';
+	/**
+	 * Fragments of the current, not yet newline-terminated line. Large
+	 * responses arrive in many chunks; keeping the fragments and joining them
+	 * once avoids rescanning and recopying the growing partial line per chunk.
+	 */
+	private readonly _pendingFragments: string[] = [];
 
 	constructor(
 		private readonly _transport: ICodexAppServerTransport,
@@ -235,11 +240,16 @@ export class CodexAppServerClient extends Disposable implements ICodexAppServerC
 	private _listenToStdout(): IDisposable {
 		const onData = (chunk: string | Buffer) => {
 			const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-			this._buf += text;
+			let start = 0;
 			let nl: number;
-			while ((nl = this._buf.indexOf('\n')) >= 0) {
-				const line = this._buf.slice(0, nl);
-				this._buf = this._buf.slice(nl + 1);
+			while ((nl = text.indexOf('\n', start)) >= 0) {
+				let line = text.slice(start, nl);
+				start = nl + 1;
+				if (this._pendingFragments.length > 0) {
+					this._pendingFragments.push(line);
+					line = this._pendingFragments.join('');
+					this._pendingFragments.length = 0;
+				}
 				const trimmed = line.trim();
 				if (trimmed.length === 0) {
 					continue;
@@ -252,6 +262,9 @@ export class CodexAppServerClient extends Disposable implements ICodexAppServerC
 					continue;
 				}
 				this._dispatch(parsed);
+			}
+			if (start < text.length) {
+				this._pendingFragments.push(text.slice(start));
 			}
 		};
 		this._transport.stdout.on('data', onData);

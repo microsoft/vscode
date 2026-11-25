@@ -342,4 +342,42 @@ suite('CodexAppServerClient', () => {
 		assert.deepStrictEqual(received, [{ thread: { id: 'split' } }]);
 		handle.dispose();
 	});
+
+	test('large response split into many small chunks is assembled once', async () => {
+		const peer = store.add(makeFakePeer());
+		const client = store.add(new CodexAppServerClient(peer.transport));
+		const responsePromise = client.request('getAuthStatus', { refreshToken: false, includeToken: false });
+		const sent = await readNextMessage(peer.outbound) as { id: number };
+		const history = 'x'.repeat(8 * 1024 * 1024);
+		const json = JSON.stringify({ id: sent.id, result: { history } }) + '\n';
+		const start = Date.now();
+		for (let i = 0; i < json.length; i += 1024) {
+			peer.transport.stdout.emit('data', json.slice(i, i + 1024));
+		}
+		const elapsed = Date.now() - start;
+		const result = await responsePromise as { history: string };
+		assert.deepStrictEqual({ length: result.history.length, fast: elapsed < 5_000 }, { length: history.length, fast: true });
+	});
+
+	test('chunk boundaries keep message order, CRLF, Unicode and recover from malformed lines', async () => {
+		const peer = store.add(makeFakePeer());
+		const client = store.add(new CodexAppServerClient(peer.transport));
+		const received: unknown[] = [];
+		const handle = client.onNotification('thread/started', params => received.push(params));
+		const wire = '\r\n'
+			+ JSON.stringify({ method: 'thread/started', params: { thread: { id: '🐦 ü\nα' } } }) + '\r\n'
+			+ 'not json\n'
+			+ JSON.stringify({ method: 'thread/started', params: { thread: { id: 'b' } } }) + '\n'
+			+ JSON.stringify({ method: 'thread/started', params: { thread: { id: 'c' } } }) + '\n';
+		for (const size of [1, 2, 3, 7, wire.length]) {
+			for (let i = 0; i < wire.length; i += size) {
+				const piece = wire.slice(i, i + size);
+				peer.transport.stdout.emit('data', size === wire.length ? Buffer.from(piece, 'utf8') : piece);
+			}
+		}
+		await new Promise(r => setImmediate(r));
+		const ids = (received as { thread: { id: string } }[]).map(p => p.thread.id);
+		assert.deepStrictEqual(ids, Array.from({ length: 5 }, () => ['🐦 ü\nα', 'b', 'c']).flat());
+		handle.dispose();
+	});
 });
