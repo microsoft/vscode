@@ -12,11 +12,15 @@ import { MouseTarget } from '../../../../browser/controller/mouseTarget.js';
 import { IPartialEditorMouseEvent } from '../../../../browser/editorBrowser.js';
 import { ViewUserInputEvents } from '../../../../browser/view/viewUserInputEvents.js';
 import { Range } from '../../../../common/core/range.js';
+import { DocumentColorProvider } from '../../../../common/languages.js';
 import { PositionAffinity } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { EditorHoverStatusBar } from '../../../hover/browser/contentHoverStatusBar.js';
 import { ColorDetector } from '../../browser/colorDetector.js';
+import { createColorHover } from '../../browser/colorPickerParticipantUtils.js';
 import { isOnColorDecoratorOf } from '../../browser/hoverColorPicker/hoverColorPicker.js';
+import { ColorHover, HoverColorPickerParticipant } from '../../browser/hoverColorPicker/hoverColorPickerParticipant.js';
 
 suite('Hover color picker', () => {
 
@@ -60,6 +64,53 @@ suite('Hover color picker', () => {
 				targetRange: new Range(1, 8, 1, 8),
 				onWhite: true,
 				onBlack: false
+			});
+		});
+	});
+
+	test('moves the color range of the shown picker when its edits move the color', async () => {
+		await withAsyncTestCodeEditor('color: white;', {}, async (editor, _viewModel, instantiationService) => {
+			// Like a presentation that adds an import, every picker edit inserts a line before the color
+			const provider: DocumentColorProvider = {
+				provideDocumentColors: () => [],
+				provideColorPresentations: (_model, colorInfo) => [{
+					label: 'red',
+					textEdit: { range: colorInfo.range, text: 'red' },
+					additionalTextEdits: [{ range: new Range(1, 1, 1, 1), text: '// import\n' }]
+				}]
+			};
+			const participant = instantiationService.createInstance(HoverColorPickerParticipant, editor);
+			const colorHover = ColorHover.fromBaseColor(participant, await createColorHover(editor.getModel()!, { range: new Range(1, 8, 1, 13), color: { red: 1, green: 1, blue: 1, alpha: 1 } }, provider));
+			store.add(colorHover.model);
+			store.add(participant.renderHoverParts({
+				fragment: mainWindow.document.createDocumentFragment(),
+				statusBar: store.add(instantiationService.createInstance(EditorHoverStatusBar)),
+				onContentsChanged: () => { },
+				setMinimumDimensions: () => { },
+				hide: () => { },
+				focus: () => { }
+			}, [colorHover]));
+			const flush = () => {
+				const edited = Event.toPromise(editor.onDidChangeModelContent);
+				colorHover.model.flushColor();
+				return edited;
+			};
+
+			await flush();
+			const whileShown = participant.getColorPickerRange();
+			// Hide the picker while its next edit waits for the color presentations
+			const edited = flush();
+			participant.handleHide();
+			await edited;
+
+			assert.deepStrictEqual({
+				text: editor.getModel()!.getValue(),
+				whileShown,
+				afterHide: participant.getColorPickerRange()
+			}, {
+				text: '// import\n// import\ncolor: red;',
+				whileShown: new Range(2, 8, 2, 11),
+				afterHide: undefined
 			});
 		});
 	});

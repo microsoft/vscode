@@ -120,7 +120,8 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		const colorHover = hoverParts[0];
 		const editorModel = editor.getModel();
 		const model = colorHover.model;
-		this._colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), this._themeService, ColorPickerWidgetType.Hover));
+		const colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), this._themeService, ColorPickerWidgetType.Hover));
+		this._colorPicker = colorPicker;
 		this._colorPickerRange = colorHover.range;
 
 		let editorUpdatedByColorPicker = false;
@@ -130,6 +131,10 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 			await updateColorPresentations(editorModel, model, color, range, colorHover);
 			editorUpdatedByColorPicker = true;
 			range = updateEditorModel(editor, range, model);
+			// The edits can move the color, and the picker can be hidden or replaced while presentations are computed
+			if (this._colorPicker === colorPicker) {
+				this._colorPickerRange = range;
+			}
 		}));
 		disposables.add(model.onDidChangeColor((color: Color) => {
 			updateColorPresentations(editorModel, model, color, range, colorHover);
