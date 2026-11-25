@@ -16,7 +16,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon.js';
-import { IModelDecoration, IModelDeltaDecoration } from '../../../common/model.js';
+import { IModelDecoration, IModelDeltaDecoration, TrackedRangeStickiness } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
@@ -231,6 +231,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 				},
 				options: {
 					description: 'colorDetector',
+					// Keep deleted color decorations collapsed when typing until colors are recomputed.
+					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+					collapseOnReplaceEdit: true,
 					before: {
 						content: noBreakWhitespace,
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
