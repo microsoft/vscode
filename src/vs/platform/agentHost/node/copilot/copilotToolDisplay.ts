@@ -13,11 +13,12 @@ import { escapeIcons } from '../../../../base/common/iconLabels.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import { AgentPermissionKind } from '../../common/agent.js';
+import { TOOL_NOT_FOUND_ERROR_CODE } from '../../common/agentHostTelemetry.js';
 import { copilotCliToolInputContract, type ToolKind, type ViewedResourceType } from '../../common/meta/agentToolCallMeta.js';
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
-import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
+import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResult } from '../../common/state/protocol/state.js';
 import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import type { ISessionPathDisplay } from '../../common/sessionPathDisplay.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -141,6 +142,21 @@ export function getViewedResourceType(toolName: string, toolTelemetry: unknown):
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * The error of a failed tool call. The runtime reports a call naming a tool the
+ * session does not offer with the generic `failure` code and marks it only in
+ * its tool telemetry, so this gives that call its own code.
+ */
+export function getSdkToolCallError(data: Pick<SessionEventPayload<'tool.execution_complete'>['data'], 'success' | 'error' | 'toolTelemetry'>): ToolCallResult['error'] {
+	if (data.success || !data.error) {
+		return data.error;
+	}
+	const properties = isObject(data.toolTelemetry) ? (data.toolTelemetry as Record<string, unknown>).properties : undefined;
+	return isObject(properties) && (properties as Record<string, unknown>).failure_reason === 'not_found'
+		? { ...data.error, code: TOOL_NOT_FOUND_ERROR_CODE }
+		: data.error;
 }
 
 /**

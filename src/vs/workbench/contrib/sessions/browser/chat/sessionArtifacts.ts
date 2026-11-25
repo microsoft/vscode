@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CopyFeedback } from '../../../../../base/browser/ui/button/copyFeedback.js';
 import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -16,7 +17,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { toAction } from '../../../../../base/common/actions.js';
+import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -68,6 +69,63 @@ import { activateHostPane } from '../sessionActionRunner.js';
 /** Action id of the references pill. */
 export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
 
+class CopyFeedbackAction extends Action {
+	private _copyVersion = 0;
+	private readonly _feedback = this._register(new CopyFeedback(copied => {
+		this.label = copied ? localize('sessionChatPills.copied', "Copied") : this._copyLabel;
+		this.class = ThemeIcon.asClassName(copied ? Codicon.check : Codicon.copy);
+	}));
+
+	constructor(id: string, private _copyLabel: string, private _copy: () => Promise<void>, private _copyValue: string) {
+		super(id, _copyLabel, ThemeIcon.asClassName(Codicon.copy));
+	}
+
+	update(copyLabel: string, copy: () => Promise<void>, copyValue: string): void {
+		this._copyLabel = copyLabel;
+		this._copy = copy;
+		if (this._copyValue !== copyValue) {
+			this._copyValue = copyValue;
+			this._copyVersion++;
+			this._feedback.clear();
+		}
+		if (!this._feedback.copied) {
+			this.label = copyLabel;
+		}
+	}
+
+	override async run(): Promise<void> {
+		const version = ++this._copyVersion;
+		this._feedback.clear();
+		await this._copy();
+		if (version === this._copyVersion) {
+			this._feedback.show();
+		}
+	}
+}
+
+export class CopyFeedbackActionCache extends Disposable {
+	private readonly _actions = this._register(new DisposableMap<string, CopyFeedbackAction>());
+
+	get(key: string, label: string, copy: () => Promise<void>, copyValue = key, id = `sessionChatPills.copy.${key}`): IAction {
+		let action = this._actions.get(key);
+		if (!action) {
+			action = new CopyFeedbackAction(id, label, copy, copyValue);
+			this._actions.set(key, action);
+		} else {
+			action.update(label, copy, copyValue);
+		}
+		return action;
+	}
+
+	retain(keys: ReadonlySet<string>): void {
+		for (const key of this._actions.keys()) {
+			if (!keys.has(key)) {
+				this._actions.deleteAndDispose(key);
+			}
+		}
+	}
+}
+
 const artifactIcons: ReadonlyMap<SessionArtifactKind, ThemeIcon> = new Map([
 	[SessionArtifactKind.PullRequest, Codicon.gitPullRequest],
 	[SessionArtifactKind.Issue, Codicon.issues],
@@ -98,6 +156,7 @@ export interface ISessionArtifactActions {
 	/** Downloads a remote file or folder to this device. */
 	downloadResource?(uri: URI, name: string): Promise<void>;
 	copy(text: string): void;
+	createCopyAction?(artifactId: string, id: string, label: string, text: string): IAction;
 	/** Opens a GitHub pull request's changes in a multi-file diff editor. */
 	openPullRequestChanges(pullRequest: IGitHubPullRequestRef): void;
 	/**
@@ -119,6 +178,15 @@ interface ISessionArtifactPresentation extends ISessionArtifact {
 	readonly generatedImageMimeType?: string;
 	/** An integration presents the record, whose entry alone reaches its details, so a browser showing its page never replaces it. */
 	readonly integrated?: boolean;
+}
+
+function copyArtifactAction(artifact: ISessionArtifact, actions: ISessionArtifactActions, id: string, label: string, text: string): IChatPillAction {
+	return actions.createCopyAction?.(artifact.id, id, label, text) ?? toAction({
+		id,
+		label,
+		class: ThemeIcon.asClassName(Codicon.copy),
+		run: () => actions.copy(text),
+	});
 }
 
 function artifactValueKey(artifact: ISessionArtifact): string {
@@ -302,12 +370,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			label,
 			resource: uri,
 			...(videoMimeType ? { videoPreview: { resource: uri, mimeType: videoMimeType } } : {}),
-			toolbarActions: [...(locationAction ? [locationAction] : []), toAction({
-				id: `sessions.artifacts.copyFilePath.${artifact.id}`,
-				label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
-				class: ThemeIcon.asClassName(Codicon.copy),
-				run: () => actions.copy(fullPath),
-			})],
+			toolbarActions: [...(locationAction ? [locationAction] : []), copyArtifactAction(artifact, actions, `sessions.artifacts.copyFilePath.${artifact.id}`, localize('sessionArtifacts.copyFilePath', "Copy Path"), fullPath)],
 			hoverActions: [toAction({
 				id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
 				label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
@@ -341,12 +404,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			id: artifact.id,
 			label,
 			icon,
-			toolbarActions: [withChatPillHoverLabel(toAction({
-				id: `sessions.artifacts.copyCommitUrl.${artifact.id}`,
-				label: localize('sessionArtifacts.copyCommitUrl', "Copy Commit URL"),
-				class: ThemeIcon.asClassName(Codicon.copy),
-				run: () => actions.copy(link.toString(true)),
-			}), chatPillCopyUrlHoverLabel)],
+			toolbarActions: [withChatPillHoverLabel(copyArtifactAction(artifact, actions, `sessions.artifacts.copyCommitUrl.${artifact.id}`, localize('sessionArtifacts.copyCommitUrl', "Copy Commit URL"), link.toString(true)), chatPillCopyUrlHoverLabel)],
 			...((artifact.commitHash || commit?.sha) ? {
 				hoverActions: [withChatPillHoverLabel(toAction({
 					id: `sessions.artifacts.copyCommitHash.${artifact.id}`,
@@ -372,12 +430,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			id: artifact.id,
 			label: artifact.label,
 			icon,
-			toolbarActions: [...(locationAction ? [locationAction] : []), withChatPillHoverLabel(toAction({
-				id: `sessions.artifacts.copyResourceUri.${artifact.id}`,
-				label: localize('sessionArtifacts.copyResourceUri', "Copy URI"),
-				class: ThemeIcon.asClassName(Codicon.copy),
-				run: () => actions.copy(uri.toString(true)),
-			}), chatPillCopyUrlHoverLabel)],
+			toolbarActions: [...(locationAction ? [locationAction] : []), withChatPillHoverLabel(copyArtifactAction(artifact, actions, `sessions.artifacts.copyResourceUri.${artifact.id}`, localize('sessionArtifacts.copyResourceUri', "Copy URI"), uri.toString(true)), chatPillCopyUrlHoverLabel)],
 			...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), artifact.label),
 			open: () => openArtifact(artifact, actions, () => actions.openResource(uri)),
 		}, actions);
@@ -395,12 +448,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 				? localize('sessionArtifacts.copyWebsiteUrl', "Copy Website URL")
 				: undefined;
 	const copyLinkAction = copyLinkLabel
-		? [withChatPillHoverLabel(toAction({
-			id: 'sessions.artifacts.copyLink',
-			label: copyLinkLabel,
-			class: ThemeIcon.asClassName(Codicon.copy),
-			run: () => actions.copy(link.toString(true)),
-		}), chatPillCopyUrlHoverLabel)]
+		? [withChatPillHoverLabel(copyArtifactAction(artifact, actions, 'sessions.artifacts.copyLink', copyLinkLabel, link.toString(true)), chatPillCopyUrlHoverLabel)]
 		: [];
 	const gitHubKind = artifact.isGitHub === true
 		? artifact.kind === SessionArtifactKind.PullRequest
@@ -514,12 +562,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						label: downloadLabel,
 						class: ThemeIcon.asClassName(Codicon.cloudDownload),
 						run: () => actions.downloadImage(uri, label),
-					}), toAction({
-						id: `sessions.artifacts.copyFilePath.${artifact.id}`,
-						label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
-						class: ThemeIcon.asClassName(Codicon.copy),
-						run: () => actions.copy(fullPath),
-					})],
+					}), copyArtifactAction(artifact, actions, `sessions.artifacts.copyFilePath.${artifact.id}`, localize('sessionArtifacts.copyFilePath', "Copy Path"), fullPath)],
 					hoverActions: [toAction({
 						id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
 						label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
@@ -627,6 +670,7 @@ class SessionGitHubCommitResolver extends Disposable {
 /** Publishes a session's artifact and reference sections for the chat input pills. */
 export class SessionArtifacts extends Disposable {
 	private readonly presentations = observableValue<ReadonlyMap<string, ArtifactIntegrationPresentation>>(this, new Map());
+	private readonly _copyActions = this._register(new DisposableMap<string, CopyFeedbackActionCache>());
 	/** The IDs of the focused chat's records that are artifacts rather than references. */
 	private readonly _artifactIds: IObservable<ReadonlySet<string>>;
 
@@ -677,9 +721,23 @@ export class SessionArtifacts extends Disposable {
 		// The session publishes every chat's records; this surface shows only the focused chat's, like the GitHub pills.
 		const chatArtifacts = derived(this, reader => getChatSessionArtifacts(session.read(reader), chat.read(reader), reader));
 		this._artifactIds = derived(this, reader => new Set(chatArtifacts.read(reader).filter(artifact => artifact.isArtifact).map(artifact => artifact.id)));
+		let copyActionOwner: string | undefined;
 		this._register(autorun(reader => {
 			const current = session.read(reader);
 			const artifacts = chatArtifacts.read(reader);
+			const currentCopyActionOwner = current
+				? JSON.stringify([current.providerId, current.sessionId, (chat.read(reader)?.resource ?? current.resource).toString()])
+				: undefined;
+			if (currentCopyActionOwner !== copyActionOwner) {
+				this._copyActions.clearAndDisposeAll();
+				copyActionOwner = currentCopyActionOwner;
+			}
+			const artifactIds = new Set(artifacts.map(artifact => artifact.id));
+			for (const id of this._copyActions.keys()) {
+				if (!artifactIds.has(id)) {
+					this._copyActions.deleteAndDispose(id);
+				}
+			}
 			commitHoverCache.retain(new Set(artifacts.filter(artifact => artifact.kind === SessionArtifactKind.Commit).map(artifact => artifact.id)), current?.sessionId);
 			gitHubResolver.retain(artifacts.flatMap(artifact =>
 				!artifact.isArtifact && artifact.isGitHub === true && artifact.link ? [{ identity: artifact, resource: artifact.link }] : []), current && !current.loading.read(reader) ? current.sessionId : undefined);
@@ -816,6 +874,20 @@ export class SessionArtifacts extends Disposable {
 			}
 			return images;
 		});
+		let copyOwner: ISession | undefined;
+		this._register(autorun(reader => {
+			const current = session.read(reader);
+			if (current !== copyOwner) {
+				this._copyActions.clearAndDisposeAll();
+				copyOwner = current;
+			}
+			const ids = new Set([...chatArtifacts.read(reader), ...generatedImages.read(reader)].map(artifact => artifact.id));
+			for (const id of this._copyActions.keys()) {
+				if (!ids.has(id)) {
+					this._copyActions.deleteAndDispose(id);
+				}
+			}
+		}));
 		// Rebuild after formatter/folder changes because the session folder mounts after activation.
 		const locationFormatting = observableSignalFromEvent(this, Event.any<unknown>(this._labelService.onDidChangeFormatters, workspaceContextService.onDidChangeWorkspaceFolders));
 
@@ -967,6 +1039,21 @@ export class SessionArtifacts extends Disposable {
 				}
 			},
 			copy: text => { void this._clipboardService.writeText(text); },
+			createCopyAction: (artifactId, id, label, text) => {
+				let cache = this._copyActions.get(artifactId);
+				if (!cache) {
+					cache = new CopyFeedbackActionCache();
+					this._copyActions.set(artifactId, cache);
+				}
+				return cache.get(id, label, async () => {
+					try {
+						await this._clipboardService.writeText(text);
+					} catch (error) {
+						this._notificationService.error(localize('sessionArtifacts.copyFailed', "Could not copy to clipboard: {0}", toErrorMessage(error)));
+						throw error;
+					}
+				}, text, id);
+			},
 			openPullRequestChanges: pullRequest => {
 				activateHostPane(this._sessionsService, this._sessionHost, { session, chatResource });
 				void this._commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest });

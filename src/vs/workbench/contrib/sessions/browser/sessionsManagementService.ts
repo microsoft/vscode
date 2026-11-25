@@ -442,14 +442,26 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (unlistedSession) {
 			return unlistedSession;
 		}
-		return this._getAllSessions().find(s =>
-			this.uriIdentityService.extUri.isEqual(s.resource, resource)
-			|| s.previousIdentities?.some(previous => this.uriIdentityService.extUri.isEqual(previous.resource, resource))
-		);
+		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
+			const session = provider.getSession(resource);
+			if (session) {
+				return session;
+			}
+		}
+		// Providers match resources exactly. Where the scheme's file system ignores path casing, also find a case variant.
+		const extUri = this.uriIdentityService.extUri;
+		if (extUri.ignorePathCasing(resource)) {
+			return this._getAllSessions().find(s =>
+				extUri.isEqual(s.resource, resource)
+				|| s.previousIdentities?.some(previous => extUri.isEqual(previous.resource, resource))
+			);
+		}
+		return undefined;
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this._getAllSessions()) {
+		// The first request can use a chat before its provider publishes the session.
+		for (const session of [...this._getAllSessions(), ...this.getInFlightNewSessionRequests()]) {
 			const chat = getSessionChatOfResource(session, resource, this.uriIdentityService.extUri);
 			if (chat) {
 				return { session, chat };
@@ -956,13 +968,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (isNewSessionRequest && !provider.sessionTypes.some(type => type.id === session.sessionType)) {
 			throw new Error(localize('newSession.typeUnavailable', "{0} is no longer available for new sessions. Choose an available agent to try again.", provider.label));
 		}
-		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session, options) : undefined;
+		const inFlightRequest = new MutableDisposable<IDisposable>();
+		if (isNewSessionRequest) {
+			inFlightRequest.value = this.trackInFlightNewSessionRequest(session, options);
+		}
 
 		if (options.background) {
 			const ownership = this._acceptNewSessionRequest(session, session, true);
 			let started: ISession | undefined;
 			let error: unknown;
-			void this._prepareAndSendNewChatRequestInBackground(provider, session, options, ownership)
+			void this._prepareAndSendNewChatRequestInBackground(provider, session, options, ownership, inFlightRequest)
 				.then(startedSession => { started = startedSession; })
 				.catch(e => {
 					error = e;
@@ -975,7 +990,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					}
 				})
 				.finally(() => {
-					inFlightRequest?.dispose();
+					inFlightRequest.dispose();
 					if (ownership) {
 						this._endNewSessionRequest(ownership, true, started, error);
 					}
@@ -992,6 +1007,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			const newSessionConfig = provider.getNewSessionConfig ? await provider.getNewSessionConfig(session.sessionId) : undefined;
 			const draft = session;
 			({ provider, session } = await this._prepareNewSessionForSend(provider, session, requestActivity, true, options.query));
+			if (session !== draft) {
+				inFlightRequest.value = this.trackInFlightNewSessionRequest(session, options);
+			}
 
 			// The session is graduating into the list (being sent),
 			// so the provider keeps owning it — just drop the pointer, do not delete.
@@ -1028,7 +1046,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw e;
 		} finally {
 			requestActivity.dispose();
-			inFlightRequest?.dispose();
+			inFlightRequest.dispose();
 			if (ownership) {
 				this._endNewSessionRequest(ownership, false, started, error);
 			}
@@ -1406,12 +1424,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		super.dispose();
 	}
 
-	private async _prepareAndSendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions, ownership: INewSessionOwnership | undefined): Promise<ISession | undefined> {
+	private async _prepareAndSendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions, ownership: INewSessionOwnership | undefined, inFlightRequest: MutableDisposable<IDisposable>): Promise<ISession | undefined> {
 		let graduatingProvider = provider;
 		let graduatingSession = session;
 		try {
 			const newSessionConfig = provider.getNewSessionConfig ? await provider.getNewSessionConfig(session.sessionId) : undefined;
 			({ provider: graduatingProvider, session: graduatingSession } = await this._prepareNewSessionForSend(provider, session, undefined, false, options.query));
+			if (graduatingSession !== session) {
+				inFlightRequest.value = this.trackInFlightNewSessionRequest(graduatingSession, options);
+			}
 			return await this._sendNewChatRequestInBackground(graduatingProvider, graduatingSession, options, newSessionConfig, CancellationToken.None, ownership);
 		} catch (error) {
 			graduatingProvider.deleteNewSession(graduatingSession.sessionId);

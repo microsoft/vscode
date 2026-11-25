@@ -796,6 +796,19 @@ export const MODERN_UI_SHELL_BACKGROUND = registerColor('modernUI.shellBackgroun
 
 export const MODERN_UI_INACTIVE_SHELL_BACKGROUND = registerColor('modernUI.inactiveShellBackground', TITLE_BAR_INACTIVE_BACKGROUND, localize('modernUIInactiveShellBackground', "Background color of the shell visible around floating workbench surfaces when the window is inactive and the modern UI is enabled."));
 
+/**
+ * Resolves the opaque shell color that the modern UI paints around its floating surfaces.
+ */
+export function getModernUIShellBackground(theme: IColorTheme, isInactive: boolean): Color | undefined {
+	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
+	const resolve = (id: string) => theme.getColor(id)?.makeOpaque(workbenchBackground);
+
+	return resolve(isInactive ? MODERN_UI_INACTIVE_SHELL_BACKGROUND : MODERN_UI_SHELL_BACKGROUND)
+		?? resolve(MODERN_UI_SHELL_BACKGROUND)
+		?? resolve(isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND)
+		?? resolve(TITLE_BAR_ACTIVE_BACKGROUND);
+}
+
 export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	dark: null,
 	light: null,

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'crypto';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { TOOL_NOT_FOUND_ERROR_CODE, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import type { AgentSubagentKind, IAgentTelemetryContext } from '../common/agent.js';
 import type { McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 import { SessionInputRequestKind, type SessionToolAuthenticationRequest, type SessionToolClientExecutionRequest, type SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
@@ -38,6 +39,11 @@ export function deriveToolInvokedResult(result: ToolCallResult): ToolInvokedResu
 		return 'userCancelled';
 	}
 	return 'error';
+}
+
+/** Telemetry identity of a tool name the model invented, which is arbitrary model output. */
+function hashUnknownToolName(toolName: string): string {
+	return `sha256:${createHash('sha256').update(toolName).digest('hex')}`;
 }
 
 /** Per-tool-call timing state, keyed by `session:toolCallId`. */
@@ -173,6 +179,8 @@ export class AgentHostToolCallTracker extends Disposable {
 		const resultBucket = deriveToolInvokedResult(result);
 		const totalTimeMs = timing.lifecycleStopWatch.elapsed();
 		const resultSizeInCharacters = JSON.stringify(result).length;
+		// A call to a tool the session does not offer is not a built-in tool that failed.
+		const unknownTool = timing.toolSourceKind === 'agentHost' && !result.success && result.error?.code === TOOL_NOT_FOUND_ERROR_CODE;
 
 		const report: IAgentHostToolInvokedReport = {
 			clientContext: timing.clientContext,
@@ -182,8 +190,8 @@ export class AgentHostToolCallTracker extends Disposable {
 			owner: timing.owner,
 			subagentKind: timing.subagentKind,
 			turnId: timing.turnId,
-			toolId: timing.toolId,
-			toolSourceKind: timing.toolSourceKind,
+			toolId: unknownTool ? hashUnknownToolName(timing.toolId) : timing.toolId,
+			toolSourceKind: unknownTool ? 'unknown' : timing.toolSourceKind,
 			mcpSourceKind: timing.mcpSourceKind,
 			toolCallId,
 			result: resultBucket,

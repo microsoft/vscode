@@ -50,6 +50,8 @@ export interface ISelectBoxOptions {
 	hideDisabledOptions?: boolean;
 	/** Show option descriptions in right-side hovers instead of the details pane. */
 	showOptionDescriptionHovers?: boolean;
+	/** Don't show the selected option's text in a hover, for callers that provide their own hover. */
+	hideSelectedOptionHover?: boolean;
 }
 
 // Utilize optionItem interface to capture all option parameters

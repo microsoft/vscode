@@ -490,6 +490,9 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	}
 
 	async loadModel(): Promise<ITextModel> {
+		if (this.loadModelPromise) {
+			return this.loadModelPromise;
+		}
 		this.loadModelPromise = Promises.withAsyncBody<ITextModel>(async (c, e) => {
 			try {
 				this.modelDisposable.value = new DisposableStore();
@@ -502,10 +505,14 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 				this.outputContentProvider.watch();
 				this.modelDisposable.value.add(toDisposable(() => this.outputContentProvider.unwatch()));
 				this.modelDisposable.value.add(this.model.onWillDispose(() => {
-					this.outputContentProvider.reset();
-					this.modelDisposable.value = undefined;
-					this.cancelModelUpdate();
-					this.model = null;
+					try {
+						this.outputContentProvider.reset();
+						this.modelDisposable.value = undefined;
+						this.cancelModelUpdate();
+						this.model = null;
+					} finally {
+						this.loadModelPromise = null;
+					}
 				}));
 				c(this.model);
 			} catch (error) {

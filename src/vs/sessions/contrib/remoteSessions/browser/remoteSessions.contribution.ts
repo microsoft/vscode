@@ -54,4 +54,6 @@ class RemoteSessionToolsContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
-registerWorkbenchContribution2(RemoteSessionToolsContribution.ID, RemoteSessionToolsContribution, WorkbenchPhase.Eventually);
+// A session only gets the tools registered when its turn starts. Registering these with the other startup tools, such as
+// create_dev_container, lets an early prompt continue its work in a new remote session.
+registerWorkbenchContribution2(RemoteSessionToolsContribution.ID, RemoteSessionToolsContribution, WorkbenchPhase.AfterRestored);

@@ -4,12 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hasKey, isDefined } from '../../../../../../base/common/types.js';
-import { SessionChatItem, SessionListItem, SessionsList, SessionsListItemReference } from '../../../browser/views/sessionsList.js';
-import { ISession } from '../../../../../services/sessions/common/session.js';
-
-function isSessionRow(element: SessionListItem): element is ISession {
-	return 'sessionId' in element && 'resource' in element;
-}
+import { SessionsList, SessionsListItemReference } from '../../../browser/views/sessionsList.js';
+import { isSessionChatItem, isSessionItem, SessionListItem } from '../../../browser/views/sessionsListCommon.js';
 
 /**
  * A sessions list whose focus, selection, collapse state, and rendered rows can be
@@ -116,10 +112,10 @@ export class TestSessionsList extends SessionsList {
 	/** Returns references to the selected session and chat rows. */
 	getSelectedItems(): SessionsListItemReference[] {
 		return this.tree.getSelection().flatMap((element): SessionsListItemReference[] => {
-			if (element instanceof SessionChatItem) {
+			if (element && isSessionChatItem(element)) {
 				return [{ session: element.session.resource, chat: element.chat.resource }];
 			}
-			return element && isSessionRow(element) ? [{ session: element.resource }] : [];
+			return element && isSessionItem(element) ? [{ session: element.resource }] : [];
 		});
 	}
 

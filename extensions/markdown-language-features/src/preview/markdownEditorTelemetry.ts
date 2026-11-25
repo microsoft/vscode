@@ -5,6 +5,7 @@
 
 import type { TelemetryReporter } from '../telemetryReporter';
 import { generateUuid } from '../util/uuid';
+import type { MarkdownDocumentFeatures } from './markdownDocumentFeatures';
 
 export type MarkdownEditorMode = 'read' | 'edit';
 
@@ -48,6 +49,7 @@ export class MarkdownEditorSessionTelemetry {
 	readonly #reporter: TelemetryReporter;
 	readonly #now: () => number;
 	#untitledDocumentId: string | undefined;
+	#documentFeatures: MarkdownDocumentFeatures | undefined;
 	#ended = false;
 
 	constructor(
@@ -66,6 +68,11 @@ export class MarkdownEditorSessionTelemetry {
 
 	setUntitledDocumentId(untitledDocumentId: string | undefined): void {
 		this.#untitledDocumentId = untitledDocumentId;
+	}
+
+	/** The constructs the document used when it was opened. Not reported for documents too large to scan. */
+	setDocumentFeatures(features: MarkdownDocumentFeatures): void {
+		this.#documentFeatures = features;
 	}
 
 	setMode(mode: MarkdownEditorMode): void {
@@ -128,6 +135,14 @@ export class MarkdownEditorSessionTelemetry {
 				"finalMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The mode when the session ended: read or edit." },
 				"ended": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How the session ended: closed (editor closed or reopened with another editor) or shutdown (window closed or reloaded, or extension deactivated)." },
 				"untitledDocumentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The untitledDocumentId of the untitledDocument events, if the document was untitled when opened." },
+				"hasMermaid": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the document had a Mermaid code block when opened. Absent for documents of 100k characters or more." },
+				"hasMath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the document had math (math blocks or inline math) when opened. Absent for large documents." },
+				"hasHtmlBlock": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the document had a line starting with an HTML tag when opened. Absent for large documents." },
+				"hasFrontMatter": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the document started with front matter when opened. Absent for large documents." },
+				"hasTable": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the document had a table when opened. Absent for large documents." },
+				"hasFootnote": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the document had a footnote definition when opened. Absent for large documents." },
+				"hasTaskList": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the document had a task list item when opened. Absent for large documents." },
+				"headingCountBucket": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of headings when opened: 0, 1-5, 6-20 or >20. Absent for large documents." },
 				"modeSwitches": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "How often the user switched between reading and editing." },
 				"editCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of document changes made through this editor (not through other editors of the document)." },
 				"firstEditMs": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Milliseconds from opening to the first change made through this editor, or -1 if there was none." },
@@ -144,6 +159,7 @@ export class MarkdownEditorSessionTelemetry {
 			finalMode: this.#mode,
 			ended,
 			...(this.#untitledDocumentId ? { untitledDocumentId: this.#untitledDocumentId } : {}),
+			...(this.#documentFeatures ? featureProperties(this.#documentFeatures) : {}),
 		}, {
 			modeSwitches: this.#modeSwitches,
 			editCount: this.#editCount,
@@ -171,6 +187,19 @@ class DurationAccumulator {
 	total(now: number): number {
 		return this.#total + (this.#since === undefined ? 0 : now - this.#since);
 	}
+}
+
+function featureProperties(features: MarkdownDocumentFeatures): Record<string, string> {
+	return {
+		hasMermaid: String(features.hasMermaid),
+		hasMath: String(features.hasMath),
+		hasHtmlBlock: String(features.hasHtmlBlock),
+		hasFrontMatter: String(features.hasFrontMatter),
+		hasTable: String(features.hasTable),
+		hasFootnote: String(features.hasFootnote),
+		hasTaskList: String(features.hasTaskList),
+		headingCountBucket: features.headingCountBucket,
+	};
 }
 
 function getSizeBucket(textLength: number): string {

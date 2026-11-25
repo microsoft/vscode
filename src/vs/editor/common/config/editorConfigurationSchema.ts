@@ -7,6 +7,7 @@ import type { IJSONSchemaSnippet } from '../../../base/common/jsonSchema.js';
 import { diffEditorDefaultOptions } from './diffEditor.js';
 import { editorOptionsRegistry } from './editorOptions.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
+import { MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING } from '../multiDiffEditor.js';
 import * as nls from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
@@ -324,6 +325,12 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.experimental.useTrueInlineView,
 			description: nls.localize('useTrueInlineView', "If enabled and the editor uses the inline view, word changes are rendered inline."),
+		},
+		[MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: nls.localize('multiDiffEditor.syncSplitView', "Controls whether resizing the split between the original and modified side of one file in a multi diff editor resizes all files."),
 		},
 	}
 };

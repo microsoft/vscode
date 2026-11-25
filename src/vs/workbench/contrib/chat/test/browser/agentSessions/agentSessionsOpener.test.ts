@@ -20,7 +20,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, ChatViewSessionsOpenChatIn } from '../../../common/constants.js';
 import { AgentSessionsModel, IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { openSession, openSessionByResource, ISessionOpenerParticipant, sessionOpenerRegistry } from '../../../browser/agentSessions/agentSessionsOpener.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
@@ -200,14 +200,15 @@ suite('AgentSessionsOpener', () => {
 		assert.strictEqual(handledSession?.resource.toString(), twin.toString());
 	});
 
-	test('a list click opens the session in an editor when chat.agentSessions.openInEditor is enabled, like a file: in the active group, or to the side with a modifier', async () => {
+	test('a list click opens the session in an editor when chat.viewSessions.openChatIn is editorArea, like a file: in the active group, or to the side with a modifier', async () => {
 		const resource = URI.parse('test-session://provider/session');
 		const session = upcastPartial<IAgentSession>({ resource, providerType: 'test-session', label: 'Session', setRead: () => { } });
 		const open = async (openInEditor: boolean, existing: 'none' | 'chatView' | 'editor', sideBySide = false) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(ILogService, new NullLogService());
 			stubAgentHost(instantiationService);
-			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.OpenSessionsInEditor]: openInEditor }));
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenChatIn]: openInEditor ? ChatViewSessionsOpenChatIn.EditorArea : ChatViewSessionsOpenChatIn.ChatPanel }));
+			instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
 			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: () => undefined }));
 			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
 				activateChatSessionItemProvider: async () => undefined,
@@ -245,7 +246,7 @@ suite('AgentSessionsOpener', () => {
 		});
 	});
 
-	test('a list click opens the session in the editor area when chat.viewSessions.openChatIn is editorArea, and reveals a tab that is open, but not in the Agents window or a remote window', async () => {
+	test('a list click opens the session in the editor area when chat.viewSessions.openChatIn is editorArea, and reveals a tab that is open, also in a remote window, but not in the Agents window', async () => {
 		const resource = URI.parse('test-session://provider/session');
 		const session = upcastPartial<IAgentSession>({ resource, providerType: 'test-session', label: 'Session', setRead: () => { } });
 		const open = async (openChatIn: string, window: 'local' | 'remote' | 'sessions' = 'local', existing: 'none' | 'editor' = 'none') => {
@@ -283,7 +284,7 @@ suite('AgentSessionsOpener', () => {
 			chatArea: { target: ChatViewPaneTarget, revealIfOpened: true },
 			editorArea: { target: ACTIVE_GROUP, revealIfOpened: true },
 			revealed: { target: ACTIVE_GROUP, revealIfOpened: true },
-			remote: { target: ChatViewPaneTarget, revealIfOpened: true },
+			remote: { target: ACTIVE_GROUP, revealIfOpened: true },
 			sessionsWindow: { target: ChatViewPaneTarget, revealIfOpened: true },
 		});
 	});

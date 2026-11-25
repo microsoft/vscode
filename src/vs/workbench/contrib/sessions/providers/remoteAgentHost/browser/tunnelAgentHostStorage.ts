@@ -85,6 +85,22 @@ export class TunnelAgentHostStorage extends Disposable {
 		this._cachedTunnels.set([tunnel, ...cached.filter(candidate => candidate.tunnelId !== tunnel.tunnelId)], undefined);
 	}
 
+	/** Refresh a cached tunnel's metadata in place, keeping its auth provider, position, and auto-connect suppression. */
+	updateCachedTunnel(tunnel: Pick<ICachedTunnel, 'tunnelId' | 'clusterId' | 'name' | 'protocolVersion'>): void {
+		const cached = this._cachedTunnels.get();
+		const index = cached.findIndex(candidate => candidate.tunnelId === tunnel.tunnelId);
+		if (index < 0) {
+			return;
+		}
+		const existing = cached[index];
+		if (existing.clusterId === tunnel.clusterId && existing.name === tunnel.name && existing.protocolVersion === tunnel.protocolVersion) {
+			return;
+		}
+		const updated = [...cached];
+		updated[index] = { ...existing, clusterId: tunnel.clusterId, name: tunnel.name, protocolVersion: tunnel.protocolVersion };
+		this._cachedTunnels.set(updated, undefined);
+	}
+
 	removeCachedTunnel(tunnelId: string): void {
 		this._cachedTunnels.set(this._cachedTunnels.get().filter(tunnel => tunnel.tunnelId !== tunnelId), undefined);
 		this.clearAutoConnectSuppression(tunnelId);

@@ -148,6 +148,9 @@ export function buildAgentHostBaseCommand(cliBin: string, serverDataFolderName: 
 	return `${cliBin} --cli-data-dir ${getRemoteCLIDataDir(serverDataFolderName)} --telemetry-level ${validateAgentHostTelemetryLevel(telemetryLevel)} agent host --port 0 --server-data-dir ${getRemoteCLIInstallRoot(serverDataFolderName)}`;
 }
 
+/** Shell snippet that prints `musl` on musl-based Linux, whose `libc` argument makes {@link resolveRemotePlatform} select the Alpine build. */
+export const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
+
 export function resolveRemotePlatform(unameS: string, unameM: string, libc = ''): { os: string; arch: string } | undefined {
 	const os = unameS.trim().toLowerCase();
 	const machine = unameM.trim().toLowerCase();

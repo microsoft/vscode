@@ -187,8 +187,8 @@ importers:
         specifier: ^3.2.13
         version: 3.2.13
       '@microsoft/copilot-sdk':
-        specifier: 2.0.1
-        version: 2.0.1
+        specifier: 2.0.2-unstable.45286541461.g05667ac
+        version: 2.0.2-unstable.45286541461.g05667ac
       '@parcel/watcher':
         specifier: ^2.5.6
         version: 2.5.6
@@ -199,8 +199,8 @@ importers:
         specifier: ^0.1.1
         version: 0.1.5
       '@vscode/diff':
-        specifier: 0.0.2-145
-        version: 0.0.2-145
+        specifier: 0.0.2-154
+        version: 0.0.2-154
       '@vscode/fs-copyfile':
         specifier: 2.0.0
         version: 2.0.0
@@ -340,8 +340,8 @@ importers:
         specifier: ^0.0.46-51
         version: 0.0.46-51
       '@vscode/diff':
-        specifier: 0.0.2-145
-        version: 0.0.2-145
+        specifier: 0.0.2-154
+        version: 0.0.2-154
       '@vscode/iconv-lite-umd':
         specifier: 0.7.1
         version: 0.7.1
@@ -517,52 +517,52 @@ packages:
   '@microsoft/applicationinsights-shims@2.0.2':
     resolution: {integrity: sha512-PoHEgsnmcqruLNHZ/amACqdJ6YYQpED0KSRe6J7gIJTtpZC1FfFU9b1fmDKDKtFoUSrPzEh1qzO3kmRZP0betg==}
 
-  '@microsoft/copilot-sdk-darwin-arm64@2.0.1':
-    resolution: {integrity: sha512-KqBScY+1w5/znWkWMnLvyiXz/xlk4DXc5EcXUABT/z0jbE2tpJLiTfnmewAUiGvC9jLi+tmEzy2346zUm9+0YQ==}
+  '@microsoft/copilot-sdk-darwin-arm64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-v9GwENsVMN6LVvtW6H2FVygOz7tSpKC4XGlUU2TFkey6msTynRsFSViPUmC7vpWqoXHrfuj812jyvQaLqlVW/w==}
     cpu: [arm64]
     os: [darwin]
 
-  '@microsoft/copilot-sdk-darwin-x64@2.0.1':
-    resolution: {integrity: sha512-thwynJE+nNQRHn2f4DxsXXsDHF66sOAquOyZwmGH9Z6y/VXyNWskKW6lXCuGl5aBxSvZA3UQpEVsKZ8XAVy4OQ==}
+  '@microsoft/copilot-sdk-darwin-x64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-uKMadJIfU69HXCtvjQT2ioYpTdTQ1dAiLI6bChXB9S+seyQz9PWrRFz5RYmWmaGnYlesBjG614v95YRQH6mCtw==}
     cpu: [x64]
     os: [darwin]
 
-  '@microsoft/copilot-sdk-linux-arm64@2.0.1':
-    resolution: {integrity: sha512-NTgh6x6HDp/YvYKPsw9hmRK7Pgt4TzwoNayGFIdtI0PStvJKCjxKjI32Ip9aoBuCPIwM5P6W5sUT8ZhsPYcANw==}
+  '@microsoft/copilot-sdk-linux-arm64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-iIUcWh9oKUFPg1tze7w0WWj5dJRhOLogvDHXfVcO7son+brXJWsXPcPt6znqgiHf4rdgPez5zu/FdOVii2Pm1w==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@microsoft/copilot-sdk-linux-x64@2.0.1':
-    resolution: {integrity: sha512-yT4YouoPuK9ReXG2FySTxSWXejMh++Eh35fkVFyQoLHptWBia8dsSHaORt1scFA5bWgyuk/QwB2fJV0tots1TA==}
+  '@microsoft/copilot-sdk-linux-x64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-/AHn012mv+c5AgehuwwHU3sbjl5H0eCaSIXNAvbo2YY2Q5bdldFF1XbEf/JdJuFAWnEFBX40U7mPUHZP4khl2w==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.1':
-    resolution: {integrity: sha512-wwPihies9JL3uqeCn0+dvk5Nw8h8afdRppB/ZCQyhyprEcnuU9nauYX1noSeaBnMkFn9noLmR8l7TDfpiVIB1Q==}
+  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-9BW8ICPEmw0RWNzCYSX0EVf/CGLdgFpXkVOjZ98UReqb7PYvAvIwho7TtPn3K4uXrd3k8el7MjaiEWz6/7oy7A==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.1':
-    resolution: {integrity: sha512-kdpjVoPe37cIbsOGDrkV5m95F+kY1OQHNeI1jnuwMGHL/KQ+pNc/vgzVfBwxI6sicleqRXFy8+XLJftN96ZjZA==}
+  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-kfKBVXHwXHkPnHpRAdfnVIsyrrc8E1wL9uoT12Pcer3e67Rc3Ueu7S2fvfQi8NGqu9MrW+IyUh9Nng5fkT4Dxg==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@microsoft/copilot-sdk-win32-arm64@2.0.1':
-    resolution: {integrity: sha512-O6wrd/GpKrREpq4iijhoYVQBSO7xkk1aflvMFqr1xBrcgp+WqoSVXkwJtKP3YfsJ/NjwwFPXyJ0EOLHP6RQ1YA==}
+  '@microsoft/copilot-sdk-win32-arm64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-8OlQ4c88SwyxKVZ1Qu9LlN2hCevHGaDMmMAJ4qYmEopCAqp2cr/ZW0UpgIF0FglxmVO4k1aa9xvq0BDXueqDOw==}
     cpu: [arm64]
     os: [win32]
 
-  '@microsoft/copilot-sdk-win32-x64@2.0.1':
-    resolution: {integrity: sha512-psjAzQUhOSsHQtUioGGgfuiHPI10VMA+1f0Lpa6h40P0jiF9904j/o7+zv8MOxO77ai/JacWwlbG4ib6Z0d08A==}
+  '@microsoft/copilot-sdk-win32-x64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-5zsScrn8fd0M8ewJouNC4+EfBUnxhvlXJSza8b7zXW5BJGUUfHbmWkMkvkIXjkMOD7IPvEpyLU48UNQjJY7PsQ==}
     cpu: [x64]
     os: [win32]
 
-  '@microsoft/copilot-sdk@2.0.1':
-    resolution: {integrity: sha512-5ENTz3aTL2duoa9VcfWH9pZjxBlQdIqBu3uN9M/lzggz1Gj0fXh3oCsjZ/a/8qp5N1JDHIcS0FqhH6VJtf0GTg==}
+  '@microsoft/copilot-sdk@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-VFiMmF/UsXGy00c0rXji3xj45/5jAmVEBBp/ct/081zNR4Yyu9NUjQHxRKK/JEc6L47Q/UCi2enfiQS3UtomCQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@microsoft/dynamicproto-js@1.1.9':
@@ -588,8 +588,8 @@ packages:
   '@vscode/deviceid@0.1.5':
     resolution: {integrity: sha512-D0be67wWo7WyyBqHnRkL2bK7lp7CDH/EMN4kMV6INoKc7kxRL3nsTtngt9JZrOcZdnW59gquGRk+6KFIDyD3QA==}
 
-  '@vscode/diff@0.0.2-145':
-    resolution: {integrity: sha512-atPcmNrAU4B8OsbrmqYlHbZREt//m8z52o400YA8uuvq3Be5wnmIhLoLqhMum7Jv7kRC0FE+m3WAUbaZF681wg==}
+  '@vscode/diff@0.0.2-154':
+    resolution: {integrity: sha512-jP325CWXSEbXOT9PLZ546xamxw7/SDj+a+pwCBE5xCrP35tjkXsPHYp/WMT8q9XEsvohVM6zV2+RMKIWOCS8qg==}
 
   '@vscode/fs-copyfile@2.0.0':
     resolution: {integrity: sha512-ARb4+9rN905WjJtQ2mSBG/q4pjJkSRun/MkfCeRkk7h/5J8w4vd18NCePFJ/ZucIwXx/7mr9T6nz9Vtt1tk7hg==}
@@ -1143,45 +1143,45 @@ snapshots:
 
   '@microsoft/applicationinsights-shims@2.0.2': {}
 
-  '@microsoft/copilot-sdk-darwin-arm64@2.0.1':
+  '@microsoft/copilot-sdk-darwin-arm64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-darwin-x64@2.0.1':
+  '@microsoft/copilot-sdk-darwin-x64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-linux-arm64@2.0.1':
+  '@microsoft/copilot-sdk-linux-arm64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-linux-x64@2.0.1':
+  '@microsoft/copilot-sdk-linux-x64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.1':
+  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.1':
+  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-win32-arm64@2.0.1':
+  '@microsoft/copilot-sdk-win32-arm64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-win32-x64@2.0.1':
+  '@microsoft/copilot-sdk-win32-x64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk@2.0.1':
+  '@microsoft/copilot-sdk@2.0.2-unstable.45286541461.g05667ac':
     dependencies:
       koffi: 3.2.1
       lossless-json: 4.3.3
       vscode-jsonrpc: 10.0.0
       zod: 4.6.7
     optionalDependencies:
-      '@microsoft/copilot-sdk-darwin-arm64': 2.0.1
-      '@microsoft/copilot-sdk-darwin-x64': 2.0.1
-      '@microsoft/copilot-sdk-linux-arm64': 2.0.1
-      '@microsoft/copilot-sdk-linux-x64': 2.0.1
-      '@microsoft/copilot-sdk-linuxmusl-arm64': 2.0.1
-      '@microsoft/copilot-sdk-linuxmusl-x64': 2.0.1
-      '@microsoft/copilot-sdk-win32-arm64': 2.0.1
-      '@microsoft/copilot-sdk-win32-x64': 2.0.1
+      '@microsoft/copilot-sdk-darwin-arm64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-darwin-x64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-linux-arm64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-linux-x64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-linuxmusl-arm64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-linuxmusl-x64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-win32-arm64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-win32-x64': 2.0.2-unstable.45286541461.g05667ac
 
   '@microsoft/dynamicproto-js@1.1.9': {}
 
@@ -1205,7 +1205,7 @@ snapshots:
       fs-extra: 11.2.0
       uuid: 14.0.0
 
-  '@vscode/diff@0.0.2-145': {}
+  '@vscode/diff@0.0.2-154': {}
 
   '@vscode/fs-copyfile@2.0.0':
     dependencies:

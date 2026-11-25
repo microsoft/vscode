@@ -915,6 +915,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		disposable.add(hoverService.setupDelayedHover(element, {
 			content: hoverElement,
 			style: HoverStyle.Pointer,
+			additionalClasses: ['chat-image-attachment-hover'],
 		}));
 	}
 

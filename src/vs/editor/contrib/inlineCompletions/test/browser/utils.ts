@@ -309,6 +309,8 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					refresh: async () => { return null; },
 					signIn: async () => { return null; },
 					signOut: async () => { },
+					rememberMicrosoftAccount: async () => { },
+					forgetMicrosoftAccount: async () => { },
 				});
 				options.serviceCollection.set(IRenameSymbolTrackerService, new NullRenameSymbolTrackerService());
 

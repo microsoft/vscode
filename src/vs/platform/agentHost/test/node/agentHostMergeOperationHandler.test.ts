@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, parseBaseBranchRef, type BaseBranch } from '../../common/agentHostGitService.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -36,6 +36,9 @@ class TestGitService extends mock<IAgentHostGitService>() {
 	targetDirty = false;
 	mergeError: Error | undefined;
 	mergeCommit: string | undefined = 'merge-sha';
+	baseBranchRef: string | undefined;
+	/** The local branch tracking each remote-tracking ref. */
+	readonly trackingBranches = new Map<string, string>();
 
 	override async getRepositoryRoot(): Promise<URI> {
 		return worktreeRoot;
@@ -50,9 +53,18 @@ class TestGitService extends mock<IAgentHostGitService>() {
 		return {
 			branchName: this.sourceBranch,
 			baseBranchName: 'main',
+			...(this.baseBranchRef ? { baseBranchRef: this.baseBranchRef } : {}),
 			uncommittedChanges: this.sourceDirty ? 1 : 0,
 			outgoingChanges: 1,
 		};
+	}
+
+	override async resolveBaseBranch(_workingDirectory: URI, baseBranch: string): Promise<BaseBranch | undefined> {
+		return parseBaseBranchRef(baseBranch.startsWith('refs/') ? baseBranch : baseBranch.startsWith('origin/') ? `refs/remotes/${baseBranch}` : `refs/heads/${baseBranch}`, ['origin']);
+	}
+
+	override async resolveMergeTargetBranch(_workingDirectory: URI, baseBranch: BaseBranch): Promise<string | undefined> {
+		return baseBranch.kind === 'local' ? baseBranch.branch : this.trackingBranches.get(baseBranch.ref) ?? baseBranch.branch;
 	}
 
 	override async getCurrentBranch(): Promise<string> {
@@ -93,6 +105,12 @@ class TestGitService extends mock<IAgentHostGitService>() {
 interface ISetupOptions {
 	readonly configuredBranch?: string;
 	readonly persistedBaseBranch?: string;
+	/** Records no base branch for the session, so Merge falls back to its fresh Git state. */
+	readonly recordsNoBase?: boolean;
+	/** The base branch the fresh Git state compares against. */
+	readonly gitStateBaseBranch?: string;
+	/** The local branch tracking {@link persistedBaseBranch}, else {@link gitStateBaseBranch}. */
+	readonly trackingBranch?: string;
 	readonly sourceDirty?: boolean;
 	readonly targetBranch?: string;
 	readonly targetDirty?: boolean;
@@ -141,11 +159,16 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 	gitService.targetDirty = options.targetDirty ?? false;
 	gitService.mergeError = options.mergeError;
 	gitService.mergeCommit = options.missingMergeCommit ? undefined : 'merge-sha';
+	gitService.baseBranchRef = options.gitStateBaseBranch;
+	const trackedBaseBranch = options.persistedBaseBranch ?? options.gitStateBaseBranch;
+	if (trackedBaseBranch && options.trackingBranch) {
+		gitService.trackingBranches.set(trackedBaseBranch, options.trackingBranch);
+	}
 	const refreshed: string[] = [];
 	const merged: Array<{ sessionKey: string; commit: string | undefined }> = [];
 	const handler = new AgentHostMergeOperationHandler(
 		sessionKey => stateManager.getSessionState(sessionKey),
-		async () => options.configuredBranch ?? options.persistedBaseBranch?.replace(/^origin\//, '') ?? 'main',
+		async () => options.recordsNoBase ? undefined : options.configuredBranch ?? options.persistedBaseBranch ?? 'main',
 		async sessionKey => { refreshed.push(sessionKey); },
 		async (sessionKey, commit) => { merged.push({ sessionKey, commit }); },
 		gitService,
@@ -184,6 +207,52 @@ suite('AgentHostMergeOperationHandler', () => {
 			merged: [{ sessionKey: session.toString(), commit: 'merge-sha' }],
 			refreshed: [branchOwner],
 			message: 'Merged changes from \'agents/session\' into \'release\'.',
+		});
+	});
+
+	test('merges into the local branch that tracks a remote base', async () => {
+		const { gitService, handler } = await setup(disposables, { persistedBaseBranch: 'refs/remotes/origin/main', trackingBranch: 'dev', targetBranch: 'dev' });
+
+		const result = await handler.invoke({
+			channel: branchChangeset,
+			operationId: AgentHostMergeOperationHandler.OPERATION_MERGE,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			calls: gitService.calls,
+			requestedBaseBranches: gitService.requestedBaseBranches,
+			message: typeof result.message === 'string' ? result.message : result.message?.markdown,
+		}, {
+			calls: [
+				`hasUncommittedChanges:${repositoryRoot.toString()}`,
+				`hasUncommittedChanges:${worktreeRoot.toString()}`,
+				`mergeBranch:${repositoryRoot.toString()}:agents/session`,
+			],
+			requestedBaseBranches: ['refs/remotes/origin/main'],
+			message: 'Merged changes from \'agents/session\' into \'dev\'.',
+		});
+	});
+
+	test('merges into the base the fresh Git state compares against when none is recorded', async () => {
+		const { gitService, handler } = await setup(disposables, { recordsNoBase: true, gitStateBaseBranch: 'refs/remotes/origin/main', trackingBranch: 'dev', targetBranch: 'dev' });
+
+		const result = await handler.invoke({
+			channel: branchChangeset,
+			operationId: AgentHostMergeOperationHandler.OPERATION_MERGE,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			calls: gitService.calls,
+			requestedBaseBranches: gitService.requestedBaseBranches,
+			message: typeof result.message === 'string' ? result.message : result.message?.markdown,
+		}, {
+			calls: [
+				`hasUncommittedChanges:${repositoryRoot.toString()}`,
+				`hasUncommittedChanges:${worktreeRoot.toString()}`,
+				`mergeBranch:${repositoryRoot.toString()}:agents/session`,
+			],
+			requestedBaseBranches: [undefined],
+			message: 'Merged changes from \'agents/session\' into \'dev\'.',
 		});
 	});
 

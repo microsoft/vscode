@@ -46,6 +46,26 @@ export interface IChatSessionRecommendation {
 	readonly postInstallCommand?: string;
 }
 
+/**
+ * Another AI agent that runs in the terminal. When its output reports that its
+ * usage limit was reached or is close, paid Copilot users who hardly use Copilot
+ * are offered to continue with Copilot.
+ */
+export interface IChatPlanAwarenessTerminalAgent {
+	/** The name of the agent that the user sees. */
+	readonly name: string;
+	/** Commands that start the agent, matched at the start of a terminal command line, for example `agent` or `npx @scope/agent`. */
+	readonly commands: readonly string[];
+	/** Arguments that the agent takes a prompt after, for example `-p`. A quoted first argument is always taken as a prompt. */
+	readonly promptArguments?: readonly string[];
+	/** The family of the Copilot model to continue with, for example `Claude` or `GPT`. */
+	readonly modelFamily?: string;
+	/** Regular expressions that match output reporting that the usage limit was reached. They match the output in lowercase and without whitespace. */
+	readonly limitReachedOutput: readonly string[];
+	/** Regular expressions that match output reporting that the usage limit is close, like {@link limitReachedOutput}. */
+	readonly limitApproachingOutput?: readonly string[];
+}
+
 export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
@@ -282,6 +302,7 @@ export interface IProductConfiguration {
 	readonly defaultChatAgent: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
 	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
+	readonly chatPlanAwarenessTerminalAgents?: readonly IChatPlanAwarenessTerminalAgent[];
 	readonly emergencyAlertUrl?: string;
 	readonly voiceWsUrl?: string;
 

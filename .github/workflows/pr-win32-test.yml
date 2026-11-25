@@ -791,6 +791,9 @@ jobs:
   # JobId must be unique per job.
   electron-smoke-wsl:
     name: Electron-Smoke (WSL)
+    # This job does not download workspace images from other workflow runs.
+    permissions:
+      contents: read
     if: ${{ inputs.electron_smoke_affected }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-wsl-smoke-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:

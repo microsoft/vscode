@@ -2493,6 +2493,10 @@ export class PluginListWidget extends Disposable {
 		this.searchInput.focus();
 	}
 
+	focusManageMarketplaces(): void {
+		this.manageMarketplacesButton.focus();
+	}
+
 	setSearchQuery(query: string): void {
 		this.searchInput.value = query;
 	}

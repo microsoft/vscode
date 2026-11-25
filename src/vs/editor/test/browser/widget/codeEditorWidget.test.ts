@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { IME } from '../../../../base/common/ime.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TabFocus } from '../../../browser/config/tabFocus.js';
+import { ContentWidgetPositionPreference, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
@@ -401,6 +404,66 @@ suite('CodeEditorWidget', () => {
 		});
 
 		disposables.dispose();
+	});
+
+	test('mouse down just below an empty line at a sub-pixel editor offset targets that line', () => {
+		const container = document.createElement('div');
+		container.style.position = 'fixed';
+		container.style.top = '0.1px';
+		container.style.left = '0';
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const instantiationService = createCodeEditorServices(disposables);
+		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, { lineHeight: 20, padding: { top: 12, bottom: 12 }, minimap: { enabled: false } }, { contributions: [] }));
+		editor.setModel(disposables.add(createTextModel('')));
+		editor.layout({ width: 400, height: 64 });
+		editor.render(true);
+
+		const targets: { type: MouseTargetType; position: Position | null }[] = [];
+		disposables.add(editor.onMouseDown(e => targets.push({ type: e.target.type, position: e.target.position })));
+
+		// The empty line spans vertical offsets 12 to 32 of an editor at a fractional page offset. Chromium
+		// paints and hit tests the composited lines layer at whole pixels, so at the first whole pixel after
+		// the line it hits the `.view-lines` container. The editor's unrounded mouse math still maps that
+		// pixel into the line, where hit testing an empty line finds no text.
+		const viewLines = container.querySelector<HTMLElement>('.view-lines')!;
+		const editorRect = container.querySelector('.monaco-editor')!.getBoundingClientRect();
+		const init: MouseEventInit = { bubbles: true, cancelable: true, button: 0, detail: 1, clientX: Math.round(editorRect.left + 200), clientY: Math.floor(editorRect.top + 32) };
+		viewLines.dispatchEvent(new MouseEvent('mousedown', { ...init, buttons: 1 }));
+		viewLines.dispatchEvent(new PointerEvent('pointerup', init));
+		viewLines.dispatchEvent(new MouseEvent('mouseup', init));
+
+		assert.deepStrictEqual(targets, [{ type: MouseTargetType.CONTENT_EMPTY, position: new Position(1, 1) }]);
+	});
+
+	test('issue #271597: an overflowing content widget as wide as the window keeps clear of both window edges', () => {
+		const container = document.createElement('div');
+		container.style.position = 'fixed';
+		container.style.top = '0';
+		container.style.left = '0';
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const windowWidth = mainWindow.innerWidth;
+		const instantiationService = createCodeEditorServices(disposables);
+		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, { fixedOverflowWidgets: true, minimap: { enabled: false } }, { contributions: [] }));
+		editor.setModel(disposables.add(createTextModel('line1\nline2\nline3')));
+		editor.layout({ width: windowWidth, height: 200 });
+
+		const widgetNode = document.createElement('div');
+		widgetNode.style.width = `${windowWidth}px`;
+		widgetNode.style.height = '20px';
+		editor.addContentWidget({
+			getId: () => 'test.wideOverflowingContent',
+			allowEditorOverflow: true,
+			getDomNode: () => widgetNode,
+			getPosition: () => ({ position: new Position(2, 1), preference: [ContentWidgetPositionPreference.BELOW] })
+		});
+		editor.render(true);
+
+		const rect = widgetNode.getBoundingClientRect();
+		assert.deepStrictEqual({ left: rect.left, right: rect.right }, { left: 15, right: windowWidth - 15 });
 	});
 
 });

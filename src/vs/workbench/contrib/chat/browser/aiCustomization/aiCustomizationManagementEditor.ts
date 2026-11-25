@@ -61,6 +61,7 @@ import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizat
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { createInstalledPluginItem, McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
+import { PluginMarketplacesWidget } from './pluginMarketplacesWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import {
@@ -415,6 +416,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private listWidgetSectionLoad: Promise<void> = Promise.resolve();
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
+	private pluginMarketplacesWidget: PluginMarketplacesWidget | undefined;
+	private pluginMarketplacesVisible = false;
 	private modelsWidget: ChatModelsWidget | undefined;
 	private toolsListWidget: ToolsListWidget | undefined;
 	private promptsContentContainer!: HTMLElement;
@@ -757,7 +760,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 						this.mcpListWidget?.layout(height - 8, width - 16);
 					}
 					if (this.pluginContentContainer?.style.display !== 'none') {
-						this.pluginListWidget?.layout(height - 8, width - 16);
+						if (this.pluginMarketplacesVisible) {
+							this.pluginMarketplacesWidget?.layout(height - 8, width - 16);
+						} else {
+							this.pluginListWidget?.layout(height - 8, width - 16);
+						}
 					}
 					if (this.toolsContentContainer?.style.display !== 'none') {
 						this.toolsListWidget?.layout(height - 8, width - 16);
@@ -1397,6 +1404,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginContentContainer = DOM.append(contentInner, $('.plugin-content-container'));
 			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget, undefined));
 			this.pluginContentContainer.appendChild(this.pluginListWidget.element);
+			this.pluginMarketplacesWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginMarketplacesWidget, () => {
+				this.selectSectionById(AICustomizationManagementSection.Plugins);
+				this.pluginListWidget?.focusManageMarketplaces();
+			}));
+			this.pluginContentContainer.appendChild(this.pluginMarketplacesWidget.element);
+			this.pluginMarketplacesWidget.element.style.display = 'none';
 
 			// Embedded plugin detail view
 			this.pluginDetailContainer = DOM.append(contentInner, $('.plugin-detail-container'));
@@ -3778,6 +3791,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Navigates to the welcome page (no section selected).
 	 */
 	public showWelcomePage(options?: { resetFilters?: boolean; preserveFocus?: boolean }): void {
+		this.pluginMarketplacesVisible = false;
 		if (this.viewMode === 'marketplaceDetail') {
 			this.goBackFromMarketplaceDetail(options?.preserveFocus);
 		}
@@ -3849,6 +3863,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.ensureSectionsListReflectsActiveSection(section);
 			return;
 		}
+		this.pluginMarketplacesVisible = false;
 
 		this.telemetryService.publicLog2<CustomizationEditorSectionChangedEvent, CustomizationEditorSectionChangedClassification>('chatCustomizationEditor.sectionChanged', {
 			section,
@@ -3918,7 +3933,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (section === AICustomizationManagementSection.McpServers) {
 			this.mcpListWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
+			if (this.pluginMarketplacesVisible) {
+				this.pluginMarketplacesWidget?.focus();
+			} else {
+				this.pluginListWidget?.focusSearch();
+			}
 		} else if (section === AICustomizationManagementSection.Models) {
 			this.modelsWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Tools) {
@@ -4020,7 +4039,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.pluginContentContainer) {
 			this.pluginContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection ? '' : 'none';
 		}
-		this.pluginListWidget?.setVisible(!isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection);
+		const pluginsVisible = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection;
+		if (this.pluginListWidget) {
+			this.pluginListWidget.element.style.display = pluginsVisible && !this.pluginMarketplacesVisible ? '' : 'none';
+			this.pluginListWidget.setVisible(pluginsVisible && !this.pluginMarketplacesVisible);
+		}
+		this.pluginMarketplacesWidget?.setVisible(pluginsVisible && this.pluginMarketplacesVisible);
 		if (this.pluginDetailContainer) {
 			this.pluginDetailContainer.style.display = isPluginDetailMode ? '' : 'none';
 		}
@@ -4324,6 +4348,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.cancelCustomizationMigrationRefresh();
 		this.disposeBuiltinEditingSessions();
 		this.welcomePage?.setVisible(false);
+		this.pluginMarketplacesVisible = false;
+		this.pluginMarketplacesWidget?.setVisible(false);
 		for (const [section, widget] of [...this.contributedSectionWidgets]) {
 			widget.setVisible?.(false);
 			this.disposeContributedSectionWidget(section);
@@ -4343,6 +4369,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpInstallPage.clear();
 		}
 		this.welcomePage?.setVisible(visible && this.viewMode === 'list' && this.selectedSection === undefined);
+		this.pluginMarketplacesWidget?.setVisible(visible && this.pluginMarketplacesVisible && this.viewMode === 'list' && this.selectedSection === AICustomizationManagementSection.Plugins);
 		for (const [section, widget] of this.contributedSectionWidgets) {
 			widget.setVisible?.(visible && this.viewMode === 'list' && this.selectedSection === section && this.isContributedSectionEnabled(section));
 		}
@@ -4459,6 +4486,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Selects a specific section programmatically.
 	 */
 	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): boolean {
+		this.pluginMarketplacesVisible = false;
 		if (this.showMarketplaceInDiscover(sectionId, options)) {
 			return true;
 		}
@@ -4515,6 +4543,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return true;
 		}
 		return false;
+	}
+
+	public showPluginMarketplaces(): void {
+		if (!this.selectSectionById(AICustomizationManagementSection.Plugins, { preserveFocus: true })) {
+			return;
+		}
+		this.pluginMarketplacesVisible = true;
+		this.updateContentVisibility();
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		this.pluginMarketplacesWidget?.focus();
+	}
+
+	public getPluginMarketplacesWidget(): PluginMarketplacesWidget | undefined {
+		return this.pluginMarketplacesVisible && this.viewMode === 'list' && this.selectedSection === AICustomizationManagementSection.Plugins
+			? this.pluginMarketplacesWidget : undefined;
 	}
 
 	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): boolean {

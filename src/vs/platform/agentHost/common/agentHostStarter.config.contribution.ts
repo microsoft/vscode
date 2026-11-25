@@ -15,11 +15,11 @@ import {
 	AgentHostAgentOrchestrationLimitsSettingId,
 	AgentHostSessionModelOptionsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
+	AgentHostGitCoalesceReadsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	CanvasesEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostBrowserUseEnabledSettingId,
-	AgentHostComputerUseEnabledSettingId,
 	AgentHostMcpToolRoutingEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
@@ -49,13 +49,13 @@ import {
 	AgentHostSessionModelOptionsConfigKey,
 	agentHostSessionModelOptionsValues,
 	AgentHostAutoAttachPullRequestsConfigKey,
+	AgentHostGitCoalesceReadsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostByokModelsEnabledDefault,
 	AgentHostCanvasesEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostBrowserUseEnabledConfigKey,
-	AgentHostComputerUseEnabledConfigKey,
 	AgentHostMcpToolRoutingEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostOverlapProviderPreparationConfigKey,
@@ -69,6 +69,7 @@ import {
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from './agentHostChatProviders.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
+import { computerUseConfigurationProperties } from './computerUseConfiguration.js';
 import { chatMoveConfigurationProperties } from './chatMoveConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
@@ -277,6 +278,15 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostAutoAttachPullRequestsConfigKey },
 		},
+		[AgentHostGitCoalesceReadsSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.git.coalesceReads', "Controls whether the Agent Host shares one process between identical read-only git commands that run at the same time, and limits how many read-only git commands run at once. This reduces git process pile-ups and timeouts when many sessions refresh together."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostGitCoalesceReadsConfigKey },
+		},
 		[AgentHostMarkdownPlanRichLinksEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.markdownPlanRichLinks', "When enabled, agents receive guidance for using rich links to issues, pull requests, commits, sessions, and chats, plus running task markers, when creating or editing Markdown plan documents."),
@@ -373,14 +383,7 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostGitHubMcpServerEnabledConfigKey },
 		},
-		[AgentHostComputerUseEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.computerUse.enabled', "When enabled, local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin, which can operate desktop applications. The plugin is downloaded on first use. Turn it on with `/computer on` in a Copilot chat, or when the agent asks. Each application still requires your approval. Changes take effect after a restart."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'startup' },
-			agentHost: { key: AgentHostComputerUseEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
-		},
+		...computerUseConfigurationProperties,
 		[AgentHostBrowserUseEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.browserUse.enabled', "When enabled, local Copilot agent sessions offer GitHub's Browser Use plugin, which can operate pages in Google Chrome or Microsoft Edge through the [GitHub Copilot browser extension](https://chromewebstore.google.com/detail/github-copilot/hblomdgalaelcilcdepgohfcogjiijhe). Turn it on with `/plugin enable browser-use` in a Copilot chat, then run `/browser-use:doctor` to check your setup. Requires Node.js 22 or later on your `PATH`. Changes take effect after a restart."),

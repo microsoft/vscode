@@ -43,6 +43,8 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { AgentMergeController } from '../../node/agentMergeController.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
+import { IAgentHostPullRequestAutopilotService } from '../../node/agentHostPullRequestAutopilot.js';
+import { AgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -1233,7 +1235,7 @@ suite('AgentMergeController', () => {
 
 	test('Create PR with Agent Merge binds the new pull request rather than an earlier one', () => {
 		const { stateManager, configurationService, session } = createControllerHarness(disposables);
-		const contribution = disposables.add(new PullRequestChatContribution(new class extends mock<IAgentHostChatContributionContext>() { }(), configurationService, stateManager));
+		const contribution = disposables.add(new PullRequestChatContribution(new class extends mock<IAgentHostChatContributionContext>() { }(), configurationService, stateManager, new class extends mock<IAgentHostPullRequestAutopilotService>() { }(), disposables.add(new AgentHostArtifactEventService()), new NullLogService()));
 		const chat = buildDefaultChatUri(session);
 		const repoKey = getWorkingDirectoryKey(REPOSITORY);
 		configurationService.updateSessionConfig(session, {
@@ -1331,7 +1333,7 @@ suite('AgentMergeController', () => {
 
 	test('PR chat preparation cannot capture the base branch or widen foreground permissions', async () => {
 		const { stateManager, configurationService, gitService, session } = createControllerHarness(disposables);
-		const contribution = disposables.add(new PullRequestChatContribution(new class extends mock<IAgentHostChatContributionContext>() { }(), configurationService, stateManager));
+		const contribution = disposables.add(new PullRequestChatContribution(new class extends mock<IAgentHostChatContributionContext>() { }(), configurationService, stateManager, new class extends mock<IAgentHostPullRequestAutopilotService>() { }(), disposables.add(new AgentHostArtifactEventService()), new NullLogService()));
 		const chat = buildDefaultChatUri(session);
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.Mode]: 'interactive',
