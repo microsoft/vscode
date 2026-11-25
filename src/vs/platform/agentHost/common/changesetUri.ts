@@ -6,6 +6,7 @@
 import { localize } from '../../../nls.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { URI as ResourceURI } from '../../../base/common/uri.js';
+import { getBaseBranchLabel } from './agentHostGitService.js';
 import { readAgentMergeFolderState } from './agentMerge.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
@@ -104,10 +105,11 @@ const agentMergeChangesetLabel = (): string => localize('agentMergeChangeset.lab
 const agentMergeChangesetDescription = (): string => localize('agentMergeChangeset.description', "Show changes made by Agent Merge since the last user message");
 
 /**
- * Describes Branch Changes using the explicitly resolved base rather than inferring it from Git state.
+ * Describes Branch Changes using the explicitly resolved base rather than inferring it from Git state, shown as
+ * {@link getBaseBranchLabel} shows it.
  */
-export function formatBranchChangesetDescription(branchName: string | undefined, baseBranchName: string | undefined): string | undefined {
-	return branchName && baseBranchName ? `${branchName} → ${baseBranchName}` : branchName;
+export function formatBranchChangesetDescription(branchName: string | undefined, baseBranch: string | undefined): string | undefined {
+	return branchName && baseBranch ? `${branchName} → ${getBaseBranchLabel(baseBranch)}` : branchName;
 }
 
 /** Marker injected into a changeset URI's path. */

@@ -586,24 +586,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { activeRepositoryName: activeRepositoryName ?? null });
 	}
 
-	private _isHidden: boolean;
-
-	get isHidden(): boolean {
-		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
-		return this._isHidden;
-	}
-
-	set isHidden(isHidden: boolean) {
-		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
-
-		if (this._isHidden === isHidden) {
-			return;
-		}
-
-		this._isHidden = isHidden;
-		this._setHidden(this.handle, isHidden);
-	}
-
 	private _contextValue: string | undefined = undefined;
 
 	get contextValue(): string | undefined {
@@ -855,12 +837,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _label: string,
 		private _rootUri?: vscode.Uri,
 		_iconPath?: vscode.IconPath,
-		_isHidden?: boolean,
-		_parent?: ExtHostSourceControl,
-		private readonly _setHidden: (handle: number, isHidden: boolean) => void = () => { }
+		_parent?: ExtHostSourceControl
 	) {
 		this.#proxy = proxy;
-		this._isHidden = !!_isHidden;
 
 		const inputBoxDocumentUri = URI.from({
 			scheme: Schemas.vscodeSourceControl,
@@ -869,10 +848,12 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		});
 
 		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
-		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), _isHidden, inputBoxDocumentUri);
+		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), inputBoxDocumentUri);
 
 		this.onDidDisposeParent = _parent ? _parent.onDidDispose : Event.None;
 	}
+
+	private _isDisposed = false;
 
 	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
@@ -882,13 +863,31 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		const group = new ExtHostSourceControlResourceGroup(this.#proxy, this._commands, this.handle, id, label, multiDiffEditorEnableViewChanges, this._extension);
 		const disposable = Event.once(group.onDidDispose)(() => this.createdResourceGroups.delete(group));
 		this.createdResourceGroups.set(group, disposable);
+		queueMicrotask(() => this.addResourceGroupsWithResourceStates());
 		this.eventuallyAddResourceGroups();
 		return group;
 	}
 
+	/**
+	 * Adds the created groups once the code that creates them has run, if it gave any of them resource states, so that
+	 * a source control created from a known state, such as a repository that is shown again, shows its resources with
+	 * its input box.
+	 */
+	private addResourceGroupsWithResourceStates(): void {
+		if ([...this.createdResourceGroups.keys()].some(group => group.resourceStates.length > 0)) {
+			this.addResourceGroups();
+		}
+	}
+
+	/**
+	 * Adds the groups created without resource states 100 ms after their creation, with the resource states that they
+	 * got by then, such as from a first status, so that they are not shown empty first. Sends the resource states that
+	 * the groups added at once got by then too.
+	 */
 	@debounce(100)
 	eventuallyAddResourceGroups(): void {
 		this.addResourceGroups();
+		this.updateResourceStates();
 	}
 
 	private addResourceGroups(): void {
@@ -911,7 +910,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				this.updatedResourceGroups.delete(group);
 				updateListener.dispose();
 				this._groups.delete(group.handle);
-				this.#proxy.$unregisterGroup(this.handle, group.handle);
+
+				// The groups of a source control that is disposed are removed with it
+				if (!this._isDisposed) {
+					this.#proxy.$unregisterGroup(this.handle, group.handle);
+				}
 			});
 
 			groups.push([group.handle, group.id, group.label, group.features, group.multiDiffEditorEnableViewChanges]);
@@ -954,15 +957,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.updatedResourceGroups.clear();
 	}
 
-	/**
-	 * Sends the resource groups and resource states that are waiting to be sent right away,
-	 * for example before the source control is shown.
-	 */
-	flushResourceUpdates(): void {
-		this.addResourceGroups();
-		this.updateResourceStates();
-	}
-
 	getResourceGroup(handle: GroupHandle): ExtHostSourceControlResourceGroup | undefined {
 		return this._groups.get(handle);
 	}
@@ -993,6 +987,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	dispose(): void {
+		this._isDisposed = true;
 		this._acceptInputDisposables.dispose();
 		this._actionButtonDisposables.dispose();
 		this._statusBarDisposables.dispose();
@@ -1069,34 +1064,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	private readonly _pendingHidden = new Map<number, boolean>();
-
-	/**
-	 * Sends the visibility changes of the source controls made in the same tick together, so that
-	 * showing one source control and hiding another one is a single change of the views.
-	 */
-	private setSourceControlHidden(handle: number, isHidden: boolean): void {
-		const isScheduled = this._pendingHidden.size > 0;
-		this._pendingHidden.set(handle, isHidden);
-
-		if (!isScheduled) {
-			queueMicrotask(() => {
-				const changes = [...this._pendingHidden];
-				this._pendingHidden.clear();
-
-				// A source control that is shown has its resources before it appears
-				for (const [handle, isHidden] of changes) {
-					if (!isHidden) {
-						this._sourceControls.get(handle)?.flushResourceUpdates();
-					}
-				}
-
-				this._proxy.$setSourceControlsHidden(changes);
-			});
-		}
-	}
-
-	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, isHidden: boolean | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
+	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		type TEvent = { extensionId: string };
@@ -1110,7 +1078,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const parentSourceControl = parent ? Iterable.find(this._sourceControls.values(), s => s === parent) : undefined;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, isHidden, parentSourceControl, (handle, isHidden) => this.setSourceControlHidden(handle, isHidden));
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, parentSourceControl);
 		this._sourceControls.set(sourceControl.handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];

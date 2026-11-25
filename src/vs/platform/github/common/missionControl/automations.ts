@@ -364,6 +364,9 @@ export interface IAutomationsClient {
 	/** GET /agents/repos/{owner}/{repo}/automations/{automation_id}: get a user- or repository-owned automation. */
 	get(repository: RepositoryRef, automationId: string, cancellationToken: CancellationToken, options?: GetAutomationOptions): Promise<AutomationDetail>;
 
+	/** Reads the configured prompt from the immutable snapshot of one automation revision. */
+	getRevisionPrompt(repository: RepositoryRef, automationId: string, revisionId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<string>;
+
 	/** GET /agents/repos/{owner}/{repo}/automations/configuration: read caller-specific configuration, including when automations are disabled. */
 	getConfiguration(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration>;
 

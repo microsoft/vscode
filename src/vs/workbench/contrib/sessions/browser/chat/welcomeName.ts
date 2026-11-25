@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { asGitHubAccount } from '../../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -66,7 +67,7 @@ export class WelcomeName extends Disposable {
 			return;
 		}
 
-		const account = this.defaultAccountService.currentDefaultAccount ?? await this.defaultAccountService.getDefaultAccount();
+		const account = asGitHubAccount(this.defaultAccountService.currentDefaultAccount ?? await this.defaultAccountService.getDefaultAccount());
 		if (!this.enabled.get() || getConfiguredWelcomeName(this.configurationService)) {
 			this._githubProfileAccountKey = undefined;
 			this._githubProfileName.set(undefined, undefined);
@@ -94,7 +95,7 @@ export class WelcomeName extends Disposable {
 			githubProfileNames.set(accountKey, profileName);
 		}
 		const resolvedProfileName = await profileName;
-		const currentAccount = this.defaultAccountService.currentDefaultAccount;
+		const currentAccount = asGitHubAccount(this.defaultAccountService.currentDefaultAccount);
 		if (
 			!this._store.isDisposed
 			&& this._githubProfileAccountKey === accountKey

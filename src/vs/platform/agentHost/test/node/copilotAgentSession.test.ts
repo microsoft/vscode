@@ -1530,6 +1530,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	platform?: NodeJS.Platform;
 	githubToken?: string;
 	githubCredentials?: CopilotGitHubSessionCredentials;
+	accountContext?: CopilotSessionLaunchPlan['accountContext'];
 	copilotApiEndpoint?: string;
 	gitService?: IAgentHostGitService;
 	gitHubEndpointService?: IAgentHostGitHubEndpointService;
@@ -1670,6 +1671,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		snapshot: options?.clientSnapshot ?? { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		shellManager: options?.shellManager,
 		githubCredentials: options?.githubCredentials ?? CopilotGitHubSessionCredentials.fromToken(options?.githubToken),
+		accountContext: options?.accountContext,
 		isEphemeral: options?.isEphemeral,
 		disabledRootMcpServers: options?.disabledRootMcpServers,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
@@ -4444,6 +4446,15 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('a session signed in with a Microsoft account takes no GitHub token replacement', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+			accountContext: { kind: 'ready' } as CopilotSessionLaunchPlan['accountContext'],
+		});
+		await assert.rejects(session.updateGitHubCredentials('github.com', 'token'), /isolated/);
+		assert.deepStrictEqual({ staticToken: session.usesStaticGitHubToken, updates: mockSession.gitHubCredentialUpdates }, { staticToken: false, updates: [] });
+	});
+
 	test('client-owned GitHub credentials reject global token replacement while allowing BYOK', async () => {
 		const provider = { name: 'private-provider', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/private-provider', bearerToken: 'nonce.test-session-1' };
 		const model = { id: 'model', provider: provider.name };
@@ -6385,6 +6396,169 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(results, [
 				{ trigger: 'restore', outcome: 'opened', askedForConsent: true },
 				{ trigger: 'restore', outcome: 'consentDenied', askedForConsent: true },
+			]);
+		});
+
+		test('reports that restoring a canvas asked for the consent of another extension its start waited for, which a client open showed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const telemetryService = new CapturingTelemetryService();
+			const otherAnswer = new DeferredPromise<PermissionRequestResult>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				telemetryService,
+				configureMockSession: mock => {
+					mock.extensions.push({ id: preview.extensionId, name: 'preview', source: 'project', status: 'dormant' });
+					// The runtime does not finish starting an extension while another one waits for consent.
+					mock.onCanvasOpen = async () => {
+						await otherAnswer.p;
+						return { ...preview, url: 'https://example.test/reopened' };
+					};
+				},
+			});
+			void replacement.runtime.handlePermissionRequest({ kind: 'extension-permission-access', extensionName: 'user:pr-health', capabilities: ['register hooks'] }).then(result => otherAnswer.complete(result));
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			const request = { canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId };
+			const asked = await replacement.session.openCanvas(request);
+			const opened = asked.kind === 'consentRequired'
+				? await replacement.session.openCanvas(request, { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow })
+				: asked;
+			await retry(async () => assert.strictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.canvasHostOpen').length, 2), 10, 100);
+
+			assert.deepStrictEqual({
+				askedFor: asked.kind === 'consentRequired' ? asked.consent.extensionName : asked.kind,
+				opened,
+				reports: telemetryService.events.filter(event => event.eventName === 'agentHost.canvasHostOpen').map(event => {
+					const { trigger, outcome, askedForConsent } = event.data as ICanvasHostOpenEvent;
+					return { trigger, outcome, askedForConsent };
+				}).sort((a, b) => a.trigger.localeCompare(b.trigger)),
+				// The canvas keeps its lifetime while it waits.
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				askedFor: 'user:pr-health',
+				opened: { kind: 'opened' },
+				reports: [
+					{ trigger: 'restore', outcome: 'opened', askedForConsent: true },
+					{ trigger: 'user', outcome: 'opened', askedForConsent: true },
+				],
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('waits for the restore of a canvas a client opens instead of opening it again, and does not desynchronize when the restore is slow', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				controlPlaneRpcTimeoutMs: 20,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(0);
+			const opened = await replacement.session.openCanvas({ canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId });
+			const desynchronized = replacement.session.requiresControlPlaneResync;
+			// The runtime still reports the restore once the provider has started.
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/late' });
+			reopen.complete({ ...preview, url: 'https://example.test/late' });
+
+			assert.deepStrictEqual({ opened, desynchronized, runtimeOpens: replacement.mockSession.canvasOpenCalls.length, ...summarizeCanvasSignals(replacement.signals) }, {
+				opened: { kind: 'failed', failure: 'unavailable' },
+				desynchronized: false,
+				runtimeOpens: 1,
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/late' }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('restores a canvas whose client answers its consent after the restore deadline, and reports a restore an opened event already showed as opened', async () => {
+			const results = [];
+			for (const scenario of ['late consent answer', 'opened event before the open resolves'] as const) {
+				const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+				const otherAnswer = new DeferredPromise<PermissionRequestResult>();
+				const replacement = await createAgentSession(disposables, {
+					resume: true,
+					canvasHandoff: handoff,
+					controlPlaneRpcTimeoutMs: 20,
+					configureMockSession: mock => {
+						mock.extensions.push({ id: preview.extensionId, name: 'preview', source: 'project', status: 'dormant' });
+						mock.onCanvasOpen = async () => {
+							await otherAnswer.p;
+							if (scenario === 'opened event before the open resolves') {
+								mock.fire('session.canvas.opened', { ...preview, url: 'https://example.test/event' });
+							}
+							return { ...preview, url: 'https://example.test/reopened' };
+						};
+					},
+				});
+				void replacement.runtime.handlePermissionRequest({ kind: 'extension-permission-access', extensionName: 'user:pr-health', capabilities: ['register hooks'] }).then(result => otherAnswer.complete(result));
+				assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+				await timeout(0);
+				const request = { canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId };
+				const asked = await replacement.session.openCanvas(request);
+				if (scenario === 'late consent answer') {
+					// The person answers after the restore's bounded wait would have ended.
+					await timeout(60);
+				}
+				const opened = asked.kind === 'consentRequired'
+					? await replacement.session.openCanvas(request, { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow })
+					: asked;
+				results.push({ scenario, opened, url: summarizeCanvasSignals(replacement.signals).states.at(-1)?.url, desynchronized: replacement.session.requiresControlPlaneResync });
+				replacement.session.dispose();
+			}
+
+			assert.deepStrictEqual(results, [
+				{ scenario: 'late consent answer', opened: { kind: 'opened' }, url: 'https://example.test/reopened', desynchronized: false },
+				{ scenario: 'opened event before the open resolves', opened: { kind: 'opened' }, url: 'https://example.test/event', desynchronized: false },
+			]);
+		});
+
+		test('reopens a restoring canvas a client opens with its input, unless it was closed while the open waited for consent', async () => {
+			const input = { path: '/logs/events.jsonl' };
+			const results = [];
+			for (const closeWhileWaiting of [false, true]) {
+				const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, input, url: 'https://example.test/previous' });
+				const otherAnswer = new DeferredPromise<PermissionRequestResult>();
+				const replacement = await createAgentSession(disposables, {
+					resume: true,
+					canvasHandoff: handoff,
+					configureMockSession: mock => {
+						mock.extensions.push({ id: preview.extensionId, name: 'preview', source: 'project', status: 'dormant' });
+						mock.onCanvasOpen = async params => {
+							await otherAnswer.p;
+							return { ...preview, input: params.input, url: 'https://example.test/reopened' };
+						};
+					},
+				});
+				void replacement.runtime.handlePermissionRequest({ kind: 'extension-permission-access', extensionName: 'user:pr-health', capabilities: ['register hooks'] }).then(result => otherAnswer.complete(result));
+				assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+				const request = { canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId };
+				const asked = await replacement.session.openCanvas(request);
+				if (closeWhileWaiting) {
+					await replacement.session.closeCanvas({ resource: handoff.projections[0].resource });
+				}
+				const opened = asked.kind === 'consentRequired'
+					? await replacement.session.openCanvas(request, { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow })
+					: asked;
+				await timeout(0);
+				results.push({
+					opened,
+					openInputs: replacement.mockSession.canvasOpenCalls.map(call => call.input),
+					members: summarizeCanvasSignals(replacement.signals).membership.at(-1)?.length,
+				});
+				replacement.session.dispose();
+			}
+
+			assert.deepStrictEqual(results, [
+				{ opened: { kind: 'opened' }, openInputs: [input], members: 1 },
+				{ opened: { kind: 'failed', failure: 'dismissed' }, openInputs: [input], members: 0 },
 			]);
 		});
 

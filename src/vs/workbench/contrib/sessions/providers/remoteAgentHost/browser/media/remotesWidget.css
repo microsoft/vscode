@@ -442,7 +442,7 @@
 	color: var(--vscode-charts-blue);
 }
 
-:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.offline > .codicon {
+:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator:is(.stopped, .offline) > .codicon {
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -834,8 +834,21 @@
 	overflow-wrap: anywhere;
 }
 
+/* The name leads: when the name doesn't fit, its indicators give way first, down to one icon. Wrapping hides the icons that don't fit whole. */
+.remotes-widget .remotes-name-indicators {
+	display: flex;
+	flex-wrap: wrap;
+	align-content: flex-start;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 100000;
+	min-width: var(--vscode-codiconFontSize, 16px);
+	height: var(--vscode-codiconFontSize, 16px);
+	overflow: hidden;
+}
+
 .remotes-widget .remotes-github-environment,
-.remotes-widget .remotes-server-update {
+.remotes-widget .remotes-server-update,
+.remotes-widget .remotes-picker-hidden {
 	display: flex;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
@@ -918,8 +931,10 @@
 }
 
 .remotes-widget .remotes-group-count[hidden],
+.remotes-widget .remotes-name-indicators[hidden],
 .remotes-widget .remotes-github-environment[hidden],
 .remotes-widget .remotes-server-update[hidden],
+.remotes-widget .remotes-picker-hidden[hidden],
 .remotes-widget .remotes-empty-signin[hidden],
 .remotes-widget .remotes-signin-progress[hidden],
 .remotes-widget .remotes-refresh-warning[hidden],

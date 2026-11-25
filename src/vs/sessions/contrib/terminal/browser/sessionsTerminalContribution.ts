@@ -393,7 +393,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 	/**
 	 * Gives the active session the terminal it skipped while the terminal view
-	 * was hidden, reusing a terminal in its cwd when there is one.
+	 * was hidden, reusing a terminal in its cwd when there is one. Opening the
+	 * view keeps the active terminal when it is one of the session's, such as
+	 * the terminal of a task that opened the view.
 	 */
 	private async _onTerminalViewShown(): Promise<ISession | undefined> {
 		const session = this._mainWindowHost.session.get();
@@ -403,7 +405,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._activeKey = undefined;
 		this._activeAgentHostAddress = undefined;
 		this._activeSessionId = undefined;
-		await this._onActiveSessionChanged(session, this._mainWindowHost.chat.get());
+		await this._onActiveSessionChanged(session, this._mainWindowHost.chat.get(), undefined, true);
 		return session;
 	}
 
@@ -600,7 +602,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return cwd?.scheme === Schemas.file ? { cwd, agentHostCwd: cwd } : undefined;
 	}
 
-	private async _onActiveSessionChanged(session: ISession | undefined, chat: IChat | undefined, info = this._getActiveSessionTerminalInfo(session, chat)): Promise<void> {
+	private async _onActiveSessionChanged(session: ISession | undefined, chat: IChat | undefined, info = this._getActiveSessionTerminalInfo(session, chat), keepActiveTerminal = false): Promise<void> {
 		if (!session) {
 			return;
 		}
@@ -643,7 +645,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (this._activeKey !== targetKey || this._activeAgentHostAddress !== targetAgentHostAddress || this._activeSessionId !== session.sessionId) {
 				return;
 			}
-			await this._updateTerminalVisibility(session, targetKey, targetAgentHostAddress, instances.map(instance => instance.instanceId));
+			await this._updateTerminalVisibility(session, targetKey, targetAgentHostAddress, instances.map(instance => instance.instanceId), keepActiveTerminal);
 		} finally {
 			this._endTerminalOperation(session.sessionId);
 		}
@@ -664,7 +666,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				continue;
 			}
 			try {
-				const cwd = await instance.getInitialCwd();
+				const cwd = await this._getInitialCwd(instance);
 				if (cwd.toLowerCase() === key) {
 					result.push(instance);
 				}
@@ -673,6 +675,14 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * The working directory `instance` started in. Until the shell of an Agent Host terminal starts, such as that of a
+	 * task that opens the terminal view, its host has not reported one yet: the one it was created to start in, then.
+	 */
+	private async _getInitialCwd(instance: ITerminalInstance): Promise<string> {
+		return await instance.getInitialCwd() || (this._agentHostTerminalService.getRequestedCwd(instance)?.fsPath ?? '');
 	}
 
 	private _trackTerminalsForSession(sessionId: string, instances: readonly ITerminalInstance[], scope?: ITrackedTerminalScope): void {
@@ -865,13 +875,13 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			return false;
 		}
 		try {
-			return (await instance.getInitialCwd()).toLowerCase() === key;
+			return (await this._getInitialCwd(instance)).toLowerCase() === key;
 		} catch {
 			return false;
 		}
 	}
 
-	private async _updateTerminalVisibility(activeSession: ISession, activeKey: string, activeAgentHostAddress: string | undefined, forceForegroundTerminalIds: number[]): Promise<void> {
+	private async _updateTerminalVisibility(activeSession: ISession, activeKey: string, activeAgentHostAddress: string | undefined, forceForegroundTerminalIds: number[], keepActiveTerminal = false): Promise<void> {
 		const toShow: ITerminalInstance[] = [];
 		const toHide: ITerminalInstance[] = [];
 		const trackedTerminalIds = new Set(this._getTrackedTerminalsForSession(activeSession.sessionId).map(instance => instance.instanceId));
@@ -914,8 +924,14 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}
 
-		// Set the terminal with the most recent command as active
+		// Set the terminal with the most recent command as active, unless the terminal view
+		// opens on one of the session's terminals, such as that of a task that opened it.
 		const foreground = this._terminalService.foregroundInstances;
+		const activeInstance = this._terminalService.activeInstance;
+		if (keepActiveTerminal && activeInstance && foreground.includes(activeInstance) && !this._chatWindowTerminalIds.has(activeInstance.instanceId)
+			&& await this._terminalMatchesScope(activeInstance, activeKey, activeAgentHostAddress)) {
+			return;
+		}
 		let mostRecent: ITerminalInstance | undefined;
 		let mostRecentTimestamp = -1;
 		for (const instance of foreground) {
