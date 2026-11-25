@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
 import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
@@ -1999,6 +1999,39 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				git.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/locked', track: false }),
 				/Another Git process is using the repository\. If no Git process is running, delete the lock file '[^']+[\\/]refs[\\/]heads[\\/]agents[\\/]locked\.lock'\./,
 			);
+		} finally {
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('worktree creation and recreation keep Git LFS pointer files when git-lfs is missing', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' });
+		const pointer = `version https://git-lfs.github.com/spec/v1\noid sha256:${'0'.repeat(64)}\nsize 1\n`;
+		writeFileSync(join(dir, '.gitattributes'), '*.bin filter=lfs diff=lfs merge=lfs -text\n');
+		writeFileSync(join(dir, 'large.bin'), pointer);
+		run('-c', 'filter.lfs.process=', '-c', 'filter.lfs.clean=', '-c', 'filter.lfs.required=false', 'add', '.');
+		run('commit', '-q', '-m', 'add Git LFS pointer');
+		// A repository set up for Git LFS, on a machine where `git-lfs` is missing.
+		run('config', 'filter.lfs.process', '/agent-host-missing-git-lfs/git-lfs filter-process');
+		run('config', 'filter.lfs.required', 'true');
+		writeFileSync(join(dir, '.git', 'hooks', 'post-checkout'), '#!/bin/sh\nprintf >&2 "\\n%s\\n\\n" "This repository is configured for Git LFS but \'git-lfs\' was not found on your path."\nexit 2\n', { mode: 0o755 });
+		const wtPath = join(dir, '..', `wt-lfs-${Date.now()}`);
+		const readWorktree = () => ({
+			pointer: readFileSync(join(wtPath, 'large.bin'), 'utf8'),
+			status: cp.execFileSync('git', ['status', '--porcelain'], { cwd: wtPath, env, encoding: 'utf8' }),
+		});
+
+		try {
+			await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/lfs', track: false });
+			const created = readWorktree();
+			await rmDirWithRetry(wtPath);
+			await svc!.addExistingWorktree(URI.file(dir), URI.file(wtPath), 'agents/lfs');
+
+			assert.deepStrictEqual({ created, recreated: readWorktree() }, {
+				created: { pointer, status: '' },
+				recreated: { pointer, status: '' },
+			});
 		} finally {
 			await rmDirWithRetry(wtPath);
 		}
