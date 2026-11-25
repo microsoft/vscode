@@ -269,6 +269,11 @@ export interface ISessionsProviderCreateSessionOptions {
 	 * for. The session runs in the default folder, or in its worktree, and the others stay attached as they are. Without
 	 * them, the session works in the {@link project}'s folders, or in its folder alone. A provider whose agent cannot
 	 * work in several folders creates the session in the default folder only.
+	 *
+	 * Trust: a trusted default folder does not vouch for the others. When the session's workspace requires trust, the
+	 * provider must not create backend state for the session, nor send its first request, until every folder it works
+	 * in is trusted. The management service checks this itself only for headless creation
+	 * (`ISessionsManagementService.createAndSendNewChatRequest`). Quick chats never get these options.
 	 */
 	readonly folders?: readonly URI[];
 }
@@ -710,6 +715,8 @@ export interface ISessionsProvider {
 	 * Adds a folder for a chat to work in, next to the folders it works in already. Only that chat gets the folder; the
 	 * session's other chats keep theirs. Takes effect from the chat's next request. Supported when
 	 * {@link ISessionCapabilities.supportsChatFolders} is set; rejects otherwise, or when the provider refuses the folder.
+	 * The management service checks that the folder is trusted, when the session's workspace requires trust, before it
+	 * calls this; a provider that adds folders by other routes must check the same.
 	 * @param folder The folder, in the client's URI space.
 	 */
 	addChatFolder?(sessionId: string, chatUri: URI, folder: URI): Promise<void>;

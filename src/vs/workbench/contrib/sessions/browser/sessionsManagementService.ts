@@ -787,6 +787,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * advertised one. Throws when no capable provider/type can be resolved.
 	 */
 	private _resolveProviderForQuickChat(options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string } {
+		if (options?.project || options?.folders) {
+			throw new Error('A quick chat has no folders: it cannot be created in a workspace or in folders.');
+		}
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
 
@@ -1923,6 +1926,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!provider?.addChatFolder || !session.capabilities.get().supportsChatFolders) {
 			throw new Error(`Session ${session.sessionId} does not support adding folders to a chat.`);
 		}
+		// The chat's agent gets access to the folder, which the session's trusted folders do not vouch for
+		if (session.workspace.get()?.requiresWorkspaceTrust !== false && !(await this.workspaceTrustManagementService.getUriTrustInfo(folder)).trusted) {
+			throw new WorkspaceNotTrustedError();
+		}
 		await provider.addChatFolder(session.sessionId, chatUri, folder);
 	}
 
@@ -1930,6 +1937,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const provider = this._getProvider(session);
 		if (!provider?.removeChatFolder || !session.capabilities.get().supportsChatFolders) {
 			throw new Error(`Session ${session.sessionId} does not support removing folders from a chat.`);
+		}
+		const extUri = this.uriIdentityService.extUri;
+		const chat = session.chats.get().find(candidate => extUri.isEqual(candidate.resource, chatUri));
+		const defaultFolder = (chat?.workspace.get() ?? session.workspace.get())?.folders[0];
+		if (defaultFolder && (extUri.isEqual(defaultFolder.root, folder) || extUri.isEqual(defaultFolder.workingDirectory, folder))) {
+			throw new Error(`The default folder of chat ${chatUri.toString()} cannot be removed.`);
 		}
 		await provider.removeChatFolder(session.sessionId, chatUri, folder);
 	}

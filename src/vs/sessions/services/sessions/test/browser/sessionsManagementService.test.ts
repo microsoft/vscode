@@ -7654,23 +7654,84 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('adding and removing a chat\'s folders goes to the provider only for a session that supports chat folders', async () => {
+	test('adding and removing a chat\'s folders goes to the provider only for a session that supports chat folders, adding only a trusted folder and removing any but the default folder', async () => {
 		const chat = URI.parse('test:///chat');
 		const folder = URI.file('/work/vscode-docs');
+		const untrusted = URI.file('/elsewhere');
 		const calls: string[] = [];
 		const provider = new class extends TestSessionsProvider {
 			override async addChatFolder(sessionId: string, _chat: URI, added: URI): Promise<void> { calls.push(`add ${sessionId} ${added.path}`); }
 			override async removeChatFolder(sessionId: string, _chat: URI, removed: URI): Promise<void> { calls.push(`remove ${sessionId} ${removed.path}`); }
 		}(stubSession({ sessionId: 'unused', providerId: 'test' }));
-		const supported = stubSession({ sessionId: 'supported', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: false, supportsChatFolders: true }) });
+		const main = URI.file('/work/vscode');
+		const supported = stubSession({
+			sessionId: 'supported', providerId: 'test',
+			capabilities: constObservable({ supportsMultipleChats: false, supportsChatFolders: true }),
+			workspace: constObservable({ uri: main, label: 'vscode', icon: Codicon.folder, folders: [{ root: main, workingDirectory: main, name: 'vscode', description: undefined }], requiresWorkspaceTrust: true, isVirtualWorkspace: false }),
+		});
 		const unsupported = stubSession({ sessionId: 'unsupported', providerId: 'test' });
-		const { service } = createSessionsManagementService(supported, disposables, provider);
+		const trust = new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: uri.toString() !== untrusted.toString() }; }
+		};
+		const { service } = createSessionsManagementService(supported, disposables, provider, trust);
+		const outcome = (promise: Promise<unknown>) => promise.then(() => 'done', (error: Error) => error instanceof WorkspaceNotTrustedError ? 'untrusted' : 'unsupported');
 
-		await service.addChatFolder(supported, chat, folder);
-		await service.removeChatFolder(supported, chat, folder);
-		const rejected = await service.addChatFolder(unsupported, chat, folder).then(() => false, () => true);
+		const results = [
+			await outcome(service.addChatFolder(supported, chat, folder)),
+			await outcome(service.removeChatFolder(supported, chat, folder)),
+			await outcome(service.addChatFolder(supported, chat, untrusted)),
+			await outcome(service.addChatFolder(unsupported, chat, folder)),
+			// The default folder stays
+			await outcome(service.removeChatFolder(supported, chat, main)),
+		];
 
-		assert.deepStrictEqual({ calls, rejected }, { calls: ['add supported /work/vscode-docs', 'remove supported /work/vscode-docs'], rejected: true });
+		assert.deepStrictEqual({ calls, results }, {
+			calls: ['add supported /work/vscode-docs', 'remove supported /work/vscode-docs'],
+			results: ['done', 'done', 'untrusted', 'unsupported', 'unsupported'],
+		});
+	});
+
+	test('the default folder of a session\'s folders matches the session folder as the file system compares paths, such as a Windows drive letter in another case', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
+				return { uri: folderUri, label: 'vscode', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const lower = URI.parse('file:///c%3A/work/vscode');
+		const upper = URI.parse('file:///C%3A/Work/VSCode');
+
+		let accepted: boolean;
+		try {
+			service.createNewSession(lower, { folders: [upper, URI.parse('file:///c%3A/work/vscode-docs')] });
+			accepted = true;
+		} catch {
+			accepted = false;
+		}
+
+		// File paths ignore case where the platform's file systems do
+		assert.strictEqual(accepted, !isLinux);
+	});
+
+	test('a quick chat cannot be created in a workspace or in folders, and its provider creates nothing', async () => {
+		const main = URI.file('/work/vscode');
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		let created = 0;
+		const provider = new class extends TestSessionsProvider {
+			override createQuickChat(): ISession { created++; return session; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const project = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [main] };
+		const error = (run: () => unknown) => { try { run(); return undefined; } catch (e) { return (e as Error).message; } };
+
+		const errors = [
+			error(() => service.createQuickChat({ project })),
+			error(() => service.createAutomationQuickChat({ folders: [main] })),
+			await service.createAndSendQuickChatRequest({ query: 'hi' }, { folders: [main] }).then(() => undefined, (e: Error) => e.message),
+		];
+
+		assert.deepStrictEqual({ errors, created }, { errors: new Array(3).fill('A quick chat has no folders: it cannot be created in a workspace or in folders.'), created: 0 });
 	});
 
 	test('createAndSendNewChatRequest publishes the session while its first request is in flight', async () => {

@@ -1194,9 +1194,9 @@ export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**
-	 * Whether a chat of this session can add folders to work in, and remove the folders it added, through
-	 * `ISessionsProvider.addChatFolder` and `ISessionsProvider.removeChatFolder`. A chat's default folder (its
-	 * first) is never removed. Defaults to falsy when omitted.
+	 * Whether a chat of this session can add folders to work in, and remove any folder it works in but its default
+	 * folder (its first), through `ISessionsProvider.addChatFolder` and `ISessionsProvider.removeChatFolder`.
+	 * Defaults to falsy when omitted.
 	 */
 	readonly supportsChatFolders?: boolean;
 	/**

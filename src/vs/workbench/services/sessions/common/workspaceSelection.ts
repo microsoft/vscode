@@ -27,9 +27,15 @@ export interface ISelectWorkspaceOptions {
 	readonly selectionOrigin?: WorkspaceSelectionOrigin;
 	/** Only replace an automatic default in a fresh, empty composer. */
 	readonly isDefault?: boolean;
-	/** The workspace to select, whose default folder is the selected folder; without one, the folder is selected on its own. */
+	/**
+	 * The workspace to select. The session works in its folders, whose default (first) folder is the selected folder,
+	 * unless {@link folders} are given. Without a workspace or folders, the selected folder is selected on its own.
+	 */
 	readonly project?: ISessionProject;
-	/** The folders the session works in, the selected folder first; without them, it works in the selected folder only. */
+	/**
+	 * The folders the session works in, the selected folder first. They replace the {@link project}'s folders, whose
+	 * default folder then need not be the selected folder.
+	 */
 	readonly folders?: readonly URI[];
 }
 

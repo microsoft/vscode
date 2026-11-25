@@ -765,10 +765,13 @@ export interface ISessionsManagementService {
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
 
-	/** Adds a folder for a chat to work in. See {@link ISessionsProvider.addChatFolder}. */
+	/**
+	 * Adds a folder for a chat to work in. Rejects with {@link WorkspaceNotTrustedError} when the session's workspace
+	 * requires trust and the folder is not trusted. See {@link ISessionsProvider.addChatFolder}.
+	 */
 	addChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void>;
 
-	/** Removes a folder a chat works in. See {@link ISessionsProvider.removeChatFolder}. */
+	/** Removes a folder a chat works in; rejects for the chat's default folder. See {@link ISessionsProvider.removeChatFolder}. */
 	removeChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void>;
 
 	/** Rename a session, independently of its chats. */
