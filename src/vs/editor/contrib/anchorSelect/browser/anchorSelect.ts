@@ -11,7 +11,7 @@ import './anchorSelect.css';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { Selection } from '../../../common/core/selection.js';
-import { IEditorContribution } from '../../../common/editorCommon.js';
+import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { TrackedRangeStickiness } from '../../../common/model.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -20,7 +20,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 
 export const SelectionAnchorSet = new RawContextKey('selectionAnchorSet', false);
 
-class SelectionAnchorController implements IEditorContribution {
+export class SelectionAnchorController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.selectionAnchorController';
 
@@ -66,7 +66,9 @@ class SelectionAnchorController implements IEditorContribution {
 		if (this.editor.hasModel() && this.decorationId) {
 			const anchorPosition = this.editor.getModel().getDecorationRange(this.decorationId);
 			if (anchorPosition) {
-				this.editor.setPosition(anchorPosition.getStartPosition());
+				const position = anchorPosition.getStartPosition();
+				this.editor.setPosition(position);
+				this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
 			}
 		}
 	}
