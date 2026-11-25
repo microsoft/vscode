@@ -799,15 +799,32 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
+/** The ref of the base branch that Branch changes compare against, and how to change it while the changeset lets the user. */
+export interface IChangesBaseBranch {
+	readonly ref: string;
+	readonly selection?: ISessionChangesetBaseBranchSelection;
+}
+
+/** The base branch of `changes` while they show the Branch changeset and its base is known. */
+function getChangesBaseBranch(changes: IChangesSessionObservables, reader: IReader): IChangesBaseBranch | undefined {
+	const changeset = changes.changesetObs.read(reader);
+	if (changeset?.id !== BRANCH_CHANGES_CHANGESET_ID) {
+		return undefined;
+	}
+	const ref = changes.baseBranchRefObs.read(reader);
+	if (!ref) {
+		return undefined;
+	}
+	const selection = changeset.baseBranchSelection?.read(reader);
+	return selection ? { ref, selection } : { ref };
+}
+
 export interface IChangesPickerLabel {
 	readonly label: string;
 	readonly tooltip?: string;
 	readonly isNonDefault: boolean;
-	/** The ref of the base branch the label names, and how to change it while the changeset lets the user. */
-	readonly baseBranch?: {
-		readonly ref: string;
-		readonly selection?: ISessionChangesetBaseBranchSelection;
-	};
+	/** The base branch the label names. */
+	readonly baseBranch?: IChangesBaseBranch;
 }
 
 export function createChangesPickerLabelObservable(owner: object, changes: IChangesSessionObservables): IObservable<IChangesPickerLabel | undefined> {
@@ -821,16 +838,15 @@ export function createChangesPickerLabelObservable(owner: object, changes: IChan
 			return undefined;
 		}
 		const defaultChangeset = findDefaultChangeset(changes.changesetsObs.read(reader) ?? [], reader);
-		const baseBranchRef = changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changes.baseBranchRefObs.read(reader) : undefined;
-		const baseBranchSelection = baseBranchRef ? changeset.baseBranchSelection?.read(reader) : undefined;
+		const baseBranch = getChangesBaseBranch(changes, reader);
 		return {
-			label: baseBranchRef
-				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the base branch the host compares the changes against, as shown in the Branch row, for example origin/main.'] }, "{0} → {1}", changeset.label, getBaseBranchLabel(baseBranchRef))
+			label: baseBranch
+				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the base branch the host compares the changes against, as shown in the Branch row, for example origin/main.'] }, "{0} → {1}", changeset.label, getBaseBranchLabel(baseBranch.ref))
 				: changeset.label,
 			changesetLabel: changeset.label,
 			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
 			isNonDefault: changeset.id !== defaultChangeset?.id,
-			...(baseBranchRef ? { baseBranch: { ref: baseBranchRef, ...(baseBranchSelection ? { selection: baseBranchSelection } : {}) } } : {}),
+			...(baseBranch ? { baseBranch } : {}),
 		};
 	});
 }
@@ -2338,10 +2354,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	private readonly _changesPendingObs: IObservable<boolean>;
 	private readonly _pickerEnabledObs: IObservable<boolean>;
 	private readonly _summaryLease = this._register(new MutableDisposable());
-	/**
-	 * Cancels the base branch picker, whether it still loads its branches or shows them, when it opens again, the
-	 * label carries another selection, or the item is disposed.
-	 */
+	/** Cancels the base branch picker, whether it still loads its branches or shows them, when it opens again or the item is disposed. */
 	private readonly _baseBranchPickerRequest = this._register(new MutableDisposable<DisposableStore>());
 	private _container: HTMLElement | undefined;
 	private _labelElement: HTMLElement | undefined;
@@ -2428,13 +2441,6 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 				this.updateAvailability(pickerEnabled);
 			}
 		}));
-
-		// Each changeset has its own selection, so another one means the picker would change the base of another session, chat or changeset.
-		const baseBranchSelectionObs = derived(reader => this._labelObs.read(reader)?.baseBranch?.selection);
-		this._register(autorun(reader => {
-			baseBranchSelectionObs.read(reader);
-			this._baseBranchPickerRequest.clear();
-		}));
 	}
 
 	/** Ties the lifetime of `disposable` to this item. */
@@ -2502,11 +2508,9 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		store.add(Gesture.ignoreTarget(pen));
 		store.add(dom.addDisposableListener(pen, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
-			const baseBranch = this._labelObs.get()?.baseBranch;
-			if (baseBranch?.selection) {
-				this.hoverService.hideHover();
-				this._showBaseBranchPicker(baseBranch.selection, baseBranch.ref, pen);
-			}
+			this.hoverService.hideHover();
+			const request = this._baseBranchPickerRequest.value = new DisposableStore();
+			showBaseBranchPicker(this.actionWidgetService, this.notificationService, derived(reader => this._labelObs.read(reader)?.baseBranch), pen, cancelOnDispose(request));
 		}));
 		// The hover of the label describes the changeset, not the pen.
 		store.add(dom.addDisposableListener(pen, dom.EventType.MOUSE_OVER, () => this.hideHover()));
@@ -2515,11 +2519,6 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 			style: HoverStyle.Pointer,
 		}));
 		return pen;
-	}
-
-	private _showBaseBranchPicker(selection: ISessionChangesetBaseBranchSelection, currentRef: string, anchor: HTMLElement): Promise<void> {
-		const request = this._baseBranchPickerRequest.value = new DisposableStore();
-		return showBaseBranchPicker(this.actionWidgetService, this.notificationService, selection, currentRef, anchor, cancelOnDispose(request));
 	}
 
 	private updatePickerLabel(): void {

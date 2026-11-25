@@ -27,6 +27,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { INotificationHandle, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -562,7 +563,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	/** Renders the picker of a Branch changeset whose base is `refs/remotes/origin/feature`, recording the lists it shows. */
+	/** Renders the picker of a Branch changeset whose base is `refs/remotes/origin/feature`, recording the lists it shows and the errors it reports. */
 	function renderBaseBranchPicker(baseBranchSelection: IObservable<ISessionChangesetBaseBranchSelection | undefined>) {
 		const branch = upcastPartial<ISessionChangeset>({ id: 'branch', label: 'Branch', isEnabled: constObservable(true), isDefault: constObservable(true), baseBranchSelection });
 		const session = upcastPartial<ISessionChangeset>({ id: 'session', label: 'Session', isEnabled: constObservable(true), isDefault: constObservable(false) });
@@ -583,20 +584,30 @@ suite('Changes View Actions', () => {
 				shown.push({ user, items, delegate, anchor });
 				visible = delegate;
 			}
+			override updateItems(items: readonly IActionListItem<unknown>[], focusItemId?: string): void {
+				shown.at(-1)!.items = items;
+				focused = focusItemId;
+			}
 			override hide(): void {
 				const hidden = visible;
 				visible = undefined;
 				hidden?.onHide();
 			}
-			override focusItemById(id: string): void { focused = id; }
+		}();
+		const errors: string[] = [];
+		const notificationService = new class extends TestNotificationService {
+			override error(error: NotificationMessage): INotificationHandle {
+				errors.push(error instanceof Error ? error.message : String(error));
+				return super.error(error);
+			}
 		}();
 		const contextKeyService = new MockContextKeyService();
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
 		const container = document.createElement('div');
-		const picker = disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), NullHoverService, new TestNotificationService()));
+		const picker = disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope(), NullHoverService, notificationService));
 		picker.render(container);
 		return {
-			picker, container, shown, selected, loading, session,
+			picker, container, shown, selected, loading, session, errors,
 			pen: container.querySelector<HTMLElement>('.changes-picker-base-branch-edit')!,
 			focused: () => focused,
 			isVisible: () => !!visible,
@@ -652,25 +663,66 @@ suite('Changes View Actions', () => {
 		};
 		const { shown, pen, focused } = renderBaseBranchPicker(constObservable(selection));
 
-		pen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-		pen.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-		await timeout(0);
-		const branchPicker = shown[0];
-		const pick = (branch: string) => branchPicker.delegate.onSelect(branchPicker.items.find(item => item.label === branch)!.item);
-		pick('origin/feature');
-		pick('origin/release');
-		await timeout(0);
+		const pick = async (branch: string) => {
+			pen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+			pen.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+			await timeout(0);
+			const branchPicker = shown.at(-1)!;
+			branchPicker.delegate.onSelect(branchPicker.items.find(item => item.label === branch)!.item);
+			await timeout(0);
+		};
+		await pick('origin/feature');
+		await pick('origin/release');
 
 		assert.deepStrictEqual({
 			opened: shown.map(({ user, anchor }) => ({ user, anchor: anchor === pen ? 'pen' : 'other' })),
-			rows: listRows(branchPicker.items),
+			rows: listRows(shown[1].items),
 			focused: focused(),
 			sets,
 		}, {
-			opened: [{ user: 'changesBaseBranchPicker', anchor: 'pen' }],
+			opened: [{ user: 'changesBaseBranchPicker', anchor: 'pen' }, { user: 'changesBaseBranchPicker', anchor: 'pen' }],
 			rows: ['origin/feature', '[Default Branch]', 'origin/main', '[Branches]', 'origin/release'],
 			focused: 'refs/remotes/origin/feature',
 			sets: ['refs/remotes/origin/release'],
+		});
+	});
+
+	test('the pen opens the branch picker at once with a loading row, then lists the branches as they load', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: () => candidates.p,
+			setBaseBranch: async () => { },
+		};
+		const { shown, pen, focused } = renderBaseBranchPicker(constObservable(selection));
+
+		const snapshot = () => ({ lists: shown.map(({ items }) => listRows(items)), disabled: shown.flatMap(({ items }) => items.filter(item => item.disabled).map(item => item.label)), focused: focused() });
+		pen.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const whileLoading = snapshot();
+		candidates.complete({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileLoading, loaded: snapshot() }, {
+			whileLoading: { lists: [['Loading branches…']], disabled: ['Loading branches…'], focused: undefined },
+			loaded: { lists: [['origin/feature', '[Default Branch]', 'origin/main']], disabled: [], focused: 'refs/remotes/origin/feature' },
+		});
+	});
+
+	test('the branch picker hides and reports the error when its branches fail to load', async () => {
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => { throw new Error('Git failed'); },
+			setBaseBranch: async () => { },
+		};
+		const { shown, pen, isVisible, errors } = renderBaseBranchPicker(constObservable(selection));
+
+		pen.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const visibleWhileLoading = isVisible();
+		await timeout(0);
+
+		assert.deepStrictEqual({ opened: shown.map(({ items }) => listRows(items)), visibleWhileLoading, visible: isVisible(), errors }, {
+			opened: [['Loading branches…']],
+			visibleWhileLoading: true,
+			visible: false,
+			errors: ['Git failed'],
 		});
 	});
 
@@ -695,7 +747,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('the branch picker does not open, and its branches stop loading, once the label carries another selection', async () => {
+	test('the branch picker hides while its branches load, and they stop loading, once the label carries another selection', async () => {
 		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
 		let cancelled: boolean | undefined;
 		const selection: ISessionChangesetBaseBranchSelection = {
@@ -707,7 +759,7 @@ suite('Changes View Actions', () => {
 			setBaseBranch: async () => { },
 		};
 		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', selection);
-		const { shown, pen } = renderBaseBranchPicker(selectionObs);
+		const { shown, pen, isVisible } = renderBaseBranchPicker(selectionObs);
 
 		pen.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		// Another session, whose Branch changeset has a selection of its own, becomes active.
@@ -715,7 +767,11 @@ suite('Changes View Actions', () => {
 		candidates.complete({ refs: ['refs/remotes/origin/main'], defaultRef: 'refs/remotes/origin/main' });
 		await timeout(0);
 
-		assert.deepStrictEqual({ opened: shown.map(({ user }) => user), cancelled }, { opened: [], cancelled: true });
+		assert.deepStrictEqual({ opened: shown.map(({ user, items }) => ({ user, rows: listRows(items) })), visible: isVisible(), cancelled }, {
+			opened: [{ user: 'changesBaseBranchPicker', rows: ['Loading branches…'] }],
+			visible: false,
+			cancelled: true,
+		});
 	});
 
 	test('the branch picker hides, and a late pick changes no base, once the label carries another selection', async () => {
