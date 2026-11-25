@@ -120,6 +120,11 @@ parts:
       done
       patchelf --print-rpath "$CRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler"
       ARCH_TRIPLET="@@MULTIARCH@@"
+      for f in "$CRAFT_PRIME/usr/lib/$ARCH_TRIPLET"/libpulse.so.0.*; do
+        if [ -f "$f" ] && [ ! -L "$f" ]; then
+          patchelf --force-rpath --set-rpath '$ORIGIN:$ORIGIN/pulseaudio:/snap/core24/current/lib/'"$ARCH_TRIPLET" "$f"
+        fi
+      done
       for f in \
         "$CRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/copilot-runtime \
         "$CRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/runtime.node \

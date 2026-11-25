@@ -7,6 +7,17 @@ set -e
 # Get snapcraft version
 snapcraft --version
 
+# Snapcraft 9.2.2 bundles patchelf 0.9+snapcraft, which clobbers relocated
+# SHT_NOTE sections with 'X' (0x58) without updating PT_NOTE, causing Mesa
+# (libgallium) to segfault when reading its ELF build-id via dl_iterate_phdr.
+# Use the newer patchelf built into /snap/bin instead so enable-patchelf does
+# not corrupt Mesa libraries.
+SNAPCRAFT_PATCHELF="${SNAP:-/snap/snapcraft/current}/bin/patchelf"
+if [ -x /snap/bin/patchelf ] && [ -e "$SNAPCRAFT_PATCHELF" ]; then
+  sudo ln -sf /snap/bin/patchelf "$SNAPCRAFT_PATCHELF"
+fi
+"$SNAPCRAFT_PATCHELF" --version
+
 # Configure apt to retry on transient network failures
 # This applies to both the apt commands below and snapcraft's internal apt operations for stage-packages
 sudo sh -c 'echo "Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries'
