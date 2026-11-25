@@ -4370,7 +4370,7 @@ suite('RemotesWidget', () => {
 		}
 	});
 
-	test('narrow environment controls keep the funnel and Refresh reachable without method chips', () => {
+	test('narrow environment controls keep the funnel, Refresh and More Actions reachable without method chips', () => {
 		const { widget, parent, model } = createWidget(OperatingSystem.Windows, 'status');
 		model.environmentsEnabled.set(true, undefined);
 		parent.style.width = '360px';
@@ -4395,8 +4395,8 @@ suite('RemotesWidget', () => {
 			};
 		});
 		assert.deepStrictEqual(results, [
-			{ controls: ['Filter', 'Refresh the list of remote environments without connecting'], filtersVisible: true, searchSeparate: true },
-			{ controls: ['Filter', 'Refresh the list of remote environments without connecting'], filtersVisible: true, searchSeparate: true },
+			{ controls: ['Filter', 'Refresh the list of remote environments without connecting', 'More Actions...'], filtersVisible: true, searchSeparate: true },
+			{ controls: ['Filter', 'Refresh the list of remote environments without connecting', 'More Actions...'], filtersVisible: true, searchSeparate: true },
 		]);
 	});
 
