@@ -761,11 +761,12 @@ export class ModalEditorPart {
 				width = Math.max(containerDimension.width - MODAL_MAXIMIZED_PADDING, 0);
 				height = Math.max(availableHeight - verticalPadding, 0);
 			} else if (editorPart.fitsContent) {
-				// Fit the content, or the default size until the editor reports one. Keep to the modal's minimum size here, so that
-				// the modal is centered at the size it gets. In a window smaller than the minimum size the modal keeps that size, so
-				// it shows at the window's top left
-				const requestedWidth = contentSize ? contentSize.width + MODAL_BORDER_SIZE : defaultSize.width;
-				const requestedHeight = contentSize ? contentSize.height + (headerElement.offsetHeight || MODAL_HEADER_HEIGHT) + MODAL_BORDER_SIZE : defaultSize.height;
+				// Fit the content, or the default size until the editor reports one. The content is the editor pane, so add what the
+				// modal shows around it: the sidebar and the editor group's title. Keep to the modal's minimum size here, so that the
+				// modal is centered at the size it gets. In a window smaller than the minimum size the modal keeps that size, so it
+				// shows at the window's top left
+				const requestedWidth = contentSize ? contentSize.width + (sidebarResult?.getWidth() ?? 0) + MODAL_BORDER_SIZE : defaultSize.width;
+				const requestedHeight = contentSize ? contentSize.height + editorPart.activeGroup.titleHeight.total + (headerElement.offsetHeight || MODAL_HEADER_HEIGHT) + MODAL_BORDER_SIZE : defaultSize.height;
 				width = Math.min(Math.max(requestedWidth, resizableElement.minSize.width), containerDimension.width);
 				height = Math.max(requestedHeight, resizableElement.minSize.height);
 			} else if (editorPart.size && editorPart.canResize) {

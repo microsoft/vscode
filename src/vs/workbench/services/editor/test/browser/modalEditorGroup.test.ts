@@ -13,7 +13,7 @@ import { GroupsOrder, IEditorGroup, IEditorGroupsService, IModalEditorPart } fro
 import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry, IEditorOpenContext } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IKeybindingService, IKeyboardEvent } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind, ResolutionResult } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { MockKeybindingService, MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -98,8 +98,11 @@ class TestFitToContentEditorPane extends EditorPane {
 		this._onDidChangePreferredContentSize.fire();
 	}
 
+	/** The size the editor pane was last laid out with. */
+	lastLayoutSize: { width: number; height: number } | undefined;
+
 	protected createEditor(): void { }
-	layout(): void { }
+	layout(dimension: { width: number; height: number }): void { this.lastLayoutSize = { width: dimension.width, height: dimension.height }; }
 }
 
 class TestFloatingEditorLayoutService extends TestLayoutService {
@@ -1331,6 +1334,19 @@ suite('Modal Editor Group', () => {
 			await modalPart.activeGroup.openEditor(createFitToContentInput({ width: 300, height: 200 }), { pinned: true });
 
 			assert.deepStrictEqual(getModalBounds(modalPart), { left: '200px', top: '150px', width: '400px', height: '300px' });
+
+			await modalPart.close();
+		});
+
+		test('an editor that fits its content gets its size for the editor pane, next to the modal sidebar and below the editor tabs', async () => {
+			const { parts } = await createParts('all');
+			const modalPart = await parts.createModalEditorPart({ sidebar: { sidebarWidth: 200, render: () => toDisposable(() => { }) } });
+
+			await modalPart.activeGroup.openEditor(createTestFileEditorInput(URI.file('foo/default'), TEST_EDITOR_INPUT_ID), { pinned: true });
+			await modalPart.activeGroup.openEditor(createFitToContentInput({ width: 500, height: 300 }), { pinned: true });
+			const pane = modalPart.activeGroup.activeEditorPane as TestFitToContentEditorPane;
+
+			assert.deepStrictEqual(pane.lastLayoutSize, { width: 500, height: 300 });
 
 			await modalPart.close();
 		});
