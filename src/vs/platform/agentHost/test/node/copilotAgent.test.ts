@@ -6322,16 +6322,15 @@ suite('CopilotAgent', () => {
 			client.createSession = async () => upcastPartial<CopilotSession>({
 				sessionId: 'setup-session',
 				rpc: upcastPartial<CopilotSession['rpc']>({
-					accounts: {
-						login: {
+					accounts: upcastPartial<CopilotSession['rpc']['accounts']>({
+						login: upcastPartial<CopilotSession['rpc']['accounts']['login']>({
 							begin: async () => ({ flowId: 'opaque-flow', step: { kind: 'awaiting' } }),
 							advance: async () => ({ kind: 'completed', result: { status: 'completed', host: service.host, login: service.login } }),
 							cancel: async () => { },
-						},
-						get: async () => ({ kind: 'activeAccount', account: { ...service, active: true, derivedFrom: 'runtime-base' } }),
-						enumerate: async () => ({ kind: 'accounts', items: [] }),
-						set: async () => { throw new Error('unexpected account switch'); },
-					},
+						}),
+						getActive: async () => ({ account: { ...service, active: true, derivedFrom: 'runtime-base' } }),
+						switchActive: async () => { throw new Error('unexpected account switch'); },
+					}),
 				}),
 				disconnect: async () => { },
 			});
@@ -10682,6 +10681,45 @@ suite('CopilotAgent', () => {
 					'replacement user:allowed: approve-once', 'replacement user:declined: asks again',
 				],
 				newRuntime: true,
+			});
+		});
+
+		test('a retry reports a decline that the new runtime keeps without asking again', async () => {
+			const directory = URI.file(process.cwd());
+			const sdkId = 'kept-consent-sdk';
+			const { agent, launches } = setup(undefined, [sdkSession(sdkId, directory.fsPath)], [], { [AgentHostCanvasesEnabledConfigKey]: true });
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'scoped-kept-canvas-consent');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const open = (answer?: AgentCanvasOpenAnswer) => agent.openSessionCanvas(session, { canvasId: 'demo', extensionId: 'user:declined', instanceId: 'demo' }, chat, context, answer);
+			await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sdkId }));
+			await agent.chats.prepareTurn!(chat, 'first-turn', [directory], context);
+			const first = launches[launches.length - 1];
+			first.runtime.rpc.canvas.open = async params => {
+				const result = await first.config.permissions?.onRequest!({ kind: 'extension-env-access', extensionName: params.extensionId!, environmentVariables: ['BLACKBIRD_AUTH_METIS_API_KEY'] }, { sessionId: first.sessionId });
+				const kind = result?.kind === 'attributed' ? result.result.kind : result?.kind;
+				if (kind !== 'approve-once') {
+					throw new Error(`extension did not become ready: ${params.extensionId}`);
+				}
+				return { instanceId: params.instanceId, extensionId: params.extensionId!, canvasId: params.canvasId };
+			};
+			const asked = await open();
+			assert.strictEqual(asked.kind, 'consentRequired');
+			const declined = await open({ kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow });
+			// The replacement runtime restores the decline from the session and turns the extension away without asking.
+			const record = launches.push.bind(launches);
+			launches.push = (...added) => {
+				for (const launch of added) {
+					launch.runtime.rpc.canvas.open = async params => { throw new Error(`extension did not become ready: ${params.extensionId}`); };
+				}
+				return record(...added);
+			};
+			const retried = await open({ kind: 'retry' });
+			assert.deepStrictEqual({ declined, retried }, {
+				declined: { kind: 'consentDenied', consent: asked.consent, retryable: true },
+				retried: { kind: 'consentDenied', consent: asked.consent, retryable: false, keptForSession: true },
 			});
 		});
 

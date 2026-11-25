@@ -76,7 +76,7 @@ import { AGENT_HOST_FILE_SCHEME, IAgentPluginManager, ISyncedCustomization } fro
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import type { IAgentChatInputResponseMeta } from '../../common/meta/agentChatInputResponseMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { type IAgentPluginInstallation, type IAgentTelemetryContext, type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, isAgentExtensionEnabledAndSettled, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution, type IAgentChatHistoryChange, type IAgentPrewarmClaim, type IAgentWarmChatSelection } from '../../common/agent.js';
+import { type IAgentPluginInstallation, type IAgentTelemetryContext, type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, type IAgentExtensionConsentRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, isAgentExtensionEnabledAndSettled, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution, type IAgentChatHistoryChange, type IAgentPrewarmClaim, type IAgentWarmChatSelection } from '../../common/agent.js';
 import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, MODEL_ROUTER_MAX_FILE_BYTES, modelRouterModelId, resolveModelRouter, summarizeModelRouterRoutes, userModelRouterFolder } from '../../common/modelRouter.js';
 import { resolveModelRouterGuidance } from '../../common/modelRouterGuidance.js';
 import { AgentDecisionsUnavailableError, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
@@ -3627,7 +3627,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return live.openCanvas(request);
 		}
 		if (answer?.kind === 'retry') {
-			await this._retryExtensionConsent(session, request, chat, operationContext);
+			const retried = await this._retryExtensionConsent(session, request, chat, operationContext);
+			const replacement = await this._resolveSessionCanvasChat(session, chat, operationContext, 'openSessionCanvas');
+			const result = await replacement.openCanvas(request);
+			// A runtime that keeps a decline across a resume turns the extension away without asking, so only a new session asks again.
+			if (retried && request.extensionId && result.kind === 'failed' && result.failure === 'startFailed' && !replacement.hasRequestedExtensionConsent(request.extensionId)) {
+				this._logService.info(`[Copilot:${session.toString()}] The runtime kept the declined extension consent across the retry: extension=${request.extensionId}`);
+				return { kind: 'consentDenied', consent: retried, retryable: false, keptForSession: true };
+			}
+			return result;
 		}
 		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'openSessionCanvas');
 		return liveSession.openCanvas(request);
@@ -3636,20 +3644,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * Replaces the chat's runtime when it declined the canvas's extension, which latches the extension as failed
 	 * and keeps the user's Not Now for the rest of that runtime, so that opening the canvas again asks the user again.
+	 * Returns the declined consent request when it replaced the runtime.
 	 */
-	private async _retryExtensionConsent(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
+	private async _retryExtensionConsent(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<IAgentExtensionConsentRequest | undefined> {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 		const busy = () => new Error(localize('copilot.extensionConsentRetryBusy', "Try again after the chat finishes its current work."));
-		await this._queueChat(context.lifetimeId, context.sequencerKey, 'retryExtensionConsent', async () => {
+		return this._queueChat(context.lifetimeId, context.sequencerKey, 'retryExtensionConsent', async () => {
 			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 			const entry = current.target;
 			if (!entry || !isEqual(entry.ownerSessionUri, session) || !entry.hasRetryableExtensionConsentDenial(request.extensionId)) {
-				return;
+				return undefined;
 			}
 			// Replacing the runtime would also stop background subagents that outlive the response.
 			if (entry.hasActiveTurn || entry.hasActiveSubagents) {
 				throw busy();
 			}
+			const declined = request.extensionId ? entry.getRetryableExtensionConsentDenial(request.extensionId) : undefined;
 			entry.requestExtensionConsentRetry();
 			try {
 				await this._refreshSessionConfiguration(current, entry, undefined, { operation: 'openCanvas', allowRestart: 'whenIdle' });
@@ -3659,6 +3669,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				throw error;
 			}
+			return declined;
 		});
 	}
 

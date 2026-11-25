@@ -19,8 +19,9 @@ const CANVAS_OPEN_PROGRESS_DELAY_MS = 500;
 
 /** A canvas did not open because the user did not allow its extension to load. */
 export class CanvasExtensionConsentDeniedError extends Error {
-	constructor(readonly consent: IAgentExtensionConsentRequest, readonly retryable: boolean) {
-		super(getDeniedMessage(consent, retryable));
+	/** @param keptForSession Whether the decline lasts for the rest of the session, so only a new session asks again. */
+	constructor(readonly consent: IAgentExtensionConsentRequest, readonly retryable: boolean, readonly keptForSession = false) {
+		super(getDeniedMessage(consent, retryable, keptForSession));
 		this.name = 'CanvasExtensionConsentDeniedError';
 	}
 }
@@ -50,7 +51,7 @@ export async function openCanvasWithExtensionConsent(dialogService: IDialogServi
 		result = await open({ kind: 'consent', consentId: result.consent.id, optionId });
 	}
 	if (result.kind === 'consentDenied') {
-		throw new CanvasExtensionConsentDeniedError(result.consent, result.retryable);
+		throw new CanvasExtensionConsentDeniedError(result.consent, result.retryable, result.keptForSession);
 	}
 	if (result.kind === 'failed') {
 		throw new CanvasOpenFailedError(result.failure);
@@ -84,7 +85,12 @@ export function notifyCanvasOpenFailure(notificationService: INotificationServic
 		return;
 	}
 	if (error instanceof CanvasExtensionConsentDeniedError) {
-		notifyWithRetry(notificationService, Severity.Warning, error.message, label, open, { retryDeniedConsent: true });
+		if (error.keptForSession) {
+			// Trying again cannot help until a new session.
+			notificationService.notify({ severity: Severity.Warning, message: error.message });
+		} else {
+			notifyWithRetry(notificationService, Severity.Warning, error.message, label, open, { retryDeniedConsent: true });
+		}
 	} else if (error instanceof CanvasOpenFailedError) {
 		if (error.retryable) {
 			notifyWithRetry(notificationService, Severity.Warning, getFailureMessage(error.failure, label), label, open, undefined);
@@ -146,7 +152,12 @@ async function askForExtensionConsent(dialogService: IDialogService, consent: IA
 	return result ?? AgentExtensionConsentOption.NotNow;
 }
 
-function getDeniedMessage(consent: IAgentExtensionConsentRequest, retryable: boolean): string {
+function getDeniedMessage(consent: IAgentExtensionConsentRequest, retryable: boolean, keptForSession: boolean): string {
+	if (keptForSession) {
+		return consent.kind === 'environment'
+			? localize('canvasExtensionConsent.environment.kept', "The canvas did not open because extension '{0}' was not allowed to read sensitive environment variables. You will be asked again in a new session.", consent.displayName)
+			: localize('canvasExtensionConsent.capabilities.kept', "The canvas did not open because extension '{0}' was not allowed to load with the permissions it requested. You will be asked again in a new session.", consent.displayName);
+	}
 	if (consent.kind === 'environment') {
 		return retryable
 			? localize('canvasExtensionConsent.environment.denied', "The canvas did not open because extension '{0}' was not allowed to read sensitive environment variables.", consent.displayName)
