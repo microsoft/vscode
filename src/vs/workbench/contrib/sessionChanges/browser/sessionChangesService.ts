@@ -22,6 +22,7 @@ import { IChangesViewService } from '../../sessions/common/changesViewService.js
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../services/sessions/common/sessionChangesService.js';
 import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
@@ -56,6 +57,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 		@IFocusedSessionHostService private readonly focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -211,6 +213,21 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		}, group);
 		await this.expandRevealTarget(pane?.input, editorOptions);
 		return pane?.group;
+	}
+
+	async openChatChangesEditor(chatResource: URI, changesetId?: string): Promise<boolean> {
+		if (!this.layoutService.editorsBindSessionContext) {
+			return false;
+		}
+		const owner = this.sessionsManagementService.getSessionForChatResource(chatResource);
+		if (!owner) {
+			return false;
+		}
+		await this.openChangesEditor(owner.session.resource, {
+			chatResource: owner.chat.resource,
+			changesetSelection: changesetId ? { kind: 'id', id: changesetId } : undefined,
+		});
+		return true;
 	}
 
 	private _provideDecoration(resource: URI): IDecorationData | undefined {

@@ -518,6 +518,8 @@ interface ISessionFileChanges {
 	readonly undo: IObservable<IChatSessionWorkingSetUndo | undefined>;
 	/** Keeps changes in the session, or `undefined` to remember kept changes in the workbench. */
 	readonly keep: IObservable<IChatSessionWorkingSetKeep | undefined>;
+	/** Opens all the changes in the session's own Changes editor, resolving to whether it did. */
+	readonly openAll?: () => Promise<boolean>;
 }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -5671,10 +5673,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Provides the session's file changes to the session working set, `undo`
 	 * when the session can undo its changes to single files, and `keep` when
-	 * the session keeps changes itself.
+	 * the session keeps changes itself, and `openAll` when the session opens all its changes in an editor of its own.
 	 */
-	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keep: IObservable<IChatSessionWorkingSetKeep | undefined> = constObservable(undefined)): IDisposable {
-		const source: ISessionFileChanges = { changes, undo, keep };
+	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keep: IObservable<IChatSessionWorkingSetKeep | undefined> = constObservable(undefined), openAll?: () => Promise<boolean>): IDisposable {
+		const source: ISessionFileChanges = { changes, undo, keep, openAll };
 		this._sessionFileChanges.set(source, undefined);
 		return toDisposable(() => {
 			if (this._sessionFileChanges.get() === source) {
@@ -5848,6 +5850,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						},
 						keepEnabled: derived(r => sessionKeep.read(r)?.enabled.read(r) ?? true),
 						undo: derived(r => this._sessionFileChanges.read(r)?.undo.read(r)),
+						openAll: async () => !!await this._sessionFileChanges.read(undefined)?.openAll?.(),
 					}, () => this.focus()));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
 					this._sessionWorkingSet = workingSet;

@@ -69,6 +69,8 @@ import { createCommitResourceHover, createIssueResourceHover, createPullRequestR
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { ISessionChangesService } from '../../../../../services/sessions/common/sessionChangesService.js';
+import { BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
@@ -600,6 +602,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
 	) {
 		super();
 		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
@@ -848,7 +851,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			changes: {
 				stats: changeStats,
 				label: derived(this, reader => changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes")),
-				open: () => this._openChanges(changesetTarget.get()?.changeset, changes.get()),
+				open: () => void this._openChanges(changesetTarget.get()?.changeset, changes.get()),
 				getContextMenuPrimaryActions: () => this.getChangesPillContextMenuActions(),
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestIcon),
@@ -1239,7 +1242,11 @@ export class AgentHostSessionInputPills extends Disposable {
 		await this._editorService.openEditor(target, undefined, targetGroup);
 	}
 
-	private _openChanges(changeset: Changeset | undefined, diffs: readonly IEditSessionEntryDiff[]): void {
+	private async _openChanges(changeset: Changeset | undefined, diffs: readonly IEditSessionEntryDiff[]): Promise<void> {
+		const chatResource = this._widget.viewModel?.sessionResource;
+		if (chatResource && await this._sessionChangesService.openChatChangesEditor(chatResource, getSessionChangesetId(changeset))) {
+			return;
+		}
 		if (diffs.length > 0) {
 			const sessionEditorLabel = localize('agentHostSessionPills.changesEditor', "Session Changes");
 			let label = changeset?.label ?? sessionEditorLabel;
@@ -1304,6 +1311,19 @@ export interface IAgentHostSessionWorkingSetOptions {
  * operations: in the input of {@link AgentHostSessionInputPills}, and alone in an input that shows the session's pills
  * itself, such as a session's chat outside the Agents window, which hides its Changes pill while {@link changesPillHidden}.
  */
+/**
+ * The changeset of a session's Changes editor that shows the same changes as an agent host changeset, for those that
+ * the Changes editor knows by a well-known id.
+ */
+function getSessionChangesetId(changeset: Changeset | undefined): string | undefined {
+	switch (changeset?.changeKind) {
+		case ChangesetKind.Branch: return BRANCH_CHANGES_CHANGESET_ID;
+		case ChangesetKind.Uncommitted: return UNCOMMITTED_CHANGES_CHANGESET_ID;
+		case ChangesetKind.Session: return SESSION_CHANGES_CHANGESET_ID;
+		default: return undefined;
+	}
+}
+
 export class AgentHostSessionWorkingSet extends Disposable {
 
 	/** Binds operations to the displayed diff, not a newer changeset publication. */
@@ -1338,6 +1358,7 @@ export class AgentHostSessionWorkingSet extends Disposable {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ISessionChangesService sessionChangesService: ISessionChangesService,
 	) {
 		super();
 		const sessionResource = this.sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
@@ -1619,7 +1640,10 @@ export class AgentHostSessionWorkingSet extends Disposable {
 		this._register(autorun(reader => {
 			if (workingSetEnabled.read(reader)) {
 				const undo = !!this._options.undoEnabled || isSessionWorkingSet.read(reader) ? workingSetUndo : undefined;
-				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep));
+				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep, async () => {
+					const chatResource = this._widget.viewModel?.sessionResource;
+					return !!chatResource && sessionChangesService.openChatChangesEditor(chatResource, getSessionChangesetId(changesetTarget.read(undefined)?.changeset));
+				}));
 			}
 		}));
 		// The Changes pill, also the one an input that shows only the working set shows, offers to show the working set again

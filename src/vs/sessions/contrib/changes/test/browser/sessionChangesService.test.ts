@@ -13,6 +13,7 @@ import { focusedSessionHostServiceOf, ITestSessionsService, ITestSessionWithChat
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffEditorOptions } from '../../../../../editor/common/multiDiffEditor.js';
@@ -27,17 +28,17 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
-import { IChat, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService, SessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 /** The host lookups and the focused host for the state of `sessionsService`, as {@link SessionChangesService} takes them. */
-function hostsOf(store: Pick<DisposableStore, 'add'>, sessionsService: Partial<ITestSessionsService>): [ISessionHostService, IFocusedSessionHostService, ISessionsService] {
+function hostsOf(store: Pick<DisposableStore, 'add'>, sessionsService: Partial<ITestSessionsService>, sessionsManagementService: Partial<ISessionsManagementService> = {}): [ISessionHostService, IFocusedSessionHostService, ISessionsService, ISessionsManagementService] {
 	// A grid without panes of its own: no pane is its active or a detached one.
 	const gridPanes = upcastPartial<ISessionsService>({ isActivePane: () => false, isDetachedPane: () => false });
-	return [sessionHostServiceOf(store, sessionsService), focusedSessionHostServiceOf(sessionsService.activeSession ?? constObservable(undefined)), gridPanes];
+	return [sessionHostServiceOf(store, sessionsService), focusedSessionHostServiceOf(sessionsService.activeSession ?? constObservable(undefined)), gridPanes, upcastPartial<ISessionsManagementService>(sessionsManagementService)];
 }
 
 function noSessions(active?: ITestSessionWithChat): ISessionsService {
@@ -253,6 +254,52 @@ suite('SessionChangesService', () => {
 		await service.openChangesEditor(sessionResource);
 
 		assert.deepStrictEqual(opened.map(resource => service.getChatResource(resource)?.toString()), [shownChat.resource.toString()]);
+	});
+
+	test('opens the Changes editor of a chat of a known session, with its changeset, only where its editors follow their own session', async () => {
+		const sessionResource = URI.parse('agent-host:test-session');
+		const chat = upcastPartial<IChat>({ resource: URI.parse('agent-host:test-session/chat') });
+		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource: sessionResource, activeChat: constObservable(chat), mainChat: constObservable(chat), chats: constObservable([chat]) });
+		const openChatChangesEditor = async (editorsBindSessionContext: boolean, chatResource: URI) => {
+			const opened: string[] = [];
+			const selected: (string | undefined)[] = [];
+			const service = disposables.add(new SessionChangesService(
+				new class extends mock<IEditorService>() {
+					override async openEditor(...args: unknown[]): Promise<undefined> {
+						const input = args[0] as { readonly multiDiffSource?: URI; readonly resource?: URI };
+						opened.push((input.multiDiffSource ?? input.resource)!.toString());
+						return undefined;
+					}
+				}(),
+				disposables.add(new TestInstantiationService()),
+				new class extends mock<IAgentWorkbenchLayoutService>() {
+					override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile;
+					readonly editorsBindSessionContext = editorsBindSessionContext;
+				}(),
+				new class extends mock<IChangesViewService>() {
+					override readonly activeSessionResourceObs = noActiveSessionResource;
+					override readonly activeSessionChangesObs = noChanges;
+					override setChangesetId(changesetId: string | undefined): void { selected.push(changesetId); }
+				}(),
+				...hostsOf(disposables, noSessions(session), {
+					getSessionForChatResource: resource => isEqual(resource, chat.resource) ? { session: upcastPartial<ISession>(session), chat } : undefined,
+				}),
+				emptyDecorationsService,
+				new NullLogService(),
+			));
+			const result = await service.openChatChangesEditor(chatResource, 'branch');
+			return { result, opened: opened.map(resource => service.getChatResource(URI.parse(resource))?.toString()), selected };
+		};
+
+		assert.deepStrictEqual([
+			await openChatChangesEditor(true, chat.resource),
+			await openChatChangesEditor(true, URI.parse('agent-host:other/chat')),
+			await openChatChangesEditor(false, chat.resource),
+		], [
+			{ result: true, opened: [chat.resource.toString()], selected: ['branch'] },
+			{ result: false, opened: [], selected: [] },
+			{ result: false, opened: [], selected: [] },
+		]);
 	});
 
 	test('selects the changeset on the chat its editor names, also while only another chat of its session shows', async () => {

@@ -58,6 +58,7 @@ import { ICanvas } from '../../../../../common/canvasReference.js';
 import { IUntypedEditorInput, isResourceMultiDiffEditorInput } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { ISessionChangesService } from '../../../../../services/sessions/common/sessionChangesService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { WorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -186,6 +187,8 @@ suite('AgentHostSessionInputPills', () => {
 			getArtifacts: () => upcastPartial<IChatArtifacts>({ artifactGroups: constObservable([]) }),
 		}));
 		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({}));
+		// Outside an editor window, the session's own Changes editor doesn't open, so the pills open a multi diff editor.
+		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({ openChatChangesEditor: async () => false }));
 		return instantiationService;
 	};
 	/** Provides the services of the session's working set, which the pills create, to `instantiationService`; it keeps its own label service. */
@@ -222,6 +225,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(ITelemetryService),
+			instantiationService.get(ISessionChangesService),
 		));
 	}
 	const createRichGitHubService = (disposed: string[], options?: {
@@ -331,8 +335,11 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper; telemetryService?: ITelemetryService; nativeHost?: boolean; workingSetOnly?: boolean }) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper; telemetryService?: ITelemetryService; nativeHost?: boolean; workingSetOnly?: boolean; sessionChangesService?: ISessionChangesService }) {
 		const instantiationService = createInstantiationService();
+		if (options?.sessionChangesService) {
+			instantiationService.stub(ISessionChangesService, options.sessionChangesService);
+		}
 		if (options?.telemetryService) {
 			instantiationService.stub(ITelemetryService, options.telemetryService);
 		}
@@ -378,6 +385,7 @@ suite('AgentHostSessionInputPills', () => {
 		let workingSetChanges: readonly IEditSessionEntryDiff[] | undefined;
 		let workingSetUndo: IChatSessionWorkingSetUndo | undefined;
 		let workingSetKeep: IChatSessionWorkingSetKeep | undefined;
+		let workingSetOpenAll: (() => Promise<boolean>) | undefined;
 		let workingSetRegistrations = 0;
 		// What the input's working set shows: the registered changes without the files the input kept itself
 		const registeredChanges = observableValue<IObservable<readonly IEditSessionEntryDiff[] | undefined> | undefined>('registeredChanges', undefined);
@@ -394,8 +402,9 @@ suite('AgentHostSessionInputPills', () => {
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
 				supportsSessionWorkingSet: options?.supportsSessionWorkingSet ?? true,
 				sessionWorkingSetDiffs,
-				registerSessionFileChanges: (changes, undo, keep) => {
+				registerSessionFileChanges: (changes, undo, keep, openAll) => {
 					workingSetRegistrations++;
+					workingSetOpenAll = openAll;
 					registeredChanges.set(changes, undefined);
 					return combinedDisposable(
 						toDisposable(() => registeredChanges.set(undefined, undefined)),
@@ -517,6 +526,7 @@ suite('AgentHostSessionInputPills', () => {
 			workingSetChanges: () => workingSetChanges,
 			workingSetUndo: () => workingSetUndo,
 			workingSetKeep: () => workingSetKeep,
+			workingSetOpenAll: () => workingSetOpenAll,
 			workingSetRegistrations: () => workingSetRegistrations,
 			/** Keeps files in the input itself, as its working set does for a host without Accept Changes. */
 			keepInInput: (diffs: readonly IEditSessionEntryDiff[]) => keptInInput.set(new Set([...keptInInput.get(), ...diffs.map(diff => diff.modifiedURI.toString())]), undefined),
@@ -1791,6 +1801,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(ITelemetryService),
+			instantiationService.get(ISessionChangesService),
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
 		viewModel = upcastPartial<ChatViewModel>({ sessionResource: draft });
@@ -2563,6 +2574,94 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	/** Clicks the Changes pill of a session whose changeset is labeled `label` and of kind `changeKind`, recording the multi diff editors it opens. */
+	async function clickChangesPill(label: string, changeKind: string, sessionChangesService?: ISessionChangesService) {
+		const instantiationService = createInstantiationService();
+		if (sessionChangesService) {
+			instantiationService.stub(ISessionChangesService, sessionChangesService);
+		}
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const backendChat = URI.parse(buildDefaultChatUri(backendSession));
+		const changeset: Changeset = { label, changeKind, uriTemplate: 'vendor-diff:/opaque/changes' };
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState | ChangesetState>([
+			[StateComponents.Session, {
+				defaultChat: backendChat.toString(),
+				chats: [],
+				changesets: changeKind === ChangesetKind.Session ? [changeset] : [],
+			} as unknown as SessionState],
+			[StateComponents.Chat, {
+				changesets: changeKind === ChangesetKind.Session ? [
+					{ label: 'Branch', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch },
+					{ label: 'Uncommitted', uriTemplate: 'changeset/uncommitted', changeKind: ChangesetKind.Uncommitted },
+					{ label: 'This Turn', uriTemplate: 'changeset/turn/{turnId}', changeKind: ChangesetKind.Turn },
+				] : [changeset],
+			} as unknown as ChatState],
+			[StateComponents.Changeset, {
+				status: ChangesetStatus.Ready,
+				files: [{
+					id: 'change',
+					edit: {
+						after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
+						diff: { added: 3, removed: 1 },
+					},
+				}],
+			} as unknown as ChangesetState],
+		]));
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: () => Disposable.None,
+		});
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const opened: { readonly label: string | undefined; readonly files: readonly (string | undefined)[] }[] = [];
+		const editorService = upcastPartial<IEditorService>({
+			openEditor: async (input: EditorInput | IUntypedEditorInput) => {
+				if (isResourceMultiDiffEditorInput(input)) {
+					opened.push({ label: input.label, files: input.resources?.map(resource => resource.goToFileResource?.toString()) ?? [] });
+				}
+				return undefined;
+			},
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IOpenerService),
+		] as const);
+
+		createSessionInputPills(widget, connectionsService, browserViewService, clipboardService, configurationService, editorService, instantiationService, openerService, visibility);
+		const button = persistentContent.querySelector<HTMLElement>('.chat-changes-pill-button');
+		button?.click();
+		await timeout(0);
+
+		return {
+			ariaLabel: button?.getAttribute('aria-label'),
+			changesetSubscriptions: [...new Set(connection.requested.filter(request => request.kind === StateComponents.Changeset).map(request => request.resource.toString()))],
+			uriTemplate: changeset.uriTemplate,
+			opened,
+		};
+	}
+
 	for (const { label, changeKind, editorTitle } of [
 		{ label: 'Session', changeKind: ChangesetKind.Session, editorTitle: 'Session Changes' },
 		{ label: 'Branch', changeKind: ChangesetKind.Branch, editorTitle: 'Branch Changes' },
@@ -2573,92 +2672,66 @@ suite('AgentHostSessionInputPills', () => {
 		{ label: 'Session', changeKind: 'review', editorTitle: 'Session' },
 	]) {
 		test(`preserves the ${editorTitle} editor title for the ${changeKind} changeset labeled ${label}`, async () => {
-			const instantiationService = createInstantiationService();
-			const sessionResource = URI.parse('agent-host-copilot:/session');
-			const backendSession = URI.parse('copilot:/session');
-			const backendChat = URI.parse(buildDefaultChatUri(backendSession));
-			const changeset: Changeset = { label, changeKind, uriTemplate: 'vendor-diff:/opaque/changes' };
-			const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState | ChangesetState>([
-				[StateComponents.Session, {
-					defaultChat: backendChat.toString(),
-					chats: [],
-					changesets: changeKind === ChangesetKind.Session ? [changeset] : [],
-				} as unknown as SessionState],
-				[StateComponents.Chat, {
-					changesets: changeKind === ChangesetKind.Session ? [
-						{ label: 'Branch', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch },
-						{ label: 'Uncommitted', uriTemplate: 'changeset/uncommitted', changeKind: ChangesetKind.Uncommitted },
-						{ label: 'This Turn', uriTemplate: 'changeset/turn/{turnId}', changeKind: ChangesetKind.Turn },
-					] : [changeset],
-				} as unknown as ChatState],
-				[StateComponents.Changeset, {
-					status: ChangesetStatus.Ready,
-					files: [{
-						id: 'change',
-						edit: {
-							after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
-							diff: { added: 3, removed: 1 },
-						},
-					}],
-				} as unknown as ChangesetState],
-			]));
-			const persistentContent = document.createElement('div');
-			document.body.appendChild(persistentContent);
-			store.add(toDisposable(() => persistentContent.remove()));
-			const widget = upcastPartial<ChatWidget>({
-				inputVisible: constObservable(true),
-				inputPart: upcastPartial<ChatInputPart>({
-					persistentContentContainerElement: persistentContent,
-					registerChatPetHorizontalPlatformProvider: () => Disposable.None,
-				}),
-				onDidChangeViewModel: Event.None,
-				viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
-				setPersistentContentHeight: () => { },
-				registerBackgroundActivityPillSections: () => Disposable.None,
-			});
-			const connectionsService = upcastPartial<IAgentHostConnectionsService>({
-				onDidChangeConnections: Event.None,
-				onDidChangeSessionResolution: Event.None,
-				connections: [],
-				resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
-			});
-			const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
-				onDidChangeBrowserViews: Event.None,
-				getKnownBrowserViews: () => new Map(),
-			});
-			const opened: { readonly label: string | undefined; readonly files: readonly (string | undefined)[] }[] = [];
-			const editorService = upcastPartial<IEditorService>({
-				openEditor: async (input: EditorInput | IUntypedEditorInput) => {
-					if (isResourceMultiDiffEditorInput(input)) {
-						opened.push({ label: input.label, files: input.resources?.map(resource => resource.goToFileResource?.toString()) ?? [] });
-					}
-					return undefined;
-				},
-			});
-			const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
-			instantiationService.stub(ISessionChatPillVisibilityService, visibility);
-			const [clipboardService, configurationService, openerService] = instantiationService.invokeFunction(accessor => [
-				accessor.get(IClipboardService),
-				accessor.get(IConfigurationService),
-				accessor.get(IOpenerService),
-			] as const);
+			const { ariaLabel, changesetSubscriptions, uriTemplate, opened } = await clickChangesPill(label, changeKind);
 
-			createSessionInputPills(widget, connectionsService, browserViewService, clipboardService, configurationService, editorService, instantiationService, openerService, visibility);
-			const button = persistentContent.querySelector<HTMLElement>('.chat-changes-pill-button');
-			button?.click();
-			await timeout(0);
-
-			assert.deepStrictEqual({
-				ariaLabel: button?.getAttribute('aria-label'),
-				changesetSubscriptions: [...new Set(connection.requested.filter(request => request.kind === StateComponents.Changeset).map(request => request.resource.toString()))],
-				opened,
-			}, {
+			assert.deepStrictEqual({ ariaLabel, changesetSubscriptions, opened }, {
 				ariaLabel: `${label}: 1 File, +3, -1`,
-				changesetSubscriptions: [changeset.uriTemplate],
+				changesetSubscriptions: [uriTemplate],
 				opened: [{ label: editorTitle, files: [toAgentHostUri(URI.file('/changed.ts'), 'local').toString()] }],
 			});
 		});
 	}
+
+	test('opens the session\'s own Changes editor of its chat, with the changeset the pill shows, where there is one', async () => {
+		const openedChatChanges: { readonly chat: string; readonly changesetId: string | undefined }[] = [];
+		const result = (changeKind: string) => clickChangesPill('Changes', changeKind, upcastPartial<ISessionChangesService>({
+			openChatChangesEditor: async (chatResource, changesetId) => {
+				openedChatChanges.push({ chat: chatResource.toString(), changesetId });
+				return true;
+			},
+		}));
+		const opened = [
+			...(await result(ChangesetKind.Branch)).opened,
+			...(await result(ChangesetKind.Uncommitted)).opened,
+			...(await result(ChangesetKind.Session)).opened,
+			...(await result('review')).opened,
+		];
+
+		assert.deepStrictEqual({ openedChatChanges, opened }, {
+			openedChatChanges: [
+				{ chat: 'agent-host-copilot:/session', changesetId: 'branch' },
+				{ chat: 'agent-host-copilot:/session', changesetId: 'uncommitted' },
+				{ chat: 'agent-host-copilot:/session', changesetId: 'session' },
+				{ chat: 'agent-host-copilot:/session', changesetId: undefined },
+			],
+			opened: [],
+		});
+	});
+
+	test('View All Edits of the working set opens the session\'s own Changes editor of its chat, with the changeset it shows', async () => {
+		const openedChatChanges: { readonly chat: string; readonly changesetId: string | undefined }[] = [];
+		const harness = createActivityPills(upcastPartial<SessionState>({
+			provider: 'copilotcli',
+			defaultChat: 'vendor-chat:/opaque/main',
+			chats: [],
+			changesets: [{ label: 'Session Changes', uriTemplate: 'vendor-diff:/opaque/session-changes', changeKind: ChangesetKind.Session }],
+		}), upcastPartial<ChatState>({ changesets: [], turns: [] }), undefined, 'remote-test', undefined, undefined, {
+			sessionChangesService: upcastPartial<ISessionChangesService>({
+				openChatChangesEditor: async (chatResource, changesetId) => {
+					openedChatChanges.push({ chat: chatResource.toString(), changesetId });
+					return true;
+				},
+			}),
+		});
+		await harness.setWorkingSetEnabled(true);
+
+		const opened = await harness.workingSetOpenAll()?.();
+
+		assert.deepStrictEqual({ opened, openedChatChanges }, {
+			opened: true,
+			openedChatChanges: [{ chat: harness.sessionResource.toString(), changesetId: 'session' }],
+		});
+	});
 
 	test('replaces the Changes pill with live session changes and restores it when disabled', async () => {
 		const sessionChangesUri = 'vendor-diff:/opaque/session-changes';
@@ -4178,6 +4251,7 @@ suite('AgentHostSessionInputPills', () => {
 			pillNotificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(ITelemetryService),
+			instantiationService.get(ISessionChangesService),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
 		const copied: string[] = [];

@@ -49,4 +49,11 @@ export interface ISessionChangesService {
 
 	/** Opens the Changes editor for a session. */
 	openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined>;
+
+	/**
+	 * Where Changes editors follow their own session, as in an editor window, opens the Changes editor of the chat of
+	 * `chatResource`, selecting the changeset `changesetId` when given. Resolves to whether it opened one: not where
+	 * editors don't follow their own session, nor for a chat of no known session.
+	 */
+	openChatChangesEditor(chatResource: URI, changesetId?: string): Promise<boolean>;
 }
