@@ -1210,12 +1210,15 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 
 	(hasGit ? test : test.skip)('lists the files changed inside a submodule, with baselines read from the submodule', async () => {
 		const fs = await import('fs/promises');
-		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-diff-submodule-')));
+		// Not resolved, so that on macOS, like for Windows 8.3 short names, the folder isn't spelled like the root that Git reports.
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-diff-submodule-'));
 		const dir = initRepositoryWithSubmodule(tmpRoot);
 		await fs.appendFile(join(dir, 'README.md'), 'root edit\n');
 		await fs.appendFile(join(dir, 'lib', 'lib.txt'), 'submodule edit\n');
 		await fs.writeFile(join(dir, 'lib', 'new.txt'), 'new\n');
 		await fs.rm(join(dir, 'lib', 'old'), { recursive: true });
+		// Changed files are reported under the root as Git spells it.
+		const root = (await svc!.getRepositoryRoot(URI.file(dir)))!.fsPath;
 
 		const changes = async () => {
 			const diffs = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
@@ -1224,7 +1227,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 				const baseline = diff.before && parseGitBlobUri(diff.before.content.uri);
 				const repository = await svc!.getSubmoduleRoot(URI.file(dir), file) ?? URI.file(dir);
 				return {
-					path: relative(dir, file.fsPath),
+					path: relative(root, file.fsPath),
 					diff: diff.diff,
 					baseline: baseline && (await svc!.showBlob(repository, baseline.sha, baseline.repoRelativePath))?.toString(),
 				};
