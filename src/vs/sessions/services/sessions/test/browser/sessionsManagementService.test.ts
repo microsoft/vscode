@@ -7613,7 +7613,7 @@ suite('SessionsManagementService', () => {
 	test('createAndSendNewChatRequest creates a session of several folders in a workspace, after checking every folder is trusted and that the session folder is the default one', async () => {
 		const main = URI.file('/work/vscode');
 		const docs = URI.file('/work/vscode-docs');
-		const project = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [main, docs] };
+		const workspaceConfig = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [main, docs] };
 		const session = stubSession({ sessionId: 's1', providerId: 'test' });
 		const created: (ISessionsProviderCreateSessionOptions | undefined)[] = [];
 		const provider = new class extends TestSessionsProvider {
@@ -7634,13 +7634,13 @@ suite('SessionsManagementService', () => {
 		const outcome = (promise: Promise<unknown>) => promise.then(() => 'created', (error: Error) => error instanceof WorkspaceNotTrustedError ? 'untrusted' : error.message);
 
 		const results = {
-			inWorkspace: await outcome(service.createAndSendNewChatRequest(main, { query: 'hi' }, { project })),
-			someFolders: await outcome(service.createAndSendNewChatRequest(docs, { query: 'hi' }, { project, folders: [docs] })),
-			notDefault: await outcome(service.createAndSendNewChatRequest(docs, { query: 'hi' }, { project })),
+			inWorkspace: await outcome(service.createAndSendNewChatRequest(main, { query: 'hi' }, { workspaceConfig })),
+			someFolders: await outcome(service.createAndSendNewChatRequest(docs, { query: 'hi' }, { workspaceConfig, folders: [docs] })),
+			notDefault: await outcome(service.createAndSendNewChatRequest(docs, { query: 'hi' }, { workspaceConfig })),
 			untrusted: await outcome(service.createAndSendNewChatRequest(main, { query: 'hi' }, { folders: [main, URI.file('/elsewhere')] })),
 		};
 
-		assert.deepStrictEqual({ results, created: created.map(options => ({ project: options?.project?.name, folders: options?.folders?.map(folder => folder.path) })) }, {
+		assert.deepStrictEqual({ results, created: created.map(options => ({ workspaceConfig: options?.workspaceConfig?.name, folders: options?.folders?.map(folder => folder.path) })) }, {
 			results: {
 				inWorkspace: 'created',
 				someFolders: 'created',
@@ -7648,8 +7648,8 @@ suite('SessionsManagementService', () => {
 				untrusted: 'untrusted',
 			},
 			created: [
-				{ project: 'Agents', folders: undefined },
-				{ project: 'Agents', folders: ['/work/vscode-docs'] },
+				{ workspaceConfig: 'Agents', folders: undefined },
+				{ workspaceConfig: 'Agents', folders: ['/work/vscode-docs'] },
 			],
 		});
 	});
@@ -7722,11 +7722,11 @@ suite('SessionsManagementService', () => {
 			override createQuickChat(): ISession { created++; return session; }
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
-		const project = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [main] };
+		const workspaceConfig = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [main] };
 		const error = (run: () => unknown) => { try { run(); return undefined; } catch (e) { return (e as Error).message; } };
 
 		const errors = [
-			error(() => service.createQuickChat({ project })),
+			error(() => service.createQuickChat({ workspaceConfig })),
 			error(() => service.createAutomationQuickChat({ folders: [main] })),
 			await service.createAndSendQuickChatRequest({ query: 'hi' }, { folders: [main] }).then(() => undefined, (e: Error) => e.message),
 		];

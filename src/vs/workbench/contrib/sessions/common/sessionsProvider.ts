@@ -23,7 +23,7 @@ import { ModelIdentifierResolution } from '../../chat/common/modelSelection.js';
 import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionProject, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionWorkspaceConfig, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
 import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 
 /**
@@ -259,15 +259,15 @@ export interface ISessionsProviderCreateSessionOptions {
 	/** Ordinary saved-draft choices, independent of Automation availability. */
 	readonly draftConfiguration?: ISessionDraftConfiguration;
 	/**
-	 * The workspace to create the session in. Its default folder (the first) must equal the folder the session is
+	 * The workspace configuration (a `.code-workspace` file) to create the session in. Its default folder (the first) must equal the folder the session is
 	 * created for, unless {@link folders} are given. The provider records it on the session's workspace (see
-	 * {@link ISessionWorkspace.project}).
+	 * {@link ISessionWorkspace.workspaceConfig}).
 	 */
-	readonly project?: ISessionProject;
+	readonly workspaceConfig?: ISessionWorkspaceConfig;
 	/**
 	 * The folders the session works in, the default folder first, which must equal the folder the session is created
 	 * for. The session runs in the default folder, or in its worktree, and the others stay attached as they are. Without
-	 * them, the session works in the {@link project}'s folders, or in its folder alone. A provider whose agent cannot
+	 * them, the session works in the {@link workspaceConfig}'s folders, or in its folder alone. A provider whose agent cannot
 	 * work in several folders creates the session in the default folder only.
 	 *
 	 * Trust: a trusted default folder does not vouch for the others. When the session's workspace requires trust, the

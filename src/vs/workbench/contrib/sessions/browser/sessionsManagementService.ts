@@ -683,8 +683,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * callers can enforce provider-specific trust without resolving it again.
 	 */
 	private _resolveProviderForNewSession(folderUri: URI, options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string; workspace: ISessionWorkspace } {
-		const defaultFolder = options?.folders ? options.folders[0] : options?.project?.folders[0];
-		if ((options?.folders || options?.project) && (!defaultFolder || !this.uriIdentityService.extUri.isEqual(defaultFolder, folderUri))) {
+		const defaultFolder = options?.folders ? options.folders[0] : options?.workspaceConfig?.folders[0];
+		if ((options?.folders || options?.workspaceConfig) && (!defaultFolder || !this.uriIdentityService.extUri.isEqual(defaultFolder, folderUri))) {
 			throw new Error(`The session folder ${folderUri.toString()} is not the default folder of the session's folders.`);
 		}
 		const providers = this.sessionsProvidersService.getProviders();
@@ -787,7 +787,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * advertised one. Throws when no capable provider/type can be resolved.
 	 */
 	private _resolveProviderForQuickChat(options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string } {
-		if (options?.project || options?.folders) {
+		if (options?.workspaceConfig || options?.folders) {
 			throw new Error('A quick chat has no folders: it cannot be created in a workspace or in folders.');
 		}
 		const providers = this.sessionsProvidersService.getProviders();
@@ -888,7 +888,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return {
 			metadata: options?.metadata,
 			...(options?.createdBySession ? { createdBySession: options.createdBySession } : {}),
-			...(options?.project ? { project: options.project } : {}),
+			...(options?.workspaceConfig ? { workspaceConfig: options.workspaceConfig } : {}),
 			...(options?.folders ? { folders: options.folders } : {}),
 			...(options?.modelId && options.modelConfiguration ? {
 				modelId: options.modelId,
@@ -1242,7 +1242,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async createAndSendNewChatRequest(folderUri: URI, options: NewSessionRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId, workspace } = this._resolveProviderForNewSession(folderUri, createOptions);
 		if (workspace.requiresWorkspaceTrust) {
-			for (const folder of createOptions?.folders ?? createOptions?.project?.folders ?? [folderUri]) {
+			for (const folder of createOptions?.folders ?? createOptions?.workspaceConfig?.folders ?? [folderUri]) {
 				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(folder);
 				if (!trustInfo.trusted) {
 					throw new WorkspaceNotTrustedError();

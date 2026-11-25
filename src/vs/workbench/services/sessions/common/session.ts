@@ -340,10 +340,10 @@ export interface ISessionWorkspace {
 	 */
 	readonly folders: ISessionFolder[];
 	/**
-	 * The workspace (a `.code-workspace` file) the session was created in, with its folders as they were then;
+	 * The workspace configuration (a `.code-workspace` file) the session was created in, with its folders as they were then;
 	 * `undefined` for a session created for folders alone. Providers that do not record workspaces omit it.
 	 */
-	readonly project?: ISessionProject;
+	readonly workspaceConfig?: ISessionWorkspaceConfig;
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
 	/**
@@ -359,14 +359,15 @@ export interface ISessionWorkspace {
 }
 
 /**
- * A workspace a session can be created in: a named, ordered set of folders, backed by a `.code-workspace` file. The
+ * The workspace configuration (a `.code-workspace` file, as `IWorkspace.configuration`) a session can be created in:
+ * a named, ordered set of folders. Not to be confused with a session's configuration. The
  * first folder is the default (main) folder. A session records the workspace it was created in (see
- * {@link ISessionWorkspace.project}) with a snapshot of its folders; the session's current folders are those of its
+ * {@link ISessionWorkspace.workspaceConfig}) with a snapshot of its folders; the session's current folders are those of its
  * {@link ISessionWorkspace}, which can differ later, for example after a chat added a folder.
  *
  * All URIs are in the client's URI space.
  */
-export interface ISessionProject {
+export interface ISessionWorkspaceConfig {
 	/** The `.code-workspace` file. Identifies the workspace. */
 	readonly uri: URI;
 	/** The display name. */
@@ -375,8 +376,8 @@ export interface ISessionProject {
 	readonly folders: readonly URI[];
 }
 
-/** Structural equality for {@link ISessionProject}. */
-export function sessionProjectEqual(a: ISessionProject | undefined, b: ISessionProject | undefined): boolean {
+/** Structural equality for {@link ISessionWorkspaceConfig}. */
+export function sessionWorkspaceConfigEqual(a: ISessionWorkspaceConfig | undefined, b: ISessionWorkspaceConfig | undefined): boolean {
 	if (a === b) {
 		return true;
 	}
@@ -1445,7 +1446,7 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| (!!a.typeIcon && !!b.typeIcon && !ThemeIcon.isEqual(a.typeIcon, b.typeIcon))
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
-		|| !sessionProjectEqual(a.project, b.project)
+		|| !sessionWorkspaceConfigEqual(a.workspaceConfig, b.workspaceConfig)
 		|| a.folders.length !== b.folders.length) {
 		return false;
 	}

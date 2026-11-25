@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionProject, ISessionType, ISessionWorkspace, ISideChatSelection, isSessionCreated, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionWorkspaceConfig, ISessionType, ISessionWorkspace, ISideChatSelection, isSessionCreated, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
 import type { ICanvasOpenOptions, ICanvasReference } from '../../../common/canvasReference.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, type ISessionReplacedEvent, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions, ISessionDraftConfiguration } from './sessionsProvider.js';
 
@@ -94,10 +94,10 @@ export interface ICreateNewSessionOptions {
 	/** Session that created this session, when it should be presented as a child. */
 	readonly createdBySession?: ISessionCreationReference;
 	/**
-	 * The workspace to create the session in. Without {@link folders}, its default folder must be the folder the
-	 * session is created for. See {@link ISessionsProviderCreateSessionOptions.project}.
+	 * The workspace configuration (a `.code-workspace` file) to create the session in. Without {@link folders}, its default folder must be the folder the
+	 * session is created for. See {@link ISessionsProviderCreateSessionOptions.workspaceConfig}.
 	 */
-	readonly project?: ISessionProject;
+	readonly workspaceConfig?: ISessionWorkspaceConfig;
 	/**
 	 * The folders the session works in, the default folder first, which must be the folder the session is created for.
 	 * See {@link ISessionsProviderCreateSessionOptions.folders}.
