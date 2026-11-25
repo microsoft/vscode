@@ -42,7 +42,9 @@ Repository search and direct Markdown reading also work without running discover
 
 ## Compose only deliberate presentation
 
-A specification's front matter selects its chapter's presentation and specimens, and section anchors bind the headings a visual presentation requires. Follow the [composition rules](authoring-conventions.md#foundation-composition). A prose edit normally changes only the owning Markdown; change front matter or anchors when the selected sections or examples change.
+Plain Markdown guidance needs no presentation, specimens, or renderer-specific anchors. Read the [optional composition rules](visual-topic-authoring.md#optional-renderer-composition) only when intentionally adding or changing those bindings.
+
+A prose edit normally changes only the owning Markdown. Change front matter or anchors when the selected sections or examples change.
 
 Use source-relative Markdown links to the product implementation and behavior. Verify both visible label and resolved destination. In particular, the Colors chapter's primary contributor resource points to `foundations/colors.design.md`, and the Colors specification retains a source link to `src/vs/platform/theme/common/colors/baseColors.ts`.
 

@@ -63,6 +63,8 @@ Trace the rendered control before choosing a token or selector; custom editor ov
 
 ### Contrast and Interaction States
 
+For UI or color changes, use the [four-theme validation baseline](../design-system/foundations/theming.design.md#theme-comparisons). Other built-in themes remain best-effort coverage.
+
 - Treat foreground and background as a semantic pair. A background change requires checking text, placeholders, links, operable inactive icons, hover, selection, and focus against the final composited surface.
 - Resolve defaults, opacity, and user overrides before measuring contrast. For example, an opaque icon color may meet contrast requirements while its translucent inactive variant does not.
 - Normal-size text and placeholders need at least 4.5:1 contrast; visual information needed to identify controls and focus needs at least 3:1 against adjacent colors. Apply the relevant accessibility criteria rather than extending these thresholds to decorative or disabled content. Unselected but operable controls are not disabled.

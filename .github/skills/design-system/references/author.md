@@ -25,7 +25,7 @@ Keep a compact plan in task context:
 
 Choose topic scope, source location, and navigation separately. Foundations teach shared choices; components teach reusable contracts, not every variant or feature composition. [Patterns](pattern-authoring.md) teach reusable task compositions, navigation, and behavior across scenarios.
 
-Use the [component authoring conventions](authoring-conventions.md#component-references) for source and fixture relationships. Recommend placement improvements with their compatibility implications; do not turn an editorial task into an unrequested reorganization.
+Use the [component authoring conventions](authoring-conventions.md#component-references) for source ownership. Recommend placement improvements with their compatibility implications; do not turn an editorial task into an unrequested reorganization.
 
 ## 2. Inherit the design contract
 
@@ -62,7 +62,7 @@ Derive the outline from rendered section order, including conditional sections. 
 
 Pair important visual decisions with useful teaching examples, not just token inventories. Connect each example to its decision, source facts, text equivalent, and observable success criterion.
 
-Put selection guidance before examples and detailed lookup after them. Use [visual topic authoring](visual-topic-authoring.md) for representation choices and artifact mapping.
+Put selection guidance before examples and detailed lookup after them. Read [visual topic authoring](visual-topic-authoring.md) only when adding or changing visual teaching material or optional renderer composition.
 
 ## 4. Write concise, actionable guidance
 
@@ -102,7 +102,7 @@ Consult the [accessibility skill](../../accessibility/SKILL.md) for the subject'
 
 Keep decisions and example meanings understandable in Markdown, without a live preview. Preserve useful source links and text equivalents.
 
-Use [topic integration](topic-integration.md) for metadata, source bindings, and repository-only discovery. External viewer adaptation, installation, and native-canvas checks are separate work, not prerequisites for product documentation.
+Use [topic integration](topic-integration.md) when changing metadata, source bindings, or placement. External viewer adaptation, installation, and native-canvas checks are separate work, not prerequisites for product documentation.
 
 ## 6. Verify the reader can succeed
 

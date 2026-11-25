@@ -1,8 +1,8 @@
 # Authoring design specifications
 
-Write useful standalone Markdown, backed by actual specifications, tokens, and components. External viewers may render these documents and their optional presentation metadata; product work does not depend on those viewers.
+Write useful standalone Markdown, backed by actual specifications, tokens, and components. These conventions cover ownership, writing, and source checks, not extra requirements for ordinary UI changes.
 
-For intentional guidance work, use the [design-system skill](../SKILL.md) (`/design-system author` or `/design-system review`). These conventions cover content placement and optional presentation metadata, not extra requirements for ordinary UI changes.
+For intentional guidance work, use the [design-system skill](../SKILL.md) (`/design-system author` or `/design-system review`). Read [visual topic authoring](visual-topic-authoring.md) only when adding visual teaching material or changing optional renderer composition.
 
 ## Choose the owner
 
@@ -21,9 +21,7 @@ For intentional guidance work, use the [design-system skill](../SKILL.md) (`/des
 | Actual interactive examples | The existing component-fixture infrastructure |
 | Layout, playback controls, and explanatory diagram mechanics | The external viewer repository, outside product documentation contributions |
 
-Keep component specifications beside their implementation and shared foundations and patterns in their respective directories. Discovery derives kinds and readiness from their front matter. One chapter can compose several sources; one source can serve several chapters.
-
-Keep authored choices in the owning specification's front matter: presentation, specimens, section labels, fixture relationships, and design references. Derive topic inventories from that metadata, chapter outlines from the specification's headings, and token values and groups from product sources. Do not maintain a separate registry, topic list, or list of expected headings.
+Keep component specifications beside their implementation and shared foundations and patterns in their respective directories. Discovery derives kinds and readiness from their front matter.
 
 A viewer consumes product-owned guidance and metadata; it does not supply their source of truth. Product documentation must be usable without installing or modifying a viewer.
 
@@ -33,21 +31,15 @@ Existing document boundaries still apply. For example, a feature's state-ownersh
 
 Explain when to choose a pattern, why it exists, what must remain true, and where an exception applies. Prefer links to real component APIs and examples over hand-maintained copies of complete signatures or numeric tables.
 
-The renderer should project values from code. Authored metadata can select relevant APIs and validate their source anchors, but it must not silently invent a missing API or substitute a stale value.
-
 Keep each rule in one authoritative place. When a rule changes owners, update its references in the same change rather than leaving two independently editable copies.
 
-Example headings should name a reusable pattern or design decision. Lead with purpose, applicability, and constraints rather than widget anatomy, diagram mechanics, or sample labels. Keep reading aids in the visualization's accessible description and implementation details in optional references. Each pattern's reference example has one primary home; attach optional inspection there instead of duplicating a gallery for validation. Keep task-specific walkthroughs and approval questions in the task conversation.
+Example headings should name a reusable pattern or design decision. Lead with purpose, applicability, and constraints rather than widget anatomy, diagram mechanics, or sample labels. Keep task-specific walkthroughs and approval questions in the task conversation.
 
 ### Separate guidance from captions
 
-Read the complete chapter composition before changing its copy. Keep a consistent sequence of decision, guidance, then example across sibling topics; move misplaced guidance to its owning decision rather than appending another paragraph. Captions describe what the example demonstrates, not rules that should have preceded it.
+Read the surrounding guidance before changing its copy. Keep a consistent sequence of decision, guidance, then example across sibling topics. Captions describe what an example demonstrates, not rules that should have preceded it.
 
-General guidance and captions must remain useful if the example's sample content changes. Explain what to choose, why it helps, which principle it supports, and what to preserve. Do not narrate dummy labels, feature names, or individual choices in the specimen. Captions explain the observable design relationship, not how to operate the player. Put playback help in accessible control names and descriptions, separate from guidance. For example, “Only the selection indicator travels; labels and hit targets remain stable” explains the pattern without depending on a particular set of choices.
-
-Match the example's complexity to the idea. A single-property study should isolate that property; a product pattern should demonstrate the actual component and its complete interaction. Do not use implementation provenance, a successful render, or numerical correctness as a substitute for checking whether the example visibly teaches its stated point.
-
-Use real components for recognizable product controls, not look-alikes built in the book's CSS. Abstract diagrams should be unmistakably diagrams.
+General guidance and captions must remain useful if sample content changes. Explain what to choose, why it helps, and what to preserve without narrating dummy labels or preview controls.
 
 ## Name files and topics
 
@@ -69,73 +61,17 @@ Edit the owning Markdown once and review it with the relevant component or found
 
 When renaming a specification, update inbound Markdown links, `$text` file references, and affected source tests together. Keep topic and example IDs stable. Do not keep path aliases or a second editable copy at the old location; repository links are the compatibility contract. Consumer-specific adaptations belong in the consuming project.
 
-External readers may compose chapters from specifications: anchored headings can bind visual sections, `$text` references can supply specimen copy, and remaining sections can render as guidance. Product documentation remains complete as Markdown; no separate composition directory is required.
-
 ### Component references
 
-External readers may derive their component collection from code-local specifications with `kind: "component"`, including controls composed from other controls. A specification's `component` front matter names its `implementation`, any `relatedSources`, selected `api` members, live `fixtures`, and an optional Figma `designReference`. `aliases` can add search names, such as variants within the family. Classification comes only from the specification; fixtures supply optional examples. No separate component inventory is required.
+Code-local specifications with `kind: "component"` identify reusable building blocks, including composed controls. Keep the guidance beside the implementation; fixtures and API selections are optional.
 
-Keep the specification beside its implementation and select APIs by public `Type.member` names or an exported function name. Product validation checks binding syntax and configured source paths; it does not resolve TypeScript declarations. External renderers may derive types, optionality, declarations, and source locations from TypeScript, including source-inferred types, and may report missing, private, ambiguous, or unsupported selections. An external renderer may also require inherited declarations to be reachable through the listed owners; there is no hand-maintained reference JSON to repair.
+Explain non-obvious activation, state, accessibility, and disposal advice in ordinary Markdown. Link to the owning source instead of copying its API inventory.
 
-Keep non-obvious activation, state, accessibility, and disposal advice in the design document, not a copied API-purpose column. Usage and Accessibility support ordinary Markdown and source-relative links. An external reader may provide a shared component layout that sets Usage, Preview, Accessibility, and API order; documentation remains complete without it. Reader qualification and preview availability are separate from source-document discovery.
+Read [component bindings](visual-topic-authoring.md#component-bindings) only when adding or changing an optional API or fixture projection.
 
-### Foundation composition
+## Optional presentation
 
-A foundation's front matter selects a visual `presentation` when its chapter needs one: `typography`, `foundations`, `theming`, `icons`, `motion`, or `tokens`. Without one, external readers may render the chapter as guidance using its Introduction and selected sections. `specimens` holds only structured sample choices and labels, not another introduction or prose section database:
-
-```yaml
-presentation: "typography"
-specimens:
-  composition:
-    - - "fontSize.body1"
-      - $text: "Hierarchy in practice"
-sectionCopy:
-  emphasis:
-    label: "Emphasis"
-```
-
-A visual presentation binds each section it requires through an anchor immediately before the owning heading, such as `<a id="typography-emphasis"></a>` before `## Weight and emphasis`. A missing required section fails explicitly. Markdown order controls composition. `sectionCopy.<key>.label` provides a shorter outline label, and `title` replaces the rendered heading only when necessary. Further anchors before the same heading preserve earlier chapter links. Other level-two headings render as guidance where they appear, except headings consumed as specimen copy. When another heading carries an anchor, only anchored headings become guidance; this keeps reference detail in the specification without adding it to the chapter. Changing paragraphs under an existing heading requires no metadata edit.
-
-Set `tokenDomain: true` when the specification owns a group of product tokens. The Design tokens reference then lists the group whose ID matches the specification's ID. Token values and groups come from product definitions; an undeclared group is reported rather than hidden.
-
-Use `$text: "Heading"` for specimen copy from the same specification. A `$text` object can select another Markdown `file` or a genuinely necessary caption/lead `paragraph`. Elevation retains those deliberate diagram relationships; ordinary sections should not reconstruct prose with paragraph indices. Missing sources and ambiguous headings fail rather than falling back to copied prose.
-
-Keep essential guidance in Markdown when adding optional binding metadata. Support for new presentations belongs to external readers and does not gate product documentation.
-
-## Compose a chapter
-
-For an optional rendered reference, start with the reader's decision, demonstrate it, then provide detail. Renderer implementation and validation follow the external viewer's workflow.
-
-The foundation sequence introduces design principles, accessibility, content, and design tokens, then groups typography and color, layout and geometry, and imagery and motion. Patterns follow Foundations and teach reusable task compositions through the [pattern conventions](pattern-authoring.md). Component chapters follow Patterns in alphabetical order; the Source library remains a separate utility. Use front-matter `order` only when editorial placement must be preserved; keep derived topic IDs and deep links stable when changing the reading order.
-
-Use the shared article frame and book typography for explanations: one chapter title, major sections, then nested subheadings. Product specimens retain their source-defined typography and geometry. Keep prose, headings, and examples on the same left edge, with comfortable line lengths and more space between sections than within them. Put prerequisite guidance before the reference it explains; supporting source excerpts can follow the examples. Guidance sections keep their Markdown position relative to visual sections, so order the specification the way the chapter should read. Source links belong after the chapter, not beside its title.
-
-Reference chapters use normal page scrolling, including expanded token domains. Do not constrain the entire article to a viewport height or clip it to make an inventory fit. A bounded catalog such as the icon browser may own a separately labeled, keyboard-focusable scrolling region without constraining the surrounding article. Multi-section chapters have an outline in reading order; links into collapsed reference groups open those groups.
-
-Explanatory lists and extended examples read vertically. Reserve columns for compact, equivalent specimens or explicit comparisons, and let them collapse when the article cannot fit both. Base a specimen's reflow on its available container space rather than assuming a wide window means a wide article.
-
-Reference actual source sections instead of copying their prose into front matter. Keep source paths repository-relative and use stable headings or supported explicit anchors. Heading-based bindings need unique slugs across the source document; preserve existing slugs when practical, and update anchors and `$text` references when sections move or change roles. A missing reference should produce an actionable failure, not an empty successful chapter.
-
-Front matter selects composition. It must not become a second token registry, a source-code snapshot, or an arbitrary executable page builder.
-
-Define further reading in the specification's `references` front matter. Each ordered `{ title, url, description }` entry needs a credential-free HTTPS URL and a specific reason to read beyond this topic. Prefer one to three authoritative links when useful. Keep contextual links with their owners and never scrape Markdown, skills, imports, or dependencies into reading lists.
-
-### Bind prose to a visual reference
-
-Use an existing chapter as the starting point. For example, [Typography](../foundations/typography.design.md) selects its presentation and specimens in front matter, while its Markdown owns the authored specimen explanations. The adapter produces the normalized authored chapter; contributors do not maintain a separate page or projection file. A `$text` reference reads a named section from the specification:
-
-```yaml
-$text:
-  heading: "Hierarchy in practice"
-```
-
-Whole sections are the default. Use `list: true` only for an explicitly flat list, or `paragraph` only for a deliberate lead/caption whose position is part of the composition. Heading references must be unambiguous. Set `file` to read an existing product or instruction document that already owns the text. Relative links resolve from the specification.
-
-[Elevation](../foundations/elevation.design.md) demonstrates the richer composition format: its anchors and specimens bind the specification's sections to guidance, construction diagrams, and scenario examples. Composition must follow the design guidance, not force new concepts into existing galleries. Keep supported block types explicit rather than allowing arbitrary scripts in content.
-
-Viewer refresh and installation follow the viewer repository's workflow, separately from documentation changes.
-
-Guidance-only chapters, such as [Illustration](../foundations/illustration.design.md), omit `presentation` and use the shared article frame. The Introduction and level-two headings become the chapter without copied prose or page-specific chrome.
+A useful specification needs no `presentation`, `specimens`, or renderer-specific anchors. Use [visual topic authoring](visual-topic-authoring.md) only for intentional visual teaching or [renderer composition](visual-topic-authoring.md#optional-renderer-composition) changes.
 
 ## Preserve evidence boundaries
 
@@ -151,15 +87,9 @@ An extracted value describes this checkout. A fixture demonstrates the component
 
 ## Add or update an example
 
-Reuse the real component and its existing fixture when possible. Keep feature state and behavior in the fixture, not in a canvas imitation. Preserve variants, keyboard interaction, focus, high-contrast behavior, reduced motion, and the component's normal lifecycle.
+A worked scenario, a source link, or a small code example can teach a decision without an interactive preview.
 
-Explanatory diagrams may remain in the viewer. Parameterize them with source-defined values where appropriate, and do not present their illustrative geometry as a shipped product default.
-
-A book player can pause or reset an example without making those controls part of the product widget's contract.
-
-An example must establish its context before playback: show its trigger, surrounding content, or a representative still state. Use authentic product components or their owned rendering helpers, and choose sample data that reflects an actual product scenario. Abstract diagrams can explain timing or properties, but a fabricated feature is not evidence of product usage. Keep product scenes on a consistent viewport and inset, preserving intentional anchors such as a menu's trigger or a notification's edge.
-
-Check a product specimen against the real product before changing its behavior. Reuse an existing full-renderer fixture when layout depends on ancestry, data shape, or neighboring content. Missing gutters, malformed sample data, or a clipped host are fixture defects, not evidence that the product needs a redesign; do not lower the product baseline to fit the example.
+When adding an interactive example, reuse the real component and its existing fixture. Follow [visual topic authoring](visual-topic-authoring.md) for the applicable representation and rendering checks.
 
 ## Verify the change
 
