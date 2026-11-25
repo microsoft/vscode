@@ -2338,7 +2338,10 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	private readonly _changesPendingObs: IObservable<boolean>;
 	private readonly _pickerEnabledObs: IObservable<boolean>;
 	private readonly _summaryLease = this._register(new MutableDisposable());
-	/** Cancels the branches the base branch picker is loading when it opens again or the item is disposed. */
+	/**
+	 * Cancels the base branch picker, whether it still loads its branches or shows them, when it opens again, the
+	 * label carries another selection, or the item is disposed.
+	 */
 	private readonly _baseBranchPickerRequest = this._register(new MutableDisposable<DisposableStore>());
 	private _container: HTMLElement | undefined;
 	private _labelElement: HTMLElement | undefined;
@@ -2424,6 +2427,13 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 				this.updateTooltip();
 				this.updateAvailability(pickerEnabled);
 			}
+		}));
+
+		// Each changeset has its own selection, so another one means the picker would change the base of another session, chat or changeset.
+		const baseBranchSelectionObs = derived(reader => this._labelObs.read(reader)?.baseBranch?.selection);
+		this._register(autorun(reader => {
+			baseBranchSelectionObs.read(reader);
+			this._baseBranchPickerRequest.clear();
 		}));
 	}
 

@@ -18,7 +18,7 @@ import { createBranchPickerActionItem, getBranchPickerListOptions, IBranchPicker
  * Lists the branches `selection` can compare against below `anchor`, with
  * `currentRef`, the recorded base, focused, and compares against the ref the
  * user picks. Shows nothing until the branches load, or when `token` is
- * cancelled before then.
+ * cancelled before then, and hides as `token` is cancelled later.
  */
 export async function showBaseBranchPicker(
 	actionWidgetService: IActionWidgetService,
@@ -57,12 +57,22 @@ export async function showBaseBranchPicker(
 	], undefined));
 
 	const previouslyFocusedElement = getActiveElement();
+	// Another widget may replace this picker, and must not be hidden in its place.
+	let shown = true;
+	const hideOnCancel = token.onCancellationRequested(() => {
+		if (shown) {
+			actionWidgetService.hide();
+		}
+	});
 	actionWidgetService.show<IBranchPickerItem>(
 		'changesBaseBranchPicker',
 		false,
 		items,
 		{
 			onSelect: item => {
+				if (token.isCancellationRequested) {
+					return;
+				}
 				actionWidgetService.hide();
 				if (item.value === currentRef) {
 					return;
@@ -74,6 +84,8 @@ export async function showBaseBranchPicker(
 				});
 			},
 			onHide: () => {
+				shown = false;
+				hideOnCancel.dispose();
 				if (isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}

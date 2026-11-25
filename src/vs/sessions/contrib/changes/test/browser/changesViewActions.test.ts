@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, derivedObservableWithCache, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -54,7 +54,7 @@ import { createTestActiveSession } from '../../../../test/browser/sessionViewTes
 import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, stubSessionHosts, stubSessionHostsFromSessionsService, testGridPanes, withCreatedStatus, testPaneContentOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetBaseBranchCandidates, ISessionChangesetBaseBranchSelection, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService, NoChangesEditorScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
@@ -576,12 +576,18 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
 		const shown: { user: string; items: readonly IActionListItem<unknown>[]; delegate: IActionListDelegate<unknown>; anchor: unknown }[] = [];
+		let visible: IActionListDelegate<unknown> | undefined;
 		let focused: string | undefined;
 		const actionWidgetService = new class extends mock<IActionWidgetService>() {
 			override show(user: string, _supportsPreview: boolean, items: readonly IActionListItem<unknown>[], delegate: IActionListDelegate<unknown>, anchor: unknown): void {
 				shown.push({ user, items, delegate, anchor });
+				visible = delegate;
 			}
-			override hide(): void { }
+			override hide(): void {
+				const hidden = visible;
+				visible = undefined;
+				hidden?.onHide();
+			}
 			override focusItemById(id: string): void { focused = id; }
 		}();
 		const contextKeyService = new MockContextKeyService();
@@ -593,6 +599,7 @@ suite('Changes View Actions', () => {
 			picker, container, shown, selected, loading, session,
 			pen: container.querySelector<HTMLElement>('.changes-picker-base-branch-edit')!,
 			focused: () => focused,
+			isVisible: () => !!visible,
 		};
 	}
 
@@ -685,6 +692,55 @@ suite('Changes View Actions', () => {
 			rows: ['origin/feature', '[Default Branch]', 'origin/main', '[Branches]', 'main'],
 			focused: 'refs/remotes/origin/feature',
 			sets: ['refs/heads/main'],
+		});
+	});
+
+	test('the branch picker does not open, and its branches stop loading, once the label carries another selection', async () => {
+		const candidates = new DeferredPromise<ISessionChangesetBaseBranchCandidates>();
+		let cancelled: boolean | undefined;
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async token => {
+				const result = await candidates.p;
+				cancelled = token.isCancellationRequested;
+				return result;
+			},
+			setBaseBranch: async () => { },
+		};
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', selection);
+		const { shown, pen } = renderBaseBranchPicker(selectionObs);
+
+		pen.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		// Another session, whose Branch changeset has a selection of its own, becomes active.
+		selectionObs.set(upcastPartial<ISessionChangesetBaseBranchSelection>({}), undefined);
+		candidates.complete({ refs: ['refs/remotes/origin/main'], defaultRef: 'refs/remotes/origin/main' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ opened: shown.map(({ user }) => user), cancelled }, { opened: [], cancelled: true });
+	});
+
+	test('the branch picker hides, and a late pick changes no base, once the label carries another selection', async () => {
+		const sets: string[] = [];
+		const selection: ISessionChangesetBaseBranchSelection = {
+			getCandidates: async () => ({ refs: ['refs/remotes/origin/main', 'refs/remotes/origin/feature', 'refs/remotes/origin/release'], defaultRef: 'refs/remotes/origin/main' }),
+			setBaseBranch: async ref => { sets.push(ref); },
+		};
+		const selectionObs = observableValue<ISessionChangesetBaseBranchSelection | undefined>('picker.baseBranchSelection', selection);
+		const { shown, pen, isVisible } = renderBaseBranchPicker(selectionObs);
+
+		pen.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await timeout(0);
+		const visibleBefore = isVisible();
+		selectionObs.set(undefined, undefined);
+		const visibleAfter = isVisible();
+		const branchPicker = shown[0];
+		branchPicker.delegate.onSelect(branchPicker.items.find(item => item.label === 'origin/release')!.item);
+		await timeout(0);
+
+		assert.deepStrictEqual({ opened: shown.map(({ user }) => user), visibleBefore, visibleAfter, sets }, {
+			opened: ['changesBaseBranchPicker'],
+			visibleBefore: true,
+			visibleAfter: false,
+			sets: [],
 		});
 	});
 
