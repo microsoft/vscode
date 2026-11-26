@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/defaultAutomationDialog.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
+import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { isDefined } from '../../../../base/common/types.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IAutomationFormPresentation } from './automationDialog.js';
-import { AutomationDialogService, IAutomationDialogButtons, IAutomationDialogControls, IAutomationDialogFocusElements, IAutomationDialogShownContext } from './automationDialogService.js';
+import { assertReturnsDefined, isDefined } from '../../../../base/common/types.js';
+import { localize } from '../../../../nls.js';
+import { defaultButtonStyles, defaultDialogStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
+import { IAutomationFormPresentation, isAutomationDialogPopupTarget, shouldPassThroughAutomationDialogCommand } from './automationDialog.js';
+import { AutomationDialogService, automationDialogAllowableCommands, IAutomationDialogButtons, IAutomationDialogControls, IAutomationDialogFocusElements, IAutomationDialogShownContext, IAutomationDialogSurface, IAutomationDialogSurfaceOptions } from './automationDialogService.js';
 
 const $ = DOM.$;
 
@@ -20,8 +24,69 @@ const $ = DOM.$;
  */
 export class DefaultAutomationDialogService extends AutomationDialogService {
 
-	protected override readonly dialogOptions = {};
 	protected override readonly formPresentation: IAutomationFormPresentation = {};
+
+	protected override createSurface(options: IAutomationDialogSurfaceOptions): IAutomationDialogSurface {
+		const store = new DisposableStore();
+		let element: HTMLElement | undefined;
+		const dialog = store.add(new Dialog(
+			options.container,
+			options.title,
+			[],
+			createWorkbenchDialogOptions({
+				type: 'none',
+				extraClasses: ['automation-dialog'],
+				disableDefaultAction: true,
+				isExternalFocusAllowed: isAutomationDialogPopupTarget,
+				// textLinkForeground stamps inline styles onto chat input picker chips.
+				dialogStyles: { ...defaultDialogStyles, textLinkForeground: undefined },
+				renderFooter: container => {
+					container.classList.add('dialog-buttons', 'automation-dialog-footer-actions');
+					container.parentElement?.classList.add('dialog-buttons-row', 'automation-dialog-footer-row');
+					options.renderFooter(container);
+				},
+				renderBody: container => {
+					container.classList.add('automation-dialog-body');
+					element = container.closest<HTMLElement>('.monaco-dialog-box') ?? undefined;
+					options.renderBody(container);
+				},
+			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands,
+				(commandId, event) => shouldPassThroughAutomationDialogCommand(commandId, event.target)),
+		));
+		const dialogElement = assertReturnsDefined(element);
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
+		const closeToolbar = dialogElement.querySelector<HTMLElement>('.dialog-toolbar') ?? undefined;
+		// Dialog stops resolving once its close button is used, so ignore that button while a save is committing.
+		store.add(DOM.addDisposableListener(options.container, DOM.EventType.CLICK, (event: MouseEvent) => {
+			if (options.isCommitting() && DOM.isHTMLElement(event.target) && closeToolbar?.contains(event.target)) {
+				DOM.EventHelper.stop(event, true);
+				event.stopImmediatePropagation();
+			}
+		}, true));
+		void dialog.show().then(() => options.onDidDismiss());
+		return {
+			element: dialogElement,
+			setCommitting: committing => {
+				dialogElement.classList.toggle('committing', committing);
+				closeToolbar?.toggleAttribute('inert', committing);
+			},
+			dispose: () => store.dispose(),
+		};
+	}
+
+	protected override async showOneTimeAutomation(title: string, details: readonly string[]): Promise<void> {
+		const dialog = new Dialog(
+			this.layoutService.activeContainer,
+			title,
+			[localize('automation.dialog.close', "Close")],
+			createWorkbenchDialogOptions({ type: 'info', detail: details.join('\n\n') }, this.keybindingService, this.layoutService, this.hostService),
+		);
+		try {
+			await dialog.show();
+		} finally {
+			dialog.dispose();
+		}
+	}
 
 	protected override renderFooterActions(container: HTMLElement, controls: IAutomationDialogControls, store: DisposableStore): IAutomationDialogButtons {
 		const buttonBar = store.add(new ButtonBar(container));

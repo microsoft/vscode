@@ -22,6 +22,7 @@ import { append, createFrostedGlassOverlays, readColor, supportsGlass } from '..
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsList.css';
 import '../../../../browser/media/style.css';
 import '../../../automations/browser/media/automationDialog.css';
+import '../../../automations/browser/media/defaultAutomationDialog.css';
 import '../../../agentFeedback/browser/media/agentFeedbackEditorWidget.css';
 import '../../../../browser/media/workbench.css';
 import '../../../../browser/media/floatingAuxiliaryBar.css';

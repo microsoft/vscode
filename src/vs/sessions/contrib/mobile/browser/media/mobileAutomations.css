@@ -145,28 +145,21 @@
 }
 
 .mobile-workbench .automation-phone-form {
-	position: absolute;
+	/* Nested inputs and the chat input read this as their surface. */
+	--vscode-editorWidget-background: var(--mobile-surface-card);
+	position: fixed;
 	inset: 0;
-}
-
-.automation-phone-form > .dialog-shadow,
-.automation-phone-form .monaco-dialog-box.automation-dialog {
+	/* Above the workbench; picker sheets, dialogs, and context views stack above this. */
+	z-index: 1000;
+	display: flex;
+	flex-direction: column;
 	box-sizing: border-box;
-	width: 100%;
-	height: 100%;
-	min-width: 0;
-	max-width: none;
-	max-height: none;
-	border-radius: 0;
-	box-shadow: none;
+	background: var(--mobile-surface-card);
+	color: var(--vscode-editorWidget-foreground);
 }
 
-.automation-phone-form .automation-dialog .dialog-toolbar-row {
-	display: none;
-}
-
-.mobile-workbench .automation-phone-form .monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container {
-	padding: 0;
+.mobile-workbench .automation-phone-form:focus {
+	outline: none;
 }
 
 .automation-phone-form-header {
@@ -225,13 +218,16 @@
 	flex: none;
 }
 
-.automation-phone-form .automation-dialog > .automation-dialog-footer-row {
+.automation-phone-form > .automation-dialog-footer-row {
 	flex: none;
-	margin: 0;
-	padding: 0;
-	border: 0;
 }
 
 .automation-phone-form .automation-dialog-notification-center {
 	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.automation-phone-one-time-detail {
+	margin: 0 0 var(--vscode-spacing-size120);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
