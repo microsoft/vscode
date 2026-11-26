@@ -58,6 +58,7 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 			});
 			policy.updateTrust();
 			const trustDisabled = await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			const explicitPath = await policy.resolveLaunch(modulePath, 'explicit', '/copilot-sdk/extension-bootstrap.mjs');
 			admission.dispose();
 			const noAdmission = await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
 
@@ -66,12 +67,14 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 				untrusted: !!untrusted.launch,
 				trusted: !!trusted.launch,
 				trustDisabled: !!trustDisabled.launch,
+				explicitPath: !!explicitPath.launch,
 				noAdmission: !!noAdmission.launch,
 			}, {
 				missingTrustConfig: false,
 				untrusted: false,
 				trusted: true,
 				trustDisabled: true,
+				explicitPath: false,
 				noAdmission: false,
 			});
 		} finally {

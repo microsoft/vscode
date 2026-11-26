@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -27,7 +28,7 @@ suite('FolderLocationPersistenceContribution', () => {
 
 	const primary = URI.file('/work/project');
 	const alternate = URI.file('/work/project-alt');
-	const resolvedLocation: IResolvedFolderLocation = { uri: alternate, label: 'Alternate', providerId: 'test', builtIn: true };
+	const resolvedLocation: IResolvedFolderLocation = { uri: alternate, label: 'Alternate', icon: Codicon.folder, providerId: 'test', builtIn: true };
 	const persisted: IWindowFolderLocation = { uri: alternate.toString(), label: 'Alternate', providerId: 'test' };
 
 	interface IFixtureOptions {
@@ -400,7 +401,7 @@ suite('FolderLocationPersistenceContribution', () => {
 	}));
 
 	test('a location already confirmed at construction is respected and persisted', async () => {
-		const other: IResolvedFolderLocation = { uri: URI.file('/work/project-other'), label: 'Other', providerId: 'test', builtIn: true };
+		const other: IResolvedFolderLocation = { uri: URI.file('/work/project-other'), label: 'Other', icon: Codicon.folder, providerId: 'test', builtIn: true };
 		const fixture = createFixture({ persisted, folderUri: other.uri, confirmed: other });
 		await settle();
 
@@ -410,7 +411,7 @@ suite('FolderLocationPersistenceContribution', () => {
 	});
 
 	test('a location confirmed before instantiation without a startup location is persisted', async () => {
-		const other: IResolvedFolderLocation = { uri: URI.file('/work/project-other'), label: 'Other', providerId: 'test', builtIn: true };
+		const other: IResolvedFolderLocation = { uri: URI.file('/work/project-other'), label: 'Other', icon: Codicon.folder, providerId: 'test', builtIn: true };
 		const fixture = createFixture({ folderUri: other.uri, confirmed: other });
 		await settle();
 

@@ -51,6 +51,7 @@ export interface IDocumentDiff2 extends IDocumentDiff {
 
 	originalModel: ITextModel;
 	modifiedModel: ITextModel;
+	readonly modifiedVersionId?: number;
 
 	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
 	undo(changes: DetailedLineRangeMapping): Promise<boolean>;

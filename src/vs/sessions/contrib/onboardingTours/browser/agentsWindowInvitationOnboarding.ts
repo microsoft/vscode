@@ -26,7 +26,7 @@ import { NewSessionOnboardingHandoffContext } from '../../../common/agentsWindow
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
-import { getSessionOnboardingTargetId } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { getSessionOnboardingTargetId } from '../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createAgentsWindowInvitationTour, IAgentsWindowInvitationTourCopy } from './tours/agentsWindowInvitationTour.js';
 

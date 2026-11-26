@@ -270,10 +270,8 @@ function parseUri(value: string | undefined): URI | undefined {
 }
 
 /**
- * The window's resource for a recorded file or resource, the one its pill entry opens. The agent host's `file:` URIs are
- * mapped into the window, which matters in remote windows; other URIs of files are the agent host file system's, as in
- * {@link AgentHostSessionInputPills._artifactEntry}. Other resources, such as an extension's, already name something in the
- * window. Whether the chat can show it depends on what provides its scheme (see {@link observeChatResourceExists}).
+ * Resolves a recorded resource for both its pill and Show Above Chat Input. Host `file:` URIs use the connection mapper;
+ * other file artifacts use the host filesystem, while generic resource URIs stay in the window's space.
  */
 function getRecordedResource(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): URI | undefined {
 	const uri = artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource ? parseUri(artifact.uri) : undefined;
@@ -1044,14 +1042,10 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	private _artifactEntry(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution, commitResolver: GitHubCommitResolver, reader: IReader): IChatPillEntry | undefined {
 		if (artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource) {
-			const artifactResource = parseUri(artifact.uri);
-			if (!artifactResource) {
+			const resource = getRecordedResource(artifact, resolution);
+			if (!resource) {
 				return undefined;
 			}
-			const resource = artifact.type === SessionArtifactType.File
-				// eslint-disable-next-line local/code-agent-host-uri-mapping -- file artifacts are Agent Host filesystem resources, not connection workspace resources
-				? toAgentHostUri(artifactResource, getAgentHostResourceAuthority(resolution))
-				: artifactResource;
 			const label = artifact.type === SessionArtifactType.File ? basename(resource) : artifact.label;
 			const imageMimeType = artifact.type === SessionArtifactType.File && !artifact.isArtifact ? getMediaMime(resource.path) : undefined;
 			const fullPath = artifact.type === SessionArtifactType.File ? this._labelService.getUriLabel(resource, { noPrefix: true }) : undefined;

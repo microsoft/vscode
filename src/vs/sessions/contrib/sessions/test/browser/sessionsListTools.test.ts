@@ -22,7 +22,7 @@ import { ISession } from '../../../../../workbench/services/sessions/common/sess
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { OrganizeSessionsListTool, ReadSessionsListTool } from '../../browser/sessionsListTools.js';
-import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { DEFAULT_SESSIONS_GROUPINGS, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
@@ -62,7 +62,7 @@ suite('Sessions - Sessions list tools', () => {
 		const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
 		void configurationService.setUserConfiguration(SESSIONS_LIST_AGENT_TOOLS_SETTING, true);
 		const storageService = harness.instantiationService.get(IStorageService);
-		storageService.store('sessionsListControl.groups', JSON.stringify({ groups: options.groups ?? [], membership: options.memberships ?? {}, sectionMembership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('sessionsListControl.localGroups', JSON.stringify({ groups: options.groups ?? [], membership: options.memberships ?? {}, sectionMembership: {} }), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const orderService = harness.store.add(new SessionSectionOrderService(storageService));
 		harness.instantiationService.stub(ISessionSectionOrderService, orderService);
 		harness.instantiationService.stub(ISessionGroupsService, harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({

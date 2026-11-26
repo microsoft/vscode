@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { hasKey } from '../../../../base/common/types.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentModelCallCompletedSignal } from '../../common/agent.js';
@@ -1177,7 +1178,8 @@ export function mapItemCompleted(
 		}];
 	}
 	if (params.item.type === 'imageGeneration') {
-		const success = params.item.status === 'completed' && params.item.result.length > 0;
+		const imageData = hasKey(params.item, { result: true }) ? params.item.result : undefined;
+		const success = params.item.status === 'completed' && !!(hasKey(params.item, { result: true }) ? params.item.result : params.item.fileId);
 		const labels = codexImageGenerationLabels(params.item.status);
 		const actions: ChatAction[] = [];
 		const toolInput = codexImageGenerationToolInput(params.item.revisedPrompt);
@@ -1198,9 +1200,9 @@ export function mapItemCompleted(
 			result: {
 				success,
 				pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
-				content: success ? [{
+				content: success && imageData ? [{
 					type: ToolResultContentType.EmbeddedResource,
-					data: params.item.result,
+					data: imageData,
 					contentType: 'image/png',
 				}] : undefined,
 				...(success ? {} : { error: { message: labels.errorMessage } }),

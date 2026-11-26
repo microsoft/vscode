@@ -6,8 +6,8 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { IHookCommand, toHookType } from './hookSchema.js';
-import { parseClaudeHooks, extractHookCommandsFromItem, getClaudeHookTypeName } from './hookClaudeCompat.js';
-import { resolveCopilotCliHookType, getCopilotCliHookTypeName } from './hookCopilotCliCompat.js';
+import { parseClaudeHooks, extractHookCommandsFromItem } from './hookClaudeCompat.js';
+import { resolveCopilotCliHookType } from './hookCopilotCliCompat.js';
 import { HookType, isLocalFormatHookEventName } from './hookTypes.js';
 
 /**
@@ -179,41 +179,6 @@ export function parseHooksFromFile(
 }
 
 /**
- * Parses hooks from a file, ignoring the `disableAllHooks` flag.
- * Used by diagnostics to show which hooks are hidden when `disableAllHooks: true` is set.
- */
-export function parseHooksIgnoringDisableAll(
-	fileUri: URI,
-	json: unknown,
-	workspaceRootUri: URI | undefined,
-	userHome: string
-): IParseHooksFromFileResult {
-	const format = getHookSourceFormat(fileUri);
-
-	let hooks: Map<HookType, { hooks: IHookCommand[]; originalId: string }>;
-
-	switch (format) {
-		case HookSourceFormat.Claude: {
-			// Strip `disableAllHooks` before parsing so the hooks are still extracted
-			if (json && typeof json === 'object') {
-				const { disableAllHooks: _, ...rest } = json as Record<string, unknown>;
-				const result = parseClaudeHooks(rest, workspaceRootUri, userHome);
-				hooks = result.hooks;
-			} else {
-				hooks = new Map();
-			}
-			break;
-		}
-		case HookSourceFormat.Copilot:
-		default:
-			hooks = parseCopilotHooks(json, workspaceRootUri, userHome);
-			break;
-	}
-
-	return { format, hooks, disabledAllHooks: true };
-}
-
-/**
  * Gets a human-readable label for a hook source format.
  */
 export function getHookSourceFormatLabel(format: HookSourceFormat): string {
@@ -239,16 +204,13 @@ export function buildNewHookEntry(format: HookSourceFormat): Record<string, unkn
 }
 
 /**
- * Builds a new hook file, using the versioned CLI format for Copilot hooks.
+ * Builds a new Copilot-format hook file with an empty command hook for the Copilot event `eventName`.
  */
-export function buildNewHookFile(format: HookSourceFormat, hookType: HookType): { version?: number; hooks: Record<string, Record<string, unknown>[]> } {
-	const hookTypeName = format === HookSourceFormat.Claude
-		? (getClaudeHookTypeName(hookType) ?? hookType)
-		: (getCopilotCliHookTypeName(hookType) ?? hookType);
+export function buildNewCopilotHookFile(eventName: string): { version: number; hooks: Record<string, Record<string, unknown>[]> } {
 	return {
-		...(format === HookSourceFormat.Copilot ? { version: 1 } : {}),
+		version: 1,
 		hooks: {
-			[hookTypeName]: [buildNewHookEntry(format)]
+			[eventName]: [buildNewHookEntry(HookSourceFormat.Copilot)]
 		}
 	};
 }

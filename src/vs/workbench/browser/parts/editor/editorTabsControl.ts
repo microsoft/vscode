@@ -26,6 +26,7 @@ import { EditorPane } from './editorPane.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { resolveModalEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { EditorTitleContextEditorIdContext, ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
@@ -468,9 +469,26 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}
 	}
 
+	/**
+	 * Whether the given editors can be dragged: not when one of them always
+	 * shows in the modal editor part and cannot move into an editor area.
+	 */
+	protected canDragEditors(editors: readonly EditorInput[]): boolean {
+		return editors.every(editor => {
+			const modalOptions = resolveModalEditorOptions(editor);
+
+			return !modalOptions?.alwaysModal || modalOptions.canMoveToEditorArea !== false;
+		});
+	}
+
 	protected onGroupDragStart(e: DragEvent, element: HTMLElement): boolean {
 		if (e.target !== element) {
 			return false; // only if originating from tabs container
+		}
+
+		if (!this.canDragEditors(this.groupView.editors)) {
+			e.preventDefault();
+			return false;
 		}
 
 		const isNewWindowOperation = this.isNewWindowOperation(e);

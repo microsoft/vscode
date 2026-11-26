@@ -642,6 +642,12 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	get renderSideBySide(): boolean { return this._options.renderSideBySide.get(); }
 
+	/**
+	 * Whether the inline view shows the deleted text of changes within single lines in the lines of the modified editor,
+	 * in front of where it was deleted, rather than in view zones.
+	 */
+	get useTrueInlineDiffRendering(): boolean { return this._options.useTrueInlineDiffRendering.get(); }
+
 	get renderSideBySideInAutomaticMode(): IObservable<boolean> { return this._options.renderSideBySideInAutomaticMode; }
 
 	get temporaryInlineMode(): IObservable<boolean> { return this._options.temporaryInlineMode; }

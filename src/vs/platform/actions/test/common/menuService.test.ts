@@ -446,6 +446,24 @@ suite('MenuService', function () {
 		});
 	});
 
+	test('hide actions keep the hidden state of their build and toggle the current one', async () => {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command: { id: 'command', title: 'Command' } }));
+		const getHideActions = () => menuService.getMenuActions(testMenuId, contextKeyService)[0][1][0].hideActions!;
+		const hideActions = getHideActions();
+
+		// hidden through another build before this build's actions are first read
+		await getHideActions().hide.run();
+		const toggle = hideActions.toggle;
+		const built = { isHidden: hideActions.isHidden, checked: toggle.checked, sameActions: toggle === hideActions.toggle && hideActions.hide === hideActions.hide };
+
+		await toggle.run();
+
+		assert.deepStrictEqual({ built, hiddenAfterToggle: getHideActions().isHidden }, {
+			built: { isHidden: false, checked: true, sameActions: true },
+			hiddenAfterToggle: false,
+		});
+	});
+
 	test('getMenuActions updates hidden defaults while preserving user overrides', async () => {
 		const item = {
 			command: { id: 'changingDefault', title: 'Changing Default' },

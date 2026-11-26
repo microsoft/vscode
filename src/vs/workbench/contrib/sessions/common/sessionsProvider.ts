@@ -23,7 +23,7 @@ import { ModelIdentifierResolution } from '../../chat/common/modelSelection.js';
 import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionWorkspaceConfig, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
 import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 
 /**
@@ -221,6 +221,8 @@ export interface ISendRequestOptions {
 	readonly title?: string;
 	/** Hide this request and its response from the chat transcript. */
 	readonly hideFromTranscript?: boolean;
+	/** Queue the request behind the chat's request in progress instead of rejecting it. Agent Host providers honor it. */
+	readonly queue?: IChatSendRequestOptions['queue'];
 }
 
 /** Options for forking a chat within a session. */
@@ -256,6 +258,24 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 	/** Ordinary saved-draft choices, independent of Automation availability. */
 	readonly draftConfiguration?: ISessionDraftConfiguration;
+	/**
+	 * The workspace configuration (a `.code-workspace` file) to create the session in. Its default folder (the first) must equal the folder the session is
+	 * created for, unless {@link folders} are given. The provider records it on the session's workspace (see
+	 * {@link ISessionWorkspace.workspaceConfig}).
+	 */
+	readonly workspaceConfig?: ISessionWorkspaceConfig;
+	/**
+	 * The folders the session works in, the default folder first, which must equal the folder the session is created
+	 * for. The session runs in the default folder, or in its worktree, and the others stay attached as they are. Without
+	 * them, the session works in the {@link workspaceConfig}'s folders, or in its folder alone. A provider whose agent cannot
+	 * work in several folders creates the session in the default folder only.
+	 *
+	 * Trust: a trusted default folder does not vouch for the others. When the session's workspace requires trust, the
+	 * provider must not create backend state for the session, nor send its first request, until every folder it works
+	 * in is trusted. The management service checks this itself only for headless creation
+	 * (`ISessionsManagementService.createAndSendNewChatRequest`). Quick chats never get these options.
+	 */
+	readonly folders?: readonly URI[];
 }
 
 /** A detached configuration snapshot with provider-neutral properties and the full provider-specific values. */
@@ -442,6 +462,12 @@ export interface ISessionsProvider {
 	 * {@link getSessions} lists every session.
 	 */
 	getAllSessions?(): ISession[];
+
+	/**
+	 * The session of {@link getAllSessions} that `resource` names, by its {@link ISession.resource} or one of its
+	 * {@link ISession.previousIdentities}, looked up without listing every session.
+	 */
+	getSession(resource: URI): ISession | undefined;
 
 	/**
 	 * Lists only the sessions of `scope` from then on, in {@link getSessions} and {@link onDidChangeSessions}, such as those
@@ -684,6 +710,23 @@ export interface ISessionsProvider {
 	 * @param title The new title for the chat.
 	 */
 	renameChat(sessionId: string, chatUri: URI, title: string): Promise<void>;
+
+	/**
+	 * Adds a folder for a chat to work in, next to the folders it works in already. Only that chat gets the folder; the
+	 * session's other chats keep theirs. Takes effect from the chat's next request. Supported when
+	 * {@link ISessionCapabilities.supportsChatFolders} is set; rejects otherwise, or when the provider refuses the folder.
+	 * The management service checks that the folder is trusted, when the session's workspace requires trust, before it
+	 * calls this; a provider that adds folders by other routes must check the same.
+	 * @param folder The folder, in the client's URI space.
+	 */
+	addChatFolder?(sessionId: string, chatUri: URI, folder: URI): Promise<void>;
+
+	/**
+	 * Removes a folder a chat works in. The chat's default folder (its first) cannot be removed. Supported when
+	 * {@link ISessionCapabilities.supportsChatFolders} is set.
+	 * @param folder The folder, in the client's URI space.
+	 */
+	removeChatFolder?(sessionId: string, chatUri: URI, folder: URI): Promise<void>;
 
 	/**
 	 * Rename the session itself, independently of its chats. Single-chat

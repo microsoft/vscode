@@ -7,6 +7,7 @@ import type { IExperimentationFilterProvider } from 'tas-client';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../base/common/map.js';
+import type { ICopilotTokenInfo } from '../../../../base/common/defaultAccount.js';
 import { getInternalOrg, isInternalAccount } from '../../../../platform/assignment/common/assignment.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -73,6 +74,13 @@ enum StorageVersionKeys {
 	CopilotIsSn = 'extensionsAssignmentFilterProvider.copilotIsSn',
 	CopilotIsFcv1 = 'extensionsAssignmentFilterProvider.copilotIsFcv1',
 	CopilotIsProxima = 'extensionsAssignmentFilterProvider.copilotIsProxima',
+}
+
+/**
+ * Whether the Copilot token stamp identifies a Proxima (data-residency) deployment.
+ */
+function isProximaStamp(tokenInfo: ICopilotTokenInfo | null | undefined): boolean {
+	return !!tokenInfo?.st && tokenInfo.st !== 'dotcom';
 }
 
 export class CopilotAssignmentFilterProvider extends Disposable implements IExperimentationFilterProvider {
@@ -190,7 +198,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		const tokenInfo = this._defaultAccountService.copilotTokenInfo;
 		const newIsSn = tokenInfo?.sn === '1' ? '1' : '0';
 		const newIsFcv1 = tokenInfo?.fcv1 === '1' ? '1' : '0';
-		const newIsProxima = tokenInfo?.st && tokenInfo.st !== 'dotcom' ? '1' : '0';
+		const newIsProxima = isProximaStamp(tokenInfo) ? '1' : '0';
 
 		if (this.copilotIsSn === newIsSn && this.copilotIsFcv1 === newIsFcv1 && this.copilotIsProxima === newIsProxima) {
 			return;
@@ -278,6 +286,8 @@ export enum GitHubAssignmentsFilter {
 	CopilotSku = 'github_core_copilotsku',
 	CopilotIsSn = 'github_core_issn',
 	CopilotIsFcv1 = 'github_core_isfcv1',
+	/** Whether the account belongs to a Proxima deployment. */
+	CopilotIsProxima = 'github_core_isproxima',
 }
 
 /**
@@ -326,6 +336,8 @@ export class GitHubCoreAssignmentsFilterProvider extends Disposable implements I
 				return tokenInfo?.sn === '1' ? '1' : '0';
 			case GitHubAssignmentsFilter.CopilotIsFcv1:
 				return tokenInfo?.fcv1 === '1' ? '1' : '0';
+			case GitHubAssignmentsFilter.CopilotIsProxima:
+				return isProximaStamp(tokenInfo) ? '1' : '0';
 			default:
 				return null;
 		}

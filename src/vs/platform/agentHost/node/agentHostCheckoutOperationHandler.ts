@@ -21,9 +21,10 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 
 	public static readonly OPERATION_CHECKOUT = AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID;
 
+	readonly changesGitState = true;
+
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		private readonly _onCheckedOut: (sessionKey: string) => void,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -78,12 +79,6 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 			}
 
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.checkout.failed', "Failed to check out '{0}': {1}", treeish, error instanceof Error ? error.message : String(error)));
-		}
-
-		try {
-			await this._onCheckedOut(parsed.ownerUri);
-		} catch (error) {
-			this._logService.warn(`[AgentHostCheckoutOperationHandler] Post-checkout refresh failed for ${parsed.ownerUri}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.checkout.checkedOut', "Checked out branch `{0}`.", treeish) } };

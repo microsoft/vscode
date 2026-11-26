@@ -25,6 +25,11 @@ export interface IWorkspaceContextService {
 	readonly onDidChangeWorkbenchState: Event<WorkbenchState>;
 
 	/**
+	 * An event which fires on workbench scope changes.
+	 */
+	readonly onDidChangeWorkbenchScope: Event<WorkbenchScope>;
+
+	/**
 	 * An event which fires on workspace name changes.
 	 */
 	readonly onDidChangeWorkspaceName: Event<void>;
@@ -58,6 +63,11 @@ export interface IWorkspaceContextService {
 	 * WorkbenchState.WORKSPACE - if the workbench was opened with a workspace
 	 */
 	getWorkbenchState(): WorkbenchState;
+
+	/**
+	 * Returns whether the workbench is scoped to its own workspace or spans all workspaces.
+	 */
+	getWorkbenchScope(): WorkbenchScope;
 
 	/**
 	 * Returns the folder for the given resource from the workspace.
@@ -235,6 +245,16 @@ export const enum WorkbenchState {
 	EMPTY = 1,
 	FOLDER,
 	WORKSPACE
+}
+
+/**
+ * The scope of the workbench, independently of its workspace's folder structure.
+ */
+export const enum WorkbenchScope {
+	/** The workbench is scoped to its own workspace folders. */
+	WORKSPACE = 1,
+	/** The workbench spans all workspaces; its folders may change with the active context. */
+	ALL
 }
 
 export interface IWorkspaceFoldersWillChangeEvent {

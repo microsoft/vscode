@@ -75,6 +75,7 @@ function makePlugin(plugin: IResolvedNativePlugin): PluginCustomization {
 	for (const agent of plugin.parsed.agents) { push(agent.customization); }
 	for (const skill of plugin.parsed.skills) { push(skill.customization); }
 	for (const rule of plugin.parsed.instructions) { push(rule.customization); }
+	for (const prompt of plugin.parsed.prompts ?? []) { push(prompt); }
 	for (const hook of plugin.parsed.hooks) { push(hook.customization); }
 	for (const mcp of plugin.parsed.mcpServers) { push(mcp.customization); }
 	return {

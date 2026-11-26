@@ -328,7 +328,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		[MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.WINDOW,
 			description: nls.localize('multiDiffEditor.syncSplitView', "Controls whether resizing the split between the original and modified side of one file in a multi diff editor resizes all files."),
 		},

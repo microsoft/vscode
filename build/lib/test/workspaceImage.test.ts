@@ -46,7 +46,7 @@ suite('workspace images', () => {
 		const jobs: readonly (readonly [workflow: string, job: string])[] = [
 			['pr-workspace-images.yml', 'windows'],
 			['pr-linux-test.yml', 'electron-unit-electron'],
-			['pr-win32-test.yml', 'electron-unit'],
+			['pr-win32-test.yml', 'electron-unit-electron'],
 			...['compile', 'monaco-editor', 'copilot-check-test-cache', 'copilot-linux-tests', 'copilot-windows-tests', 'chat-lib-linux-tests', 'chat-lib-windows-tests'].map(job => ['pr.yml', job] as const),
 			['component-fixtures.yml', 'playwright'],
 			['component-fixtures.yml', 'screenshots'],

@@ -145,6 +145,37 @@ suite('Issue Triage', () => {
 		});
 	});
 
+	test('manual dispatch validates the issue number and preserves eligibility checks', async () => {
+		const results: Record<string, { calls: string[]; outputs: Record<string, string> }> = {};
+		const invalidInputs = [undefined, '', '0', '-1', '1.5', '1e2', ' 200', '0200', '9007199254740992', '200; echo injected'];
+		for (const [name, current] of [
+			['eligible', issue(200)],
+			['closed', issue(200, { state: 'closed' })],
+			['assigned', issue(200, { assignees: [{ login: 'someone' }] })],
+			['ignored', issue(200, { labels: ['ai-triaged'] })],
+			['pull request', issue(200, { pull_request: {} })],
+			['missing', 404],
+		] as const) {
+			const github = new FakeGitHub(() => current);
+			const core = new FakeCore();
+			await checkIssue(github, { ...context, eventName: 'workflow_dispatch', payload: { inputs: { issue_number: '200' } } }, core, 0);
+			results[name] = { calls: github.calls, outputs: core.outputs };
+		}
+		for (const input of invalidInputs) {
+			const github = new FakeGitHub(() => issue(200));
+			const core = new FakeCore();
+			await assert.rejects(checkIssue(github, { ...context, eventName: 'workflow_dispatch', payload: { inputs: { issue_number: input } } }, core, 0), /issue_number must be a positive safe integer/);
+			results[`invalid: ${input}`] = { calls: github.calls, outputs: core.outputs };
+		}
+		assert.deepStrictEqual(results, {
+			...Object.fromEntries(['eligible', 'closed', 'assigned', 'ignored', 'pull request', 'missing'].map(name => [name, {
+				calls: ['GET /repos/microsoft/vscode/issues/200'],
+				outputs: { issue_number: '200', proceed: name === 'eligible' ? 'true' : 'false' },
+			}])),
+			...Object.fromEntries(invalidInputs.map(input => [`invalid: ${input}`, { calls: [], outputs: {} }])),
+		});
+	});
+
 	test('tells the agent which people are members of the team, checking at most 20 per run', async () => {
 		const directory = mkdtempSync(path.join(tmpdir(), 'issue-triage-'));
 		try {
@@ -211,7 +242,10 @@ suite('Issue Triage', () => {
 				});
 				const core = new FakeCore();
 				const payload = { action: 'labeled', label: { name: 'stale' }, issue: { number: 100 } };
-				await assignOwner(github, { ...context, payload }, core, { agentOutputPath, detectionConclusion, staged });
+				const assignmentContext = name === 'assigns the first member'
+					? { ...context, eventName: 'workflow_dispatch', payload: { inputs: { issue_number: '100' } } }
+					: { ...context, payload };
+				await assignOwner(github, assignmentContext, core, { agentOutputPath, detectionConclusion, staged });
 				results[name] = [...github.calls.filter(call => call !== 'GET /repos/microsoft/vscode/issues/100'), ...core.messages];
 			}
 			assert.deepStrictEqual(results, {
@@ -314,6 +348,7 @@ suite('Issue Triage', () => {
 			const agentOutputPath = path.join(directory, 'agent-output.json');
 			const env = { RUNNER_TEMP: directory, GH_AW_AGENT_OUTPUT: agentOutputPath, DETECTION_CONCLUSION: 'success', GH_AW_SAFE_OUTPUTS_STAGED: 'false' };
 			const runtime = { exec: { name: 'exec' }, io: { name: 'io' }, getOctokit: () => ({}) };
+			const dispatchContext = { ...context, eventName: 'workflow_dispatch', payload: { inputs: { issue_number: '100' } } };
 			const writes: Parameters[] = [];
 			const github = new FakeGitHub((call, parameters) => {
 				if (call === 'GET /repos/microsoft/vscode/issues/100') {
@@ -328,14 +363,14 @@ suite('Issue Triage', () => {
 			const core = new FakeCore();
 			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'suggest_area', label: 'terminal', rationale: '@someone', confidence: 'HIGH' }] }));
 			writeFileSync(path.join(actionsDir, 'result.json'), JSON.stringify({ success: true }));
-			await run(github, context, core, { ...env, OPERATION: 'suggest-area' }, runtime);
+			await run(github, dispatchContext, core, { ...env, OPERATION: 'suggest-area' }, runtime);
 			assert.deepStrictEqual({
 				globals: JSON.parse(readFileSync(path.join(actionsDir, 'globals.json'), 'utf8')),
 				label: JSON.parse(readFileSync(path.join(actionsDir, 'label.json'), 'utf8')),
 			}, {
 				globals: { exec: { name: 'exec' }, io: { name: 'io' }, getOctokit: 'function' },
 				label: {
-					options: { allowed: advisoryAreaLabels, issue_intent: true, max: 1, staged: false },
+					options: { allowed: advisoryAreaLabels, issue_intent: true, target: '100', max: 1, staged: false },
 					input: { labels: [{ name: 'terminal', rationale: '`@someone`', confidence: 'HIGH', suggest: true }] },
 					context: {},
 				},
@@ -348,10 +383,10 @@ suite('Issue Triage', () => {
 			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'publish_translation', body: '## AI Translation:\n\nHello @someone' }] }));
 			await run(github, context, core, { ...env, OPERATION: 'publish-translation', DETECTION_CONCLUSION: 'warning' }, runtime);
 			assert.strictEqual(writes.length, 0);
-			await run(github, context, core, { ...env, OPERATION: 'publish-translation' }, runtime);
-			assert.deepStrictEqual(writes.map(parameters => parameters.body ?? parameters.labels), [
-				'## AI Translation:\n\nHello `@someone`\n\n<!-- vscode-issue-triage-translation -->',
-				['ai-translated'],
+			await run(github, dispatchContext, core, { ...env, OPERATION: 'publish-translation' }, runtime);
+			assert.deepStrictEqual(writes.map(parameters => ({ issue_number: parameters.issue_number, value: parameters.body ?? parameters.labels })), [
+				{ issue_number: 100, value: '## AI Translation:\n\nHello `@someone`\n\n<!-- vscode-issue-triage-translation -->' },
+				{ issue_number: 100, value: ['ai-translated'] },
 			]);
 			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'publish_translation', body: '## AI Translation:\n\ntoo long' }] }));
 			await assert.rejects(run(github, context, core, { ...env, OPERATION: 'publish-translation' }, runtime), /comment limit/);

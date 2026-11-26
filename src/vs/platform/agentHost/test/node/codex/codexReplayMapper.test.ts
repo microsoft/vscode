@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -673,14 +674,17 @@ suite('codexReplayMapper', () => {
 		});
 	});
 
-	for (const [status, result, success] of [
-		['completed', 'aW1hZ2U=', true],
-		['failed', 'aW1hZ2U=', false],
-		['completed', '', false],
-		['incomplete', '', false],
+	for (const [status, output, success] of [
+		['completed', { result: 'aW1hZ2U=' }, true],
+		['failed', { result: 'aW1hZ2U=' }, false],
+		['completed', { result: '' }, false],
+		['incomplete', { result: '' }, false],
+		['completed', { fileId: 'file-image' }, true],
+		['failed', { fileId: 'file-image' }, false],
+		['completed', { fileId: '' }, false],
 	] as const) {
 		for (const revisedPrompt of [null, 'A watercolor fox']) {
-			test(`imageGeneration restores ${status} with ${result ? 'image data' : 'no image'} and ${revisedPrompt ? 'a prompt' : 'no prompt'}`, () => {
+			test(`imageGeneration restores ${status} with ${JSON.stringify(output)} and ${revisedPrompt ? 'a prompt' : 'no prompt'}`, () => {
 				const turns = replayThreadToTurns(upcastPartial<Thread>({
 					id: 'thr',
 					turns: [{
@@ -688,7 +692,7 @@ suite('codexReplayMapper', () => {
 						rootTurnId: null,
 						items: [
 							{ type: 'userMessage', id: 'u', clientId: null, content: [{ type: 'text', text: 'draw it', text_elements: [] }] },
-							{ type: 'imageGeneration', id: 'image_1', status, revisedPrompt, result, failure: null },
+							{ type: 'imageGeneration', id: 'image_1', status, revisedPrompt, ...output, failure: null, generationId: null },
 						],
 						itemsView: 'full',
 						status: 'completed',
@@ -710,7 +714,7 @@ suite('codexReplayMapper', () => {
 					toolInput: revisedPrompt ? '{"prompt":"A watercolor fox"}' : undefined,
 					success,
 					pastTenseMessage: success ? 'Generated image' : 'Failed to generate image',
-					content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: result, contentType: 'image/png' }] : undefined,
+					content: success && hasKey(output, { result: true }) ? [{ type: ToolResultContentType.EmbeddedResource, data: output.result, contentType: 'image/png' }] : undefined,
 					error: success ? undefined : { message: `Image generation ${status}` },
 				});
 			});

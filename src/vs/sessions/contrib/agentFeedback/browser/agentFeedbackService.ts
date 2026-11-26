@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { derived, IObservable, runOnChange, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -25,12 +25,12 @@ import { changeMatchesResource, getActiveResourceCandidates } from './agentFeedb
 import { IAgentFeedbackContext, AGENT_FEEDBACK_NEW_SESSION_RESOURCE, INavigableSessionComment, IAcceptFeedbackOptions, IAgentFeedbackChangeEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackNavigationChangeEvent, IAgentFeedbackCommentRevealEvent, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackSubmittedEvent, ISubmitFeedbackOptions, IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
-import { ISession, ISessionFileChange, ISessionWorkspace, isSessionCreated, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ChatOriginKind, IChat, ISession, ISessionFileChange, ISessionWorkspace, isSessionCreated, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMemoryAgentFeedbackItemsBackend } from './agentFeedbackItemsBackend.js';
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from '../../../../workbench/contrib/sessions/browser/agentFeedbackAttachmentEntry.js';
@@ -171,11 +171,13 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	/**
-	 * Drops this service's per-session bookkeeping for a deleted session. The
-	 * backend is left alone: its channel is already released with the session,
-	 * and clearing it would write to a store that no longer exists.
+	 * Drops the comments and this service's per-session bookkeeping for a
+	 * deleted session. Only the in-memory backend is cleared: the annotations
+	 * backend releases its channel with the session, and clearing it would write
+	 * to a store that no longer exists.
 	 */
 	private _forgetSession(sessionResource: URI): void {
+		this._inMemoryBackend.clear(sessionResource);
 		const key = sessionResource.toString();
 		if (this._lastResolvedSession && isEqual(this._lastResolvedSession.sessionResource, sessionResource)) {
 			this._lastResolvedSession = undefined;
@@ -765,30 +767,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return submitted;
 		}
 
+		if (this.isAgentHostSession(sessionResource)) {
+			return this._submitAgentHostFeedback(sessionResource, options);
+		}
+
 		const widget = await whenChatWidgetForSession(this._chatWidgetService, options?.targetChat ?? sessionResource);
 		if (!widget) {
 			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', (options?.targetChat ?? sessionResource).toString());
 			return false;
-		}
-
-		// Agent-host sessions don't keep a reactive feedback attachment in the
-		// chat input (their feedback lives in the annotations backend and is
-		// submitted via the "Submit Feedback" button). Attach the accepted
-		// items — which are about to become submitted — to this single request
-		// so the agent receives the comments, then remove the transient
-		// attachment again once the request has been accepted.
-		if (this.isAgentHostSession(sessionResource)) {
-			const feedbackIds = options?.feedbackIds ? new Set(options.feedbackIds) : undefined;
-			const acceptedItems = this.getFeedback(sessionResource).filter(item =>
-				item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.has(item.id)));
-			const attachmentId = ATTACHMENT_ID_PREFIX + sessionResource.toString();
-			if (acceptedItems.length) {
-				const annotationsResource = this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource);
-				widget.attachmentModel.delete(attachmentId);
-				widget.attachmentModel.addContext(createAgentFeedbackVariableEntry(sessionResource, acceptedItems, annotationsResource));
-			}
-
-			return this._sendActOnFeedbackRequest(widget, sessionResource, options, () => widget.attachmentModel.delete(attachmentId));
 		}
 
 		// For non-agent-host sessions the reactive attachment contribution also
@@ -796,6 +782,82 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// covers sessions without that contribution.
 		const nonAgentHostOptions = options?.feedbackIds ? { ...options, feedbackIds: undefined } : options;
 		return this._sendActOnFeedbackRequest(widget, sessionResource, nonAgentHostOptions);
+	}
+
+	/**
+	 * Agent-host sessions don't keep a reactive feedback attachment in the chat input: their feedback lives in the
+	 * annotations backend. The accepted items, which are about to become submitted, are attached to this single request to
+	 * the session's {@link _getAgentHostFeedbackChat feedback chat}. A widget that shows the chat sends it, which queues it
+	 * while the agent is busy. Without one, it is queued in the background, so feedback for a chat that is not shown is not
+	 * dropped.
+	 */
+	private async _submitAgentHostFeedback(sessionResource: URI, options: ISubmitFeedbackOptions | undefined): Promise<boolean> {
+		const session = this._resolveSession(sessionResource);
+		const targetChat = options?.targetChat ?? (session ? this._getAgentHostFeedbackChat(session).resource : sessionResource);
+		const feedbackIds = options?.feedbackIds ? new Set(options.feedbackIds) : undefined;
+		const acceptedItems = this.getFeedback(sessionResource).filter(item =>
+			item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.has(item.id)));
+		const createAttachment = () => createAgentFeedbackVariableEntry(sessionResource, acceptedItems, this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource));
+
+		// A widget only matches once it has loaded the chat, so wait for the one of the chat the user looks at.
+		const isFocusedChat = isEqual(this._focusedSessionHostService.focusedHost.get().chat.get()?.resource, targetChat);
+		const widget = isFocusedChat
+			? await whenChatWidgetForSession(this._chatWidgetService, targetChat)
+			: this._chatWidgetService.getWidgetBySessionResource(targetChat);
+		if (widget) {
+			const attachmentId = ATTACHMENT_ID_PREFIX + sessionResource.toString();
+			if (acceptedItems.length) {
+				widget.attachmentModel.delete(attachmentId);
+				widget.attachmentModel.addContext(createAttachment());
+			}
+			return this._sendActOnFeedbackRequest(widget, sessionResource, options, () => widget.attachmentModel.delete(attachmentId));
+		}
+
+		const chat = session && [session.mainChat.get(), ...session.chats.get()].find(candidate => isEqual(candidate.resource, targetChat));
+		if (!session || !chat) {
+			this._logService.error('[AgentFeedback] submitFeedback: no chat found for session', targetChat.toString());
+			return false;
+		}
+		if (!acceptedItems.length) {
+			return false;
+		}
+		try {
+			await this._sessionsManagementService.sendRequestInBackground(session, chat, {
+				query: options?.query ?? '/act-on-feedback',
+				attachedContext: [createAttachment()],
+				queue: ChatRequestQueueKind.Queued,
+			});
+		} catch (error) {
+			this._logService.error('[AgentFeedback] Failed to submit feedback in the background', error);
+			return false;
+		}
+		this.markFeedbackSubmitted(sessionResource, acceptedItems.map(item => item.id));
+		options?.onRequestAccepted?.();
+		return true;
+	}
+
+	/**
+	 * The chat of an Agent Host session that its feedback goes to: the chat the focused host shows of it, such as a fork or
+	 * a nested chat, which may work in folders of its own, else its main chat. A side chat, such as one started with
+	 * `/btw`, and a subagent's chat hand the feedback to the chat they were started from.
+	 */
+	private _getAgentHostFeedbackChat(session: ISession): IChat {
+		const host = this._focusedSessionHostService.focusedHost.get();
+		const mainChat = session.mainChat.get();
+		let chat = (isEqual(host.session.get()?.resource, session.resource) ? host.chat.get() : undefined) ?? mainChat;
+		const visited = new ResourceSet();
+		while (chat.origin?.kind === ChatOriginKind.SideChat || chat.origin?.kind === ChatOriginKind.Tool) {
+			visited.add(chat.resource);
+			const parentChat = chat.origin.parentChat;
+			const parent = parentChat && !visited.has(parentChat)
+				? [mainChat, ...session.chats.get()].find(candidate => isEqual(candidate.resource, parentChat))
+				: undefined;
+			if (!parent) {
+				return mainChat;
+			}
+			chat = parent;
+		}
+		return chat;
 	}
 
 	/**

@@ -17,8 +17,11 @@ import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { EditorOption, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { ScrollType } from '../../../common/editorCommon.js';
 import { observableCodeEditor } from '../../observableCodeEditor.js';
 import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import { DocumentDiffItemViewModel } from './multiDiffEditorViewModel.js';
@@ -337,6 +340,81 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 
 	public getExpandedContentHeight(): number {
 		return this._observedEditorContentHeight + this._outerEditorHeight;
+	}
+
+	/**
+	 * Returns the offset of the start of a range from the top of the item, that is of the row that shows it when its line
+	 * wraps. A range that is not empty starts after text that the editor shows in front of its start, like the deleted
+	 * text of a true inline diff, as when the editor reveals it. A pending height update is applied first, so that the
+	 * list already includes lines that were just shown, for example by selecting a line in a hidden unchanged region.
+	 */
+	public getRangeOffset(side: 'original' | 'modified', range: IRange): number {
+		this._flushVerticalState();
+		const editor = side === 'original' ? this.editor.getOriginalEditor() : this.editor.getModifiedEditor();
+		const viewModel = editor._getViewModel();
+		const model = editor.getModel();
+		if (!viewModel || !model) {
+			return this._headerHeight + editor.getTopForPosition(range.startLineNumber, range.startColumn);
+		}
+		const viewRange = viewModel.coordinatesConverter.convertModelRangeToViewRange(model.validateRange(range));
+		return this._headerHeight + viewModel.viewLayout.getVerticalOffsetForLineNumber(viewRange.startLineNumber);
+	}
+
+	/**
+	 * Returns the offset of a position of deleted text from the top of the item, that is of the row that shows it in the
+	 * view zones of an inline diff. The hidden original editor aligns its lines with the view zones, but does not wrap them.
+	 */
+	public getDeletedTextOffset(position: IPosition): number {
+		this._flushVerticalState();
+		const originalEditor = this.editor.getOriginalEditor();
+		const modifiedEditor = this.editor.getModifiedEditor();
+		const originalModel = originalEditor.getModel()!;
+		// The view zones wrap deleted lines like the modified editor wraps its lines.
+		const lineBreaksComputer = modifiedEditor._getViewModel()?.createLineBreaksComputer({
+			getLineContent: lineNumber => originalModel.getLineContent(lineNumber),
+			getLineInjectedText: () => null,
+		});
+		lineBreaksComputer?.addRequest(position.lineNumber, null);
+		const row = lineBreaksComputer?.finalize()[0]?.translateToOutputPosition(position.column - 1).outputLineIndex ?? 0;
+		return this._headerHeight + originalEditor.getTopForLineNumber(position.lineNumber) + row * modifiedEditor.getOption(EditorOption.lineHeight);
+	}
+
+	/**
+	 * Returns the offset from the top of the item of a character of text that the modified editor shows in front of a
+	 * position, like the deleted text of a true inline diff, that is of the row that shows it when its line wraps.
+	 *
+	 * @param offset The offset of the character in the text that the editor shows in front of the position.
+	 */
+	public getInjectedTextOffset(position: IPosition, offset: number): number {
+		this._flushVerticalState();
+		const viewModel = this.editor.getModifiedEditor()._getViewModel();
+		if (!viewModel) {
+			return this.getRangeOffset('modified', Range.fromPositions(position));
+		}
+		// A position maps to the view position in front of the text that the editor shows in front of it.
+		let viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(Position.lift(position));
+		let remaining = offset;
+		while (remaining >= viewModel.getLineMaxColumn(viewPosition.lineNumber) - viewPosition.column && viewPosition.lineNumber < viewModel.getLineCount()) {
+			remaining -= viewModel.getLineMaxColumn(viewPosition.lineNumber) - viewPosition.column;
+			viewPosition = new Position(viewPosition.lineNumber + 1, viewModel.getLineMinColumn(viewPosition.lineNumber + 1));
+		}
+		return this._headerHeight + viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+	}
+
+	/**
+	 * Reveals a range horizontally in the editor of a side, and returns the editor's horizontal scroll position if that
+	 * changed. The editor keeps its vertical scroll position, which the list owns.
+	 */
+	public revealRangeHorizontally(side: 'original' | 'modified', range: IRange): number | undefined {
+		const editor = side === 'original' ? this.editor.getOriginalEditor() : this.editor.getModifiedEditor();
+		const scrollTop = editor.getScrollTop();
+		const scrollLeft = editor.getScrollLeft();
+		editor.revealRange(range, ScrollType.Immediate);
+		editor.setScrollTop(scrollTop, ScrollType.Immediate);
+		// The editor computes the horizontal scroll position that reveals a range when it renders the range.
+		editor.render();
+		const newScrollLeft = editor.getScrollLeft();
+		return newScrollLeft !== scrollLeft ? newScrollLeft : undefined;
 	}
 
 	private readonly _dataStore;

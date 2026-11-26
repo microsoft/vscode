@@ -852,12 +852,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	// logging so we can detect writes that target a different session than the
 	// one the widget viewModel is currently showing (cyclic-ref window).
 	private _inputModelSessionResource: URI | undefined;
-	/**
-	 * Speaks for the intended model while no conversation is bound — the inline request-edit input
-	 * part never binds one. Keeping it off the conversation is what makes that editor
-	 * self-contained: picking a model there to resubmit one request leaves the chat's own model
-	 * alone.
-	 */
+	/** Tracks model intent while no conversation is bound, including while editing a request inline. */
 	private readonly _unboundIntent = new IntendedModelSlot();
 
 	/**
@@ -1020,9 +1015,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * bucket. See issue #320393.
 	 */
 	private readonly _modelConfigStore: ChatModelConfigurationStore;
+	private _modelSelectionRevision = 0;
 
 	get currentLanguageModel() {
 		return this._currentLanguageModel.get()?.identifier;
+	}
+
+	/** Changes when this input makes an explicit model or model configuration choice. */
+	get modelSelectionRevision(): number {
+		return this._modelSelectionRevision;
+	}
+
+	get hasUserSelectedModel(): boolean {
+		const intended = this._intentHolder.intendedModel;
+		return intended?.reason === ModelSelectionReason.UserSelection && intended.modelId === this.currentLanguageModel;
 	}
 
 	get selectedLanguageModel(): IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> {
@@ -1387,6 +1393,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this._currentLanguageModel.get();
 			if (model?.identifier === modelId) {
 				this.setCurrentLanguageModel(model, true, false);
+			} else {
+				this._modelSelectionRevision++;
 			}
 		}));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
@@ -1648,10 +1656,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * The remembered profile preference is updated only when both
 	 * `isUserAction` and `storeSelection` are true.
 	 */
-	public switchModelByIdentifier(identifier: string, storeSelection: boolean = false, isUserAction: boolean = false): boolean {
+	public switchModelByIdentifier(identifier: string, storeSelection: boolean = false, isUserAction: boolean = false, configuration?: IStringDictionary<unknown>): boolean {
 		const models = this.getModels();
 		const model = models.find(m => m.identifier === identifier);
 		if (model) {
+			this.restoreModelConfiguration(identifier, configuration, false);
 			if (isUserAction) {
 				this.setCurrentLanguageModel(model, true, storeSelection);
 			} else {
@@ -1833,7 +1842,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getProvider: () => getAgentHostProviderForTelemetry(this.getCurrentSessionType(), this.chatSessionsService),
 			getSessionType: () => this.modelTargetSessionType,
-			startPromptWith: text => this.startPromptWith(text),
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			// Inline chat, editor or terminal, offers no Copilot Fusion effort level: the host runs Fusion at its fast tier there.
@@ -2351,6 +2359,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (isUserAction && policyError) {
 			this.logService.warn('[ChatInputPart] Rejected model selection outside the selected agent model list');
 			throw new Error(policyError);
+		}
+		if (isUserAction) {
+			this._modelSelectionRevision++;
 		}
 		const persistSelection = isUserAction && storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {
@@ -3017,22 +3028,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (model) {
 			this.inputEditor.setPosition(getLastPosition(model));
 		}
-	}
-
-	/** Starts the prompt with the given text, such as a slash command, keeping what is already written after it, and moves focus to it. */
-	startPromptWith(text: string): void {
-		const model = this._inputEditor.getModel();
-		const written = model?.getValue() ?? '';
-		// Already there only as a whole word: `/model-router-review` does not start with `/model-router`.
-		if (model && !(written.startsWith(text) && /^(\s|$)/.test(written.slice(text.length)))) {
-			// An edit, not a new value: the references and attachments of what is already written stay attached, and it can be undone.
-			this._inputEditor.pushUndoStop();
-			this._inputEditor.executeEdits('chat.startPromptWith', [{ range: new Range(1, 1, 1, 1), text: `${text} `, forceMoveMarkers: true }]);
-			this._inputEditor.pushUndoStop();
-			this._inputEditor.setPosition(getLastPosition(model));
-			this._widget?.refreshParsedInput();
-		}
-		this.focus();
 	}
 
 	focus() {

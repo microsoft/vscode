@@ -8,7 +8,7 @@
     "actions/github-script@v9": {
       "repo": "actions/github-script",
       "version": "v9",
-      "sha": "373c709c69115d41ff229c7e5df9f8788daa9553"
+      "sha": "3a2844b7e9c422d3c10d287c895573f7108da1b3"
     },
     "actions/github-script@v9.0.0": {
       "repo": "actions/github-script",

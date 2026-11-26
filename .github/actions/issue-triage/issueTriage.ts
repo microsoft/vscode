@@ -24,9 +24,11 @@ interface IUser {
 }
 
 interface IContext {
+	readonly eventName?: string;
 	readonly repo: { readonly owner: string; readonly repo: string };
 	readonly payload: {
 		readonly action?: string;
+		readonly inputs?: { readonly issue_number?: string };
 		/** The issue when the event happened. */
 		readonly issue?: { readonly number: number; readonly assignees?: readonly IUser[] | null };
 		readonly label?: { readonly name: string };
@@ -167,6 +169,13 @@ export function isBlockedAssignee(login: string): boolean {
 }
 
 function getIssueNumber(context: IContext): number {
+	if (context.eventName === 'workflow_dispatch') {
+		const input = context.payload.inputs?.issue_number;
+		if (!input || !/^[1-9]\d*$/.test(input) || !Number.isSafeInteger(Number(input))) {
+			throw new Error('issue_number must be a positive safe integer without leading zeros.');
+		}
+		return Number(input);
+	}
 	const issueNumber = context.payload.issue?.number;
 	if (!issueNumber) {
 		throw new Error('The workflow was not triggered by an issue event.');
@@ -181,10 +190,11 @@ async function getIssue(github: IGitHub, context: IContext, issueNumber: number)
 
 /**
  * Waits for `delayMs`, then re-reads the issue and sets the `proceed` output to whether it still needs
- * triage. Only `opened` events and the `stale` label trigger triage.
+ * triage. Issue events and manual dispatch use the same eligibility checks.
  */
 export async function checkIssue(github: IGitHub, context: IContext, core: ICore, delayMs = triageDelayMs): Promise<void> {
 	const issueNumber = getIssueNumber(context);
+	core.setOutput('issue_number', String(issueNumber));
 	if (context.payload.action === 'labeled' && context.payload.label?.name !== 'stale') {
 		core.info(`Skipping triage of #${issueNumber} because only the stale label triggers it.`);
 		core.setOutput('proceed', 'false');
@@ -521,7 +531,7 @@ export async function run(github: IGitHub, context: IContext, core: ICore, env: 
 			const { sanitizeContent } = require(path.join(actionsDir, 'sanitize_content.cjs'));
 			if (env.OPERATION === 'suggest-area') {
 				const { main } = require(path.join(actionsDir, 'add_labels.cjs'));
-				const handler = await main({ allowed: advisoryAreaLabels, issue_intent: true, max: 1, staged: options.staged });
+				const handler = await main({ allowed: advisoryAreaLabels, issue_intent: true, target: String(getIssueNumber(context)), max: 1, staged: options.staged });
 				return suggestArea(github, context, core, options, sanitizeContent, async label => {
 					const result = await handler({ labels: [label] }, {});
 					if (!result.success || result.skipped) {

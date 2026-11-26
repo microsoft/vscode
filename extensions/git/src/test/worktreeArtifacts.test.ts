@@ -27,7 +27,7 @@ suite('git.artifactProvider.worktrees', () => {
 	const originalGitConfigCount = process.env.GIT_CONFIG_COUNT;
 
 	async function openRepository(repositoryRoot: string): Promise<Repository> {
-		await model.openRepository(repositoryRoot, true, true);
+		await model.openRepository(repositoryRoot, { openIfClosed: true, openIfParent: true });
 		const repository = model.getRepository(repositoryRoot);
 		assert.ok(repository);
 		return repository;
@@ -40,6 +40,23 @@ suite('git.artifactProvider.worktrees', () => {
 	async function getWorktreeArtifacts(repository: Repository): Promise<string[]> {
 		const artifacts = await repository.sourceControl.artifactProvider.provideArtifacts('worktrees');
 		return artifacts.map(artifact => artifact.id).sort();
+	}
+
+	// The repository's file watchers are requested without waiting for them to start, and a change made before
+	// a watcher starts is never reported. Writes a probe file into `folder` until the repository reports it, then
+	// deletes the probe and returns its path, so that callers can ignore the events of the probe.
+	async function whenWatched(repository: Repository, folder: string): Promise<string> {
+		const probe = toFsPath(path.join(folder, '.vscode-watcher-probe'));
+		let watched = false;
+		const didChangeProbe = eventToPromise(filterEvent(repository.onDidChangeRepository, uri => uri.fsPath === probe)).then(() => watched = true);
+
+		for (let attempt = 0; !watched; attempt++) {
+			await fs.promises.writeFile(probe, String(attempt));
+			await Promise.race([didChangeProbe, new Promise(resolve => setTimeout(resolve, 100))]);
+		}
+
+		await fs.promises.rm(probe, { force: true });
+		return probe;
 	}
 
 	// On Windows, `Uri.fsPath` lower cases the drive letter while `fs.realpath`
@@ -124,7 +141,9 @@ suite('git.artifactProvider.worktrees', () => {
 		await repository.status();
 
 		const worktreesFolder = toFsPath(path.join(root, '.git', 'worktrees'));
-		const onDidChangeWorktreesFolder = filterEvent(repository.onDidChangeRepository, uri => path.dirname(uri.fsPath) === worktreesFolder);
+		const probe = await whenWatched(repository, worktreesFolder);
+
+		const onDidChangeWorktreesFolder = filterEvent(repository.onDidChangeRepository, uri => path.dirname(uri.fsPath) === worktreesFolder && uri.fsPath !== probe);
 		const didChangeWorktreesFolder = eventToPromise(onDidChangeWorktreesFolder);
 		await git.exec(root, ['worktree', 'remove', worktreePath]);
 		const uri = await didChangeWorktreesFolder;

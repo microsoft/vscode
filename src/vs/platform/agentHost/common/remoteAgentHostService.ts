@@ -328,6 +328,12 @@ export interface IRemoteAgentHostConnectOptions {
 	 * must never open prompts, pickers or modals.
 	 */
 	readonly userInitiated: boolean;
+	/**
+	 * Whether an explicit user action has since joined this automatic attempt. A factory can check
+	 * this after awaiting a precondition that only automatic attempts must meet, so the attempt
+	 * doesn't reject the user's request.
+	 */
+	readonly hasUserJoined?: () => boolean;
 	/** Optional client-local observation of transport-specific setup phases. */
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 }

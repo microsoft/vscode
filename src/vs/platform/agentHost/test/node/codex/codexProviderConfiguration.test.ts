@@ -32,6 +32,7 @@ function userConfiguration(config: JsonValue = {}, version = 'version-1'): Confi
 			forced_chatgpt_workspace_id: null,
 			forced_login_method: null,
 			web_search: null,
+			client_search_provider: null,
 			tools: null,
 			instructions: null,
 			developer_instructions: null,

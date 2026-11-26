@@ -116,12 +116,13 @@ suite('DevContainerAgentHostProtocol', () => {
 		const rejected = assert.rejects(request, /Unsupported sandbox startup/);
 		client.handleNotification(DevContainerSandboxSupportNotification, { connectionId: config.connectionId, supported: false });
 		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces' });
+		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', scriptUser: 'root', capChown: false, capDacReadSearch: true, stateOwner: 'user', privileged: false, runtime: 'gvisor' });
 		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'unknown', outcome: 'failed' });
 		await pending.complete();
 		await rejected;
 		client.handleNotification(DevContainerSandboxSupportNotification, { connectionId: config.connectionId, supported: true });
 		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'userCommands', outcome: 'succeeded' });
-		assert.deepStrictEqual(observed, [false, { connectionId: config.connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces' }]);
+		assert.deepStrictEqual(observed, [false, { connectionId: config.connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces' }, { connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', scriptUser: 'root', capChown: false, capDacReadSearch: true, stateOwner: 'user', privileged: false, runtime: 'gvisor' }]);
 	});
 
 	test('isolates IDs and notifications between transports', async () => {

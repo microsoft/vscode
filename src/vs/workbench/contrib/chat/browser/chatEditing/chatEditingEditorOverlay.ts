@@ -30,6 +30,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { CustomEditorInput } from '../../../customEditor/browser/customEditorInput.js';
+import { ICustomEditorService } from '../../../customEditor/common/customEditor.js';
 
 export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
@@ -276,7 +278,7 @@ class ChatEditorOverlayWidget extends Disposable {
 	}
 }
 
-class ChatEditingOverlayController {
+export class ChatEditingOverlayController {
 
 	private readonly _store = new DisposableStore();
 
@@ -287,6 +289,7 @@ class ChatEditingOverlayController {
 		group: IEditorGroup,
 		@IInstantiationService instaService: IInstantiationService,
 		@IChatEditingService chatEditingService: IChatEditingService,
+		@ICustomEditorService customEditorService: ICustomEditorService,
 	) {
 
 		this._domNode.classList.add('chat-editing-editor-overlay');
@@ -320,6 +323,15 @@ class ChatEditingOverlayController {
 
 		const activeEditorSignal = observableSignalFromEvent(this, Event.any(group.onDidActiveEditorChange, group.onDidModelChange));
 
+		const activeCustomEditorNavigationObs = derived(r => {
+			activeEditorSignal.read(r);
+			const input = group.activeEditorPane?.input;
+			if (!(input instanceof CustomEditorInput)) {
+				return undefined;
+			}
+			return observableFromEvent(input.onDidChangeNavigation, () => input.navigation).read(r);
+		});
+
 		const activeUriObs = derivedOpts({ equalsFn: isEqual }, r => {
 
 			activeEditorSignal.read(r); // signal
@@ -327,7 +339,13 @@ class ChatEditingOverlayController {
 			const editor = group.activeEditorPane;
 
 			if (!getCodeEditor(editor?.getControl())) {
-				return undefined;
+				const input = editor?.input;
+				const hasNavigation = activeCustomEditorNavigationObs.read(r) !== undefined;
+				const isCustomTextEditor = input instanceof CustomEditorInput
+					&& (customEditorService.getCustomEditorCapabilities(input.viewType)?.isTextEditor === true || hasNavigation);
+				if (!isCustomTextEditor) {
+					return undefined;
+				}
 			}
 
 			const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });

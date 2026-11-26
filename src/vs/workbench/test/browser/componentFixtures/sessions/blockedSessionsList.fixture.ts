@@ -24,7 +24,7 @@ import { ISessionsListModelService } from '../../../../contrib/sessions/browser/
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { BlockedSessionsList, registerBlockedSessionsItemActions } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
 import { registerBlockedSessionsHeaderActions, registerBlockedSessionsHeaderCommands } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
-import { ISessionCIFixModel, ISessionCIFixState } from '../../../../contrib/sessions/browser/views/sessionsList.js';
+import { ISessionCIFixModel, ISessionCIFixState } from '../../../../contrib/sessions/browser/views/sessionsListRenderers.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
