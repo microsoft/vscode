@@ -972,6 +972,7 @@ suite('AgentHostGitService', () => {
 		assert.deepStrictEqual([
 			'Preparing worktree (new branch \'agents/a\')\nerror: unable to create file src/a: Filename too long\nfatal: Could not reset index file to revision \'HEAD\'.\n',
 			'Preparing worktree (new branch \'agents/a\')\ngit-lfs filter-process: git-lfs: command not found\nfatal: the remote end hung up unexpectedly\n',
+			'Preparing worktree (new branch \'agents/a\')\n/bin/sh: 1: git-lfs: not found\nfatal: the remote end hung up unexpectedly\n',
 			'Preparing worktree (new branch \'agents/a\')\nHEAD is now at 14e5e32 lfs\n\nThis repository is configured for Git LFS but \'git-lfs\' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting the \'post-checkout\' file in the hooks directory (set by \'core.hookspath\'; usually \'.git/hooks\').\n\n',
 			'Preparing worktree (new branch \'agents/a\')\nfatal: cannot lock ref \'refs/heads/agents/a\': Unable to create \'/repo/.git/refs/heads/agents/a.lock\': File exists.\n\nAnother git process seems to be running in this repository, or the lock file may be stale\n',
 			'Preparing worktree (new branch \'agents/a\')\nerror: unable to write file \'big.bin\'\nfatal: Could not reset index file to revision \'HEAD\'.\n',
@@ -979,6 +980,7 @@ suite('AgentHostGitService', () => {
 			isWindows
 				? 'A file path in the worktree is too long for Windows. If the full path is longer than 260 characters, run `git config --global core.longpaths true` to allow long paths in Git. If a file or folder name is longer than 255 characters, shorten it in the repository.'
 				: 'A file path in the worktree is too long for the file system.',
+			gitLfsMissing,
 			gitLfsMissing,
 			gitLfsMissing,
 			'Another Git process is using the repository. If no Git process is running, delete the lock file \'/repo/.git/refs/heads/agents/a.lock\'.',

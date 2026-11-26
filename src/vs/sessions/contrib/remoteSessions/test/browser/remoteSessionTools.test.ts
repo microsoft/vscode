@@ -11,10 +11,11 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostSessionModelOptionsSettingId, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { CreateRemoteSessionTool, ListAgentHostsTool } from '../../browser/remoteSessionTools.js';
@@ -23,7 +24,7 @@ import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost,
 import { DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 
 suite('RemoteSessionTools', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('opaque scoped references require exact advertised identity instead of a reconstructed neighbor', async () => {
 		const backend = URI.from({ scheme: 'session-store', authority: 'tenant', path: '/root%2Fopaque', query: 'revision=part%26literal&mode=two' });
@@ -81,7 +82,7 @@ suite('RemoteSessionTools', () => {
 		placement: { runningSessions: 0, pendingCreations: 0 },
 	};
 
-	function setup() {
+	function setup(sessionModelOptions = 'off') {
 		const calls: { options: ICreateRemoteSessionOptions; source: URI; requestId: string; token: CancellationToken }[] = [];
 		// The result's host `host` is a Dev Container environment; `agenthost-build` a plain remote host.
 		const hostNames = new Map<string, IRemoteSessionHostName>([
@@ -98,7 +99,9 @@ suite('RemoteSessionTools', () => {
 				return result;
 			}
 		}();
-		return { calls, create: new CreateRemoteSessionTool(service), list: new ListAgentHostsTool(service) };
+		const configuration = new TestConfigurationService({ [AgentHostSessionModelOptionsSettingId]: sessionModelOptions });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		return { calls, create: new CreateRemoteSessionTool(service, configuration), list: new ListAgentHostsTool(service) };
 	}
 
 	test('registers non-workspace tools gated by AI, remote host and remote tool or Dev Container handoff enablement', () => {
@@ -206,6 +209,37 @@ suite('RemoteSessionTools', () => {
 				workspace: 'Workspace: /home/user/project (worktree)',
 			},
 			result: `[Created remote session in Dev Container 3 on This Computer](${result.openLink})`,
+		});
+	});
+
+	test('reasoning effort and context tier are offered, confirmed and forwarded only when session model options are enabled', async () => {
+		const parameters = { prompt: 'Continue', model: { provider: 'copilot', id: 'test-model' }, reasoningEffort: 'xhigh', contextTier: 'long_context' };
+		const run = async (setting: string) => {
+			const { create, calls } = setup(setting);
+			const properties = Object.keys(create.getToolData().inputSchema?.properties ?? {}).filter(key => key === 'reasoningEffort' || key === 'contextTier');
+			try {
+				const prepared = await create.prepareToolInvocation({ toolCallId: 'prepare', parameters, chatSessionResource: source }, CancellationToken.None);
+				await create.invoke({ callId: `call-${setting}`, toolId: create.getToolData().id, parameters, context: { sessionResource: source } }, async () => 0, progress, CancellationToken.None);
+				const message = prepared.confirmationMessages?.message;
+				const lines = (typeof message === 'object' ? message.value.replace(/&nbsp;/g, ' ') : '').split(/\n+/).filter(line => /^(Reasoning effort|Context window):/.test(line));
+				return { properties, lines, forwarded: { reasoningEffort: calls[0].options.reasoningEffort, contextTier: calls[0].options.contextTier } };
+			} catch (error) {
+				return { properties, error: (error as Error).message, creations: calls.length };
+			}
+		};
+		const enabled = {
+			properties: ['reasoningEffort', 'contextTier'],
+			lines: ['Reasoning effort: Extra High', 'Context window: Long context'],
+			forwarded: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+		};
+		assert.deepStrictEqual({
+			off: await run('off'),
+			inline: await run('inline'),
+			tool: await run('tool'),
+		}, {
+			off: { properties: [], error: 'Unknown create_remote_session property "reasoningEffort".', creations: 0 },
+			inline: enabled,
+			tool: enabled,
 		});
 	});
 

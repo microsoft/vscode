@@ -118,7 +118,7 @@ import { createChatOwnerRef } from '../../node/agentChatContext.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
-import { IAgentHostGitService, type IAddWorktreeOptions } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, type IAddWorktreeOptions, type IAddWorktreeResult } from '../../common/agentHostGitService.js';
 import { TestAgentHostGitService as BaseTestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -457,14 +457,16 @@ class TestAgentHostGitService extends BaseTestAgentHostGitService {
 	dirtyWorkingDirectories = new Set<string>();
 
 	override async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
-	override async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
+	override async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<IAddWorktreeResult> {
 		this.addedWorktrees.push({ repositoryRoot, options });
 		if (options.newBranchName) {
 			this.existingBranches.add(options.newBranchName);
 		}
+		return { gitLfsPointerFiles: false };
 	}
-	override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
+	override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<IAddWorktreeResult> {
 		this.addedExistingWorktrees.push({ repositoryRoot, worktree, branchName });
+		return { gitLfsPointerFiles: false };
 	}
 	override async isWorktreeRegistered(): Promise<boolean> { return false; }
 	override async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
@@ -13848,9 +13850,10 @@ suite('CopilotAgent', () => {
 									await super.removeWorktree(repositoryRoot, worktree);
 									await fs.rm(worktree.fsPath, { recursive: true });
 								}
-								override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<void> {
-									await super.addExistingWorktree(repositoryRoot, worktree, branch);
+								override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<IAddWorktreeResult> {
+									const result = await super.addExistingWorktree(repositoryRoot, worktree, branch);
 									await fs.mkdir(worktree.fsPath, { recursive: true });
+									return result;
 								}
 							}();
 							git.existingBranches.add('session-branch');
@@ -14005,9 +14008,10 @@ suite('CopilotAgent', () => {
 								await super.removeWorktree(repositoryRoot, worktree);
 								await fs.rm(worktree.fsPath, { recursive: true });
 							}
-							override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<void> {
-								await super.addExistingWorktree(repositoryRoot, worktree, branch);
+							override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<IAddWorktreeResult> {
+								const result = await super.addExistingWorktree(repositoryRoot, worktree, branch);
 								await fs.mkdir(worktree.fsPath, { recursive: true });
+								return result;
 							}
 						}();
 						git.existingBranches.add('peer-branch');
@@ -14319,9 +14323,10 @@ suite('CopilotAgent', () => {
 								await super.removeWorktree(repositoryRoot, worktree);
 								await fs.rm(worktree.fsPath, { recursive: true });
 							}
-							override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<void> {
-								await super.addExistingWorktree(repositoryRoot, worktree, branch);
+							override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<IAddWorktreeResult> {
+								const result = await super.addExistingWorktree(repositoryRoot, worktree, branch);
 								await fs.mkdir(worktree.fsPath, { recursive: true });
+								return result;
 							}
 						}();
 						git.existingBranches.add('session-branch');
