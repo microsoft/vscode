@@ -112,6 +112,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		this.canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
 
+		this.recentlyClosedEditorsLocation = this.getCurrentLocationKey();
+
 		this.registerListeners();
 
 		// if the service is created late enough that an editor is already opened
@@ -699,6 +701,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 	// comparison key of the location, least recently put away first. Only kept in memory, for the lifetime of the window.
 	private readonly putAwayRecentlyClosedEditors = new Map<string, { readonly folder: URI; readonly entries: IRecentlyClosedEditor[] }>();
 
+	// The location that the recently closed editors are of. It changes when the change of the workspace folders
+	// is published, together with the lists, and not when the folder changes before that, so that a close
+	// in between is recorded and deduplicated at the same location.
+	private recentlyClosedEditorsLocation: string | undefined;
+
 	private handleEditorCloseEventInReopen(event: IEditorCloseEvent): void {
 		if (this.ignoreEditorCloseEvent) {
 			return; // blocked
@@ -737,7 +744,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			associatedResources,
 			index: event.index,
 			sticky: event.sticky,
-			location: this.getCurrentLocationKey(),
+			location: this.recentlyClosedEditorsLocation,
 			batchId: this.currentRecentlyClosedEditorsBatchId()
 		});
 
@@ -1368,6 +1375,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (!event.added.length && !event.removed.length) {
 			return;
 		}
+
+		this.recentlyClosedEditorsLocation = this.getCurrentLocationKey();
 
 		// Only a Folder Location switch swaps the lists: adding or removing folders keeps the entries
 		if (!event.isFolderLocationChange) {

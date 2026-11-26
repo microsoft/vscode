@@ -767,18 +767,28 @@ suite('HistoryService', function () {
 			override get onDidChangeWorkspaceFolders(): Event<IWorkspaceFoldersChangeEvent> { return this._onDidChangeFolders.event; }
 
 			setFolders(folders: URI[], options?: { isFolderLocationChange?: boolean; silent?: boolean }): void {
+				const publish = this.setFoldersUnpublished(folders, options);
+				if (!options?.silent) {
+					publish();
+				}
+			}
+
+			/**
+			 * Changes the folders and returns the publication of the change, which the configuration service does later.
+			 */
+			setFoldersUnpublished(folders: URI[], options?: { isFolderLocationChange?: boolean }): () => void {
 				const previous = this.getWorkspace().folders;
 				const workspace = testWorkspace(...folders);
 				this.setWorkspace(workspace);
 
-				if (!options?.silent) {
-					this._onDidChangeFolders.fire({
-						added: workspace.folders.filter(folder => !previous.some(previousFolder => previousFolder.uri.toString() === folder.uri.toString())),
-						removed: previous.filter(folder => !folders.some(uri => uri.toString() === folder.uri.toString())),
-						changed: [],
-						...(options?.isFolderLocationChange ? { isFolderLocationChange: true } : {})
-					});
-				}
+				const event: IWorkspaceFoldersChangeEvent = {
+					added: workspace.folders.filter(folder => !previous.some(previousFolder => previousFolder.uri.toString() === folder.uri.toString())),
+					removed: previous.filter(folder => !folders.some(uri => uri.toString() === folder.uri.toString())),
+					changed: [],
+					...(options?.isFolderLocationChange ? { isFolderLocationChange: true } : {})
+				};
+
+				return () => this._onDidChangeFolders.fire(event);
 			}
 		}
 
@@ -887,6 +897,27 @@ suite('HistoryService', function () {
 			}
 
 			assert.deepStrictEqual(await reopenTwice(historyService, part), ['/worktree/c.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('a close after the folder changed and before the change is published is recorded at the location being left', async () => {
+			const { contextService, historyService, instantiationService, part, open } = await createFolderServices(folder);
+
+			await open('/outside.txt');
+			await part.activeGroup.closeAllEditors();
+			await open('/outside.txt');
+
+			const publish = contextService.setFoldersUnpublished([worktree], { isFolderLocationChange: true });
+			await part.activeGroup.closeAllEditors();
+			publish();
+			const atWorktree = await reopenTwice(historyService, part);
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			await closeAllBySwitch(part);
+			const backAtFolder = await reopenTwice(historyService, part);
+
+			assert.deepStrictEqual({ atWorktree, backAtFolder }, { atWorktree: [], backAtFolder: ['/outside.txt'] });
 
 			return workbenchTeardown(instantiationService);
 		});
