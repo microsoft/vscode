@@ -21,7 +21,7 @@ import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuItem, IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
@@ -33,6 +33,7 @@ import { HoverService } from '../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
+import { SessionActivityBarExtensionEntries } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarExtensionEntries.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, setSessionActivityBarSize } from '../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
@@ -450,6 +451,34 @@ suite('Sessions - Session Activity Bar', () => {
 			reset: 44,
 			inColumn: { top: '0px', grip: false },
 		});
+	});
+
+	test('shows the icon entries extensions contribute to agents/sessionActivityBar after the built-in groups, in their own order, and removes them with the extension', async () => {
+		store.add(new SessionActivityBarExtensionEntries());
+		const extensionEntries = () => MenuRegistry.getMenuItems(Menus.SessionActivityBar)
+			.filter((item): item is IMenuItem => isIMenuItem(item) && item.group === SessionActivityBarGroup.Extensions)
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+			.map(item => [item.command.id, item.when?.serialize()]);
+		// The strip only updates when the registry reports a change to its menu.
+		let stripChanges = 0;
+		store.add(MenuRegistry.onDidChangeMenu(event => stripChanges += event.has(Menus.SessionActivityBar) ? 1 : 0));
+		const contributed = new DisposableStore();
+		try {
+			contributed.add(MenuRegistry.appendMenuItem(MenuId.AgentsSessionActivityBar, { command: { id: 'test.extension.d', title: 'D', icon: Codicon.verified } }));
+			contributed.add(MenuRegistry.appendMenuItem(MenuId.AgentsSessionActivityBar, { command: { id: 'test.extension.b', title: 'B', icon: Codicon.verified }, group: 'z_other', order: 1 }));
+			contributed.add(MenuRegistry.appendMenuItem(MenuId.AgentsSessionActivityBar, { command: { id: 'test.extension.a', title: 'A', icon: Codicon.verified }, group: 'navigation', order: 2, when: ContextKeyExpr.has('test.shown') }));
+			contributed.add(MenuRegistry.appendMenuItem(MenuId.AgentsSessionActivityBar, { command: { id: 'test.extension.c', title: 'C', icon: Codicon.verified }, group: 'navigation', order: 1 }));
+			contributed.add(MenuRegistry.appendMenuItem(MenuId.AgentsSessionActivityBar, { command: { id: 'test.extension.noIcon', title: 'No Icon' }, group: 'navigation', order: 0 }));
+			// The registry reports changes on the next microtask.
+			await timeout(0);
+
+			assert.deepStrictEqual({ entries: extensionEntries(), stripNotified: stripChanges > 0 }, { entries: [['test.extension.c', undefined], ['test.extension.a', 'test.shown'], ['test.extension.b', undefined], ['test.extension.d', undefined]], stripNotified: true });
+			assert.ok(Object.values(SessionActivityBarGroup).every(group => group === SessionActivityBarGroup.Extensions || group < SessionActivityBarGroup.Extensions), 'after every built-in group');
+		} finally {
+			contributed.dispose();
+		}
+		await timeout(0);
+		assert.deepStrictEqual(extensionEntries(), []);
 	});
 
 	test('renders two groups: the side panel toggle with the tab entries, then the terminal with the panel toggle', () => {
