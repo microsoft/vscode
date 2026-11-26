@@ -5,17 +5,19 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../../nls.js';
-import { autorun, derived } from '../../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IReader, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
-import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { isEqualAuthority } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { cloudSandboxAddress, cloudSandboxEnvironmentId } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IMissionControlEnvironmentService, IMissionControlSharingService, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -29,7 +31,7 @@ import { IUserDataProfileService } from '../../../../../services/userDataProfile
 import { ISessionsRecentWorkspacesService } from '../../../browser/sessionsRecentWorkspacesService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getRemoteAgentHostPickerKey } from './remoteAgentHostPickerVisibility.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostPredecessor, IAgentHostSessionsProvider, IAgentHostSuccessor, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 
 /** How long sessions wait to move between a shared remote's direct connection and its GitHub environment. */
@@ -46,6 +48,23 @@ interface ISessionHandoff extends IDisposable {
 	step(): void;
 }
 
+/** A remote being disconnected with Keep Sharing, whose GitHub environment takes over its host. */
+interface IKeptSharing {
+	readonly address: string;
+	/** The remote's direct provider. */
+	readonly providerId: string;
+}
+
+/**
+ * Maps a resource of the agent host at `fromAddress` to the same resource on the one at `toAddress`, or `undefined` when it is
+ * not one. Only its connection changes, so it keeps what its URI records, such as its display path or being a `ContentRef`.
+ */
+function mapHostResource(fromAddress: string, toAddress: string): (resource: URI) => URI | undefined {
+	const from = agentHostAuthority(fromAddress);
+	const to = agentHostAuthority(toAddress);
+	return resource => resource.scheme === AGENT_HOST_SCHEME && isEqualAuthority(resource.authority, from) ? resource.with({ authority: to }) : undefined;
+}
+
 /** User-local MC hosts use the native provider, never the sandbox's task-history adapter. */
 export class MissionControlAgentHostContribution extends EntryDrivenProviderContribution {
 	static readonly ID = 'workbench.contrib.missionControlAgentHosts';
@@ -57,6 +76,10 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 	private readonly _handoffs = this._register(new DisposableMap<string, ISessionHandoff>());
 	/** GitHub environments being disconnected because their remotes are connected directly again. */
 	private readonly _returning = new Set<string>();
+	/** Remotes being disconnected with Keep Sharing, by the IDs of their GitHub environments. */
+	private readonly _keptSharing = observableValue<ReadonlyMap<string, IKeptSharing>>(this, new Map());
+	private readonly _connectionsChanged = observableSignalFromEvent(this, this._remoteAgentHostService.onDidChangeConnections);
+	private readonly _providersChanged = observableSignalFromEvent(this, this._sessionsProvidersService.onDidChangeProviders);
 
 	constructor(
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
@@ -222,17 +245,35 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		}
 	}
 
-	/** Continues the sessions of a remote kept shared on disconnect through its GitHub environment once the remote is gone. */
+	/**
+	 * Continues the sessions of a remote kept shared on disconnect through its GitHub environment once the remote is gone.
+	 * Runs before the remote is disconnected, so a new session selected on the remote moves while it still resolves.
+	 */
 	private _continueThroughEnvironment(address: string, environmentId: string): void {
 		const source = this._findDirectProvider(address);
-		this._handOff(environmentId, this._captureSessions(source),
+		const sessions = this._captureSessions(source);
+		const kept: IKeptSharing | undefined = source && { address, providerId: source.id };
+		if (kept) {
+			this._keptSharing.set(new Map(this._keptSharing.get()).set(environmentId, kept), undefined);
+		}
+		this._handOff(environmentId, sessions,
 			() => !this._remoteSharing.environmentIds.get().has(environmentId) && !(source && this._isListing(source)),
 			() => this._providerInstances.get(cloudSandboxAddress(environmentId)),
-			target => void target.connect().catch(error => {
-				if (!isCancellationError(error)) {
-					this._logService.warn('Failed to connect to the GitHub environment of a remote kept shared on disconnect', error);
-				}
-			}));
+			{
+				onTarget: target => void target.connect().catch(error => {
+					if (!isCancellationError(error)) {
+						this._logService.warn('Failed to connect to the GitHub environment of a remote kept shared on disconnect', error);
+					}
+				}),
+				onDidEnd: kept && (() => {
+					const keptSharing = this._keptSharing.get();
+					if (keptSharing.get(environmentId) === kept) {
+						const remaining = new Map(keptSharing);
+						remaining.delete(environmentId);
+						this._keptSharing.set(remaining, undefined);
+					}
+				}),
+			});
 	}
 
 	/** Disconnects the GitHub environments of shared remotes that are connected directly again, and moves their sessions back to the direct connections. */
@@ -266,9 +307,9 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 
 	/**
 	 * Moves open sessions to the target provider as it lists them. Waits until ready to find the target,
-	 * and calls `onTarget` once the target is found.
+	 * calls `onTarget` once the target is found, and `onDidEnd` once the handoff finishes, times out or is replaced.
 	 */
-	private _handOff<T extends IAgentHostSessionsProvider>(environmentId: string, sessions: readonly IHandoffSession[], isReady: () => boolean, findTarget: () => T | undefined, onTarget?: (target: T) => void): void {
+	private _handOff<T extends IAgentHostSessionsProvider>(environmentId: string, sessions: readonly IHandoffSession[], isReady: () => boolean, findTarget: () => T | undefined, options?: { readonly onTarget?: (target: T) => void; readonly onDidEnd?: () => void }): void {
 		const store = new DisposableStore();
 		const targetListener = store.add(new MutableDisposable());
 		let remaining = sessions;
@@ -292,7 +333,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 						return;
 					}
 					targetListener.value = target.onDidChangeSessions(() => handoff.step());
-					onTarget?.(target);
+					options?.onTarget?.(target);
 					if (store.isDisposed) {
 						return;
 					}
@@ -312,12 +353,50 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		};
 		store.add(this._sessionsProvidersService.onDidChangeProviders(() => handoff.step()));
 		store.add(disposableTimeout(finish, SESSION_HANDOFF_TIMEOUT));
+		if (options?.onDidEnd) {
+			store.add(toDisposable(options.onDidEnd));
+		}
 		this._handoffs.set(environmentId, handoff);
 		handoff.step();
 	}
 
 	private _findDirectProvider(address: string): IAgentHostSessionsProvider | undefined {
 		return this._sessionsProvidersService.getProviders().find((provider): provider is IAgentHostSessionsProvider => isAgentHostProvider(provider) && provider.remoteAddress === address);
+	}
+
+	/**
+	 * The direct connection of the remote shared as a GitHub environment, once it is connected again. Not the remote being
+	 * disconnected with Keep Sharing, whose new sessions move the other way.
+	 */
+	private _readSuccessor(environmentId: string, reader: IReader): IAgentHostSuccessor | undefined {
+		if (!this._remoteSharing.environmentIds.read(reader).has(environmentId)) {
+			return undefined;
+		}
+		this._connectionsChanged.read(reader);
+		this._providersChanged.read(reader);
+		const keptAddress = this._keptSharing.read(reader).get(environmentId)?.address;
+		// Several addresses can share the environment, such as a remote added again under another address.
+		let address: string | undefined;
+		let direct: IAgentHostSessionsProvider | undefined;
+		for (const [candidate, share] of this._remoteSharing.shares.read(reader)) {
+			if (share.environmentId === environmentId && candidate !== keptAddress && RemoteAgentHostConnectionStatus.isConnected(this._remoteAgentHostService.connections.find(connection => connection.address === candidate)?.status)) {
+				direct = this._findDirectProvider(candidate);
+				if (direct) {
+					address = candidate;
+					break;
+				}
+			}
+		}
+		if (address === undefined || !direct) {
+			return undefined;
+		}
+		return { providerId: direct.id, mapResource: mapHostResource(cloudSandboxAddress(environmentId), address) };
+	}
+
+	/** The direct connection of the remote being disconnected with Keep Sharing, whose host the GitHub environment takes over. */
+	private _readPredecessor(environmentId: string, reader: IReader): IAgentHostPredecessor | undefined {
+		const kept = this._keptSharing.read(reader).get(environmentId);
+		return kept && { providerId: kept.providerId, mapResource: mapHostResource(kept.address, cloudSandboxAddress(environmentId)) };
 	}
 
 	private _isListing(provider: IAgentHostSessionsProvider): boolean {
@@ -418,6 +497,8 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 				&& !this._remoteSharing.environmentIds.read(reader).has(id)
 				&& this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
 			localRegistration: derived(this, reader => this._inventory.ownEnvironmentId.read(reader) === id ? 'githubEnvironment' : undefined),
+			successor: derivedOpts({ owner: this, equalsFn: (a, b) => a?.providerId === b?.providerId }, reader => this._readSuccessor(id, reader)),
+			predecessor: derivedOpts({ owner: this, equalsFn: (a, b) => a?.providerId === b?.providerId }, reader => this._readPredecessor(id, reader)),
 			pickerVisibilityKey: getRemoteAgentHostPickerKey(cloudSandboxAddress(id), account),
 			disconnectLabel: localize('missionControl.disconnectHost', "Disconnect"),
 			hostDescription: derived(this, reader => {

@@ -279,17 +279,19 @@ suite('AgentHostTerminalService', () => {
 		});
 	});
 
-	test('knows the host of a terminal from the moment the terminal service creates its instance', async () => {
+	test('knows the host and the requested cwd of a terminal from the moment the terminal service creates its instance', async () => {
 		store.add(service.registerEntry({ name: 'devbox', address: 'ssh://devbox', getConnection: () => connection }));
-		const addresses: (string | undefined)[] = [];
-		terminalService.onCreatingInstance = instance => addresses.push(service.getAgentHostAddress(instance));
+		const cwd = URI.file('/workspace');
+		const known: [string | undefined, string | undefined][] = [];
+		const read = (instance: ITerminalInstance) => known.push([service.getAgentHostAddress(instance), service.getRequestedCwd(instance)?.fsPath]);
+		terminalService.onCreatingInstance = read;
 
-		const instance = await service.createTerminal(connection);
-		addresses.push(service.getAgentHostAddress(instance));
+		const instance = await service.createTerminal(connection, { cwd });
+		read(instance);
 		// Another terminal launched with the same settings is not that terminal.
-		addresses.push(service.getAgentHostAddress(store.add(new TestTerminalInstance({ ...instance.shellLaunchConfig }))));
+		read(store.add(new TestTerminalInstance({ ...instance.shellLaunchConfig })));
 
-		assert.deepStrictEqual(addresses, ['ssh://devbox', 'ssh://devbox', undefined]);
+		assert.deepStrictEqual(known, [['ssh://devbox', cwd.fsPath], ['ssh://devbox', cwd.fsPath], [undefined, undefined]]);
 	});
 
 	test('a failed terminal creation disposes the PTY registration', async () => {

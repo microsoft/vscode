@@ -33,13 +33,22 @@ done
 
 # Make sure we get latest packages
 sudo apt-get update
-sudo apt-get upgrade -y
-sudo apt-get install -y curl apt-transport-https ca-certificates gcc
+sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl apt-transport-https ca-certificates gcc
+
+# The build container provides the modern patchelf used by this Snapcraft image.
+# Route Snapcraft's bundled path and explicit override-build/override-prime calls
+# to that implementation so enable-patchelf patches the complete payload consistently.
+SNAPCRAFT_PATCHELF="${SNAP:-/snap/snapcraft/current}/bin/patchelf"
+if [ -x /snap/bin/patchelf ] && [ -e "$SNAPCRAFT_PATCHELF" ]; then
+  sudo ln -sf /snap/bin/patchelf "$SNAPCRAFT_PATCHELF"
+fi
+"$SNAPCRAFT_PATCHELF" --version
 
 # Define variables
 SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
 
-# Build OpenSSL 3 shared libraries against core20 glibc from the prebuilt static
+# Build OpenSSL 3 shared libraries against core24 glibc from the prebuilt static
 # archives so the Copilot SDK runtime resolves libcrypto.so.3 / libssl.so.3 from
 # the snap rather than loading an incompatible host OpenSSL.
 OPENSSL_PREBUILT_DIR="$(pwd)/.build/linux/snap/openssl"
@@ -61,8 +70,8 @@ BUILD_VERSION="$(date +%s)"
 SNAP_FILENAME="code-$VSCODE_QUALITY-$VSCODE_ARCH-$BUILD_VERSION.snap"
 SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
 case $VSCODE_ARCH in
-  x64) SNAPCRAFT_TARGET_ARGS="" ;;
-  *) SNAPCRAFT_TARGET_ARGS="--target-arch $VSCODE_ARCH" ;;
+  x64) SNAPCRAFT_TARGET_ARGS=() ;;
+  *) SNAPCRAFT_TARGET_ARGS=(--build-for "$VSCODE_ARCH") ;;
 esac
 (
   set -o pipefail
@@ -70,12 +79,18 @@ esac
   snapcraftLog=$(mktemp)
   trap 'rm -f "$snapcraftLog"' EXIT
 
-  # Snapcraft 7.5.3 saves global state before running any part; only retry before that.
-  # Recheck this boundary when upgrading the pinned image:
-  # https://github.com/canonical/snapcraft/blob/7.5.3/snapcraft_legacy/internal/lifecycle/_runner.py#L121-L145
+  # Snapcraft's snap puts craftctl in $SNAP/libexec/snapcraft and relies on snapd's
+  # environment block to add it to PATH. Add Snapcraft's bin directory too so
+  # override-build and override-prime use the container's modern patchelf.
+  SNAPCRAFT_PATH="${SNAP:-/snap/snapcraft/current}/bin:${SNAP:-/snap/snapcraft/current}/libexec/snapcraft:$PATH"
+
+  # Retry Store initialization 429s only while Snapcraft has not written part state
+  # or created a partial output snap.
+  # Snapcraft 9 requires --output to stay inside the project directory, so pack to
+  # $SNAP_FILENAME in cwd and move it to $SNAP_PATH afterwards.
   # Three backoffs with jitter, then a final attempt (0 means no more retries).
   for delay in 30 60 120 0; do
-    if sudo --preserve-env snapcraft snap $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH" 2>&1 | tee "$snapcraftLog"; then
+    if sudo --preserve-env env "PATH=$SNAPCRAFT_PATH" snapcraft pack --destructive-mode "${SNAPCRAFT_TARGET_ARGS[@]}" --output "$SNAP_FILENAME" 2>&1 | tee "$snapcraftLog"; then
       break
     else
       exitCodes=("${PIPESTATUS[@]}")
@@ -84,8 +99,8 @@ esac
     (( exitCodes[1] == 0 )) || exit "${exitCodes[1]}"
 
     if (( delay == 0 || exitCodes[0] != 1 )) ||
-      [[ -e parts/.snapcraft_global_state ]] ||
-      ! grep -Fxq 'Starting Snapcraft 7.5.3' "$snapcraftLog" ||
+      [[ -d parts && -n "$(find parts -mindepth 1 -print -quit)" ]] ||
+      [[ -e "$SNAP_FILENAME" ]] ||
       [[ "$(awk 'NF { last = $0 } END { print last }' "$snapcraftLog")" != 'Issue encountered while processing your request: [429] Too Many Requests.' ]]; then
       exit "${exitCodes[0]}"
     fi
@@ -94,4 +109,6 @@ esac
     echo "Snap Store HTTP 429 before any parts ran; retrying initialization in ${delay}s." >&2
     sleep "$delay"
   done
+
+  sudo mv "$SNAP_FILENAME" "$SNAP_PATH"
 )

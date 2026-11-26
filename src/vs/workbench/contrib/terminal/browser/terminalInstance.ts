@@ -6,6 +6,7 @@
 import { isFirefox } from '../../../../base/browser/browser.js';
 import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import { DataTransfers } from '../../../../base/browser/dnd.js';
+import { Color } from '../../../../base/common/color.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -53,7 +54,7 @@ import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
+import { getModernSideBarBackground, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -76,7 +77,7 @@ import { getUriLabelForShell, getShellIntegrationTimeout, getWorkspaceForTermina
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
-import { isHorizontal, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { isHorizontal, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
@@ -2972,6 +2973,8 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 	constructor(
 		private readonly _target: IReference<TerminalLocation | undefined>,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 	}
 
@@ -2987,8 +2990,19 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 		if (location === ViewContainerLocation.Panel) {
 			return theme.getColor(PANEL_BACKGROUND);
 		}
-		return theme.getColor(SIDE_BAR_BACKGROUND);
+		return getTerminalSideBarBackground(theme, this._configurationService, this._environmentService);
 	}
+}
+
+/**
+ * Resolves the background of a terminal hosted in a side bar, following the
+ * Modern UI side bar background when it is enabled.
+ */
+export function getTerminalSideBarBackground(theme: IColorTheme, configurationService: IConfigurationService, environmentService: IWorkbenchEnvironmentService): Color | undefined {
+	if (!environmentService.isSessionsWindow && configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true) {
+		return getModernSideBarBackground(theme) ?? theme.getColor(SIDE_BAR_BACKGROUND);
+	}
+	return theme.getColor(SIDE_BAR_BACKGROUND);
 }
 
 function guessShellTypeFromExecutable(os: OperatingSystem, executable: string): TerminalShellType | undefined {

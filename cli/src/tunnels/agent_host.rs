@@ -2269,49 +2269,96 @@ async fn dial_gateway_target(
 /// and the selected target until either side closes or errors. Generic
 /// over both stream types so it is shared between the `Tcp` and `Socket`
 /// [`GatewayTargetWs`] variants.
+///
+/// Each direction is forwarded independently so that a slow write to one
+/// side never stops reads from it. With a single loop, a large frame
+/// being written to the client blocks reading from the client; once the
+/// tunnel's bounded buffers fill with client data, neither side can make
+/// progress.
+///
+/// When one side closes, both directions stop before the close is passed
+/// on, so a failure in the other direction cannot cancel it.
 async fn proxy_gateway_frames<A, B>(
 	log: &log::Logger,
-	mut client: WebSocketStream<A>,
-	mut target: WebSocketStream<B>,
+	client: WebSocketStream<A>,
+	target: WebSocketStream<B>,
 ) where
 	A: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 	B: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
+	let (mut client_tx, mut client_rx) = client.split();
+	let (mut target_tx, mut target_rx) = target.split();
+	let closed = tokio::select! {
+		closed = forward_gateway_frames(log, &mut client_rx, &mut target_tx, "client", "target") => closed.then_some(GatewayPeer::Client),
+		closed = forward_gateway_frames(log, &mut target_rx, &mut client_tx, "target", "client") => closed.then_some(GatewayPeer::Target),
+	};
+	match closed {
+		Some(GatewayPeer::Client) => send_gateway_close(log, &mut target_tx, "target").await,
+		Some(GatewayPeer::Target) => send_gateway_close(log, &mut client_tx, "client").await,
+		None => {}
+	}
+}
+
+/// A side of a [`proxy_gateway_frames`] session.
+enum GatewayPeer {
+	Client,
+	Target,
+}
+
+/// How long to wait for a peer to accept a close frame when the other
+/// side of a gateway session closes.
+const GATEWAY_CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Forwards frames from `from` to `to` until `from` closes or either side
+/// errors. Returns `true` when `from` closed, in which case the caller
+/// passes the close on to the other side.
+async fn forward_gateway_frames<R, W>(
+	log: &log::Logger,
+	from: &mut R,
+	to: &mut W,
+	from_name: &str,
+	to_name: &str,
+) -> bool
+where
+	R: futures::Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin,
+	W: futures::Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+{
 	loop {
-		tokio::select! {
-			msg = client.next() => match msg {
-				Some(Ok(Message::Close(_))) | None => {
-					let _ = target.close(None).await;
-					return;
-				}
-				Some(Ok(m)) => {
-					if let Err(e) = target.send(m).await {
-						debug!(log, "Gateway proxy: failed forwarding client frame to target: {:?}", e);
-						return;
-					}
-				}
-				Some(Err(e)) => {
-					debug!(log, "Gateway proxy: client connection error: {:?}", e);
-					return;
-				}
-			},
-			msg = target.next() => match msg {
-				Some(Ok(Message::Close(_))) | None => {
-					let _ = client.close(None).await;
-					return;
-				}
-				Some(Ok(m)) => {
-					if let Err(e) = client.send(m).await {
-						debug!(log, "Gateway proxy: failed forwarding target frame to client: {:?}", e);
-						return;
-					}
-				}
-				Some(Err(e)) => {
-					debug!(log, "Gateway proxy: target connection error: {:?}", e);
-					return;
+		match from.next().await {
+			Some(Ok(Message::Close(_))) | None => return true,
+			Some(Ok(m)) => {
+				if let Err(e) = to.send(m).await {
+					debug!(
+						log,
+						"Gateway proxy: failed forwarding {} frame to {}: {:?}",
+						from_name,
+						to_name,
+						e
+					);
+					return false;
 				}
 			}
+			Some(Err(e)) => {
+				debug!(
+					log,
+					"Gateway proxy: {} connection error: {:?}", from_name, e
+				);
+				return false;
+			}
 		}
+	}
+}
+
+/// Sends and flushes a close frame to `to`, giving up after
+/// [`GATEWAY_CLOSE_TIMEOUT`] if it does not accept it.
+async fn send_gateway_close<W>(log: &log::Logger, to: &mut W, to_name: &str)
+where
+	W: futures::Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+{
+	match tokio::time::timeout(GATEWAY_CLOSE_TIMEOUT, to.send(Message::Close(None))).await {
+		Ok(Ok(())) => {}
+		Ok(Err(e)) => debug!(log, "Gateway proxy: failed closing {}: {:?}", to_name, e),
+		Err(_) => debug!(log, "Gateway proxy: timed out closing {}", to_name),
 	}
 }
 
@@ -3791,6 +3838,115 @@ mod tests {
 			other => panic!("expected error ack, got {other:?}"),
 		};
 		assert!(ack.contains(r#""ok":false"#), "got: {ack}");
+	}
+
+	/// The client keeps sending while a large target frame is still being
+	/// written to it, and only reads once its own sends complete. The proxy
+	/// must keep reading from the client while that write is blocked;
+	/// otherwise both sides wait on each other forever.
+	#[tokio::test]
+	async fn gateway_proxy_reads_client_while_writing_large_target_frame() {
+		const PIPE_CAPACITY: usize = 16 * 1024;
+		const LARGE_FRAME_LEN: usize = 1024 * 1024;
+		const CLIENT_FRAME_COUNT: usize = 64;
+		const CLIENT_FRAME_LEN: usize = 4 * 1024;
+
+		let (client_io, client_proxy_io) = tokio::io::duplex(PIPE_CAPACITY);
+		let (target_io, target_proxy_io) = tokio::io::duplex(PIPE_CAPACITY);
+		tokio::spawn(async move {
+			let client =
+				WebSocketStream::from_raw_socket(client_proxy_io, Role::Server, None).await;
+			let target =
+				WebSocketStream::from_raw_socket(target_proxy_io, Role::Client, None).await;
+			proxy_gateway_frames(&log::Logger::test(), client, target).await;
+		});
+		let mut client_ws = WebSocketStream::from_raw_socket(client_io, Role::Client, None).await;
+		let mut target_ws = WebSocketStream::from_raw_socket(target_io, Role::Server, None).await;
+
+		let target_task = tokio::spawn(async move {
+			target_ws
+				.send(Message::Binary(vec![7u8; LARGE_FRAME_LEN].into()))
+				.await
+				.unwrap();
+			let mut received = 0;
+			while received < CLIENT_FRAME_COUNT {
+				match target_ws.next().await {
+					Some(Ok(Message::Binary(b))) => {
+						assert_eq!(b.len(), CLIENT_FRAME_LEN);
+						received += 1;
+					}
+					other => panic!("expected client frame at target, got {other:?}"),
+				}
+			}
+		});
+
+		let exchange = async {
+			// Let the proxy start writing the large frame before the client sends.
+			tokio::time::sleep(Duration::from_millis(100)).await;
+			for _ in 0..CLIENT_FRAME_COUNT {
+				client_ws
+					.send(Message::Binary(vec![1u8; CLIENT_FRAME_LEN].into()))
+					.await
+					.unwrap();
+			}
+			match client_ws.next().await {
+				Some(Ok(Message::Binary(b))) => assert_eq!(b.len(), LARGE_FRAME_LEN),
+				other => panic!("expected large target frame at client, got {other:?}"),
+			}
+			target_task.await.unwrap();
+		};
+		tokio::time::timeout(Duration::from_secs(10), exchange)
+			.await
+			.expect("gateway proxy deadlocked forwarding frames in both directions");
+	}
+
+	/// The client closes while the target's pipe is full, so the proxy
+	/// cannot deliver the close yet. A frame from the target then fails to
+	/// reach the closing client. That failure must not cancel the pending
+	/// close: the target still receives it once it drains its pipe.
+	#[tokio::test]
+	async fn gateway_proxy_delivers_close_when_other_direction_fails() {
+		const PIPE_CAPACITY: usize = 16 * 1024;
+		// Masked client-role frame header: 2 bytes, 16-bit length, 4-byte mask.
+		const FILL_FRAME_LEN: usize = PIPE_CAPACITY - 8;
+
+		let (client_io, client_proxy_io) = tokio::io::duplex(PIPE_CAPACITY);
+		let (target_io, target_proxy_io) = tokio::io::duplex(PIPE_CAPACITY);
+		tokio::spawn(async move {
+			let client =
+				WebSocketStream::from_raw_socket(client_proxy_io, Role::Server, None).await;
+			let target =
+				WebSocketStream::from_raw_socket(target_proxy_io, Role::Client, None).await;
+			proxy_gateway_frames(&log::Logger::test(), client, target).await;
+		});
+		let mut client_ws = WebSocketStream::from_raw_socket(client_io, Role::Client, None).await;
+		let mut target_ws = WebSocketStream::from_raw_socket(target_io, Role::Server, None).await;
+
+		let exchange = async {
+			// Fill the target pipe exactly, then close from the client.
+			client_ws
+				.send(Message::Binary(vec![1u8; FILL_FRAME_LEN].into()))
+				.await
+				.unwrap();
+			tokio::time::sleep(Duration::from_millis(100)).await;
+			client_ws.send(Message::Close(None)).await.unwrap();
+			tokio::time::sleep(Duration::from_millis(100)).await;
+			// Forwarding this to the closing client fails.
+			target_ws.send(Message::Text("late".into())).await.unwrap();
+			tokio::time::sleep(Duration::from_millis(100)).await;
+
+			match target_ws.next().await {
+				Some(Ok(Message::Binary(b))) => assert_eq!(b.len(), FILL_FRAME_LEN),
+				other => panic!("expected client frame at target, got {other:?}"),
+			}
+			match target_ws.next().await {
+				Some(Ok(Message::Close(_))) => {}
+				other => panic!("expected close at target, got {other:?}"),
+			}
+		};
+		tokio::time::timeout(Duration::from_secs(10), exchange)
+			.await
+			.expect("gateway proxy did not deliver the close");
 	}
 
 	fn ready_active_agent_host(

@@ -158,6 +158,21 @@ suite('Mission Control client', () => {
 		}
 	});
 
+	test('reads just the recorded automation revision prompt and accepts empty event content', async () => {
+		const revisionId = 'v:1';
+		const { client, requests } = setup(({ url }) => {
+			if (url.pathname.endsWith('/tasks/task-1')) {
+				return Response.json({ ...task, automation_revision_id: null, sessions: [{ id: 'session', created_at: date, state: 'completed', event_content: null }] });
+			}
+			return Response.json({ snapshot: { prompt: 'Original instructions', name: 'Original name' } });
+		});
+		const prompt = await client.automations.getRevisionPrompt(repository, automation.id, revisionId, cancellationToken());
+		const run = await client.tasks.get(task.id, cancellationToken());
+		assert.deepStrictEqual({ prompt, revision: run.automation_revision_id, event: run.sessions?.[0].event_content, path: requests[0].url.pathname }, {
+			prompt: 'Original instructions', revision: null, event: null, path: `${collection}/${automation.id}/revisions/v%3A1`,
+		});
+	});
+
 	test('acquired clients execute every automation operation with selected credentials and exact routes', async () => {
 		const { prompt, ...summary } = automation;
 		const nextLink = `${apiBaseUri}${collection}/v2?page=2`;

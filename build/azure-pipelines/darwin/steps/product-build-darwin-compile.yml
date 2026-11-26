@@ -13,8 +13,8 @@ parameters:
     type: boolean
     default: false
   # Whether to include the steps and jobs that need a privileged service
-  # connection (signing, CDN uploads, Copilot test setup). Only
-  # sdk-validation-build.yml sets this to false.
+  # connection (signing, CDN uploads, Copilot test setup). Dev builds of
+  # product-build.yml and sdk-validation-build.yml set this to false.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
     default: true
@@ -107,7 +107,6 @@ steps:
         pnpm -C test/smoke run compile
         pnpm -C test/integration/browser run compile
       displayName: Compile test suites (non-OSS)
-      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: pnpm -C build run copy-policy-dto && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc darwin

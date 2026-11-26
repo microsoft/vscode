@@ -200,7 +200,7 @@ suite('Detect missing caches', () => {
 			return { before: steps.slice(0, index).map(step => step.name), run: steps[index]?.run, shell: steps[index]?.shell, workingDirectory: steps[index]?.['working-directory'] };
 		};
 		const { before: warmerBefore, ...warmer } = devDrive('.github/workflows/pr-pnpm-store.yml', 'windows');
-		const { before: testsBefore, ...tests } = devDrive('.github/workflows/pr-win32-test.yml', 'electron-unit');
+		const { before: testsBefore, ...tests } = devDrive('.github/workflows/pr-win32-test.yml', 'electron-unit-electron');
 		assert.deepStrictEqual(
 			{ warmerBefore, testsBefore, tests },
 			{ warmerBefore: [], testsBefore: ['Download the workspace image scripts', 'Setup Node.js', 'Restore the workspace image'], tests: warmer }

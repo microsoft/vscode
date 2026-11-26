@@ -276,6 +276,7 @@ export interface IExtensionContributions {
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
 	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
+	readonly chatSessions?: ReadonlyArray<{ readonly type: string; readonly alternativeIds?: readonly string[] }>;
 	readonly chatPromptFiles?: ReadonlyArray<IChatFileContribution>;
 	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
 	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;

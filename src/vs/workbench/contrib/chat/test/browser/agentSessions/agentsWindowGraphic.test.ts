@@ -5,38 +5,52 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IOpenedMainWindow } from '../../../../../../platform/window/common/window.js';
-import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IHostService } from '../../../../../services/host/browser/host.js';
-import { AgentsWindowGraphic, AgentsWindowGraphicDesign, renderAgentsWindowGraphic, resolveAgentsWindowGraphicDesign } from '../../../browser/agentSessions/agentsWindowGraphic.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT, AGENTS_WINDOW_BANNER_TITLE_TREATMENT, AgentsWindowGraphic, AgentsWindowGraphicDesign, renderAgentsWindowGraphic, resetAgentsWindowGraphicHidden } from '../../../browser/agentSessions/agentsWindowGraphic.js';
 import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, ChatConfiguration } from '../../../common/constants.js';
 
 suite('AgentsWindowGraphic', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const agentSessionsWorkspace = URI.file('/user/agent-sessions.code-workspace');
-	const editorWindow = (id: number): IOpenedMainWindow => ({ id, title: `Editor ${id}`, dirty: false });
-	const agentsWindow: IOpenedMainWindow = { id: 99, title: 'Agents', dirty: false, workspace: { id: 'agents', configPath: agentSessionsWorkspace } };
+	const account = new class extends mock<IDefaultAccount>() { }();
 
-	function createGraphic(variant: string, getWindows?: () => Promise<IOpenedMainWindow[]>) {
+	interface IGraphicOptions {
+		readonly storageService?: InMemoryStorageService;
+		readonly assignmentService?: IWorkbenchAssignmentService;
+		/** The entitlement that the window restored at startup. Signed in by default. */
+		readonly entitlement?: ChatEntitlement;
+		/** Resolves the default account, which is signed in by default. */
+		readonly accountResolution?: Promise<IDefaultAccount | null>;
+	}
+
+	function createGraphic(variant: string, options: IGraphicOptions = {}) {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.WelcomePageAgentsWindowGraphic]: variant });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		let openWindows = [editorWindow(1)];
-		let windowRequests = 0;
-		const hostService = new class extends mock<IHostService>() {
-			override async getWindows() {
-				windowRequests++;
-				return getWindows ? getWindows() : openWindows;
+		const entitlement = observableValue('entitlement', options.entitlement ?? ChatEntitlement.Pro);
+		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+			override entitlementObs = entitlement;
+		}();
+		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
+		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+			override currentDefaultAccount: IDefaultAccount | null = options.accountResolution ? null : account;
+			override onDidChangeDefaultAccount = onDidChangeDefaultAccount.event;
+			override async getDefaultAccount(): Promise<IDefaultAccount | null> {
+				this.currentDefaultAccount = await (options.accountResolution ?? this.currentDefaultAccount);
+				return this.currentDefaultAccount;
 			}
 		}();
-		const environmentService = new class extends mock<IWorkbenchEnvironmentService>() {
-			override agentSessionsWorkspace = agentSessionsWorkspace;
-		}();
-		const graphic = store.add(new AgentsWindowGraphic(configurationService, hostService, environmentService));
+		const graphic = store.add(new AgentsWindowGraphic(configurationService, options.storageService ?? store.add(new InMemoryStorageService()), options.assignmentService ?? new NullWorkbenchAssignmentService(), new NullLogService(), chatEntitlementService, defaultAccountService));
 		const setConfiguration = async (key: string, value: string) => {
 			await configurationService.setUserConfiguration(key, value);
 			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
@@ -44,71 +58,141 @@ suite('AgentsWindowGraphic', () => {
 					return section === key;
 				}
 			}());
-			await timeout(0);
 		};
 		return {
 			setVariant: (value: string) => setConfiguration(ChatConfiguration.WelcomePageAgentsWindowGraphic, value),
 			setSectionStyle: (value: string) => setConfiguration(ChatConfiguration.WelcomePageAgentsWindowSectionStyle, value),
-			sectionStyle: () => graphic.sectionStyle.get(),
-			setOpenWindows(windows: IOpenedMainWindow[]) {
-				openWindows = windows;
+			setEntitlement: (value: ChatEntitlement) => entitlement.set(value, undefined),
+			signIn: () => {
+				defaultAccountService.currentDefaultAccount = account;
+				onDidChangeDefaultAccount.fire(account);
 			},
+			sectionStyle: () => graphic.sectionStyle.get(),
+			hide: () => graphic.hide(),
+			bannerCopy: () => ({
+				resolved: graphic.bannerCopyResolved.get(),
+				title: graphic.element.querySelector('.agents-window-banner-title')?.textContent,
+				description: graphic.element.querySelector('.agents-window-banner-description')?.textContent,
+				shown: graphic.shownBannerCopy.get(),
+			}),
 			state: () => ({
+				design: graphic.design.get(),
 				shown: graphic.shownDesign.get(),
 				display: graphic.element.style.display,
 				rendered: graphic.element.querySelector('.agents-window-graphic')?.classList[1],
-				captions: [...graphic.element.querySelectorAll('figcaption')].map(caption => caption.textContent),
-				windowRequests,
-				hasMultipleEditorWindows: graphic.hasMultipleEditorWindows.get(),
+				text: graphic.element.textContent,
 			}),
 		};
 	}
 
-	test('picks the graphic for each variant', () => {
-		const variants = [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.Auto];
-		assert.deepStrictEqual(
-			variants.map(variant => [variant, [undefined, false, true].map(hasMultipleEditorWindows => resolveAgentsWindowGraphicDesign(variant, hasMultipleEditorWindows))]),
-			[
-				['none', [undefined, undefined, undefined]],
-				['windowComparison', ['windowComparison', 'windowComparison', 'windowComparison']],
-				['manyWindowsToOne', ['manyWindowsToOne', 'manyWindowsToOne', 'manyWindowsToOne']],
-				['auto', [undefined, 'windowComparison', 'manyWindowsToOne']],
-			],
-		);
-	});
-
-	test('shows the configured graphic and counts the open editor windows for every variant', async () => {
+	test('shows the configured graphic and updates it when the setting changes', async () => {
 		const graphic = createGraphic(AgentsWindowGraphicVariant.None);
 		const states = [graphic.state()];
-		for (const variant of [AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.Auto]) {
+		for (const variant of [AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.Banner, 'manyWindowsToOne', 'auto']) {
 			await graphic.setVariant(variant);
 			states.push(graphic.state());
 		}
-		for (const windows of [[editorWindow(1), editorWindow(2)], [editorWindow(1), agentsWindow]]) {
-			graphic.setOpenWindows(windows);
-			await graphic.setVariant(AgentsWindowGraphicVariant.None);
-			await graphic.setVariant(AgentsWindowGraphicVariant.Auto);
-			states.push(graphic.state());
-		}
-		await graphic.setVariant('unknown');
-		states.push(graphic.state());
 
-		const none = { shown: undefined, display: 'none', rendered: undefined, captions: [] };
-		const windowComparison = {
-			shown: 'windowComparison', display: '', rendered: 'window-comparison', captions: [
-				'Editor windowWork on one task at a time, with AI at your side.',
-				'Agents windowNewRun multiple tasks at the same time, isolated from each other.',
-			]
-		};
-		const manyWindowsToOne = { shown: 'manyWindowsToOne', display: '', rendered: 'many-windows-to-one', captions: ['All your projects and agents, in one window.'] };
+		const none = { design: undefined, shown: undefined, display: 'none', rendered: undefined, text: '' };
 		assert.deepStrictEqual(states, [
-			{ ...none, windowRequests: 1, hasMultipleEditorWindows: undefined },
-			{ ...windowComparison, windowRequests: 2, hasMultipleEditorWindows: false },
-			{ ...manyWindowsToOne, windowRequests: 3, hasMultipleEditorWindows: false },
-			{ ...windowComparison, windowRequests: 4, hasMultipleEditorWindows: false },
-			{ ...manyWindowsToOne, windowRequests: 6, hasMultipleEditorWindows: true },
-			{ ...windowComparison, windowRequests: 8, hasMultipleEditorWindows: false },
-			{ ...none, windowRequests: 9, hasMultipleEditorWindows: false },
+			none,
+			{
+				design: 'windowComparison', shown: 'windowComparison', display: '', rendered: 'window-comparison',
+				text: 'Editor windowWork on one task at a time, with AI at your side.Agents windowNewRun multiple tasks at the same time, isolated from each other.',
+			},
+			{
+				design: 'banner', shown: 'banner', display: '', rendered: 'banner',
+				text: 'Agents windowNewAll your agents, across all your projects, in one windowBuilt to make you more productive when working with agents. Run several at the same time, each on its own task, and review their changes independently of each other when they\'re ready.',
+			},
+			// Values that are no longer supported show no graphic.
+			none,
+			none,
+		]);
+	});
+
+	test('shows a graphic only to signed-in users, following the entitlement restored at startup until the account resolves', async () => {
+		const accountResolution = new DeferredPromise<IDefaultAccount | null>();
+		const graphic = createGraphic(AgentsWindowGraphicVariant.Banner, { accountResolution: accountResolution.p });
+		const shown = () => graphic.state().shown;
+		const states = [shown()];
+		await accountResolution.complete(null);
+		await timeout(0);
+		states.push(shown());
+		graphic.setEntitlement(ChatEntitlement.Unknown);
+		graphic.signIn();
+		states.push(shown());
+		graphic.setEntitlement(ChatEntitlement.Free);
+		states.push(shown());
+		states.push(createGraphic(AgentsWindowGraphicVariant.WindowComparison, { entitlement: ChatEntitlement.Unknown }).state().shown);
+
+		assert.deepStrictEqual(states, [
+			// The restored entitlement is signed in, so the graphic doesn't wait for the account.
+			'banner',
+			// The account resolves as signed out.
+			undefined,
+			// After signing in, the graphic waits for the entitlement.
+			undefined,
+			'banner',
+			// The restored entitlement is signed out.
+			undefined,
+		]);
+	});
+
+	test('replaces the banner\'s title and description with valid treatments, read while the banner is selected', async () => {
+		const treatments: Record<string, string> = { [AGENTS_WINDOW_BANNER_TITLE_TREATMENT]: 'Treatment title', [AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT]: '  ' };
+		const requested: string[] = [];
+		const refetched = store.add(new Emitter<void>());
+		const assignmentService = new class extends mock<IWorkbenchAssignmentService>() {
+			override onDidRefetchAssignments = refetched.event;
+			override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+				requested.push(name);
+				return treatments[name] as T | undefined;
+			}
+		}();
+		const graphic = createGraphic(AgentsWindowGraphicVariant.WindowComparison, { assignmentService });
+		const states = [{ ...graphic.bannerCopy(), requested: [...requested] }];
+		await graphic.setVariant(AgentsWindowGraphicVariant.Banner);
+		await timeout(0);
+		states.push({ ...graphic.bannerCopy(), requested: [...requested] });
+		treatments[AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT] = 'Treatment description';
+		refetched.fire();
+		await timeout(0);
+		states.push({ ...graphic.bannerCopy(), requested: [...requested] });
+
+		const treatmentNames = [AGENTS_WINDOW_BANNER_TITLE_TREATMENT, AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT];
+		assert.deepStrictEqual(states, [
+			// The window comparison has no title or description, so the treatments aren't read.
+			{ resolved: false, title: undefined, description: undefined, shown: undefined, requested: [] },
+			// A blank description is ignored, so the default shows.
+			{ resolved: true, title: 'Treatment title', description: 'Built to make you more productive when working with agents. Run several at the same time, each on its own task, and review their changes independently of each other when they\'re ready.', shown: { title: 'Treatment title', description: undefined }, requested: treatmentNames },
+			// Refetched text is rendered and reported, so that the page fits the banner again.
+			{ resolved: true, title: 'Treatment title', description: 'Treatment description', shown: { title: 'Treatment title', description: 'Treatment description' }, requested: [...treatmentNames, ...treatmentNames] },
+		]);
+	});
+
+	test('keeps the graphic hidden in the profile, for every graphic, until it is reset', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const graphic = createGraphic(AgentsWindowGraphicVariant.Banner, { storageService });
+		const shown = () => {
+			const { design, shown, display } = graphic.state();
+			return { design, shown, display };
+		};
+		const states = [shown()];
+		graphic.hide();
+		states.push(shown());
+		await graphic.setVariant(AgentsWindowGraphicVariant.WindowComparison);
+		states.push(shown());
+		const otherPage = createGraphic(AgentsWindowGraphicVariant.Banner, { storageService });
+		states.push({ design: otherPage.state().design, shown: otherPage.state().shown, display: otherPage.state().display });
+		resetAgentsWindowGraphicHidden(storageService);
+		states.push(shown());
+
+		assert.deepStrictEqual(states, [
+			{ design: 'banner', shown: 'banner', display: '' },
+			{ design: 'banner', shown: undefined, display: 'none' },
+			{ design: 'windowComparison', shown: undefined, display: 'none' },
+			{ design: 'banner', shown: undefined, display: 'none' },
+			{ design: 'windowComparison', shown: 'windowComparison', display: '' },
 		]);
 	});
 
@@ -123,44 +207,21 @@ suite('AgentsWindowGraphic', () => {
 		assert.deepStrictEqual(styles, ['outline', 'none', 'card', 'outline', 'tint', 'band', 'separator', 'outline']);
 	});
 
-	test('ignores a window count that arrives after the setting changed', async () => {
-		const requests = [new DeferredPromise<IOpenedMainWindow[]>(), new DeferredPromise<IOpenedMainWindow[]>(), new DeferredPromise<IOpenedMainWindow[]>()];
-		let next = 0;
-		const graphic = createGraphic(AgentsWindowGraphicVariant.Auto, () => requests[next++].p);
-		await graphic.setVariant(AgentsWindowGraphicVariant.None);
-		await graphic.setVariant(AgentsWindowGraphicVariant.Auto);
-		await requests[2].complete([editorWindow(1)]);
-		await requests[0].complete([editorWindow(1), editorWindow(2)]);
-		await requests[1].complete([editorWindow(1), editorWindow(2)]);
-		await timeout(0);
-
-		const { shown, hasMultipleEditorWindows } = graphic.state();
-		assert.deepStrictEqual({ shown, hasMultipleEditorWindows }, { shown: AgentsWindowGraphicVariant.WindowComparison, hasMultipleEditorWindows: false });
-	});
-
-	test('hides the drawings from screen readers and gives every clip path a unique id', () => {
-		const designs: AgentsWindowGraphicDesign[] = [AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.WindowComparison];
+	test('hides the drawings from screen readers, gives the banner a heading, and gives every clip path a unique id', () => {
+		const designs: AgentsWindowGraphicDesign[] = [AgentsWindowGraphicVariant.Banner, AgentsWindowGraphicVariant.Banner, AgentsWindowGraphicVariant.WindowComparison];
 		const elements = designs.map(design => renderAgentsWindowGraphic(design));
 		const drawings = elements.flatMap(element => [...element.querySelectorAll('svg')]);
 		const clipPathIds = elements.flatMap(element => [...element.querySelectorAll('clipPath')].map(clipPath => clipPath.id));
+		const headings = elements.flatMap(element => [...element.querySelectorAll('[role="heading"]')].map(heading => `${heading.getAttribute('aria-level')}: ${heading.textContent}`));
 
 		assert.deepStrictEqual(
-			{ drawings: drawings.length, hidden: drawings.filter(drawing => drawing.getAttribute('aria-hidden') === 'true').length, clipPaths: clipPathIds.length, unique: new Set(clipPathIds).size },
-			{ drawings: 4, hidden: 4, clipPaths: 10, unique: 10 },
+			{ drawings: drawings.length, hidden: drawings.filter(drawing => drawing.getAttribute('aria-hidden') === 'true').length, clipPaths: clipPathIds.length, unique: new Set(clipPathIds).size, headings },
+			{
+				drawings: 4, hidden: 4, clipPaths: 4, unique: 4, headings: [
+					'2: All your agents, across all your projects, in one window',
+					'2: All your agents, across all your projects, in one window',
+				]
+			},
 		);
-	});
-
-	test('renders compact graphics with window titles only', () => {
-		const captions = (design: AgentsWindowGraphicDesign) => {
-			const element = renderAgentsWindowGraphic(design, { compact: true });
-			return { classes: [...element.classList], captions: [...element.querySelectorAll('figcaption')].map(caption => caption.textContent) };
-		};
-		assert.deepStrictEqual({
-			windowComparison: captions(AgentsWindowGraphicVariant.WindowComparison),
-			manyWindowsToOne: captions(AgentsWindowGraphicVariant.ManyWindowsToOne),
-		}, {
-			windowComparison: { classes: ['agents-window-graphic', 'window-comparison', 'compact'], captions: ['Editor window', 'Agents window'] },
-			manyWindowsToOne: { classes: ['agents-window-graphic', 'many-windows-to-one', 'compact'], captions: [] },
-		});
 	});
 });

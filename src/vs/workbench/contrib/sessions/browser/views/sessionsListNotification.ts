@@ -15,6 +15,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -25,23 +26,9 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ISessionsListNotice, ISessionsListNoticeHandle } from '../sessionsListUndoService.js';
 
 export const SessionsListNotificationFocused = new RawContextKey<boolean>('sessionsListNotificationFocused', false);
-
-/** A change or result that the sessions list notice reports, which the user can undo when it offers {@link undo}. */
-export interface ISessionsListNotice {
-	/** A short summary of the change, such as "3 marked done". */
-	readonly message: string;
-	/** Tells accessibility help readers what led to the notice and, with {@link undo}, what Undo restores. */
-	readonly help: string;
-	/** Whether to show the Undo expiry bar. Defaults to true. */
-	readonly showCountdown?: boolean;
-	/**
-	 * Reverts the change; without it, the notice only reports. A failure is reported and leaves Undo available to try
-	 * again. It may replace the notice, e.g. with its own result.
-	 */
-	undo?(): Promise<void>;
-}
 
 /** The notice's Dismiss button, whose focusable element carries the hint to open accessibility help. */
 class DismissActionViewItem extends ActionViewItem {
@@ -51,10 +38,13 @@ class DismissActionViewItem extends ActionViewItem {
 	}
 }
 
+/** Presents the notices of a sessions list for its view, which registers it with the sessions list's Undo service. */
 export class SessionsListNotification extends Disposable {
 
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 	private accessibilityHelp: (() => AccessibleContentProvider) | undefined;
+	/** Whether the user can see the notices, such as while the view is expanded in a visible part of the window. */
+	private readonly visible = observableValue(this, true);
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -68,10 +58,16 @@ export class SessionsListNotification extends Disposable {
 		super();
 	}
 
+	/** Pauses the countdown of the notice while the user can't see it, so that Undo does not run out unseen. */
+	setVisible(visible: boolean): void {
+		this.visible.set(visible, undefined);
+	}
+
 	/** Shows a change or result for ten seconds, offering Undo when the notice can revert it. */
-	show(notice: ISessionsListNotice): void {
-		const { message } = notice;
-		const { store, element, closeBar, dismiss: dismissItem, progress } = this.createNotice(message, !!notice.undo && notice.showCountdown !== false);
+	show(notice: ISessionsListNotice): ISessionsListNoticeHandle {
+		let message = notice.message;
+		const { store, element, label, closeBar, dismiss: dismissItem, progressClip } = this.createNotice(message, !!notice.undo && notice.showCountdown !== false);
+		store.add(toDisposable(() => notice.onDidClose?.()));
 		let undoButton: Button | undefined;
 		if (notice.undo) {
 			undoButton = store.add(new Button(element, { ...defaultButtonStyles, secondary: true, small: true }));
@@ -82,9 +78,16 @@ export class SessionsListNotification extends Disposable {
 		}
 		this.setHelpHint(undoButton?.element ?? dismissItem.focusElement);
 		const duration = 10_000;
-		if (progress) {
-			progress.style.animationDuration = `${duration}ms`;
-		}
+		let progress: HTMLElement | undefined;
+		const startProgress = () => {
+			if (progressClip) {
+				// A new element restarts the countdown animation from full.
+				progress?.remove();
+				progress = DOM.append(progressClip, DOM.$('.sessions-list-notification-progress'));
+				progress.style.animationDuration = `${duration}ms`;
+			}
+		};
+		startProgress();
 
 		let remaining = duration;
 		let started = Date.now();
@@ -95,7 +98,7 @@ export class SessionsListNotification extends Disposable {
 		const dismiss = store.add(new RunOnceScheduler(() => this.notification.clear(), duration));
 		dismiss.schedule();
 		const updateTimer = () => {
-			const paused = hovered || focused || undoing || helpOpen;
+			const paused = hovered || focused || undoing || helpOpen || !this.visible.get();
 			if (paused && dismiss.isScheduled()) {
 				remaining = Math.max(0, remaining - (Date.now() - started));
 				dismiss.cancel();
@@ -112,6 +115,10 @@ export class SessionsListNotification extends Disposable {
 		const focusTracker = store.add(DOM.trackFocus(element));
 		store.add(focusTracker.onDidFocus(() => { focused = true; updateTimer(); }));
 		store.add(focusTracker.onDidBlur(() => { focused = false; updateTimer(); }));
+		store.add(autorun(reader => {
+			this.visible.read(reader);
+			updateTimer();
+		}));
 		if (undoButton && notice.undo) {
 			const button = undoButton;
 			const undo = notice.undo;
@@ -163,15 +170,36 @@ export class SessionsListNotification extends Disposable {
 			provider.onDispose = closeHelp;
 			return provider;
 		};
-		if (notice.undo) {
-			status(localize('undoAvailable', "{0}. Undo is available in the sessions list for 10 seconds.", message));
-		} else {
-			status(message);
-		}
+		const announce = () => status(notice.undo ? localize('undoAvailable', "{0}. Undo is available in the sessions list for 10 seconds.", message) : message);
+		announce();
+
+		return {
+			update: next => {
+				if (store.isDisposed) {
+					return;
+				}
+				message = next;
+				label.textContent = message;
+				undoButton?.setAriaLabel(localize('undoSessions', "Undo: {0}", message));
+				remaining = duration;
+				started = Date.now();
+				if (dismiss.isScheduled()) {
+					dismiss.schedule(duration);
+				}
+				startProgress();
+				updateTimer();
+				announce();
+			},
+			close: () => {
+				if (!store.isDisposed) {
+					this.notification.clear();
+				}
+			},
+		};
 	}
 
-	/** Replaces the current notice by a new one showing `message`, with Dismiss and, when `showBar` is set, a progress bar. */
-	private createNotice(message: string, showBar: boolean): { readonly store: DisposableStore; readonly element: HTMLElement; readonly closeBar: ActionBar; readonly dismiss: DismissActionViewItem; readonly progress: HTMLElement | undefined } {
+	/** Replaces the current notice by a new one showing `message`, with Dismiss and, when `showBar` is set, the clip of a progress bar. */
+	private createNotice(message: string, showBar: boolean): { readonly store: DisposableStore; readonly element: HTMLElement; readonly label: HTMLElement; readonly closeBar: ActionBar; readonly dismiss: DismissActionViewItem; readonly progressClip: HTMLElement | undefined } {
 		this.notification.clear();
 		const store = this.notification.value = new DisposableStore();
 		const element = DOM.append(this.container, DOM.$('.sessions-list-notification'));
@@ -188,7 +216,7 @@ export class SessionsListNotification extends Disposable {
 
 		const label = DOM.append(element, DOM.$('.sessions-list-notification-label'));
 		label.textContent = message;
-		store.add(this.hoverService.setupDelayedHover(label, { content: message }));
+		store.add(this.hoverService.setupDelayedHover(label, () => ({ content: label.textContent ?? '' })));
 		let dismiss: DismissActionViewItem | undefined;
 		const closeBar = store.add(new ActionBar(element, { actionViewItemProvider: (action, options) => dismiss = new DismissActionViewItem(undefined, action, options) }));
 		closeBar.push(store.add(new Action('sessions.dismissNotification', localize('dismiss', "Dismiss"), ThemeIcon.asClassName(Codicon.close), true, () => this.notification.clear())), { icon: true, label: false });
@@ -199,13 +227,12 @@ export class SessionsListNotification extends Disposable {
 				this.notification.clear();
 			}
 		}));
-		let progress: HTMLElement | undefined;
+		let progressClip: HTMLElement | undefined;
 		if (showBar) {
-			const progressClip = DOM.append(element, DOM.$('.sessions-list-notification-progress-clip'));
+			progressClip = DOM.append(element, DOM.$('.sessions-list-notification-progress-clip'));
 			progressClip.setAttribute('aria-hidden', 'true');
-			progress = DOM.append(progressClip, DOM.$('.sessions-list-notification-progress'));
 		}
-		return { store, element, closeBar, dismiss: dismiss!, progress };
+		return { store, element, label, closeBar, dismiss: dismiss!, progressClip };
 	}
 
 	/** Tells screen reader users on `target`, the notice's first control, how to open accessibility help. */

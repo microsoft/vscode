@@ -25,7 +25,7 @@ suite('CodexAccountTelemetry', () => {
 			free: 'free', go: 'go', plus: 'plus', pro: 'pro', prolite: 'pro', promax: 'pro',
 			team: 'business', self_serve_business_prolite: 'business', self_serve_business_usage_based: 'business', business: 'business',
 			ent26: 'enterprise', enterprise_cbp_automation: 'enterprise', enterprise_cbp_usage_based: 'enterprise', enterprise: 'enterprise',
-			edu: 'edu', edu_plus: 'edu', edu_pro: 'edu', unknown: 'unknown',
+			edu: 'edu', edu_plus: 'edu', edu_pro: 'edu', sci: 'unknown', sci_plus: 'unknown', unknown: 'unknown',
 		} satisfies Record<PlanType, ICodexAccountTelemetryContext['chatgptPlanTier']>;
 
 		assert.deepStrictEqual(Object.fromEntries(Object.keys(expected).map(plan => [plan, normalizeChatGPTPlanTier(plan)])), expected);

@@ -466,12 +466,13 @@ export type AgentCanvasOpenFailure = 'dismissed' | 'reloaded' | 'mismatchedDecla
 /**
  * The outcome of opening a canvas. `consentRequired` leaves the open pending until it is answered;
  * `consentDenied` means the extension was not allowed to load, and `retryable` whether asking again can help.
+ * `keptForSession` means the runtime keeps the decline for the rest of the session, so only a new session asks again.
  * `failed` is an open the runtime declined for a known {@link AgentCanvasOpenFailure reason}; other failures throw.
  */
 export type AgentCanvasOpenResult =
 	| { readonly kind: 'opened' }
 	| { readonly kind: 'consentRequired'; readonly consent: IAgentExtensionConsentRequest }
-	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean }
+	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean; readonly keptForSession?: boolean }
 	| { readonly kind: 'failed'; readonly failure: AgentCanvasOpenFailure };
 
 /** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
@@ -837,6 +838,8 @@ export interface AuthenticateParams {
 	readonly target?: AuthenticateTarget;
 	/** Unverified client-local account selection, stable across token renewals. */
 	readonly accountId?: string;
+	/** The OpenID Connect ID Token issued with `token`. Its claims are unverified, and it is never a bearer credential. */
+	readonly idToken?: string;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }

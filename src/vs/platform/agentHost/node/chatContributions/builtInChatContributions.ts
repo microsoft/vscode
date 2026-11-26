@@ -39,6 +39,7 @@ import { TurnDelegationContribution } from './turnDelegation/turnDelegationContr
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 import { WorkspaceContextContribution } from './workspaceContext/workspaceContextContribution.js';
 import { WorktreeFailureContribution } from './worktreeFailure/worktreeFailureContribution.js';
+import { WorktreeGitLfsContribution } from './worktreeGitLfs/worktreeGitLfsContribution.js';
 
 /** Registers all built-in chat contribution constructors. */
 export function registerBuiltInChatContributions(
@@ -57,6 +58,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(PersistedFailedTurnsContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
+	registrations.add(contributions.registerContribution(WorktreeGitLfsContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
 	registrations.add(contributions.registerContribution(ScheduledChatMovesContribution));

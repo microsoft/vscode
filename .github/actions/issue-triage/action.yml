@@ -1,0 +1,32 @@
+name: Issue triage
+description: Runs a deterministic step of the Issue Triage agentic workflow (.github/workflows/issue-triage.md).
+
+inputs:
+  operation:
+    description: >-
+      `check-issue` waits, then sets `proceed` to whether the issue still needs triage.
+      `assign-owner` assigns the first owner that the agent proposed in `GH_AW_AGENT_OUTPUT` who is a member of the team.
+      `suggest-area` and `publish-translation` process the corresponding safe outputs.
+    required: true
+
+outputs:
+  issue_number:
+    description: "For `check-issue`, the validated issue number."
+    value: ${{ steps.run.outputs.issue_number }}
+  proceed:
+    description: "For `check-issue`, 'true' when the issue still needs triage."
+    value: ${{ steps.run.outputs.proceed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Run ${{ inputs.operation }}
+      id: run
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        OPERATION: ${{ inputs.operation }}
+      with:
+        script: |
+          const { pathToFileURL } = require('url');
+          const { run } = await import(pathToFileURL(process.env.GITHUB_ACTION_PATH + '/issueTriage.ts').href);
+          await run(github, context, core, process.env, { exec, io, getOctokit });

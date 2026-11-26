@@ -36,6 +36,7 @@ import { MultiRowEditorControl } from '../../../../browser/parts/editor/multiRow
 import { EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -280,6 +281,28 @@ suite('MultiEditorTabsControl', () => {
 		await dragTabOutOfWindow(0);
 
 		assert.deepStrictEqual(newWindowTransfers, ['veto: Cannot leave']);
+	});
+
+	function setModalEditorOptions(editor: EditorInput, options: IModalEditorOptions): void {
+		const provider: IModalEditorOptionsProvider = { getModalEditorOptions: () => options };
+		Object.assign(editor, provider);
+	}
+
+	test('a tab whose editor is always modal and cannot move into an editor area is not dragged', async () => {
+		setModalEditorOptions(model.getEditorByIndex(0)!, { alwaysModal: true, canMoveToEditorArea: false });
+
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, []);
+	});
+
+	test('a tab whose editor is only always modal, or only cannot move into an editor area, is still dragged', async () => {
+		setModalEditorOptions(model.getEditorByIndex(0)!, { alwaysModal: true });
+		await dragTabOutOfWindow(0);
+		setModalEditorOptions(model.getEditorByIndex(0)!, { canMoveToEditorArea: false });
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, ['new window', 'move file0.txt', 'new window', 'move file0.txt']);
 	});
 
 	test('modern tab scrollbars overlay the top edge without changing header or body geometry', async () => {

@@ -55,10 +55,8 @@ suite('AgentHostCheckoutOperationHandler', () => {
 				gitCalls.push(`checkout:${resource.toString()}:${treeish}`);
 			}
 		}();
-		const refreshedSessions: string[] = [];
 		const handler = new AgentHostCheckoutOperationHandler(
 			sessionKey => stateManager.getSessionState(sessionKey),
-			async sessionKey => { refreshedSessions.push(sessionKey); },
 			gitService,
 			new NullLogService(),
 			stateManager,
@@ -92,7 +90,6 @@ suite('AgentHostCheckoutOperationHandler', () => {
 
 		assert.deepStrictEqual({
 			gitCalls,
-			refreshedSessions,
 			message: result.message,
 			optionErrorCode: optionError?.code,
 			missingBranchErrorCode: missingBranchError?.code,
@@ -102,7 +99,6 @@ suite('AgentHostCheckoutOperationHandler', () => {
 				`checkout:${peerWorkingDirectory.toString()}:dev`,
 				`branchExists:${workingDirectory.toString()}:missing`,
 			],
-			refreshedSessions: [peer],
 			message: { markdown: 'Checked out branch `dev`.' },
 			optionErrorCode: JsonRpcErrorCodes.InvalidParams,
 			missingBranchErrorCode: JsonRpcErrorCodes.InvalidParams,
@@ -150,10 +146,8 @@ suite('AgentHostCheckoutOperationHandler', () => {
 				}
 			}
 		}();
-		const refreshedSessions: string[] = [];
 		const handler = new AgentHostCheckoutOperationHandler(
 			sessionKey => stateManager.getSessionState(sessionKey),
-			async sessionKey => { refreshedSessions.push(sessionKey); },
 			gitService,
 			new NullLogService(),
 			stateManager,
@@ -180,7 +174,6 @@ suite('AgentHostCheckoutOperationHandler', () => {
 				data: dirtyError?.data,
 			},
 			gitCalls,
-			refreshedSessions,
 			messages: [stashResult.message, commitResult.message],
 		}, {
 			dirtyError: {
@@ -197,7 +190,6 @@ suite('AgentHostCheckoutOperationHandler', () => {
 				`commitAll:${workingDirectory.toString()}:WIP: Save changes before checking out dev`,
 				`checkout:${workingDirectory.toString()}:dev`,
 			],
-			refreshedSessions: [session.toString(), session.toString()],
 			messages: [
 				{ markdown: 'Checked out branch `dev`.' },
 				{ markdown: 'Checked out branch `dev`.' },
@@ -232,7 +224,6 @@ suite('AgentHostCheckoutOperationHandler', () => {
 		}();
 		const handler = new AgentHostCheckoutOperationHandler(
 			sessionKey => stateManager.getSessionState(sessionKey),
-			() => { },
 			gitService,
 			new NullLogService(),
 			stateManager,

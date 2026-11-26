@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { SendRemoteMessageToolReferenceName } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -14,13 +15,14 @@ import { maxRemoteMessageLength, parseSendRemoteMessageOptions, RemoteSessionMes
 import { assertRemoteSessionCaller } from './remoteSessionSource.js';
 import { remoteSessionToolsWhen } from '../common/remoteSessions.js';
 
-export class SendRemoteMessageTool implements IToolImpl {
+export class SendRemoteMessageTool extends Disposable implements IToolImpl {
 	private readonly router: RemoteSessionMessageRouter;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		this.router = instantiationService.createInstance(RemoteSessionMessageRouter);
+		super();
+		this.router = this._register(instantiationService.createInstance(RemoteSessionMessageRouter));
 	}
 
 	getToolData(): IToolData {

@@ -11,7 +11,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -86,10 +86,11 @@ export interface ISpotlightShowOptions {
 }
 
 /**
- * A pure-DOM spotlight overlay: dims the window, cuts a highlight hole around a
- * target element and shows an anchored callout. It owns no VS Code services so
- * it can be unit-tested and reused. Scheduling and content come from the
- * spotlight presentation.
+ * A pure-DOM spotlight overlay: dims and blocks the window, cuts a highlight hole
+ * around a target element and shows an anchored callout. Without the backdrop
+ * it is non-modal and the rest of the window stays interactive. It owns no VS Code
+ * services so it can be unit-tested and reused. Scheduling and content come from
+ * the spotlight presentation.
  */
 export class SpotlightOverlay extends Disposable {
 
@@ -114,6 +115,8 @@ export class SpotlightOverlay extends Disposable {
 
 	/** Listeners scoped to the currently shown step (re-layout sources). */
 	private readonly _stepListeners = this._register(new DisposableStore());
+	/** A target activation waiting to advance the step. Unlike the step's listeners, it outlives {@link suspend}. */
+	private readonly _queuedActivation = this._register(new MutableDisposable());
 
 	private readonly _onDidClickNext = this._register(new Emitter<SpotlightAdvanceSource>());
 	readonly onDidClickNext: Event<SpotlightAdvanceSource> = this._onDidClickNext.event;
@@ -129,7 +132,10 @@ export class SpotlightOverlay extends Disposable {
 
 	private _target: HTMLElement | undefined;
 	private _options: ISpotlightShowOptions = {};
+	/** The last shown step's target and focus target. Kept through `hide()`, so teardown can tell spotlight focus from focus elsewhere. */
+	private _lastTargets: readonly HTMLElement[] = [];
 	private _hasShown = false;
+	private _backdropVisible = true;
 	private _previousFocus: HTMLElement | undefined;
 	private _scheduledLayout: IDisposable | undefined;
 	private _calloutFocusIndex = -1;
@@ -188,7 +194,7 @@ export class SpotlightOverlay extends Disposable {
 			this._register(button.onDidEscape(() => this._onDidSkip.fire(OnboardingDismissReason.EscapeKey)));
 		}
 
-		// Keyboard handling on the callout: Esc ends the tour, focus is trapped within.
+		// Keyboard handling on the callout: Esc ends the tour, Tab moves between the callout and the target.
 		this._register(addDisposableListener(this._callout, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 
 		this._register({ dispose: () => this._restoreFocus() });
@@ -205,16 +211,20 @@ export class SpotlightOverlay extends Disposable {
 
 		this._target = target;
 		this._options = options;
+		this._lastTargets = options.focusTarget ? [target, options.focusTarget.element] : [target];
+		// Re-showing for a replaced target must not take focus from where the user works in a non-modal spotlight.
+		const keepFocus = !!options.preserveFocus && this.isFocusElsewhere();
 		this.setPrimaryActionEnabled(true);
 		this._renderContent(content);
 		const externalUiParticipates = !!options.targetOverlayVisible || !!options.allowTargetInteraction || !!options.advanceOnTargetClick || !!options.hideNext;
 		this._root.classList.toggle('target-overlay-visible', externalUiParticipates);
-		this._callout.setAttribute('aria-modal', externalUiParticipates ? 'false' : 'true');
+		this._callout.setAttribute('aria-modal', externalUiParticipates || !this._backdropVisible ? 'false' : 'true');
 
 		this._root.style.display = '';
 
 		// Rebuild the per-step re-layout listeners.
 		this._stepListeners.clear();
+		this._queuedActivation.clear();
 		// Keep focus in the target's logical subtree when the callout is rendered outside its popup.
 		target.id ||= `spotlight-target-${generateUuid()}`;
 		setParentFlowTo(this._root, target);
@@ -228,7 +238,8 @@ export class SpotlightOverlay extends Disposable {
 
 		this._stepListeners.add(addDisposableListener(targetWindow, EventType.RESIZE, () => this.scheduleLayout()));
 		this._stepListeners.add(addDisposableListener(targetWindow, EventType.SCROLL, () => this.scheduleLayout(), true));
-		if (externalUiParticipates) {
+		// Without the backdrop, Escape elsewhere in the window belongs to the UI the user works in.
+		if (externalUiParticipates && this._backdropVisible) {
 			this._stepListeners.add(addDisposableListener(targetWindow, EventType.KEY_DOWN, event => {
 				const eventTarget = event.target;
 				if (!isHTMLElement(eventTarget) || this._root.contains(eventTarget) || target.contains(eventTarget) || focusElement.contains(eventTarget)) {
@@ -282,7 +293,7 @@ export class SpotlightOverlay extends Disposable {
 					this._previousFocus = undefined;
 					this._onDidClickNext.fire('target');
 				});
-				this._stepListeners.add(toDisposable(() => targetWindow.clearTimeout(handle)));
+				this._queuedActivation.value = toDisposable(() => targetWindow.clearTimeout(handle));
 			};
 			if (advanceOnly) {
 				for (const eventType of [EventType.CLICK, TouchEventType.Tap]) {
@@ -323,7 +334,9 @@ export class SpotlightOverlay extends Disposable {
 		// to advance) or, otherwise, into the callout's primary action. An explicit
 		// focusEndTour wins, as the target may not be focusable.
 		const closeButton = this._titleCloseButton && content.endTourLabel === undefined ? this._closeButton : undefined;
-		this._focus(this._collectCalloutFocusable()[calloutFocusIndex] ?? (content.focusEndTour ? (closeButton ?? this._skipButton).element : hideNext ? focusElement : this._nextButton.element));
+		if (!keepFocus) {
+			this._focus(this._collectCalloutFocusable()[calloutFocusIndex] ?? (content.focusEndTour ? (closeButton ?? this._skipButton).element : hideNext ? focusElement : this._nextButton.element));
+		}
 	}
 
 	/** Prevents duplicate activation while waiting for an action to be accepted. */
@@ -331,8 +344,15 @@ export class SpotlightOverlay extends Disposable {
 		this._nextButton.enabled = enabled;
 	}
 
-	/** Shows or hides the dim backdrop around the highlight. The highlight ring and callout are unaffected. */
+	/**
+	 * Shows or hides the dim backdrop around the highlight. The highlight ring and callout are unaffected.
+	 * Without the backdrop the spotlight is non-modal: it blocks no clicks, leaves Escape outside the
+	 * spotlight to the rest of the window, lets Tab leave the spotlight, and does not pull focus back
+	 * when its target is replaced or the tour ends while the user works elsewhere. Takes effect the next
+	 * time a step is shown.
+	 */
 	setBackdropVisible(visible: boolean): void {
+		this._backdropVisible = visible;
 		this._root.classList.toggle('no-backdrop', !visible);
 	}
 
@@ -367,6 +387,19 @@ export class SpotlightOverlay extends Disposable {
 
 	/** Hide the current step while another target is being resolved. */
 	hide(): void {
+		this._queuedActivation.clear();
+		this._hideStep();
+	}
+
+	/**
+	 * Hide the current step while modal UI is open. Unlike {@link hide}, an activation of the target that is already
+	 * queued still advances the step, as when activating the target is what opened the modal UI.
+	 */
+	suspend(): void {
+		this._hideStep();
+	}
+
+	private _hideStep(): void {
 		this._stepListeners.clear();
 		this._root.style.display = 'none';
 		this._root.classList.remove('target-overlay-visible');
@@ -406,8 +439,12 @@ export class SpotlightOverlay extends Disposable {
 
 		// When the target is interactive (explicitly, or because the step advances
 		// on a target click), arrange the click blockers around the hole so events
-		// inside it reach the underlying element.
-		if (this._options.allowTargetInteraction || this._options.advanceOnTargetClick) {
+		// inside it reach the underlying element. Without the backdrop nothing is blocked.
+		if (!this._backdropVisible) {
+			for (const blocker of this._blockers) {
+				blocker.style.display = 'none';
+			}
+		} else if (this._options.allowTargetInteraction || this._options.advanceOnTargetClick) {
 			const right = holeLeft + holeWidth;
 			const bottom = holeTop + holeHeight;
 			this._layoutBlocker(this._blockers[0], 0, 0, viewportWidth, holeTop);
@@ -580,11 +617,15 @@ export class SpotlightOverlay extends Disposable {
 		}
 
 		if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
-			this._trapFocus(event);
+			this._moveFocus(event);
 		}
 	}
 
-	private _trapFocus(event: StandardKeyboardEvent): void {
+	/**
+	 * Moves focus between the spotlighted target and the callout, which are far apart in DOM order.
+	 * With the backdrop it wraps around as a focus trap; without it, Tab leaves the spotlight at either end.
+	 */
+	private _moveFocus(event: StandardKeyboardEvent): void {
 		const focusable = this._collectFocusable();
 		if (focusable.length === 0) {
 			return;
@@ -600,8 +641,13 @@ export class SpotlightOverlay extends Disposable {
 		if (currentIndex === -1) {
 			nextIndex = event.shiftKey ? focusable.length - 1 : 0;
 		} else {
-			const delta = event.shiftKey ? -1 : 1;
-			nextIndex = (currentIndex + delta + focusable.length) % focusable.length;
+			nextIndex = currentIndex + (event.shiftKey ? -1 : 1);
+			if (nextIndex < 0 || nextIndex >= focusable.length) {
+				if (!this._backdropVisible) {
+					return;
+				}
+				nextIndex = (nextIndex + focusable.length) % focusable.length;
+			}
 		}
 
 		event.preventDefault();
@@ -618,7 +664,7 @@ export class SpotlightOverlay extends Disposable {
 	}
 
 	/**
-	 * The focusable elements participating in the focus trap, in DOM order: the
+	 * The focusable elements that Tab moves between, in DOM order: the
 	 * spotlighted target (when it is interactive or the Next button is hidden), then any
 	 * interactive content in the (possibly markdown) description, then the visible
 	 * action buttons. Including the target keeps the spotlighted control
@@ -665,10 +711,19 @@ export class SpotlightOverlay extends Disposable {
 		});
 	}
 
+	/** Whether a non-modal spotlight has focus somewhere else in the window, outside the callout and its target. */
+	isFocusElsewhere(): boolean {
+		const active = getActiveElement();
+		if (this._backdropVisible || !isHTMLElement(active) || active === active.ownerDocument.body) {
+			return false;
+		}
+		return !this._root.contains(active) && !this._lastTargets.some(element => element.contains(active));
+	}
+
 	private _restoreFocus(): void {
 		const previous = this._previousFocus;
 		this._previousFocus = undefined;
-		if (previous && previous.isConnected) {
+		if (previous && previous.isConnected && !this.isFocusElsewhere()) {
 			previous.focus();
 		}
 	}

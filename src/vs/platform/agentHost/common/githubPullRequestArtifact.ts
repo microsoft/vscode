@@ -42,10 +42,17 @@ export const gitHubPullRequestArtifactOptions: readonly ArtifactAutomationOption
 		id: 'merge', kind: 'enum', defaultValue: 'never', disabledValue: 'never', actionIds: ['merge'], maxAttempts: 1,
 		label: localize('prArtifact.autoMerge', "Merge Automatically When Ready"),
 		description: localize('prArtifact.autoMerge.description', "When required checks pass, review comments are resolved, and GitHub allows it, the pull request is merged. This is separate from GitHub's native auto-merge."),
+		// From least to most permissive, as they are shown side by side.
 		choices: [
 			{ value: 'never', label: localize('prArtifact.mergeOff', "Off") },
-			{ value: 'always', label: localize('prArtifact.mergeAlways', "Always") },
-			{ value: 'ifUnchanged', label: localize('prArtifact.mergeUnchanged', "When No Changes Were Made") },
+			{
+				value: 'ifUnchanged', label: localize('prArtifact.mergeUnchanged', "When Not Changed"),
+				description: localize('prArtifact.mergeUnchanged.description', "Merges only if Autopilot has not changed the pull request. If a repair changes it, automatic merging turns off so you can review the changes."),
+			},
+			{
+				value: 'always', label: localize('prArtifact.mergeOn', "On"),
+				description: localize('prArtifact.mergeAlways.description', "Merges when ready, even after Autopilot has changed the pull request."),
+			},
 		],
 	},
 ];

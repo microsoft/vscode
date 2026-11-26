@@ -30,8 +30,8 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 //       },
 //     });
 //
-// The `agentsWindow.default` value is picked up by `SessionsDefaultConfiguration`
-// in `configurationService.ts` and applied automatically — no entry here needed.
+// The `agentsWindow.default` value is picked up by `AgentsDefaultConfiguration`
+// in `agentsConfigurationService.ts` and applied automatically — no entry here needed.
 //
 // Only add entries to this file if the setting is declared by a third party and
 // cannot be annotated with `agentsWindow`, AND you have exhausted all other options.

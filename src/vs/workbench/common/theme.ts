@@ -8,7 +8,7 @@ import { registerColor, editorBackground, contrastBorder, transparent, opaque, o
 import { foreground } from '../../platform/theme/common/colors/baseColors.js';
 import { IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Color } from '../../base/common/color.js';
-import { ColorScheme } from '../../platform/theme/common/theme.js';
+import { ColorScheme, isDark } from '../../platform/theme/common/theme.js';
 
 // < --- Workbench (not customizable) --- >
 
@@ -697,6 +697,38 @@ export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, loca
 
 export const MODERN_PANEL_BORDER = registerColor('modernPanel.border', SURFACE_BORDER, localize('modernPanelBorder', "Border color of the panel surface when the modern UI is enabled."));
 
+export const MODERN_SIDE_BAR_BACKGROUND = registerColor('modernSideBar.background', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('modernSideBarBackground', "Background color of the primary and secondary side bar surfaces when the modern UI is enabled."));
+
+export function getModernSideBarBackground(theme: IColorTheme): Color | undefined {
+	const background = theme.getColor(MODERN_SIDE_BAR_BACKGROUND);
+	if (!background) {
+		return undefined;
+	}
+	const fallback = isDark(theme.type) ? Color.black : Color.white;
+	const editor = (theme.getColor(editorBackground) ?? fallback).makeOpaque(fallback);
+	const sidebar = (theme.getColor(SIDE_BAR_BACKGROUND) ?? editor).makeOpaque(editor);
+	return background.makeOpaque(sidebar);
+}
+
+export const MODERN_SIDE_BAR_FOREGROUND = registerColor('modernSideBar.foreground', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('modernSideBarForeground', "Foreground color of the primary and secondary side bar surfaces when the modern UI is enabled."));
+
+export const MODERN_SIDE_BAR_BORDER = registerColor('modernSideBar.border', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('modernSideBarBorder', "Border color of the primary and secondary side bar surfaces when the modern UI is enabled."));
+
 // Dark and light themes use `foreground` at 40% alpha.
 // High contrast themes keep the foreground opaque so the grips stay legible.
 export const MODERN_SASH_GRIP_FOREGROUND = registerColor('modernSash.gripForeground', {
@@ -795,6 +827,19 @@ export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBar.inactiveBac
 export const MODERN_UI_SHELL_BACKGROUND = registerColor('modernUI.shellBackground', TITLE_BAR_ACTIVE_BACKGROUND, localize('modernUIShellBackground', "Background color of the shell visible around floating workbench surfaces when the modern UI is enabled."));
 
 export const MODERN_UI_INACTIVE_SHELL_BACKGROUND = registerColor('modernUI.inactiveShellBackground', TITLE_BAR_INACTIVE_BACKGROUND, localize('modernUIInactiveShellBackground', "Background color of the shell visible around floating workbench surfaces when the window is inactive and the modern UI is enabled."));
+
+/**
+ * Resolves the opaque shell color that the modern UI paints around its floating surfaces.
+ */
+export function getModernUIShellBackground(theme: IColorTheme, isInactive: boolean): Color | undefined {
+	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
+	const resolve = (id: string) => theme.getColor(id)?.makeOpaque(workbenchBackground);
+
+	return resolve(isInactive ? MODERN_UI_INACTIVE_SHELL_BACKGROUND : MODERN_UI_SHELL_BACKGROUND)
+		?? resolve(MODERN_UI_SHELL_BACKGROUND)
+		?? resolve(isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND)
+		?? resolve(TITLE_BAR_ACTIVE_BACKGROUND);
+}
 
 export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	dark: null,

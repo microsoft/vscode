@@ -18,6 +18,13 @@
 	initial-value: 1;
 }
 
+/* A request keeps a faded fill where the other bubble backgrounds recede, so where it starts stays visible. */
+@property --session-view-request-background-opacity {
+	syntax: '<number>';
+	inherits: true;
+	initial-value: 1;
+}
+
 /* Shared inset for the header content, transcript, and composer. */
 .session-view {
 	--session-view-content-horizontal-padding: var(--vscode-spacing-size240);
@@ -27,7 +34,7 @@
 }
 
 .monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .interactive-list {
-	transition: opacity 100ms ease-out, --session-view-bubble-background-opacity 100ms ease-out;
+	transition: opacity 100ms ease-out, --session-view-bubble-background-opacity 100ms ease-out, --session-view-request-background-opacity 100ms ease-out;
 }
 
 .monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .prompt-timeline-rail,
@@ -111,14 +118,16 @@
 .monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active) .interactive-session .interactive-list,
 .monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view .chat-group-view:not(.active-group) .interactive-session .interactive-list {
 	--session-view-bubble-background-opacity: 0.75;
-	--vscode-chat-requestBubbleBackground: color-mix(in srgb, var(--session-view-request-background) calc(var(--session-view-bubble-background-opacity) * 100%), transparent);
-	--vscode-chat-requestBubbleHoverBackground: color-mix(in srgb, var(--session-view-request-hover-background) calc(var(--session-view-bubble-background-opacity) * 100%), transparent);
+	--session-view-request-background-opacity: 0.75;
+	--vscode-chat-requestBubbleBackground: color-mix(in srgb, var(--session-view-request-background) calc(var(--session-view-request-background-opacity) * 100%), transparent);
+	--vscode-chat-requestBubbleHoverBackground: color-mix(in srgb, var(--session-view-request-hover-background) calc(var(--session-view-request-background-opacity) * 100%), transparent);
 }
 
 .monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) > .session-view-content > .chat-view .interactive-session .interactive-list,
 .monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) :is(.session-view:not(.is-active) .chat-group-view, .session-view .chat-group-view:not(.active-group)):not(:hover, .hovered, :focus-within) .interactive-session .interactive-list {
 	opacity: 0.85;
 	--session-view-bubble-background-opacity: 0;
+	--session-view-request-background-opacity: 0.4;
 }
 
 .monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view .interactive-item-container.interactive-response::before {

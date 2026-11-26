@@ -30,8 +30,9 @@ Override with `--no-version-check` for ad-hoc experimentation.
 The generator looks for codex in this order:
 
 1. `$CODEX_BIN` environment variable
-2. `node_modules/@openai/codex-<platform>-<arch>/.../bin/codex` (vendored via npm)
-3. `which codex` (PATH fallback)
+2. The platform binary package resolved from the installed `@openai/codex` package, including pnpm's isolated dependency layout
+3. `node_modules/@openai/codex-<platform>-<arch>/.../bin/codex` (standalone platform package)
+4. `which codex` (PATH fallback)
 
 ## CI freshness check
 

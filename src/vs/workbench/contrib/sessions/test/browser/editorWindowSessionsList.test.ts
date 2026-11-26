@@ -10,14 +10,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
-import { createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { createEditorWindowSessionsScope, createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
 import { EditorWindowSessionsContext, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { SessionsGrouping } from '../../browser/views/sessionsList.js';
+import { SessionsGrouping } from '../../browser/views/sessionsListCommon.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -31,6 +33,24 @@ import { registerSessionsListConfiguration, sessionsListConfigurationProperties 
 suite('EditorWindowSessionsList', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the providers list only the sessions of the window\'s folders in a folder window, and every session in a plain empty window and in the Agents window', () => {
+		const scoped = (folders: readonly URI[], scope: URI | undefined) => {
+			const owner = {};
+			return createEditorWindowSessionsScope(owner, upcastPartial<IWorkspaceContextService>({
+				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchScope: Event.None,
+				getWorkbenchScope: () => scope,
+				getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
+			})).get();
+		};
+		const folder = URI.file('/work/vscode');
+		assert.deepStrictEqual({
+			folderWindow: scoped([folder], folder),
+			emptyWindow: scoped([], undefined),
+			agentsWindow: scoped([folder], undefined),
+		}, { folderWindow: true, emptyWindow: false, agentsWindow: false });
+	});
 
 	test('every editor window view gets the same options', () => {
 		const scoped = observableValue('scoped', true);

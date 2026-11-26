@@ -658,6 +658,10 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		this._storage.cacheTunnel({ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name, protocolVersion: tunnel.protocolVersion, authProvider });
 	}
 
+	updateCachedTunnel(tunnel: ITunnelInfo): void {
+		this._storage.updateCachedTunnel(tunnel);
+	}
+
 	removeCachedTunnel(tunnelId: string): void {
 		this._connectionFactory.unstageTunnel(`${TUNNEL_ADDRESS_PREFIX}${tunnelId}`);
 		this._storage.removeCachedTunnel(tunnelId);

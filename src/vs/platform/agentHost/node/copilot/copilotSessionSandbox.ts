@@ -23,13 +23,13 @@ import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTele
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { MessageAttachment } from '../../common/state/protocol/state.js';
-import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, type ISandboxPathGrant, type ISessionSandboxPaths } from '../../common/sandboxPathGrant.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { getApplicationSandboxReadRoots } from '../applicationSandboxPaths.js';
-import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../sessionSandbox.js';
+import { getRootSandboxConfig, getSessionSandboxConfig, getSessionSandboxOverrides } from '../sessionSandbox.js';
 import { ISessionSandboxPathService } from '../sessionSandboxPathService.js';
 import { getWorkspaceSandboxScopeId, IWorkspaceSandboxPathService } from '../workspaceSandboxPathService.js';
 import type { ActionOrigin } from '../../common/state/sessionActions.js';
@@ -137,7 +137,7 @@ export class CopilotSessionSandbox extends Disposable {
 
 	private _getWorkspacePaths(): ISessionSandboxPaths | undefined {
 		const enabled = getSessionSandboxOverrides(this._configurationService, this._target())[AgentHostSandboxKey.Enabled]
-			?? this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox)?.[AgentHostSandboxKey.Enabled];
+			?? getRootSandboxConfig(this._configurationService)?.[AgentHostSandboxKey.Enabled];
 		if (enabled !== AgentSandboxEnabledValue.On) {
 			return undefined;
 		}
@@ -221,7 +221,7 @@ export class CopilotSessionSandbox extends Disposable {
 		}
 		const removed = new Set(grant.removedReadonlyPaths);
 		const paths = [
-			...this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox)?.[AgentHostSandboxKey.UserConfiguredPaths]?.readonlyPaths ?? [],
+			...getRootSandboxConfig(this._configurationService)?.[AgentHostSandboxKey.UserConfiguredPaths]?.readonlyPaths ?? [],
 			...this._getWorkspacePaths()?.readonlyPaths ?? [],
 			...this._configurationService.getSessionSandboxPaths(this._target().session)?.readonlyPaths ?? [],
 		];

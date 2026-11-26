@@ -61,6 +61,7 @@ import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizat
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { createInstalledPluginItem, McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
+import { PluginMarketplacesWidget } from './pluginMarketplacesWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import {
@@ -81,7 +82,7 @@ import { skillIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { startCopilotChatWithPrompt } from '../agentSessions/copilotChatPrompt.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, GuidanceCustomizationMigration, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationResult, IPluginMarketplaceCustomizationMigrationCandidate, IPluginMarketplaceCustomizationMigrationResult, isFileCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPluginMarketplaceCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
@@ -92,7 +93,8 @@ import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLo
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { getAttributeDefinition, getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../promptSyntax/newPromptFileActions.js';
-import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
+import { createCopilotHook } from '../promptSyntax/hookActions.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizationLocationPicker } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -415,6 +417,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private listWidgetSectionLoad: Promise<void> = Promise.resolve();
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
+	private pluginMarketplacesWidget: PluginMarketplacesWidget | undefined;
+	private pluginMarketplacesVisible = false;
 	private modelsWidget: ChatModelsWidget | undefined;
 	private toolsListWidget: ToolsListWidget | undefined;
 	private promptsContentContainer!: HTMLElement;
@@ -757,7 +761,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 						this.mcpListWidget?.layout(height - 8, width - 16);
 					}
 					if (this.pluginContentContainer?.style.display !== 'none') {
-						this.pluginListWidget?.layout(height - 8, width - 16);
+						if (this.pluginMarketplacesVisible) {
+							this.pluginMarketplacesWidget?.layout(height - 8, width - 16);
+						} else {
+							this.pluginListWidget?.layout(height - 8, width - 16);
+						}
 					}
 					if (this.toolsContentContainer?.style.display !== 'none') {
 						this.toolsListWidget?.layout(height - 8, width - 16);
@@ -1168,18 +1176,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateHomeButtonHarnessPresentation();
 	}
 
-	private async runMarketplacePrompt(prompt: string): Promise<void> {
-		if (this.workspaceService.isSessionsWindow) {
-			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, prefillPrompt: true, noWorkspace: true });
-			return;
-		}
-		const sessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`);
-		const widget = sessionResource ? this.chatWidgetService.getWidgetBySessionResource(sessionResource) : undefined;
-		if (!widget) {
-			throw new Error(localize('marketplaceDetail.chatUnavailable', "The new Copilot session input is unavailable."));
-		}
-		widget.setInput(prompt);
-		widget.focusInput();
+	private runMarketplacePrompt(prompt: string): Promise<void> {
+		return startCopilotChatWithPrompt(prompt, this.workspaceService.isSessionsWindow, this.commandService, this.chatWidgetService);
 	}
 
 	public createCanvas(): Promise<void> {
@@ -1397,6 +1395,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginContentContainer = DOM.append(contentInner, $('.plugin-content-container'));
 			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget, undefined));
 			this.pluginContentContainer.appendChild(this.pluginListWidget.element);
+			this.pluginMarketplacesWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginMarketplacesWidget, () => {
+				this.selectSectionById(AICustomizationManagementSection.Plugins);
+				this.pluginListWidget?.focusManageMarketplaces();
+			}));
+			this.pluginContentContainer.appendChild(this.pluginMarketplacesWidget.element);
+			this.pluginMarketplacesWidget.element.style.display = 'none';
 
 			// Embedded plugin detail view
 			this.pluginDetailContainer = DOM.append(contentInner, $('.plugin-detail-container'));
@@ -3778,6 +3782,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Navigates to the welcome page (no section selected).
 	 */
 	public showWelcomePage(options?: { resetFilters?: boolean; preserveFocus?: boolean }): void {
+		this.pluginMarketplacesVisible = false;
 		if (this.viewMode === 'marketplaceDetail') {
 			this.goBackFromMarketplaceDetail(options?.preserveFocus);
 		}
@@ -3849,6 +3854,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.ensureSectionsListReflectsActiveSection(section);
 			return;
 		}
+		this.pluginMarketplacesVisible = false;
 
 		this.telemetryService.publicLog2<CustomizationEditorSectionChangedEvent, CustomizationEditorSectionChangedClassification>('chatCustomizationEditor.sectionChanged', {
 			section,
@@ -3918,7 +3924,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (section === AICustomizationManagementSection.McpServers) {
 			this.mcpListWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
+			if (this.pluginMarketplacesVisible) {
+				this.pluginMarketplacesWidget?.focus();
+			} else {
+				this.pluginListWidget?.focusSearch();
+			}
 		} else if (section === AICustomizationManagementSection.Models) {
 			this.modelsWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Tools) {
@@ -4020,7 +4030,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.pluginContentContainer) {
 			this.pluginContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection ? '' : 'none';
 		}
-		this.pluginListWidget?.setVisible(!isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection);
+		const pluginsVisible = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection;
+		if (this.pluginListWidget) {
+			this.pluginListWidget.element.style.display = pluginsVisible && !this.pluginMarketplacesVisible ? '' : 'none';
+			this.pluginListWidget.setVisible(pluginsVisible && !this.pluginMarketplacesVisible);
+		}
+		this.pluginMarketplacesWidget?.setVisible(pluginsVisible && this.pluginMarketplacesVisible);
 		if (this.pluginDetailContainer) {
 			this.pluginDetailContainer.style.display = isPluginDetailMode ? '' : 'none';
 		}
@@ -4175,28 +4190,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		if (type === PromptsType.hook) {
 			const preferredStorage = target === 'user' ? PromptsStorage.user : PromptsStorage.local;
-			if (this.workspaceService.isSessionsWindow) {
-				// Sessions: show hooks filtered to Copilot CLI (GitHub Copilot) hook types
-				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
-					openEditor: async (resource) => {
-						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, preferredStorage === PromptsStorage.local);
-						return;
-					},
-					target: Target.GitHubCopilot,
-					preferredStorage,
-					workspaceFolder,
-				});
-			} else {
-				// Core: use the default core behaviour
-				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
-					openEditor: async (resource) => {
-						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, preferredStorage === PromptsStorage.local);
-						return;
-					},
-					preferredStorage,
-					workspaceFolder,
-				});
-			}
+			const isWorkspace = preferredStorage === PromptsStorage.local;
+			await this.instantiationService.invokeFunction(createCopilotHook, {
+				storage: preferredStorage,
+				projectRoot: workspaceFolder ?? this.workspaceService.getActiveProjectRoot(),
+				openEditor: async (resource, selection) => {
+					await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, isWorkspace);
+					if (selection) {
+						const range = new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber ?? selection.startLineNumber, selection.endColumn ?? selection.startColumn);
+						this.embeddedEditor?.setSelection(range);
+						this.embeddedEditor?.revealRangeInCenter(range);
+					}
+				},
+			});
+			this.listWidget.refresh();
 			return;
 		}
 		const sessionResource = this.harnessService.activeSessionResource.get();
@@ -4324,6 +4331,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.cancelCustomizationMigrationRefresh();
 		this.disposeBuiltinEditingSessions();
 		this.welcomePage?.setVisible(false);
+		this.pluginMarketplacesVisible = false;
+		this.pluginMarketplacesWidget?.setVisible(false);
 		for (const [section, widget] of [...this.contributedSectionWidgets]) {
 			widget.setVisible?.(false);
 			this.disposeContributedSectionWidget(section);
@@ -4343,6 +4352,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpInstallPage.clear();
 		}
 		this.welcomePage?.setVisible(visible && this.viewMode === 'list' && this.selectedSection === undefined);
+		this.pluginMarketplacesWidget?.setVisible(visible && this.pluginMarketplacesVisible && this.viewMode === 'list' && this.selectedSection === AICustomizationManagementSection.Plugins);
 		for (const [section, widget] of this.contributedSectionWidgets) {
 			widget.setVisible?.(visible && this.viewMode === 'list' && this.selectedSection === section && this.isContributedSectionEnabled(section));
 		}
@@ -4459,6 +4469,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Selects a specific section programmatically.
 	 */
 	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): boolean {
+		this.pluginMarketplacesVisible = false;
 		if (this.showMarketplaceInDiscover(sectionId, options)) {
 			return true;
 		}
@@ -4515,6 +4526,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return true;
 		}
 		return false;
+	}
+
+	public showPluginMarketplaces(): void {
+		if (!this.selectSectionById(AICustomizationManagementSection.Plugins, { preserveFocus: true })) {
+			return;
+		}
+		this.pluginMarketplacesVisible = true;
+		this.updateContentVisibility();
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		this.pluginMarketplacesWidget?.focus();
+	}
+
+	public getPluginMarketplacesWidget(): PluginMarketplacesWidget | undefined {
+		return this.pluginMarketplacesVisible && this.viewMode === 'list' && this.selectedSection === AICustomizationManagementSection.Plugins
+			? this.pluginMarketplacesWidget : undefined;
 	}
 
 	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): boolean {

@@ -13,7 +13,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError, errorHandler, getErrorCode, setUnexpectedErrorHandler, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -1902,7 +1902,7 @@ suite('AgentHostProtocolClient', () => {
 			return request.params as AuthenticateParams;
 		}
 
-		test('seals provider and targeted MCP credentials with separate keys without changing scopes or addressing', async () => {
+		test('seals provider and targeted MCP credentials with separate keys without changing scopes, addressing or the ID token', async () => {
 			const { client, transport } = createClient();
 			const sealed: IMissionControlCredentialSealingRequest[] = [];
 			disposables.add(client.registerAuthenticationTokenSealer(async request => {
@@ -1911,14 +1911,14 @@ suite('AgentHostProtocolClient', () => {
 			}));
 			await initialize(client, transport);
 			const target = { kind: AuthenticateTargetKind.McpServer, session: 'opaque-session://tenant/id', customizationId: 'server/one' };
-			const provider = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'provider-token', scopes: ['write', 'read'], expiresIn: 300 }));
+			const provider = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'provider-token', scopes: ['write', 'read'], expiresIn: 300, idToken: 'id-token' }));
 			const mcp = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'mcp-token', scopes: ['read'], target }));
 			assert.deepStrictEqual({
 				sealed: sealed.map(request => [request.token, request.resource, request.key.use, request.challenge]),
 				provider, mcp,
 			}, {
 				sealed: [['provider-token', resource, 'auth-token', challenge], ['mcp-token', resource, 'mcp-auth-token', challenge]],
-				provider: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.auth-token.ciphertext', scopes: ['read', 'write'], expiresIn: 300 },
+				provider: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.auth-token.ciphertext', scopes: ['read', 'write'], expiresIn: 300, idToken: 'id-token' },
 				mcp: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.mcp-auth-token.ciphertext', scopes: ['read'], target },
 			});
 		});
@@ -7363,6 +7363,28 @@ suite('AgentHostProtocolClient', () => {
 				whileDisconnected: undefined,
 				reconnected: false,
 			});
+		});
+
+		test('reports the current availability to connection state listeners', async () => {
+			const { client, transports } = createFactoryClient();
+			await completeHandshake(transports[0], client.connect());
+			const observed: { state: AgentHostClientState; available: boolean }[] = [];
+			// Registered before anything observes the availability, like the remote host service that rewires sessions providers.
+			disposables.add(client.onDidChangeConnectionState(state => observed.push({ state, available: client.connectionAvailable.get() })));
+			disposables.add(autorun(reader => client.connectionAvailable.read(reader)));
+
+			const { transport, request } = await beginRecovery(client, transports);
+			const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
+			transport.fireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+			});
+			await reconnected;
+
+			assert.deepStrictEqual(observed, [
+				{ state: AgentHostClientState.Reconnecting, available: false },
+				{ state: AgentHostClientState.Connected, available: true },
+			]);
 		});
 
 		test('re-forwards the legacy Dynamic Auto Tiers value to a remote after reconnect', async () => {

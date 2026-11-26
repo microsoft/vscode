@@ -18,6 +18,8 @@ import { CheckboxChip } from './checkboxChip.js';
 import './media/branchPicker.css';
 
 export const NEW_WORKTREE_LABEL = localize('branchPicker.newWorktree', "New Worktree");
+/** The label of the row a branch picker lists while its branches load. */
+export const BRANCH_PICKER_LOADING_LABEL = localize('branchPicker.loading', "Loading branches…");
 
 const FILTER_THRESHOLD = 10;
 let descriptionIdPool = 0;
@@ -271,7 +273,7 @@ export class BranchPicker extends Disposable {
 			case 'loading':
 				return [{
 					kind: ActionListItemKind.Action,
-					label: localize('branchPicker.loading', "Loading branches…"),
+					label: BRANCH_PICKER_LOADING_LABEL,
 					disabled: true,
 					item: { kind: 'branch' },
 				}];

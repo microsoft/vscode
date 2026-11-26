@@ -6,6 +6,7 @@
 import { equals } from '../../../../../base/common/arrays.js';
 import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { asGitHubAccount } from '../../../../../base/common/defaultAccount.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
@@ -254,7 +255,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			Event.map(Event.fromObservableLight(this.harnessService.activeSessionResource), () => ({ sourceIds: this.getSessionBoundSourceIds() })),
 			Event.map(defaultAccountService.onDidChangeDefaultAccount, anySource),
 			Event.map(Event.filter(authenticationService.onDidChangeSessions, event => {
-				const account = defaultAccountService.currentDefaultAccount;
+				const account = asGitHubAccount(defaultAccountService.currentDefaultAccount);
 				return !!account && event.providerId === account.authenticationProvider.id &&
 					[...event.event.added ?? [], ...event.event.removed ?? []].some(session => session.id === account.sessionId);
 			}), anySource),

@@ -52,6 +52,7 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { isAgentHostTarget, isLocalAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
+import '../../../../workbench/contrib/chat/browser/chatManagement/modelRouters.contribution.js';
 import './chatBackgroundTool.contribution.js';
 import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
 import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';

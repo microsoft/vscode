@@ -24,8 +24,8 @@ import { CanonicalUriService } from '../../workbench/services/workspaces/common/
 import { ICanonicalUriService } from '../../platform/workspace/common/canonicalUri.js';
 import { BrowserMain, IBrowserMainWorkbench } from '../../workbench/browser/web.main.js';
 import { getWorkspaceIdentifier } from '../../platform/workspaces/common/workspaceIdentifier.js';
-import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
-import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
+import { AgentsWorkspaceContextService } from '../../workbench/services/configuration/browser/agents/agentsWorkspaceContextService.js';
+import { AgentsConfigurationService } from '../../workbench/services/configuration/browser/agents/agentsConfigurationService.js';
 import { ConfigurationCache } from '../../workbench/services/configuration/common/configurationCache.js';
 import { Schemas } from '../../base/common/network.js';
 import { createSessionsWorkbench, SessionsWorkbenchFactory } from './workbenchFactory.js';
@@ -66,15 +66,15 @@ export class SessionsBrowserMain extends BrowserMain {
 
 		// Workspace — use a stable synthetic workspace identifier for agents
 		const workspaceIdentifier = getWorkspaceIdentifier(environmentService.agentSessionsWorkspace);
-		const workspaceContextService = new SessionsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
+		const workspaceContextService = new AgentsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
 
 		serviceCollection.set(IWorkspaceContextService, workspaceContextService);
 		serviceCollection.set(IWorkspaceEditingService, workspaceContextService);
 
-		// Configuration — the sessions ConfigurationService works against the
+		// Configuration — AgentsConfigurationService works against the
 		// in-memory workspace model rather than a real .code-workspace file on disk.
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData], environmentService, fileService);
-		const configurationService = new ConfigurationService(
+		const configurationService = new AgentsConfigurationService(
 			userDataProfileService,
 			workspaceContextService,
 			uriIdentityService,

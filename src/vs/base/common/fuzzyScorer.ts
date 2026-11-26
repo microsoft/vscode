@@ -5,6 +5,7 @@
 
 import { CharCode } from './charCode.js';
 import { compareAnything } from './comparers.js';
+import { isPathSeparator } from './extpath.js';
 import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from './filters.js';
 import { ARRAY_HASH_SEED, ConstantStringHash, doHash, numberHash, OBJECT_HASH_SEED, stringHash } from './hash.js';
 import { sep } from './path.js';
@@ -39,6 +40,18 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, al
 	// }
 
 	const targetLower = target.toLowerCase();
+
+	// Keep the matrix bounds even when lowercasing expands a character.
+	let queryIndex = 0;
+	for (let targetIndex = 0; targetIndex < targetLength && queryIndex < queryLength; targetIndex++) {
+		if (considerAsEqual(queryLower[queryIndex], targetLower[targetIndex])) {
+			queryIndex++;
+		}
+	}
+	if (queryIndex < queryLength) {
+		return NO_SCORE;
+	}
+
 	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength, allowNonContiguousMatches);
 
 	// if (DEBUG) {
@@ -49,9 +62,22 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, al
 	return res;
 }
 
+const maxCachedMatrixCells = 64 * 1024; // 512 KiB across both buffers
+let cachedMatrix = { scores: new Int32Array(0), matches: new Int32Array(0) };
+
+function getScoreMatrix(size: number) {
+	if (size > maxCachedMatrixCells) {
+		// Don't retain oversized matrices; long contiguous matches can also exceed a 32-bit score.
+		return { scores: new Float64Array(size), matches: new Int32Array(size) };
+	}
+	if (cachedMatrix.scores.length < size) {
+		cachedMatrix = { scores: new Int32Array(size), matches: new Int32Array(size) };
+	}
+	return cachedMatrix;
+}
+
 function doScoreFuzzy(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number, allowNonContiguousMatches: boolean): FuzzyScore {
-	const scores: number[] = [];
-	const matches: number[] = [];
+	const { scores, matches } = getScoreMatrix(queryLength * targetLength);
 
 	//
 	// Build Scorer Matrix:
@@ -75,7 +101,8 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 		const queryIndexGtNull = queryIndex > 0;
 
 		const queryCharAtIndex = query[queryIndex];
-		const queryLowerCharAtIndex = queryLower[queryIndex];
+		const queryLowerCode = queryLower.charCodeAt(queryIndex);
+		const queryIsPathSeparator = isPathSeparator(queryLowerCode);
 
 		for (let targetIndex = 0; targetIndex < targetLength; targetIndex++) {
 			const targetIndexGtNull = targetIndex > 0;
@@ -85,27 +112,22 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 			const diagIndex = queryIndexPreviousOffset + targetIndex - 1;
 
 			const leftScore = targetIndexGtNull ? scores[leftIndex] : 0;
-			const diagScore = queryIndexGtNull && targetIndexGtNull ? scores[diagIndex] : 0;
+			scores[currentIndex] = leftScore;
+			matches[currentIndex] = NO_MATCH;
 
-			const matchesSequenceLength = queryIndexGtNull && targetIndexGtNull ? matches[diagIndex] : 0;
-
-			// If we are not matching on the first query character any more, we only produce a
-			// score if we had a score previously for the last query index (by looking at the diagScore).
-			// This makes sure that the query always matches in sequence on the target. For example
-			// given a target of "ede" and a query of "de", we would otherwise produce a wrong high score
-			// for query[1] ("e") matching on target[0] ("e") because of the "beginning of word" boost.
-			let score: number;
-			if (!diagScore && queryIndexGtNull) {
-				score = 0;
-			} else {
-				score = computeCharScore(queryCharAtIndex, queryLowerCharAtIndex, target, targetLower, targetIndex, matchesSequenceLength);
+			const targetLowerCode = targetLower.charCodeAt(targetIndex);
+			if (queryLowerCode !== targetLowerCode && !(queryIsPathSeparator && isPathSeparator(targetLowerCode))) {
+				continue;
 			}
 
-			// We have a score and its equal or larger than the left score
-			// Match: sequence continues growing from previous diag value
-			// Score: increases by diag score value
-			const isValidScore = score && diagScore + score >= leftScore;
-			if (isValidScore && (
+			const diagScore = queryIndexGtNull && targetIndexGtNull ? scores[diagIndex] : 0;
+			if (queryIndexGtNull && !diagScore) {
+				continue; // The preceding query characters must already have matched.
+			}
+
+			const matchesSequenceLength = queryIndexGtNull && targetIndexGtNull ? matches[diagIndex] : 0;
+			const score = diagScore + computeCharScore(queryCharAtIndex, target, targetIndex, matchesSequenceLength);
+			if (score >= leftScore && (
 				// We don't need to check if it's contiguous if we allow non-contiguous matches
 				allowNonContiguousMatches ||
 				// We must be looking for a contiguous match.
@@ -116,15 +138,7 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 				targetLower.startsWith(queryLower, targetIndex)
 			)) {
 				matches[currentIndex] = matchesSequenceLength + 1;
-				scores[currentIndex] = diagScore + score;
-			}
-
-			// We either have no score or the score is lower than the left score
-			// Match: reset to 0
-			// Score: pick up from left hand side
-			else {
-				matches[currentIndex] = NO_MATCH;
-				scores[currentIndex] = leftScore;
+				scores[currentIndex] = score;
 			}
 		}
 	}
@@ -155,15 +169,11 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 	return [scores[queryLength * targetLength - 1], positions.reverse()];
 }
 
-function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: string, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
+function computeCharScore(queryCharAtIndex: string, target: string, targetIndex: number, matchesSequenceLength: number): number {
 	let score = 0;
 
-	if (!considerAsEqual(queryLowerCharAtIndex, targetLower[targetIndex])) {
-		return score; // no match of characters
-	}
-
 	// if (DEBUG) {
-	// 	console.groupCollapsed(`%cFound a match of char: ${queryLowerCharAtIndex} at index ${targetIndex}`, 'font-weight: normal');
+	// 	console.groupCollapsed(`%cFound a match of char: ${queryCharAtIndex} at index ${targetIndex}`, 'font-weight: normal');
 	// }
 
 	// Character match bonus
@@ -266,7 +276,7 @@ function scoreSeparatorAtPos(charCode: number): number {
 	}
 }
 
-// function printMatrix(query: string, target: string, matches: number[], scores: number[]): void {
+// function printMatrix(query: string, target: string, matches: ArrayLike<number>, scores: ArrayLike<number>): void {
 // 	console.log('\t' + target.split('').join('\t'));
 // 	for (let queryIndex = 0; queryIndex < query.length; queryIndex++) {
 // 		let line = query[queryIndex] + '\t';
@@ -649,6 +659,34 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 	const itemScoreA = scoreItemFuzzy(itemA, query, allowNonContiguousMatches, accessor, cache);
 	const itemScoreB = scoreItemFuzzy(itemB, query, allowNonContiguousMatches, accessor, cache);
 
+	return compareItemScores(itemA, itemB, itemScoreA, itemScoreB, query, accessor);
+}
+
+/**
+ * Creates a comparator that orders items like {@link compareItemsByFuzzyScore}, but scores
+ * every item only once. Use it for a single sort only: items and query must not change while
+ * it is in use.
+ */
+export function createItemsByFuzzyScoreComparator<T>(query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): (itemA: T, itemB: T) => number {
+	if (!query.normalized) {
+		return (itemA, itemB) => compareItemsByFuzzyScore(itemA, itemB, query, allowNonContiguousMatches, accessor, cache);
+	}
+
+	const itemScores = new Map<T, IItemScore>();
+	const getItemScore = (item: T) => {
+		let itemScore = itemScores.get(item);
+		if (itemScore === undefined) {
+			itemScore = scoreItemFuzzy(item, query, allowNonContiguousMatches, accessor, cache);
+			itemScores.set(item, itemScore);
+		}
+
+		return itemScore;
+	};
+
+	return (itemA, itemB) => compareItemScores(itemA, itemB, getItemScore(itemA), getItemScore(itemB), query, accessor);
+}
+
+function compareItemScores<T>(itemA: T, itemB: T, itemScoreA: IItemScore, itemScoreB: IItemScore, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
 	const scoreA = itemScoreA.score;
 	const scoreB = itemScoreB.score;
 
