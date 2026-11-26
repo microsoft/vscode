@@ -306,6 +306,12 @@ export interface IAddWorktreeOptions {
 	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
 }
 
+/** The checkout that `git worktree add` produced. */
+export interface IAddWorktreeResult {
+	/** Git LFS files were checked out as their pointer files, because `git-lfs` could not be run. */
+	readonly gitLfsPointerFiles: boolean;
+}
+
 /** A remote a repository fetches from. */
 export interface IGitRemote {
 	readonly name: string;
@@ -344,7 +350,7 @@ export interface IAgentHostGitService {
 	 * never be called (fast checkouts and git versions that stay silent), so it
 	 * MUST be treated as best-effort.
 	 */
-	addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void>;
+	addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<IAddWorktreeResult>;
 	/**
 	 * Copies the git-ignored files matching `patterns` into the worktree.
 	 * `patterns` use `.gitignore` syntax, relative to `repositoryRoot`, and are
@@ -366,7 +372,7 @@ export interface IAgentHostGitService {
 	 * a worktree whose branch was preserved (e.g. unarchiving a session
 	 * whose worktree was previously cleaned up on archive).
 	 */
-	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
+	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<IAddWorktreeResult>;
 	/** Whether Git still registers the exact worktree path; registry failures conservatively return true. */
 	isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean>;
 	/** Removes a worktree, preserving Git's dirty-worktree protection unless `force` is explicitly requested. */

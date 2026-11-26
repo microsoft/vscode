@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
 import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
@@ -31,7 +31,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType, type IAddWorktreeResult } from '../../common/agentHostGitService.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 import { parseGitBlobUri } from '../../node/gitDiffContent.js';
@@ -1955,13 +1955,19 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
 		const wtPath = join(dir, '..', `wt-${Date.now()}`);
 		try {
-			await svc!.addWorktree(URI.file(dir), {
+			const result = await svc!.addWorktree(URI.file(dir), {
 				path: URI.file(wtPath),
 				commitish: 'feature',
 				track: false,
 			});
 
-			assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(), 'feature');
+			assert.deepStrictEqual({
+				result,
+				branch: cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+			}, {
+				result: { gitLfsPointerFiles: false },
+				branch: 'feature',
+			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
@@ -2001,6 +2007,81 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			);
 		} finally {
 			await rmDirWithRetry(wtPath);
+		}
+	});
+
+	/** A repository whose `*.bin` files need Git LFS, which can't be run, as on a machine where `git-lfs` is missing. */
+	function initRepoWithMissingGitLfs(): { readonly dir: string; readonly pointer: string } {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' });
+		const pointer = `version https://git-lfs.github.com/spec/v1\noid sha256:${'0'.repeat(64)}\nsize 1\n`;
+		writeFileSync(join(dir, '.gitattributes'), '*.bin filter=lfs diff=lfs merge=lfs -text\n');
+		writeFileSync(join(dir, 'large.bin'), pointer);
+		run('-c', 'filter.lfs.process=', '-c', 'filter.lfs.clean=', '-c', 'filter.lfs.required=false', 'add', '.');
+		run('commit', '-q', '-m', 'add Git LFS pointer');
+		run('config', 'filter.lfs.process', '/agent-host-missing-git-lfs/git-lfs filter-process');
+		run('config', 'filter.lfs.required', 'true');
+		writeFileSync(join(dir, '.git', 'hooks', 'post-checkout'), '#!/bin/sh\nprintf >&2 "\\n%s\\n\\n" "This repository is configured for Git LFS but \'git-lfs\' was not found on your path."\nexit 2\n', { mode: 0o755 });
+		return { dir, pointer };
+	}
+
+	(hasGit ? test : test.skip)('worktree creation and recreation keep Git LFS pointer files when git-lfs is missing', async () => {
+		const { dir, pointer } = initRepoWithMissingGitLfs();
+		const wtPath = join(dir, '..', `wt-lfs-${Date.now()}`);
+		const readWorktree = (result: IAddWorktreeResult) => ({
+			result,
+			pointer: readFileSync(join(wtPath, 'large.bin'), 'utf8'),
+			status: cp.execFileSync('git', ['status', '--porcelain'], { cwd: wtPath, env, encoding: 'utf8' }),
+		});
+
+		try {
+			const created = readWorktree(await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/lfs', track: false }));
+			await rmDirWithRetry(wtPath);
+			const recreated = readWorktree(await svc!.addExistingWorktree(URI.file(dir), URI.file(wtPath), 'agents/lfs'));
+
+			assert.deepStrictEqual({ created, recreated }, {
+				created: { result: { gitLfsPointerFiles: true }, pointer, status: '' },
+				recreated: { result: { gitLfsPointerFiles: true }, pointer, status: '' },
+			});
+		} finally {
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('worktree creation with Git LFS pointer files waits for another git process to release index.lock, and reports a lock that stays', async () => {
+		const { dir } = initRepoWithMissingGitLfs();
+		const lockIndexOnRefresh = (releaseAfterMs: number | undefined) => createGitService(disposables, undefined, class extends AgentHostGitService {
+			private _locked = false;
+			protected override _spawnGit(workingDirectory: URI, args: readonly string[], options?: { readonly env?: Record<string, string> }, onTimedOut?: () => void): Promise<string | undefined> {
+				if (!this._locked && args.includes('update-index')) {
+					this._locked = true;
+					const gitDir = readFileSync(join(workingDirectory.fsPath, '.git'), 'utf8').replace(/^gitdir: /, '').trim();
+					const lock = join(gitDir, 'index.lock');
+					writeFileSync(lock, '');
+					if (releaseAfterMs !== undefined) {
+						setTimeout(() => rmSync(lock, { force: true }), releaseAfterMs);
+					}
+				}
+				return super._spawnGit(workingDirectory, args, options, onTimedOut);
+			}
+		});
+		const released = join(dir, '..', `wt-lfs-released-${Date.now()}`);
+		const held = join(dir, '..', `wt-lfs-held-${Date.now()}`);
+
+		try {
+			const result = await lockIndexOnRefresh(300).addWorktree(URI.file(dir), { path: URI.file(released), commitish: 'main', newBranchName: 'agents/released', track: false });
+			const heldError = await lockIndexOnRefresh(undefined).addWorktree(URI.file(dir), { path: URI.file(held), commitish: 'main', newBranchName: 'agents/held', track: false }).then(() => '', (error: Error) => error.message);
+
+			assert.deepStrictEqual({
+				released: { result, status: cp.execFileSync('git', ['status', '--porcelain'], { cwd: released, env, encoding: 'utf8' }) },
+				heldReportsLock: /^Another Git process is using the repository\. If no Git process is running, delete the lock file '[^']+[\\/]index\.lock'\.$/.test(heldError),
+			}, {
+				released: { result: { gitLfsPointerFiles: true }, status: '' },
+				heldReportsLock: true,
+			});
+		} finally {
+			await rmDirWithRetry(released);
+			await rmDirWithRetry(held);
 		}
 	});
 

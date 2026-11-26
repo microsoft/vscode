@@ -13,11 +13,14 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { ContextSizeConfigKey, ContextTierConfigKey, CopilotReasoningEffortConfigKey, getContextSizeForTier, withExplicitModelConfiguration } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { readAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { supportsRemoteSessions, toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { PolicyState } from '../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
+import { JsonPrimitive } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { withSessionCreationReference } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -27,11 +30,12 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { AutomationModelConfiguration, InvalidStoredModelConfigurationError } from '../../../../workbench/contrib/sessions/browser/automationModelConfiguration.js';
 import { LocalDevContainerEnvironmentHost } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionType, SessionTypeAuthRequirement } from '../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionDestination, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionService, IRemoteSessionWorkspace, remoteSessionHostRejections } from '../common/remoteSessions.js';
+import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionDestination, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionModel, IRemoteSessionService, IRemoteSessionWorkspace, remoteSessionHostRejections } from '../common/remoteSessions.js';
 import { assertRemoteSessionSource, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 
@@ -43,6 +47,8 @@ interface IRemoteSessionCandidate {
 	readonly sessionType: ISessionType;
 	readonly agentProvider: string;
 	readonly modelIdentifier?: string;
+	/** The model configuration the session starts with; undefined leaves it to the provider. */
+	readonly modelConfiguration?: Readonly<Record<string, JsonPrimitive>>;
 	readonly workspace?: URI;
 }
 
@@ -229,13 +235,85 @@ export class RemoteSessionService implements IRemoteSessionService {
 		if (reasons.length || !sessionType || !agent || !connection) {
 			return { reasons };
 		}
+		let modelIdentifier: string | undefined;
+		let modelConfiguration: Readonly<Record<string, JsonPrimitive>> | undefined;
+		if (options.model) {
+			modelIdentifier = `${remoteAgentHostSessionTypeId(authority, agent.provider)}:${options.model.id}`;
+			modelConfiguration = this.getModelConfiguration(provider, modelIdentifier, options.model, options, reasons);
+			if (reasons.length) {
+				return { reasons };
+			}
+		}
 		return {
 			candidate: {
 				provider, connection, clientId: connection.clientId, host, sessionType, agentProvider: agent.provider, workspace,
-				modelIdentifier: options.model ? `${remoteAgentHostSessionTypeId(authority, agent.provider)}:${options.model.id}` : undefined,
+				modelIdentifier, modelConfiguration,
 			},
 			reasons,
 		};
+	}
+
+	/**
+	 * The configuration a new session on {@link provider} starts with for the model: the user's saved choices for it,
+	 * as the model picker applies them to a new session, with the requested reasoning effort and context tier set as
+	 * explicit choices. Adds a reason to {@link reasons} for a requested option the model does not offer on the host.
+	 */
+	private getModelConfiguration(provider: RemoteSessionsProvider, modelIdentifier: string, model: IRemoteSessionModel, options: ICreateRemoteSessionOptions, reasons: string[]): Readonly<Record<string, JsonPrimitive>> | undefined {
+		const modelLabel = `${model.provider}/${model.id}`;
+		if (provider.supportsModelConfigurationForCreation !== true) {
+			if (options.reasoningEffort !== undefined || options.contextTier !== undefined) {
+				reasons.push(localize('remoteSessions.modelOptionsUnsupported', "The host cannot apply a reasoning effort or context tier to a new session."));
+			}
+			return undefined;
+		}
+		const properties = this.languageModelsService.lookupLanguageModel(modelIdentifier)?.configurationSchema?.properties;
+		const requested: Record<string, JsonPrimitive> = {};
+		if (options.reasoningEffort !== undefined) {
+			const key = properties?.[ReasoningEffortConfigKey] ? ReasoningEffortConfigKey : CopilotReasoningEffortConfigKey;
+			const property = properties?.[key];
+			if (!property?.enum?.includes(options.reasoningEffort)) {
+				reasons.push(property?.enum?.length
+					? localize('remoteSessions.unsupportedReasoningEffort', "Model {0} does not support reasoning effort {1}. Use one of: {2}.", modelLabel, options.reasoningEffort, property.enum.join(', '))
+					: localize('remoteSessions.noReasoningEffort', "Model {0} has no reasoning effort option.", modelLabel));
+			} else if (property.readOnly) {
+				reasons.push(localize('remoteSessions.reasoningEffortLocked', "Reasoning effort is locked for model {0}.", modelLabel));
+			} else {
+				requested[key] = options.reasoningEffort;
+			}
+		}
+		if (options.contextTier !== undefined) {
+			const key = properties?.[ContextSizeConfigKey] ? ContextSizeConfigKey : ContextTierConfigKey;
+			const property = properties?.[key];
+			const value = key === ContextSizeConfigKey ? getContextSizeForTier(property, options.contextTier) : options.contextTier;
+			if (!property || (key === ContextSizeConfigKey && (property.enum?.length ?? 0) < 2)) {
+				reasons.push(localize('remoteSessions.singleContextWindow', "Model {0} has a single context window, so a context tier does not apply.", modelLabel));
+			} else if (value === undefined || !property.enum?.includes(value)) {
+				reasons.push(localize('remoteSessions.unsupportedContextTier', "Model {0} does not support context tier {1}.", modelLabel, options.contextTier));
+			} else if (property.readOnly) {
+				reasons.push(localize('remoteSessions.contextSizeLocked', "Context size is locked for model {0}.", modelLabel));
+			} else {
+				requested[key] = value;
+			}
+		}
+		if (reasons.length) {
+			return undefined;
+		}
+		const saved = new AutomationModelConfiguration(this.languageModelsService);
+		try {
+			const inherited = saved.captureModelConfiguration(modelIdentifier);
+			return Object.keys(requested).length
+				? withExplicitModelConfiguration({ id: modelIdentifier, config: { ...inherited } }, requested).config
+				: inherited;
+		} catch (error) {
+			if (!(error instanceof InvalidStoredModelConfigurationError)) {
+				throw error;
+			}
+			this.logService.warn(`[RemoteSessions] Invalid saved options for ${modelIdentifier}`, error);
+			reasons.push(localize('remoteSessions.invalidSavedModelOptions', "Saved options for model {0} must contain only JSON primitive values.", modelLabel));
+			return undefined;
+		} finally {
+			saved.dispose();
+		}
 	}
 
 	private assertTargetConnection(candidate: IRemoteSessionCandidate): void {
@@ -352,6 +430,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 				providerId: target.provider.id,
 				sessionTypeId: target.sessionType.id,
 				modelId: target.modelIdentifier,
+				...(target.modelConfiguration ? { modelConfiguration: target.modelConfiguration } : {}),
 				metadata,
 				onSessionCreated: async session => {
 					background = await this.backgroundChats.acquire(session.mainChat.get().resource, token);
