@@ -1063,12 +1063,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return { autoConfirmed };
 		}
 
-		if (preparedInvocation?.toolSpecificData?.kind === 'terminal' && preparedInvocation.toolSpecificData.commandLine.hasComment) {
-			const explanation = localize('autopilotTerminalCommentRisk', "The terminal command contains a shell comment and cannot be assessed automatically.");
-			this._logService.info(`[LanguageModelToolsService#invokeTool] Autopilot skipping a terminal command with a shell comment`);
-			return { autoConfirmed: { type: ToolConfirmKind.Skipped, source: 'riskAssessment' }, skipExplanation: explanation };
-		}
-
 		try {
 			// ignoreEnablement: assess even when the risk-badge setting is off.
 			const assessment = await this._riskAssessmentService.assess(tool.data, dto.parameters, token, undefined, { ignoreEnablement: true });

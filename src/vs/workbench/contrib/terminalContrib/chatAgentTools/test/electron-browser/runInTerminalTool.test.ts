@@ -1653,23 +1653,6 @@ suite('RunInTerminalTool', () => {
 
 	suite('prepareToolInvocation - auto approval behavior', () => {
 
-		test('should identify unquoted shell comments', async () => {
-			const results = [];
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-			for (const command of ['echo hello', 'echo hello # note', 'echo "# literal"', 'git log --format=#%h', `rm -rf x $'\\'' # safe`]) {
-				const result = await executeToolTest({ command });
-				results.push(result?.toolSpecificData?.kind === 'terminal' ? result.toolSpecificData.commandLine.hasComment ?? false : undefined);
-			}
-			runInTerminalTool.setBackendOs(OperatingSystem.Macintosh);
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileMacOs, Object.freeze({ path: 'pwsh' }));
-			const powerShellResult = await executeToolTest({ command: 'rm -r x \'a`\' # cache, safe to delete' });
-			results.push(powerShellResult?.toolSpecificData?.kind === 'terminal' ? powerShellResult.toolSpecificData.commandLine.hasComment ?? false : undefined);
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileMacOs, Object.freeze({ path: 'fish' }));
-			const fishResult = await executeToolTest({ command: `rm -rf x 'it\\'s' # cache, safe` });
-			results.push(fishResult?.toolSpecificData?.kind === 'terminal' ? fishResult.toolSpecificData.commandLine.hasComment ?? false : undefined);
-			deepStrictEqual(results, [false, true, false, false, true, true, true]);
-		});
-
 		test('should auto-approve commands in allow list', async () => {
 			setAutoApprove({
 				echo: true

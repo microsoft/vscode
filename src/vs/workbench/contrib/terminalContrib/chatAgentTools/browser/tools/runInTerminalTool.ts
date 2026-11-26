@@ -96,48 +96,6 @@ const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 const INPUT_NEEDED_NOTIFICATION_THROTTLE_MS = 5000;
 
-function containsShellComment(commandLine: string, powerShell: boolean, fish: boolean): boolean {
-	let quote: '"' | '\'' | 'ansiC' | undefined;
-	let atWordStart = true;
-	for (let index = 0; index < commandLine.length; index++) {
-		const character = commandLine[index];
-		if (quote) {
-			if (quote === 'ansiC') {
-				if (character === '\\') {
-					index++;
-				} else if (character === '\'') {
-					quote = undefined;
-				}
-			} else if (character === quote) {
-				if (powerShell && commandLine[index + 1] === quote) {
-					index++;
-				} else {
-					quote = undefined;
-				}
-			} else if ((powerShell && quote === '"' && character === '`') || (!powerShell && quote === '"' && character === '\\') || (fish && quote === '\'' && character === '\\')) {
-				index++;
-			}
-			continue;
-		}
-		if ((powerShell && character === '`') || (!powerShell && character === '\\')) {
-			index++;
-			atWordStart = false;
-		} else if (!powerShell && character === '$' && commandLine[index + 1] === '\'') {
-			quote = 'ansiC';
-			index++;
-			atWordStart = false;
-		} else if (character === '"' || character === '\'') {
-			quote = character;
-			atWordStart = false;
-		} else if (character === '#' && (powerShell || atWordStart)) {
-			return true;
-		} else {
-			atWordStart = /\s|[;&|()<>]/.test(character);
-		}
-	}
-	return false;
-}
-
 export interface ISandboxingOnNetworkRestrictedOptions {
 	sandboxMode: 'on-network-restricted';
 	allowToRunUnsandboxedCommands: boolean;
@@ -1023,7 +981,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalSandboxService.checkForSandboxingPrereqs(false, sandboxPrecheckInputs)
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
-		const hasComment = containsShellComment(args.command, isPowerShell(shell, os), isFish(shell, os)) || undefined;
 		const isSandboxEnabled = sandboxPrereqs.enabled;
 		const isSandboxAllowNetworkEnabled = isSandboxEnabled && await this._terminalSandboxService.isSandboxAllowNetworkEnabled();
 		const allowUnsandboxedCommands = this._getAllowToRunUnsandboxedCommands(args);
@@ -1063,7 +1020,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalCommandId,
 					commandLine: {
 						original: args.command,
-						hasComment,
 						forDisplay: commandToDisplay,
 					},
 					cwd,
@@ -1087,7 +1043,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalCommandId,
 					commandLine: {
 						original: args.command,
-						hasComment,
 						forDisplay: commandToDisplay,
 					},
 					cwd,
@@ -1126,7 +1081,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
-				hasComment,
 				forDisplay: forDisplayCommand ?? normalizeTerminalCommandForDisplay(rewrittenCommand ?? args.command),
 				isSandboxWrapped,
 			},
@@ -1750,7 +1704,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: options.args.command,
 				toolEdited: retryRewriteResult.rewrittenCommand === options.args.command ? undefined : retryRewriteResult.rewrittenCommand,
-				hasComment: options.toolSpecificData.commandLine.hasComment,
 				forDisplay: retryRewriteResult.forDisplayCommand ?? normalizeTerminalCommandForDisplay(retryRewriteResult.rewrittenCommand ?? options.args.command),
 				isSandboxWrapped: retryRewriteResult.isSandboxWrapped,
 			},
