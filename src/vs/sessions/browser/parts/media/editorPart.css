@@ -260,10 +260,6 @@
 	box-sizing: border-box;
 }
 
-.agent-sessions-workbench .part.editor > .content .editor-group-container.empty > .sessions-empty-group-add-tab > .tabs-bar-add-tab.hidden {
-	display: none;
-}
-
 .agent-sessions-workbench .part.editor > .content .editor-group-container.empty.sessions-has-add-tab-watermark > .editor-group-watermark-wrapper > .editor-group-watermark {
 	display: none;
 }

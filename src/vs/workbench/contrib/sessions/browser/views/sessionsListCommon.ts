@@ -99,6 +99,8 @@ export enum SessionsSorting {
 export interface ISessionSection {
 	readonly id: string;
 	readonly collapseStateId?: string;
+	/** The collapse state when this section groups rows in the separate navigation list. */
+	readonly navigationCollapsed?: boolean;
 	readonly label: string;
 	readonly sessions: ISession[];
 	readonly pendingItems?: readonly IPendingSessionItem[];

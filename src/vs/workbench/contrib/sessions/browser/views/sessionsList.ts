@@ -9,7 +9,7 @@ import '../media/disclosure.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
 import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, ISessionsListSearchResults, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
 import { ISessionRowIndent, SessionRowIndent, SessionsListIndentGuides } from './sessionsListIndentGuides.js';
-import { CANVASES_SECTION_ID, SessionItemContextMenuId, SessionItemOrganizeMenuGroup, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_CANVASES_SECTION_SETTING, NEW_CANVAS_SESSION_COMMAND_ID, IsSessionPinnedContext, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemHasUnreadNestedSessionsContext, SessionChatItemCanRenameContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext, SessionItemHasMoveDestinationContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionChatItemCanMoveUpContext, SessionChatItemCanMoveDownContext, SessionsListFocusedChatItemContext, SessionItemInGroupContext, SessionItemInExternalSectionContext, SessionItemCanImportContext, SessionItemHasPinnedCanvasContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionHasRootFolderContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, SessionChatItem, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem, SessionsListSearchOpenContext } from './sessionsListCommon.js';
+import { CANVASES_SECTION_ID, SessionItemContextMenuId, SessionItemOrganizeMenuGroup, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_CANVASES_SECTION_SETTING, IsSessionPinnedContext, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemHasUnreadNestedSessionsContext, SessionChatItemCanRenameContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext, SessionItemHasMoveDestinationContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionChatItemCanMoveUpContext, SessionChatItemCanMoveDownContext, SessionsListFocusedChatItemContext, SessionItemInGroupContext, SessionItemInExternalSectionContext, SessionItemCanImportContext, SessionItemHasPinnedCanvasContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionHasRootFolderContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, SessionChatItem, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem, SessionsListSearchOpenContext } from './sessionsListCommon.js';
 import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, PINNED_CANVAS_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, DATE_SECTION_IDS, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionsRootFolder, sessionMatchesFolder, sortSessions, sortSessionListChats, sortComparisonGroupMembers, isComparisonLaunchPending, getComparisonGroupConfiguration, getComparisonGroupSummary, limitSessionsForList, computeReorderSortChanges, QUICK_CHATS_SECTION_ID, isQuickChatSession, groupingHasQuickChatsSection, isAutomationSession, groupSessionsForList, IInboxPlacement, inboxPlacementsEqual, sessionWorkspaceLabel, isGroupingSpecificCollapseStateId, getSessionRepository, getRepositorySectionId, getSessionGroupingSectionId, labelRepositorySections, getNewSessionSources, RECENTLY_UPDATED_SESSION_THRESHOLD_MS, partitionByDate } from './sessionsListHelpers.js';
 import { SESSION_SHORTCUT_SECTION_TEMPLATE_ID, SESSION_SHORTCUT_ROW_HEIGHT, EMPTY_GUIDE_SESSION_IDS, SessionGroupConnectorPosition, isOpenChat, getSessionRowStatus, INSET_ROW_GAP, DEFAULT_APPROVAL_ROW_MAX_LINES, SessionsTreeDelegate, withSessionsListHoverPresentation, getCreatorHoverData, SessionChatItemRenderer, SessionItemActionRunner, ISessionOnboardingTarget, SessionItemRenderer, getSessionArchiveOnboardingTargetId, getSessionOnboardingTargetId, getWorkspaceSectionOnboardingTargetId, logDefaultSettingExperimentTrigger, ISessionHeaderStatusTrigger, SessionSectionRenderer, SessionShortcutListDelegate, SessionShortcutListRenderer, SessionGroupRenderer, SessionShowMoreRenderer, SessionPlaceholderRenderer, SessionsAccessibilityProvider } from './sessionsListRenderers.js';
 import { SessionListPlacement, getPlacementState, getSectionPlacement, isSamePlacement, getPlacementHeader, ISessionDropAnchor, ISessionDropDestination, SessionDropEffect, ISessionDropTargetHeader, IDraggedHeader, SessionHeaderDrop, SessionsListDragAndDrop, isDateSectionPlacement, keepDateSectionOrder, sectorToPosition, findLastVisible } from './sessionsListDragAndDrop.js';
@@ -2406,7 +2406,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const canvasesSection = this.getCanvasesSection();
 		if (canvasesSection) {
 			if (showNavigationShortcuts) {
-				navigationSections.push(canvasesSection, ...this.getPinnedCanvasSections());
+				const collapsed = this.getSavedCollapseState(CANVASES_SECTION_ID) ?? false;
+				navigationSections.push({ ...canvasesSection, navigationCollapsed: collapsed });
+				if (!collapsed) {
+					navigationSections.push(...this.getPinnedCanvasSections());
+				}
 			} else {
 				children.push(this.renderCanvasesSection(canvasesSection, resolveCollapsed));
 			}
@@ -2797,7 +2801,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!this.navigationList || !this.options.navigationContainer) {
 			return;
 		}
-		if (sections.length === this.navigationSections.length && sections.every((section, index) => section.id === this.navigationSections[index].id && section.pinnedCanvas === this.navigationSections[index].pinnedCanvas)) {
+		if (sections.length === this.navigationSections.length && sections.every((section, index) => section.id === this.navigationSections[index].id && section.pinnedCanvas === this.navigationSections[index].pinnedCanvas && section.navigationCollapsed === this.navigationSections[index].navigationCollapsed)) {
 			return;
 		}
 
@@ -2844,8 +2848,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				await this.commandService.executeCommand('sessionsView.manageAutomations');
 				break;
 			case CANVASES_SECTION_ID:
-				// The navigation list does not collapse, so its Canvases header starts a session with a canvas, like its toolbar action.
-				await this.commandService.executeCommand(NEW_CANVAS_SESSION_COMMAND_ID);
+				this.saveSectionCollapseState(section.id, !section.navigationCollapsed);
+				this.update();
 				break;
 			case CUSTOMIZATIONS_SECTION_ID:
 				this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sessionsHeader');

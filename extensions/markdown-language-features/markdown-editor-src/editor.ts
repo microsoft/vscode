@@ -148,10 +148,23 @@ class Editor extends Disposable {
 	readonly #syntaxHighlighter: WebviewSyntaxHighlighter;
 	readonly #linkPresentationProvider: WebviewLinkPresentationProvider | undefined;
 	#disposed = false;
+	#documentReadonly: boolean;
+	#userReadonly: boolean;
+	readonly #readonlyMessage: string;
+	#syncingReadonly = false;
+	#readonlyFeedbackElement: HTMLElement | undefined;
+	#readonlyFeedbackTimeout: ReturnType<typeof setTimeout> | undefined;
+	#readonlyAriaContainer: HTMLElement | undefined;
+	#readonlyAriaRegions: readonly [HTMLElement, HTMLElement] | undefined;
+	#readonlyAriaIndex = 0;
 
 	constructor(host: HTMLElement, initialState: InitialState) {
 		super();
 		this.#scrollHost = host;
+		this.#documentReadonly = initialState.documentReadonly;
+		this.#userReadonly = initialState.readonly;
+		this.#readonlyMessage = initialState.readonlyMessage;
+		this.#mountReadonlyLiveRegion();
 		this.#taskProgressProvider = createTaskProgressProvider(this.model, initialState.taskProgressLabels);
 
 		const messageSecret = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-message-secret"]')?.content;
@@ -192,7 +205,7 @@ class Editor extends Disposable {
 			: undefined;
 
 		this.model.sourceText.set(new StringValue(initialState.content), undefined);
-		this.model.readonlyMode.set(initialState.readonly, undefined);
+		this.model.readonlyMode.set(this.#documentReadonly || this.#userReadonly, undefined);
 		this.model.lineBreak.set(initialState.lineBreak, undefined);
 		this.model.renderWhitespace.set(initialState.renderWhitespace, undefined);
 
@@ -267,10 +280,18 @@ class Editor extends Disposable {
 			},
 			command: async ({ command: commandId }) => {
 				if (commandId === 'markdown.editor.triggerSuggest') {
+					if (this.#documentReadonly) {
+						this.#showReadonlyFeedback();
+						return;
+					}
 					await this.#completion?.start();
 					return;
 				}
 				if (commandId === 'markdown.editor.rename') {
+					if (this.#documentReadonly) {
+						this.#showReadonlyFeedback();
+						return;
+					}
 					await this.#rename?.start();
 					return;
 				}
@@ -282,10 +303,11 @@ class Editor extends Disposable {
 			highlightThemeChanged: () => {
 				this.#syntaxHighlighter.themeChanged();
 			},
-			configurationChanged: ({ highlightActiveBlock, renderWhitespace, lineBreak }) => {
+			configurationChanged: ({ highlightActiveBlock, renderWhitespace, lineBreak, documentReadonly }) => {
 				this.#view?.highlightActiveBlock.set(highlightActiveBlock, undefined);
 				this.model.renderWhitespace.set(renderWhitespace, undefined);
 				this.model.lineBreak.set(lineBreak, undefined);
+				this.#setDocumentReadonly(documentReadonly);
 			},
 			richLinkPresentations: ({ presentations }) => {
 				this.#linkPresentationProvider?.updatePresentations(presentations);
@@ -406,6 +428,12 @@ class Editor extends Disposable {
 		if (this.#disposed) {
 			return;
 		}
+		this.#hideReadonlyFeedback();
+		this.#readonlyFeedbackElement?.remove();
+		this.#readonlyFeedbackElement = undefined;
+		this.#readonlyAriaContainer?.remove();
+		this.#readonlyAriaContainer = undefined;
+		this.#readonlyAriaRegions = undefined;
 		window.removeEventListener('pagehide', this.#onPageHide);
 		for (const transport of Array.from(this.#codeBlockEditorHostTransports.values())) {
 			transport.dispose();
@@ -414,6 +442,79 @@ class Editor extends Disposable {
 		this.#syntaxHighlighter.dispose();
 		super.dispose();
 		this.#content.dispose();
+	}
+
+	#setDocumentReadonly(documentReadonly: boolean): void {
+		if (this.#documentReadonly === documentReadonly) {
+			return;
+		}
+		this.#documentReadonly = documentReadonly;
+		this.#view?.showReadonlyToggle.set(!documentReadonly, undefined);
+		if (!documentReadonly) {
+			this.#hideReadonlyFeedback();
+		}
+		this.#syncingReadonly = true;
+		try {
+			this.model.readonlyMode.set(documentReadonly || this.#userReadonly, undefined);
+		} finally {
+			this.#syncingReadonly = false;
+		}
+	}
+
+	#mountReadonlyLiveRegion(): void {
+		const container = document.createElement('div');
+		container.className = 'md-sr-only';
+		const createRegion = (): HTMLElement => {
+			const region = document.createElement('div');
+			region.setAttribute('role', 'status');
+			region.setAttribute('aria-live', 'polite');
+			region.setAttribute('aria-atomic', 'true');
+			return region;
+		};
+		const first = createRegion();
+		const second = createRegion();
+		container.append(first, second);
+		document.body.appendChild(container);
+		this.#readonlyAriaContainer = container;
+		this.#readonlyAriaRegions = [first, second];
+	}
+
+	#showReadonlyFeedback(): void {
+		if (!this.#documentReadonly || this.#disposed) {
+			return;
+		}
+		if (!this.#readonlyFeedbackElement) {
+			const banner = document.createElement('div');
+			banner.className = 'md-document-readonly-toast';
+			banner.setAttribute('aria-hidden', 'true');
+			banner.textContent = this.#readonlyMessage;
+			document.body.appendChild(banner);
+			this.#readonlyFeedbackElement = banner;
+		}
+		if (this.#readonlyAriaRegions) {
+			const [active, inactive] = this.#readonlyAriaIndex === 0
+				? this.#readonlyAriaRegions
+				: [this.#readonlyAriaRegions[1], this.#readonlyAriaRegions[0]];
+			this.#readonlyAriaIndex = 1 - this.#readonlyAriaIndex;
+			inactive.textContent = '';
+			active.textContent = this.#readonlyMessage;
+		}
+		this.#readonlyFeedbackElement.classList.add('visible');
+		if (this.#readonlyFeedbackTimeout !== undefined) {
+			clearTimeout(this.#readonlyFeedbackTimeout);
+		}
+		this.#readonlyFeedbackTimeout = setTimeout(() => {
+			this.#readonlyFeedbackTimeout = undefined;
+			this.#readonlyFeedbackElement?.classList.remove('visible');
+		}, 2500);
+	}
+
+	#hideReadonlyFeedback(): void {
+		if (this.#readonlyFeedbackTimeout !== undefined) {
+			clearTimeout(this.#readonlyFeedbackTimeout);
+			this.#readonlyFeedbackTimeout = undefined;
+		}
+		this.#readonlyFeedbackElement?.classList.remove('visible');
 	}
 
 	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean): void {
@@ -449,11 +550,16 @@ class Editor extends Disposable {
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
 			highlightActiveBlock,
+			showReadonlyToggle: !this.#documentReadonly,
 			presentation: model.readonlyMode.get() ? 'reading' : 'editing',
 			syntaxHighlighter: this.#syntaxHighlighter,
 			linkPresentationProvider: this.#linkPresentationProvider,
 			embeddedCodeEditorFactory,
 			onEmbeddedCodeEditorEdit: (block: CodeBlockAstNode, contentEdit: StringEdit) => {
+				if (this.#documentReadonly) {
+					this.#showReadonlyFeedback();
+					return;
+				}
 				const doc = model.document.get();
 				const blockOffset = findNodeOffsetById(doc, block);
 				if (blockOffset === undefined) { return; }
@@ -469,10 +575,35 @@ class Editor extends Disposable {
 				this.#send('openLink', this.#host.openLink({ href: url }));
 			},
 			onToggleCheckbox: (item, newChecked) => {
+				if (this.#documentReadonly) {
+					this.#showReadonlyFeedback();
+					return;
+				}
 				model.setTaskCheckboxChecked(item, newChecked);
 			},
 		}));
 		this.#view = view;
+		const onReadonlyKeyDown = (event: KeyboardEvent): void => {
+			if (this.#documentReadonly && !isNestedEditableTarget(event.target, view.element) && isEditingKeyEvent(event)) {
+				this.#showReadonlyFeedback();
+			}
+		};
+		const onReadonlyClipboardEdit = (event: ClipboardEvent): void => {
+			if (this.#documentReadonly && !isNestedEditableTarget(event.target, view.element)) {
+				event.preventDefault();
+				this.#showReadonlyFeedback();
+			}
+		};
+		view.element.addEventListener('keydown', onReadonlyKeyDown, true);
+		view.element.addEventListener('paste', onReadonlyClipboardEdit, true);
+		view.element.addEventListener('cut', onReadonlyClipboardEdit, true);
+		this._register({
+			dispose: () => {
+				view.element.removeEventListener('keydown', onReadonlyKeyDown, true);
+				view.element.removeEventListener('paste', onReadonlyClipboardEdit, true);
+				view.element.removeEventListener('cut', onReadonlyClipboardEdit, true);
+			},
+		});
 		this.#rename = this._register(new RenameController(model, view, this.#host, this.#versions));
 		this.#completion = this._register(new CompletionController(model, view, this.#host, this.#versions));
 		this.#diagnostics = this._register(new DiagnosticsController(model, view, this.#host, this.#versions));
@@ -615,7 +746,12 @@ class Editor extends Disposable {
 		this._register(autorun((reader) => {
 			const isReadonly = reader.readObservable(this.model.readonlyMode);
 			this.model.presentation.set(isReadonly ? 'reading' : 'editing', undefined);
-			if (!firstReadonly) {
+			if (this.#documentReadonly) {
+				if (!isReadonly) {
+					this.model.readonlyMode.set(true, undefined);
+				}
+			} else if (!firstReadonly && !this.#syncingReadonly) {
+				this.#userReadonly = isReadonly;
 				this.#send('setReadonly', this.#host.setReadonly({ readonly: isReadonly }));
 			}
 			firstReadonly = false;
@@ -740,11 +876,37 @@ function isInitialState(value: unknown): value is InitialState {
 	return typeof candidate.content === 'string'
 		&& isTaskProgressLabels(candidate.taskProgressLabels)
 		&& typeof candidate.readonly === 'boolean'
+		&& typeof candidate.readonlyMessage === 'string'
+		&& typeof candidate.documentReadonly === 'boolean'
 		&& typeof candidate.highlightActiveBlock === 'boolean'
 		&& typeof candidate.renderWhitespace === 'boolean'
 		&& (candidate.lineBreak === '\n' || candidate.lineBreak === '\r\n')
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);
+}
+
+function isNestedEditableTarget(target: EventTarget | null, editorRoot: HTMLElement): boolean {
+	const element = target instanceof HTMLElement
+		? target
+		: target instanceof Node
+			? target.parentElement
+			: null;
+	if (!element || element === editorRoot) {
+		return false;
+	}
+	const editable = element.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]');
+	return editable !== null && editable !== editorRoot;
+}
+
+function isEditingKeyEvent(event: KeyboardEvent): boolean {
+	if (event.metaKey || event.ctrlKey) {
+		const key = event.key.toLowerCase();
+		return key === 'v' || key === 'x' || key === 'z' || key === 'y';
+	}
+	if (event.altKey) {
+		return false;
+	}
+	return event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Enter';
 }
 
 function computeTextEdit(previousText: string, text: string): { start: number; endExclusive: number; text: string } {

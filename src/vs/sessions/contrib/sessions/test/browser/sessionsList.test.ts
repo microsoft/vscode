@@ -107,7 +107,7 @@ import { SessionsList, SessionsListSnapshotNode } from '../../../../../workbench
 import { SessionsFlatList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFlatList.js';
 import { SessionSectionRenderer } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
 import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, limitSessionsForList, QUICK_CHATS_SECTION_ID, sortSessions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
-import { ISessionChatItem, ISessionSection, NEW_CANVAS_SESSION_COMMAND_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemContextMenuId, SessionItemHasPinnedCanvasContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionToolbarMenuId, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListFocusedChatItemContext, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
+import { ISessionChatItem, ISessionSection, NEW_CANVAS_SESSION_COMMAND_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemContextMenuId, SessionItemHasPinnedCanvasContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionToolbarMenuId, SessionSectionTypeContext, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListFocusedChatItemContext, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -1628,7 +1628,13 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('lists pinned canvases under a Canvases header below Automations in the navigation list, highlights the shown one, opens Open Canvas from the header, and hides them while canvases are disabled', async () => {
+		test('collapses Canvases from its navigation header, preserves canvas activation, and opens canvases only from the add action', async () => {
+			let separateNavigation = true;
+			disposables.add(MenuRegistry.appendMenuItem(SessionSectionToolbarMenuId, {
+				command: { id: NEW_CANVAS_SESSION_COMMAND_ID, title: 'Open Canvas', icon: Codicon.add },
+				when: SessionSectionTypeContext.isEqualTo('canvases'),
+				group: 'navigation',
+			}));
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const createPin = (id: string, title: string, chatTitle: string | undefined, state: PinnedCanvasState) => upcastPartial<IPinnedCanvas>({
 				id,
@@ -1645,14 +1651,18 @@ suite('Sessions - SessionsList', () => {
 			const opened: string[] = [];
 			const commands: string[] = [];
 			const harness = createListHarness(disposables, [], instantiationService => {
-				ChatContextKeys.enabled.bindTo(instantiationService.get(IContextKeyService)).set(true);
-				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
+				instantiationService.stub(IListService, disposables.add(new ListService()));
+				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				instantiationService.stub(IContextKeyService, contextKeyService);
+				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+				ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
 					override readonly runs = constObservable([]);
 					override readonly catalogueState = constObservable('ready' as const);
 				});
 				instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async (id: string) => { commands.push(id); return undefined; } }));
+				instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
 				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
 				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 					override readonly activeCustomView = activeCustomView;
@@ -1665,7 +1675,7 @@ suite('Sessions - SessionsList', () => {
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
-				showNavigationShortcuts: () => true,
+				showNavigationShortcuts: () => separateNavigation,
 				navigationContainer,
 				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
 					enabled,
@@ -1705,14 +1715,45 @@ suite('Sessions - SessionsList', () => {
 			clickRow(planRow);
 			clickRow(canvasesRow);
 			await Promise.resolve();
+			const collapsed = {
+				rows: navigationRows(),
+				expanded: navigationRow('Canvases')?.getAttribute('aria-expanded'),
+				role: navigationRow('Canvases')?.getAttribute('role'),
+			};
+			list.updateNavigationVisibility();
+			const afterRefresh = navigationRows();
+			const navigation = navigationContainer.querySelector<HTMLElement>('.monaco-list')!;
+			navigation.focus();
+			if (!mainWindow.document.hasFocus()) {
+				navigation.dispatchEvent(new FocusEvent('focus'));
+			}
+			harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('list.select')!.handler);
+			await timeout(0);
+			const expanded = navigationRows();
+			const expandedAria = navigationRow('Canvases')?.getAttribute('aria-expanded');
+			await retry(async () => assert.ok(navigationRow('Canvases')?.querySelector('.session-section-toolbar .action-label')), 10, 20);
+			const addButton = navigationRow('Canvases')?.querySelector<HTMLElement>('.session-section-toolbar .action-label');
+			assert.ok(addButton);
+			clickRow(addButton);
+			await Promise.resolve();
+			const afterAdd = navigationRows();
+			clickRow(navigationRow('Canvases')!);
+			separateNavigation = false;
+			list.updateNavigationVisibility();
+			const treeCollapsed = listContainer.querySelector('[aria-label="Canvases"]')?.getAttribute('aria-expanded');
+			separateNavigation = true;
+			list.updateNavigationVisibility();
+			clickRow(navigationRow('Canvases')!);
 			// Right-clicking the header's toolbar focuses the header in the navigation list, which the tree does not contain.
-			canvasesRow.querySelector('.session-section-toolbar')?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			navigationRow('Canvases')?.querySelector('.session-section-toolbar')?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 			const focusedAfterToolbarContextMenu = navigationContainer.querySelector('.monaco-list-row.focused .session-section-label')?.textContent;
 			entries.set([], undefined);
 			const afterUnpin = navigationRows();
+			clickRow(navigationRow('Canvases')!);
+			const emptyCollapsed = navigationRow('Canvases')?.getAttribute('aria-expanded');
 			enabled.set(false, undefined);
 
-			assert.deepStrictEqual({ initial, tree: treeRows(), shown, opened, commands, focusedAfterToolbarContextMenu, afterUnpin, disabled: navigationRows() }, {
+			assert.deepStrictEqual({ initial, tree: treeRows(), shown, opened, collapsed, afterRefresh, treeCollapsed, expanded, expandedAria, afterAdd, commands, focusedAfterToolbarContextMenu, afterUnpin, emptyCollapsed, disabled: navigationRows() }, {
 				initial: [
 					'New Session',
 					'Automations',
@@ -1724,9 +1765,27 @@ suite('Sessions - SessionsList', () => {
 				tree: [],
 				shown: [true, false],
 				opened: ['plan'],
+				collapsed: {
+					rows: ['New Session', 'Automations', 'Canvases', 'Customizations'],
+					expanded: 'false',
+					role: 'button',
+				},
+				afterRefresh: ['New Session', 'Automations', 'Canvases', 'Customizations'],
+				treeCollapsed: 'false',
+				expanded: [
+					'New Session',
+					'Automations',
+					'Canvases',
+					{ label: 'Agent Plan', depth: '1', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: true, unavailable: false },
+					{ label: 'Preview', depth: '1', ariaLabel: 'Preview, canvas, Unavailable', active: false, unavailable: true },
+					'Customizations',
+				],
+				expandedAria: 'true',
+				afterAdd: expanded,
 				commands: [NEW_CANVAS_SESSION_COMMAND_ID],
 				focusedAfterToolbarContextMenu: 'Canvases',
 				afterUnpin: ['New Session', 'Automations', 'Canvases', 'Customizations'],
+				emptyCollapsed: 'false',
 				disabled: ['New Session', 'Automations', 'Customizations'],
 			});
 		});

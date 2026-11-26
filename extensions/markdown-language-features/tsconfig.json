@@ -18,6 +18,7 @@
 		"../../src/vscode-dts/vscode.proposed.documentSyntaxHighlighting.d.ts",
 		"../../src/vscode-dts/vscode.proposed.externalUriOpener.d.ts",
 		"../../src/vscode-dts/vscode.proposed.linkPresentation.d.ts",
+		"../../src/vscode-dts/vscode.proposed.textDocumentReadonly.d.ts",
 		"../../src/vscode-dts/vscode.proposed.textEditorDiffInformation.d.ts"
 	]
 }

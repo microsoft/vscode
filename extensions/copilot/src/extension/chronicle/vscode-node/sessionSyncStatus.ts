@@ -51,7 +51,7 @@ export class SessionSyncStatus extends Disposable {
 
 	private _updateVisibility(): void {
 		const localEnabled = this._configService.getExperimentBasedConfig(ConfigKey.LocalIndexEnabled, this._expService);
-		if (!localEnabled || vscode.workspace.isAgentSessionsWorkspace) {
+		if (!localEnabled || vscode.workspace.isAgentManaged) {
 			this._statusItem.hide();
 		} else {
 			this._statusItem.show();

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { OS, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { observableValue, constObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -230,7 +230,7 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true, r
 	instantiationService.stub(ITerminalProfileService, profileService);
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
 	instantiationService.stub(IAgentHostTerminalService, {
-		registerEntry: (): IDisposable => ({ dispose() { } }),
+		registerEntry: () => ({ setName() { }, dispose() { } }),
 		profiles: observableValue('test', []),
 	});
 
