@@ -8,7 +8,7 @@ import { Queue } from '../../../../../base/common/async.js';
 import { removeTrailingPathSeparator } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState, WorkbenchScope } from '../../../../../platform/workspace/common/workspace.js';
+import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState, WorkbenchScope, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { getWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { IWorkspaceEditingService } from '../../../workspaces/common/workspaceEditing.js';
@@ -22,6 +22,7 @@ export class AgentsWorkspaceContextService extends Disposable implements IWorksp
 
 	readonly onDidChangeWorkbenchState = Event.None;
 	readonly onDidChangeWorkbenchScope: Event<WorkbenchScope> = Event.None;
+	readonly onDidChangeWorkbenchMode: Event<WorkbenchMode> = Event.None;
 	readonly onDidChangeWorkspaceName = Event.None;
 	readonly onDidEnterWorkspace = Event.None;
 	readonly onWillRemoveFolders = Event.None;
@@ -53,6 +54,10 @@ export class AgentsWorkspaceContextService extends Disposable implements IWorksp
 
 	getWorkbenchScope(): WorkbenchScope {
 		return WorkbenchScope.ALL;
+	}
+
+	getWorkbenchMode(): WorkbenchMode {
+		return WorkbenchMode.Agents;
 	}
 
 	getWorkbenchState(): WorkbenchState {

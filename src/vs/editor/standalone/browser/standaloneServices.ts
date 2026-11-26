@@ -75,7 +75,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../platform/telemetry/c
 import { IUserInteractionService } from '../../../platform/userInteraction/browser/userInteractionService.js';
 import { UserInteractionService } from '../../../platform/userInteraction/browser/userInteractionServiceImpl.js';
 import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
-import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, STANDALONE_EDITOR_WORKSPACE_ID, WorkbenchState, WorkbenchScope, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, STANDALONE_EDITOR_WORKSPACE_ID, WorkbenchState, WorkbenchScope, WorkbenchMode, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from '../../../platform/workspace/common/workspaceTrust.js';
 import { ICodeEditor, IDiffEditor } from '../../browser/editorBrowser.js';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../browser/services/bulkEditService.js';
@@ -756,6 +756,7 @@ class StandaloneWorkspaceContextService implements IWorkspaceContextService {
 	private readonly _onDidChangeWorkbenchState = new Emitter<WorkbenchState>();
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 	public readonly onDidChangeWorkbenchScope: Event<WorkbenchScope> = Event.None;
+	public readonly onDidChangeWorkbenchMode: Event<WorkbenchMode> = Event.None;
 
 	private readonly workspace: IWorkspace;
 
@@ -774,6 +775,10 @@ class StandaloneWorkspaceContextService implements IWorkspaceContextService {
 
 	public getWorkbenchScope(): WorkbenchScope {
 		return WorkbenchScope.WORKSPACE;
+	}
+
+	public getWorkbenchMode(): WorkbenchMode {
+		return WorkbenchMode.Editor;
 	}
 
 	public getWorkbenchState(): WorkbenchState {

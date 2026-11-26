@@ -26,7 +26,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { isWindows, OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState, WorkbenchScope } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState, WorkbenchScope, WorkbenchMode } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
@@ -114,6 +114,7 @@ suite('TerminalSandboxService - network domains', () => {
 		_serviceBrand: undefined;
 		readonly onDidChangeWorkbenchState = Event.None;
 		readonly onDidChangeWorkbenchScope = Event.None;
+		readonly onDidChangeWorkbenchMode = Event.None;
 		readonly onDidChangeWorkspaceName = Event.None;
 		readonly onWillChangeWorkspaceFolders = Event.None;
 		private readonly _onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
@@ -134,6 +135,9 @@ suite('TerminalSandboxService - network domains', () => {
 
 		getWorkbenchScope(): WorkbenchScope {
 			return WorkbenchScope.WORKSPACE;
+		}
+		getWorkbenchMode(): WorkbenchMode {
+			return WorkbenchMode.Editor;
 		}
 
 		getWorkspaceFolder(_resource: URI): IWorkspaceFolder | null {
