@@ -135,10 +135,12 @@ suite('RemoteSessionTools', () => {
 			noInheritance: description.includes('nothing is cloned, copied, or inherited from the origin'),
 			trustedWorkspace: description.includes('already exist and be trusted on the target'),
 			replies: description.includes('send_remote_message with session "origin"'),
+			shareLink: description.includes('openLink as the Markdown link target'),
+			reuseLink: description.includes('as the session argument to get_remote_session or send_remote_message'),
 			noBlindRetry: description.includes('Do not retry an uncertain creation'),
 			connectedWindow: description.includes('Keep the coordinating Agents window connected'),
 			agentHostSource: description.includes('Requires an Agent Host originating chat'),
-		}, { noWorkspace: true, noInheritance: true, trustedWorkspace: true, replies: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
+		}, { noWorkspace: true, noInheritance: true, trustedWorkspace: true, replies: true, shareLink: true, reuseLink: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
 	});
 
 	test('creation waits for exact chat context when invoked in the background', () => {
@@ -207,7 +209,7 @@ suite('RemoteSessionTools', () => {
 		});
 	});
 
-	test('invocation uses the calling chat, stable request ID and cancellation token', async () => {
+	test('invocation preserves the calling context and returns only openLink as the session reference', async () => {
 		const { create, calls } = setup();
 		const invocation: IToolInvocation = {
 			callId: 'call-id',
@@ -221,13 +223,20 @@ suite('RemoteSessionTools', () => {
 			id: calls[0].requestId,
 			token: calls[0].token,
 			prompt: calls[0].options.prompt,
-			response: response.content,
+			response: response.content.map(part => part.kind === 'text' ? JSON.parse(part.value) : part),
 		}, {
 			source,
 			id: 'call-id',
 			token: CancellationToken.None,
 			prompt: 'Run the Linux tests',
-			response: [{ kind: 'text', value: JSON.stringify(result) }],
+			response: [{
+				status: result.status,
+				openLink: result.openLink,
+				host: result.host,
+				model: result.model,
+				workspace: result.workspace,
+				placement: result.placement,
+			}],
 		});
 	});
 
