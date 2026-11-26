@@ -174,13 +174,13 @@ export class ViewOverlayLine implements IVisibleLine {
 
 		this._renderedContent = result;
 
-		sb.appendString('<div style="top:');
+		sb.appendString('<div style="transform:translateY(');
 		sb.appendString(String(deltaTop));
-		sb.appendString('px;height:');
+		sb.appendString('px);height:');
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
-		sb.appendString('px;">');
+		sb.appendString('px;will-change:transform;">');
 		sb.appendString(result);
 		sb.appendString('</div>');
 
@@ -189,7 +189,8 @@ export class ViewOverlayLine implements IVisibleLine {
 
 	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void {
 		if (this._domNode) {
-			this._domNode.setTop(deltaTop);
+			this._domNode.domNode.style.transform = `translateY(${deltaTop}px)`;
+			this._domNode.domNode.style.willChange = 'transform';
 			this._domNode.setHeight(lineHeight);
 			this._domNode.setLineHeight(lineHeight);
 		}
