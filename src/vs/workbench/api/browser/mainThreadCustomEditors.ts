@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IReference, toDisposable } from '../../../base/common/lifecycle.js';
 import { ISelection } from '../../../editor/common/core/selection.js';
 import { IOutlineService } from '../../services/outline/browser/outline.js';
 import { MainThreadCustomTextEditorNavigation } from './mainThreadCustomTextEditorNavigation.js';
@@ -58,9 +58,16 @@ const enum CustomEditorModelType {
 
 type CustomEditorWebviewInput = CustomEditorInput | CustomEditorDiffInput | CustomEditorSideBySideDiffInput;
 
+interface CustomEditorDiffInitData {
+	readonly title: string;
+	readonly contentOptions: extHostProtocol.IWebviewContentOptions;
+	readonly options: extHostProtocol.IWebviewPanelOptions;
+	readonly active: boolean;
+}
+
 interface CustomEditorSideBySideDiffData {
 	readonly handle: extHostProtocol.WebviewHandle;
-	readonly getInitData: () => extHostProtocol.CustomEditorDiffInitData;
+	readonly initData: CustomEditorDiffInitData;
 }
 
 interface PendingCustomEditorSideBySideDiffResolution {
@@ -106,7 +113,6 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
-		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -248,28 +254,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					return;
 				}
 
-				let isReadonly = this.isWebviewInputReadonly(webviewInput, resolvedModelRef.object);
-				const readonlyListener = new MutableDisposable();
-				const updateReadonly = () => {
-					const nextReadonly = this.isWebviewInputReadonly(webviewInput, resolvedModelRef.object);
-					if (nextReadonly !== isReadonly) {
-						isReadonly = nextReadonly;
-						this._proxyCustomEditors.$onDidChangeCustomEditorReadonly(handle, nextReadonly);
-					}
-				};
-				const watchModelReadonly = () => {
-					readonlyListener.value = resolvedModelRef.object.onDidChangeReadonly(updateReadonly);
-				};
-				watchModelReadonly();
-				const providerCapabilitiesListener = this._fileService.onDidChangeFileSystemProviderCapabilities(e => {
-					if (e.scheme === resolvedModelRef.object.resource.scheme) {
-						updateReadonly();
-					}
-				});
-
 				const disposeModelRefs = () => {
-					readonlyListener.dispose();
-					providerCapabilitiesListener.dispose();
 					additionalModelRefs.dispose();
 
 					// If the model is still dirty, make sure we have time to save it
@@ -304,8 +289,6 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					webviewInput.onMove(async (newResource: URI) => {
 						const oldModel = resolvedModelRef;
 						resolvedModelRef = await this.getOrCreateCustomEditorModel(modelType, newResource, viewType, {}, CancellationToken.None);
-						watchModelReadonly();
-						updateReadonly();
 						this._proxyCustomEditors.$onMoveCustomEditor(handle, newResource, viewType);
 						oldModel.dispose();
 					});
@@ -317,7 +300,6 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,
 						active: webviewInput === this._editorService.activeEditor,
-						readonly: isReadonly,
 					};
 					const position = editorGroupToColumn(this._editorGroupService, webviewInput.group || 0);
 
@@ -334,7 +316,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 							cancellation
 						);
 					} else if (webviewInput instanceof CustomEditorSideBySideDiffInput) {
-						await this.resolveCustomEditorSideBySideDiff(modelType, webviewInput, handle, viewType, () => ({ ...initData, readonly: isReadonly }), position, cancellation);
+						await this.resolveCustomEditorSideBySideDiff(modelType, webviewInput, handle, viewType, initData, position, cancellation);
 					} else {
 						const actualResource = modelType === CustomEditorModelType.Text ? this._uriIdentityService.asCanonicalUri(resource) : resource;
 						await this._proxyCustomEditors.$resolveCustomEditor(actualResource, handle, viewType, initData, position, cancellation);
@@ -345,8 +327,6 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
-					readonlyListener.dispose();
-					providerCapabilitiesListener.dispose();
 					additionalModelRefs.dispose();
 					resolvedModelRef.dispose();
 					return;
@@ -355,13 +335,6 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		}));
 
 		this._editorProviders.set(viewType, disposables);
-	}
-
-	private isWebviewInputReadonly(webviewInput: CustomEditorWebviewInput, model: ICustomEditorModel): boolean {
-		if (webviewInput instanceof CustomEditorSideBySideDiffInput && webviewInput.side === 'original') {
-			return true;
-		}
-		return Boolean(model.isReadonly());
 	}
 
 	private getOrAddWebviewInput(webviewInput: CustomEditorWebviewInput, serializeBuffersForPostMessage: boolean): extHostProtocol.WebviewHandle {
@@ -438,7 +411,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		webviewInput: CustomEditorSideBySideDiffInput,
 		handle: extHostProtocol.WebviewHandle,
 		viewType: string,
-		getInitData: () => extHostProtocol.CustomEditorDiffInitData,
+		initData: CustomEditorDiffInitData,
 		position: EditorGroupColumn,
 		cancellation: CancellationToken,
 	): Promise<void> {
@@ -466,7 +439,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 			}
 		}));
 
-		pending[webviewInput.side] = { handle, getInitData };
+		pending[webviewInput.side] = { handle, initData };
 
 		if (pending.original && pending.modified && !pending.started) {
 			pending.started = true;
@@ -483,8 +456,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						},
 						viewType,
 						{
-							original: pending.original!.getInitData(),
-							modified: pending.modified!.getInitData(),
+							original: pending.original!.initData,
+							modified: pending.modified!.initData,
 						},
 						position,
 						pending.cancellation.token

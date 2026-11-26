@@ -10,12 +10,12 @@
   "enabledApiProposals": [
     "agentEditorComments",
     "customEditorDiffs",
-    "customEditorReadonly",
     "customTextEditorNavigation",
     "documentDiff",
     "documentSyntaxHighlighting",
     "externalUriOpener",
     "linkPresentation",
+    "textDocumentReadonly",
     "textEditorDiffInformation"
   ],
   "engines": {

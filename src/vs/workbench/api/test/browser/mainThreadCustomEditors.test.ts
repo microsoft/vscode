@@ -15,7 +15,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { IFileService, IFileSystemProviderCapabilitiesChangeEvent } from '../../../../platform/files/common/files.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -85,12 +85,10 @@ suite('MainThreadCustomEditors', () => {
 		resolveCustomEditor?: () => Promise<void>;
 		capabilities?: CustomEditorProviderCapabilities;
 		textEditor?: boolean;
-		readonlyState?: { value: boolean; readonly onDidChange: Emitter<void> };
 		resolveNavigation?: (handle: string, token: CancellationToken) => Promise<{ selection: undefined } | undefined>;
 	}) {
 		const calls: string[] = [];
 		const handles: string[] = [];
-		const readonlyUpdates: { readonly handle: string; readonly readonly: boolean | undefined; readonly kind: 'init' | 'change' }[] = [];
 		const handleName = (handle: string) => `webview#${handles.indexOf(handle) + 1}`;
 
 		const createAttempts = new Map<string, number>();
@@ -107,14 +105,9 @@ suite('MainThreadCustomEditors', () => {
 				calls.push(`$disposeCustomDocument(${URI.revive(resource).path})`);
 			}
 
-			override $resolveCustomEditor(resource: UriComponents, handle: string, _viewType: string, initData: { readonly?: boolean }) {
+			override $resolveCustomEditor(resource: UriComponents, handle: string) {
 				calls.push(`$resolveCustomEditor(${URI.revive(resource).path}, ${handleName(handle)})`);
-				readonlyUpdates.push({ handle: handleName(handle), readonly: initData.readonly, kind: 'init' });
 				return extHost.resolveCustomEditor?.() ?? Promise.resolve();
-			}
-
-			override $onDidChangeCustomEditorReadonly(handle: string, readonly: boolean): void {
-				readonlyUpdates.push({ handle: handleName(handle), readonly, kind: 'change' });
 			}
 
 			override async $resolveCustomEditorInlineDiff(originalResource: UriComponents, modifiedResource: UriComponents, handle: string) {
@@ -178,8 +171,7 @@ suite('MainThreadCustomEditors', () => {
 		instantiationService.stub(IEditorService, { activeEditor: undefined });
 		instantiationService.stub(IUriIdentityService, { asCanonicalUri: (uri: URI) => uri });
 		instantiationService.stub(IUntitledTextEditorService, { get: () => undefined });
-		const onDidChangeCapabilities = store.add(new Emitter<IFileSystemProviderCapabilitiesChangeEvent>());
-		instantiationService.stub(IFileService, { onDidFilesChange: Event.None, onDidChangeFileSystemProviderRegistrations: Event.None, onDidChangeFileSystemProviderCapabilities: onDidChangeCapabilities.event });
+		instantiationService.stub(IFileService, { onDidFilesChange: Event.None, onDidChangeFileSystemProviderRegistrations: Event.None, onDidChangeFileSystemProviderCapabilities: Event.None });
 		instantiationService.stub(ILabelService, { onDidChangeFormatters: Event.None, getUriLabel: (uri: URI) => uri.path });
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(IFilesConfigurationService, { onDidChangeReadonly: Event.None, isReadonly: () => false });
@@ -195,20 +187,12 @@ suite('MainThreadCustomEditors', () => {
 			const textModel = store.add(createTextModel('text', undefined, undefined, resource));
 			const resolved = new class extends mock<IResolvedTextEditorModel>() {
 				override textEditorModel = textModel;
-				override isReadonly() { return extHost.readonlyState?.value ?? false; }
+				override isReadonly() { return false; }
 			};
 			instantiationService.stub(ITextModelService, { createModelReference: async () => ({ object: resolved, dispose: () => { } }) });
 			instantiationService.stub(ITextFileService, {
 				files: new class extends mock<ITextFileEditorModelManager>() {
-					override get() {
-						if (!extHost.readonlyState) {
-							return undefined;
-						}
-						return {
-							onDidChangeOrphaned: Event.None,
-							onDidChangeReadonly: extHost.readonlyState.onDidChange.event,
-						} as never;
-					}
+					override get() { return undefined; }
 					override onDidChangeDirty = Event.None;
 				},
 				isDirty: () => false
@@ -255,74 +239,8 @@ suite('MainThreadCustomEditors', () => {
 			return { input };
 		}
 
-		return { calls, readonlyUpdates, onDidChangeCapabilities, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
+		return { calls, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
 	}
-
-	test('refreshes panel read-only state when filesystem provider capabilities change', async () => {
-		const onDidChange = store.add(new Emitter<void>());
-		const readonlyState = { value: false, onDidChange };
-		const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, readonlyState });
-		const { input } = fixture.createInput();
-		await input.resolve();
-
-		// Unrelated scheme should be ignored even if readonlyState flipped.
-		readonlyState.value = true;
-		fixture.onDidChangeCapabilities.fire({ scheme: 'other', provider: {} as never });
-
-		// Matching scheme flips writable -> readonly.
-		fixture.onDidChangeCapabilities.fire({ scheme: resource.scheme, provider: {} as never });
-
-		// Matching scheme flips readonly -> writable.
-		readonlyState.value = false;
-		fixture.onDidChangeCapabilities.fire({ scheme: resource.scheme, provider: {} as never });
-
-		input.dispose();
-		await timeout(0);
-
-		// Capability changes after disposal should not fire.
-		readonlyState.value = true;
-		fixture.onDidChangeCapabilities.fire({ scheme: resource.scheme, provider: {} as never });
-
-		assert.deepStrictEqual({ readonlyUpdates: fixture.readonlyUpdates, unexpectedErrors }, {
-			readonlyUpdates: [
-				{ handle: 'webview#1', readonly: false, kind: 'init' },
-				{ handle: 'webview#1', readonly: true, kind: 'change' },
-				{ handle: 'webview#1', readonly: false, kind: 'change' },
-			],
-			unexpectedErrors: [],
-		});
-	});
-
-	test('propagates initial and dynamic read-only state for custom text editors', async () => {
-		const onDidChange = store.add(new Emitter<void>());
-		const readonlyState = { value: true, onDidChange };
-		const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, readonlyState });
-		const { input } = fixture.createInput();
-		await input.resolve();
-
-		readonlyState.value = false;
-		onDidChange.fire();
-		// Duplicate notification with unchanged state should not fire again.
-		onDidChange.fire();
-		readonlyState.value = true;
-		onDidChange.fire();
-
-		input.dispose();
-		await timeout(0);
-
-		// Changes after disposal should not fire.
-		readonlyState.value = false;
-		onDidChange.fire();
-
-		assert.deepStrictEqual({ readonlyUpdates: fixture.readonlyUpdates, unexpectedErrors }, {
-			readonlyUpdates: [
-				{ handle: 'webview#1', readonly: true, kind: 'init' },
-				{ handle: 'webview#1', readonly: false, kind: 'change' },
-				{ handle: 'webview#1', readonly: true, kind: 'change' },
-			],
-			unexpectedErrors: [],
-		});
-	});
 
 	test('custom text navigation resolves only after its editor and invalidates Outline capability on disposal', async () => {
 		const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true } });

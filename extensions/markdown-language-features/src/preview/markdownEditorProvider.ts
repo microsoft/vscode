@@ -373,7 +373,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			get version() { return vsCodeDocument.version; },
 			getText: () => vsCodeDocument.getText(),
 			applyEdits: async (version, edits) => {
-				if (webviewPanel.isReadonly) {
+				if (document.isReadonly) {
 					return false;
 				}
 				const applied = await vsCodeDocument.applyEdits(version, edits);
@@ -431,7 +431,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		editorWrites: vscode.Event<void>,
 	): void {
 		let webviewReady = false;
-		let documentReadonly = webviewPanel.isReadonly;
+		let documentReadonly = document.isReadonly;
 		let userReadonly = this.#getInitialReadonly(document);
 		const isEffectiveReadonly = (): boolean => documentReadonly || userReadonly;
 		// Inline diff editors are not usage sessions of the Markdown editor itself
@@ -725,11 +725,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onDidDeleteFiles = vscode.workspace.onDidDeleteFiles(event => invalidateResourceCache(event.files));
 		const onDidRenameFiles = vscode.workspace.onDidRenameFiles(event => invalidateResourceCache(
 			event.files.flatMap(file => [file.oldUri, file.newUri])));
-		const onDidChangeReadonly = webviewPanel.onDidChangeReadonly(isReadonly => {
-			if (documentReadonly === isReadonly) {
+		const onDidChangeReadonly = vscode.workspace.onDidChangeTextDocumentReadonly(changedDocument => {
+			if (changedDocument.uri.toString() !== document.uri.toString() || documentReadonly === changedDocument.isReadonly) {
 				return;
 			}
-			documentReadonly = isReadonly;
+			documentReadonly = changedDocument.isReadonly;
 			telemetry?.session.setMode(isEffectiveReadonly() ? 'read' : 'edit');
 			if (editorWebview.ready) {
 				postConfiguration();

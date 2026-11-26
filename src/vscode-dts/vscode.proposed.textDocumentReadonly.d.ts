@@ -5,15 +5,18 @@
 
 declare module 'vscode' {
 
-	export interface WebviewPanel {
+	export interface TextDocument {
 		/**
-		 * Whether the custom editor shown in this panel is read-only.
+		 * `true` if the document is read-only.
 		 */
 		readonly isReadonly: boolean;
+	}
 
+	export namespace workspace {
 		/**
-		 * Fired when {@link isReadonly} changes.
+		 * An event that is emitted when the {@link TextDocument.isReadonly read-only state} of a
+		 * {@link TextDocument text document} changes.
 		 */
-		readonly onDidChangeReadonly: Event<boolean>;
+		export const onDidChangeTextDocumentReadonly: Event<TextDocument>;
 	}
 }

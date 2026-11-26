@@ -1094,7 +1094,6 @@ export interface CustomEditorDiffInitData {
 	readonly contentOptions: IWebviewContentOptions;
 	readonly options: IWebviewPanelOptions;
 	readonly active: boolean;
-	readonly readonly?: boolean;
 }
 
 export interface CustomEditorSideBySideDiffWebviewHandles {
@@ -1238,12 +1237,10 @@ export interface ExtHostCustomEditorsShape {
 			contentOptions: IWebviewContentOptions;
 			options: IWebviewPanelOptions;
 			active: boolean;
-			readonly?: boolean;
 		},
 		position: EditorGroupColumn,
 		cancellation: CancellationToken
 	): Promise<void>;
-	$onDidChangeCustomEditorReadonly(handle: WebviewHandle, readonly: boolean): void;
 	$resolveCustomEditorInlineDiff(
 		originalResource: UriComponents,
 		modifiedResource: UriComponents,
@@ -2553,12 +2550,14 @@ export interface IModelAddedData {
 	EOL: string;
 	languageId: string;
 	isDirty: boolean;
+	isReadonly?: boolean;
 	encoding: string;
 }
 export interface ExtHostDocumentsShape {
 	$acceptModelLanguageChanged(strURL: UriComponents, newLanguageId: string): void;
 	$acceptModelSaved(strURL: UriComponents): void;
 	$acceptDirtyStateChanged(strURL: UriComponents, isDirty: boolean): void;
+	$acceptReadonlyStateChanged(strURL: UriComponents, isReadonly: boolean): void;
 	$acceptEncodingChanged(strURL: UriComponents, encoding: string): void;
 	$acceptModelChanged(strURL: UriComponents, e: ISerializedModelContentChangedEvent, isDirty: boolean): void;
 }

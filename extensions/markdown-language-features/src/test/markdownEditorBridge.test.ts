@@ -181,13 +181,20 @@ suite('Markdown editor bridge', () => {
 		}
 	});
 	test('propagates document read-only state, blocks edits, and updates on change', async () => {
-		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Staged' });
-		const panel = new TestPanel(true);
+		const fileName = `markdown-editor-readonly-${Date.now()}.md`;
+		const file = vscode.Uri.file(path.join(os.tmpdir(), fileName));
+		await vscode.workspace.fs.writeFile(file, new TextEncoder().encode('# Staged'));
+		const filesConfig = vscode.workspace.getConfiguration('files');
+		const previousReadonlyInclude = filesConfig.inspect<Record<string, boolean>>('readonlyInclude')?.globalValue;
+		await filesConfig.update('readonlyInclude', { ...(previousReadonlyInclude ?? {}), [`**/${fileName}`]: true }, vscode.ConfigurationTarget.Global);
+		const document = await vscode.workspace.openTextDocument(file);
+		const panel = new TestPanel();
 		const state = new TestMemento();
 		const provider = createProvider(state);
 		const cancellation = new vscode.CancellationTokenSource();
 		const configurations: Parameters<MarkdownEditorRenderer['configurationChanged']>[0][] = [];
 		try {
+			await until(() => document.isReadonly);
 			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
 			const initialStateMatch = /<meta id="vscode-markdown-editor-initial-state" content="([^"]+)"/.exec(panel.webview.html);
 			assert.ok(initialStateMatch);
@@ -206,15 +213,15 @@ suite('Markdown editor bridge', () => {
 				await renderer.host.setReadonly({ readonly: false });
 				assert.strictEqual(state.values.has('markdown.editor.readonly'), false);
 
-				// Edits from the webview must be rejected while the panel is read-only.
+				// Edits from the webview must be rejected while the document is read-only.
 				renderer.client.applyEdits([{ kind: 'stringEdits', path: [], stringEdits: [{ offset: 8, length: 0, newText: ' edited' }] }]);
 				await new Promise(resolve => setTimeout(resolve, 50));
 				assert.strictEqual(document.getText(), '# Staged');
 
-				// Toggling the panel writable pushes updated configuration to the webview.
-				panel.setReadonly(false);
-				await until(() => configurations.length === 2);
-				assert.strictEqual(configurations[1].documentReadonly, false);
+				// Making the document writable pushes updated configuration to the webview.
+				await filesConfig.update('readonlyInclude', previousReadonlyInclude, vscode.ConfigurationTarget.Global);
+				await until(() => configurations.length >= 2 && configurations[configurations.length - 1].documentReadonly === false);
+				assert.strictEqual(document.isReadonly, false);
 
 				await renderer.host.setReadonly({ readonly: false });
 				assert.strictEqual(state.values.get('markdown.editor.readonly'), false);
@@ -222,9 +229,11 @@ suite('Markdown editor bridge', () => {
 				renderer.dispose();
 			}
 		} finally {
+			await filesConfig.update('readonlyInclude', previousReadonlyInclude, vscode.ConfigurationTarget.Global);
 			panel.dispose();
 			provider.dispose();
 			cancellation.dispose();
+			await vscode.workspace.fs.delete(file);
 		}
 	});
 });
@@ -316,29 +325,13 @@ class TestPanel implements vscode.WebviewPanel {
 	readonly viewColumn = undefined;
 	readonly active = true;
 	readonly visible = true;
-	#isReadonly: boolean;
-	readonly #onDidChangeReadonly = new vscode.EventEmitter<boolean>();
-	readonly onDidChangeReadonly = this.#onDidChangeReadonly.event;
 	readonly #dispose = new vscode.EventEmitter<void>();
 	readonly onDidDispose = this.#dispose.event;
 	readonly onDidChangeViewState: vscode.Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = () => new vscode.Disposable(() => { });
-	constructor(isReadonly = false) {
-		this.#isReadonly = isReadonly;
-	}
-	get isReadonly(): boolean {
-		return this.#isReadonly;
-	}
-	setReadonly(value: boolean): void {
-		if (this.#isReadonly !== value) {
-			this.#isReadonly = value;
-			this.#onDidChangeReadonly.fire(value);
-		}
-	}
 	reveal(): void { }
 	dispose(): void {
 		this.#dispose.fire();
 		this.#dispose.dispose();
-		this.#onDidChangeReadonly.dispose();
 		this.webview.incoming.dispose();
 		this.webview.outgoing.dispose();
 	}
