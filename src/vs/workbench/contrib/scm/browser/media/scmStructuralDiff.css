@@ -1,0 +1,52 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The rows of structural changes, which views that list files align with their own rows. */
+
+.scm-structural-change {
+	display: flex;
+	height: 100%;
+}
+
+.scm-structural-change > .scm-structural-change-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size160);
+	margin-right: var(--vscode-spacing-size60);
+}
+
+.scm-structural-change > .name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.scm-structural-change > .scm-structural-change-metadata {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size60);
+	margin-left: var(--vscode-spacing-size60);
+}
+
+.scm-structural-change-annotation {
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+	opacity: 0.7;
+}
+
+.scm-structural-change-status.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.scm-structural-change-status.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.scm-structural-change-status.modified,
+.scm-structural-change-status.renamed {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
