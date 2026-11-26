@@ -122,7 +122,8 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// foo: (339, 12)
 		// foo(339:12)                             [#229842]
 		// foo (339:12)                            [#229842]
-		`:? ?[\\[\\(]${r()}(?:(?:, ?|:)${c()})?[\\]\\)]` + eolSuffix,
+		// foo:(339,12)-(341,789)                  [#120170]
+		`:? ?[\\[\\(]${r()}(?:(?:, ?|:)${c()})?[\\]\\)](?:-[\\[\\(]${re()}(?:, ?|:)${ce()}[\\]\\)])?` + eolSuffix,
 	];
 
 	const suffixClause = lineAndColumnRegexClauses
