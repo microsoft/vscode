@@ -817,6 +817,10 @@ suite('HistoryService', function () {
 			return historyService.getHistory().map(editor => editor.resource?.path);
 		}
 
+		function stat(path: string, isFile: boolean): IFileStatWithMetadata {
+			return { resource: URI.file(path), name: path.substring(path.lastIndexOf('/') + 1), isFile, isDirectory: !isFile, isSymbolicLink: false, mtime: 0, ctime: 0, etag: '', size: 0, readonly: false, locked: false, executable: false, children: undefined };
+		}
+
 		test('a folder location switch puts away the list of the folder and restores the list of the new location', async () => {
 			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder);
 
@@ -911,15 +915,58 @@ suite('HistoryService', function () {
 			contextService.setFolders([worktree], { isFolderLocationChange: true });
 			await closeAll();
 
-			const target: IFileStatWithMetadata = { resource: URI.file('/repo/d.txt'), name: 'd.txt', isFile: true, isDirectory: false, isSymbolicLink: false, mtime: 0, ctime: 0, etag: '', size: 0, readonly: false, locked: false, executable: false, children: undefined };
 			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/a.txt'), FileOperation.DELETE));
-			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/b.txt'), FileOperation.MOVE, target));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/b.txt'), FileOperation.MOVE, stat('/repo/d.txt', true)));
 			fileService.fireFileChanges(new FileChangesEvent([{ resource: URI.file('/repo/e.txt'), type: FileChangeType.DELETED }], !isLinux));
 
 			const reloaded = reload();
 			contextService.setFolders([folder], { isFolderLocationChange: true });
 
 			assert.deepStrictEqual(paths(reloaded), ['/repo/c.txt', '/repo/d.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a folder updates the entries of its files in the put away lists', async () => {
+			const { contextService, instantiationService, fileService, open, closeAll, reload } = await createFolderServices(folder);
+
+			await open('/repo/src/a.txt');
+			await open('/repo/b.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/src'), FileOperation.MOVE, stat('/repo/lib', false)));
+
+			const reloaded = reload();
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(paths(reloaded), ['/repo/b.txt', '/repo/lib/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a file to another location moves its entry to the list of that location', async () => {
+			const { contextService, historyService, instantiationService, fileService, open, closeAll } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			await open('/repo/b.txt');
+			await open('/repo/c.txt');
+			contextService.setFolders([nestedWorktree], { isFolderLocationChange: true });
+			await open('/repo/.worktrees/one/n.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			// Into the nested worktree, into the open location, and out of the nested worktree
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/a.txt'), FileOperation.MOVE, stat('/repo/.worktrees/one/a.txt', true)));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/b.txt'), FileOperation.MOVE, stat('/worktree/b.txt', true)));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/.worktrees/one/n.txt'), FileOperation.MOVE, stat('/repo/n.txt', true)));
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const atFolder = paths(historyService);
+			contextService.setFolders([nestedWorktree], { isFolderLocationChange: true });
+			const atNestedWorktree = paths(historyService);
+
+			assert.deepStrictEqual({ atFolder, atNestedWorktree }, { atFolder: ['/repo/n.txt', '/repo/c.txt'], atNestedWorktree: ['/repo/.worktrees/one/a.txt'] });
 
 			return workbenchTeardown(instantiationService);
 		});

@@ -270,8 +270,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 
 			// Move
-			else if (event.isOperation(FileOperation.MOVE) && event.target.isFile) {
-				this.move(event);
+			else if (event.isOperation(FileOperation.MOVE)) {
+				if (event.target.isFile) {
+					this.move(event);
+				}
+
+				// The put away lists also follow a moved folder: they only hold files of locations that are not open
+				this.moveInPutAwayHistory(event.resource, event.target.resource);
 			}
 		}
 	}
@@ -1014,27 +1019,110 @@ export class HistoryService extends Disposable implements IHistoryService {
 			if (removed) {
 				this.addToHistory({ resource: event.target.resource });
 			}
-
-			this.updatePutAwayHistory(entries => {
-				const moved = entries.map(entry => this.editorHelper.matchesEditor(event, entry) ? { ...entry, resource: event.target.resource } : entry);
-
-				return moved.filter((entry, index) => moved.findIndex(other => this.editorHelper.matchesEditor(entry, other)) === index);
-			});
 		}
 	}
 
-	private removeFromPutAwayHistory(event: FileChangesEvent | FileOperationEvent): void {
-		this.updatePutAwayHistory(entries => entries.filter(entry => !this.editorHelper.matchesEditor(event, entry)));
+	/**
+	 * Updates the put away lists for a moved file or folder. A moved entry belongs to the closest
+	 * folder of its new resource, like when it is put away: it moves to the list of that folder if
+	 * it is put away too, and leaves the lists if that folder is open in the window.
+	 */
+	private moveInPutAwayHistory(source: URI, target: URI): void {
+		const putAwayHistory = this.ensurePutAwayHistoryLoaded();
+		if (!putAwayHistory.size) {
+			return;
+		}
+
+		const extUri = this.uriIdentityService.extUri;
+		const currentFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
+		const folders = [...currentFolders, ...[...putAwayHistory.keys()].map(key => URI.parse(key))];
+
+		const updated = new Map<string, IResourceEditorInput[]>();
+		const transferred = new Map<string, IResourceEditorInput[]>();
+		for (const [key, entries] of putAwayHistory) {
+			let changed = false;
+			const kept: IResourceEditorInput[] = [];
+			for (const entry of entries) {
+				const resource = this.getMovedResource(entry.resource, source, target);
+				if (!resource) {
+					kept.push(entry);
+					continue;
+				}
+
+				changed = true;
+				const moved = { ...entry, resource };
+				const folder = this.findClosestFolder(resource, folders);
+				const folderKey = folder ? extUri.getComparisonKey(folder) : key; // outside of all folders: no other location owns it
+				if (folderKey === key) {
+					kept.push(moved);
+				} else if (!currentFolders.some(currentFolder => extUri.isEqual(currentFolder, folder))) {
+					const transferredEntries = transferred.get(folderKey) ?? [];
+					transferredEntries.push(moved);
+					transferred.set(folderKey, transferredEntries);
+				}
+			}
+
+			if (changed) {
+				updated.set(key, kept);
+			}
+		}
+
+		// Moved entries are the most recent of the list that they move to
+		for (const [key, entries] of transferred) {
+			updated.set(key, [...entries, ...(updated.get(key) ?? putAwayHistory.get(key) ?? [])]);
+		}
+
+		for (const [key, entries] of updated) {
+			const deduped = this.dedupePutAwayEntries(entries);
+			if (deduped.length) {
+				putAwayHistory.set(key, deduped);
+			} else {
+				putAwayHistory.delete(key);
+			}
+		}
 	}
 
-	private updatePutAwayHistory(update: (entries: IResourceEditorInput[]) => IResourceEditorInput[]): void {
+	private getMovedResource(resource: URI, source: URI, target: URI): URI | undefined {
+		const extUri = this.uriIdentityService.extUri;
+		if (!extUri.isEqualOrParent(resource, source)) {
+			return undefined;
+		}
+
+		if (extUri.isEqual(resource, source)) {
+			return target;
+		}
+
+		const relativePath = extUri.relativePath(source, resource);
+
+		return relativePath ? extUri.joinPath(target, relativePath) : undefined;
+	}
+
+	private dedupePutAwayEntries(entries: readonly IResourceEditorInput[]): IResourceEditorInput[] {
+		const seen = new Set<string>();
+
+		return entries.filter(entry => {
+			const key = this.uriIdentityService.extUri.getComparisonKey(entry.resource);
+			if (seen.has(key)) {
+				return false;
+			}
+
+			seen.add(key);
+			return true;
+		});
+	}
+
+	private removeFromPutAwayHistory(event: FileChangesEvent | FileOperationEvent): void {
 		const putAwayHistory = this.ensurePutAwayHistoryLoaded();
 		for (const [key, entries] of putAwayHistory) {
-			const updated = update(entries);
-			if (!updated.length) {
-				putAwayHistory.delete(key);
+			const remaining = entries.filter(entry => !this.editorHelper.matchesEditor(event, entry));
+			if (remaining.length === entries.length) {
+				continue;
+			}
+
+			if (remaining.length) {
+				putAwayHistory.set(key, remaining);
 			} else {
-				putAwayHistory.set(key, updated);
+				putAwayHistory.delete(key);
 			}
 		}
 	}
