@@ -3490,19 +3490,27 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	/** Relocate only subagent pets that no longer fit after resizing has settled. */
-	private _reconcileSubagentPetResize(): void {
-		const subagentPets = [...this._subagentPets.values()].filter(subagentPet => !subagentPet.isRespawning());
+	/** Relocates pets outside the bounds, also checking overlaps and support after scaling. */
+	private _reconcileSubagentPetResize(checkPlacement = false): void {
+		const subagentPets = [...this._subagentPets.values()].filter(subagentPet => !subagentPet.isRespawning()).sort((a, b) => b.top - a.top);
 		if (!subagentPets.length) {
 			return;
 		}
-		const { overlay, movement, left, right, bottom } = this._getSubagentPetBounds();
+		const { overlay, movement, platforms, floor, left, right, bottom } = this._getSubagentPetBounds();
 		const size = getSubagentPetSize(this._scale);
 		let displaced = false;
 		for (const subagentPet of subagentPets) {
 			const subagentPetLeft = subagentPet.left;
 			const subagentPetTop = subagentPet.top;
-			if (subagentPetLeft < left - SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetLeft + size > right + SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetTop < movement.top - overlay.top - SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetTop + size > bottom + SUBAGENT_PET_BOUNDARY_EPSILON) {
+			const overlaps = checkPlacement && subagentPets.some(other => other !== subagentPet && !other.isRespawning()
+				&& subagentPetLeft < other.left + size - SUBAGENT_PET_BOUNDARY_EPSILON && subagentPetLeft + size > other.left + SUBAGENT_PET_BOUNDARY_EPSILON
+				&& subagentPetTop < other.top + size - SUBAGENT_PET_BOUNDARY_EPSILON && subagentPetTop + size > other.top + SUBAGENT_PET_BOUNDARY_EPSILON);
+			const landing = checkPlacement ? getChatPetFallTarget(overlay.left + subagentPetLeft, overlay.top + subagentPetTop - POSITION_EPSILON, size, size, platforms, floor) : undefined;
+			const supported = !landing || Math.abs(landing.top - overlay.top - subagentPetTop) <= SUBAGENT_PET_BOUNDARY_EPSILON
+				|| subagentPets.some(other => other !== subagentPet && !other.isRespawning()
+					&& subagentPetLeft < other.left + size && subagentPetLeft + size > other.left
+					&& Math.abs(subagentPetTop + size - other.top) <= SUBAGENT_PET_BOUNDARY_EPSILON);
+			if (overlaps || !supported || subagentPetLeft < left - SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetLeft + size > right + SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetTop < movement.top - overlay.top - SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetTop + size > bottom + SUBAGENT_PET_BOUNDARY_EPSILON) {
 				displaced = true;
 				subagentPet.fallTo(movement.bottom - overlay.top - size, true);
 			}
@@ -3535,6 +3543,7 @@ export class ChatPetWidget extends Disposable {
 			}
 			entry.subagentPet.setScale(subagentPetScale, supportTop ?? entry.top + previousSize - size);
 		}
+		this._reconcileSubagentPetResize(true);
 		this._scheduleSubagentPetResize();
 		const displaySize = this._getDisplaySize();
 		this._button.element.style.width = `${displaySize}px`;

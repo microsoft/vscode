@@ -3347,6 +3347,31 @@ suite('ChatPetWidget', () => {
 	});
 
 	for (const reducedMotion of [false, true]) {
+		for (const enlarge of [true, false]) {
+			test(`subagent pets relocate only invalid placements when ${enlarge ? 'enlarged' : 'shrunk'} (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
+				const { widget, firstHost, overlay, service } = createHostTransitionHarness(reducedMotion);
+				service.setScale(enlarge ? 1 : 2);
+				const tools = ['first', 'second', 'unaffected'].map(id => {
+					const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+					tool.toolSpecificData = { kind: 'subagent', isActive: true };
+					return tool;
+				});
+				widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)) });
+				const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
+				const positions = enlarge ? [[120, -24], [150, -24], [280, -24]] : [[48, -48], [80, -96], [280, -48]];
+				pets.forEach((pet, index) => {
+					pet.getAnimations().forEach(animation => animation.cancel());
+					setSubagentPetPosition(widget, pet, positions[index][0], positions[index][1]);
+				});
+				service.setScale(enlarge ? 2 : 1);
+				assert.deepStrictEqual(pets.map(pet => Number.parseFloat(pet.style.top) > 0), enlarge ? [true, false, false] : [false, true, false]);
+				await waitForPetAnimation(() => pets.every(pet => pet.getAnimations().length === 0 && pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-') === true));
+				const rects = pets.map(pet => pet.getBoundingClientRect());
+				assert.ok(rects.every((rect, index) => rects.slice(index + 1).every(other =>
+					rect.right <= other.left + 0.1 || other.right <= rect.left + 0.1 || rect.bottom <= other.top + 0.1 || other.bottom <= rect.top + 0.1)));
+			});
+		}
+
 		test(`subagent pets keep their size and only displaced pets respawn (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
 			const { widget, firstHost, overlay, firstParent, layout } = createHostTransitionHarness(reducedMotion);
 			const tools = ['stays', 'upper', 'support', 'outside'].map(id => {
