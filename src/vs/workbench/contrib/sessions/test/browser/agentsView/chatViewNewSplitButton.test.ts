@@ -11,10 +11,13 @@ import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/
 import { ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Action, ActionRunner, IAction, Separator } from '../../../../../../base/common/actions.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { KeyCodeChord } from '../../../../../../base/common/keybindings.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -25,16 +28,43 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chat/browser/actions/chatActions.js';
 import { ChatViewNewSplitButtonActionViewItem } from '../../../browser/agentsView/chatViewNewSplitButton.js';
 
+/**
+ * Shows the menu as the HTML context menu does: it reports the errors of its runner only while it is open, and closes as
+ * soon as an action starts to run.
+ */
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
 	override readonly onDidHideContextMenu = Event.None;
 	delegate: IContextMenuDelegate | undefined;
+	readonly reportedErrors: unknown[] = [];
+	private readonly menu = new MutableDisposable<DisposableStore>();
 
 	override showContextMenu(delegate: IContextMenuDelegate): void {
 		this.delegate = delegate;
+		const menu = this.menu.value = new DisposableStore();
+		delegate.actionRunner?.onWillRun(() => this.menu.clear(), undefined, menu);
+		delegate.actionRunner?.onDidRun(e => this.reportedErrors.push(e.error), undefined, menu);
+	}
+
+	/** Selects an action of the open menu, as a click on it does. */
+	async select(action: IAction): Promise<void> {
+		await this.delegate!.actionRunner!.run(action, this.delegate!.getActionsContext?.());
+	}
+
+	dispose(): void {
+		this.menu.dispose();
+	}
+}
+
+class TestNotificationService extends mock<INotificationService>() {
+	readonly errors: unknown[] = [];
+	override error(error: unknown): INotificationHandle {
+		this.errors.push(error);
+		return upcastPartial<INotificationHandle>({});
 	}
 }
 
@@ -74,34 +104,47 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	/**
+	 * Creates the New submenu. Its other actions record the context that they run with, and run {@link menuAction} if
+	 * set, which can fail.
+	 */
 	function createSubmenu(primaryId = 'newChat') {
 		const contextKeyService = new MockContextKeyService();
 		const commandService = upcastPartial<ICommandService>({});
-		const action = (id: string, title: string) => new MenuItemAction({ id, title }, undefined, undefined, undefined, undefined, contextKeyService, commandService);
-		const actions = [action(primaryId, 'New Chat'), action('newChatEditor', 'New Chat Editor'), new Separator(), action('newChatWindow', 'New Chat Window')];
-		return { submenu: new SubmenuItemAction({ submenu: MenuId.ChatNewMenu, title: 'New Chat' }, undefined, actions), actions };
+		const menuRuns: { id: string; context: unknown }[] = [];
+		const menuAction: { run?: () => Promise<void> } = {};
+		const action = (id: string, label: string) => store.add(new Action(id, label, undefined, true, async context => {
+			menuRuns.push({ id, context });
+			await menuAction.run?.();
+		}));
+		const actions = [
+			new MenuItemAction({ id: primaryId, title: 'New Chat' }, undefined, undefined, undefined, undefined, contextKeyService, commandService),
+			action('newChatEditor', 'New Chat Editor'), new Separator(), action('newChatWindow', 'New Chat Window'),
+		];
+		return { submenu: new SubmenuItemAction({ submenu: MenuId.ChatNewMenu, title: 'New Chat' }, undefined, actions), actions, menuRuns, menuAction };
 	}
 
 	function createItem(container: HTMLElement, primaryId?: string) {
-		const { submenu, actions } = createSubmenu(primaryId);
-		const contextMenuService = new TestContextMenuService();
-		const item = store.add(new ChatViewNewSplitButtonActionViewItem(submenu, undefined, contextMenuService, new TestKeybindingService() as IKeybindingService));
+		const { submenu, actions, menuRuns, menuAction } = createSubmenu(primaryId);
+		const contextMenuService = store.add(new TestContextMenuService());
+		const notificationService = new TestNotificationService();
+		const item = store.add(new ChatViewNewSplitButtonActionViewItem(submenu, undefined, contextMenuService, new TestKeybindingService() as IKeybindingService, notificationService));
 		const runner = store.add(new RecordingActionRunner());
 		item.actionRunner = runner;
 		item.setActionContext('titleContext');
 		item.render(container);
-		return { item, actions, runner, contextMenuService };
+		return { item, actions, runner, contextMenuService, notificationService, menuRuns, menuAction };
 	}
 
 	test('shows New with the keybinding of New Chat, runs it, and opens the same menu', async () => {
 		const container = DOM.$('div');
-		const { actions, runner, contextMenuService } = createItem(container);
+		const { actions, runner, contextMenuService, menuRuns } = createItem(container);
 		const [primary, dropdown] = container.querySelectorAll<HTMLElement>('.monaco-button');
 
 		primary.click();
 		dropdown.click();
 		const menuActions = contextMenuService.delegate?.getActions();
-		await contextMenuService.delegate?.actionRunner?.run(actions[3], 'menuContext');
+		await contextMenuService.select(actions[3]);
 
 		assert.deepStrictEqual({
 			label: primary.querySelector('.chat-view-new-split-button-label')?.textContent,
@@ -109,29 +152,48 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 			ariaLabel: primary.getAttribute('aria-label'),
 			sameMenu: menuActions?.length === actions.length && menuActions.every((action, index) => action === actions[index]),
 			runs: runner.runs,
+			menuRuns,
 		}, {
 			label: 'New',
 			hasKeybinding: true,
 			ariaLabel: 'New Chat (Control+N)',
 			sameMenu: true,
-			runs: [{ id: 'newChat', context: 'titleContext' }, { id: 'newChatWindow', context: 'titleContext' }],
+			runs: [{ id: 'newChat', context: 'titleContext' }],
+			menuRuns: [{ id: 'newChatWindow', context: 'titleContext' }],
 		});
 	});
 
-	test('reports a failing menu action to the menu, and consumes taps so that a containing pane header does not toggle', async () => {
-		const container = DOM.$('div');
-		const { item, actions, runner, contextMenuService } = createItem(container);
-		const failure = new Error('failed');
-		item.actionRunner = store.add(new class extends ActionRunner {
-			protected override async runAction(): Promise<void> { throw failure; }
-		}());
-		const [primary, dropdown] = container.querySelectorAll<HTMLElement>('.monaco-button');
+	test('reports a menu action that fails after the menu closed once, in a title that reports errors or not, but not a cancellation', async () => {
+		const reported = async (titleReportsErrors: boolean, error: Error) => {
+			const { item, actions, contextMenuService, notificationService, menuAction } = createItem(DOM.$('div'));
+			// A composite title reports the errors of its runner, a view's title does not
+			const titleRunner = item.actionRunner;
+			const titleErrors: unknown[] = [];
+			if (titleReportsErrors) {
+				store.add(titleRunner.onDidRun(e => e.error && titleErrors.push(e.error)));
+			}
+			let fail!: () => void;
+			menuAction.run = () => new Promise<void>((_, reject) => fail = () => reject(error));
 
-		dropdown.click();
-		const menuErrors: unknown[] = [];
-		store.add(contextMenuService.delegate!.actionRunner!.onDidRun(e => menuErrors.push(e.error)));
-		await contextMenuService.delegate?.actionRunner?.run(actions[1]);
-		item.actionRunner = runner;
+			item.element!.querySelectorAll<HTMLElement>('.monaco-button')[1].click();
+			const run = contextMenuService.select(actions[1]);
+			await timeout(0);
+			fail();
+			await run;
+			return [...contextMenuService.reportedErrors, ...titleErrors, ...notificationService.errors].length;
+		};
+
+		assert.deepStrictEqual([
+			await reported(false, new Error('failed')),
+			await reported(true, new Error('failed')),
+			await reported(false, new CancellationError()),
+		], [1, 1, 0]);
+	});
+
+	test('consumes taps, so that a containing pane header does not toggle', () => {
+		const container = DOM.$('div');
+		const { runner } = createItem(container);
+		const [primary, dropdown] = container.querySelectorAll<HTMLElement>('.monaco-button');
 		const tap = (element: HTMLElement) => {
 			const event = new CustomEvent(TouchEventType.Tap, { bubbles: true, cancelable: true });
 			element.dispatchEvent(event);
@@ -139,11 +201,9 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 		};
 
 		assert.deepStrictEqual({
-			menuErrors,
 			tapsConsumed: [tap(primary), tap(dropdown)],
 			runs: runner.runs.map(run => run.id),
 		}, {
-			menuErrors: [failure],
 			tapsConsumed: [true, true],
 			runs: ['newChat'],
 		});
@@ -220,7 +280,7 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 			},
 			actionViewItemProvider: (action, options) => {
 				if (action === submenu) {
-					return new ChatViewNewSplitButtonActionViewItem(submenu, options, new TestContextMenuService(), new TestKeybindingService() as IKeybindingService);
+					return new ChatViewNewSplitButtonActionViewItem(submenu, options, store.add(new TestContextMenuService()), new TestKeybindingService() as IKeybindingService, new TestNotificationService());
 				}
 				return action.id === Separator.ID ? undefined : new IconActionViewItem(undefined, action, options);
 			},

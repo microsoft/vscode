@@ -13,6 +13,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { ActionRunner, IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -22,6 +23,7 @@ import { localize } from '../../../../../nls.js';
 import { MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { ACTION_ID_NEW_CHAT } from '../../../chat/browser/actions/chatActions.js';
@@ -67,6 +69,7 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 		options: IBaseActionViewItemOptions | undefined,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(undefined, action, options);
 		this.primaryAction = action.actions.find(action => action instanceof MenuItemAction);
@@ -76,27 +79,20 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 		this.element = container;
 		container.classList.add('chat-view-new-split-button');
 
-		// The menu's actions run as the title runs them: with its runner and the context of the title. That runner reports
-		// a failure as an event rather than rejecting, so it is rethrown for the menu to report it.
+		// The menu's actions run with the context of the title. This runner owns their errors, as it outlives the menu, which
+		// stops listening when it closes, and the title runner is not used, so that a title that reports its errors does not
+		// report them twice.
 		const actionRunner = this._register(new class extends ActionRunner {
 			constructor(private readonly item: ChatViewNewSplitButtonActionViewItem) { super(); }
-			protected override async runAction(action: IAction): Promise<void> {
-				let error: unknown;
-				const listener = this.item.actionRunner.onDidRun(e => {
-					if (e.action === action) {
-						error = e.error;
-					}
-				});
-				try {
-					await this.item.actionRunner.run(action, this.item._context);
-				} finally {
-					listener.dispose();
-				}
-				if (error) {
-					throw error;
-				}
+			protected override runAction(action: IAction): Promise<void> {
+				return super.runAction(action, this.item._context);
 			}
 		}(this));
+		this._register(actionRunner.onDidRun(e => {
+			if (e.error && !isCancellationError(e.error)) {
+				this.notificationService.error(e.error);
+			}
+		}));
 		const button = this.button = this._register(new ButtonWithDropdown(container, {
 			...defaultButtonStyles,
 			buttonSecondaryBackground: asCssVariable(agentsNewSessionButtonBackground),
