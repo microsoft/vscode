@@ -130,6 +130,11 @@ suite('AgentsConfigurationService', () => {
 					'default': 'defaultValue',
 					scope: ConfigurationScope.RESOURCE
 				},
+				'sessionsConfigurationService.languageSetting': {
+					'type': 'string',
+					'default': 'defaultValue',
+					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
+				},
 				'sessionsConfigurationService.arraySetting': {
 					type: 'array',
 					items: { type: 'string' },
@@ -496,6 +501,55 @@ suite('AgentsConfigurationService', () => {
 		const event = await promise;
 		assert.ok(event.affectsConfiguration('sessionsConfigurationService.testSetting'));
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting', { resource: folder }), 'defaultValue');
+	}));
+
+	test('configuration change event is fired for files in folders whose settings are added or removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = joinPath(ROOT, 'addedFolder2');
+		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "folderValue", "[typescript]": { "sessionsConfigurationService.languageSetting": "typescriptValue" } }'));
+		const resource = joinPath(folder, 'src', 'index.ts');
+		const overrides = { resource, overrideIdentifier: 'typescript' };
+		const events: unknown[] = [];
+		disposables.add(testObject.onDidChangeConfiguration(e => events.push({
+			source: e.source,
+			setting: e.affectsConfiguration('sessionsConfigurationService.testSetting', { resource }),
+			languageSetting: e.affectsConfiguration('sessionsConfigurationService.languageSetting', overrides),
+			values: [testObject.getValue('sessionsConfigurationService.testSetting', { resource }), testObject.getValue('sessionsConfigurationService.languageSetting', overrides)],
+		})));
+
+		await workspaceService.addFolders([{ uri: folder }]);
+		await workspaceService.removeFolders([folder]);
+
+		assert.deepStrictEqual(events, [
+			{ source: ConfigurationTarget.WORKSPACE_FOLDER, setting: true, languageSetting: true, values: ['folderValue', 'typescriptValue'] },
+			{ source: ConfigurationTarget.WORKSPACE_FOLDER, setting: true, languageSetting: true, values: ['defaultValue', 'defaultValue'] },
+		]);
+	}));
+
+	test('configuration change event is fired for a folder with only language settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = joinPath(ROOT, 'languageOnlyFolder');
+		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "[typescript]": { "sessionsConfigurationService.languageSetting": "typescriptValue" } }'));
+		const overrides = { resource: joinPath(folder, 'index.ts'), overrideIdentifier: 'typescript' };
+		const events: boolean[] = [];
+		disposables.add(testObject.onDidChangeConfiguration(e => events.push(e.affectsConfiguration('sessionsConfigurationService.languageSetting', overrides))));
+
+		await workspaceService.addFolders([{ uri: folder }]);
+		await workspaceService.removeFolders([folder]);
+
+		assert.deepStrictEqual(events, [true, true]);
+	}));
+
+	test('initialization does not fire a configuration change for folder settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = joinPath(ROOT, 'initialFolder');
+		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "folderValue" }'));
+		await workspaceService.addFolders([{ uri: folder }]);
+		testObject.dispose();
+		testObject = createConfigurationService(new NullPolicyService());
+		let fired = 0;
+		disposables.add(testObject.onDidChangeConfiguration(() => fired++));
+
+		await testObject.initialize();
+
+		assert.deepStrictEqual({ fired, value: testObject.getValue('sessionsConfigurationService.testSetting', { resource: folder }) }, { fired: 0, value: 'folderValue' });
 	}));
 
 	test('configuration change event is fired on user settings change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
