@@ -171,6 +171,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			this._pullRequestAssociationResolver.removeSession(sessionKey);
 			this._discoveredRepositories.delete(sessionKey);
 			this._repositoryDiscoveries.delete(sessionKey);
+			this._pendingRepositoryDiscoveries.delete(sessionKey);
 			this._recordedAdditionalFolders.delete(sessionKey);
 			this._repositoryGenerations.delete(sessionKey);
 			this._pendingPullRequests.delete(sessionKey);
@@ -726,6 +727,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	private readonly _repositoryGenerations = new Map<string, number>();
 	/** The discovery of each session that is running; see {@link _discoverRepositoriesInBackground}. */
 	private readonly _repositoryDiscoveries = new Map<string, Promise<void>>();
+	/** The credentials of a discovery asked for while another of the same session ran, which runs once that one settles. */
+	private readonly _pendingRepositoryDiscoveries = new Map<string, IRepositoryCredentialContext>();
 	private readonly _discoveredRepositories = new Map<string, { readonly input: string; readonly repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>>; readonly discoveredAt: number; readonly stale: boolean }>();
 
 	/**
@@ -758,8 +761,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				return { workingDirectory, gitState, isRepository: true };
 			}
 			// An inconclusive read is not proof that the folder is not a repository: only a lookup Git answered decides it,
-			// and a folder Git could not be asked about keeps its classification
-			const isRepository = await this._gitService.getRepositoryRoot(folder).then(root => root ? true : this._gitService.hasGitRoot(folder).get(), () => undefined);
+			// and a folder Git could not be asked about keeps its classification. The lookup reads the disk, so a root cached
+			// while the folder was a repository does not outlive its `.git`.
+			const isRepository = await this._gitService.getRepositoryRoot(folder, { fresh: true }).then(root => root ? true : this._gitService.hasGitRoot(folder).get(), () => undefined);
 			return { workingDirectory, gitState, isRepository };
 		}));
 		if (!this._stateManager.getSessionState(sessionKey)) {
@@ -886,6 +890,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 */
 	private _discoverRepositoriesInBackground(sessionKey: string, input: string, folders: readonly string[], options: Readonly<Record<string, IRepositoryDetectionOptions>>, credentials: IRepositoryCredentialContext): void {
 		if (this._repositoryDiscoveries.has(sessionKey)) {
+			// One discovery of a session at a time: the latest folders and options are found once this one settles
+			this._pendingRepositoryDiscoveries.set(sessionKey, credentials);
 			return;
 		}
 		const discovery = (async () => {
@@ -898,8 +904,32 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				this._onDidRefreshSessionGitState.fire(sessionKey);
 			}
 		})().catch(error => this._logService.warn(`[AgentHostGitStateService] Failed to find the repositories of ${sessionKey}`, error))
-			.finally(() => this._repositoryDiscoveries.delete(sessionKey));
+			.finally(() => {
+				if (this._repositoryDiscoveries.get(sessionKey) === discovery) {
+					this._repositoryDiscoveries.delete(sessionKey);
+				}
+				this._runPendingRepositoryDiscovery(sessionKey, input);
+			});
 		this._repositoryDiscoveries.set(sessionKey, discovery);
+	}
+
+	/**
+	 * Runs the discovery asked for while the one of `settledInput` ran, if the session's folders or options are still not
+	 * the ones that one found: as when the options changed during a scan, whose result is then not recorded.
+	 */
+	private _runPendingRepositoryDiscovery(sessionKey: string, settledInput: string): void {
+		const credentials = this._pendingRepositoryDiscoveries.get(sessionKey);
+		if (!credentials || this._repositoryDiscoveries.has(sessionKey)) {
+			return;
+		}
+		this._pendingRepositoryDiscoveries.delete(sessionKey);
+		if (this._store.isDisposed || !this._stateManager.getSessionState(sessionKey)) {
+			return;
+		}
+		const { options, folders, input } = this._repositoryDiscoveryInput(sessionKey);
+		if (input !== settledInput && Object.keys(options).length) {
+			this._discoverRepositoriesInBackground(sessionKey, input, folders, options, credentials);
+		}
 	}
 
 	/**

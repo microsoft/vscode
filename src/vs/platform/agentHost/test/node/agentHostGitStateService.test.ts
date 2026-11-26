@@ -3231,6 +3231,41 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual(readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta), undefined);
 	}));
 
+	test('options that change while a scan runs are found once it settles, without another refresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		h.gitService.getRepositoryRoot = async folder => folder.toString() === WORKING_DIRECTORY ? undefined : folder;
+		const setOptions = (scanMaxDepth: number) => h.stateManager.setSessionConfig(SESSION, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.RepositoryDetection]: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: { scanSubfolders: true, scanMaxDepth, scanIgnoredFolders: [], detectSubmodules: false } } } });
+		const scanA = new DeferredPromise<void>();
+		const scans: number[] = [];
+		h.gitService.findRepositories = async (_folder, scan) => {
+			scans.push(scan.scanMaxDepth);
+			if (scan.scanMaxDepth === 1) {
+				await scanA.p;
+			}
+			return [{ root: URI.parse(`file:///wd/depth${scan.scanMaxDepth}`), kind: 'nested' as const }];
+		};
+		const repositories = () => readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta)?.[getWorkingDirectoryKey(WORKING_DIRECTORY)]?.map(entry => entry.root);
+		setOptions(3);
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		await timeout(1_000);
+		const established = repositories();
+
+		// Options A, whose scan is still running when the options change to B, which refreshes the session as a change does
+		setOptions(1);
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		setOptions(2);
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		await scanA.complete();
+		await timeout(1_000);
+
+		assert.deepStrictEqual({ established, scans, after: repositories() }, {
+			established: ['file:///wd/depth3'],
+			scans: [3, 1, 2],
+			after: ['file:///wd/depth2'],
+		});
+	}));
+
 	test('a repository gone from disk drops out of the session\'s repositories with the Git and GitHub state discovery recorded for it, but a root that became a session folder keeps its state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		const docs = 'file:///wd/docs';
@@ -3412,8 +3447,19 @@ suite('AgentHostGitStateService', () => {
 			await timeout(1_000);
 
 			h.setGitResultForFolder(api, next.gitState);
-			h.gitService.getRepositoryRoot = async folder => folder.toString() === api && next.hasGitRoot !== true ? undefined : folder;
-			h.gitService.hasGitRoot = folder => constObservable(folder.toString() === api ? next.hasGitRoot : undefined);
+			// As the Git service: the root cached while the folder was a repository answers until a lookup reads the disk,
+			// which drops it when Git says the folder is not a repository and keeps it when Git cannot be asked
+			let cached = true;
+			h.gitService.getRepositoryRoot = async (folder, options) => {
+				if (folder.toString() !== api || next.hasGitRoot === true) {
+					return folder;
+				}
+				if (options?.fresh && next.hasGitRoot === false) {
+					cached = false;
+				}
+				return cached && !options?.fresh ? folder : undefined;
+			};
+			h.gitService.hasGitRoot = folder => constObservable(folder.toString() !== api || next.hasGitRoot === true || (next.hasGitRoot === undefined ? cached || undefined : false));
 			await timeout(5_000);
 			await h.service.refreshSessionGitState(SESSION, undefined);
 			await timeout(1_000);

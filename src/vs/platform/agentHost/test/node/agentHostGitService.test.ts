@@ -571,6 +571,24 @@ suite('AgentHostGitService', () => {
 			}(...gitArguments()));
 		}
 
+		test('a fresh lookup of a folder whose .git was removed drops the root cached while it was a repository', async () => {
+			const folder = await fsPromises.mkdtemp(join(tmpdir(), 'agent-host-fresh-git-removed-'));
+			try {
+				await new Promise<void>((resolve, reject) => execFile('git', ['init', '-q', folder], error => error ? reject(error) : resolve()));
+				const git = store.add(new AgentHostGitService(...gitArguments()));
+				const warmed = await git.getRepositoryRoot(URI.file(folder));
+				await fsPromises.rm(join(folder, '.git'), { recursive: true, force: true });
+				const cached = await git.getRepositoryRoot(URI.file(folder));
+				const fresh = await git.getRepositoryRoot(URI.file(folder), { fresh: true });
+
+				assert.deepStrictEqual({ warmed: !!warmed, cached: !!cached, fresh, hasGitRoot: git.hasGitRoot(URI.file(folder)).get() }, {
+					warmed: true, cached: true, fresh: undefined, hasGitRoot: false,
+				});
+			} finally {
+				await fsPromises.rm(folder, { recursive: true, force: true });
+			}
+		});
+
 		test('a fresh lookup reads the disk whatever is cached, and a folder gone from it replaces its cached root', async () => {
 			const folder = await fsPromises.mkdtemp(join(tmpdir(), 'agent-host-fresh-root-'));
 			let probes = 0;

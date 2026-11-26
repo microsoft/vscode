@@ -402,7 +402,15 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		const hasGitEntry = async (directory: string) => !!await probe(() => fsPromises.lstat(path.join(directory, '.git')));
 		// A `.git` entry is a repository only when Git opens a checkout rooted there, as Source Control asks Git for the
 		// root before it opens one: not an empty or broken marker, nor one Git skips for an enclosing checkout
-		const isCheckoutRoot = async (directory: string) => (await probe(() => this._runGit(URI.file(directory), ['rev-parse', '--show-cdup'], { throwOnError: true, env: { LC_ALL: 'C' } })))?.trim() === '';
+		const isCheckoutRoot = async (directory: string) => {
+			const cdup = await probe(() => this._runGit(URI.file(directory), ['rev-parse', '--show-cdup'], { throwOnError: true, env: { LC_ALL: 'C' } }));
+			if (cdup?.trim() === '') {
+				return true;
+			}
+			// For example a checkout Git refuses as unsafe (`safe.directory`), which Source Control lists as such
+			this._logService.trace(`[AgentHostGitService] Skipping ${directory}: it has a .git entry, but Git ${cdup === undefined ? 'did not open it (an error, or the scan reached its bounds)' : 'opens an enclosing checkout'}`);
+			return false;
+		};
 		const isRepository = async (directory: string) => await hasGitEntry(directory) && await isCheckoutRoot(directory);
 		const isPlainDirectory = async (directory: string) => {
 			const stat = await probe(() => fsPromises.lstat(directory));
