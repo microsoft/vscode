@@ -19,7 +19,7 @@ export interface IRepositoryDetectionOptions {
 	readonly scanIgnoredFolders: readonly string[];
 	/** Whether the submodules of a found repository are repositories too (`git.detectSubmodules`). */
 	readonly detectSubmodules: boolean;
-	/** How many submodules of one repository are repositories too (`git.detectSubmodulesLimit`); 10 when absent. */
+	/** How many submodules of one repository are repositories too (`git.detectSubmodulesLimit`); 10 when absent, none when negative. */
 	readonly detectSubmodulesLimit?: number;
 	/**
 	 * Paths, relative to the folder, that are checked for a repository too when subfolders are scanned

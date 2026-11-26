@@ -484,6 +484,43 @@ suite('AgentHostGitService', () => {
 			}), ['nested kept', 'nested deep/er/repo']);
 		});
 
+		test('never enters a .git folder, by a submodule path or a scanned path, in any case', async () => {
+			await makeFolder('.', { repository: true, gitmodules: ['.git/inner', './.GIT/inner'] });
+			// A repository inside the folder's Git metadata
+			await makeFolder('.git/inner', { repository: true });
+
+			assert.deepStrictEqual(await find({ scanRepositories: ['.git/inner', './.git/inner', '.GIT/inner', '.git'] }), []);
+		});
+
+		test('takes no submodule for a negative limit, and at most 64 from one file whatever the limit', async () => {
+			const paths = Array.from({ length: 70 }, (_, index) => `libs/m${String(index).padStart(2, '0')}`);
+			await makeFolder('.', { repository: true, gitmodules: paths });
+			for (const path of paths) {
+				await makeFolder(path, { gitFile: true });
+			}
+
+			assert.deepStrictEqual({
+				negative: await find({ scanMaxDepth: 0, detectSubmodulesLimit: -1 }),
+				large: (await find({ scanMaxDepth: 0, detectSubmodulesLimit: 100, limit: 100 })).length,
+			}, { negative: [], large: 64 });
+		});
+
+		test('reads the .gitmodules of a repository found more than once, and probes a scanned path listed twice, only once', async () => {
+			const scan = async (gitmodules: readonly string[], scanRepositories: readonly string[]) => {
+				await fsPromises.rm(root, { recursive: true, force: true });
+				await makeFolder('.', { repository: true, gitmodules });
+				await makeFolder('lib', { gitFile: true, gitmodules: ['inner'] });
+				await makeFolder('lib/inner', { gitFile: true });
+				await makeFolder('tools');
+				const budget = new RepositoryScanBudget(1_000, Number.MAX_SAFE_INTEGER);
+				return { found: await find({ scanMaxDepth: 0, scanRepositories }, budget), used: budget.used };
+			};
+			const once = await scan(['lib'], ['tools']);
+			const repeated = await scan(['lib', 'lib', './lib'], ['tools', 'tools', 'lib', './lib']);
+
+			assert.deepStrictEqual(repeated, once);
+		});
+
 		test('a folder that is a repository itself lists its submodules and the repositories nested in it', async () => {
 			await makeFolder('.', { repository: true, gitmodules: ['libs/core', '../outside'] });
 			await makeFolder('libs/core', { gitFile: true });

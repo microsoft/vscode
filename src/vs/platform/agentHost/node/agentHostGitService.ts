@@ -413,12 +413,14 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 				found.push({ root, kind });
 			}
 		};
-		// The plain folder at `relativePath` inside `parent`, when no component of it is a symbolic link or leaves `parent`
-		const containedFolder = async (parent: string, relativePath: string) => {
+		// The components of `relativePath`, when it stays inside its folder and names no `.git` folder (in any case, as
+		// on a case-insensitive file system), which the scan never enters
+		const relativeParts = (relativePath: string) => {
 			const parts = !path.isAbsolute(relativePath) ? relativePath.split(/[\\/]/).filter(part => part && part !== '.') : [];
-			if (!parts.length || parts.includes('..')) {
-				return undefined;
-			}
+			return parts.length && !parts.some(part => part === '..' || part.toLowerCase() === '.git') ? parts : undefined;
+		};
+		// The plain folder at `parts` inside `parent`, when no component of it is a symbolic link
+		const containedFolder = async (parent: string, parts: readonly string[]) => {
 			let candidate = parent;
 			for (const part of parts) {
 				candidate = path.join(candidate, part);
@@ -428,22 +430,40 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			}
 			return candidate;
 		};
+		// A negative `git.detectSubmodulesLimit` takes none
+		const submodulesLimit = Math.max(0, Math.min(options.detectSubmodulesLimit, MAX_GITMODULES_ENTRIES));
+		// The least submodule depth each repository's `.gitmodules` was read at: a repository found again, by another
+		// declaration, the subfolder scan or a scanned path, is not read again unless it is now less deep
+		const expanded = new Map<string, number>();
 		// The submodules of `repository`, and theirs, as Source Control opens them
 		const addSubmodules = async (repository: URI, depth = 0): Promise<void> => {
-			if (!options.detectSubmodules || done() || depth > MAX_REPOSITORY_SCAN_DEPTH) {
+			const key = extUriBiasedIgnorePathCase.getComparisonKey(repository);
+			const expandedDepth = expanded.get(key);
+			if (!options.detectSubmodules || !submodulesLimit || done() || depth > MAX_REPOSITORY_SCAN_DEPTH || (expandedDepth !== undefined && expandedDepth <= depth)) {
 				return;
 			}
+			expanded.set(key, depth);
 			const file = path.join(repository.fsPath, '.gitmodules');
 			const stat = await probe(() => fsPromises.lstat(file));
 			if (!stat || !stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_GITMODULES_BYTES) {
 				return;
 			}
 			const content = await probe(() => fsPromises.readFile(file, 'utf8'));
-			for (const submodule of parseGitmodules(content ?? '').slice(0, Math.min(options.detectSubmodulesLimit, MAX_GITMODULES_ENTRIES))) {
+			for (const submodule of parseGitmodules(content ?? '').slice(0, submodulesLimit)) {
 				if (done()) {
 					return;
 				}
-				const candidate = await containedFolder(repository.fsPath, submodule.path);
+				const parts = relativeParts(submodule.path);
+				if (!parts) {
+					continue;
+				}
+				// A repository already found needs no probes
+				const known = URI.file(path.join(repository.fsPath, ...parts));
+				if (seen.has(extUriBiasedIgnorePathCase.getComparisonKey(known))) {
+					await addSubmodules(known, depth + 1);
+					continue;
+				}
+				const candidate = await containedFolder(repository.fsPath, parts);
 				if (candidate && await hasGitEntry(candidate)) {
 					const root = URI.file(candidate);
 					if (!isIgnored(root)) {
@@ -473,7 +493,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 						break;
 					}
 					// A symbolic link is not a directory entry here, so links are not followed
-					if (!entry.isDirectory() || entry.name === '.git' || ignored.has(entry.name.toLowerCase())) {
+					if (!entry.isDirectory() || entry.name.toLowerCase() === '.git' || ignored.has(entry.name.toLowerCase())) {
 						continue;
 					}
 					const child = URI.file(path.join(parent.fsPath, entry.name));
@@ -488,11 +508,19 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			level = next;
 		}
 		// The paths `git.scanRepositories` lists, as Source Control checks them besides the subfolders
+		const scannedPaths = new Set<string>();
 		for (const scanPath of options.scanRepositories) {
 			if (done()) {
 				break;
 			}
-			const candidate = scanPath !== '.git' ? await containedFolder(folder.fsPath, scanPath) : undefined;
+			const parts = relativeParts(scanPath);
+			const key = parts && extUriBiasedIgnorePathCase.getComparisonKey(URI.file(path.join(folder.fsPath, ...parts)));
+			// A path listed twice, or a repository the scan already found, is not probed again
+			if (!key || scannedPaths.has(key) || seen.has(key)) {
+				continue;
+			}
+			scannedPaths.add(key);
+			const candidate = await containedFolder(folder.fsPath, parts);
 			if (candidate && await hasGitEntry(candidate)) {
 				await addRepository(URI.file(candidate));
 			}
