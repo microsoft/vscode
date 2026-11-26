@@ -1152,6 +1152,74 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('does not carry Customizations badge color into recycled canvas or automation icons', () => {
+			const results = [];
+			for (const shortcut of [false, true]) {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+					override set context(_context: unknown) { }
+					override dispose(): void { }
+				});
+				instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
+				instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() { });
+				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				const renderer = new SessionSectionRenderer(
+					true, () => { }, constObservable(true), constObservable(new Set<string>()), noHeaderStatusTrigger,
+					instantiationService, NullHoverService, contextKeyService,
+					new class extends mock<IAutomationService>() {
+						override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
+						override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+					},
+					constObservable([]),
+					new class extends mock<IUriIdentityService>() {
+						override readonly extUri = new ExtUri(() => true);
+					},
+					new class extends mock<ICustomViewService>() {
+						override readonly activeCustomView = constObservable(undefined);
+					},
+					new class extends mock<IMenuService>() { },
+					noKeybindingService, constObservable(false), constObservable(true),
+				);
+				const template = renderer.renderTemplate(document.createElement('div'));
+				disposables.add(template.disposables);
+				const render = (element: ISessionSection) => {
+					const node = upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({ element, collapsible: false, collapsed: false });
+					if (shortcut) {
+						renderer.disposeShortcut(element, template);
+						renderer.renderShortcut(element, template);
+					} else {
+						renderer.disposeElement(node, 0, template);
+						renderer.renderElement(node, 0, template);
+					}
+					return template.icon.style.color;
+				};
+				const customizations: ISessionSection = { id: 'customizations', label: 'Customizations', sessions: [] };
+				const state = observableValue(disposables, PinnedCanvasState.Live);
+				const canvas: ISessionSection = {
+					id: 'pinned-canvas:timeline', label: 'Session Timeline', sessions: [],
+					pinnedCanvas: upcastPartial<IPinnedCanvas>({
+						id: 'timeline', title: constObservable('Session Timeline'), chatTitle: constObservable('Fix icon color'),
+						state, canvas: constObservable(undefined),
+					}),
+				};
+				const badgeColor = render(customizations);
+				const liveColor = render(canvas);
+				state.set(PinnedCanvasState.Unavailable, undefined);
+				const unavailable = { color: template.icon.style.color, hasUnavailableIcon: template.icon.classList.contains('codicon-circle-slash') };
+				render(customizations);
+				const automationColor = render({ id: 'automations', label: 'Automations', sessions: [] });
+				results.push({ shortcut, badgeColor, liveColor, unavailable, automationColor, restoredBadgeColor: render(customizations) });
+			}
+			assert.deepStrictEqual(results, [false, true].map(shortcut => ({
+				shortcut,
+				badgeColor: 'var(--vscode-activityBarBadge-background)',
+				liveColor: '',
+				unavailable: { color: '', hasUnavailableIcon: true },
+				automationColor: '',
+				restoredBadgeColor: 'var(--vscode-activityBarBadge-background)',
+			})));
+		});
+
 		test('renders in-progress automation status in the leading icon slot', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
