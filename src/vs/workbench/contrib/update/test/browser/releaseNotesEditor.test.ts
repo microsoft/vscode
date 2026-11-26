@@ -596,12 +596,15 @@ suite('Release notes editor Try This integration', () => {
 			explicitSetup: provider.provideContent().includes('Setup does not automatically run the example'),
 			customLabels: provider.provideContent().includes('custom labels'),
 			currentSection: provider.provideContent().includes('does not move keyboard focus'),
+			videoControls: provider.provideContent().includes('Tab to the video player to reach its native controls, then use them to play or pause, seek, or change the volume'),
+			noDisclosureControl: !provider.provideContent().includes('Press Enter or Space on Watch release highlights'),
 			unfocused, focusCount,
 		}, {
 			releaseNotes: true, find: false, other: false,
 			id: AccessibleViewProviderId.ReleaseNotes, verbosity: AccessibilityVerbositySettingId.ReleaseNotes,
 			unsentChat: true, otherWindow: true, explicitSetup: true, customLabels: true,
 			currentSection: true,
+			videoControls: true, noDisclosureControl: true,
 			unfocused: undefined, focusCount: 1,
 		});
 	});
