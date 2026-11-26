@@ -21,7 +21,7 @@ import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { IUndoRedoElement, IUndoRedoService, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { mock } from '../../../../test/common/workbenchTestServices.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IWorkingCopyFileService, WorkingCopyFileOperationCancellationError } from '../../../../services/workingCopy/common/workingCopyFileService.js';
+import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IMoveOperation, IWorkingCopyFileService, WorkingCopyFileOperationCancellationError } from '../../../../services/workingCopy/common/workingCopyFileService.js';
 import { BulkFileEdits } from '../../browser/bulkFileEdits.js';
 
 suite('BulkFileEdits', function () {
@@ -46,7 +46,7 @@ suite('BulkFileEdits', function () {
 		};
 	}
 
-	async function applyAndUndo(edits: ResourceFileEdit[], fileService: IFileService, workingCopyFileService: IWorkingCopyFileService, token = CancellationToken.None): Promise<void> {
+	async function applyEdits(edits: ResourceFileEdit[], fileService: IFileService, workingCopyFileService: IWorkingCopyFileService, token = CancellationToken.None): Promise<IUndoRedoElement> {
 		let undoElement: IUndoRedoElement | undefined;
 		const undoRedoService = new class extends mock<IUndoRedoService>() {
 			override pushElement(element: IUndoRedoElement): void {
@@ -81,7 +81,13 @@ suite('BulkFileEdits', function () {
 
 		await bulkFileEdits.apply();
 		assert.ok(undoElement);
+		return undoElement;
+	}
+
+	async function applyAndUndo(edits: ResourceFileEdit[], fileService: IFileService, workingCopyFileService: IWorkingCopyFileService, token = CancellationToken.None): Promise<IUndoRedoElement> {
+		const undoElement = await applyEdits(edits, fileService, workingCopyFileService, token);
 		await undoElement.undo();
+		return undoElement;
 	}
 
 	async function applyDelete(types: readonly FileType[], options?: WorkspaceFileEditOptions) {
@@ -219,6 +225,121 @@ suite('BulkFileEdits', function () {
 		assert.deepStrictEqual(operations, [
 			'copy /workspace/target-0',
 			'delete /workspace/target-0'
+		]);
+	});
+
+	test('undo and redo dependent renames in reverse dependency order (#344765)', async () => {
+		const operations: string[] = [];
+		const fileService = new class extends mock<IFileService>() { };
+		const workingCopyFileService = new class extends mock<IWorkingCopyFileService>() {
+			override async move(moves: IMoveOperation[]): Promise<readonly IFileStatWithMetadata[]> {
+				for (const { file } of moves) {
+					operations.push(`move ${file.source.path} -> ${file.target.path}`);
+				}
+				return [];
+			}
+		};
+
+		const edits = [
+			new ResourceFileEdit(URI.file('/workspace/oldFolder/file.txt'), URI.file('/workspace/file.txt')),
+			new ResourceFileEdit(URI.file('/workspace/oldFolder'), URI.file('/workspace/newFolder'), { folder: true }),
+		];
+
+		const undoElement = await applyEdits(edits, fileService, workingCopyFileService);
+		assert.deepStrictEqual(operations, [
+			'move /workspace/oldFolder/file.txt -> /workspace/file.txt',
+			'move /workspace/oldFolder -> /workspace/newFolder',
+		]);
+
+		operations.length = 0;
+		await undoElement.undo();
+		assert.deepStrictEqual(operations, [
+			'move /workspace/newFolder -> /workspace/oldFolder',
+			'move /workspace/file.txt -> /workspace/oldFolder/file.txt',
+		]);
+
+		operations.length = 0;
+		await undoElement.redo();
+		assert.deepStrictEqual(operations, [
+			'move /workspace/oldFolder/file.txt -> /workspace/file.txt',
+			'move /workspace/oldFolder -> /workspace/newFolder',
+		]);
+	});
+
+	test('undo and redo dependent edits across multiple operation groups', async () => {
+		const operations: string[] = [];
+		const createdResource = URI.file('/workspace/newFolder/created.txt');
+		const createdContent = VSBuffer.fromString('hello');
+
+		const fileService = new class extends mock<IFileService>() {
+			override async resolve(resource: URI): Promise<IFileStatWithMetadata> {
+				assert.ok(isEqual(resource, createdResource));
+				return fileContent(resource, FileType.File, createdContent);
+			}
+
+			override hasCapability(): boolean {
+				return false;
+			}
+
+			override async readFile(resource: URI): Promise<IFileContent> {
+				assert.ok(isEqual(resource, createdResource));
+				return fileContent(resource, FileType.File, createdContent);
+			}
+		};
+
+		const workingCopyFileService = new class extends mock<IWorkingCopyFileService>() {
+			override async move(moves: IMoveOperation[]): Promise<readonly IFileStatWithMetadata[]> {
+				for (const { file } of moves) {
+					operations.push(`move ${file.source.path} -> ${file.target.path}`);
+				}
+				return [];
+			}
+
+			override async createFolder(): Promise<readonly IFileStatWithMetadata[]> {
+				return [];
+			}
+
+			override async create(creates: ICreateFileOperation[]): Promise<readonly IFileStatWithMetadata[]> {
+				for (const { resource } of creates) {
+					operations.push(`create ${resource.path}`);
+				}
+				return [];
+			}
+
+			override async delete(deletes: IDeleteOperation[]): Promise<void> {
+				for (const { resource } of deletes) {
+					operations.push(`delete ${resource.path}`);
+				}
+			}
+		};
+
+		const edits = [
+			new ResourceFileEdit(URI.file('/workspace/oldFolder/file.txt'), URI.file('/workspace/file.txt')),
+			new ResourceFileEdit(URI.file('/workspace/oldFolder'), URI.file('/workspace/newFolder'), { folder: true }),
+			new ResourceFileEdit(undefined, createdResource, { contents: Promise.resolve(createdContent) }),
+		];
+
+		const undoElement = await applyEdits(edits, fileService, workingCopyFileService);
+		assert.deepStrictEqual(operations, [
+			'move /workspace/oldFolder/file.txt -> /workspace/file.txt',
+			'move /workspace/oldFolder -> /workspace/newFolder',
+			'create /workspace/newFolder/created.txt',
+		]);
+
+		operations.length = 0;
+		await undoElement.undo();
+		assert.deepStrictEqual(operations, [
+			'delete /workspace/newFolder/created.txt',
+			'move /workspace/newFolder -> /workspace/oldFolder',
+			'move /workspace/file.txt -> /workspace/oldFolder/file.txt',
+		]);
+
+		operations.length = 0;
+		await undoElement.redo();
+		assert.deepStrictEqual(operations, [
+			'move /workspace/oldFolder/file.txt -> /workspace/file.txt',
+			'move /workspace/oldFolder -> /workspace/newFolder',
+			'create /workspace/newFolder/created.txt',
 		]);
 	});
 });

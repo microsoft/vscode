@@ -92,7 +92,7 @@ class RenameOperation implements IFileOperation {
 			}
 		}
 
-		return new RenameOperation(undoes.slice(0, completed), { isUndoing: true }, this._workingCopyFileService, this._fileService);
+		return new RenameOperation(undoes.slice(0, completed).reverse(), { isUndoing: true }, this._workingCopyFileService, this._fileService);
 	}
 
 	toString(): string {
