@@ -8,6 +8,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -23,8 +24,8 @@ suite('Sessions - Chat view sessions list New button', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function render(newChatEnabled: boolean) {
-		const commands: string[] = [];
-		const commandService = upcastPartial<ICommandService>({ executeCommand: async (id: string) => { commands.push(id); return undefined; } });
+		const commands: { id: string; args: unknown[] }[] = [];
+		const commandService = upcastPartial<ICommandService>({ executeCommand: async (id: string, ...args: unknown[]) => { commands.push({ id, args }); return undefined; } });
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ICommandService, commandService);
 		const menus: (readonly IAction[])[] = [];
@@ -33,15 +34,16 @@ suite('Sessions - Chat view sessions list New button', () => {
 		const newChat = new MenuItemAction({ id: 'newChat', title: 'New Chat', icon: undefined, precondition: newChatEnabled ? undefined : ContextKeyExpr.false() }, undefined, undefined, undefined, undefined, contextKeyService, commandService);
 		const actions = [newChat, new Separator(), store.add(new Action('newChatWindow', 'New Chat Window'))];
 		const submenu = new SubmenuItemAction({ submenu: MenuId.ChatNewMenu, title: 'New Chat' }, undefined, actions);
-		const control = instantiationService.createInstance(ChatViewSessionsListControl, upcastPartial<SessionsView>({ dispose: () => { } }), undefined);
+		const control = instantiationService.createInstance(ChatViewSessionsListControl, upcastPartial<SessionsView>({ dispose: () => { }, createActionViewItem: () => undefined }), undefined);
 		const item = store.add(control.createActionViewItem(submenu)!);
 		const container = DOM.$('div');
 		item.render(container);
-		return { item, container, actions, commands, menus };
+		item.setActionContext('titleContext');
+		return { item, control, submenu, container, actions, commands, menus };
 	}
 
 	test('shows New Chat as a "New" split button whose menu is the New menu', async () => {
-		const { item, container, actions, commands, menus } = render(true);
+		const { item, submenu, container, actions, commands, menus } = render(true);
 		const primary = container.querySelector<HTMLElement>('.action-container .action-label')!;
 
 		primary.click();
@@ -50,15 +52,55 @@ suite('Sessions - Chat view sessions list New button', () => {
 
 		assert.deepStrictEqual({
 			isSplitButton: item instanceof DropdownWithPrimaryActionViewItem,
+			isNewMenu: item.action === submenu,
 			label: primary.textContent,
 			disabled: primary.classList.contains('disabled'),
 			commands,
 			menus: menus.map(menu => menu.length === actions.length && menu.every((action, index) => action === actions[index])),
-		}, { isSplitButton: true, label: 'New', disabled: false, commands: ['newChat'], menus: [true] });
+		}, { isSplitButton: true, isNewMenu: true, label: 'New', disabled: false, commands: [{ id: 'newChat', args: ['titleContext'] }], menus: [true] });
 	});
 
 	test('is disabled when New Chat is', () => {
 		const { container } = render(false);
-		assert.strictEqual(container.querySelector<HTMLElement>('.action-container .action-label')!.classList.contains('disabled'), true);
+		assert.deepStrictEqual({
+			button: container.classList.contains('disabled'),
+			primary: container.querySelector<HTMLElement>('.action-container .action-label')!.classList.contains('disabled'),
+			ariaDisabled: container.querySelector<HTMLElement>(':scope > .action-container')!.getAttribute('aria-disabled'),
+		}, { button: true, primary: true, ariaDisabled: 'true' });
+	});
+
+	test('moves into the overflow of a responsive title toolbar as a split button, and back', () => {
+		const { control, submenu } = render(true);
+		const container = document.body.appendChild(DOM.$('div'));
+		try {
+			let availableWidth = 400;
+			const toolbar = store.add(new ToolBar(container, upcastPartial({ showContextMenu: () => { } }), {
+				actionViewItemProvider: (action, options) => control.createActionViewItem(action, options),
+				// As the Chat view's title in the secondary side bar
+				responsiveBehavior: {
+					enabled: true, kind: 'all', actionMinWidth: 22, reserveMinWidth: false, getAvailableWidth: () => availableWidth,
+					getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? 36 : undefined,
+				},
+			}));
+			const other = store.add(new Action('other', 'Other'));
+			toolbar.setActions([other, submenu]);
+			const shown = () => [0, 1, 2].map(index => toolbar.getItemAction(index)?.id);
+
+			const wide = shown();
+			availableWidth = 50;
+			toolbar.relayout();
+			const narrow = shown();
+			availableWidth = 400;
+			toolbar.relayout();
+
+			assert.deepStrictEqual({ wide, narrow, restored: shown(), isNewMenu: toolbar.getItemAction(1) === submenu }, {
+				wide: ['other', submenu.id, undefined],
+				narrow: ['other', 'toolbar.toggle.more', undefined],
+				restored: ['other', submenu.id, undefined],
+				isNewMenu: true,
+			});
+		} finally {
+			container.remove();
+		}
 	});
 });
