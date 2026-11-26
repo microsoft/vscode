@@ -718,7 +718,8 @@ suite('SessionsListFilters', () => {
 
 	test('lists quick chats while the window is about all sessions, and otherwise only while it has no folder, following its folders and scope', () => {
 		const folders: URI[] = [];
-		let scope: URI | undefined = URI.file('/work');
+		// A plain empty window: no folder and no scope
+		let scope: URI | undefined = undefined;
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const onDidChangeWorkbenchScope = store.add(new Emitter<URI | undefined>());
 		const workspace = upcastPartial<IWorkspaceContextService>({
@@ -734,12 +735,13 @@ suite('SessionsListFilters', () => {
 		store.add(autorun(reader => { seen.push(listsQuickChats.read(reader)); }));
 
 		changeFolders(() => folders.push(URI.file('/work/vscode')));
+		changeScope(URI.file('/work/vscode'));
 		changeScope(undefined);
 		changeScope(URI.file('/work/vscode'));
 		changeFolders(() => folders.pop());
 
 		assert.deepStrictEqual(seen, [
-			// Empty, a folder added, all sessions, its own folder again, the last folder removed
+			// Plain empty window, a folder added (still all sessions, no change), scoped to its folder, all sessions, its own folder again, the last folder removed
 			true, false, true, false, true,
 		]);
 	});
