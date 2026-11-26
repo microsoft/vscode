@@ -163,8 +163,8 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 		});
 	});
 
-	test('reports a menu action that fails after the menu closed once, in a title that reports errors or not, but not a cancellation', async () => {
-		const reported = async (titleReportsErrors: boolean, error: Error) => {
+	test('reports a menu action that fails after the menu closed or the button was disposed once, in a title that reports errors or not, but not a cancellation', async () => {
+		const reported = async (titleReportsErrors: boolean, error: Error, disposeItem = false) => {
 			const { item, actions, contextMenuService, notificationService, menuAction } = createItem(DOM.$('div'));
 			// A composite title reports the errors of its runner, a view's title does not
 			const titleRunner = item.actionRunner;
@@ -178,6 +178,10 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 			item.element!.querySelectorAll<HTMLElement>('.monaco-button')[1].click();
 			const run = contextMenuService.select(actions[1]);
 			await timeout(0);
+			if (disposeItem) {
+				// As the toolbar does when it moves New into its overflow
+				item.dispose();
+			}
 			fail();
 			await run;
 			return [...contextMenuService.reportedErrors, ...titleErrors, ...notificationService.errors].length;
@@ -187,7 +191,10 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 			await reported(false, new Error('failed')),
 			await reported(true, new Error('failed')),
 			await reported(false, new CancellationError()),
-		], [1, 1, 0]);
+			await reported(false, new Error('failed'), true),
+			await reported(true, new Error('failed'), true),
+			await reported(false, new CancellationError(), true),
+		], [1, 1, 0, 1, 1, 0]);
 	});
 
 	test('consumes taps, so that a containing pane header does not toggle', () => {

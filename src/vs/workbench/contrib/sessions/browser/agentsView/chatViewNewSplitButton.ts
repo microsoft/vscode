@@ -79,20 +79,22 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 		this.element = container;
 		container.classList.add('chat-view-new-split-button');
 
-		// The menu's actions run with the context of the title. This runner owns their errors, as it outlives the menu, which
-		// stops listening when it closes, and the title runner is not used, so that a title that reports its errors does not
-		// report them twice.
+		// The menu's actions run with the context of the title. Each run reports its own error, as it can outlive the menu,
+		// which stops listening when it closes, and this item, which the toolbar disposes when it moves New into its overflow.
+		// The title runner is not used, so that a title that reports its errors does not report them twice.
+		const notificationService = this.notificationService;
 		const actionRunner = this._register(new class extends ActionRunner {
 			constructor(private readonly item: ChatViewNewSplitButtonActionViewItem) { super(); }
-			protected override runAction(action: IAction): Promise<void> {
-				return super.runAction(action, this.item._context);
+			protected override async runAction(action: IAction): Promise<void> {
+				try {
+					await super.runAction(action, this.item._context);
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						notificationService.error(error);
+					}
+				}
 			}
 		}(this));
-		this._register(actionRunner.onDidRun(e => {
-			if (e.error && !isCancellationError(e.error)) {
-				this.notificationService.error(e.error);
-			}
-		}));
 		const button = this.button = this._register(new ButtonWithDropdown(container, {
 			...defaultButtonStyles,
 			buttonSecondaryBackground: asCssVariable(agentsNewSessionButtonBackground),
