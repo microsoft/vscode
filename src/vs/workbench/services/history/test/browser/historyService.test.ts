@@ -23,6 +23,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IResolvedTextFileEditorModel, ITextFileService } from '../../../textfile/common/textfiles.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { isLinux } from '../../../../../base/common/platform.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
@@ -963,6 +964,27 @@ suite('HistoryService', function () {
 			contextService.setFolders([URI.file('/renamed')], { isFolderLocationChange: true });
 
 			assert.deepStrictEqual(await reopenTwice(historyService, part), ['/renamed/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('a UNC share root with and without its trailing separator is the same location', async () => {
+			const share = URI.from({ scheme: 'file', authority: 'server', path: '/share/' });
+			const { contextService, instantiationService, part } = await createFolderServices(share);
+			const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
+			const canReopen = () => contextKeyService.getContextKeyValue<boolean>('canReopenClosedEditor');
+
+			// Reopening is not exercised: the test text files cannot resolve a UNC path
+			await part.activeGroup.openEditor(disposables.add(new UntypedTestFileEditorInput(URI.from({ scheme: 'file', authority: 'server', path: '/share/a.txt' }), TEST_EDITOR_INPUT_ID)), { pinned: true });
+			await part.activeGroup.closeAllEditors();
+
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			const atWorktree = canReopen();
+
+			contextService.setFolders([URI.from({ scheme: 'file', authority: 'server', path: '/share' })], { isFolderLocationChange: true });
+			const backAtShare = canReopen();
+
+			assert.deepStrictEqual({ atWorktree, backAtShare }, { atWorktree: false, backAtShare: true });
 
 			return workbenchTeardown(instantiationService);
 		});

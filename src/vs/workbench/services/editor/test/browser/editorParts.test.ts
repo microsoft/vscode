@@ -26,6 +26,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { AuxiliaryEditorPartImpl } from '../../../../browser/parts/editor/auxiliaryEditorPart.js';
 import { PART_GRID_CLASS } from '../../../../browser/parts/editor/partGridClass.js';
 import { EditorGroupLockActionsHiddenContext } from '../../../../common/contextkeys.js';
 import { EditorCloseContext, EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorOpenContext, IEditorSerializer } from '../../../../common/editor.js';
@@ -387,6 +388,36 @@ suite('Editor Parts', () => {
 			{ path: '/switched.txt', context: EditorCloseContext.SWITCH },
 			{ path: '/switched-again.txt', context: EditorCloseContext.SWITCH },
 			{ path: '/other.txt', context: EditorCloseContext.UNKNOWN }
+		]);
+	});
+
+	test('applying a working set that switches the editors also reports the switch for the editors that an auxiliary part closes when it closes', async () => {
+		const { instantiationService, parts } = await createServices();
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add({ dispose: () => container.remove() });
+		const auxiliary = disposables.add(instantiationService.createInstance(AuxiliaryEditorPartImpl, mainWindow.vscodeWindowId, parts, undefined, 'Auxiliary'));
+		disposables.add(parts.registerPart(auxiliary));
+		auxiliary.create(container);
+		auxiliary.layout(800, 600, 0, 0);
+
+		const clean = disposables.add(new TestFileEditorInput(URI.file('/clean.txt'), 'testTypeId'));
+		const saved = disposables.add(new TestFileEditorInput(URI.file('/saved.txt'), 'testTypeId'));
+		saved.setDirty();
+		await auxiliary.activeGroup.openEditor(clean, { pinned: true });
+		await auxiliary.activeGroup.openEditor(saved, { pinned: true });
+
+		const closes: { path: string | undefined; context: EditorCloseContext }[] = [];
+		disposables.add(auxiliary.activeGroup.onDidCloseEditor(e => {
+			closes.push({ path: e.editor.resource?.path, context: e.context });
+
+			// Saved while the switch is applied: the part closes it when it closes, not the first pass
+			saved.dirty = false;
+		}));
+		await parts.applyWorkingSet('empty', { switchesEditors: true });
+
+		assert.deepStrictEqual(closes, [
+			{ path: '/clean.txt', context: EditorCloseContext.SWITCH },
+			{ path: '/saved.txt', context: EditorCloseContext.SWITCH }
 		]);
 	});
 

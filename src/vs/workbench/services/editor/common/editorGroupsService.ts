@@ -567,7 +567,11 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	 *
 	 * @returns `false` if an editor could not be moved back.
 	 */
-	close(options?: { preserveFocus?: boolean }): boolean;
+	/**
+	 * Closes the part: the editors that do not need confirmation close with the close context, if any,
+	 * and the other editors move to the main part.
+	 */
+	close(options?: { preserveFocus?: boolean; closeContext?: EditorCloseContext }): boolean;
 }
 
 /**

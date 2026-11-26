@@ -745,16 +745,17 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// (for example when being dirty). This is to be able to have
 		// them merge into the main part.
 
+		const closeContext = options?.switchesEditors ? EditorCloseContext.SWITCH : undefined;
 		for (const part of this.parts) {
 			if (part === this.mainPart || part.isTransient) {
 				continue; // main part takes care on its own and transient parts are managed by their owner
 			}
 
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				await group.closeAllEditors({ excludeConfirming: true, force: true, context: options?.switchesEditors ? EditorCloseContext.SWITCH : undefined });
+				await group.closeAllEditors({ excludeConfirming: true, force: true, context: closeContext });
 			}
 
-			const closed = (part as unknown as IAuxiliaryEditorPart).close(options); // will move remaining editors to main part
+			const closed = (part as unknown as IAuxiliaryEditorPart).close({ preserveFocus: options?.preserveFocus, closeContext }); // will move remaining editors to main part
 			if (!closed) {
 				return false; // this indicates that closing was vetoed
 			}

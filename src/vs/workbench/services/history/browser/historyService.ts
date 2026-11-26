@@ -12,6 +12,7 @@ import { IEditorService } from '../../editor/common/editorService.js';
 import { GoFilter, GoScope, IHistoryService, MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../common/history.js';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { withoutTrailingSeparator } from '../../../../platform/workspace/common/folderLocations.js';
 import { Disposable, DisposableStore, IDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -906,7 +907,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			this.putAwayRecentlyClosedEditors.delete(key);
 			if (entries.length) {
-				this.putAwayRecentlyClosedEditors.set(key, { folder: this.uriIdentityService.extUri.removeTrailingPathSeparator(folder), entries });
+				this.putAwayRecentlyClosedEditors.set(key, { folder: withoutTrailingSeparator(folder), entries });
 			}
 		}
 
@@ -954,9 +955,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// A location is a folder: match it without trailing separators, so that a folder URI with one moves it too
-		const extUri = this.uriIdentityService.extUri;
-		const sourceFolder = extUri.removeTrailingPathSeparator(source);
-		const targetFolder = extUri.removeTrailingPathSeparator(target);
+		const sourceFolder = withoutTrailingSeparator(source);
+		const targetFolder = withoutTrailingSeparator(target);
 
 		const moved = new Map<string, { readonly folder: URI; readonly entries: IRecentlyClosedEditor[] }>();
 		for (const [key, { folder, entries }] of this.putAwayRecentlyClosedEditors) {
@@ -1006,12 +1006,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	/**
-	 * The identity of a folder location: its comparison key without a trailing separator, which keeps the separator of a root.
+	 * The identity of a folder location: the comparison key of its folder location identity, see {@link withoutTrailingSeparator}.
 	 */
 	private toLocationKey(folder: URI): string {
-		const extUri = this.uriIdentityService.extUri;
-
-		return extUri.getComparisonKey(extUri.removeTrailingPathSeparator(folder));
+		return this.uriIdentityService.extUri.getComparisonKey(withoutTrailingSeparator(folder));
 	}
 
 	//#endregion
