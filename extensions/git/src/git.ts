@@ -1096,8 +1096,8 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
  * containing the `gitdir` file when the worktree uses relative paths (git >= 2.48).
  */
 export function getWorktreePathFromGitdir(worktreeGitDirPath: string, gitdirContent: string): string {
-	// Remove '/.git' suffix
-	const worktreePath = gitdirContent.replace(/\/.git.*$/, '');
+	// Remove the trailing '/.git' segment only, so folders like '.github' or 'agit' survive
+	const worktreePath = gitdirContent.replace(/[\\/]\.git$/, '');
 	return path.isAbsolute(worktreePath) ? worktreePath : path.resolve(worktreeGitDirPath, worktreePath);
 }
 

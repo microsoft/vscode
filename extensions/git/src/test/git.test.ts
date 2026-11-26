@@ -733,6 +733,22 @@ suite('git', () => {
 				path.resolve('/worktrees/feature')
 			]);
 		});
+
+		test('keeps folders whose name starts with .git or contains git', function () {
+			const worktreeGitDirPath = path.resolve('/repo/.git/worktrees/feature');
+
+			assert.deepStrictEqual([
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/src/.github-tools/feature/.git'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/src/.gitworktrees/feature/.git'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/src/agit/feature/.git'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '../../../../src/.github-tools/feature/.git')
+			], [
+				'/src/.github-tools/feature',
+				'/src/.gitworktrees/feature',
+				'/src/agit/feature',
+				path.resolve('/src/.github-tools/feature')
+			]);
+		});
 	});
 
 	suite('parseCoAuthors', () => {
