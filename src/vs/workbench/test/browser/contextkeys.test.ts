@@ -13,13 +13,13 @@ import { ServicesAccessor } from '../../../platform/instantiation/common/instant
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { IWorkspaceContextService, toWorkspaceFolder, WorkbenchState, type IWorkspaceFoldersChangeEvent } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, toWorkspaceFolder, WorkbenchScope, WorkbenchState, type IWorkspaceFoldersChangeEvent } from '../../../platform/workspace/common/workspace.js';
 import { testIWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import '../../browser/actions/layoutActions.js';
 import '../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../browser/parts/editor/editor.js';
 import { WorkbenchContextKeysHandler } from '../../browser/contextkeys.js';
-import { VirtualWorkspaceContext, WorkspaceHasVirtualContentContext } from '../../common/contextkeys.js';
+import { VirtualWorkspaceContext, WorkbenchScopeContext, WorkspaceHasVirtualContentContext } from '../../common/contextkeys.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { TestLayoutService, workbenchInstantiationService } from './workbenchTestServices.js';
@@ -55,12 +55,16 @@ suite('Workbench Context Keys', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeWorkbenchScope = disposables.add(new Emitter<WorkbenchScope>());
+		let scope = WorkbenchScope.WORKSPACE;
 		const workspace = { folders: [localFolder, virtualFolder] };
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IWorkspaceContextService, {
 			getWorkspace: () => testIWorkspace({ id: 'test', folders: workspace.folders }),
 			getWorkbenchState: () => WorkbenchState.WORKSPACE,
 			onDidChangeWorkbenchState: Event.None,
+			getWorkbenchScope: () => scope,
+			onDidChangeWorkbenchScope: onDidChangeWorkbenchScope.event,
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 		});
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
@@ -70,7 +74,11 @@ suite('Workbench Context Keys', () => {
 			workspace.folders = folders;
 			onDidChangeWorkspaceFolders.fire(event);
 		};
-		return { contextKeyService, setFolders };
+		const setScope = (value: WorkbenchScope) => {
+			scope = value;
+			onDidChangeWorkbenchScope.fire(value);
+		};
+		return { contextKeyService, setFolders, setScope };
 	}
 
 	const maximizeActionShown = (contextKeyService: ContextKeyService) => MenuRegistry.getMenuItems(MenuId.AuxiliaryBarTitle)
@@ -89,7 +97,13 @@ suite('Workbench Context Keys', () => {
 		layoutService.whenRestored = new Promise<void>(resolve => restored = resolve);
 		layoutService.chatVisible = false;
 		layoutService.editorHidden = true;
-		const { contextKeyService, setFolders } = create(layoutService);
+		const { contextKeyService, setFolders, setScope } = create(layoutService);
+		const scopes = [WorkbenchScopeContext.getValue(contextKeyService)];
+		setScope(WorkbenchScope.ALL);
+		scopes.push(WorkbenchScopeContext.getValue(contextKeyService));
+		setScope(WorkbenchScope.WORKSPACE);
+		scopes.push(WorkbenchScopeContext.getValue(contextKeyService));
+		assert.deepStrictEqual(scopes, ['workspace', 'all', 'workspace']);
 		const workspaceKeys = () => ({
 			scheme: VirtualWorkspaceContext.getValue(contextKeyService),
 			hasVirtualContent: WorkspaceHasVirtualContentContext.getValue(contextKeyService),

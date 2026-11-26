@@ -135,6 +135,33 @@ export function truncateMiddle(value: string, maxLength: number, suffix = Ellips
 }
 
 /**
+ * Truncates each line of the value that is longer than `maxLineLength` characters, keeping
+ * the line breaks. Returns the value itself when no line exceeds the limit.
+ */
+export function truncateLongLines(value: string, maxLineLength: number, suffix = Ellipsis): string {
+	if (value.length <= maxLineLength) {
+		return value;
+	}
+	let result: string | undefined;
+	let copiedUpTo = 0;
+	let lineStart = 0;
+	while (lineStart < value.length) {
+		let lineEnd = value.indexOf('\n', lineStart);
+		if (lineEnd === -1) {
+			lineEnd = value.length;
+		}
+		// The CR of a CRLF line break is not part of the line.
+		const contentEnd = lineEnd > lineStart && lineEnd < value.length && value.charCodeAt(lineEnd - 1) === CharCode.CarriageReturn ? lineEnd - 1 : lineEnd;
+		if (contentEnd - lineStart > maxLineLength) {
+			result = (result ?? '') + value.substring(copiedUpTo, lineStart) + truncate(value.substring(lineStart, contentEnd), maxLineLength, suffix);
+			copiedUpTo = contentEnd;
+		}
+		lineStart = lineEnd + 1;
+	}
+	return result === undefined ? value : result + value.substring(copiedUpTo);
+}
+
+/**
  * Removes all occurrences of needle from the beginning and end of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim (default is a blank)

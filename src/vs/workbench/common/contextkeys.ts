@@ -21,6 +21,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, isDiffEditorInput }
 //#region < --- Workbench --- >
 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined, { type: 'string', description: localize('workbenchState', "The kind of workspace opened in the window, either 'empty' (no workspace), 'folder' (single folder) or 'workspace' (multi-root workspace)") });
+export const WorkbenchScopeContext = new RawContextKey<string>('workbenchScope', undefined, { type: 'string', description: localize('workbenchScope', "The scope of the window, either 'workspace' (its own folders and their sessions) or 'all' (all sessions, with folders following the focused session)") });
 export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0, localize('workspaceFolderCount', "The number of root folders in the workspace"));
 
 export const OpenFolderWorkspaceSupportContext = new RawContextKey<boolean>('openFolderWorkspaceSupport', true, true);
