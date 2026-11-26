@@ -15,6 +15,7 @@
     "documentSyntaxHighlighting",
     "externalUriOpener",
     "linkPresentation",
+    "textDocumentReadonly",
     "textEditorDiffInformation"
   ],
   "engines": {
