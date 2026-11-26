@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 
 export const maxSentMessages = 100;
@@ -26,6 +27,8 @@ export class SessionActionLimiter {
 	private readonly pending = new Map<string, number>();
 	private readonly unlimited = new Set<string>();
 	private readonly grants = new Map<string, number>();
+	private readonly _onDidRelease = new Emitter<string>();
+	readonly onDidRelease: Event<string> = this._onDidRelease.event;
 	private lastSweep: number;
 
 	constructor(private readonly maxActions: number, private readonly windowMs: number, private readonly now: () => number) {
@@ -64,6 +67,7 @@ export class SessionActionLimiter {
 				} else {
 					this.pending.set(session, remaining);
 				}
+				this._onDidRelease.fire(session);
 			},
 		};
 	}
@@ -72,6 +76,7 @@ export class SessionActionLimiter {
 		this.grants.set(session, (this.grants.get(session) ?? 0) + 1);
 		this.timestamps.delete(session);
 		this.pending.delete(session);
+		this._onDidRelease.fire(session);
 	}
 
 	allowUnlimited(session: string): void {
@@ -120,12 +125,13 @@ export class SessionActionLimiter {
 
 	describeLimit(action: string, session: string): string | undefined {
 		const limit = this.getLimit(session);
-		if (!limit) {
-			return undefined;
-		}
-		if (limit.retryAfterSeconds === undefined) {
-			return `Refusing to ${action}: this session already used ${limit.used} of ${limit.max} allowed in the last ${limit.windowMinutes} minutes and has ${limit.pending} more in progress. Wait for an action to finish, or turn off agent orchestration limits in settings.`;
-		}
-		return `Refusing to ${action}: this session already used ${limit.used} of ${limit.max} allowed in the last ${limit.windowMinutes} minutes. The limit applies to each session separately and frees up as older actions leave that window. Retry after ${limit.retryAfterSeconds} seconds, or turn off agent orchestration limits in settings.`;
+		return limit && formatSessionActionLimit(action, limit);
 	}
+}
+
+export function formatSessionActionLimit(action: string, limit: ISessionActionLimit): string {
+	if (limit.retryAfterSeconds === undefined) {
+		return `Refusing to ${action}: this session already used ${limit.used} of ${limit.max} allowed in the last ${limit.windowMinutes} minutes and has ${limit.pending} more in progress. Wait for an action to finish, or turn off agent orchestration limits in settings.`;
+	}
+	return `Refusing to ${action}: this session already used ${limit.used} of ${limit.max} allowed in the last ${limit.windowMinutes} minutes. The limit applies to each session separately and frees up as older actions leave that window. Retry after ${limit.retryAfterSeconds} seconds, or turn off agent orchestration limits in settings.`;
 }

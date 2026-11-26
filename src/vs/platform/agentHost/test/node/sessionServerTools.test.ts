@@ -1890,7 +1890,7 @@ suite('SessionServerTools', () => {
 		const peerChat = buildChatUri(session, 'peer');
 		const messageArgs = { session: 'copilot:/s1', message: 'status' };
 
-		function setup(canAskUser = () => true) {
+		function setup(canAskUser = () => true, startPrompt?: () => Promise<void>) {
 			const store = new DisposableStore();
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Caller', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: mainChat });
@@ -1898,7 +1898,7 @@ suite('SessionServerTools', () => {
 			stateManager.dispatchServerAction(mainChat, chatTurnStarted('turn-1', 'go'));
 			stateManager.dispatchServerAction(peerChat, chatTurnStarted('turn-1', 'go'));
 			let sent = 0;
-			const group = createSessionServerToolGroup(createAccessor({ canAskUser, getChatOwner: chat => stateManager.getChatOwner(chat), startPrompt: async () => { sent++; } }), () => true, () => 0);
+			const group = createSessionServerToolGroup(createAccessor({ canAskUser, getChatOwner: chat => stateManager.getChatOwner(chat), startPrompt: async () => { await startPrompt?.(); sent++; } }), () => true, () => 0);
 			const questions: { readonly chat: string; readonly id: string; readonly title: string }[] = [];
 			let onQuestion: (() => void) | undefined;
 			store.add(stateManager.onDidEmitEnvelope(({ channel, action }) => {
@@ -1980,6 +1980,33 @@ suite('SessionServerTools', () => {
 				declined: 1,
 				questions: 2,
 				sent: 200,
+			});
+			t.store.dispose();
+		});
+
+		test('a call waits without asking while only in-progress calls fill the limit', async () => {
+			let hold = false;
+			const held = new DeferredPromise<void>();
+			const entered = new DeferredPromise<void>();
+			const t = setup(undefined, async () => {
+				if (hold) {
+					hold = false;
+					entered.complete();
+					await held.p;
+				}
+			});
+			await t.sendMany(99);
+			hold = true;
+			const holding = t.send(mainChat);
+			await entered.p;
+			const waiting = t.send(peerChat);
+			held.error(new Error('target unavailable'));
+
+			assert.deepStrictEqual({ holding: await holding, waiting: await waiting, questions: t.questions.length, sent: t.sent() }, {
+				holding: 'refused',
+				waiting: 'allowed',
+				questions: 0,
+				sent: 100,
 			});
 			t.store.dispose();
 		});

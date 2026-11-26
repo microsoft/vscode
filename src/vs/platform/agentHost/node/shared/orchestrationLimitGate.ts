@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
-import type { ISessionActionLimit, ISessionActionReservation, SessionActionLimiter } from '../../common/sessionActionLimiter.js';
+import { formatSessionActionLimit, type ISessionActionLimit, type ISessionActionReservation, type SessionActionLimiter } from '../../common/sessionActionLimiter.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ResponsePartKind, type ChatInputAnswer } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
@@ -38,7 +40,7 @@ interface IOrchestrationLimiter {
 
 export class OrchestrationLimitGate {
 
-	private readonly _questions = new Map<string, Promise<OrchestrationLimitAnswer>>();
+	private readonly _questions = new Map<string, Event<OrchestrationLimitAnswer>>();
 
 	constructor(
 		private readonly _canAskUser: (context: IServerToolExecutionContext) => boolean,
@@ -50,28 +52,42 @@ export class OrchestrationLimitGate {
 			if (!limit) {
 				return limiter.reserve(session);
 			}
-			const limitMessage = limiter.describeLimit(action, session)!;
 			if (context.turnId === undefined || !this._canAskUser(context)) {
-				throw new Error(limitMessage);
+				throw new Error(formatSessionActionLimit(action, limit));
 			}
-			const key = `${kind}\0${session}`;
-			let question = this._questions.get(key);
-			if (!question) {
-				question = askUser(stateManager, context, context.turnId, kind, limit).then(answer => {
-					if (answer === OrchestrationLimitChoice.AllowMore) {
-						limiter.allowMore(session);
-					} else if (answer === OrchestrationLimitChoice.AllowUnlimited) {
-						limiter.allowUnlimited(session);
-					}
-					return answer;
-				}).finally(() => this._questions.delete(key));
-				this._questions.set(key, question);
+			if (limit.used < limit.max) {
+				const released = await whileCallerRuns(stateManager, context, context.turnId, Event.filter(limiter.onDidRelease, released => released === session));
+				if (released === undefined) {
+					throw new CancellationError();
+				}
+				continue;
 			}
-			const answer = await raceWithCallerLifetime(stateManager, context, context.turnId, question);
-			if (answer === OrchestrationLimitChoice.Deny || answer === undefined) {
+			const answer = await whileCallerRuns(stateManager, context, context.turnId, this._getQuestion(stateManager, context, context.turnId, kind, limiter, session, limit));
+			if (answer === OrchestrationLimitChoice.Deny || answer === undefined || stateManager.getActiveTurnId(context.chatUri) !== context.turnId) {
 				throw new Error(`Refusing to ${action}: this session reached its limit of ${limit.max} in ${limit.windowMinutes} minutes and the user did not allow more. Do not retry unless the user asks you to.`);
 			}
 		}
+	}
+
+	private _getQuestion(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, turnId: string, kind: OrchestrationLimitKind, limiter: SessionActionLimiter, session: string, limit: ISessionActionLimit): Event<OrchestrationLimitAnswer> {
+		const key = `${kind}\0${session}`;
+		const existing = this._questions.get(key);
+		if (existing) {
+			return existing;
+		}
+		const onDidAnswer = new Emitter<OrchestrationLimitAnswer>();
+		this._questions.set(key, onDidAnswer.event);
+		void askUser(stateManager, context, turnId, kind, limit).then(answer => {
+			this._questions.delete(key);
+			if (answer === OrchestrationLimitChoice.AllowMore) {
+				limiter.allowMore(session);
+			} else if (answer === OrchestrationLimitChoice.AllowUnlimited) {
+				limiter.allowUnlimited(session);
+			}
+			onDidAnswer.fire(answer);
+			onDidAnswer.dispose();
+		});
+		return onDidAnswer.event;
 	}
 }
 
@@ -99,18 +115,16 @@ function onDidEndCallerTurn(stateManager: AgentHostStateManager, context: IServe
 	return store;
 }
 
-function raceWithCallerLifetime(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, turnId: string, question: Promise<OrchestrationLimitAnswer>): Promise<OrchestrationLimitAnswer | undefined> {
+function whileCallerRuns<T>(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, turnId: string, event: Event<T>): Promise<T | undefined> {
 	return new Promise(resolve => {
 		const store = onDidEndCallerTurn(stateManager, context, turnId, () => {
 			store.dispose();
 			resolve(undefined);
 		});
-		question.then(answer => {
-			if (!store.isDisposed) {
-				store.dispose();
-				resolve(stateManager.getActiveTurnId(context.chatUri) === turnId ? answer : undefined);
-			}
-		});
+		store.add(event(value => {
+			store.dispose();
+			resolve(value);
+		}));
 	});
 }
 
