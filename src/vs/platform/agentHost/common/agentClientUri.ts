@@ -51,6 +51,20 @@ export function toAgentClientUri(originalUri: URI, clientId: string): URI {
 }
 
 /**
+ * The path part of {@link toAgentClientUri}: `/[originalScheme]/[originalAuthority]/[originalPath]`.
+ * Sessions on a virtual workspace use it as the filesystem path of the
+ * workspace's client-owned files.
+ */
+export function toAgentClientPath(originalUri: URI): string {
+	return toAgentClientUri(originalUri, '').path.replace(/\/$/, '');
+}
+
+/** The inverse of {@link toAgentClientPath}. */
+export function fromAgentClientPath(path: string): URI {
+	return fromAgentClientUri(URI.from({ scheme: AGENT_CLIENT_SCHEME, path }));
+}
+
+/**
  * Extracts the original client-side URI from a {@link AGENT_CLIENT_SCHEME} URI.
  *
  * The inverse of {@link toAgentClientUri}.

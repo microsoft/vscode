@@ -42,6 +42,29 @@ suite('convertCarouselAnswers', () => {
 		});
 	});
 
+	test('preserves the single-select kind for freeform-only answers', () => {
+		const result = convertCarouselAnswers({
+			q1: { freeformValue: 'latest' },
+			q2: { selectedValue: '', freeformValue: 'custom' },
+		}, ['q1', 'q2'].map(id => ({
+			kind: ChatInputQuestionKind.SingleSelect,
+			id,
+			message: 'Which release?',
+			options: [{ id: 'preview', label: 'Preview' }],
+			allowFreeformInput: true,
+		})));
+		assert.deepStrictEqual(result, {
+			q1: {
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: ['latest'] }
+			},
+			q2: {
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: ['custom'] }
+			}
+		});
+	});
+
 	test('converts boolean single-select answer', () => {
 		const result = convertCarouselAnswers({ 'q1': { selectedValue: 'false' } }, [{
 			kind: ChatInputQuestionKind.Boolean,

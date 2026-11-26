@@ -215,6 +215,15 @@ suite('ChatErrorMessages', () => {
 			]);
 		});
 
+		test('rate-limit messages suggest Copilot Fusion when Auto is presented as Fusion', () => {
+			const message = (capiCode: string | undefined) => getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.RateLimited, retryAfter: 30, capiError: capiCode ? { code: capiCode } : undefined }, undefined, undefined, undefined, true).message;
+			assert.deepStrictEqual([message('model_overloaded'), message('user_model_rate_limited'), message(undefined)], [
+				'Sorry, the upstream model provider is currently experiencing high demand. Please try again in 30 seconds or consider switching to Copilot Fusion. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+				'You\'ve hit the rate limit for this model. Please try switching to Copilot Fusion or try again in 30 seconds. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+				'Sorry, your request was rate-limited. Please wait 30 seconds before trying again or consider switching to Copilot Fusion. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+			]);
+		});
+
 		test('quota sub-codes map to specific messages', () => {
 			const messages = [
 				getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.QuotaExceeded, capiError: { code: 'overage_limit_reached' } }, undefined).message,

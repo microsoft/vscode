@@ -563,7 +563,7 @@ suite('applyPatch parser', () => {
 				];
 
 				const linesToModify: number[] = [];
-				for (let i = random(1, maxEditsPerFile); linesToModify.length < i;) {
+				for (const i = random(1, maxEditsPerFile); linesToModify.length < i;) {
 					const r = random(0, lines.length - 1);
 					if (!linesToModify.includes(r)) {
 						linesToModify.push(r);

@@ -20,19 +20,18 @@ import { IEnvironmentService } from '../../../environment/common/environment.js'
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
 import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace.js';
 import { IFileService } from '../../../files/common/files.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { ExtensionBlockingOrigin, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
+import { ExtensionBlockingOrigin, ExtensionBlockingScope, IDeprecationInfo, InstallOperation, StatisticType, WEB_EXTENSION_TAG } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
-import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionBlocking, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, getBlockingInfo, sortExtensionVersions } from '../../common/extensionGalleryService.js';
+import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionBlocking, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, getBlockingInfo, getGalleryLinkTemplate, sortExtensionVersions } from '../../common/extensionGalleryService.js';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -81,13 +80,13 @@ function requestContext(statusCode: number, body: object): IRequestContext {
 	};
 }
 
-function galleryQueryResponse(extensions: object[]): object {
+function galleryQueryResponse(extensions: object[], totalCount = extensions.length): object {
 	return {
 		results: [{
 			extensions,
 			resultMetadata: [{
 				metadataType: 'ResultCount',
-				metadataItems: [{ name: 'TotalCount', count: extensions.length }]
+				metadataItems: [{ name: 'TotalCount', count: totalCount }]
 			}]
 		}]
 	};
@@ -173,9 +172,7 @@ suite('Extension Gallery Service', () => {
 	setup(() => {
 		const serviceMachineIdResource = joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'machineid');
 		environmentService = new EnvironmentServiceMock(serviceMachineIdResource);
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider));
+		fileService = createInMemoryFileService(disposables, serviceMachineIdResource.scheme);
 		storageService = disposables.add(new InMemoryStorageService());
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
@@ -186,6 +183,77 @@ suite('Extension Gallery Service', () => {
 		const allowedExtensionsService = disposables.add(new AllowedExtensionsService(productService, configurationService));
 		return new ExtensionGalleryServiceWithNoStorageService(requestService, logService, environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, manifestService);
 	}
+
+	for (const { name, deprecation, expected } of [
+		{ name: 'absent', deprecation: undefined, expected: undefined },
+		{ name: 'null', deprecation: null, expected: undefined },
+		{ name: 'plain', deprecation: {}, expected: { source: 'marketplace', extension: undefined, additionalInfo: undefined } },
+		{ name: 'message', deprecation: { customMessage: '**Retired**' }, expected: { source: 'marketplace', extension: undefined, additionalInfo: '**Retired**' } },
+		{ name: 'null message', deprecation: { customMessage: null }, expected: { source: 'marketplace', extension: undefined, additionalInfo: undefined } },
+		{ name: 'numeric message', deprecation: { customMessage: 42 }, expected: { source: 'marketplace', extension: undefined, additionalInfo: undefined } },
+		{ name: 'object message with replacement', deprecation: { customMessage: { value: 'Retired' }, replacementExtension: { name: 'other.replacement', displayName: 'Replacement' } }, expected: { source: 'marketplace', extension: { id: 'other.replacement', displayName: 'Replacement' }, additionalInfo: undefined } },
+		{ name: 'replacement and message', deprecation: { replacementExtension: { name: 'other.replacement', displayName: 'Replacement' }, customMessage: 'Please switch' }, expected: { source: 'marketplace', extension: { id: 'other.replacement', displayName: 'Replacement' }, additionalInfo: 'Please switch' } },
+		{ name: 'replacement without display name', deprecation: { replacementExtension: { name: 'other.replacement' } }, expected: { source: 'marketplace', extension: { id: 'other.replacement', displayName: 'other.replacement' }, additionalInfo: undefined } },
+		{ name: 'invalid replacement', deprecation: { replacementExtension: { name: 'invalid' }, customMessage: 'Retired' }, expected: { source: 'marketplace', extension: undefined, additionalInfo: 'Retired' } },
+	] satisfies { name: string; deprecation: object | null | undefined; expected: IDeprecationInfo | undefined }[]) {
+		for (const route of ['query', 'latest', 'version'] as const) {
+			test(`Marketplace deprecation ${name} through ${route}`, async () => {
+				const raw = { ...rawLatestExtension(), tags: [WEB_EXTENSION_TAG], deprecation };
+				const requestService = new RecordingRequestService(options => requestContext(200, options.type === 'POST' ? galleryQueryResponse([raw]) : raw));
+				const galleryService = createExtensionGalleryService(requestService);
+				const extensions = route === 'query'
+					? (await galleryService.query({ text: 'extension' }, CancellationToken.None)).firstPage
+					: await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid', ...(route === 'version' ? { version: '1.0.0' } : {}) }], CancellationToken.None);
+				assert.deepStrictEqual({ records: extensions.map(e => e.deprecationInfo), requests: requestService.requests.length }, { records: [expected], requests: 1 });
+			});
+		}
+	}
+
+	test('deprecated flag alone does not bypass deprecation fallback', async () => {
+		const requestService = new RecordingRequestService(() => requestContext(200, { ...rawLatestExtension(), flags: 'deprecated' }));
+		const [extension] = await createExtensionGalleryService(requestService).getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+		assert.strictEqual(extension.deprecationInfo, undefined);
+	});
+
+	test('Marketplace deprecation maps subsequent query pages without additional lookups', async () => {
+		const flags: number[] = [];
+		const requestService = new RecordingRequestService(options => {
+			const query: { filters: { pageNumber: number }[]; flags: number } = JSON.parse(options.data!);
+			flags.push(query.flags);
+			return requestContext(200, galleryQueryResponse([{ ...rawLatestExtension(), deprecation: { customMessage: `Page ${query.filters[0].pageNumber}` } }], 2));
+		});
+		const pager = await createExtensionGalleryService(requestService).query({ text: 'extension', pageSize: 1 }, CancellationToken.None);
+		const secondPage = await pager.getPage(1, CancellationToken.None);
+		assert.deepStrictEqual({
+			messages: [...pager.firstPage, ...secondPage].map(extension => extension.deprecationInfo?.additionalInfo),
+			requests: requestService.requests.length,
+			sameFlags: flags[0] === flags[1]
+		}, { messages: ['Page 1', 'Page 2'], requests: 2, sameFlags: true });
+	});
+
+	test('Marketplace metadata does not alter legacy control normalization or operational migrations', async () => {
+		productService = {
+			...productService,
+			extensionsGallery: { ...productService.extensionsGallery!, controlUrl: 'https://marketplace.test/control' }
+		};
+		const requestService = new RecordingRequestService(options => requestContext(200, options.url === 'https://marketplace.test/control' ? {
+			malicious: [],
+			deprecated: { 'Publisher.Extension': true },
+			migrateToPreRelease: { 'Publisher.Old': { id: 'publisher.new', displayName: 'New', migrateStorage: true } }
+		} : { ...rawLatestExtension(), deprecation: { replacementExtension: { name: 'publisher.other', displayName: 'Other' } } }));
+		const service = createExtensionGalleryService(requestService);
+		await service.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+		const report = await service.getExtensionsControlManifest();
+		assert.deepStrictEqual({
+			ordinary: report.deprecated['publisher.extension'],
+			migration: report.deprecated['publisher.old'],
+			copilotMigration: report.deprecated[productService.defaultChatAgent.extensionId.toLowerCase()]?.extension?.autoMigrate
+		}, {
+			ordinary: {},
+			migration: { disallowInstall: true, extension: { id: 'publisher.new', displayName: 'New', autoMigrate: { storage: true }, preRelease: true } },
+			copilotMigration: { storage: false, donotDisable: true }
+		});
+	});
 
 	test('marketplace machine id', async () => {
 		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
@@ -332,6 +400,23 @@ suite('Extension Gallery Service', () => {
 		});
 	});
 
+	test('getCompatibleExtension does not query all versions for an extension-level block', async () => {
+		const rawExtension = { ...rawLatestExtension(), flags: 'blocked', blocking: { origin: 'policy' } };
+		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, rawExtension) : requestContext(200, galleryQueryResponse([])));
+		const galleryService = createExtensionGalleryService(requestService);
+		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		const compatibleExtension = await galleryService.getCompatibleExtension(extension, false, TargetPlatform.UNIVERSAL);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			blockingInfo: compatibleExtension?.blockingInfo,
+		}, {
+			requests: [{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' }],
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension },
+		});
+	});
+
 	test('getExtensions falls back to query API when latest resource response omits files', async () => {
 		const rawExtension = rawLatestExtension();
 		const invalidLatestExtension = {
@@ -475,7 +560,7 @@ suite('Extension Gallery Service', () => {
 
 		assert.deepStrictEqual(
 			extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
-			[{ version: '2.0.0', blockingInfo: { origin: ExtensionBlockingOrigin.Service } }]
+			[{ version: '2.0.0', blockingInfo: { origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Version } }]
 		);
 	});
 
@@ -890,27 +975,32 @@ suite('Extension Gallery Service', () => {
 
 		test('extension flag without object is blocked', () => {
 			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, validated, blocked' }, {}), {
-				origin: ExtensionBlockingOrigin.Service
+				origin: ExtensionBlockingOrigin.Service,
+				scope: ExtensionBlockingScope.Extension,
 			});
 		});
 
 		test('extension object without flag is blocked', () => {
 			assert.deepStrictEqual(getBlockingInfo({ flags: 'public', blocking: { origin: 'policy' } }, {}), {
-				origin: ExtensionBlockingOrigin.Policy
+				origin: ExtensionBlockingOrigin.Policy,
+				scope: ExtensionBlockingScope.Extension,
 			});
 		});
 
 		test('a blocked version blocks the extension in hand, by flag or by object', () => {
 			assert.deepStrictEqual(
 				[{ flags: 'validated, blocked' }, { blocking: { origin: 'policy' } }]
-					.map(version => getBlockingInfo(notBlocked, version)?.origin),
-				[ExtensionBlockingOrigin.Service, ExtensionBlockingOrigin.Policy]);
+					.map(version => getBlockingInfo(notBlocked, version)),
+				[
+					{ origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Version },
+					{ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version },
+				]);
 		});
 
 		test('an extension block outranks a version block', () => {
 			assert.deepStrictEqual(
 				getBlockingInfo({ flags: 'blocked', blocking: { origin: 'service' } }, { flags: 'blocked', blocking: { origin: 'policy' } }),
-				{ origin: ExtensionBlockingOrigin.Service });
+				{ origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Extension });
 		});
 
 		test('unrecognized, absent, and wrong-typed origins degrade to service without failing', () => {
@@ -922,12 +1012,40 @@ suite('Extension Gallery Service', () => {
 
 		test('unknown flag tokens do not fail parsing', () => {
 			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, quarantined, blocked, embargoed' }, {}), {
-				origin: ExtensionBlockingOrigin.Service
+				origin: ExtensionBlockingOrigin.Service,
+				scope: ExtensionBlockingScope.Extension,
 			});
 		});
 
 		test('blocked is matched as a whole token', () => {
 			assert.strictEqual(getBlockingInfo({ flags: 'public, unblocked' }, { flags: 'unblocked' }), undefined);
+		});
+	});
+
+	suite('getGalleryLinkTemplate', () => {
+		const manifest: IExtensionGalleryManifest = {
+			version: '',
+			resources: [
+				{ id: 'https://marketplace/items?itemName={publisher}.{name}', type: `${ExtensionGalleryResourceType.ExtensionDetailsViewUri}/1.0.0-preview` },
+				{ id: 'https://marketplace/public/items?itemName={publisher}.{name}', type: 'PublicExtensionDetailsViewUriTemplate/1.0.0-preview' },
+			],
+			capabilities: { extensionQuery: {} }
+		};
+
+		test('uses the default link type when none is given', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, undefined, ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/items?itemName={publisher}.{name}');
+		});
+
+		test('uses the given link type when the manifest defines it', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'PublicExtensionDetailsViewUriTemplate/1.0.0-preview', ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/public/items?itemName={publisher}.{name}');
+		});
+
+		test('falls back to the default link type when the manifest does not define the given one', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'UnknownExtensionDetailsViewUriTemplate/1.0.0-preview', ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/items?itemName={publisher}.{name}');
+		});
+
+		test('returns undefined when neither link type is defined', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'UnknownPublisherViewUriTemplate', ExtensionGalleryResourceType.PublisherViewUri), undefined);
 		});
 	});
 });

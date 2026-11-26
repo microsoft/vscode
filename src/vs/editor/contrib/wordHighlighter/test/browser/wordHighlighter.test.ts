@@ -8,6 +8,10 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,7 +26,7 @@ import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProvider } f
 import { ITextModel } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { IModelService } from '../../../../common/services/model.js';
-import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor, TestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { TextualDocumentHighlightProvider } from '../../browser/textualHighlightProvider.js';
 import { getOccurrencesAtPosition, WordHighlighterContribution } from '../../browser/wordHighlighter.js';
@@ -207,21 +211,112 @@ suite('WordHighlighterContribution', () => {
 	const first: DocumentHighlight = { range: new Range(1, 1, 1, 5), kind: DocumentHighlightKind.Read };
 	const second: DocumentHighlight = { range: new Range(1, 6, 1, 10), kind: DocumentHighlightKind.Write };
 
-	function withHighlighter(options: IEditorOptions, run: (editor: ITestCodeEditor, contribution: WordHighlighterContribution, services: TestInstantiationService) => Promise<void>): Promise<void> {
+	function withHighlighter(options: IEditorOptions, run: (editor: ITestCodeEditor, contribution: WordHighlighterContribution, services: TestInstantiationService) => Promise<void>, resource?: URI): Promise<void> {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const services = createCodeEditorServices(store, new ServiceCollection(
 				[IConfigurationService, new TestConfigurationService({ 'editor.occurrencesHighlightDelay': 0 })]
 			));
-			const model = store.add(services.get(IModelService).createModel('word word word', null));
+			const model = store.add(services.get(IModelService).createModel('word word word', null, resource));
 			const editor = store.add(instantiateTestCodeEditor(services, model, options));
 			const contribution = store.add(editor.registerAndInstantiateContribution(WordHighlighterContribution.ID, WordHighlighterContribution));
+			const highlighter = contribution.wordHighlighter!;
 			try {
 				await run(editor, contribution, services);
 			} finally {
 				editor.setModel(null);
+				Reflect.set(highlighter.constructor, 'query', null);
 			}
 		});
 	}
+
+	async function renderHighlights(editor: ITestCodeEditor, contribution: WordHighlighterContribution, services: TestInstantiationService): Promise<ResourceMap<string[]>> {
+		store.add(services.get(ILanguageFeaturesService).documentHighlightProvider.register('*', {
+			provideDocumentHighlights: () => [first]
+		}));
+		const model = editor.getModel();
+		const highlighter = contribution.wordHighlighter!;
+		const rendered = Event.toPromise(Event.filter(model.onDidChangeDecorations, () => model.getAllDecorations().some(decoration => decoration.options.description === 'word-highlight')));
+		highlighter.trigger();
+		await rendered;
+		const ids = Reflect.get(highlighter.constructor, 'storedDecorationIDs') as ResourceMap<string[]>;
+		assert.ok(ids.has(model.uri));
+		return ids;
+	}
+
+	test('releases stored decoration IDs when the last editor detaches its model', async () => {
+		await withHighlighter({}, async (editor, contribution, services) => {
+			const model = editor.getModel();
+			const ids = await renderHighlights(editor, contribution, services);
+
+			editor.setModel(null);
+
+			assert.strictEqual(ids.has(model.uri), false);
+		});
+	});
+
+	test('releases stored decoration IDs for a replaced model', async () => {
+		await withHighlighter({}, async (editor, contribution, services) => {
+			const model = editor.getModel();
+			const ids = await renderHighlights(editor, contribution, services);
+			const replacement = store.add(services.get(IModelService).createModel('word word word', null));
+
+			editor.setModel(replacement);
+
+			assert.strictEqual(ids.has(model.uri), false);
+		});
+	});
+
+	test('releases stored decoration IDs when the model is disposed', async () => {
+		await withHighlighter({}, async (editor, contribution, services) => {
+			const model = editor.getModel();
+			const ids = await renderHighlights(editor, contribution, services);
+
+			model.dispose();
+
+			assert.strictEqual(ids.has(model.uri), false);
+		});
+	});
+
+	test('preserves stored decoration IDs until the last editor using a model detaches', async () => {
+		await withHighlighter({}, async (editor, contribution, services) => {
+			const model = editor.getModel();
+			const otherEditor = store.add(instantiateTestCodeEditor(services, model));
+			const otherContribution = store.add(otherEditor.registerAndInstantiateContribution(WordHighlighterContribution.ID, WordHighlighterContribution));
+			const focusedModel = store.add(services.get(IModelService).createModel('other', null));
+			store.add(instantiateTestCodeEditor(services, focusedModel));
+			const ids = await renderHighlights(editor, contribution, services);
+			assert.ok(editor instanceof TestCodeEditor);
+			assert.ok(otherEditor instanceof TestCodeEditor);
+			editor.setHasTextFocus(false);
+			otherEditor.setHasTextFocus(false);
+
+			editor.setModel(null);
+
+			assert.deepStrictEqual({ retained: ids.has(model.uri), otherHighlights: otherContribution.saveViewState() }, { retained: true, otherHighlights: true });
+			otherEditor.setModel(null);
+			assert.strictEqual(ids.has(model.uri), false);
+		}, URI.from({ scheme: Schemas.vscodeNotebookCell, path: '/shared-cell' }));
+	});
+
+	test('releases stored decoration IDs when the remaining editor has no highlighter', async () => {
+		await withHighlighter({}, async (editor, contribution, services) => {
+			const model = editor.getModel();
+			const otherEditor = store.add(instantiateTestCodeEditor(services, model));
+			const focusedModel = store.add(services.get(IModelService).createModel('other', null));
+			store.add(instantiateTestCodeEditor(services, focusedModel));
+			const ids = await renderHighlights(editor, contribution, services);
+			assert.ok(editor instanceof TestCodeEditor);
+			assert.ok(otherEditor instanceof TestCodeEditor);
+			editor.setHasTextFocus(false);
+			otherEditor.setHasTextFocus(false);
+
+			editor.setModel(null);
+			const retainedAfterOwnerDetach = ids.has(model.uri);
+			otherEditor.setModel(null);
+
+			assert.deepStrictEqual({ retainedAfterOwnerDetach, retainedAfterLastDetach: ids.has(model.uri) }, { retainedAfterOwnerDetach: false, retainedAfterLastDetach: false });
+		}, URI.from({ scheme: Schemas.vscodeNotebookCell, path: '/shared-cell-without-highlighter' }));
+	});
 
 	test('cancels in-flight merged results when the setting is disabled', async () => {
 		await withHighlighter({ occurrencesHighlightFromAllProviders: true }, async (editor, contribution, services) => {

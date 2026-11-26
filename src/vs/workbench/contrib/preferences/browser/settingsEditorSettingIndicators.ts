@@ -358,7 +358,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
-			this.scopeOverridesIndicator.label.text = '$(briefcase) ' + localize('policyLabelText', "Managed by organization");
+			this.scopeOverridesIndicator.label.text = '$(briefcase) ' + localize('policyLabelText', "Managed by your organization");
 			const content = element.policyValueDescription ?? localize('policyDescription', "This setting is managed by your organization and its actual value cannot be changed.");
 			this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, () => ({
 				...this.defaultHoverOptions,
@@ -575,7 +575,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	}
 
 	if (element.hasPolicyValue) {
-		ariaLabelSections.push(element.policyValueDescription ?? localize('policyDescriptionAccessible', "Managed by organization policy; setting value not applied"));
+		ariaLabelSections.push(element.policyValueDescription ?? localize('policyDescriptionAccessible', "Managed by your organization; setting value not applied"));
 	} else if (element.isAgentsWindowReadOnly) {
 		ariaLabelSections.push(localize('agentsWindowReadOnlyAccessible', "Cannot be changed in Agents window"));
 	} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {

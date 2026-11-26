@@ -56,7 +56,7 @@ export interface IQuickItem {
 	 * directly.
 	 */
 	iconClass?: string;
-	/** Theme color applied to the quick item's icon. */
+	/** Theme color applied to the quick item's icon when the item is not focused. */
 	iconColor?: ThemeColor;
 	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
@@ -315,9 +315,6 @@ export const enum QuickInputType {
  * Represents a quick input control that allows users to make selections or provide input quickly.
  */
 export interface IQuickInput extends IDisposable {
-	/** Optional content rendered above the standard input or picker content. */
-	widget?: unknown /* HTMLElement */;
-
 	/**
 	 * The type of the quick input.
 	 */

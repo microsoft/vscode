@@ -68,10 +68,6 @@ export class NotebookDocumentSnapshot {
 		return new Selection(0, 0, this.lineCount, 0);
 	}
 
-	getWholeRange(): Range {
-		return new Range(0, 0, this.lineCount, 0);
-	}
-
 	get lines(): string[] {
 		return this._alternativeDocument.lines;
 	}

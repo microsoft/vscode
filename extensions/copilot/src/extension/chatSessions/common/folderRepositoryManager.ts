@@ -133,26 +133,6 @@ export interface IFolderRepositoryManager {
 	): Promise<FolderRepositoryInfo>;
 
 	/**
-	 * Initialize all folders for a multi-root session as a batch.
-	 *
-	 * Unlike calling `initializeFolderRepository` per folder, this method:
-	 * 1. Resolves all folder/repo info in one pass
-	 * 2. Verifies trust for all folders together
-	 * 3. Collects uncommitted changes across ALL git repos
-	 * 4. Shows ONE combined prompt listing all repos with uncommitted changes
-	 * 5. Applies the same action (move/copy/skip/cancel) to all repos
-	 * 6. Creates worktrees for all git repos in parallel
-	 * 7. Migrates changes to all worktrees with the same action
-	 */
-	initializeMultiRootFolderRepositories(
-		sessionId: string,
-		primaryFolder: vscode.Uri,
-		additionalFolders: vscode.Uri[],
-		options: InitializeFolderRepositoryOptions,
-		token: vscode.CancellationToken
-	): Promise<{ primary: FolderRepositoryInfo; additional: FolderRepositoryInfo[] }>;
-
-	/**
 	 * Get repository information for a folder.
 	 *
 	 * Resolves whether the folder contains a git repository and returns
@@ -166,18 +146,6 @@ export interface IFolderRepositoryManager {
 		folder: vscode.Uri,
 		token: vscode.CancellationToken
 	): Promise<{ repository: vscode.Uri | undefined; headBranchName: string | undefined }>;
-
-	/**
-	 * @deprecated
-	 * Get list of most recently used folders and repositories.
-	 *
-	 * This is used for empty workspaces to show a list of previously used
-	 * folders/repos in the folder selection dropdown.
-	 *
-	 * @returns Array of MRU entries sorted by last accessed time (newest first),
-	 *          limited to 10 items, with non-existent paths filtered out
-	 */
-	getFolderMRU(): Promise<FolderRepositoryMRUEntry[]>;
 }
 
 export interface IChatFolderMruService {

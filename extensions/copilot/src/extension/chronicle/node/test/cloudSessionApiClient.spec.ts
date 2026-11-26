@@ -185,7 +185,7 @@ describe('CloudSessionApiClient', () => {
 			const reported: number[] = [];
 			client.onRateLimited = (_callSite, retryAfterSec) => reported.push(retryAfterSec);
 
-			await client.getSession('sess-1');
+			await client.createSession(1, 2, 'local-1');
 
 			expect(reported).toEqual([600]);
 		});

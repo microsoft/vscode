@@ -17,7 +17,7 @@ import { revive } from '../../../base/common/marshalling.js';
 import { IRange, Range } from '../../../editor/common/core/range.js';
 import { IPosition, Position } from '../../../editor/common/core/position.js';
 import { URI } from '../../../base/common/uri.js';
-import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { ISelection } from '../../../editor/common/core/selection.js';
@@ -51,6 +51,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _apiCommands = new Map<string, ApiCommand>();
+	private readonly _executionParticipants = new Set<(command: string) => void>();
 	#telemetry: MainThreadTelemetryShape;
 
 	private readonly _logService: ILogService;
@@ -117,6 +118,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		this._argumentProcessors.push(processor);
 	}
 
+	/** Registers synchronous preparation to run before dispatching a command. */
+	registerExecutionParticipant(participant: (command: string) => void): IDisposable {
+		this._executionParticipants.add(participant);
+		return toDisposable(() => this._executionParticipants.delete(participant));
+	}
+
 	registerApiCommand(apiCommand: ApiCommand): extHostTypes.Disposable {
 
 
@@ -176,6 +183,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	}
 
 	private async _doExecuteCommand<T>(id: string, args: unknown[], retry: boolean): Promise<T> {
+		for (const participant of this._executionParticipants) {
+			participant(id);
+		}
 
 		if (this._commands.has(id)) {
 			// - We stay inside the extension host and support

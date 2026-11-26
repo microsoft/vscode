@@ -40,7 +40,7 @@ suite('ExtHostDocumentData', () => {
 		], '\n', 1, 'text', false, 'utf8');
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('readonly-ness', () => {
 		// eslint-disable-next-line local/code-no-any-casts
@@ -328,20 +328,16 @@ suite('ExtHostDocumentData', () => {
 
 		// this test only ensures that we eventually give and timeout (when searching "funny" words and long lines)
 		// for the sake of speedy tests we lower the timeBudget here
-		const config = setDefaultGetWordAtTextConfig({ maxLen: 1000, windowSize: 15, timeBudget: 30 });
-		try {
-			let range = data.document.getWordRangeAtPosition(new Position(0, 1_177_170), regex)!;
-			assert.strictEqual(range, undefined);
+		store.add(setDefaultGetWordAtTextConfig({ maxLen: 1000, windowSize: 15, timeBudget: 30 }));
+		let range = data.document.getWordRangeAtPosition(new Position(0, 1_177_170), regex)!;
+		assert.strictEqual(range, undefined);
 
-			const pos = new Position(0, 1177170);
-			range = data.document.getWordRangeAtPosition(pos)!;
-			assert.ok(range);
-			assert.ok(range.contains(pos));
-			assert.strictEqual(data.document.getText(range), 'TaskDefinition');
+		const pos = new Position(0, 1177170);
+		range = data.document.getWordRangeAtPosition(pos)!;
+		assert.ok(range);
+		assert.ok(range.contains(pos));
+		assert.strictEqual(data.document.getText(range), 'TaskDefinition');
 
-		} finally {
-			config.dispose();
-		}
 	});
 
 	test('Rename popup sometimes populates with text on the left side omitted #96013', function () {

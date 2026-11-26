@@ -21,9 +21,9 @@ function runGit(args: readonly string[], cwd: string): string | undefined {
 	return result.status === 0 ? result.stdout.trim() : undefined;
 }
 
-function runNpm(args: readonly string[], cwd: string): boolean {
-	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-	const result = child_process.spawnSync(npm, args, {
+function runPnpm(args: readonly string[], cwd: string): boolean {
+	const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+	const result = child_process.spawnSync(pnpm, args, {
 		cwd,
 		stdio: ['ignore', process.stderr, process.stderr],
 		shell: process.platform === 'win32',
@@ -85,22 +85,22 @@ try {
 	await dns.promises.lookup(npmRegistry.hostname);
 	canResolveNpmRegistry = true;
 } catch (error) {
-	process.stderr.write(`Cannot resolve ${npmRegistry.origin}; skipping npm install: ${error instanceof Error ? error.message : String(error)}\n`);
+	process.stderr.write(`Cannot resolve ${npmRegistry.origin}; skipping pnpm install: ${error instanceof Error ? error.message : String(error)}\n`);
 }
 
 if (canResolveNpmRegistry) {
 	const publicNuGetFeed = new URL('https://api.nuget.org/v3/index.json');
 	if (await canAccessNuGetFeed(publicNuGetFeed)) {
-		if (!runNpm(['install'], repositoryRoot)) {
-			process.stderr.write('npm install failed; continuing with the best-effort agentStop hook.\n');
+		if (!runPnpm(['install'], repositoryRoot)) {
+			process.stderr.write('pnpm install failed; continuing with the best-effort agentStop hook.\n');
 		}
 	} else {
-		process.stderr.write('Cannot access the public NuGet feed; skipping npm install.\n');
+		process.stderr.write('Cannot access the public NuGet feed; skipping pnpm install.\n');
 	}
 }
 
-if (!runNpm(['run', 'build-fast'], repositoryRoot)) {
-	process.stderr.write('npm run build-fast failed; continuing with the best-effort agentStop hook.\n');
+if (!runPnpm(['run', 'build-fast'], repositoryRoot)) {
+	process.stderr.write('pnpm run build-fast failed; continuing with the best-effort agentStop hook.\n');
 }
 
 process.exit(0);

@@ -34,4 +34,23 @@ describe('CopilotTokenStore', () => {
 			token: 'copilot-test',
 		});
 	});
+
+	test('publishes metadata replacements separately from bearer token changes', () => {
+		const store = disposables.add(new CopilotTokenStore());
+		const endpoints: (string | undefined)[] = [];
+		const bearerTokens: (string | undefined)[] = [];
+		disposables.add(store.onDidChangeTokenData(() => endpoints.push(store.copilotToken?.endpoints?.exp)));
+		disposables.add(store.onDidStoreUpdate(() => bearerTokens.push(store.copilotToken?.token)));
+		const info = createTestExtendedTokenInfo({ token: 'unchanged-token', endpoints: undefined });
+		store.copilotToken = new CopilotToken(info);
+		store.copilotToken = new CopilotToken({ ...info, endpoints: { exp: 'https://exp.enterprise.githubcopilot.com' } });
+		store.copilotToken = store.copilotToken;
+		store.copilotToken = new CopilotToken({ ...info, token: 'rotated-token' });
+		store.copilotToken = undefined;
+		store.copilotToken = undefined;
+		expect({ endpoints, bearerTokens }).toEqual({
+			endpoints: [undefined, 'https://exp.enterprise.githubcopilot.com', undefined, undefined],
+			bearerTokens: ['unchanged-token', 'rotated-token', undefined],
+		});
+	});
 });

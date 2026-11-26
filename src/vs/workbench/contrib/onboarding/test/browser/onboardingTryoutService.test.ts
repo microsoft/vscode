@@ -19,7 +19,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryService } from '../../../../../platform/telemetry/common/telemetryService.js';
-import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { OnboardingTryoutService } from '../../browser/onboardingTryoutService.js';
@@ -28,15 +28,7 @@ import { onboardingScenarioRegistry } from '../../common/onboardingRegistry.js';
 import { OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 import { AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND, createOnboardingTryoutUri, IOnboardingTryout, IOnboardingTryoutRunContext, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutPreparation, OnboardingTryoutResult, parseOnboardingTryoutArguments, parseOnboardingTryoutUri, registerOnboardingTryout, registerOnboardingTryoutPresentation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
 
-class CapturingTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data?: ITelemetryData }[] = [];
-
-	override publicLog2(name?: string, data?: ITelemetryData): void {
-		if (name) {
-			this.events.push({ name, data });
-		}
-	}
-
+class CapturingTelemetryService extends TestTelemetryService<ITelemetryData | undefined> {
 	get snapshot() {
 		return this.events.map(({ name, data }) => ({
 			name,

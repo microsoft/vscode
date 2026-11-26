@@ -6,14 +6,14 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Create cancelled.txt containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".
+          content: Create cancelled.lock containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".
     response:
       content:
         - type: tool_use
           id: toolcall_0
           name: create
           input:
-            path: ${workdir}/cancelled.txt
+            path: ${workdir}/cancelled.lock
             file_text: CANCELLED_CONTENT
       stopReason: tool_use
   - request:
@@ -21,13 +21,13 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Create cancelled.txt containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".
+          content: Create cancelled.lock containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".
         - role: assistant
           content:
             - type: tool_use
               name: create
               input:
-                path: ${workdir}/cancelled.txt
+                path: ${workdir}/cancelled.lock
                 file_text: CANCELLED_CONTENT
         - role: user
           content:

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { spy } from 'sinon';
 import { DynamicListEventMultiplexer, Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ICommandDetectionCapability, ITerminalCapabilityImplMap, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -94,17 +94,16 @@ suite('MainThreadTerminalShellIntegration', () => {
 		}
 		const emitters = added.getCalls().map(call => call.args[0]).filter(value => value instanceof Emitter);
 		const disposal = emitters.map(emitter => spy(emitter, 'dispose'));
-		try {
-			terminal.data.fire('first');
-			terminal.data.fire('second');
-			terminal.finished.fire(current);
-			assert.deepStrictEqual(events, ['1:start', '1:data:firstsecond', '1:end']);
-			assert.ok(disposal.every(call => call.calledOnce), 'Command-scoped emitters must be disposed at command end');
-		} finally {
+		store.add(toDisposable(() => {
 			for (const call of disposal) {
 				call.restore();
 			}
-		}
+		}));
+		terminal.data.fire('first');
+		terminal.data.fire('second');
+		terminal.finished.fire(current);
+		assert.deepStrictEqual(events, ['1:start', '1:data:firstsecond', '1:end']);
+		assert.ok(disposal.every(call => call.calledOnce), 'Command-scoped emitters must be disposed at command end');
 	});
 
 	test('terminal disposal flushes pending data before closing the extension stream', () => {

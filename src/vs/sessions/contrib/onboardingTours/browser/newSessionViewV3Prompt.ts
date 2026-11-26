@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { format } from '../../../../base/common/strings.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -20,18 +20,17 @@ import { IGitService } from '../../../../workbench/contrib/git/common/gitService
 import { getGitHubRemoteInfo, IGitHubRemoteInfo } from '../../../../workbench/contrib/git/common/utils.js';
 import { getOnboardingDeveloperModeVariation, isOnboardingDeveloperModeEnabled, OnboardingDeveloperModeVariations, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
-import { getGitHubRepositoryFromUri } from '../../github/common/utils.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { getGitHubRepositoryFromUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { ApiRequestOptions } from '../../../../platform/github/common/client/request.js';
-import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../github/common/types.js';
-import { resolveGitHubRepositoryFromGitConfig } from '../../../services/sessions/browser/gitHubRepositoryResolver.js';
+import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../../../workbench/contrib/sessions/browser/github/fetchers/githubRecentUserWorkFetcher.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { resolveGitHubRepositoryFromGitConfig } from '../../../../workbench/contrib/sessions/browser/gitHubRepositoryResolver.js';
 import { NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION, NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATION_TREATMENT } from './tours/newSessionViewV3Tour.js';
+import { isSessionCreated, ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 /**
  * Per-stage budgets are sized so the longest dependent chain of timed lookups fits inside `totalMs`:
@@ -54,6 +53,14 @@ const DEFAULT_PROMPT_TEMPLATE = localize('sessions.onboarding.newSessionViewV3.p
 const PROMPT_OPTION_COUNT = 3;
 
 export type NewSessionViewV3ConfiguredVariation = 'prompt' | 'githubPrompt' | 'options' | 'unknown';
+
+/** Lets another tour reuse the prompt runner, reporting its own scenario id. */
+export interface INewSessionPromptRunnerOptions {
+	/** The scenario reported in prompt telemetry. Defaults to the V3 tour. */
+	readonly scenarioId?: string;
+	/** A fixed prompt experience, instead of the V3 developer setting or treatment. */
+	readonly variation?: Exclude<NewSessionViewV3ConfiguredVariation, 'unknown'>;
+}
 export type NewSessionViewV3EffectiveStrategy = 'prompt' | 'options' | 'githubMergeConflict' | 'githubCiFailure' | 'githubReviewComments' | 'githubIssue';
 export type NewSessionViewV3FallbackReason = 'none' | 'unsupportedVariation' | 'noRepository' | 'noAuthentication' | 'timeout' | 'requestFailed' | 'noCandidate' | 'noComposer';
 
@@ -134,7 +141,7 @@ interface INewSessionViewV3PromptOptionsPlan {
 }
 
 interface INewSessionViewV3RepositoryContext {
-	readonly session: IActiveSession;
+	readonly session: ISession;
 	readonly workspaceUri: string;
 	readonly folderUri: string;
 	readonly repository: IGitHubRemoteInfo;
@@ -258,7 +265,8 @@ export class NewSessionViewV3PromptRunner {
 	constructor(
 		private readonly _assignmentService: IWorkbenchAssignmentService,
 		private readonly _configurationService: IConfigurationService,
-		private readonly _sessionsService: ISessionsService,
+		/** The session the main window shows, whose new-session composer the prompt fills. */
+		private readonly _mainWindowSession: IObservable<ISession | undefined>,
 		private readonly _newSessionComposerService: INewSessionComposerService,
 		private readonly _gitService: IGitService,
 		private readonly _fileService: IFileService,
@@ -266,15 +274,20 @@ export class NewSessionViewV3PromptRunner {
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _logService: ILogService,
 		gitHubLookupTimeouts: Partial<IGitHubLookupTimeouts> = {},
+		private readonly _options: INewSessionPromptRunnerOptions = {},
 	) {
 		this._gitHubLookupTimeouts = { ...DEFAULT_GITHUB_LOOKUP_TIMEOUTS, ...gitHubLookupTimeouts };
 	}
 
+	private get _scenarioId(): string {
+		return this._options.scenarioId ?? NEW_SESSION_VIEW_V3_TOUR_ID;
+	}
+
 	async run(token: CancellationToken): Promise<boolean> {
-		this._logService.info(`${LOG_PREFIX} Starting V3 prompt resolution.`);
+		this._logService.info(`${LOG_PREFIX} Starting prompt resolution for '${this._scenarioId}'.`);
 		this._impressionId = generateUuid();
 		this._renderedPromptOptions = [];
-		const configuredVariation = await this._resolveConfiguredVariation();
+		const configuredVariation = this._options.variation ?? await this._resolveConfiguredVariation();
 		if (token.isCancellationRequested) {
 			this._logService.trace(`${LOG_PREFIX} Prompt resolution was cancelled after resolving the configured variation.`);
 			return false;
@@ -387,7 +400,7 @@ export class NewSessionViewV3PromptRunner {
 		}
 		this._logService.info(`${LOG_PREFIX} Showing prompt option loading skeletons.`);
 		const state = await resolveOptions(token);
-		if (token.isCancellationRequested || this._newSessionComposerService.activeComposer.get() !== composer || this._sessionsService.activeSession.get()?.isCreated.get()) {
+		if (token.isCancellationRequested || this._newSessionComposerService.activeComposer.get() !== composer || isSessionCreated(this._mainWindowSession.get())) {
 			composer.showPromptOptions(undefined);
 			this._logService.trace(`${LOG_PREFIX} Prompt option resolution was cancelled or its composer is no longer active.`);
 			this._reportStrategy(configuredVariation, 'options', configuredFallbackReason ?? latestPlan?.fallbackReason ?? 'requestFailed', false, latestPlan?.lookup);
@@ -411,8 +424,8 @@ export class NewSessionViewV3PromptRunner {
 	}
 
 	private _getActiveComposer(): INewSessionComposer | undefined {
-		const activeSession = this._sessionsService.activeSession.get();
-		if (activeSession?.isCreated.get()) {
+		const activeSession = this._mainWindowSession.get();
+		if (isSessionCreated(activeSession)) {
 			return undefined;
 		}
 		return this._newSessionComposerService.activeComposer.get();
@@ -885,12 +898,12 @@ export class NewSessionViewV3PromptRunner {
 
 	private async _resolveGitHubRepository(token: CancellationToken): Promise<INewSessionViewV3RepositoryContext | undefined> {
 		while (!token.isCancellationRequested) {
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._mainWindowSession.get();
 			if (!activeSession) {
 				this._logService.trace(`${LOG_PREFIX} No active draft session is available for repository resolution.`);
 				return undefined;
 			}
-			if (activeSession.isCreated.get()) {
+			if (isSessionCreated(activeSession)) {
 				this._logService.trace(`${LOG_PREFIX} The active session is already created, so the V3 new-session prompt cannot resolve its repository.`);
 				return undefined;
 			}
@@ -961,7 +974,7 @@ export class NewSessionViewV3PromptRunner {
 		return undefined;
 	}
 
-	private _waitForAgentHostRepository(activeSession: IActiveSession, token: CancellationToken): Promise<AgentHostRepositoryResolution> {
+	private _waitForAgentHostRepository(activeSession: ISession, token: CancellationToken): Promise<AgentHostRepositoryResolution> {
 		return new Promise((resolve, reject) => {
 			const disposables = new DisposableStore();
 			const reaction = disposables.add(new MutableDisposable());
@@ -970,7 +983,7 @@ export class NewSessionViewV3PromptRunner {
 				resolve(result);
 			};
 			reaction.value = autorun(reader => {
-				if (this._sessionsService.activeSession.read(reader) !== activeSession || activeSession.isCreated.read(reader)) {
+				if (this._mainWindowSession.read(reader) !== activeSession || isSessionCreated(activeSession, reader)) {
 					finish({ kind: 'sessionChanged' });
 					return;
 				}
@@ -1000,7 +1013,7 @@ export class NewSessionViewV3PromptRunner {
 		});
 	}
 
-	private _logWorkspaceSnapshot(activeSession: IActiveSession): void {
+	private _logWorkspaceSnapshot(activeSession: ISession): void {
 		const workspace = activeSession.workspace.get();
 		const folder = workspace?.folders[0];
 		const gitRepository = folder?.gitRepository;
@@ -1008,7 +1021,7 @@ export class NewSessionViewV3PromptRunner {
 		this._logService.info(`${LOG_PREFIX} Workspace snapshot: provider='${activeSession.providerId}', sessionType='${activeSession.sessionType}', workspace='${workspace?.uri.toString() ?? 'none'}', root='${folder?.root.toString() ?? 'none'}', workingDirectory='${folder?.workingDirectory.toString() ?? 'none'}', gitRepository='${gitRepository?.uri.toString() ?? 'none'}', hasGitHubRemote=${String(gitRepository?.hasGitHubRemote)}, gitHubRepository='${gitHubInfo ? `${gitHubInfo.owner}/${gitHubInfo.repo}` : 'none'}'.`);
 	}
 
-	private _createRepositoryContext(session: IActiveSession, workspaceUri: string, folderUri: string, repository: IGitHubRemoteInfo): INewSessionViewV3RepositoryContext {
+	private _createRepositoryContext(session: ISession, workspaceUri: string, folderUri: string, repository: IGitHubRemoteInfo): INewSessionViewV3RepositoryContext {
 		return {
 			session,
 			workspaceUri,
@@ -1018,7 +1031,7 @@ export class NewSessionViewV3PromptRunner {
 	}
 
 	private _isCurrentRepositoryContext(context: INewSessionViewV3RepositoryContext): boolean {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._mainWindowSession.get();
 		const workspace = activeSession?.workspace.get();
 		return activeSession === context.session
 			&& workspace?.uri.toString() === context.workspaceUri
@@ -1140,8 +1153,8 @@ export class NewSessionViewV3PromptRunner {
 	}
 
 	private _animatePrompt(prompt: string, taskPlaceholder: string, token: CancellationToken): Promise<boolean> | boolean {
-		const activeSession = this._sessionsService.activeSession.get();
-		if (activeSession?.isCreated.get()) {
+		const activeSession = this._mainWindowSession.get();
+		if (isSessionCreated(activeSession)) {
 			this._logService.warn(`${LOG_PREFIX} Skipping prompt insertion because the active session was created before animation started.`);
 			return false;
 		}
@@ -1200,7 +1213,7 @@ export class NewSessionViewV3PromptRunner {
 			timedOutStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The categorical lookup stage that was still running when the total lookup budget expired, or none.' };
 		};
 		this._telemetryService.publicLog2<OnboardingPromptStrategyEvent, OnboardingPromptStrategyClassification>('onboarding.promptStrategy', {
-			scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+			scenarioId: this._scenarioId,
 			impressionId: this._impressionId,
 			configuredVariation,
 			effectiveStrategy,
@@ -1221,7 +1234,7 @@ export class NewSessionViewV3PromptRunner {
 		};
 		type OnboardingPromptOptionInteractionClassification = {
 			owner: 'benibenj';
-			comment: 'Reports privacy-safe interactions with V3 onboarding prompt options without collecting prompt or repository content.';
+			comment: 'Reports privacy-safe interactions with onboarding prompt options without collecting prompt or repository content.';
 			scenarioId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the onboarding scenario that showed the prompt options.' };
 			impressionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random identifier generated for this prompt impression, used only to join this event with the strategy event of the same impression.' };
 			interaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether an option was selected or the prompt-option widget was closed.' };
@@ -1230,7 +1243,7 @@ export class NewSessionViewV3PromptRunner {
 			optionKindsShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The comma separated categorical kinds of the prompt options that were rendered, in slot order.' };
 		};
 		this._telemetryService.publicLog2<OnboardingPromptOptionInteractionEvent, OnboardingPromptOptionInteractionClassification>('onboarding.promptOptionInteraction', {
-			scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+			scenarioId: this._scenarioId,
 			impressionId: this._impressionId,
 			interaction,
 			option: option ? getPromptOptionTelemetryKind(option) : 'none',

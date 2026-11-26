@@ -30,6 +30,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { CustomEditorInput } from '../../../customEditor/browser/customEditorInput.js';
+import { ICustomEditorService } from '../../../customEditor/common/customEditor.js';
 
 export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
@@ -110,7 +112,7 @@ class ChatEditorOverlayWidget extends Disposable {
 
 	private readonly _session = observableValue<IChatEditReviewSession | undefined>(this, undefined);
 	private readonly _entry = observableValue<IModifiedFileEntry | undefined>(this, undefined);
-	private readonly _isBusy: IObservable<boolean | undefined>;
+	readonly isBusy: IObservable<boolean | undefined>;
 
 	private readonly _navigationBearings = observableValue<{ changeCount: number; activeIdx: number; entriesCount: number }>(this, { changeCount: -1, activeIdx: -1, entriesCount: -1 });
 
@@ -123,7 +125,7 @@ class ChatEditorOverlayWidget extends Disposable {
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('chat-editor-overlay-widget');
 
-		this._isBusy = derived(r => {
+		this.isBusy = derived(r => {
 			const entry = this._entry.read(r);
 			return entry?.waitsForLastEdits.read(r);
 		});
@@ -136,7 +138,7 @@ class ChatEditorOverlayWidget extends Disposable {
 		this._domNode.appendChild(progressNode);
 
 		this._store.add(autorun(r => {
-			const busy = this._isBusy.read(r);
+			const busy = this.isBusy.read(r);
 
 			this._domNode.classList.toggle('busy', busy);
 			textProgress.innerText = '';
@@ -248,7 +250,7 @@ class ChatEditorOverlayWidget extends Disposable {
 							} else {
 								result = localize('tooltip_nm', "{0} changes in {1} files", changeCount, entriesCount);
 							}
-							if (!that._isBusy.get()) {
+							if (!that.isBusy.get()) {
 								return result;
 							}
 							return localize('tooltip_busy', "{0} - Working...", result);
@@ -276,7 +278,7 @@ class ChatEditorOverlayWidget extends Disposable {
 	}
 }
 
-class ChatEditingOverlayController {
+export class ChatEditingOverlayController {
 
 	private readonly _store = new DisposableStore();
 
@@ -287,6 +289,7 @@ class ChatEditingOverlayController {
 		group: IEditorGroup,
 		@IInstantiationService instaService: IInstantiationService,
 		@IChatEditingService chatEditingService: IChatEditingService,
+		@ICustomEditorService customEditorService: ICustomEditorService,
 	) {
 
 		this._domNode.classList.add('chat-editing-editor-overlay');
@@ -299,6 +302,11 @@ class ChatEditingOverlayController {
 		this._domNode.appendChild(widget.getDomNode());
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		this._store.add(widget);
+
+		// The busy pulse is drawn on this unclipped host because the widget clips its overflow
+		this._store.add(autorun(r => {
+			this._domNode.classList.toggle('busy', !!widget.isBusy.read(r));
+		}));
 
 		const show = () => {
 			if (!container.contains(this._domNode)) {
@@ -315,6 +323,15 @@ class ChatEditingOverlayController {
 
 		const activeEditorSignal = observableSignalFromEvent(this, Event.any(group.onDidActiveEditorChange, group.onDidModelChange));
 
+		const activeCustomEditorNavigationObs = derived(r => {
+			activeEditorSignal.read(r);
+			const input = group.activeEditorPane?.input;
+			if (!(input instanceof CustomEditorInput)) {
+				return undefined;
+			}
+			return observableFromEvent(input.onDidChangeNavigation, () => input.navigation).read(r);
+		});
+
 		const activeUriObs = derivedOpts({ equalsFn: isEqual }, r => {
 
 			activeEditorSignal.read(r); // signal
@@ -322,7 +339,13 @@ class ChatEditingOverlayController {
 			const editor = group.activeEditorPane;
 
 			if (!getCodeEditor(editor?.getControl())) {
-				return undefined;
+				const input = editor?.input;
+				const hasNavigation = activeCustomEditorNavigationObs.read(r) !== undefined;
+				const isCustomTextEditor = input instanceof CustomEditorInput
+					&& (customEditorService.getCustomEditorCapabilities(input.viewType)?.isTextEditor === true || hasNavigation);
+				if (!isCustomTextEditor) {
+					return undefined;
+				}
 			}
 
 			const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });

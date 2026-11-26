@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/paneCompositePart.css';
 import { localize } from '../../../nls.js';
 import { Action, IAction, Separator } from '../../../base/common/actions.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from '../../../base/browser/dom.js';
@@ -278,7 +279,9 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.badgeContent = append(this.badge, $('.badge-content'));
 
 		// pane composite bar active border + background
-		append(container, $('.active-item-indicator'));
+		const indicator = append(container, $('.active-item-indicator'));
+		append(indicator, $('.tab-connected-edge')).setAttribute('aria-hidden', 'true');
+		append(container, $('span.tab-divider')).setAttribute('aria-hidden', 'true');
 
 		hide(this.badge);
 
@@ -417,8 +420,12 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.keybindingLabel = this.computeKeybindingLabel();
 		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.compositeBarActionItem.name, this.keybindingLabel) : this.compositeBarActionItem.name;
 
-		const badges = this.getVisibleBadges((this.action as CompositeBarAction).activities).badges;
-		for (const badge of badges) {
+		const activities = (this.action as CompositeBarAction).activities;
+		const { badges, type } = this.getVisibleBadges(activities);
+
+		// An icon badge replaces number badges visually, but their counts must remain in the title and accessible label
+		const hiddenNumberBadges = type === 'icon' ? activities.map(activity => activity.badge).filter(badge => badge instanceof NumberBadge) : [];
+		for (const badge of [...badges, ...hiddenNumberBadges]) {
 			const description = badge.getDescription();
 			if (!description) {
 				continue;

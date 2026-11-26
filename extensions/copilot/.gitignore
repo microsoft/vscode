@@ -7,6 +7,8 @@ dist-sourcemaps/
 
 # created by simulation
 .simulation
+# written by script/compareStestAlternativeRuns.ts
+test/simulation/baseline.old.json
 
 # stores wasm and other build files
 .build
@@ -32,8 +34,6 @@ coverage/
 
 # Base cache database (GC mode)
 test/simulation/cache/_base.sqlite
-
-test/aml/out
 
 # Ignore files in huksy (else we always end up with files when creating worktrees)
 .husky/_/

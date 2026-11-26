@@ -104,10 +104,6 @@ export abstract class Search<R> extends ProgramContext {
 		this.symbols = symbols;
 	}
 
-	public getSymbols(): Symbols {
-		return this.symbols;
-	}
-
 	protected override getProgram(): tt.Program {
 		return this.program;
 	}
@@ -183,24 +179,6 @@ export abstract class Search<R> extends ProgramContext {
 
 }
 
-export interface Logger {
-	info(s: string): void;
-	msg(s: string, type?: tt.server.Msg): void;
-	startGroup(): void;
-	endGroup(): void;
-}
-
-export class NullLogger implements Logger {
-	public info(): void {
-	}
-	public msg(): void {
-	}
-	public startGroup(): void {
-	}
-	public endGroup(): void {
-	}
-}
-
 export abstract class ComputeContextSession implements tss.StateProvider, EmitterContext {
 
 	public readonly languageServiceHost: tt.LanguageServiceHost;
@@ -254,43 +232,25 @@ export abstract class ComputeContextSession implements tss.StateProvider, Emitte
 		return candidates.sort((a, b) => b[0] - a[0]).map(c => c[1]);
 	}
 
-	public getCachedCode(key: string): CodeCacheItem | undefined;
-	public getCachedCode(symbol: tt.Symbol): CodeCacheItem | undefined;
-	public getCachedCode(symbolOrKey: tt.Symbol | string, symbol?: tt.Symbol): CodeCacheItem | undefined {
+	public getCachedCode(key: string): CodeCacheItem | undefined {
 		if (!this.supportsCaching) {
 			return undefined;
 		}
-		if (typeof symbolOrKey === 'string') {
-			return this.codeCache.get(symbolOrKey);
-		} else {
-			const key = Symbols.createVersionedKey(symbol!, this);
-			return key === undefined ? undefined : this.codeCache.get(key);
-		}
+		return this.codeCache.get(key);
 	}
 
-	public cacheCode(key: string, code: CodeCacheItem): void;
-	public cacheCode(symbol: tt.Symbol, code: CodeCacheItem): void;
-	public cacheCode(symbolOrKey: tt.Symbol | string, code: CodeCacheItem): void {
+	public cacheCode(key: string, code: CodeCacheItem): void {
 		if (!this.supportsCaching) {
 			return;
 		}
-		if (typeof symbolOrKey === 'string') {
-			this.codeCache.set(symbolOrKey as string, code);
-		} else {
-			const key = Symbols.createVersionedKey(symbolOrKey, this);
-			if (key !== undefined) {
-				this.codeCache.set(key, code!);
-			}
-		}
+		this.codeCache.set(key, code);
 	}
 
 	public enableBlueprintSearch(): boolean {
 		return false;
 	}
 
-	public abstract readonly logger: Logger;
 	public abstract getLanguageServices(sourceFile?: tt.SourceFile): IterableIterator<tt.LanguageService>;
-	public abstract logError(error: Error, cmd: string): void;
 	public abstract getScriptVersion(sourceFile: tt.SourceFile): string | undefined;
 }
 
@@ -414,14 +374,6 @@ class RunnableResultReference {
 		this.cached = cached;
 	}
 
-	public get items(): ContextItem[] {
-		const result: ContextItem[] = [];
-		for (const item of this.cached.items) {
-			result.push(ContextItemReference.create(item.key));
-		}
-		return result;
-	}
-
 	public toJson(): ContextRunnableResultReference {
 		return {
 			kind: ContextRunnableResultKind.Reference,
@@ -455,10 +407,6 @@ export class ContextResult {
 		this.errors = [];
 		this.runnableResults = [];
 		this.contextItems = new Map<ContextItemKey, FullContextItem>();
-	}
-
-	public getSession(): ComputeContextSession {
-		return this.context.session;
 	}
 
 	public addPath(path: number[]): void {
@@ -1110,22 +1058,14 @@ export interface ProviderComputeContext {
 }
 export type ContextProviderFactory = (node: tt.Node, tokenInfo: tss.TokenInfo, context: ProviderComputeContext) => ContextProvider | undefined;
 
-export class TokenBudgetExhaustedError extends Error {
-	constructor() {
-		super('Budget exhausted');
-	}
-}
-
 export class CharacterBudget {
 
 	private charBudget: number;
 	private lowWaterMark: number;
-	private itemRejected: boolean;
 
 	constructor(budget: number, lowWaterMark: number = 256) {
 		this.charBudget = budget;
 		this.lowWaterMark = lowWaterMark;
-		this.itemRejected = false;
 	}
 
 	public spent(chars: number): void {
@@ -1133,29 +1073,10 @@ export class CharacterBudget {
 	}
 
 	public hasRoom(chars: number): boolean {
-		const result = this.charBudget - this.lowWaterMark >= chars;
-		if (!result) {
-			this.itemRejected = true;
-		}
-		return result;
+		return this.charBudget - this.lowWaterMark >= chars;
 	}
 
 	public isExhausted(): boolean {
 		return this.charBudget <= 0;
-	}
-
-	public wasItemRejected(): boolean {
-		return this.itemRejected;
-	}
-
-	public throwIfExhausted(): void {
-		if (this.charBudget <= 0) {
-			throw new TokenBudgetExhaustedError();
-		}
-	}
-
-	public spentAndThrowIfExhausted(chars: number): void {
-		this.spent(chars);
-		this.throwIfExhausted();
 	}
 }

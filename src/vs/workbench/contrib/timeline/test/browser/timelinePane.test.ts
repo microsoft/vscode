@@ -9,25 +9,35 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProgressService, Progress } from '../../../../../platform/progress/common/progress.js';
-import { TimelineActionRunner, TimelinePane, TimelinePaneCommands } from '../../browser/timelinePane.js';
+import { TimelineActionRunner, TimelineKeyboardNavigationLabelProvider, TimelinePane, TimelinePaneCommands, TimelineTreeRenderer } from '../../browser/timelinePane.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { ITimelineService, Timeline, TimelineEditable, TimelineItem, TimelineRequest, TimelineTriggerKind } from '../../common/timeline.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { extUri } from '../../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
+import { IDecoration, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
+import { TestDecorationsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 interface TestTimelinePane {
 	clear: TimelinePane['clear'];
+	loadTimeline: TimelinePane['loadTimeline'];
 	loadTimelineForSource: TimelinePane['loadTimelineForSource'];
 	onProvidersChanged: TimelinePane['onProvidersChanged'];
 	onEditableChanged: TimelinePane['onEditableChanged'];
+	onConfigurationChanged: TimelinePane['onConfigurationChanged'];
 	onTimelineChanged: TimelinePane['onTimelineChanged'];
 	onSelectionChanged: TimelinePane['onSelectionChanged'];
 	loadMore: TimelinePane['loadMore'];
@@ -101,6 +111,7 @@ suite('TimelinePane', () => {
 			pane, results, requests, treeCalls,
 			setEditable: (value: TimelineEditable | undefined) => { editable = value; },
 			setSelection: (value: TimelineItem[]) => { selection = value; },
+			getLabels: () => [...children ?? []].map(child => child.element.label),
 			getLoadMore: () => {
 				const element = [...children ?? []].find(child => child.element.handle === 'vscode-command:loadMore')!.element;
 				return element as Parameters<TimelinePane['loadMore']>[0];
@@ -172,6 +183,39 @@ suite('TimelinePane', () => {
 			assert.strictEqual(getLoadMore().loading, false);
 		});
 	}
+
+	test('stops loading when the last provider to answer provides no timeline', async () => {
+		const load = async (items: TimelineItem[]) => {
+			const { pane, results, getLabels } = createPane();
+			const noTimeline = new DeferredPromise<Timeline | undefined>();
+			results.set('B', Promise.resolve({ source: 'B', items }));
+			results.set('A', noTimeline.p);
+			await pane.loadTimeline(true);
+			await timeout(0);
+			await noTimeline.complete(undefined);
+			await timeout(0);
+			return { labels: getLabels(), message: pane.message };
+		};
+
+		assert.deepStrictEqual({
+			withoutItems: await load([]),
+			withItems: await load([{ handle: 'B|first', source: 'B', label: 'First item', timestamp: 1 }]),
+		}, {
+			withoutItems: { labels: [], message: 'No timeline information was provided. Source Control has not been configured.' },
+			withItems: { labels: ['First item'], message: undefined },
+		});
+	});
+
+	test('removes the items of a provider that provides no timeline after a change', async () => {
+		const { pane, results, getLabels } = createPane();
+		await addPageableProvider(pane, results);
+		results.set('B', Promise.resolve(undefined));
+
+		pane.onTimelineChanged({ id: 'B', workspace: false, uris: [uri] });
+		await timeout(0);
+
+		assert.deepStrictEqual(getLabels(), []);
+	});
 
 	test('re-renders the edited item and defers refreshing until editing ends', async () => {
 		const { pane, results, treeCalls, setEditable } = createPane();
@@ -248,6 +292,16 @@ suite('TimelinePane', () => {
 		assert.deepStrictEqual(requests.map(request => [request.source, request.options.cursor]), [['B', undefined], ['B', undefined]]);
 	});
 
+	test('re-renders items when the file decoration settings change', () => {
+		const { pane, treeCalls } = createPane();
+		const change = (key: string) => upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (section: string) => section === key });
+
+		pane.onConfigurationChanged(change('timeline.pageOnScroll'));
+		pane.onConfigurationChanged(change('explorer.decorations'));
+
+		assert.deepStrictEqual(treeCalls, ['rerender']);
+	});
+
 	test('re-renders the inline actions of items entering or leaving a multi-selection', async () => {
 		const { pane, results, treeCalls, setSelection } = createPane();
 		await addPageableProvider(pane, results);
@@ -315,5 +369,79 @@ suite('TimelinePane', () => {
 			[toContext(unselected), uri, 'A', undefined],
 			[toContext(first), uri, 'A', undefined],
 		]);
+	});
+});
+
+suite('TimelineTreeRenderer', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const resource = URI.file('/folder/derived.txt');
+
+	function createRenderer() {
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({ explorer: { decorations: { colors: true, badges: true } } }),
+		}, store);
+		const themeService = new TestThemeService(undefined, { hasFileIcons: true, hasFolderIcons: true, hidesExplorerArrows: false });
+		instantiationService.stub(IThemeService, themeService);
+		instantiationService.stub(IDecorationsService, new class extends TestDecorationsService {
+			override getDecoration(uri: URI): IDecoration | undefined {
+				return isEqual(uri, resource) ? { tooltip: 'Modified', strikethrough: false, labelClassName: 'test-decoration', badgeClassName: 'test-badge', iconClassName: 'test-icon', isTextBadge: true, dispose: () => { } } : undefined;
+			}
+		});
+		instantiationService.stub(ITimelineService, upcastPartial<ITimelineService>({ editable: undefined }));
+		const labels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		const commands = upcastPartial<TimelinePaneCommands>({ getItemActions: () => [] });
+		const renderer = store.add(instantiationService.createInstance(TimelineTreeRenderer, commands, labels, null, document.createElement('div'), () => []));
+		return { renderer, themeService };
+	}
+
+	function render(renderer: TimelineTreeRenderer, item: Partial<TimelineItem>) {
+		const template = renderer.renderTemplate(document.createElement('div'));
+		const node = upcastPartial<ITreeNode<TimelineItem, FuzzyScore>>({ element: { source: 'B', handle: 'B|1', timestamp: 1, ...item } });
+		renderer.renderElement(node, 0, template);
+		const label = template.resourceLabel.element;
+		const result = {
+			label: label.querySelector('.monaco-icon-name-container')?.textContent,
+			icon: template.icon.className,
+			fileIcon: label.classList.contains('file-icon'),
+			decoration: label.classList.contains('test-decoration'),
+		};
+		renderer.disposeElement(node, 0, template);
+		renderer.disposeTemplate(template);
+		return result;
+	}
+
+	test('derives the label, icon and decorations of items without a label from their resource', () => {
+		const { renderer, themeService } = createRenderer();
+		const rendered = {
+			label: render(renderer, { label: 'Commit', resourceUri: resource }),
+			labelWithIcon: render(renderer, { label: '$(check) Commit' }),
+			derived: render(renderer, { resourceUri: resource }),
+			derivedWithIconSyntax: render(renderer, { resourceUri: URI.file('/folder/$(check).txt') }),
+			derivedWithIcon: render(renderer, { resourceUri: resource, themeIcon: { id: 'git-commit' } }),
+			derivedWithFileIcon: render(renderer, { resourceUri: resource, themeIcon: { id: 'file' } }),
+			empty: render(renderer, {}),
+		};
+		themeService.setFileIconTheme({ hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: false });
+
+		assert.deepStrictEqual({ ...rendered, derivedWithoutFileIconTheme: render(renderer, { resourceUri: resource }) }, {
+			label: { label: 'Commit', icon: 'custom-view-tree-node-item-icon', fileIcon: false, decoration: false },
+			labelWithIcon: { label: ' Commit', icon: 'custom-view-tree-node-item-icon', fileIcon: false, decoration: false },
+			derived: { label: 'derived.txt', icon: '', fileIcon: true, decoration: true },
+			derivedWithIconSyntax: { label: '$(check).txt', icon: '', fileIcon: true, decoration: false },
+			derivedWithIcon: { label: 'derived.txt', icon: 'custom-view-tree-node-item-icon codicon codicon-git-commit', fileIcon: false, decoration: true },
+			derivedWithFileIcon: { label: 'derived.txt', icon: '', fileIcon: true, decoration: true },
+			empty: { label: '', icon: 'custom-view-tree-node-item-icon', fileIcon: false, decoration: false },
+			derivedWithoutFileIconTheme: { label: 'derived.txt', icon: 'custom-view-tree-node-item-icon', fileIcon: true, decoration: true },
+		});
+	});
+
+	test('navigates by keyboard with the label derived from the resource', () => {
+		const provider = new TimelineKeyboardNavigationLabelProvider();
+		const labelOf = (item: Partial<TimelineItem>) => provider.getKeyboardNavigationLabel({ source: 'B', handle: 'B|1', timestamp: 1, ...item }).toString();
+
+		assert.deepStrictEqual(
+			[labelOf({ label: 'Commit', resourceUri: resource }), labelOf({ resourceUri: resource }), labelOf({ label: '', resourceUri: resource }), labelOf({})],
+			['Commit', 'derived.txt', 'derived.txt', '']
+		);
 	});
 });

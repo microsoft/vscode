@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ConnectorStatus, CopilotSession } from '@github/copilot-sdk';
+import type { ConnectorStatus, CopilotSession } from '@microsoft/copilot-sdk';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
@@ -111,7 +111,8 @@ export async function reconcileCopilotConnectors(
 	};
 }
 
-function copilotConnectorServers(status: ConnectorStatus): ICopilotConnectorServers {
+/** Reads the Connector-owned runtime servers from the runtime's authoritative Connector state. */
+export function copilotConnectorServers(status: ConnectorStatus): ICopilotConnectorServers {
 	const names = new Map(status.catalog?.connectors.map(connector => [connector.name, connector.displayName.trim() || connector.name]));
 	return {
 		servers: new Map(status.runtimeServers.map(server => [server.runtimeServerId, {

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { groupSessionsForPicker } from '../../browser/sessionsPicker.js';
 
 function createSession(sessionId: string, status: SessionStatus, isRead: boolean, isArchived = false): ISession {

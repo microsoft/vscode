@@ -17,7 +17,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { AGENTS_VOICE_ENABLED, AgentsVoiceStorageKeys, getAgentsVoicePolicyValue } from '../../common/agentsVoice.js';
 import { IVoiceSessionController, VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -30,18 +30,6 @@ suite('Voice Mode onboarding', () => {
 
 	interface ITestHost { root: HTMLElement; container: HTMLElement; focused: number }
 	interface ITelemetryEvent { readonly name: string; readonly data: unknown }
-
-	class TestTelemetryService extends NullTelemetryServiceShape {
-		constructor(private readonly events: ITelemetryEvent[]) {
-			super();
-		}
-
-		override publicLog2(eventName?: string, data?: unknown): void {
-			if (eventName) {
-				this.events.push({ name: eventName, data });
-			}
-		}
-	}
 
 	function createHost(store: Pick<DisposableStore, 'add'>): ITestHost {
 		const root = dom.$('div');

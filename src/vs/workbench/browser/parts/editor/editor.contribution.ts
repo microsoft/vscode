@@ -9,14 +9,16 @@ import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../editor.js';
 import { IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
 import {
 	TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext,
-	EditorPartMultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext,
+	EditorPartMultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, EditorGroupLockActionsHiddenContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext,
 	EditorTabsVisibleContext, ActiveEditorLastInGroupContext, EditorPartMaximizedEditorGroupContext, MultipleEditorGroupsContext, InEditorZenModeContext,
-	IsAuxiliaryWindowContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, SplitEditorsVertically, ActiveEditorCannotCloseContext,
+	IsAuxiliaryWindowContext, LayoutModeContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, SplitEditorsVertically, ActiveEditorCannotCloseContext,
 	IsSessionsWindowContext, ActiveCustomEditorDiffCanToggleLayoutContext, ActiveCustomEditorTextDiffContext, EditorPartModalContext
 } from '../../../common/contextkeys.js';
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from '../../../common/editor/sideBySideEditorInput.js';
 import { TextResourceEditor } from './textResourceEditor.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
+import { ViewEditorPane } from './viewEditorPane.js';
+import { ViewEditorInput } from './viewEditorInput.js';
 import { DiffEditorInput, DiffEditorInputSerializer } from '../../../common/editor/diffEditorInput.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
@@ -69,10 +71,13 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorHandler } from '../../../services/untitled/common/untitledTextEditorHandler.js';
 import { DynamicEditorConfigurations } from './editorConfiguration.js';
+import { DefaultEditorTelemetry } from './defaultEditorTelemetry.js';
 import { ConfigureEditorAction, ConfigureEditorTabsAction, EditorActionsDefaultAction, EditorActionsTitleBarAction, HideEditorActionsAction, HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction, ZenHideEditorTabsAction, ZenShowMultipleEditorTabsAction, ZenShowSingleEditorTabAction } from '../../actions/layoutActions.js';
 import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { getFontSnippets } from '../../../../base/browser/fonts.js';
+import { MoveEditorToPartAction } from './editorPartActions.js';
+import { MoveEditorIntoNewPartAboveAction, MoveEditorIntoNewPartBelowAction, MoveEditorIntoNewPartLeftAction, MoveEditorIntoNewPartRightAction, MovePartDownAction, MovePartLeftAction, MovePartRightAction, MovePartUpAction } from '../partGrid/partGridActions.js';
 import { registerEditorFontConfigurations } from '../../../../editor/common/config/editorConfigurationSchema.js';
 
 //#region Editor Registrations
@@ -122,6 +127,17 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		ViewEditorPane,
+		ViewEditorPane.ID,
+		localize('viewEditor', "View Editor")
+	),
+	[
+		new SyncDescriptor(ViewEditorInput)
+	]
+);
+
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(UntitledTextEditorInput.ID, UntitledTextEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SideBySideEditorInput.ID, SideBySideEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(DiffEditorInput.ID, DiffEditorInputSerializer);
@@ -134,6 +150,7 @@ registerWorkbenchContribution2(EditorAutoSave.ID, EditorAutoSave, WorkbenchPhase
 registerWorkbenchContribution2(EditorStatusContribution.ID, EditorStatusContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(UntitledTextEditorWorkingCopyEditorHandler.ID, UntitledTextEditorWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(DynamicEditorConfigurations.ID, DynamicEditorConfigurations, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(DefaultEditorTelemetry.ID, DefaultEditorTelemetry, WorkbenchPhase.AfterRestored);
 
 //#endregion
 
@@ -241,6 +258,15 @@ registerAction2(DuplicateGroupDownAction);
 
 registerAction2(MoveEditorToPreviousGroupAction);
 registerAction2(MoveEditorToNextGroupAction);
+registerAction2(MoveEditorToPartAction);
+registerAction2(MovePartLeftAction);
+registerAction2(MovePartRightAction);
+registerAction2(MovePartUpAction);
+registerAction2(MovePartDownAction);
+registerAction2(MoveEditorIntoNewPartLeftAction);
+registerAction2(MoveEditorIntoNewPartRightAction);
+registerAction2(MoveEditorIntoNewPartAboveAction);
+registerAction2(MoveEditorIntoNewPartBelowAction);
 registerAction2(MoveEditorToFirstGroupAction);
 registerAction2(MoveEditorToLastGroupAction);
 registerAction2(MoveEditorToLeftGroupAction);
@@ -351,9 +377,10 @@ if (isMacintosh) {
 }
 
 // Empty Editor Group Toolbar
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: LOCK_GROUP_COMMAND_ID, title: localize('lockGroupAction', "Lock Group"), icon: Codicon.unlock }, group: 'navigation', order: 10, when: ContextKeyExpr.and(IsAuxiliaryWindowContext, ActiveEditorGroupLockedContext.toNegated()) });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GROUP_COMMAND_ID, title: localize('unlockGroupAction', "Unlock Group"), icon: Codicon.lock, toggled: ContextKeyExpr.true() }, group: 'navigation', order: 10, when: ActiveEditorGroupLockedContext });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('closeGroupAction', "Close Group"), icon: Codicon.close }, group: 'navigation', order: 20, when: ContextKeyExpr.or(IsAuxiliaryWindowContext, EditorPartMultipleEditorGroupsContext) });
+// An empty group of an auxiliary window offers to lock or close it, which closes the window, but not in a window with layout modes, which shows more than its editors.
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: LOCK_GROUP_COMMAND_ID, title: localize('lockGroupAction', "Lock Group"), icon: Codicon.unlock }, group: 'navigation', order: 10, when: ContextKeyExpr.and(IsAuxiliaryWindowContext, LayoutModeContext.toNegated(), ActiveEditorGroupLockedContext.toNegated(), EditorGroupLockActionsHiddenContext.toNegated()) });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GROUP_COMMAND_ID, title: localize('unlockGroupAction', "Unlock Group"), icon: Codicon.lock, toggled: ContextKeyExpr.true() }, group: 'navigation', order: 10, when: ContextKeyExpr.and(ActiveEditorGroupLockedContext, EditorGroupLockActionsHiddenContext.toNegated()) });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('closeGroupAction', "Close Group"), icon: Codicon.close }, group: 'navigation', order: 20, when: ContextKeyExpr.or(ContextKeyExpr.and(IsAuxiliaryWindowContext, LayoutModeContext.toNegated()), EditorPartMultipleEditorGroupsContext) });
 
 // Empty Editor Group Context Menu
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '2_split', order: 10 });
@@ -666,7 +693,7 @@ appendEditorToolItem(
 		title: localize('lockEditorGroup', "Lock Group"),
 		icon: Codicon.unlock
 	},
-	ContextKeyExpr.and(IsAuxiliaryWindowContext, ActiveEditorGroupLockedContext.toNegated()),
+	ContextKeyExpr.and(IsAuxiliaryWindowContext, ActiveEditorGroupLockedContext.toNegated(), EditorGroupLockActionsHiddenContext.toNegated()),
 	CLOSE_ORDER - 1, // immediately to the left of close action
 );
 
@@ -678,7 +705,7 @@ appendEditorToolItem(
 		icon: Codicon.lock,
 		toggled: ContextKeyExpr.true()
 	},
-	ActiveEditorGroupLockedContext,
+	ContextKeyExpr.and(ActiveEditorGroupLockedContext, EditorGroupLockActionsHiddenContext.toNegated()),
 	CLOSE_ORDER - 1, // immediately to the left of close action
 );
 

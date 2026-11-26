@@ -11,6 +11,8 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigu
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { textmateColorsSchemaId, textmateColorGroupSchemaId } from './colorThemeSchema.js';
 import { workbenchColorsSchemaId } from '../../../../platform/theme/common/colorRegistry.js';
+import { sizeCustomizationsSchemaId } from '../../../../platform/theme/common/sizeRegistry.js';
+import { SIZE_CUSTOMIZATIONS_SETTING } from '../../../../platform/theme/common/sizeService.js';
 import { tokenStylingSchemaId } from '../../../../platform/theme/common/tokenClassificationRegistry.js';
 import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from './workbenchThemeService.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
@@ -139,6 +141,12 @@ const themeSettingsConfiguration: IConfigurationNode = {
 		[ThemeSettings.PREFERRED_HC_LIGHT_THEME]: preferredHCLightThemeSettingSchema,
 		[ThemeSettings.FILE_ICON_THEME]: fileIconThemeSettingSchema,
 		[ThemeSettings.COLOR_CUSTOMIZATIONS]: colorCustomizationsSchema,
+		[SIZE_CUSTOMIZATIONS_SETTING]: {
+			type: 'object',
+			default: {},
+			allOf: [{ $ref: sizeCustomizationsSchemaId }],
+			description: nls.localize('sizeCustomizations', "Customizes panel corners and inter-panel spacing in pixels. Use panels.cornerRadius (0-8) for shared panel corners, with individual area overrides. Use panels.spacing (0-16) for panel gaps. Agents window panels also support agentsWindow overrides. Compact layouts remain gapless, and joined edges remain square. Controls, pop-ups, native operating system surfaces, and window-edge gutters are unchanged."),
+		},
 		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema
 	}
 };

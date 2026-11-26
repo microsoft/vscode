@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-export default new class MissingTSXLinebreak implements eslint.Rule.RuleModule {
+export default new class MissingTSXLinebreak implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		type: "problem",
 		fixable: "code",
 		hasSuggestions: true,
 	}
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		return {
-			['JSXText']: (node: any) => {
+			['JSXText']: (node: ESTree.JSXText) => {
 				let text = node.value;
 				if (typeof text !== 'string') {
 					return {};

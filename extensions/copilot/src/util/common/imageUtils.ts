@@ -40,15 +40,15 @@ export function getImageDimensionsFromBytes(data: Uint8Array, mimeType: string |
 	}
 }
 
-export function getPngDimensions(base64: string) {
+function getPngDimensions(base64: string) {
 	return getPngDimensionsFromBytes(base64ToBytes(base64.slice(0, 50)));
 }
 
-export function getGifDimensions(base64: string) {
+function getGifDimensions(base64: string) {
 	return getGifDimensionsFromBytes(base64ToBytes(base64.slice(0, 50)));
 }
 
-export function getJpegDimensions(base64: string) {
+function getJpegDimensions(base64: string) {
 	return getJpegDimensionsFromBytes(base64ToBytes(base64));
 }
 
@@ -104,7 +104,7 @@ function getJpegDimensionsFromBytes(data: Uint8Array) {
 	throw new Error('JPEG dimensions not found');
 }
 
-export function getWebPDimensions(base64String: string) {
+function getWebPDimensions(base64String: string) {
 	return getWebPDimensionsFromBytes(base64ToBytes(base64String));
 }
 

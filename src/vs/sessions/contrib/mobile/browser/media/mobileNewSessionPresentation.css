@@ -1,0 +1,140 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench.mobile-workbench .new-chat-widget-container.mobile-new-session {
+	/* Give the composer up to 304px before spending the full gutter on narrow phones. */
+	padding: var(--vscode-spacing-size80) clamp(var(--vscode-spacing-size80), calc((100% - 304px) / 2), var(--vscode-spacing-size160)) 0;
+	justify-content: flex-start;
+}
+
+.mobile-new-session:not(.new-chat-in-session *) {
+	container: mobile-new-session / size;
+}
+
+.mobile-new-session > .mobile-new-session-content {
+	box-sizing: border-box;
+	flex: 1;
+	min-height: 0;
+	max-width: 100%;
+	padding-bottom: max(var(--vscode-spacing-size160), env(safe-area-inset-bottom));
+}
+
+.mobile-new-session .new-session-workspace-picker-container {
+	display: flex;
+	flex: 1 1 0;
+	min-height: 0;
+	max-width: 100%;
+	flex-direction: column;
+	align-items: center;
+	justify-content: safe center;
+	gap: var(--vscode-spacing-size80);
+	margin: 0;
+	overflow-y: auto;
+}
+
+.mobile-new-session.revealed .new-session-workspace-picker-container {
+	display: flex;
+}
+
+.mobile-new-session-content:not(.welcome-phrases-visible) .new-session-workspace-picker-container::before {
+	content: '';
+	flex-shrink: 0;
+	width: 64px;
+	height: 64px;
+	margin-bottom: var(--vscode-spacing-size160);
+	background: url('../../../../browser/media/sessions-logo-light.svg') center / contain no-repeat;
+}
+
+.monaco-workbench.mobile-workbench:is(.vs, .hc-light) .mobile-new-session .new-session-workspace-picker-container::before {
+	background-image: url('../../../../browser/media/sessions-logo-dark.svg');
+}
+
+/* Leave the remaining space to the choices when the keyboard or a short view squeezes the welcome. */
+@container mobile-new-session (max-height: 400px) {
+	.mobile-new-session-content:not(.welcome-phrases-visible) .new-session-workspace-picker-container::before {
+		content: none;
+	}
+}
+
+.mobile-new-session .new-session-workspace-picker-container[hidden] {
+	display: none;
+}
+
+.mobile-new-session .session-workspace-picker-slot {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.mobile-new-session .sessions-new-session-place-row {
+	flex-shrink: 0;
+	margin: 0;
+}
+
+.agent-sessions-workbench.phone-layout .mobile-new-session .mobile-new-session-choices {
+	justify-content: center;
+	flex-wrap: wrap;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size80);
+	overflow: visible;
+}
+
+.mobile-new-session .mobile-new-session-choices .sessions-workspace-category-picker-slot {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.monaco-workbench.mobile-workbench .mobile-new-session .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
+	min-height: var(--mobile-target);
+	max-width: 100%;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.mobile-new-session-content.welcome-phrases-visible .new-session-welcome-message {
+	margin: auto 0 var(--vscode-spacing-size160);
+	flex-shrink: 0;
+}
+
+.mobile-new-session-content.welcome-phrases-visible .new-session-workspace-picker-container {
+	flex: 0 1 auto;
+	margin-bottom: auto;
+}
+
+.mobile-new-session .new-chat-input-container {
+	flex-shrink: 0;
+}
+
+/* Reserve the full hit area inside the toolbar so its overflow can't clip the compact pill. */
+.mobile-new-session .new-chat-session-controls .sessions-chat-picker-slot {
+	display: flex;
+	align-items: center;
+	min-height: var(--mobile-target);
+}
+
+.mobile-new-session .new-chat-session-controls .sessions-chat-picker-slot > .action-label {
+	position: relative;
+}
+
+.mobile-new-session .new-chat-session-controls .sessions-chat-picker-slot > .action-label::after {
+	content: '';
+	position: absolute;
+	inset: 50% 0 auto;
+	height: var(--mobile-target);
+	transform: translateY(-50%);
+}
+
+.agent-sessions-workbench.phone-layout .mobile-new-session .new-chat-bottom-container.empty {
+	display: none;
+}
+
+.new-chat-in-session .mobile-new-session .new-session-workspace-picker-container {
+	flex: 0 0 auto;
+	margin-top: auto;
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.new-chat-in-session .mobile-new-session .new-session-workspace-picker-container::before {
+	content: none;
+}

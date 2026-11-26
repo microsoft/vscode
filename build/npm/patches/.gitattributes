@@ -1,0 +1,2 @@
+# pnpm applies these patches to the downloaded package files, which have LF line endings.
+*.patch eol=lf

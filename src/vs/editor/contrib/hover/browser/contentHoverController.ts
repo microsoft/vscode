@@ -21,9 +21,10 @@ import { isMousePositionWithinElement, shouldShowHover, isTriggerModifierPressed
 import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
-import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
+import { isOnColorDecorator, isOnColorDecoratorOf } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
 import { isModifierKey, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { isHTMLElement } from '../../../../base/browser/dom.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -154,7 +155,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (!this._contentWidget || !this._contentWidget.getDomNode().isConnected) {
 			return false;
 		}
-		return isMousePositionWithinElement(this._contentWidget.getDomNode(), mouseEvent.event.posx, mouseEvent.event.posy);
+		return this._contentWidget.containsNode(mouseEvent.event.target)
+			|| isMousePositionWithinElement(this._contentWidget.getDomNode(), mouseEvent.event.posx, mouseEvent.event.posy);
 	}
 
 	private _onEditorMouseUp(): void {
@@ -172,6 +174,10 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		this._cancelScheduler();
+		const relatedTarget = mouseEvent.event.browserEvent.relatedTarget;
+		if (isHTMLElement(relatedTarget) && this._contentWidget?.containsNode(relatedTarget)) {
+			return;
+		}
 		const shouldKeepHoverWidgetVisible = this._shouldKeepHoverWidgetVisible(mouseEvent);
 		if (shouldKeepHoverWidgetVisible) {
 			return;
@@ -197,7 +203,10 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 			const isMouseOnHoverWithColorPicker = isColorPickerVisible && isMouseOnContentHoverWidget;
 			const isMaybeChoosingColor = isColorPickerVisible && this._isMouseDown;
-			return isMouseOnHoverWithColorPicker || isMaybeChoosingColor;
+			// Keep the hover open while the mouse is over the decorator that opened the visible picker
+			const pickerRange = contentWidget.colorPickerRange;
+			const isMouseOnColorDecorator = isColorPickerVisible && !!pickerRange && isOnColorDecoratorOf(mouseEvent, pickerRange);
+			return isMouseOnHoverWithColorPicker || isMaybeChoosingColor || isMouseOnColorDecorator;
 		};
 		// TODO@aiday-mar verify if the following is necessary code
 		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean): boolean => {

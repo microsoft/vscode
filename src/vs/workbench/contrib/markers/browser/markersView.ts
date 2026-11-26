@@ -486,14 +486,14 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		return table;
 	}
 
-	private createTree(parent: HTMLElement): IProblemsWidget {
-		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
+	private createTree(parent: HTMLElement,): IProblemsWidget {
+		const onDidChangeRenderNodeCount = this.widgetDisposables.add(new Relay<ITreeNode<any, any>>());
 
-		const treeLabels = this.instantiationService.createInstance(ResourceLabels, this);
+		const treeLabels = this.widgetDisposables.add(this.instantiationService.createInstance(ResourceLabels, this));
 
 		const virtualDelegate = new VirtualDelegate(this.markersViewModel);
 		const renderers = [
-			this.instantiationService.createInstance(ResourceMarkersRenderer, treeLabels, onDidChangeRenderNodeCount.event),
+			this.widgetDisposables.add(this.instantiationService.createInstance(ResourceMarkersRenderer, treeLabels, onDidChangeRenderNodeCount.event)),
 			this.instantiationService.createInstance(MarkerRenderer, this.markersViewModel),
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];
@@ -611,12 +611,11 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	private onDidChangeViewMode(): void {
-		if (this.widgetContainer && this.widget) {
-			this.widgetContainer.textContent = '';
-			this.widgetDisposables.clear();
+		if (!this.widgetContainer || !this.widget) {
+			return;
 		}
 
-		// Save selection
+		// Save selection and focus BEFORE disposing the widget
 		const selection = new Set<Marker>();
 		for (const marker of this.widget.getSelection()) {
 			if (marker instanceof ResourceMarkers) {
@@ -626,13 +625,16 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 			}
 		}
 
-		// Save focus
 		const focus = new Set<Marker>();
 		for (const marker of this.widget.getFocus()) {
 			if (marker instanceof Marker || marker instanceof MarkerTableItem) {
 				focus.add(marker);
 			}
 		}
+
+		// Now dispose the widget and clear the container
+		this.widgetContainer.textContent = '';
+		this.widgetDisposables.clear();
 
 		// Create new widget
 		this.createWidget(this.widgetContainer);

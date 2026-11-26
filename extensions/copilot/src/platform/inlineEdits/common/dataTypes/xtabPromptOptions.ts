@@ -187,8 +187,7 @@ export type GlobalBudgetPart =
 export type GlobalBudgetSharePart = GlobalBudgetPart | 'currentFile';
 
 /**
- * Opt-in global-budget allocation modelled after the cascade in
- * `CascadingPromptFactory` (completions-core): every participating part gets a
+ * Opt-in global-budget allocation: every participating part gets a
  * percentage share of a single `totalTokens` pool, the rendered parts are emitted
  * in `order`, and any unused tokens in one part cascade as surplus to the next.
  *

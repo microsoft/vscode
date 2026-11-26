@@ -17,6 +17,7 @@ import { Disposable, IDisposable } from '../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../base/common/network.js';
 import { isObject } from '../../base/common/types.js';
 import { IPCServer, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
+import { isRemoteAgentHostLocationPreference } from '../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import type { IAgentHostIpcConnectionOptions } from '../../platform/agentHost/common/agentService.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import type * as wsTypes from 'ws';
@@ -36,12 +37,13 @@ export interface IAgentHostUpstreamEndpoint {
 	readonly connectionToken?: string;
 }
 
-export type AgentHostUpstreamEndpointResolver = (options?: IAgentHostIpcConnectionOptions) => Promise<IAgentHostUpstreamEndpoint>;
+type AgentHostUpstreamEndpointResolver<TContext> = (options: IAgentHostIpcConnectionOptions | undefined, ctx: TContext) => Promise<IAgentHostUpstreamEndpoint>;
 
 function isConnectionOptions(value: unknown): value is IAgentHostIpcConnectionOptions {
 	return isObject(value)
 		&& (!('env' in value) || isEnvironment(value.env))
-		&& (!('debugEnv' in value) || isEnvironment(value.debugEnv));
+		&& (!('debugEnv' in value) || isEnvironment(value.debugEnv))
+		&& (!('preferredAgentLocation' in value) || value.preferredAgentLocation === undefined || isRemoteAgentHostLocationPreference(value.preferredAgentLocation));
 }
 
 function isEnvironment(value: unknown): value is IAgentHostIpcConnectionOptions['env'] {
@@ -122,7 +124,7 @@ class LazyUpstreamConnection extends Disposable implements IUpstreamConnection {
 	private _closeFired = false;
 
 	constructor(
-		private readonly _resolveEndpoint: AgentHostUpstreamEndpointResolver,
+		private readonly _resolveEndpoint: (options?: IAgentHostIpcConnectionOptions) => Promise<IAgentHostUpstreamEndpoint>,
 		private readonly _upstreamFactory: UpstreamConnectionFactory,
 		private readonly _logService: ILogService,
 	) {
@@ -322,7 +324,7 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 
 	constructor(
 		ipcServer: IPCServer<TContext>,
-		private readonly _endpoint: IAgentHostUpstreamEndpoint | AgentHostUpstreamEndpointResolver,
+		private readonly _endpoint: IAgentHostUpstreamEndpoint | AgentHostUpstreamEndpointResolver<TContext>,
 		private readonly _logService: ILogService,
 		upstreamFactory?: UpstreamConnectionFactory,
 	) {
@@ -345,7 +347,7 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 		switch (command) {
 			case 'connect':
 				if (arg !== undefined && !isConnectionOptions(arg)) {
-					throw new Error('Invalid agent host connection environment: expected string or null values');
+					throw new Error('Invalid agent host connection options');
 				}
 				this._logService.info(`[AgentHostChannel] Renderer ctx=${String(ctx)} requested connect to upstream`);
 				await conn.connect(arg);
@@ -374,7 +376,7 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 	private _getOrCreate(ctx: TContext): IUpstreamConnection {
 		let conn = this._perCtx.get(ctx);
 		if (!conn) {
-			conn = new LazyUpstreamConnection(options => this._resolveEndpoint(options), endpoint => this._createUpstream(endpoint), this._logService);
+			conn = new LazyUpstreamConnection(options => this._resolveEndpoint(options, ctx), endpoint => this._createUpstream(endpoint), this._logService);
 			this._perCtx.set(ctx, conn);
 			// If the upstream closes on its own (e.g. agent host restart or
 			// connection drop), evict it from the cache so the next
@@ -396,14 +398,14 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 		return this._upstreamFactory(endpoint);
 	}
 
-	private async _resolveEndpoint(options?: IAgentHostIpcConnectionOptions): Promise<IAgentHostUpstreamEndpoint> {
+	private async _resolveEndpoint(options: IAgentHostIpcConnectionOptions | undefined, ctx: TContext): Promise<IAgentHostUpstreamEndpoint> {
 		const endpoint = this._endpoint;
 		if (typeof endpoint !== 'function') {
 			return endpoint;
 		}
 
 		// Apply every renderer's environment; the server manager coalesces process startup.
-		return endpoint(options);
+		return endpoint(options, ctx);
 	}
 
 	private _disposeCtx(ctx: TContext): void {

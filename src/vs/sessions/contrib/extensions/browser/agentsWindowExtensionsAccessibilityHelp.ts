@@ -9,6 +9,7 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE } from '../../../../platform/extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -16,8 +17,8 @@ import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MA
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
-import { IAgentsWindowExtensionSuggestionsService } from './agentsWindowExtensionSuggestions.js';
+import { AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING, AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 export class AgentsWindowExtensionsAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -33,6 +34,7 @@ export class AgentsWindowExtensionsAccessibilityHelp implements IAccessibleViewI
 		const focused = DOM.getActiveElement();
 		const hasSuggestedGroup = accessor.get(IAgentsWindowExtensionSuggestionsService).suggestedExtensions.get().length > 0;
 		const autoEnable = accessor.get(IConfigurationService).getValue<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE);
+		const marketplaceStatus = accessor.get(IExtensionGalleryManifestService).extensionGalleryManifestStatus;
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.AgentsWindowExtensions,
 			{ type: AccessibleViewType.Help },
@@ -43,8 +45,13 @@ export class AgentsWindowExtensionsAccessibilityHelp implements IAccessibleViewI
 				...(autoEnable === true ? [localize('agentsWindowExtensions.help.autoEnabled', "Extensions that add AI features and don't rely on views, debugging, or other features that are unavailable in the Agents window are enabled automatically instead. You can disable them like any other extension.")] : []),
 				...(Array.isArray(autoEnable) && autoEnable.length > 0 ? [localize('agentsWindowExtensions.help.autoEnabledListed', "Some extensions that haven't declared support for the Agents window are enabled automatically instead. You can disable them like any other extension.")] : []),
 				localize('agentsWindowExtensions.help.warnings', "Extensions that haven't declared support for the Agents window and contribute views, debuggers, status bar items, or walkthroughs, which are not supported in the Agents window, have a warning, which is read as part of the extension."),
-				localize('agentsWindowExtensions.help.navigation', "Use the search box to filter extensions by name, identifier, publisher, or description. Press Tab to move to the list, use the Up and Down Arrow keys to move between extensions, and press Space or Enter to enable or disable the focused extension. Use the Left and Right Arrow keys on a group to collapse or expand it."),
-				localize('agentsWindowExtensions.help.restart', "When a change requires restarting extensions or reloading the window, the extension is marked as requiring a restart and a Restart Extensions or Reload Window button appears next to the section title."),
+				localize('agentsWindowExtensions.help.navigation', "Use the search box to filter extensions by name, identifier, publisher, or description. Press Tab to move to the list, use the Up and Down Arrow keys to move between extensions, and press Space to enable or disable the focused extension. Use the Left and Right Arrow keys on a group to collapse or expand it."),
+				localize('agentsWindowExtensions.help.page', "Press Enter on an extension to open its page in place of the list, like the extension editor in VS Code. The page shows the extension's details, features, changelog, and dependencies, and its actions, such as to install, enable or disable, or uninstall it. Installing an extension from its page also enables it in the Agents window, and uninstalling it also asks you to confirm it first. Opening an extension's page moves the focus to the Back to Extensions button before the section title. Press Tab to move through the page, and press Enter on the Back to Extensions button, or use Go Back{0}, to return to the list.", '<keybinding:workbench.action.agentsWindowExtensions.backToList>'),
+				localize('agentsWindowExtensions.help.actions', "Press Shift+F10 on an installed extension to open its actions, which enable or disable it, restart extensions when required, and uninstall it. Uninstalling an extension here also uninstalls it from VS Code, so you are asked to confirm it first, unless you chose not to be asked again. The {0} setting turns the confirmation back on.", AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING),
+				...(marketplaceStatus === ExtensionGalleryManifestStatus.Available ? [localize('agentsWindowExtensions.help.marketplace', "Typing in the search box also searches the Marketplace. Installed extensions are read with the install count and rating that the Marketplace reports for them. Extensions it finds that aren't installed are listed under Marketplace, which expands with each new search, with their publisher, install count, and rating. Press Space on one to install it. To install another version, such as a pre-release, press Tab to move to its Install button, then the Right Arrow key to move to the menu of other versions. Installing an extension here also installs it in VS Code, and enables it in the Agents window. Like installed extensions, extensions that haven't declared support for the Agents window and contribute features that it doesn't support have a warning, and so do extensions that can't be installed, for example because your organization doesn't allow it. The warning says why, and is read as part of the extension. If the Marketplace can't be searched, a warning on the search box says that only installed extensions are shown.")] : []),
+				...(marketplaceStatus === ExtensionGalleryManifestStatus.RequiresSignIn ? [localize('agentsWindowExtensions.help.marketplaceRequiresSignIn', "The search box also searches the Marketplace once you sign in to it from the Extensions view in VS Code. Until then, only installed extensions are shown.")] : []),
+				...(marketplaceStatus === ExtensionGalleryManifestStatus.AccessDenied ? [localize('agentsWindowExtensions.help.marketplaceAccessDenied', "Your account does not have access to the Extensions Marketplace, so the search box only searches installed extensions.")] : []),
+				localize('agentsWindowExtensions.help.restart', "When a change requires restarting extensions or reloading the window, the extension is marked as requiring a restart, and a Restart Extensions or Reload Window button appears on its row and next to the section title. The button next to the section title also appears when an extension that you uninstalled here keeps running until extensions restart. Press Shift+Tab from the search box to reach the button next to the section title."),
 			].join('\n\n'),
 			() => DOM.isHTMLElement(focused) && focused.isConnected ? focused.focus() : editor.focus(),
 			AccessibilityVerbositySettingId.AgentsWindowExtensions,

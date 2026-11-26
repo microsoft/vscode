@@ -21,6 +21,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IPaneOptions, Pane, IPaneStyles } from '../../../../base/browser/ui/splitview/paneview.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, ViewContainerLocationToString } from '../../../common/views.js';
+import { ViewTitleBadgeWidget } from './viewTitleBadge.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { assertReturnsDefined, PartialExcept } from '../../../../base/common/types.js';
@@ -321,6 +322,32 @@ export abstract class ViewPane extends Pane implements IView {
 	private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
 
+	protected readonly _onDidChangeOptimalHeight = this._register(new Emitter<void>());
+	readonly onDidChangeOptimalHeight = this._onDidChangeOptimalHeight.event;
+	private minimumBodySizeBeforeContentSizing: number | undefined;
+
+	protected get isSizeToContent(): boolean {
+		return this.minimumBodySizeBeforeContentSizing !== undefined;
+	}
+
+	/** Temporarily removes the body minimum so a host can fit intrinsic content. */
+	setSizeToContent(enabled: boolean): void {
+		if (enabled === this.isSizeToContent) {
+			return;
+		}
+		if (enabled) {
+			this.minimumBodySizeBeforeContentSizing = this.minimumBodySize;
+			this.minimumBodySize = 0;
+		} else {
+			const minimum = this.minimumBodySizeBeforeContentSizing;
+			if (minimum !== undefined) {
+				this.minimumBodySizeBeforeContentSizing = undefined;
+				this.minimumBodySize = minimum;
+			}
+		}
+		this._onDidChangeOptimalHeight.fire();
+	}
+
 	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
@@ -367,6 +394,9 @@ export abstract class ViewPane extends Pane implements IView {
 	private titleContainerHover?: IManagedHover;
 	private titleDescriptionContainer?: HTMLElement;
 	private titleDescriptionContainerHover?: IManagedHover;
+	private titleBadgeWidget?: ViewTitleBadgeWidget;
+	/** The header's label as set, which the header reads followed by the title badge. */
+	private ariaHeaderLabelWithoutBadge: string | undefined;
 	private iconContainer?: HTMLElement;
 	private iconContainerHover?: IManagedHover;
 	protected twistiesContainer?: HTMLElement;
@@ -409,6 +439,20 @@ export abstract class ViewPane extends Pane implements IView {
 
 	override get headerVisible(): boolean {
 		return super.headerVisible;
+	}
+
+	override get ariaHeaderLabel(): string {
+		return super.ariaHeaderLabel;
+	}
+
+	override set ariaHeaderLabel(label: string) {
+		this.ariaHeaderLabelWithoutBadge = label;
+		const badge = this.titleBadgeWidget?.badge;
+		super.ariaHeaderLabel = badge ? nls.localize('viewTitleWithBadge', "{0}, {1}", label, badge.ariaLabel) : label;
+		// A view that names its title element itself keeps it in step with the header
+		if (this.titleContainer?.hasAttribute('aria-label')) {
+			this.titleContainer.setAttribute('aria-label', super.ariaHeaderLabel);
+		}
 	}
 
 	override set headerVisible(visible: boolean) {
@@ -564,6 +608,13 @@ export abstract class ViewPane extends Pane implements IView {
 			this.setTitleDescription(this._titleDescription);
 		}
 
+		this.titleBadgeWidget = this._register(this.instantiationService.createInstance(ViewTitleBadgeWidget, this.id));
+		after(this.titleDescriptionContainer ?? this.titleContainer, this.titleBadgeWidget.element);
+		this._register(this.titleBadgeWidget.onDidChange(() => this.onDidChangeTitleBadge()));
+		if (this.titleBadgeWidget.badge) {
+			this.onDidChangeTitleBadge();
+		}
+
 		this.iconContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
 		this.iconContainer.setAttribute('aria-label', this._getAriaLabel(calculatedTitle, this._titleDescription));
 	}
@@ -613,6 +664,10 @@ export abstract class ViewPane extends Pane implements IView {
 			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', {}, description));
 			this.titleDescriptionContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
 		}
+	}
+
+	private onDidChangeTitleBadge(): void {
+		this.ariaHeaderLabel = this.ariaHeaderLabelWithoutBadge ?? super.ariaHeaderLabel;
 	}
 
 	protected updateTitleDescription(description?: string | undefined): void {
@@ -736,6 +791,18 @@ export abstract class ViewPane extends Pane implements IView {
 
 	getOptimalWidth(): number {
 		return 0;
+	}
+
+	/** Returns the intrinsic height, including the header, when the view supports content sizing. */
+	getOptimalHeight(): number | undefined {
+		const expanded = !this.headerVisible || this.isExpanded();
+		const headerHeight = this.minimumSize - (expanded ? this.minimumBodySize : 0);
+		const bodyHeight = this.getOptimalBodyHeight();
+		return expanded ? bodyHeight === undefined ? undefined : headerHeight + bodyHeight : headerHeight;
+	}
+
+	protected getOptimalBodyHeight(): number | undefined {
+		return undefined;
 	}
 
 	saveState(): void {

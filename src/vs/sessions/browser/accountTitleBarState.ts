@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../base/common/codicons.js';
+import { asGitHubAccount, IDefaultAccount } from '../../base/common/defaultAccount.js';
 import { FileAccess } from '../../base/common/network.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
@@ -87,13 +88,6 @@ export interface IAccountTitleBarStateContext {
 		readonly chat?: IQuotaSnapshot;
 		readonly completions?: IQuotaSnapshot;
 	};
-	/**
-	 * Whether the conditional-auth opt-in permits signed-out operation.
-	 * When true, a signed-out account shows a calm opt-in sign-in instead of the
-	 * alarming "Agents Signed Out". Defaults to `false`, so the opt-in being off
-	 * keeps today's behavior.
-	 */
-	readonly allowSignedOutWhenUsable: boolean;
 }
 
 export interface IAccountTitleBarState {
@@ -119,6 +113,14 @@ export function getAccountProfileImageUrl(accountProviderId: string | undefined,
 	return `https://github.com/${encodeURIComponent(accountName.trim())}.png?size=64`;
 }
 
+/**
+ * Whether the GitHub Copilot details (GitHub mark, plan and usage row, dashboard) apply to the default account.
+ * They apply unless there is a default account without a GitHub credential, so they also apply while no default account is known.
+ */
+export function showsGitHubCopilotDetails(defaultAccount: IDefaultAccount | null): boolean {
+	return !defaultAccount || !!asGitHubAccount(defaultAccount);
+}
+
 export function getAccountTitleBarBadgeKey(state: IAccountTitleBarState): string | undefined {
 	if (!state.dotBadge) {
 		return undefined;
@@ -139,7 +141,7 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 		};
 	}
 
-	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas, context.allowSignedOutWhenUsable);
+	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas);
 	if (copilotState) {
 		return copilotState;
 	}
@@ -170,29 +172,18 @@ function getCopilotPresentation(
 	entitlement: ChatEntitlement,
 	sentiment: IChatSentiment,
 	quotas: { readonly chat?: IQuotaSnapshot; readonly completions?: IQuotaSnapshot },
-	allowSignedOutWhenUsable: boolean
 ): IAccountTitleBarState | undefined {
 	if (sentiment.hidden) {
 		return undefined;
 	}
 
 	if (entitlement === ChatEntitlement.Unknown) {
-		if (allowSignedOutWhenUsable) {
-			// Signing in is optional, so present a calm affordance.
-			return {
-				source: 'copilot',
-				kind: 'default',
-				icon: Codicon.account,
-				label: localize('agentsSignInOptional', "Sign In"),
-				ariaLabel: localize('agentsSignInOptionalAria', "Sign in to GitHub to use more agents"),
-			};
-		}
 		return {
 			source: 'copilot',
-			kind: 'prominent',
+			kind: 'default',
 			icon: Codicon.account,
-			label: localize('agentsSignedOut', "Agents Signed Out"),
-			ariaLabel: localize('agentsSignedOutAria', "Agents is signed out"),
+			label: localize('agentsSignInOptional', "Sign In"),
+			ariaLabel: localize('agentsSignInOptionalAria', "Sign in to GitHub to use more agents"),
 		};
 	}
 

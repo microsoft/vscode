@@ -16,7 +16,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '.
 import { WorkspaceService } from '../../browser/configurationService.js';
 import { ConfigurationEditing, ConfigurationEditingErrorCode, EditableConfigurationTarget } from '../../common/configurationEditing.js';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS, IConfigurationCache } from '../../common/configuration.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITextFileService } from '../../../textfile/common/textfiles.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -39,7 +39,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { RemoteAgentService } from '../../../remote/browser/remoteAgentService.js';
 import { getSingleFolderWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
-import { IUserDataProfilesService, UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { InMemoryUserDataProfilesService, IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -116,8 +116,9 @@ suite('ConfigurationEditing', () => {
 		environmentService.policyFile = joinPath(workspaceFolder, 'policies.json');
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService)));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new InMemoryUserDataProfilesService(environmentService, fileService, uriIdentityService, logService)));
 		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		instantiationService.stub(IUserDataProfileService, userDataProfileService);
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService))));
 		instantiationService.stub(IFileService, fileService);
@@ -191,6 +192,102 @@ suite('ConfigurationEditing', () => {
 			return;
 		}
 		assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
+	});
+
+	for (const switchProfile of [false, true]) {
+		test(`Save and Retry preserves the original profile's settings and drafts${switchProfile ? ' after switching profiles' : ''}`, async () => {
+			workspaceService.acquireInstantiationService(instantiationService);
+			const profilesService = instantiationService.get(IUserDataProfilesService);
+			const profile = await profilesService.createNamedProfile('Profile A');
+			const otherProfile = await profilesService.createNamedProfile('Profile B');
+			const key = 'configurationEditing.service.testSetting';
+			const draftKey = 'configurationEditing.service.testSettingTwo';
+			await fileService.writeFile(profile.settingsResource, VSBuffer.fromString(JSON.stringify({ [key]: 'profile A' })));
+			await fileService.writeFile(otherProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ [key]: 'profile B' })));
+			await userDataProfileService.updateCurrentProfile(profile);
+
+			const model = disposables.add(await instantiationService.get(ITextModelService).createModelReference(profile.settingsResource));
+			const otherModel = disposables.add(await instantiationService.get(ITextModelService).createModelReference(otherProfile.settingsResource));
+			const textFileService = instantiationService.get(ITextFileService);
+			try {
+				model.object.textEditorModel.setValue(JSON.stringify({ [key]: 'profile A', [draftKey]: 'draft A' }));
+				otherModel.object.textEditorModel.setValue(JSON.stringify({ [key]: 'profile B', [draftKey]: 'draft B' }));
+				const prompt = sinon.spy(instantiationService.get(INotificationService), 'prompt');
+
+				await workspaceService.updateValue(key, 'updated A', ConfigurationTarget.USER_LOCAL);
+				assert.strictEqual(prompt.callCount, 1);
+				const retry = prompt.firstCall.args[2][0];
+				assert.strictEqual(retry.label, 'Save and Retry');
+				if (switchProfile) {
+					await userDataProfileService.updateCurrentProfile(otherProfile);
+				}
+				await retry.run();
+
+				assert.deepStrictEqual({
+					settings: json.parse((await fileService.readFile(profile.settingsResource)).value.toString()),
+					otherSettings: json.parse((await fileService.readFile(otherProfile.settingsResource)).value.toString()),
+					dirty: textFileService.isDirty(profile.settingsResource),
+					otherDirty: textFileService.isDirty(otherProfile.settingsResource),
+					otherDraft: json.parse(otherModel.object.textEditorModel.getValue())
+				}, {
+					settings: { [key]: 'updated A', [draftKey]: 'draft A' },
+					otherSettings: { [key]: 'profile B' },
+					dirty: false,
+					otherDirty: true,
+					otherDraft: { [key]: 'profile B', [draftKey]: 'draft B' }
+				});
+			} finally {
+				await textFileService.revert(profile.settingsResource);
+				await textFileService.revert(otherProfile.settingsResource);
+				const disposed = Promise.all([
+					Event.toPromise(model.object.textEditorModel.onWillDispose),
+					Event.toPromise(otherModel.object.textEditorModel.onWillDispose)
+				]);
+				model.dispose();
+				otherModel.dispose();
+				await disposed;
+			}
+		});
+	}
+
+	test('Save and Retry keeps user tasks in their original profile', async () => {
+		const profilesService = instantiationService.get(IUserDataProfilesService);
+		const profile = await profilesService.createNamedProfile('Profile A');
+		const otherProfile = await profilesService.createNamedProfile('Profile B');
+		const tasks = [{ label: 'Updated A', type: 'shell', command: 'echo A' }];
+		const original = { version: '2.0.0', tasks: [] };
+		await fileService.writeFile(profile.tasksResource, VSBuffer.fromString(JSON.stringify(original)));
+		await fileService.writeFile(otherProfile.tasksResource, VSBuffer.fromString(JSON.stringify(original)));
+		await userDataProfileService.updateCurrentProfile(profile);
+
+		const model = disposables.add(await instantiationService.get(ITextModelService).createModelReference(profile.tasksResource));
+		const textFileService = instantiationService.get(ITextFileService);
+		try {
+			const inputs = [{ id: 'name', type: 'promptString', description: 'Name' }];
+			model.object.textEditorModel.setValue(JSON.stringify({ ...original, inputs }));
+			const prompt = sinon.spy(instantiationService.get(INotificationService), 'prompt');
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.tasks', value: tasks });
+			assert.strictEqual(prompt.callCount, 1);
+			await userDataProfileService.updateCurrentProfile(otherProfile);
+
+			const saved = Event.toPromise(Event.filter(textFileService.files.onDidSave, event =>
+				json.parse(event.model.textEditorModel!.getValue()).tasks?.[0]?.label === 'Updated A'));
+			await prompt.firstCall.args[2][0].run();
+			await saved;
+
+			assert.deepStrictEqual({
+				tasks: json.parse((await fileService.readFile(profile.tasksResource)).value.toString()),
+				otherTasks: json.parse((await fileService.readFile(otherProfile.tasksResource)).value.toString())
+			}, {
+				tasks: { ...original, tasks, inputs },
+				otherTasks: original
+			});
+		} finally {
+			await textFileService.revert(profile.tasksResource);
+			const disposed = Event.toPromise(model.object.textEditorModel.onWillDispose);
+			model.dispose();
+			await disposed;
+		}
 	});
 
 	test('do not notify error', async () => {

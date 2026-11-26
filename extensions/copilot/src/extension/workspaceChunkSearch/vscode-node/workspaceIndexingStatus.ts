@@ -220,7 +220,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 							message: externalIngestPolicyAvailableDetail,
 							busy: false,
 						},
-						tooltip: t`Codebase semantic search is available from indexed repositories, but external ingest is disabled by your organization's policy. Results may be incomplete or out of date.`,
+						tooltip: t`Codebase semantic search is available from indexed repositories, but external ingest is disabled by your organization. Results may be incomplete or out of date.`,
 					});
 				}
 
@@ -327,7 +327,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				busy: false,
 			} : undefined,
 			tooltip: externalIngestDisabledByPolicy
-				? t`External ingest is disabled by your organization's policy.`
+				? t`External ingest is disabled by your organization.`
 				: externalIngestDisabledInWorkspace
 					? t`External ingest is disabled in this workspace.`
 					: t`This repository can't be indexed. It may be too large or not supported.`,

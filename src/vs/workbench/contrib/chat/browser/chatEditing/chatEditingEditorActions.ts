@@ -27,6 +27,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { IDocumentDiffItemWithMultiDiffEditorItem, MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE } from '../../../customEditor/common/customEditor.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { findChatEditingSessionEntry, IChatEditReviewSession, IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME } from '../../common/editing/chatEditingService.js';
@@ -36,7 +37,6 @@ import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWid
 import { IChatEditingExplanationModelManager, IExplanationDiffInfo } from './chatEditingExplanationModelManager.js';
 import { DiffEditorViewModel } from '../../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
 import { IChatWidgetService } from '../chat.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -98,7 +98,7 @@ abstract class NavigateAction extends ChatEditingEditorAction {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
 					ctxHasEditorModification,
-					ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED)
+					ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE)
 				),
 			},
 			f1: true,
@@ -196,7 +196,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 				: Codicon.discard,
 			f1: true,
 			keybinding: {
-				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED),
+				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE),
 				weight: KeybindingWeight.WorkbenchContrib + 10, // win over new-window-action
 				primary: _keep
 					? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY
@@ -261,7 +261,7 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 				precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
 				f1: true,
 				keybinding: {
-					when: ContextKeyExpr.and(ctxCursorInChangeRange, ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED)),
+					when: ContextKeyExpr.and(ctxCursorInChangeRange, ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE)),
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
 						? KeyMod.CtrlCmd | KeyCode.KeyY
@@ -326,7 +326,7 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 			precondition: ContextKeyExpr.and(ctxHasEditorModification),
 			icon: Codicon.diffSingle,
 			keybinding: {
-				when: EditorContextKeys.focus,
+				when: ContextKeyExpr.or(EditorContextKeys.focus, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F7,
 			},
@@ -401,7 +401,7 @@ export class AcceptAllEditsAction extends ChatEditingEditorAction {
 			icon: Codicon.checkAll,
 			f1: true,
 			keybinding: {
-				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED),
+				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE),
 				weight: KeybindingWeight.WorkbenchContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyY,
 			},
@@ -487,7 +487,6 @@ class ExplainMultiDiffAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const explanationModelManager = accessor.get(IChatEditingExplanationModelManager);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const viewsService = accessor.get(IViewsService);
 		const chatEditingService = accessor.get(IChatEditingService);
 
 		const activePane = editorService.activeEditorPane;
@@ -610,7 +609,6 @@ class ExplainMultiDiffAction extends Action2 {
 			const manager = new ChatEditingExplanationWidgetManager(
 				fileData.editor,
 				chatWidgetService,
-				viewsService,
 				explanationModelManager,
 				diffInfo.modifiedModel.uri,
 			);

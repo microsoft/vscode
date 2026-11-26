@@ -93,6 +93,7 @@ export interface IClaudeAgentSdkService {
 		name: string,
 		description: string,
 		inputSchema: Schema,
+		// eslint-disable-next-line local/code-prefer-event-or-observable -- The SDK requires a request/response tool handler.
 		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>,
 		options?: Parameters<typeof tool>[4],
 	): Promise<SdkMcpToolDefinition<Schema>>;
@@ -128,6 +129,7 @@ export interface IClaudeSdkBindings {
 		name: string,
 		description: string,
 		inputSchema: Schema,
+		// eslint-disable-next-line local/code-prefer-event-or-observable -- Mirrors the external SDK tool handler contract.
 		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>,
 		options?: Parameters<typeof tool>[4],
 	): SdkMcpToolDefinition<Schema>;
@@ -249,6 +251,7 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 		name: string,
 		description: string,
 		inputSchema: Schema,
+		// eslint-disable-next-line local/code-prefer-event-or-observable -- Forward the SDK-required handler without changing its contract.
 		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>,
 		options?: Parameters<typeof tool>[4],
 	): Promise<SdkMcpToolDefinition<Schema>> {

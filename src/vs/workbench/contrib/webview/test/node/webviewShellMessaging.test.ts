@@ -52,6 +52,7 @@ suite('Webview shell messaging', () => {
 		const contentDocument = upcastPartial<Document>({
 			body,
 			get activeElement() { return activeElement; },
+			hasFocus: () => true,
 			getSelection: () => selection,
 			execCommand: command => {
 				targetAtCommand = activeElement;
@@ -139,6 +140,56 @@ suite('Webview shell messaging', () => {
 		});
 	});
 
+	test('opted-in intrinsic height fits fractional content and native scrollbars without changing other webviews', () => {
+		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
+		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
+		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
+		const reporter = html.match(/const postSize = \(\) => \{[\s\S]*?\r?\n\t+\};/)?.[0];
+		assert.ok(reporter);
+		const sizes: { width: number; height: number }[] = [];
+		for (const [includeHorizontalScrollbarInContentHeight, clientHeight] of [[false, 184], [true, 184], [false, 200], [true, 200]] as const) {
+			new Function('docEl', 'contentWindow', 'options', 'hostMessaging', `${reporter}\npostSize();`)(
+				{ offsetWidth: 440, offsetHeight: 200, clientHeight, getBoundingClientRect: () => ({ height: 200.45 }) },
+				{ innerHeight: 200 },
+				{ includeHorizontalScrollbarInContentHeight },
+				{ postMessage: (_channel: string, data: typeof sizes[number]) => sizes.push(data) },
+			);
+		}
+		assert.deepStrictEqual(sizes, [200, 217, 200, 201].map(height => ({ width: 440, height })));
+	});
+
+	test('only delegates recognized network permissions while preserving script and browser restrictions', () => {
+		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
+		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
+		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
+		const allow = html.match(/const allowRules = \[[\s\S]*?newFrame\.setAttribute\('allow',[\s\S]*?\);/)?.[0];
+		assert.ok(allow);
+		const cases = [
+			{ features: [], allowScripts: false, isFirefox: false },
+			{ features: ['local-network-access'], allowScripts: false, isFirefox: false },
+			{ features: [], allowScripts: true, isFirefox: false },
+			{ features: undefined, allowScripts: true, isFirefox: true },
+		];
+		const policies = cases.map(testCase => {
+			let policy: string | undefined;
+			new Function('newFrame', 'isFirefox', 'options', allow)(
+				{
+					featurePolicy: testCase.features ? { features: () => testCase.features } : undefined,
+					setAttribute: (_name: string, value: string) => { policy = value; },
+				},
+				testCase.isFirefox,
+				{ allowScripts: testCase.allowScripts },
+			);
+			return policy;
+		});
+		assert.deepStrictEqual(policies, [
+			'cross-origin-isolated; autoplay;',
+			'cross-origin-isolated; autoplay; local-network-access;',
+			'cross-origin-isolated; autoplay; clipboard-read; clipboard-write;',
+			'cross-origin-isolated; autoplay;',
+		]);
+	});
+
 	for (const command of ['copy', 'cut', 'paste']) {
 		for (const activeRoot of ['body', 'documentElement'] as const) {
 			test(`preserves the document selection for ${command} with ${activeRoot} focused`, () => {
@@ -157,6 +208,7 @@ suite('Webview shell messaging', () => {
 					body,
 					documentElement,
 					get activeElement() { return activeElement; },
+					hasFocus: () => true,
 					getSelection: () => upcastPartial<Selection>({
 						rangeCount: 1,
 						isCollapsed: !selectedText,
@@ -189,6 +241,57 @@ suite('Webview shell messaging', () => {
 			});
 		}
 	}
+
+	test('focuses an unfocused content window before native commands, then restores the last editable only without a selection', () => {
+		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
+		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
+		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
+		const commandHandler = html.match(/hostMessaging\.onMessage\('execCommand',[\s\S]*?\r?\n\t{3}\}\);/)?.[0];
+		assert.ok(commandHandler);
+		const results = (['copy', 'paste'] as const).map(command => {
+			const isCopy = command === 'copy';
+			const body = upcastPartial<HTMLElement>({});
+			let activeElement: Element = body;
+			let hasFocus = false;
+			const calls: string[] = [];
+			const contentDocument = upcastPartial<Document>({
+				body,
+				get activeElement() { return activeElement; },
+				hasFocus: () => hasFocus,
+				// Rendered text is selected for copy; nothing is selected for paste.
+				getSelection: () => upcastPartial<Selection>({ rangeCount: 1, isCollapsed: !isCopy }),
+				execCommand: command => {
+					calls.push(`${command} in ${activeElement === body ? 'body' : 'textarea'} (focused: ${hasFocus})`);
+					return hasFocus;
+				},
+			});
+			const textarea = upcastPartial<HTMLElement>({
+				isConnected: true,
+				ownerDocument: contentDocument,
+				focus: () => { activeElement = textarea; calls.push('focus textarea'); },
+			});
+			const contentWindow = upcastPartial<Window>({
+				focus: () => { hasFocus = true; calls.push('focus window'); },
+			});
+			const lastFocusedElements = new WeakMap<Document, HTMLElement>([[contentDocument, textarea]]);
+			let execute: ((_event: undefined, command: string) => void) | undefined;
+			new Function('hostMessaging', 'getActiveFrame', 'assertIsDefined', 'lastFocusedElements', commandHandler)(
+				{ onMessage: (_channel: string, handler: typeof execute) => { execute = handler; } },
+				() => ({ contentDocument, contentWindow }),
+				<T>(value: T): T => value,
+				lastFocusedElements,
+			);
+			assert.ok(execute);
+			execute(undefined, command);
+			execute(undefined, command);
+			return calls;
+		});
+
+		assert.deepStrictEqual(results, [
+			['focus window', 'copy in body (focused: true)', 'copy in body (focused: true)'],
+			['focus window', 'focus textarea', 'paste in textarea (focused: true)', 'paste in textarea (focused: true)'],
+		]);
+	});
 
 	test('matches the preload script CSP hash', () => {
 		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;

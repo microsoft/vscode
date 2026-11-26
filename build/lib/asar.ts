@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import path from 'path';
-import es from 'event-stream';
+import { through } from './streams.ts';
 import pickle from 'chromium-pickle-js';
 import Filesystem from 'asar/lib/filesystem.js';
 import VinylFile from 'vinyl';
@@ -14,7 +14,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 
 	const shouldUnpackFile = (file: VinylFile): boolean => {
 		for (let i = 0; i < unpackGlobs.length; i++) {
-			if (minimatch(file.relative, unpackGlobs[i])) {
+			if (minimatch(file.relative, unpackGlobs[i], { dot: true })) {
 				return true;
 			}
 		}
@@ -84,15 +84,15 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 		filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}).then(() => onFileInserted(), () => onFileInserted());
 	};
 
-	return es.through(function (file) {
-		if (file.stat.isDirectory()) {
+	return through(function (file) {
+		if (file.isDirectory()) {
 			return;
 		}
-		if (!file.stat.isFile()) {
+		if (!file.stat?.isFile() || !file.isBuffer()) {
 			throw new Error(`unknown item in stream!`);
 		}
 		if (shouldSkipFile(file)) {
-			this.queue(new VinylFile({
+			this.push(new VinylFile({
 				base: '.',
 				path: file.path,
 				stat: file.stat,
@@ -101,7 +101,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 			return;
 		}
 		if (shouldDuplicateFile(file)) {
-			this.queue(new VinylFile({
+			this.push(new VinylFile({
 				base: '.',
 				path: file.path,
 				stat: file.stat,
@@ -114,7 +114,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 		if (shouldUnpack) {
 			// The file goes outside of xx.asar, in a folder xx.asar.unpacked
 			const relative = path.relative(folderPath, file.path);
-			this.queue(new VinylFile({
+			this.push(new VinylFile({
 				base: '.',
 				path: path.join(destFilename + '.unpacked', relative),
 				stat: file.stat,
@@ -143,12 +143,12 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 			const contents = Buffer.concat(out);
 			out.length = 0;
 
-			this.queue(new VinylFile({
+			this.push(new VinylFile({
 				base: '.',
 				path: destFilename,
 				contents: contents
 			}));
-			this.queue(null);
+			this.push(null);
 		};
 
 		// Call finish() only when all file inserts have finished...

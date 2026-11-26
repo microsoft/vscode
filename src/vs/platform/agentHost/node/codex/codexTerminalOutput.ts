@@ -13,6 +13,11 @@ export function shouldRetainCodexCommandOutput(output: string): boolean {
 	return output.length > CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT;
 }
 
+/** The newest {@link CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT} characters of `output`, for output shown inline. */
+export function codexInlineCommandOutput(output: string): string {
+	return output.length > CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT ? output.slice(-CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT) : output;
+}
+
 /**
  * Result content for a command whose complete output is retained: a raw prefix
  * of the output as its preview, and the non-PTY terminal `resource` that serves

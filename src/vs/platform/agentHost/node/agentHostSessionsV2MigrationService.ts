@@ -187,7 +187,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 	): Promise<IAgentHostSessionsV2MigrationOutcome<T>> {
 		const session = candidate.session.toString();
 		try {
-			if (await this._database.isSessionTombstoned(session)) {
+			if (await this._database.isSessionSuppressed(session)) {
 				return { status: 'excluded' };
 			}
 			const priorProviderExclusion = candidate.current && candidate.current.provider !== provider

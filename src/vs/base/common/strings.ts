@@ -108,7 +108,11 @@ export function truncate(value: string, maxLength: number, suffix = Ellipsis): s
 		return value;
 	}
 
-	return `${value.substr(0, maxLength)}${suffix}`;
+	if (maxLength > 0 && isHighSurrogate(value.charCodeAt(maxLength - 1)) && isLowSurrogate(value.charCodeAt(maxLength))) {
+		maxLength--;
+	}
+
+	return `${value.substring(0, maxLength)}${suffix}`;
 }
 
 export function truncateMiddle(value: string, maxLength: number, suffix = Ellipsis): string {
@@ -128,6 +132,33 @@ export function truncateMiddle(value: string, maxLength: number, suffix = Ellips
 	}
 
 	return `${value.substring(0, prefixLength)}${suffix}${value.substring(suffixStart)}`;
+}
+
+/**
+ * Truncates each line of the value that is longer than `maxLineLength` characters, keeping
+ * the line breaks. Returns the value itself when no line exceeds the limit.
+ */
+export function truncateLongLines(value: string, maxLineLength: number, suffix = Ellipsis): string {
+	if (value.length <= maxLineLength) {
+		return value;
+	}
+	let result: string | undefined;
+	let copiedUpTo = 0;
+	let lineStart = 0;
+	while (lineStart < value.length) {
+		let lineEnd = value.indexOf('\n', lineStart);
+		if (lineEnd === -1) {
+			lineEnd = value.length;
+		}
+		// The CR of a CRLF line break is not part of the line.
+		const contentEnd = lineEnd > lineStart && lineEnd < value.length && value.charCodeAt(lineEnd - 1) === CharCode.CarriageReturn ? lineEnd - 1 : lineEnd;
+		if (contentEnd - lineStart > maxLineLength) {
+			result = (result ?? '') + value.substring(copiedUpTo, lineStart) + truncate(value.substring(lineStart, contentEnd), maxLineLength, suffix);
+			copiedUpTo = contentEnd;
+		}
+		lineStart = lineEnd + 1;
+	}
+	return result === undefined ? value : result + value.substring(copiedUpTo);
 }
 
 /**
@@ -702,6 +733,16 @@ export const UNUSUAL_LINE_TERMINATORS = /[\u2028\u2029]/; // LINE SEPARATOR (LS)
  */
 export function containsUnusualLineTerminators(str: string): boolean {
 	return UNUSUAL_LINE_TERMINATORS.test(str);
+}
+
+/**
+ * Replaces control, format (such as bidirectional overrides and zero-width
+ * characters) and line or paragraph separator characters with visible
+ * `\u{…}` escapes, so displayed text cannot hide characters, break a line,
+ * or reorder how it reads.
+ */
+export function escapeControlAndFormatCharacters(str: string): string {
+	return str.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, character => `\\u{${character.codePointAt(0)?.toString(16)}}`);
 }
 
 export function isFullWidthCharacter(charCode: number): boolean {

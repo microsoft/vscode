@@ -14,6 +14,7 @@ import { IEnvService } from '../../env/common/envService';
 import { BaseGHTelemetrySender } from '../common/ghTelemetrySender';
 import { createTrackingIdGetter, ITelemetryUserConfig } from '../common/telemetry';
 import { AzureInsightReporter, unwrapEventNameFromPrefix } from '../node/azureInsightsReporter';
+import { setCommonCpuProperty } from '../node/cpuModels';
 
 /**
  * Adapter that wraps both old and new telemetry reporters to implement VS Code's TelemetrySender interface.
@@ -180,7 +181,6 @@ function createGitHubTelemetryReporter(
 		'common_os': os.platform(),
 		'common_platformversion': os.release(),
 		'common_arch': os.arch(),
-		'common_cpu': Array.from(new Set(os.cpus().map(c => c.model))).join(),
 		'common_vscodemachineid': envService.machineId,
 		'common_vscodesessionid': envService.sessionId,
 		'client_deviceid': envService.devDeviceId,
@@ -188,6 +188,7 @@ function createGitHubTelemetryReporter(
 		'common_remotename': envService.remoteName ?? 'none',
 		'common_isnewappinstall': ''
 	};
+	setCommonCpuProperty(commonProps);
 
 	const appInsightsOptions: AppInsightsClientOptions = {
 		commonProperties: commonProps,

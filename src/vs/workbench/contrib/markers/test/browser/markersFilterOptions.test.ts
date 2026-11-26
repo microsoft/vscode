@@ -12,6 +12,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 suite('MarkersFilterOptions', () => {
 
@@ -244,5 +245,14 @@ suite('MarkersFilterOptions', () => {
 		assert.strictEqual(filterOptions.matchesSourceFilters('eslint'), true);
 		assert.strictEqual(filterOptions.matchesSourceFilters('ESLINT'), true);
 		assert.strictEqual(filterOptions.matchesSourceFilters('EsLiNt'), true);
+	});
+
+	test('files.exclude exceptions are not excluded', () => {
+		const root = URI.file('/root');
+		const filterOptions = new FilterOptions('', [{ root, expression: { 'node_modules': true, '!node_modules/@types': true } }], true, true, true, uriIdentityService);
+		assert.deepStrictEqual([
+			filterOptions.excludesMatcher.matches(URI.file('/root/node_modules/react/index.js')),
+			filterOptions.excludesMatcher.matches(URI.file('/root/node_modules/@types/node/index.d.ts')),
+		], [true, false]);
 	});
 });

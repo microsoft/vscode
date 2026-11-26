@@ -41,7 +41,19 @@ export interface ArtifactAuthority {
 export type ArtifactAvailability =
 	| { readonly kind: 'available'; readonly observedAt?: number }
 	| { readonly kind: 'loading' }
-	| { readonly kind: 'stale' | 'authenticationRequired' | 'unavailable' | 'error'; readonly reason: string; readonly observedAt?: number };
+	| { readonly kind: 'stale' | 'unavailable' | 'error'; readonly reason: string; readonly observedAt?: number }
+	| {
+		readonly kind: 'authenticationRequired';
+		readonly reason: string;
+		readonly observedAt?: number;
+		/**
+		 * A secure page where the user grants the current credential the access it
+		 * lacks, such as GitHub's page authorizing it for an organization's single
+		 * sign-on. Signing in again would not grant it, so clients open this page
+		 * instead.
+		 */
+		readonly authorizationUrl?: string;
+	};
 
 export interface ArtifactIcon {
 	readonly id: string;
@@ -56,14 +68,20 @@ export interface ArtifactPartPresentation {
 	readonly detailsId: string;
 }
 
+/** The presentation of the artifact as a whole. */
+export interface ArtifactMainPresentation extends ArtifactPartPresentation {
+	/** Labels the artifact where it shows as a pill of its own, rather than as a dropdown row, which shows the label. */
+	readonly pillLabel?: string;
+}
+
 export interface ArtifactSectionPresentation extends ArtifactPartPresentation {
 	readonly id: string;
 }
 
 /**
- * How one artifact contributes to a grouped presentation of several artifacts of the same integration.
- * Only the artifact's main integration is consulted, and priorities are compared only among that integration's
- * artifacts: the group shows the icon with the highest priority, and ties keep the earlier artifact.
+ * How one artifact contributes to a grouped presentation of several artifacts sharing a {@link ArtifactContributionView.groupId}.
+ * Only the artifact's main integration is consulted, and priorities are compared only among the group's artifacts:
+ * the group shows the icon with the highest priority, and ties keep the earlier artifact.
  */
 export interface ArtifactGroupPresentation {
 	readonly icon: ArtifactIcon;
@@ -91,8 +109,15 @@ export interface ArtifactActionView extends ArtifactActionAvailability {
 
 export interface ArtifactContributionView {
 	readonly availability: ArtifactAvailability;
-	readonly main?: ArtifactPartPresentation;
-	/** This artifact's contribution to a group of several artifacts of the same integration. */
+	readonly main?: ArtifactMainPresentation;
+	/**
+	 * Gives the artifact a pill of its own, shared with the other artifacts whose main integration assigns the same ID,
+	 * including those of other integrations. Without one, the artifact is listed in the pill for its kind, such as
+	 * Artifacts, with the other artifacts. References are always listed in the References pill. Only the main
+	 * integration's ID is consulted.
+	 */
+	readonly groupId?: string;
+	/** This artifact's contribution to a group of several artifacts sharing its {@link groupId}. */
 	readonly group?: ArtifactGroupPresentation;
 	readonly sections: readonly ArtifactSectionPresentation[];
 	/** Independent state lists, including lists without a compact pill section. */
@@ -112,6 +137,27 @@ export interface ArtifactItemActionDescriptor {
 	readonly id: string;
 	readonly iconId: string;
 	readonly label: string;
+	/**
+	 * Runs the integration's registered action with this ID for the item, with {@link ArtifactItemActionInput} as its input,
+	 * instead of {@link IArtifactDetailsModel.runItemAction}. The registered action must be offered and enabled.
+	 */
+	readonly actionId?: string;
+}
+
+/** The input of a registered action that runs for one details item. */
+export interface ArtifactItemActionInput {
+	readonly [key: string]: string;
+	readonly detailsId: string;
+	readonly itemId: string;
+}
+
+/** Whether a run's input names the details item it runs for, as an item action's registered action receives. */
+export function isArtifactItemActionInput(value: ArtifactJsonValue | undefined): value is ArtifactItemActionInput {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		return false;
+	}
+	const fields = value as { readonly [key: string]: ArtifactJsonValue };
+	return typeof fields.detailsId === 'string' && typeof fields.itemId === 'string';
 }
 
 export interface ArtifactDetailsItem {
@@ -178,7 +224,11 @@ export interface ArtifactAutomationDisablement {
 /** Who asked for a change: a person in the UI, or an agent through its tools, with the person's confirmation where required. */
 export type ArtifactActor =
 	| { readonly kind: 'user' }
-	| { readonly kind: 'agent'; readonly chat: string; readonly turnId?: string };
+	| {
+		readonly kind: 'agent'; readonly chat: string; readonly turnId?: string;
+		/** The tool call ran without the person confirming it, for example under automatic tool approval. */
+		readonly autoApproved?: boolean;
+	};
 
 export interface ArtifactAutomationConfiguration {
 	readonly revision: number;
@@ -188,6 +238,8 @@ export interface ArtifactAutomationConfiguration {
 	readonly enabledAt?: Readonly<Record<string, number>>;
 	/** Who turned on each option's current consent generation; meaningful only while the option is enabled. */
 	readonly grants?: Readonly<Record<string, ArtifactActor>>;
+	/** Who turned off each option; meaningful only while the option is disabled without a disablement. */
+	readonly disabledBy?: Readonly<Record<string, ArtifactActor>>;
 	readonly disablements: Readonly<Record<string, ArtifactAutomationDisablement>>;
 }
 
@@ -201,6 +253,11 @@ export interface IArtifactBindingContext {
 	readonly artifact: ArtifactRecord;
 	readonly configuration: IObservable<ArtifactAutomationConfiguration>;
 	readonly state: IArtifactBindingStateStore;
+	/**
+	 * Posts plain text about a change of the bound resource as a system notice in the chat that recorded the artifact.
+	 * It is never sent to an agent. Absent when the runtime cannot post notices.
+	 */
+	postNotice?(content: string): Promise<void>;
 }
 
 export interface ArtifactResourceMatch {
@@ -219,9 +276,20 @@ export interface ArtifactAuthenticationRequest {
 
 /** Allows matching or resource creation to expose recovery without establishing an account binding. */
 export class ArtifactAuthenticationRequiredError extends Error {
-	constructor(message: string, readonly main: ArtifactPartPresentation) {
+	constructor(message: string, readonly main: ArtifactMainPresentation) {
 		super(message);
 		this.name = 'ArtifactAuthenticationRequiredError';
+	}
+}
+
+/**
+ * Thrown by a code action's execution when the external system definitively refused the action, so it cannot have
+ * taken effect. Unlike other errors after dispatch, the run fails with a known outcome instead of requiring reconciliation.
+ */
+export class ArtifactActionRejectedError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'ArtifactActionRejectedError';
 	}
 }
 
@@ -235,8 +303,10 @@ export interface IArtifactIntegration<TResource extends IDisposable> {
 	readonly label: string;
 	/** Plain text naming the recorded resources this integration supports, so agents know when to use it. */
 	readonly description?: string;
-	/** One line of plain text naming several of this integration's artifacts, such as "Pull Requests", when they are grouped. */
+	/** One line of plain text naming several of this integration's artifacts, such as "Pull Requests", when they share a group ID. */
 	readonly groupLabel?: string;
+	/** A short name for the kind of artifact, such as "PR", that automation notices show before the artifact's label. */
+	readonly artifactKind?: string;
 	readonly automationOptions: readonly ArtifactAutomationOption[];
 	/** Higher priority wins; ties are resolved by integration ID, never response order. */
 	readonly presentationPriority?: number;
@@ -261,6 +331,8 @@ export interface ArtifactActionDescriptor {
 	readonly id: string;
 	readonly iconId: string;
 	readonly label: string;
+	/** Describes a prompt action while it runs in its chat, such as "Fixing CI". Defaults to {@link label}. */
+	readonly activityLabel?: string;
 	readonly kind: 'code' | 'prompt';
 	/** Change this when an existing action's effects or required permissions expand. */
 	readonly consentVersion?: string;
@@ -306,6 +378,11 @@ export type ArtifactReconciliation =
 
 export interface ArtifactPrompt {
 	readonly text: string;
+	/**
+	 * The details this prompt is about, such as only the failing checks it asks to fix. When present, the request
+	 * presents these instead of the details linked to the action. They are not part of the model-facing prompt.
+	 */
+	readonly details?: readonly ArtifactDetails[];
 }
 
 /** A point-in-time description of an artifact action, independent of its model-facing prompt. */
@@ -313,7 +390,7 @@ export interface ArtifactRequestPresentation {
 	readonly version: 1;
 	readonly integrationLabel: string;
 	readonly source: 'manual' | 'automation';
-	readonly action: { readonly label: string; readonly iconId: string };
+	readonly action: { readonly label: string; readonly iconId: string; readonly activityLabel?: string };
 	readonly artifact: {
 		readonly resource: string;
 		readonly label: string;
@@ -357,6 +434,8 @@ export interface ArtifactRun {
 	readonly source: 'manual' | 'automation';
 	/** Who asked for a manual run. */
 	readonly requestedBy?: ArtifactActor;
+	/** Whether a manual run was requested through a general action, recorded because the presentation may later change. */
+	readonly generalAction?: boolean;
 	readonly requestId: string;
 	readonly state: ArtifactRunState;
 	readonly createdAt: number;
@@ -385,6 +464,11 @@ export interface ArtifactContributionSnapshot {
 	readonly label: string;
 	/** The integration's name for several of its artifacts, shown when they are grouped. */
 	readonly groupLabel?: string;
+	/**
+	 * The integration's canonical identity for the bound resource, shared by aliases such as a pull request's
+	 * overview and checks pages. Absent until the artifact is bound to a resource.
+	 */
+	readonly resourceKey?: string;
 	readonly view: ArtifactContributionView;
 	readonly actions: readonly ArtifactActionDescriptor[];
 	readonly options: readonly ArtifactAutomationOption[];
@@ -416,8 +500,11 @@ export interface IArtifactModel {
 	requestAuthentication(integrationId: string): Promise<ArtifactAuthenticationRequest | undefined>;
 	/** `actor` defaults to the user; agents pass their chat and turn so consent records who asked. */
 	configure(integrationId: string, expectedRevision: number, values: Readonly<Record<string, boolean | string>>, actor?: ArtifactActor): Promise<void>;
-	/** `actor` defaults to the user; agents pass their chat and turn so the run records who asked. */
-	invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor?: ArtifactActor): Promise<ArtifactRun>;
+	/**
+	 * `actor` defaults to the user; agents pass their chat and turn so the run records who asked. `input` is passed to the action,
+	 * for example the details item it runs for.
+	 */
+	invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor?: ArtifactActor, input?: ArtifactJsonValue): Promise<ArtifactRun>;
 	cancel(runId: string): Promise<void>;
 	reconcile(runId: string): Promise<void>;
 	/** Newest first. The optional cursor is the preceding page's last run ID; page size is 1-200. */

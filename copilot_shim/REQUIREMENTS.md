@@ -75,16 +75,21 @@ the reverse.
 - The Copilot extension computes the same path and adds the folder to the
   `PATH` of integrated terminals, unless `chat.copilotCliCommand.enabled` is
   off. It then removes `<globalStorageUri>/copilotCli`, where earlier versions
-  wrote script shims. When the build doesn't ship the shim, as in a build from
-  source, it uses the development deployment described below instead.
+  wrote script shims. When a build from source doesn't ship the shim, it uses
+  the development deployment described below instead. A production build that
+  doesn't ship the shim never does; it removes that folder and terminals run
+  `copilot` from `PATH`.
 
 ### Development integrated-terminal deployment
 
-When the build doesn't ship the shim, the extension copies a local Rust build to
-`<globalStorageUri>/copilotCli/copilot` (`copilot.exe` on Windows). Fill in the
-absolute, extension-host-local build path in `LOCAL_SHIM_SOURCE_PATHS` in
-[`copilotCLINativeShim.ts`](../extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLINativeShim.ts).
-The entries are intentionally unset. WSL/SSH requires a build on the remote
+When a build from source doesn't ship the shim, the extension copies a local
+Rust build to `<globalStorageUri>/copilotCli/copilot` (`copilot.exe` on
+Windows). Fill in the absolute, extension-host-local build path in
+`LOCAL_SHIM_SOURCE_PATHS` in
+[`copilotCLINativeShim.ts`](../extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLINativeShim.ts)
+locally. The entries are intentionally unset and must not be committed.
+Production builds of the extension (`buildType` `prod`) never use this
+deployment. WSL/SSH requires a build on the remote
 host matching its OS, architecture, and libc. This development integration
 does not discover or download production artifacts.
 

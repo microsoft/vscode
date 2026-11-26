@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { RequestAccount, RequestContext, RequestPriority, RequestOutcome, requestOutcome, IRequestTiming, RequestError, RequestTimeoutError, IRequestQueueTelemetry, compareRequestPriority } from './types.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
+import { IRequestQueueTelemetry, IRequestTiming, RequestAccount, RequestContext, RequestError, RequestOutcome, RequestPriority, RequestTimeoutError, compareRequestPriority, requestOutcome } from './types.js';
 
 /** Hard admission/concurrency limits and reserved capacity for interactive callers. */
 export interface RequestQueueOptions {
@@ -79,9 +81,9 @@ export class RequestQueue extends Disposable {
 	}
 
 	/** Calls onAdmitted synchronously only after retaining a request slot. */
-	enqueue<T>(context: RequestContext, task: (signal: AbortSignal, onDispatch: () => void) => Promise<T>, onAdmitted?: () => void): Promise<T> {
-		if (context.signal.aborted) {
-			return Promise.reject(context.signal.reason);
+	enqueue<T>(context: RequestContext, task: (cancellationToken: CancellationToken, onDispatch: () => void) => Promise<T>, onAdmitted?: () => void): Promise<T> {
+		if (context.cancellationToken.isCancellationRequested) {
+			return Promise.reject(new CancellationError());
 		}
 		if (this._store.isDisposed) {
 			return Promise.reject(new RequestError('Request queue was disposed', 'unknown'));
@@ -108,7 +110,7 @@ export class RequestQueue extends Disposable {
 
 		return new Promise<T>((resolve, reject) => {
 			const store = new DisposableStore();
-			const controller = new AbortController();
+			const controller = store.add(new CancellationTokenSource());
 			const timing = this._telemetry?.startQueue(context);
 			let settled = false;
 			let dispatched = false;
@@ -145,10 +147,10 @@ export class RequestQueue extends Disposable {
 				run: () => {
 					void Promise.resolve().then(() => {
 						checkDeadline();
-						controller.signal.throwIfAborted();
-						return task(controller.signal, () => {
+						CancellationToken.throwIfCanceled(controller.token);
+						return task(controller.token, () => {
 							checkDeadline();
-							controller.signal.throwIfAborted();
+							CancellationToken.throwIfCanceled(controller.token);
 							dispatched = true;
 						});
 					}).then(
@@ -158,19 +160,17 @@ export class RequestQueue extends Disposable {
 						},
 						error => {
 							checkDeadline();
-							finish(() => reject(error), requestOutcome(error, controller.signal.aborted));
+							finish(() => reject(error), requestOutcome(error, controller.token.isCancellationRequested));
 						},
 					);
 				},
 				cancel: reason => {
-					controller.abort(reason);
+					controller.cancel();
 					finish(() => reject(reason), requestOutcome(reason, true));
 				},
 				expire: () => request.cancel(new RequestTimeoutError(dispatched)),
 			};
-			const onAbort = () => request.cancel(context.signal.reason);
-			store.add(toDisposable(() => context.signal.removeEventListener('abort', onAbort)));
-			context.signal.addEventListener('abort', onAbort, { once: true });
+			store.add(context.cancellationToken.onCancellationRequested(() => request.cancel(new CancellationError())));
 			store.add(this._scheduler.schedule(
 				request.expire,
 				context.deadline - this._scheduler.now(),
@@ -182,17 +182,17 @@ export class RequestQueue extends Disposable {
 		});
 	}
 
-	promote(signal: AbortSignal, priority: RequestPriority): void {
+	promote(cancellationToken: CancellationToken, priority: RequestPriority): void {
 		for (const request of this._pending) {
-			if (request.context.signal === signal && compareRequestPriority(priority, request.priority) < 0) {
+			if (request.context.cancellationToken === cancellationToken && compareRequestPriority(priority, request.priority) < 0) {
 				request.priority = priority;
 			}
 		}
 		this._drain();
 	}
 
-	isPending(signal: AbortSignal): boolean {
-		return this._pending.some(request => request.context.signal === signal);
+	isPending(cancellationToken: CancellationToken): boolean {
+		return this._pending.some(request => request.context.cancellationToken === cancellationToken);
 	}
 
 	cancelAccount(account: RequestAccount, reason: unknown = new RequestError('Request credential was invalidated', 'authentication'), owner?: object): void {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesBaseContiguousSubString, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from '../../common/filters.js';
+import { anyScore, createMatches, emptyMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesBaseContiguousSubString, matchesCamelCase, matchesContiguousSubString, matchesFuzzy, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from '../../common/filters.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number }[]) {
@@ -20,6 +20,19 @@ function filterNotOk(filter: IFilter, word: string, wordToMatchAgainst: string) 
 
 suite('Filters', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('empty queries share immutable matches', () => {
+		for (const filter of [matchesFuzzy, matchesContiguousSubString, matchesBaseContiguousSubString]) {
+			const first = filter('', 'first')!;
+			const second = filter('', '')!;
+			assert.strictEqual(first, emptyMatches);
+			assert.strictEqual(second, emptyMatches);
+			assert.throws(() => { first[0].start = 1; }, TypeError);
+			assert.throws(() => { first[0] = { start: 1, end: 2 }; }, TypeError);
+			assert.throws(() => { first.push({ start: 1, end: 2 }); }, TypeError);
+			assert.deepStrictEqual(second, [{ start: 0, end: 0 }]);
+		}
+	});
 
 	test('or', () => {
 		let filter: IFilter;
@@ -235,9 +248,6 @@ suite('Filters', () => {
 		filterOk(matchesWords, '.', ':', []);
 		filterOk(matchesWords, '.', '.', [{ start: 0, end: 1 }]);
 
-		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
-		// assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
-
 		filterOk(matchesWords, 'bar', 'foo-bar');
 		filterOk(matchesWords, 'bar test', 'foo-bar test');
 		filterOk(matchesWords, 'fbt', 'foo-bar test');
@@ -252,6 +262,14 @@ suite('Filters', () => {
 		filterOk(matchesWords, 'foo bar', '123 foo-bar 456');
 		filterOk(matchesWords, 'foo-bar', 'foo bar');
 		filterOk(matchesWords, 'foo:bar', 'foo:bar');
+
+		// Word separators, accented text, Korean alternate characters and contiguous mode
+		filterOk(matchesWords, 'git:pull', 'Git-Pull', [{ start: 0, end: 3 }, { start: 4, end: 8 }]);
+		filterOk(matchesWords, 'cafe', 'Café: Menu', [{ start: 0, end: 4 }]);
+		filterOk(matchesWords, 'café', 'Cafe: Menu', [{ start: 0, end: 4 }]);
+		filterOk(matchesWords, '한국', 'gksrnr', [{ start: 0, end: 6 }]);
+		assert.strictEqual(matchesWords('gipu', 'Category: Git: Pull', true), null);
+		assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 	});
 
 	test('matchesWords performance (#309582)', function () {

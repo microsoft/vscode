@@ -28,6 +28,8 @@ export interface ICustomizationMarketplaceInstallationAssociation {
 	readonly mediaType: string;
 	readonly installation: CustomizationMarketplaceInstallation;
 	readonly icon?: CustomizationMarketplaceIcon;
+	readonly url?: URI;
+	readonly homepage?: string;
 	readonly target: CustomizationMarketplaceInstallationAssociationTarget;
 }
 
@@ -75,5 +77,7 @@ export function toAssociatedMarketplaceResource(association: ICustomizationMarke
 		representativeQueries: [],
 		installation: association.installation,
 		icon: association.icon,
+		...(association.url ? { url: association.url } : {}),
+		...(association.homepage ? { homepage: association.homepage } : {}),
 	};
 }

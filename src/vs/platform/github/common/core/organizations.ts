@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { PageOptions } from '../client/types.js';
 import { Account, Team } from './core.js';
@@ -67,29 +68,29 @@ export type ListTeamMembersOptions = ApiPaginationOptions<PageOptions & {
 export interface IOrganizationsClient {
 
 	/** GET /orgs/{org}: read organization profile metadata. */
-	get(org: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Organization>;
+	get(org: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Organization>;
 
 	/** GET /user/orgs: return one page of organizations for the authenticated user. */
-	listForAuthenticatedUser(signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly OrganizationSummary[]>;
+	listForAuthenticatedUser(cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly OrganizationSummary[]>;
 
 	/** GET /users/{username}/orgs: return one page of publicly visible memberships. */
-	listForUser(username: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly OrganizationSummary[]>;
+	listForUser(username: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly OrganizationSummary[]>;
 
 	/** GET /user/memberships/orgs/{org}: read the authenticated user's membership. */
-	getAuthenticatedMembership(org: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<OrganizationMembership>;
+	getAuthenticatedMembership(org: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<OrganizationMembership>;
 
 	/** GET /orgs/{org}/memberships/{username}: read a membership visible to the authenticated caller. */
-	getMembership(org: string, username: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<OrganizationMembership>;
+	getMembership(org: string, username: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<OrganizationMembership>;
 
 	/** GET /orgs/{org}/teams: return one page of teams visible to the caller. */
-	listTeams(org: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly TeamDetails[]>;
+	listTeams(org: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly TeamDetails[]>;
 
 	/** GET /orgs/{org}/teams/{slug}: read team details by slug. */
-	getTeam(org: string, teamSlug: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<TeamDetails>;
+	getTeam(org: string, teamSlug: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<TeamDetails>;
 
 	/** GET /user/teams: return one page with owning-organization metadata. */
-	listTeamsForAuthenticatedUser(signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly UserTeam[]>;
+	listTeamsForAuthenticatedUser(cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly UserTeam[]>;
 
 	/** GET /orgs/{org}/teams/{slug}/members: return one page of team members. */
-	listTeamMembers(org: string, teamSlug: string, signal: AbortSignal, options?: ListTeamMembersOptions): Promise<readonly Account[]>;
+	listTeamMembers(org: string, teamSlug: string, cancellationToken: CancellationToken, options?: ListTeamMembersOptions): Promise<readonly Account[]>;
 }

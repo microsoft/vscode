@@ -6,7 +6,7 @@
 import { createCancelablePromise, CancelablePromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkText, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as platform from '../../../../base/common/platform.js';
@@ -339,6 +339,7 @@ class LinkOccurrence {
 	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
 		const options = { ... (isActive ? decoration.active : decoration.general) };
 		options.hoverMessage = getHoverMessage(link, useMetaKey);
+		options.hoverMessageCopyContent = link.url?.toString();
 		return options;
 	}
 
@@ -386,8 +387,9 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 				nativeLabel = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
 			}
 		}
+		// The label, including a provider's tooltip, is plain text
 		const hoverMessage = new MarkdownString('', true)
-			.appendLink(link.url.toString(true).replace(/ /g, '%20'), label, nativeLabel)
+			.appendLink(link.url.toString(true).replace(/ /g, '%20'), escapeMarkdownLinkText(label), nativeLabel)
 			.appendMarkdown(` (${kb})`);
 		return hoverMessage;
 	} else {

@@ -31,6 +31,7 @@ import { RemoteSessionOriginContribution } from './remoteSessionOrigin/remoteSes
 import { ScheduledChatMovesContribution } from './scheduledChatMoves/scheduledChatMovesContribution.js';
 import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContribution.js';
 import { SessionInputNeededContribution } from './sessionInputNeeded/sessionInputNeededContribution.js';
+import { SessionSummaryTelemetryContribution } from './sessionSummaryTelemetry/sessionSummaryTelemetryContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from './sideChat/sideChatContribution.js';
 import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribution.js';
@@ -38,6 +39,7 @@ import { TurnDelegationContribution } from './turnDelegation/turnDelegationContr
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 import { WorkspaceContextContribution } from './workspaceContext/workspaceContextContribution.js';
 import { WorktreeFailureContribution } from './worktreeFailure/worktreeFailureContribution.js';
+import { WorktreeGitLfsContribution } from './worktreeGitLfs/worktreeGitLfsContribution.js';
 
 /** Registers all built-in chat contribution constructors. */
 export function registerBuiltInChatContributions(
@@ -56,6 +58,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(PersistedFailedTurnsContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
+	registrations.add(contributions.registerContribution(WorktreeGitLfsContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
 	registrations.add(contributions.registerContribution(ScheduledChatMovesContribution));
@@ -77,5 +80,6 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(AdditionalWorktreeLifecycleContribution));
 	registrations.add(contributions.registerContribution(ChatArchiveContribution));
 	registrations.add(contributions.registerContribution(ChatReadContribution));
+	registrations.add(contributions.registerContribution(SessionSummaryTelemetryContribution));
 	return registrations;
 }

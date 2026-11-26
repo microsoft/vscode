@@ -1,0 +1,70 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Above notifications and quick input; below context views and dialogs so accessibility help can open above it. */
+.screenshot-tool-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 2560;
+	user-select: none;
+	-webkit-user-select: none;
+	-webkit-app-region: no-drag;
+	outline: none;
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
+}
+
+/* A camera for a click that captures the window, with its hotspot at the lens. */
+.screenshot-tool-overlay {
+	cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M8.6 5.5 9.9 3.8h4.2l1.3 1.7h3.6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2z' fill='%23fff' stroke='%23000' stroke-width='1.5' stroke-linejoin='round'/%3E%3Ccircle cx='12' cy='12.5' r='3.6' fill='%23fff' stroke='%23000' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12.5' r='1' fill='%23000'/%3E%3C/svg%3E") 12 12, crosshair;
+}
+
+/* Dragging selects an area. */
+.screenshot-tool-overlay.selecting {
+	cursor: crosshair;
+}
+
+.screenshot-tool-overlay .screenshot-tool-hint {
+	position: absolute;
+	bottom: var(--vscode-spacing-size400);
+	left: 0;
+	right: 0;
+	width: fit-content;
+	max-width: calc(100% - 2 * var(--vscode-spacing-size400));
+	margin-inline: auto;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: var(--vscode-shadow-lg);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	text-align: center;
+	pointer-events: none;
+}
+
+.screenshot-tool-overlay.selecting .screenshot-tool-hint {
+	display: none;
+}
+
+.screenshot-tool-overlay .screenshot-tool-selection {
+	position: absolute;
+	display: none;
+	box-sizing: border-box;
+	pointer-events: none;
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--vscode-editor-background) 40%, transparent);
+}
+
+.screenshot-tool-overlay .screenshot-tool-selection.visible {
+	display: block;
+}
+
+.hc-black .screenshot-tool-overlay .screenshot-tool-hint,
+.hc-light .screenshot-tool-overlay .screenshot-tool-hint {
+	border-color: var(--vscode-contrastBorder);
+	box-shadow: none;
+}

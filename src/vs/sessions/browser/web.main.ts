@@ -20,18 +20,30 @@ import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { IRemoteAgentService } from '../../workbench/services/remote/common/remoteAgentService.js';
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from '../../workbench/services/workspaces/common/workspaceTrust.js';
+import { CanonicalUriService } from '../../workbench/services/workspaces/common/canonicalUriService.js';
+import { ICanonicalUriService } from '../../platform/workspace/common/canonicalUri.js';
 import { BrowserMain, IBrowserMainWorkbench } from '../../workbench/browser/web.main.js';
 import { getWorkspaceIdentifier } from '../../platform/workspaces/common/workspaceIdentifier.js';
-import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
-import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
+import { AgentsWorkspaceContextService } from '../../workbench/services/configuration/browser/agents/agentsWorkspaceContextService.js';
+import { AgentsConfigurationService } from '../../workbench/services/configuration/browser/agents/agentsConfigurationService.js';
 import { ConfigurationCache } from '../../workbench/services/configuration/common/configurationCache.js';
 import { Schemas } from '../../base/common/network.js';
-import { createSessionsWorkbench } from './workbenchFactory.js';
+import { createSessionsWorkbench, SessionsWorkbenchFactory } from './workbenchFactory.js';
+import { IWorkbenchConstructionOptions } from '../../workbench/browser/web.api.js';
 
 export class SessionsBrowserMain extends BrowserMain {
 
+	/** Entry points can select a presentation while sharing service initialization. */
+	constructor(
+		domElement: HTMLElement,
+		configuration: IWorkbenchConstructionOptions,
+		private readonly workbenchFactory: SessionsWorkbenchFactory = createSessionsWorkbench,
+	) {
+		super(domElement, configuration);
+	}
+
 	protected override createWorkbench(domElement: HTMLElement, serviceCollection: ServiceCollection, logService: ILogService): IBrowserMainWorkbench {
-		return createSessionsWorkbench(domElement, undefined, serviceCollection, logService);
+		return this.workbenchFactory(domElement, undefined, serviceCollection, logService);
 	}
 
 	protected override async createWorkspaceConfigAndStorageServices(
@@ -54,15 +66,15 @@ export class SessionsBrowserMain extends BrowserMain {
 
 		// Workspace — use a stable synthetic workspace identifier for agents
 		const workspaceIdentifier = getWorkspaceIdentifier(environmentService.agentSessionsWorkspace);
-		const workspaceContextService = new SessionsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
+		const workspaceContextService = new AgentsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
 
 		serviceCollection.set(IWorkspaceContextService, workspaceContextService);
 		serviceCollection.set(IWorkspaceEditingService, workspaceContextService);
 
-		// Configuration — the sessions ConfigurationService works against the
+		// Configuration — AgentsConfigurationService works against the
 		// in-memory workspace model rather than a real .code-workspace file on disk.
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData], environmentService, fileService);
-		const configurationService = new ConfigurationService(
+		const configurationService = new AgentsConfigurationService(
 			userDataProfileService,
 			workspaceContextService,
 			uriIdentityService,
@@ -86,10 +98,13 @@ export class SessionsBrowserMain extends BrowserMain {
 		serviceCollection.set(IStorageService, storageService);
 
 		// Workspace Trust Service
+		const canonicalUriService = this._register(new CanonicalUriService());
+		serviceCollection.set(ICanonicalUriService, canonicalUriService);
+
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, workspaceContextService, workspaceTrustEnablementService, fileService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, workspaceContextService, workspaceTrustEnablementService, fileService, canonicalUriService, logService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		return { configurationService, storageService };

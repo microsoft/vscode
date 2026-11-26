@@ -89,6 +89,19 @@ suite('Default Document Colors Computer', () => {
 		});
 	});
 
+	test('issue #261765: hex-like identifiers are not detected as colors', () => {
+		const contents = [
+			'class MyClass {\n\t#add() {}\n}',
+			'#add-mailbox',
+			`const color = ' #add(';`,
+			'  #ffffff-suffix',
+			'#add.call()',
+			'#add:'
+		];
+		assert.deepStrictEqual(contents.map(content => computeDefaultDocumentColors(new TestDocumentModel(content)).length), [0, 0, 0, 0, 0, 0]);
+		assert.deepStrictEqual(['#add', '#add;', '#add)', '#add,', '#add }', `'#add'`, '"#add"', '#add\nnext'].map(content => computeDefaultDocumentColors(new TestDocumentModel(content)).length), [1, 1, 1, 1, 1, 1, 1, 1]);
+	});
+
 	test('8-digit hex colors should also work', () => {
 		const model = new TestDocumentModel(`const color = '#ff0000ff';`);
 		const colors = computeDefaultDocumentColors(model);

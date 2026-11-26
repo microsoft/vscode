@@ -5,23 +5,25 @@
 
 import * as assert from 'assert';
 import 'mocha';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { HubRpcConnection } from '@vscode/hubrpc';
+import { WebEditorClient } from '@vscode/web-editors';
 import { MarkdownContributions } from '../markdownExtensions';
 import { MarkdownEditorProvider } from '../preview/markdownEditorProvider';
-import { markdownEditorHost, markdownEditorRenderer, type MarkdownEditorRenderer } from '../preview/markdownEditorProtocol';
+import { markdownEditorHost, markdownEditorRenderer, type MarkdownEditorHost, type MarkdownEditorRenderer } from '../preview/markdownEditorProtocol';
 import { MarkdownEditorRpcTransport } from '../preview/markdownEditorRpc';
 import { MdLinkOpener } from '../util/openDocumentLink';
 
 suite('Markdown editor bridge', () => {
-	test('resynchronizes the ready race and rejects stale edits while preserving CRLF sequential edits', async () => {
+	test('syncs the document changed before ready and maps navigation and selection offsets', async () => {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: 'initial\r\ncontent' });
-		const initialVersion = document.version;
 		const panel = new TestPanel();
 		const state = new TestMemento();
 		const provider = createProvider(state);
 		const cancellation = new vscode.CancellationTokenSource();
-		let renderer: HubRpcConnection<undefined> | undefined;
+		let connection: ReturnType<typeof connectRenderer> | undefined;
 		try {
 			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
 			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
@@ -30,71 +32,129 @@ suite('Markdown editor bridge', () => {
 			const navigation = provider.resolveCustomTextEditorNavigation(document, panel, cancellation.token);
 			const navigationBeforeReady = navigation.revealRange(new vscode.Range(1, 0, 1, 6), { preserveFocus: true }, cancellation.token);
 			assert.strictEqual(panel.webview.sent.length, 0, 'do not start requests before the renderer is listening');
-			renderer = HubRpcConnection.fromTransport(new MarkdownEditorRpcTransport(
-				secret,
-				message => panel.webview.incoming.fire(message),
-				listener => panel.webview.outgoing.event(listener),
-			));
-			const updates: { content: string; editEpoch: number }[] = [];
-			const reveals: Parameters<MarkdownEditorRenderer['revealRange']>[0][] = [];
-			let updated: (() => void) | undefined;
-			renderer.register(markdownEditorRenderer, {
-				readClipboardMedia: () => ({ base64: '' }),
-				diagnosticsChanged: () => { },
-				update: update => { updates.push(update); updated?.(); },
-				codeBlockEditorProviders: () => { },
-				codeBlockEditorHostTransportMessage: () => { },
-				gutterMarkers: () => { },
-				comments: () => { },
-				revealComment: () => { },
-				revealLinkTarget: () => { },
-				captureNavigationState: () => ({ editEpoch: updates.at(-1)!.editEpoch, revision: 0, scrollTop: 0 }),
-				revealRange: request => { reveals.push(request); },
-				restoreNavigationState: () => { },
-				command: () => { },
-				highlightThemeChanged: () => { },
-				configurationChanged: () => { },
-				richLinkPresentations: () => { },
-			});
-			const host = renderer.get(markdownEditorHost);
-			await host.ready({ documentVersion: initialVersion, editEpoch: 0 });
-			assert.strictEqual(updates.length, 1);
-			assert.strictEqual(updates[0].content, 'changed\r\nbefore-ready');
-			const epoch = updates[0].editEpoch;
-			assert.ok(epoch > 0);
+			connection = connectRenderer(panel, secret);
+			const { host, client, reveals } = connection;
+			await host.ready({});
+			await until(() => client.getContent() === 'changed\r\nbefore-ready', () => client.getContent());
 			await navigationBeforeReady;
-			assert.deepStrictEqual(reveals, [{
-				start: 9, endExclusive: 15, editEpoch: epoch, revision: 0, preserveFocus: true,
-			}]);
-			await host.edit({ start: 0, endExclusive: 0, text: 'stale', editEpoch: 0 });
-			assert.strictEqual(document.getText(), 'changed\r\nbefore-ready');
-			await host.edit({ start: 0, endExclusive: 0, text: '\n', editEpoch: epoch });
-			await host.edit({ start: 1, endExclusive: 1, text: 'x', editEpoch: epoch });
-			assert.strictEqual(document.getText(), '\r\nxchanged\r\nbefore-ready');
-			assert.strictEqual(updates.length, 1, 'accepted local edits must not echo authoritative replacements');
-			await host.selectionChanged({ editEpoch: epoch, selection: { anchor: 1, active: 9 } });
+			assert.deepStrictEqual(reveals, [{ start: 9, endExclusive: 15, version: client.version, revision: 0, preserveFocus: true }]);
+
+			// The editor inserts the document's line break.
+			type(client, 0, '\r\n');
+			type(client, 2, 'x');
+			await until(() => document.getText() === '\r\nxchanged\r\nbefore-ready', () => [document.getText(), client.getContent()]);
+			await host.selectionChanged({ version: client.version, selection: { anchor: 2, active: 10 } });
 			assert.deepStrictEqual(navigation.selection, new vscode.Selection(1, 0, 1, 8));
-			const externalUpdate = new Promise<void>(resolve => updated = resolve);
+
 			await replaceDocument(document, 'external\r\n');
-			await externalUpdate;
-			await host.edit({ start: 0, endExclusive: 0, text: 'stale-again', editEpoch: epoch });
+			await until(() => client.getContent() === 'external\r\n', () => [document.getText(), client.getContent()]);
 			await host.setReadonly({ readonly: false });
-			assert.deepStrictEqual({
-				document: document.getText(),
-				mirror: updates[1].content,
-				epochAdvanced: updates[1].editEpoch > epoch,
-				mode: Array.from(state.values),
-			}, {
-				document: 'external\r\n',
-				mirror: 'external\r\n',
-				epochAdvanced: true,
-				mode: [['markdown.editor.readonly', false]],
-			});
+			assert.deepStrictEqual(Array.from(state.values), [['markdown.editor.readonly', false]]);
 		} finally {
 			panel.dispose();
-			renderer?.close();
+			connection?.dispose();
 			provider.dispose();
 			cancellation.dispose();
+		}
+	});
+
+	test('keeps typing and external edits that happen at the same time', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: 'one\r\ntwo' });
+		const panel = new TestPanel();
+		const provider = createProvider(new TestMemento());
+		const cancellation = new vscode.CancellationTokenSource();
+		let connection: ReturnType<typeof connectRenderer> | undefined;
+		try {
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
+			assert.ok(secret);
+			connection = connectRenderer(panel, secret);
+			const { host, client } = connection;
+			await host.ready({});
+			await until(() => client.getContent() === 'one\r\ntwo');
+
+			// The external edit lands while the typing is on its way, so writing the typing is rejected and rebased.
+			const external = new vscode.WorkspaceEdit();
+			external.insert(document.uri, new vscode.Position(0, 0), '# ');
+			external.insert(document.uri, new vscode.Position(1, 3), ' external');
+			const applied = vscode.workspace.applyEdit(external);
+			type(client, 3, ' typed');
+			type(client, 0, 'a\r\nb');
+			assert.ok(await applied);
+			type(client, String(client.getContent()).length, '!');
+
+			// Both sides converge, and neither the typing nor the external edit is lost.
+			await until(() => document.getText().includes('!') && client.getContent() === document.getText(), () => [client.getContent(), document.getText()]);
+			const text = document.getText();
+			assert.deepStrictEqual(['# ', ' external', ' typed', 'a\r\nb', '!'].filter(part => !text.includes(part)), []);
+		} finally {
+			panel.dispose();
+			connection?.dispose();
+			provider.dispose();
+			cancellation.dispose();
+		}
+	});
+
+	test('gives the editor the line breaks VS Code converted its writes to', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: 'a\r\nb' });
+		const panel = new TestPanel();
+		const provider = createProvider(new TestMemento());
+		const cancellation = new vscode.CancellationTokenSource();
+		let connection: ReturnType<typeof connectRenderer> | undefined;
+		try {
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
+			assert.ok(secret);
+			assert.match(decodeURIComponent(/id="vscode-markdown-editor-initial-state" content="([^"]+)"/.exec(panel.webview.html)?.[1] ?? ''), /"lineBreak":"\\r\\n"/);
+			connection = connectRenderer(panel, secret);
+			const { host, client } = connection;
+			await host.ready({});
+			await until(() => client.getContent() === 'a\r\nb');
+
+			type(client, 1, '\nc');
+			await until(() => document.getText() === 'a\r\nc\r\nb' && client.getContent() === document.getText(), () => [client.getContent(), document.getText()]);
+		} finally {
+			panel.dispose();
+			connection?.dispose();
+			provider.dispose();
+			cancellation.dispose();
+		}
+	});
+
+	test('keeps accepting edits across saves without resynchronizing the renderer', async () => {
+		const file = vscode.Uri.file(path.join(os.tmpdir(), `markdown-editor-save-${Date.now()}.md`));
+		await vscode.workspace.fs.writeFile(file, new TextEncoder().encode('initial'));
+		const document = await vscode.workspace.openTextDocument(file);
+		const panel = new TestPanel();
+		const provider = createProvider(new TestMemento());
+		const cancellation = new vscode.CancellationTokenSource();
+		let connection: ReturnType<typeof connectRenderer> | undefined;
+		try {
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
+			assert.ok(secret);
+			connection = connectRenderer(panel, secret);
+			const { host, client } = connection;
+			await host.ready({});
+			await until(() => client.getContent() === 'initial');
+			const hostChanges: unknown[] = [];
+			client.onDidApplyHostEdits(({ edits }) => hostChanges.push(edits));
+
+			// Saving flips the dirty state, which fires a change event without content changes.
+			type(client, 7, ' a');
+			await until(() => document.getText() === 'initial a');
+			assert.ok(await document.save());
+			type(client, 9, 'b');
+			await until(() => document.getText() === 'initial ab');
+			assert.ok(await document.save());
+
+			assert.deepStrictEqual({ content: client.getContent(), hostChanges }, { content: 'initial ab', hostChanges: [] });
+		} finally {
+			panel.dispose();
+			connection?.dispose();
+			provider.dispose();
+			cancellation.dispose();
+			await vscode.workspace.fs.delete(file);
 		}
 	});
 
@@ -135,7 +195,60 @@ function createProvider(state: vscode.Memento): MarkdownEditorProvider {
 		},
 		{ trace: () => { } },
 		async () => false,
+		{ sendTelemetryEvent: () => { }, dispose: () => { } },
 	);
+}
+
+function connectRenderer(panel: TestPanel, secret: string) {
+	const renderer = HubRpcConnection.fromTransport(new MarkdownEditorRpcTransport(
+		secret,
+		message => panel.webview.incoming.fire(message),
+		listener => panel.webview.outgoing.event(listener),
+	));
+	const reveals: Parameters<MarkdownEditorRenderer['revealRange']>[0][] = [];
+	const client = new WebEditorClient({ connection: renderer });
+	renderer.register(markdownEditorRenderer, {
+		readClipboardMedia: () => ({ base64: '' }),
+		diagnosticsChanged: () => { },
+		codeBlockEditorProviders: () => { },
+		codeBlockEditorHostTransportMessage: () => { },
+		gutterMarkers: () => { },
+		comments: () => { },
+		revealComment: () => { },
+		revealLinkTarget: () => { },
+		captureNavigationState: () => ({ version: client.version, revision: 0, scrollTop: 0 }),
+		revealRange: request => { reveals.push(request); },
+		restoreNavigationState: () => { },
+		command: () => { },
+		highlightThemeChanged: () => { },
+		configurationChanged: () => { },
+		richLinkPresentations: () => { },
+	});
+	const host = renderer.get(markdownEditorHost);
+	// Like the editor, announce readiness only once the client applied the host's content.
+	const ready: MarkdownEditorHost['ready'] = async params => {
+		await client.onDidConnect;
+		return host.ready(params);
+	};
+	return {
+		host: new Proxy(host, { get: (target, key) => key === 'ready' ? ready : Reflect.get(target, key) }),
+		client,
+		reveals,
+		dispose: () => { client.dispose(); renderer.close(); },
+	};
+}
+
+function type(client: WebEditorClient, offset: number, text: string): void {
+	client.applyEdits([{ kind: 'stringEdits', path: [], stringEdits: [{ offset, length: 0, newText: text }] }]);
+}
+
+async function until(condition: () => boolean, state?: () => unknown): Promise<void> {
+	for (let attempt = 0; !condition(); attempt++) {
+		if (attempt === 500) {
+			throw new Error(`Timed out waiting for the Markdown editor to sync: ${JSON.stringify(state?.())}`);
+		}
+		await new Promise(resolve => setTimeout(resolve, 10));
+	}
 }
 
 async function replaceDocument(document: vscode.TextDocument, content: string): Promise<void> {

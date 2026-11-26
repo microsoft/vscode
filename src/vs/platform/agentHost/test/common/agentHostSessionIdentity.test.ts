@@ -72,6 +72,38 @@ suite('Agent Host session identity', () => {
 		], [state.defaultChat, state.chats[0].resource]);
 	});
 
+	test('indexes chat resources once per immutable catalog', () => {
+		let reads = 0;
+		const chats = Array.from({ length: 173 }, (_, index) => {
+			const resource = buildChatUri('copilot:/session', `peer-${index}`);
+			return { get resource() { reads++; return resource; } };
+		});
+		const state = { chats };
+		const resources = chats.map((_chat, index) => getSessionChatResource(state, `peer-${index}`, undefined));
+		const indexedReads = reads;
+		const replacement = { chats: [...chats, { resource: 'conversation:/new-peer' }] };
+		const added = getSessionChatResource(replacement, 'conversation:/new-peer', undefined);
+		assert.deepStrictEqual({ indexedReads, first: resources[0], last: resources[172], added }, {
+			indexedReads: chats.length,
+			first: buildChatUri('copilot:/session', 'peer-0'),
+			last: buildChatUri('copilot:/session', 'peer-172'),
+			added: 'conversation:/new-peer',
+		});
+	});
+
+	test('prefers exact resources over colliding short ids and preserves the first match', () => {
+		const shortId = 'peer';
+		const first = buildChatUri('copilot:/first', shortId);
+		const second = buildChatUri('copilot:/second', shortId);
+		const state = { chats: [{ resource: first }, { resource: second }, { resource: shortId }] };
+		assert.deepStrictEqual([
+			getSessionChatResource(state, shortId, undefined),
+			getSessionChatResource({ chats: state.chats.slice(0, 2) }, shortId, undefined),
+			getSessionChatResource(state, 'default', 'conversation:/default'),
+			getSessionChatResource(state, 'missing', undefined),
+		], [shortId, first, 'conversation:/default', undefined]);
+	});
+
 	test('client chat ids never collide for client-chosen opaque and shaped chat URIs', () => {
 		const session = 'ahp-session:/s';
 		const uuid = '0b0f3c0e-45a5-4ac8-9a53-9d8a6a3b7f11';

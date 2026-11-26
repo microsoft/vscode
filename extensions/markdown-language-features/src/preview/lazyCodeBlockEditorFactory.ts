@@ -52,6 +52,10 @@ export class LazyCodeBlockEditorFactory implements CodeBlockEditorFactory {
 		}
 	}
 
+	layout(): void {
+		this.#factory?.layout();
+	}
+
 	dispose(): void {
 		if (this.#disposed) {
 			return;
@@ -77,4 +81,4 @@ export class LazyCodeBlockEditorFactory implements CodeBlockEditorFactory {
 	}
 }
 
-type CodeBlockEditorFactory = Pick<VirtualizedIframeEmbeddedEditorFactory, 'create' | 'updateProviders' | 'dispose'>;
+type CodeBlockEditorFactory = Pick<VirtualizedIframeEmbeddedEditorFactory, 'create' | 'updateProviders' | 'layout' | 'dispose'>;

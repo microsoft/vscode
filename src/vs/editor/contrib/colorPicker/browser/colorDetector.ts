@@ -16,7 +16,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon.js';
-import { IModelDecoration, IModelDeltaDecoration } from '../../../common/model.js';
+import { IModelDecoration, IModelDeltaDecoration, TrackedRangeStickiness } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
@@ -61,13 +61,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		super();
 		this._colorDecoratorIds = this._editor.createDecorationsCollection();
 		this._ruleFactory = this._register(new DynamicCssRules(this._editor));
-		const editorDomNode = this._editor.getContainerDomNode();
-		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorWidth', `${ColorDetector.colorDecoratorInnerWidthInEm}em`);
-		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorMargin', `${ColorDetector.colorDecoratorMarginInEm}em`);
-		this._register(toDisposable(() => {
-			editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorWidth');
-			editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorMargin');
-		}));
 		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
 		this._register(_editor.onDidChangeModel(() => {
 			this._isColorDecoratorsEnabled = this.isEnabled();
@@ -238,6 +231,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 				},
 				options: {
 					description: 'colorDetector',
+					// Keep deleted color decorations collapsed when typing until colors are recomputed.
+					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+					collapseOnReplaceEdit: true,
 					before: {
 						content: noBreakWhitespace,
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
@@ -251,7 +247,31 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		const limited = limit < colorData.length ? limit : false;
 		this._decoratorLimitReporter.update(colorData.length, limited);
 
+		if (decorations.length > 0) {
+			this.ensureDecoratorSizeProperties();
+		}
 		this._colorDecoratorIds.set(decorations);
+	}
+
+	private _hasDecoratorSizeProperties = false;
+
+	/**
+	 * Custom properties are inherited, so setting them on the editor container restyles every
+	 * rendered line. This contribution is created after the first render, so only pay that cost
+	 * once the editor actually shows color decorators.
+	 */
+	private ensureDecoratorSizeProperties(): void {
+		if (this._hasDecoratorSizeProperties) {
+			return;
+		}
+		this._hasDecoratorSizeProperties = true;
+		const editorDomNode = this._editor.getContainerDomNode();
+		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorWidth', `${ColorDetector.colorDecoratorInnerWidthInEm}em`);
+		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorMargin', `${ColorDetector.colorDecoratorMarginInEm}em`);
+		this._register(toDisposable(() => {
+			editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorWidth');
+			editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorMargin');
+		}));
 	}
 
 	private removeAllDecorations(): void {

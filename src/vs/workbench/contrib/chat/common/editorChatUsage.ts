@@ -50,6 +50,19 @@ export class EditorChatUsage {
 			?? ['copilot', 'claude', 'codex', 'remoteCopilot', 'remoteClaude', 'remoteCodex'].reduce((total, provider) => total + this.getNumber(`sessions.${provider}`), 0);
 	}
 
+	/** When the user last sent an editor chat message, or `undefined` if no message was recorded. */
+	get lastMessageDate(): number | undefined {
+		return this.getNumber('messages') > 0 ? this.getNumber('lastMessageDate') : undefined;
+	}
+
+	get messageCount(): number {
+		return this.getNumber('messages');
+	}
+
+	get sessionCount(): number {
+		return providers.reduce((total, provider) => total + this.getNumber(`sessions.${provider}`), 0);
+	}
+
 	recordSubmission(sessionType: string, isNewSession: boolean, otherSessionInProgress: boolean, otherWindowSessionInProgress: boolean, timestamp: number): void {
 		if (isNewSession) {
 			this.increment(`sessions.${getProvider(sessionType)}`);
@@ -81,12 +94,13 @@ export class EditorChatUsage {
 			}
 		}
 		const messages = this.getNumber('messages');
+		const lastMessageDate = this.lastMessageDate;
 		return {
 			editorSessionsByProvider: JSON.stringify(sessionsByProvider),
 			editorMessages: messages,
 			editorMessagesWithOtherSessionInProgress: this.getNumber('messagesWithOtherSessionInProgress'),
 			editorMessagesWithOtherSessionInProgressAcrossWindows: this.getNumber('messagesWithOtherSessionInProgressAcrossWindows'),
-			editorLastMessageSecondsAgo: messages > 0 ? Math.max(0, Math.floor((now - this.getNumber('lastMessageDate')) / 1000)) : undefined,
+			editorLastMessageSecondsAgo: lastMessageDate !== undefined ? Math.max(0, Math.floor((now - lastMessageDate) / 1000)) : undefined,
 		};
 	}
 }

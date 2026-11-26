@@ -6,6 +6,7 @@
 import { isFirefox } from '../../../../base/browser/browser.js';
 import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import { DataTransfers } from '../../../../base/browser/dnd.js';
+import { Color } from '../../../../base/common/color.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -53,7 +54,7 @@ import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
+import { getModernSideBarBackground, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -76,13 +77,13 @@ import { getUriLabelForShell, getShellIntegrationTimeout, getWorkspaceForTermina
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
-import { isHorizontal, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { isHorizontal, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
-import type { IMarker, Terminal as XTermTerminal, IBufferLine } from '@xterm/xterm';
+import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { terminalStrings } from '../common/terminalStrings.js';
+import { getTerminalAccessibleTitle, terminalStrings } from '../common/terminalStrings.js';
 import { TerminalIconPicker } from './terminalIconPicker.js';
 import { TerminalResizeDebouncer } from './terminalResizeDebouncer.js';
 import { openContextMenu } from './terminalContextMenu.js';
@@ -1099,6 +1100,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// If xterm is already attached, call open again to pick up any changes to the window.
 		if (this.xterm?.raw.element) {
 			this.xterm.raw.open(this.xterm.raw.element);
+			this.xterm.updateGpuRendererWindow();
 		}
 
 		this.xterm?.refresh();
@@ -2109,7 +2111,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Any of the above setting changes could have changed the dimensions of the
 			// terminal, re-evaluate now.
-			this._initDimensions();
+			if (this._lastLayoutDimensions && this._lastLayoutDimensions.width > 0 && this._lastLayoutDimensions.height > 0) {
+				// Use the last layout, the container can have a temporary size while its view is laid out
+				this._evaluateColsAndRows(this._lastLayoutDimensions.width, this._lastLayoutDimensions.height);
+			}
 			cols = this.cols;
 			rows = this.rows;
 
@@ -2159,8 +2164,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
 		const labelParts: string[] = [];
 		if (xterm && xterm.textarea) {
-			if (title && title.length > 0) {
-				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title));
+			const accessibleTitle = getTerminalAccessibleTitle(title ?? '', this._shellLaunchConfig.hostLabel);
+			if (accessibleTitle) {
+				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, accessibleTitle));
 			} else {
 				labelParts.push(nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId));
 			}
@@ -2336,13 +2342,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
 		if (isWindows) {
 			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
-				interface ILineWithInternals extends IBufferLine {
-					_line: {
-						isWrapped: boolean;
-					};
-				}
-				const line = this.xterm.raw.buffer.active.getLine(i);
-				(line as ILineWithInternals)._line.isWrapped = false;
+				this.xterm.setBufferLineWrapped(i, false);
 			}
 		}
 	}
@@ -2746,6 +2746,7 @@ interface ITerminalLabelTemplateProperties {
 	workspaceFolderName?: string | null | undefined;
 	workspaceFolder?: string | null | undefined;
 	local?: string | null | undefined;
+	host?: string | null | undefined;
 	process?: string | null | undefined;
 	sequence?: string | null | undefined;
 	progress?: string | null | undefined;
@@ -2826,6 +2827,7 @@ export class TerminalLabelComputer extends Disposable {
 			workspaceFolderName: instance.workspaceFolder?.name,
 			workspaceFolder: instance.workspaceFolder ? path.basename(instance.workspaceFolder.uri.fsPath) : undefined,
 			local: type === 'Local' ? terminalStrings.typeLocal : undefined,
+			host: instance.shellLaunchConfig.hostLabel,
 			process: instance.processName,
 			sequence: instance.sequence,
 			task: type === 'Task' ? terminalStrings.typeTask : undefined,
@@ -2971,6 +2973,8 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 	constructor(
 		private readonly _target: IReference<TerminalLocation | undefined>,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 	}
 
@@ -2986,8 +2990,19 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 		if (location === ViewContainerLocation.Panel) {
 			return theme.getColor(PANEL_BACKGROUND);
 		}
-		return theme.getColor(SIDE_BAR_BACKGROUND);
+		return getTerminalSideBarBackground(theme, this._configurationService, this._environmentService);
 	}
+}
+
+/**
+ * Resolves the background of a terminal hosted in a side bar, following the
+ * Modern UI side bar background when it is enabled.
+ */
+export function getTerminalSideBarBackground(theme: IColorTheme, configurationService: IConfigurationService, environmentService: IWorkbenchEnvironmentService): Color | undefined {
+	if (!environmentService.isSessionsWindow && configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true) {
+		return getModernSideBarBackground(theme) ?? theme.getColor(SIDE_BAR_BACKGROUND);
+	}
+	return theme.getColor(SIDE_BAR_BACKGROUND);
 }
 
 function guessShellTypeFromExecutable(os: OperatingSystem, executable: string): TerminalShellType | undefined {

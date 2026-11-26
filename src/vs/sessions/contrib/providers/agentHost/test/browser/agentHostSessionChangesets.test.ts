@@ -24,6 +24,7 @@ import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platfo
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type AgentHostUriMapper, createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { createBaseBranchCandidatesResult, createSetBaseBranchMeta, LIST_BASE_BRANCHES_OPERATION_ID, SET_BASE_BRANCH_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentBaseBranchOperationMeta.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -34,24 +35,26 @@ import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, Me
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../common/contextkeys.js';
-import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
-import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
-import { SessionInputPickerVisibility } from '../../../../../services/sessions/common/sessionPickerVisibility.js';
-import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../../workbench/services/sessions/common/session.js';
+import { ISessionHost, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
+import { ISessionsPartService } from '../../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
-import { isSessionPullRequestOperation } from '../../../../changes/common/pullRequestCreation.js';
-import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
-import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
-import { changesetFileToChange } from '../../browser/agentHostDiffs.js';
+import { isSessionPullRequestOperation } from '../../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
+import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionChangesets.js';
+import { IAgentHostAdapterOptions } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
+import { changesetFileToChange } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostDiffs.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
+import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../../workbench/common/chatSessionFileChange.js';
 
 suite('AgentHostSessionChangesets', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1677,6 +1680,83 @@ suite('AgentHostSessionChangesets', () => {
 		}
 	});
 
+	suite('base branch selection', () => {
+		const channel = 'changeset:/session-1/branch';
+		const toOperation = (id: string, status = ChangesetOperationStatus.Idle) => ({ id, label: id, scopes: [ChangesetOperationScope.Changeset], status });
+
+		function createBranchChangeset(operations: ChangesetState['operations'], invoke: (params: InvokeChangesetOperationParams) => Promise<InvokeChangesetOperationResult>) {
+			const changesetState: ChangesetState = { status: ChangesetStatus.Ready, files: [], operations };
+			const subscription = createMutableSubscription(changesetState);
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+					return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+				}
+				override invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+					return invoke(params);
+				}
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
+				icon: Codicon.copilot,
+				environment: 'local',
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => connection,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: session => buildDefaultChatUri(session),
+			}, constObservable(true), [{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: channel }])[0];
+			return {
+				changeset,
+				setOperations: (operations: ChangesetState['operations']) => subscription.set({ ...changesetState, operations }),
+			};
+		}
+
+		test('hides the base branch operations from buttons and offers the selection only while the host can set the base', () => {
+			const { changeset, setOperations } = createBranchChangeset([toOperation('commit'), toOperation(LIST_BASE_BRANCHES_OPERATION_ID), toOperation(SET_BASE_BRANCH_OPERATION_ID)], async () => ({}));
+			const snapshots: { operations: string[]; selectable: boolean }[] = [];
+			disposables.add(autorun(reader => {
+				snapshots.push({
+					operations: changeset.operations.read(reader).map(operation => operation.id),
+					selectable: changeset.baseBranchSelection?.read(reader) !== undefined,
+				});
+			}));
+			setOperations([toOperation('commit'), toOperation(LIST_BASE_BRANCHES_OPERATION_ID), toOperation(SET_BASE_BRANCH_OPERATION_ID, ChangesetOperationStatus.Disabled)]);
+			setOperations([toOperation('commit'), toOperation(SET_BASE_BRANCH_OPERATION_ID)]);
+			setOperations([toOperation('commit'), toOperation(LIST_BASE_BRANCHES_OPERATION_ID), toOperation(SET_BASE_BRANCH_OPERATION_ID)]);
+
+			assert.deepStrictEqual(snapshots, [
+				{ operations: ['commit'], selectable: true },
+				{ operations: ['commit'], selectable: false },
+				{ operations: ['commit'], selectable: true },
+			]);
+		});
+
+		test('lists the candidates without changing anything and sets the exact ref', async () => {
+			const invocations: InvokeChangesetOperationParams[] = [];
+			const { changeset } = createBranchChangeset([toOperation(LIST_BASE_BRANCHES_OPERATION_ID), toOperation(SET_BASE_BRANCH_OPERATION_ID)], async params => {
+				invocations.push(params);
+				return params.operationId === LIST_BASE_BRANCHES_OPERATION_ID
+					? createBaseBranchCandidatesResult({ refs: ['refs/remotes/origin/main', 'refs/heads/main', 'refs/remotes/origin/release/1.108'], defaultRef: 'refs/remotes/origin/main' })
+					: {};
+			});
+			const selection = changeset.baseBranchSelection?.get();
+			assert.ok(selection);
+			const candidates = await selection.getCandidates(CancellationToken.None);
+			await selection.setBaseBranch('refs/heads/main');
+
+			assert.deepStrictEqual({ candidates, invocations }, {
+				candidates: { refs: ['refs/remotes/origin/main', 'refs/heads/main', 'refs/remotes/origin/release/1.108'], defaultRef: 'refs/remotes/origin/main' },
+				invocations: [
+					{ channel, operationId: LIST_BASE_BRANCHES_OPERATION_ID },
+					{ channel, operationId: SET_BASE_BRANCH_OPERATION_ID, target: undefined, _meta: createSetBaseBranchMeta('refs/heads/main') },
+				],
+			});
+		});
+	});
+
 	for (const outcome of ['success', 'error'] as const) {
 		test(`sync button invokes an unlisted draft's operation and spins until ${outcome}`, async () => {
 			const commandId = 'workbench.action.sessions.syncChanges';
@@ -1735,7 +1815,7 @@ suite('AgentHostSessionChangesets', () => {
 				changesets: constObservable(changesets),
 				workspace,
 			});
-			const session = upcastPartial<IActiveSession>({
+			const session = upcastPartial<ITestSessionWithChat>({
 				sessionId: 'draft',
 				resource: sessionUri,
 				activeChat: constObservable(chat),
@@ -1743,9 +1823,11 @@ suite('AgentHostSessionChangesets', () => {
 				workspace,
 			});
 			const sessionsService = new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(session);
-				override readonly visibleSessions = constObservable([session]);
-				override readonly visibleSessionPanes = constObservable([session]);
+				readonly activeSession = constObservable(session);
+				readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+				readonly gridShown = constObservable([session]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
+				override readonly panes = testGridPanes(constObservable([session]));
 			}();
 			instantiationService.stub(ISessionsService, sessionsService);
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -1769,8 +1851,8 @@ suite('AgentHostSessionChangesets', () => {
 			const actionRunner = disposables.add(new ActionRunner());
 			const container = document.createElement('div');
 			const renderMenu = () => {
-				const action = menu.getActions({ arg: { session } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
-				const viewItem = new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(session)), new class extends mock<ISessionsPartService>() { }(), disposables.add(new SessionInputPickerVisibility()), new MockKeybindingService());
+				const action = menu.getActions({ arg: { session, chat } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
+				const viewItem = new SessionSyncChangesActionViewItem(action, {}, upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane, session: constObservable(session), chat: session.activeChat }), new class extends mock<ISessionsPartService>() { }(), disposables.add(new SessionInputPickerVisibility()), new MockKeybindingService(), upcastPartial<IChatWidgetService>({}));
 				item.value = viewItem;
 				viewItem.actionRunner = actionRunner;
 				container.replaceChildren();

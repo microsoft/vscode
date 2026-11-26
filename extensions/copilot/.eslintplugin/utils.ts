@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/typescript-estree';
-import * as eslint from 'eslint';
+import type { ESTree, Visitor } from '@oxlint/plugins';
 
-export function createImportRuleListener(validateImport: (node: TSESTree.Literal, value: string) => any): eslint.Rule.RuleListener {
+export function createImportRuleListener(validateImport: (node: ESTree.StringLiteral, value: string) => void): Visitor {
 
-	function _checkImport(node: TSESTree.Node | null) {
+	function _checkImport(node: ESTree.Node | null) {
 		if (node && node.type === 'Literal' && typeof node.value === 'string') {
 			validateImport(node, node.value);
 		}
@@ -16,24 +15,24 @@ export function createImportRuleListener(validateImport: (node: TSESTree.Literal
 
 	return {
 		// import ??? from 'module'
-		ImportDeclaration: (node: any) => {
-			_checkImport((node as TSESTree.ImportDeclaration).source);
+		ImportDeclaration: (node: ESTree.ImportDeclaration) => {
+			_checkImport(node.source);
 		},
 		// import('module').then(...) OR await import('module')
-		['CallExpression[callee.type="Import"][arguments.length=1] > Literal']: (node: any) => {
+		['CallExpression[callee.type="Import"][arguments.length=1] > Literal']: (node: ESTree.Node) => {
 			_checkImport(node);
 		},
 		// import foo = ...
-		['TSImportEqualsDeclaration > TSExternalModuleReference > Literal']: (node: any) => {
+		['TSImportEqualsDeclaration > TSExternalModuleReference > Literal']: (node: ESTree.Node) => {
 			_checkImport(node);
 		},
 		// export ?? from 'module'
-		ExportAllDeclaration: (node: any) => {
-			_checkImport((node as TSESTree.ExportAllDeclaration).source);
+		ExportAllDeclaration: (node: ESTree.ExportAllDeclaration) => {
+			_checkImport(node.source);
 		},
 		// export {foo} from 'module'
-		ExportNamedDeclaration: (node: any) => {
-			_checkImport((node as TSESTree.ExportNamedDeclaration).source);
+		ExportNamedDeclaration: (node: ESTree.ExportNamedDeclaration) => {
+			_checkImport(node.source);
 		},
 
 	};

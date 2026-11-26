@@ -28,6 +28,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../browser/editorBrowser.js';
+import { getEditorMarkdownSanitizerConfig } from '../../../../browser/editorMarkdownSanitizer.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
 import { InlineCompletionCommand, InlineCompletionTriggerKind, InlineCompletionWarning } from '../../../../common/languages.js';
@@ -187,7 +188,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 			if (typeof warning.message === 'string') {
 				return warning.message;
 			}
-			const markdownElement = reader.store.add(renderMarkdown(warning.message));
+			const markdownElement = reader.store.add(renderMarkdown(warning.message, { sanitizerConfig: getEditorMarkdownSanitizerConfig(this.editor) }));
 			return markdownElement.element;
 		});
 		this._warningMessageNode = n.div({

@@ -10,8 +10,8 @@ import { basename } from '../../../../../base/common/resources.js';
 import { isString } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { getInlineToolInput, parsePartialToolInputForDisplay } from '../../partialToolInput.js';
-import { ToolCallStatus, type StringOrMarkdown, type ToolCallState } from '../../state/protocol/state.js';
+import { getInlineToolInput, parsePartialToolInput, parsePartialToolInputForDisplay } from '../../partialToolInput.js';
+import { ToolCallStatus, ToolResultContentType, type StringOrMarkdown, type ToolCallState } from '../../state/protocol/state.js';
 import { AgentPermissionRequestKind, readPermissionRequestMeta } from './agentPermissionRequestMeta.js';
 
 export interface IToolPresentation {
@@ -68,6 +68,7 @@ const labels: Readonly<Record<string, IToolLabels>> = {
 	exit_plan_mode: { running: localize('copilotd.plan.running', "Finishing plan"), completed: localize('copilotd.plan.completed', "Finished plan"), failed: localize('copilotd.plan.failed', "Finish plan failed") },
 	respond_to_session_plan: { running: localize('copilotd.respondPlan.running', "Responding to plan"), completed: localize('copilotd.respondPlan.completed', "Responded to plan"), failed: localize('copilotd.respondPlan.failed', "Respond to plan failed") },
 	skill: { subjectKeys: ['skill', 'name'], running: localize('copilotd.skill.running', "Reading skill"), completed: localize('copilotd.skill.completed', "Read skill"), failed: localize('copilotd.skill.failed', "Read skill failed") },
+	read_resource: { subjectKeys: ['uri'], running: localize('copilotd.readResource.running', "Reading MCP resource"), completed: localize('copilotd.readResource.completed', "Read MCP resource"), failed: localize('copilotd.readResource.failed', "Read MCP resource failed") },
 	web_search: { subjectKeys: ['query'], running: localize('copilotd.webSearch.running', "Searching the web"), completed: localize('copilotd.webSearch.completed', "Searched the web"), failed: localize('copilotd.webSearch.failed', "Web search failed") },
 	web_fetch: { subjectKeys: ['url'], running: localize('copilotd.webFetch.running', "Fetching webpage"), completed: localize('copilotd.webFetch.completed', "Fetched webpage"), failed: localize('copilotd.webFetch.failed', "Fetch webpage failed") },
 	sql: { subjectKeys: ['description'], running: localize('copilotd.sql.running', "Running SQL"), completed: localize('copilotd.sql.completed', "Ran SQL"), failed: localize('copilotd.sql.failed', "SQL failed") },
@@ -181,6 +182,25 @@ export function readCopilotUrlPermissionPresentation(call: ToolCallState): { inv
 			: request.url,
 		...(typeof call.confirmationTitle === 'string' && call.confirmationTitle.trim() ? { confirmationTitle: call.confirmationTitle } : {}),
 	};
+}
+
+/**
+ * The Copilot runtime reports what a finished task did as the `summary` of its `task_complete` call, which
+ * the VS Code host shows as response text. Compensates for hosts that leave it in the tool call.
+ */
+export function readCopilotTaskCompleteMarkdown(call: ToolCallState): string | undefined {
+	if (call.status !== ToolCallStatus.Completed || !call.success || call.contributor || call._meta?.ui !== undefined
+		|| call.toolName.trim().toLowerCase() !== 'task_complete') {
+		return undefined;
+	}
+	// The summary is shown in full, so it is not read through the bounded parser that labels use.
+	const input = getInlineToolInput(call.toolInput);
+	const argument = input ? parsePartialToolInput(input)?.summary : undefined;
+	const summary = isString(argument) && argument.trim()
+		? argument
+		: call.content?.flatMap(block => block.type === ToolResultContentType.Text ? [block.text] : []).join('\n');
+	// A new paragraph, as response text is joined without a separator.
+	return summary?.trim() ? '\n\n' + localize('copilotd.taskComplete.summary', "**Task completed:**\n\n{0}", summary) : undefined;
 }
 
 export function readCopilotToolPresentation(call: ToolCallState): IToolPresentation | undefined {

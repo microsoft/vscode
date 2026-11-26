@@ -190,8 +190,8 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 			{ managedSettings: { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: false } },
 		]) {
 			const configurationService = new TestConfigurationService({
-				[AgentHostClaudeAgentEnabledSettingId]: thirdPartyAgentEnabledValue(policyData) ?? true,
-				[AgentHostCodexAgentEnabledSettingId]: thirdPartyAgentEnabledValue(policyData) ?? true,
+				[AgentHostClaudeAgentEnabledSettingId]: thirdPartyAgentEnabledValue('claude')(policyData) ?? true,
+				[AgentHostCodexAgentEnabledSettingId]: thirdPartyAgentEnabledValue('codex')(policyData) ?? true,
 				[CodexPreferAgentHostEditorSettingId]: true,
 			});
 			assert.deepStrictEqual({

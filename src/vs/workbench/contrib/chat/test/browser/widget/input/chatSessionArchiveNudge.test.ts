@@ -163,7 +163,7 @@ suite('ChatSessionArchiveNudge', () => {
 			mergeIcon: true,
 			decorativeIcon: 'true',
 			iconBeforeTitle: true,
-			overview: 'Archive this session to hide it from the sessions list and focus on your remaining tasks.',
+			overview: 'Archive this session to set it aside and focus on your remaining tasks.',
 			overviewOutsideDetails: true,
 			detailsExpanded: false,
 			detailsLabel: 'What Does "Archive" Do?',
@@ -177,24 +177,23 @@ suite('ChatSessionArchiveNudge', () => {
 		});
 	});
 
-	test('shows confetti when marking a merged pull request session as done', async () => {
+	test('starts confetti and its signal on click without waiting for archive completion', async () => {
 		const pending = new DeferredPromise<void>();
 		const { archive, configurationService, playedSignals } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 
 		archive.click();
-		const animationBeforeArchive = document.body.querySelector('.animation-overlay');
+		const particlesWhilePending = !!document.body.querySelector('.animation-confetti-particle');
+		const signalsWhilePending = [...playedSignals];
+		archive.click();
 		await pending.complete();
-		const animation = document.body.querySelector('.animation-overlay');
-		animation?.remove();
+		const animations = document.body.querySelectorAll('.animation-overlay');
+		animations.forEach(animation => animation.remove());
 
-		assert.deepStrictEqual({
-			animationBeforeArchive,
-			animationAfterArchive: !!animation,
-			playedSignals,
-		}, {
-			animationBeforeArchive: null,
-			animationAfterArchive: true,
+		assert.deepStrictEqual({ particlesWhilePending, signalsWhilePending, animations: animations.length, playedSignals }, {
+			particlesWhilePending: true,
+			signalsWhilePending: [AccessibilitySignal.confetti],
+			animations: 1,
 			playedSignals: [AccessibilitySignal.confetti],
 		});
 	});
@@ -212,20 +211,17 @@ suite('ChatSessionArchiveNudge', () => {
 		archive.style.cssText = 'position: fixed; left: 120px; top: 80px; width: 48px; height: 24px; box-sizing: border-box;';
 
 		archive.click();
-		const animationBeforeCompletion = document.querySelector('.animation-overlay');
 		await completion.complete();
 
 		const overlay = document.querySelector<HTMLElement>('.animation-overlay');
 		store.add(toDisposable(() => overlay?.remove()));
 		const particle = overlay?.querySelector<HTMLElement>('.animation-confetti-particle');
 		assert.deepStrictEqual({
-			animationBeforeCompletion,
 			buttonConnected: archive.isConnected,
 			bounds: overlay && [overlay.style.left, overlay.style.top, overlay.style.width, overlay.style.height],
 			particleOrigin: particle && [particle.style.left, particle.style.top],
 			inheritsWorkbenchTheme: overlay?.parentElement === container,
 		}, {
-			animationBeforeCompletion: null,
 			buttonConnected: false,
 			bounds: ['120px', '80px', '48px', '24px'],
 			particleOrigin: ['24px', '12px'],
@@ -419,7 +415,7 @@ suite('ChatSessionArchiveNudge', () => {
 		}, {
 			title: 'PR merged. Mark this session as done?',
 			multipleTitle: 'All PRs merged. Mark this session as done?',
-			description: 'Mark this session as done to hide it from the sessions list and focus on your remaining tasks.',
+			description: 'Mark this session as done to set it aside and focus on your remaining tasks.',
 			disclosure: 'What Does "Mark as Done" Do?',
 			recovery: 'The session is not deleted. Ask your agent to find it, or look in the "Done" section of the sessions list. You can restore it anytime.',
 			worktree: 'The worktree created for this session will be deleted. You can recreate it by restoring the session.',
@@ -599,11 +595,62 @@ suite('ChatSessionArchiveNudge', () => {
 		archive.click();
 		await pending.error(new Error('Worktree cleanup failed'));
 
-		assert.deepStrictEqual({ errors, button: archive.textContent, disabled: archive.getAttribute('aria-disabled'), animation: document.body.querySelector('.animation-overlay') }, {
+		const animations = document.body.querySelectorAll('.animation-overlay');
+		animations.forEach(animation => animation.remove());
+		assert.deepStrictEqual({ errors, button: archive.textContent, disabled: archive.getAttribute('aria-disabled'), animations: animations.length }, {
 			errors: ['Unable to mark the session as done: Worktree cleanup failed'],
 			button: 'Mark as Done',
 			disabled: 'false',
-			animation: null,
+			animations: 1,
+		});
+	});
+
+	test('uses chat wording when marking only the chat as done, including after updates and for errors', async () => {
+		const pending = new DeferredPromise<void>();
+		const { widget, archive, errors } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		const describe = () => ({
+			title: widget.domNode.querySelector('h3')?.textContent,
+			description: widget.domNode.querySelector('.chat-session-archive-nudge-description')?.textContent,
+			recovery: widget.domNode.querySelector('details > p')?.textContent,
+			worktreeHidden: widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-worktree')?.hidden,
+		});
+		const session = describe();
+		widget.setOptions(options({ archivesChat: true, pullRequestCount: 2, onArchive: () => pending.p }));
+		const chat = describe();
+		archive.click();
+		await pending.error(new Error('Chat archive failed'));
+
+		assert.deepStrictEqual({ session, chat, errors }, {
+			session: {
+				title: 'PR merged. Mark this session as done?',
+				description: 'Mark this session as done to set it aside and focus on your remaining tasks.',
+				recovery: 'The session is not deleted. Ask your agent to find it, or look in the "Done" section of the sessions list. You can restore it anytime.',
+				worktreeHidden: true,
+			},
+			chat: {
+				title: 'All PRs merged. Mark this chat as done?',
+				description: 'Mark this chat as done to set it aside and focus on the rest of this session.',
+				recovery: 'Other chats in this session are not affected. This chat is not deleted. Look in the "Done" section of the sessions list. You can restore it anytime.',
+				worktreeHidden: true,
+			},
+			errors: ['Unable to mark the chat as done: Chat archive failed'],
+		});
+	});
+
+	test('keeps the session title treatment and its trigger out of chat suggestions', async () => {
+		const title = 'Tidy up this session.';
+		const { widget, triggers } = createWidget({ archivesChat: true }, createAssignmentService(name => name === CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT ? title : undefined));
+		await timeout(0);
+		const describe = () => ({ title: widget.domNode.querySelector('h3')?.textContent, triggers: [...triggers] });
+		const chat = describe();
+		widget.setOptions(options());
+		const session = describe();
+		widget.setOptions(options({ archivesChat: true }));
+
+		assert.deepStrictEqual({ chat, session, chatAgain: describe().title }, {
+			chat: { title: 'PR merged. Archive this chat?', triggers: [CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT] },
+			session: { title, triggers: [CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT, CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT] },
+			chatAgain: 'PR merged. Archive this chat?',
 		});
 	});
 

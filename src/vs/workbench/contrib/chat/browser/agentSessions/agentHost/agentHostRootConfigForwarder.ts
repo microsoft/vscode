@@ -7,7 +7,9 @@ import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
+import { AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 
@@ -18,7 +20,7 @@ import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/stat
  */
 export interface IForwardedRootConfigKey {
 	/** The root-config key this descriptor owns. */
-	readonly key: AgentHostConfigKey | CopilotCliConfigKey;
+	readonly key: AgentHostConfigKey | CopilotCliConfigKey | SessionConfigKey.Permissions | typeof AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey;
 
 	/** Compute the desired value; return `undefined` when unavailable to preserve the shared value. May be async. */
 	computeValue(): unknown | Promise<unknown>;
@@ -66,7 +68,7 @@ export class AgentHostRootConfigForwarder extends Disposable {
 	 * Managed keys whose schema the host has already advertised, so a key is
 	 * re-pushed only when its schema *first* appears (see {@link _onRootStateChanged}).
 	 */
-	private readonly _schemaSeen = new Set<AgentHostConfigKey | CopilotCliConfigKey>();
+	private readonly _schemaSeen = new Set<IForwardedRootConfigKey['key']>();
 
 	constructor(
 		private readonly _keys: readonly IForwardedRootConfigKey[],
@@ -133,7 +135,7 @@ export class AgentHostRootConfigForwarder extends Disposable {
 		}
 	}
 
-	private _schemaHasKey(key: AgentHostConfigKey | CopilotCliConfigKey): boolean {
+	private _schemaHasKey(key: IForwardedRootConfigKey['key']): boolean {
 		const rootState = this._agentHostService.rootState.value;
 		if (!rootState || rootState instanceof Error) {
 			return false;

@@ -7,17 +7,18 @@ import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { isWindows } from '../../../base/common/platform.js';
-import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
+import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname, getComparisonKey } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
-import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type PromptCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
 import { withSkillArgumentHintMeta } from '../../agentHost/common/meta/skillCustomizationMeta.js';
+import { toAgentCustomizationMeta } from '../../agentHost/common/meta/agentCustomizationMeta.js';
 import { readAgentPluginManifest } from './agentPluginParser.js';
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,12 @@ export interface INamedPluginResource {
 /** A parsed agent resource with the frontmatter metadata shared by providers. */
 export interface IAgentPluginResource extends INamedPluginResource {
 	readonly model?: string;
+	readonly models?: readonly string[];
+	readonly reasoningEffort?: string;
+	readonly modelPolicy?: 'preferred' | 'required';
+	readonly assistedApprovalInstructions?: string;
+	readonly argumentHint?: string;
+	readonly welcomeMessage?: string;
 	readonly tools?: readonly string[];
 	readonly disableModelInvocation?: boolean;
 	readonly disableUserInvocation?: boolean;
@@ -127,8 +134,13 @@ export interface IParsedSkill extends ISkillPluginResource {
 	readonly customization: SkillCustomization;
 }
 
+interface IRulePluginResource extends INamedPluginResource {
+	readonly globs?: readonly string[];
+	readonly alwaysApply?: boolean;
+}
+
 /** A parsed rule (instruction) paired with its protocol-level child customization. */
-export interface IParsedRule extends INamedPluginResource {
+export interface IParsedRule extends IRulePluginResource {
 	readonly customization: RuleCustomization;
 }
 
@@ -140,6 +152,7 @@ export interface IParsedPlugin {
 	readonly skills: readonly IParsedSkill[];
 	readonly agents: readonly IParsedAgent[];
 	readonly instructions: readonly IParsedRule[];
+	readonly prompts?: readonly PromptCustomization[];
 }
 
 // ---------------------------------------------------------------------------
@@ -386,6 +399,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
 		...(resource.model ? { model: resource.model } : {}),
+		...(resource.models || resource.reasoningEffort || resource.modelPolicy || resource.argumentHint || resource.welcomeMessage || resource.assistedApprovalInstructions ? { _meta: toAgentCustomizationMeta({ 'vscode.models': resource.models, 'vscode.reasoningEffort': resource.reasoningEffort, 'vscode.modelPolicy': resource.modelPolicy, 'vscode.argumentHint': resource.argumentHint, 'vscode.welcomeMessage': resource.welcomeMessage, 'vscode.assistedApprovalInstructions': resource.assistedApprovalInstructions }) } : {}),
 		...(resource.tools?.length ? { tools: [...resource.tools] } : {}),
 		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
 		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
@@ -407,7 +421,7 @@ function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomizat
 	};
 }
 
-function makeRuleCustomization(resource: INamedPluginResource): RuleCustomization {
+function makeRuleCustomization(resource: IRulePluginResource): RuleCustomization {
 	const uri = resource.uri.toString();
 	return {
 		type: CustomizationType.Rule,
@@ -415,6 +429,8 @@ function makeRuleCustomization(resource: INamedPluginResource): RuleCustomizatio
 		uri,
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
+		...(resource.globs !== undefined ? { globs: [...resource.globs] } : {}),
+		...(resource.alwaysApply !== undefined ? { alwaysApply: resource.alwaysApply } : {}),
 	};
 }
 
@@ -772,6 +788,7 @@ const HOOK_TYPE_MAP: Record<string, string> = {
 	'SessionStart': 'SessionStart',
 	'SessionEnd': 'SessionEnd',
 	'UserPromptSubmit': 'UserPromptSubmit',
+	'UserPromptTransformed': 'UserPromptTransformed',
 	'PreToolUse': 'PreToolUse',
 	'PostToolUse': 'PostToolUse',
 	'PreCompact': 'PreCompact',
@@ -783,8 +800,11 @@ const HOOK_TYPE_MAP: Record<string, string> = {
 	'sessionStart': 'SessionStart',
 	'sessionEnd': 'SessionEnd',
 	'userPromptSubmitted': 'UserPromptSubmit',
+	'userPromptTransformed': 'UserPromptTransformed',
 	'preToolUse': 'PreToolUse',
 	'postToolUse': 'PostToolUse',
+	'preCompact': 'PreCompact',
+	'subagentStart': 'SubagentStart',
 	'agentStop': 'Stop',
 	'subagentStop': 'SubagentStop',
 	'errorOccurred': 'ErrorOccurred',
@@ -1115,7 +1135,7 @@ async function isResolvedWithin(root: URI, resource: URI, fileService: IFileServ
 export async function readMarkdownComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly containmentRoot?: URI },
+	options?: { readonly containmentRoot?: URI; readonly deduplicateByName?: boolean },
 ): Promise<readonly INamedPluginResource[]> {
 	const seen = new Set<string>();
 	const items: INamedPluginResource[] = [];
@@ -1124,8 +1144,9 @@ export async function readMarkdownComponents(
 		if (options?.containmentRoot && !await isResolvedWithin(options.containmentRoot, uri, fileService)) {
 			return;
 		}
-		if (!seen.has(name)) {
-			seen.add(name);
+		const key = options?.deduplicateByName === false ? getComparisonKey(uri) : name;
+		if (!seen.has(key)) {
+			seen.add(key);
 			items.push({ uri, name });
 		}
 	};
@@ -1182,7 +1203,7 @@ export async function readInstructionComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
 	options?: { readonly containmentRoot?: URI },
-): Promise<readonly INamedPluginResource[]> {
+): Promise<readonly IRulePluginResource[]> {
 	const seen = new Set<string>();
 	const items: INamedPluginResource[] = [];
 
@@ -1228,7 +1249,10 @@ export async function readInstructionComponents(
 	}
 
 	items.sort((a, b) => a.name.localeCompare(b.name));
-	return items;
+	return Promise.all(items.map(async item => {
+		const { name, description, globs, alwaysApply } = await parseRuleFile(item.uri, fileService, item.name);
+		return { ...item, name, ...(description ? { description } : {}), globs, alwaysApply };
+	}));
 }
 
 /**
@@ -1239,7 +1263,7 @@ export async function readInstructionComponents(
 export async function readAgentComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly containmentRoot?: URI },
+	options?: { readonly containmentRoot?: URI; readonly deduplicateByName?: boolean },
 ): Promise<readonly IAgentPluginResource[]> {
 	const files = await readMarkdownComponents(dirs, fileService, options);
 	if (files.length === 0) {
@@ -1253,6 +1277,12 @@ export async function readAgentComponents(
 				name: parsed.name || file.name,
 				...(parsed.description ? { description: parsed.description } : {}),
 				...(parsed.model ? { model: parsed.model } : {}),
+				...(parsed.models && parsed.models.length > 1 ? { models: parsed.models } : {}),
+				...(parsed.reasoningEffort ? { reasoningEffort: parsed.reasoningEffort } : {}),
+				...(parsed.modelPolicy ? { modelPolicy: parsed.modelPolicy } : {}),
+				...(parsed.assistedApprovalInstructions ? { assistedApprovalInstructions: parsed.assistedApprovalInstructions } : {}),
+				...(parsed.argumentHint ? { argumentHint: parsed.argumentHint } : {}),
+				...(parsed.welcomeMessage ? { welcomeMessage: parsed.welcomeMessage } : {}),
 				...(parsed.tools?.length ? { tools: parsed.tools } : {}),
 				...(parsed.disableModelInvocation ? { disableModelInvocation: true } : {}),
 				...(parsed.userInvocable === false ? { disableUserInvocation: true } : {}),
@@ -1261,11 +1291,11 @@ export async function readAgentComponents(
 			return file;
 		}
 	}));
-	// De-dupe again in case frontmatter `name` collides; first-seen wins.
+	// By default, frontmatter name collisions also use first-seen wins.
 	const seen = new Set<string>();
 	const result: IAgentPluginResource[] = [];
 	for (const item of enriched) {
-		if (seen.has(item.name)) {
+		if (options?.deduplicateByName !== false && seen.has(item.name)) {
 			continue;
 		}
 		seen.add(item.name);
@@ -1275,7 +1305,7 @@ export async function readAgentComponents(
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; argumentHint?: string; userInvocable?: boolean; model?: string; models?: readonly string[]; reasoningEffort?: string; modelPolicy?: 'preferred' | 'required'; assistedApprovalInstructions?: string; welcomeMessage?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
 	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
 	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
@@ -1283,12 +1313,24 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
 		const description = frontmatter?.getStringValue('description')?.trim();
+		const argumentHint = frontmatter?.getStringValue('argument-hint')?.trim() || undefined;
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
-		const model = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).find(Boolean);
+		const models = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).filter(Boolean);
+		const model = models?.[0];
+		const reasoningEffort = frontmatter?.getStringValue('reasoning-effort');
+		const policy = frontmatter?.getStringValue('model-policy');
+		const modelPolicy = policy === 'preferred' || policy === 'required' ? policy : undefined;
+		const vscode = frontmatter?.header?.type === 'map' ? frontmatter.header.properties.find(property => property.key.value === 'vscode')?.value : undefined;
+		const message = vscode?.type === 'map' ? vscode.properties.find(property => property.key.value === 'welcome-message')?.value : undefined;
+		const welcomeMessage = message?.type === 'scalar' && message.value.trim() ? message.value : undefined;
 		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
 		const infer = frontmatter?.getBooleanValue('infer');
 		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
-		return { name, description, userInvocable, model, tools, disableModelInvocation };
+		// VS Code-only options live under `vscode:`.
+		const vscodeOptions = frontmatter?.header?.type === 'map' ? frontmatter.header.properties.find(p => p.key.value === 'vscode')?.value : undefined;
+		const instructionsNode = vscodeOptions?.type === 'map' ? vscodeOptions.properties.find(p => p.key.value === 'assisted-approval-instructions')?.value : undefined;
+		const assistedApprovalInstructions = instructionsNode?.type === 'scalar' ? instructionsNode.value.trim() || undefined : undefined;
+		return { name, description, ...(argumentHint ? { argumentHint } : {}), userInvocable, model, ...(models && models.length > 1 ? { models } : {}), ...(reasoningEffort ? { reasoningEffort } : {}), ...(modelPolicy ? { modelPolicy } : {}), ...(assistedApprovalInstructions ? { assistedApprovalInstructions } : {}), ...(welcomeMessage ? { welcomeMessage } : {}), tools, disableModelInvocation };
 	} catch {
 		return { name: nameFromFile };
 	}
@@ -1322,8 +1364,7 @@ export function toSkillInvocationFlags(userInvocable: boolean | undefined, disab
 	};
 }
 
-export async function parseRuleFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; globs?: string[]; alwaysApply?: boolean }> {
-	const nameFromFile = basename(uri).replace(/(\.instructions)?\.md$/i, '');
+export async function parseRuleFile(uri: URI, fileService: IFileService, nameFromFile = basename(uri).replace(/(\.instructions)?\.md$/i, '')): Promise<{ name: string; description?: string; globs?: string[]; alwaysApply?: boolean }> {
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
@@ -1446,6 +1487,7 @@ export async function parsePlugin(
 	workspaceRoot: URI | undefined,
 	userHome: URI,
 	boundaryUri?: URI,
+	options?: { readonly deduplicateAgentsByName?: boolean },
 ): Promise<IParsedPlugin> {
 	const formatConfig = await detectPluginFormat(pluginUri, fileService);
 
@@ -1461,11 +1503,14 @@ export async function parsePlugin(
 	const skillsSection = getPluginManifestComponent(formatConfig, 'skills', manifest);
 	const agentsSection = getPluginManifestComponent(formatConfig, 'agents', manifest);
 	const rulesSection = getPluginManifestComponent(formatConfig, 'rules', manifest);
+	const commandsSection = getPluginManifestComponent(formatConfig, 'commands', manifest);
 	const hookDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'hooks', formatConfig.hookConfigPath, hooksSection, boundaryUri);
 	const mcpDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'mcpServers', '.mcp.json', mcpSection, boundaryUri);
 	const skillDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'skills', 'skills', skillsSection, boundaryUri);
 	const agentDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'agents', 'agents', agentsSection, boundaryUri);
 	const instructionDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'rules', 'rules', rulesSection, boundaryUri);
+	const commandDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'commands', 'commands', commandsSection, boundaryUri);
+	const containment = formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined;
 
 	// Handle embedded MCP servers in manifest
 	let embeddedMcp: IMcpServerDefinition[] = [];
@@ -1485,7 +1530,7 @@ export async function parsePlugin(
 		embeddedHooks = formatConfig.parseHooks(manifestUri, hooksSection, pluginUri, workspaceRoot, userHome);
 	}
 
-	const [hooks, mcpServers, skills, agents, instructions] = await Promise.all([
+	const [hooks, mcpServers, skills, agents, instructions, commands] = await Promise.all([
 		embeddedHooks.length > 0
 			? Promise.resolve(embeddedHooks)
 			: readHooks(pluginUri, hookDirs, formatConfig, fileService, workspaceRoot, userHome),
@@ -1493,10 +1538,23 @@ export async function parsePlugin(
 			? Promise.resolve(embeddedMcp)
 			: readPluginMcpServers(pluginUri, mcpDirs, formatConfig, fileService),
 		readPluginSkills(pluginUri, skillDirs, formatConfig, fileService),
-		readAgentComponents(agentDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
-		readInstructionComponents(instructionDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
+		readAgentComponents(agentDirs, fileService, {
+			...containment,
+			deduplicateByName: options?.deduplicateAgentsByName,
+		}),
+		readInstructionComponents(instructionDirs, fileService, containment),
+		readMarkdownComponents(commandDirs, fileService, { ...containment, deduplicateByName: false }),
 	]);
 
+	const prompts = commands.filter(command => !basename(command.uri).startsWith('.')).map((command): PromptCustomization => {
+		const dotInStem = command.name.lastIndexOf('.');
+		return {
+			type: CustomizationType.Prompt,
+			id: buildChildId(command.uri),
+			uri: command.uri.toString(),
+			name: dotInStem > 0 ? command.name.slice(0, dotInStem) : command.name,
+		};
+	});
 	return {
 		format: formatConfig.format,
 		hooks,
@@ -1504,6 +1562,7 @@ export async function parsePlugin(
 		skills: skills.map(toParsedSkill),
 		agents: agents.map(toParsedAgent),
 		instructions: instructions.map(toParsedRule),
+		...(prompts.length ? { prompts } : {}),
 	};
 }
 
@@ -1517,6 +1576,6 @@ export function toParsedSkill(resource: ISkillPluginResource): IParsedSkill {
 	return { ...resource, customization: makeSkillCustomization(resource) };
 }
 
-function toParsedRule(resource: INamedPluginResource): IParsedRule {
+function toParsedRule(resource: IRulePluginResource): IParsedRule {
 	return { ...resource, customization: makeRuleCustomization(resource) };
 }

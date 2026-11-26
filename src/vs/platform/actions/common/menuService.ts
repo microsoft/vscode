@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { DebounceEmitter, Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, Disposable, IDisposable } from '../../../base/common/lifecycle.js';
-import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuItem, IMenuItemHide, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from './actions.js';
+import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuItem, IMenuItemActionOptions, IMenuItemHide, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from './actions.js';
 import { ICommandAction, ILocalizedString } from '../../action/common/action.js';
 import { ICommandService } from '../../commands/common/commands.js';
 import { ContextKeyExpression, IContextKeyService } from '../../contextkey/common/contextkey.js';
@@ -89,12 +89,21 @@ class PersistedMenuHideState implements IDisposable {
 		this._disposables.dispose();
 	}
 
+	isModifiedFromDefault(menu: MenuId, commandId: string): boolean {
+		return this.isHidden(menu, commandId) !== this._isHiddenByDefault(menu, commandId);
+	}
+
 	private _isHiddenByDefault(menu: MenuId, commandId: string) {
 		return this._hiddenByDefaultCache.get(`${menu.id}/${commandId}`) ?? false;
 	}
 
 	setDefaultState(menu: MenuId, commandId: string, hidden: boolean): void {
-		this._hiddenByDefaultCache.set(`${menu.id}/${commandId}`, hidden);
+		const key = `${menu.id}/${commandId}`;
+		if (hidden) {
+			this._hiddenByDefaultCache.set(key, true);
+		} else {
+			this._hiddenByDefaultCache.delete(key);
+		}
 	}
 
 	isHidden(menu: MenuId, commandId: string): boolean {
@@ -195,6 +204,8 @@ function createActionGroups(
 	const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
 
 	for (const [id, items] of menuGroups) {
+		const groupTitle = MenuRegistry.getMenuGroup(menuId, id)?.title;
+		const actionOptions: IMenuItemActionOptions | undefined = groupTitle ? { ...options, groupTitle } : options;
 		const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 		for (const item of items) {
 			const isMenuItem = isIMenuItem(item);
@@ -205,12 +216,12 @@ function createActionGroups(
 			const menuHide = createMenuHide(menuId, isMenuItem ? item.command : item, hiddenStates);
 			if (isMenuItem) {
 				const menuKeybinding = createConfigureKeybindingAction(commandService, keybindingService, item.command.id, item.when);
-				activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, menuKeybinding, contextKeyService, commandService));
+				activeActions.push(new MenuItemAction(item.command, item.alt, actionOptions, menuHide, menuKeybinding, contextKeyService, commandService));
 			} else {
 				const groups = createMenuActionGroups(item.submenu, options, hiddenStates, commandService, keybindingService, contextKeyService);
 				const submenuActions = Separator.join(...groups.map(g => g[1]));
 				if (submenuActions.length > 0) {
-					activeActions.push(new SubmenuItemAction(item, menuHide, submenuActions));
+					activeActions.push(new SubmenuItemAction(item, menuHide, submenuActions, item.toggled ? contextKeyService.contextMatchesRules(item.toggled) : undefined, groupTitle));
 				}
 			}
 		}
@@ -289,12 +300,15 @@ class MenuInfoSnapshot {
 				MenuInfoSnapshot._fillInKbExprKeys(toggledExpression, this._toggledContextKeys);
 			}
 
-		} else if (this._collectContextKeysForSubmenus) {
-			// recursively collect context keys from submenus so that this
-			// menu fires events when context key changes affect submenus
-			MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeysAndSubmenuIds, this);
+		} else {
+			MenuInfoSnapshot._fillInKbExprKeys(item.toggled, this._toggledContextKeys);
+			if (this._collectContextKeysForSubmenus) {
+				// recursively collect context keys from submenus so that this
+				// menu fires events when context key changes affect submenus
+				MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeysAndSubmenuIds, this);
 
-			this._allMenuIds.add(item.submenu);
+				this._allMenuIds.add(item.submenu);
+			}
 		}
 	}
 
@@ -381,6 +395,17 @@ class MenuInfo extends MenuInfoSnapshot {
 		const bStr = typeof b === 'string' ? b : b.original;
 		return aStr.localeCompare(bStr);
 	}
+}
+
+/**
+ * The visible and enabled menu items of a menu, in the order of its actions. Unlike
+ * `IMenuService.getMenuActions`, this creates no actions, which is much cheaper for
+ * large menus that only need the commands, such as the command palette.
+ */
+export function getEnabledMenuItems(id: MenuId, contextKeyService: IContextKeyService): IMenuItem[] {
+	return MenuRegistry.getMenuItems(id)
+		.filter((item): item is IMenuItem => isIMenuItem(item) && contextKeyService.contextMatchesRules(item.when) && contextKeyService.contextMatchesRules(item.command.precondition))
+		.sort(MenuInfo.compareMenuItems);
 }
 
 class MenuImpl implements IMenu {
@@ -481,24 +506,33 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 
 	const id = isISubmenuItem(command) ? command.submenu.id : command.id;
 	const title = typeof command.title === 'string' ? command.title : command.title.value;
+	// snapshot at creation time, consumers compare it across menu rebuilds
+	const isHidden = states.isHidden(menu, id);
 
-	const hide = toAction({
-		id: `hide/${menu.id}/${id}`,
-		label: localize('hide.label', 'Hide \'{0}\'', title),
-		run() { states.updateHidden(menu, id, true); }
-	});
-
-	const toggle = toAction({
-		id: `toggle/${menu.id}/${id}`,
-		label: title,
-		get checked() { return !states.isHidden(menu, id); },
-		run() { states.updateHidden(menu, id, !!this.checked); }
-	});
+	// the actions are only needed for context menus, create them on first access
+	let hide: IAction | undefined;
+	let toggle: IAction | undefined;
 
 	return {
-		hide,
-		toggle,
-		get isHidden() { return !toggle.checked; },
+		get hide() {
+			hide ??= toAction({
+				id: `hide/${menu.id}/${id}`,
+				label: localize('hide.label', 'Hide \'{0}\'', title),
+				run() { states.updateHidden(menu, id, true); }
+			});
+			return hide;
+		},
+		get toggle() {
+			toggle ??= toAction({
+				id: `toggle/${menu.id}/${id}`,
+				label: title,
+				checked: !isHidden,
+				run() { states.updateHidden(menu, id, !states.isHidden(menu, id)); }
+			});
+			return toggle;
+		},
+		isHidden,
+		get isModifiedFromDefault() { return states.isModifiedFromDefault(menu, id); },
 	};
 }
 

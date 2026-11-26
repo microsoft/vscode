@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { OpenAI } from 'openai';
-import { CloseEvent, ErrorEvent } from 'undici';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { CancellationError } from '../../../util/vs/base/common/errors';
@@ -427,7 +426,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				resolve();
 			};
 
-			const onError = (event: ErrorEvent) => {
+			const onError: WebSocket['onerror'] = event => {
 				cleanup();
 				this._state = ConnectionState.Closed;
 				this._responseHeaders = connection.responseHeaders;
@@ -452,7 +451,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				reject(new Error(errorMessage));
 			};
 
-			const onClose = (event: CloseEvent) => {
+			const onClose: WebSocket['onclose'] = event => {
 				cleanup();
 				this._state = ConnectionState.Closed;
 				this._responseHeaders = connection.responseHeaders;

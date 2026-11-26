@@ -25,11 +25,9 @@ import { IssueQuickAccess } from '../browser/issueQuickAccess.js';
 import '../browser/issueTroubleshoot.js';
 import './issueReporterKeybindings.js';
 import { BaseIssueContribution } from '../common/issue.contribution.js';
-import { IIssueFormService, IWorkbenchIssueService, IssueType } from '../common/issue.js';
+import { IIssueFormService, IWorkbenchIssueService, issueReporterLayoutSettingId, IssueType } from '../common/issue.js';
 import { NativeIssueService } from './issueService.js';
 import { NativeIssueFormService } from './nativeIssueFormService.js';
-import { IScreenshotService } from '../browser/screenshotService.js';
-import { NativeScreenshotService } from './nativeScreenshotService.js';
 import { IRecordingService } from '../browser/recordingService.js';
 import { NativeRecordingService } from './nativeRecordingService.js';
 import { IGitHubUploadService } from '../browser/githubUploadService.js';
@@ -41,7 +39,6 @@ import { issueReporterAdditionalRepositoriesSettingId, issueReporterRepositoryPa
 //#region Issue Contribution
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
 registerSingleton(IIssueFormService, NativeIssueFormService, InstantiationType.Delayed);
-registerSingleton(IScreenshotService, NativeScreenshotService, InstantiationType.Delayed);
 registerSingleton(IRecordingService, NativeRecordingService, InstantiationType.Delayed);
 registerSingleton(IGitHubUploadService, NativeGitHubUploadService, InstantiationType.Delayed);
 
@@ -79,6 +76,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'window',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('issueReporter.wizard.openLocation', "Where to open fresh reports when the new issue reporter is enabled. Existing reports keep their current location."),
+		},
+		[issueReporterLayoutSettingId]: {
+			type: 'string',
+			enum: ['simple', 'detailed'],
+			enumDescriptions: [
+				localize('issueReporter.wizard.layout.simple', "Ask for screenshots and a description, and attach a screenshot of the current window when a report opens. The target and category keep their defaults, the title is generated from the description when it is left empty, and diagnostics are one choice."),
+				localize('issueReporter.wizard.layout.detailed', "Ask for screenshots and a description first, then for the target, category, title, and each kind of diagnostics, with guidance along the way."),
+			],
+			default: 'detailed',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('issueReporter.wizard.layout', "Controls how the new issue reporter asks for a report. Existing reports keep their layout."),
+			experiment: { mode: 'auto' },
 		},
 		'issueReporter.wizard.fullWorkspaceScan': {
 			type: 'boolean',

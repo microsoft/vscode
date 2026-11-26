@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { nextLink } from '../githubResponse.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { ApiRequest, ApiRequestOptions, ApiResponseMetadata, PaginationOptions } from './request.js';
@@ -27,7 +28,7 @@ export async function collectPages<T>(
 	fetchPage: (continuation: string | undefined) => Promise<T>,
 	nextPage: (page: T) => string | undefined,
 	merge: (pages: readonly T[]) => T,
-	signal: AbortSignal,
+	cancellationToken: CancellationToken,
 	options: PaginationOptions = {},
 ): Promise<T> {
 	const { maxPages, pageLimitBehavior = 'throw' } = options;
@@ -39,9 +40,9 @@ export async function collectPages<T>(
 	const seen = new Set(initial === undefined ? [] : [initial]);
 	let continuation = initial;
 	while (true) {
-		signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const page = await fetchPage(continuation);
-		signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
 		pages.push(page);
 		if (maxPages === undefined) {
 			break;

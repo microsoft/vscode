@@ -18,7 +18,7 @@ import {
 	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, FakeToolsService, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall, updateTodoListFromSqlItems
 } from '../copilotCLITools';
 import { formatModelDetails, formatModelDetailsWithCredits, formatModelDetailsWithMultiplier } from '../../../../../platform/chat/common/chatModelDetails';
-import { IChatDelegationSummaryService } from '../delegationSummaryService';
+import { IChatDelegationSummaryService } from '../../../common/delegationSummaryService';
 
 // Helper to extract invocation message text independent of MarkdownString vs string
 function getInvocationMessageText(part: ChatToolInvocationPart | undefined): string {

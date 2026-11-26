@@ -47,6 +47,7 @@ The foundational layer. It may import from the sessions **services** layer, but 
 - `vs/platform/*/~`
 - `vs/editor/~`, `vs/editor/contrib/*/~`
 - `vs/workbench/~`, `vs/workbench/browser/**`, `vs/workbench/services/*/~`
+- `vs/workbench/contrib/sessions/~`, `vs/workbench/contrib/sessionChanges/~` (the shared sessions code; see below)
 - `vs/sessions/~` (self), `vs/sessions/services/*/~`
 
 > **Note:** The desktop bootstrap entry `src/vs/sessions/electron-browser/sessions.ts` has its own, **more restrictive** rule: it may import only `vs/base/~`, `vs/base/parts/*/~`, `vs/platform/*/~`, `vs/sessions/~`, and `vs/sessions/sessions.desktop.main.js`.
@@ -115,6 +116,20 @@ This is the **most permissive** contrib layer — providers can reach into non-p
 Entry points can import from all sessions layers: `sessions/~`, `services/*/~`, `contrib/*/~`, and `contrib/providers/*/~`.
 
 ---
+
+## Shared sessions code in `vs/workbench`
+
+The shared sessions code lives in `vs/workbench` so that other workbench windows can host it. Every layer of `vs/sessions` may import it. It follows the workbench rules and **never** imports `vs/sessions`:
+
+| Home | Contents | May import |
+|------|----------|------------|
+| `vs/workbench/services/sessions/` | The provider-neutral session model (`session.ts`, `sessionPane.ts`, `workspaceSelection.ts`), session host routing, visible sessions, the Sessions part service and host layout contracts, and session services that depend only on the model | What any workbench service may import: no contributions |
+| `vs/workbench/browser/parts/sessions/` | The Sessions part frame, its content contract and registry, the session grid widget and the empty-state widgets | What any workbench part may import: no contributions |
+| `vs/workbench/contrib/sessions/` | The management and provider contracts, the services and UI that build on chat or canvases, the session grid content, and the session providers | What any workbench contribution may import |
+| `vs/workbench/contrib/sessionChanges/` | The Changes editor and view | What any workbench contribution may import. It depends on `contrib/sessions`, never the reverse |
+
+- `vs/workbench/contrib/sessions/providers/*/~` may additionally import sibling providers. Nothing else in `vs/workbench` may import a provider; in `vs/sessions`, only provider contributions and the entry points may.
+- Modules there register nothing at module level. Their services, contributions, actions, menus, keybindings and Sessions part content kinds are registered from `vs/sessions` (for example `services/sessions/browser/sessionsServices.registration.ts`, `browser/parts/sessionsPartContent.registration.ts` and the `*.contribution.ts` modules), so only the windows whose entry points import those modules load them.
 
 ## Key Constraint
 

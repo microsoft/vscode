@@ -1,0 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.context-view.editor-add-tab-menu .monaco-menu .monaco-action-bar.vertical .add-tab-menu-entry-description {
+	flex: 0 0 auto;
+	font-size: inherit;
+	opacity: 0.7;
+}

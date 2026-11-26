@@ -9,7 +9,7 @@ import { IArcTextReplacement } from '../../../base/common/editArcTracker.js';
 export interface IDiffCountResult {
 	added: number;
 	removed: number;
-	/** Whitespace-sensitive character edits, independent of the whitespace-insensitive line counts. */
+	/** Whitespace-sensitive character edits without display-oriented merging of matching text, unless hitTimeout is true. */
 	changes: readonly IOffsetEdit[];
 	readonly hitTimeout?: boolean;
 }

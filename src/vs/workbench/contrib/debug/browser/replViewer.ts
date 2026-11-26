@@ -15,6 +15,7 @@ import { createMatches, FuzzyScore } from '../../../../base/common/filters.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/path.js';
 import severity from '../../../../base/common/severity.js';
+import { truncateLongLines } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -28,7 +29,7 @@ import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpres
 import { Variable } from '../common/debugModel.js';
 import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from '../common/replModel.js';
 import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions } from './baseDebugView.js';
-import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
+import { DebugExpressionRenderer, MAX_LINE_RENDER_LENGTH } from './debugExpressionRenderer.js';
 import { debugConsoleEvaluationInput } from './debugIcons.js';
 
 const $ = dom.$;
@@ -83,7 +84,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 
 	renderElement(element: ITreeNode<ReplEvaluationInput, FuzzyScore>, index: number, templateData: IReplEvaluationInputTemplateData): void {
 		const evaluation = element.element;
-		templateData.label.set(evaluation.value, createMatches(element.filterData));
+		templateData.label.set(truncateLongLines(evaluation.value, MAX_LINE_RENDER_LENGTH), createMatches(element.filterData));
 	}
 
 	disposeTemplate(templateData: IReplEvaluationInputTemplateData): void {
@@ -348,7 +349,7 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
 
 		if (hasValue(element) && !isNestedVariable(element)) {
-			const value = element.value;
+			const value = truncateLongLines(element.value, MAX_LINE_RENDER_LENGTH);
 			const valueRows = countNumberOfLines(value)
 				+ (ignoreValueLength ? 0 : Math.floor(value.length / 70)) // Make an estimate for wrapping
 				+ (element instanceof ReplOutputElement ? 0 : 1); // A SimpleReplElement ends in \n if it's a complete line
@@ -423,14 +424,14 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 			return localize('replVariableAriaLabel', "Variable {0}, value {1}", element.name, element.value);
 		}
 		if (element instanceof ReplOutputElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
-			return element.value + (element instanceof ReplOutputElement && element.count > 1 ? localize({ key: 'occurred', comment: ['Front will the value of the debug console element. Placeholder will be replaced by a number which represents occurrance count.'] },
+			return truncateLongLines(element.value, MAX_LINE_RENDER_LENGTH) + (element instanceof ReplOutputElement && element.count > 1 ? localize({ key: 'occurred', comment: ['Front will the value of the debug console element. Placeholder will be replaced by a number which represents occurrance count.'] },
 				", occurred {0} times", element.count) : '');
 		}
 		if (element instanceof RawObjectReplElement) {
-			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, element.value);
+			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, truncateLongLines(element.value, MAX_LINE_RENDER_LENGTH));
 		}
 		if (element instanceof ReplGroup) {
-			return localize('replGroup', "Debug console group {0}", element.name);
+			return localize('replGroup', "Debug console group {0}", truncateLongLines(element.name, MAX_LINE_RENDER_LENGTH));
 		}
 
 		return '';

@@ -6,33 +6,26 @@
 import assert from 'assert';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../log/common/log.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { PluginFormat, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
-import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostFileSystemService.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostCustomizationUri.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CODEX_FILE_LINK_INSTRUCTIONS, CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 
 suite('codexClientCustomizations', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 	});
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function pluginCustomization(id: string): PluginCustomization {
 		return { type: CustomizationType.Plugin, id, uri: `https://plugins/${id}`, name: id, };

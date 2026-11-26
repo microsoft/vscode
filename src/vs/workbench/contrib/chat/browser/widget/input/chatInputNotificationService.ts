@@ -86,6 +86,7 @@ export interface IChatInputNotificationMuteAction {
 
 /** Input state used to choose notification content. */
 export interface IChatInputNotificationModelState {
+	readonly agentModelPolicyError?: string;
 	readonly currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 }
@@ -125,6 +126,8 @@ export interface IChatInputNotificationSetOptions {
 
 export interface IChatInputNotification {
 	readonly id: string;
+	/** Optional setup guidance appears between the first request and its response rather than in the composer. */
+	readonly placement?: 'transcript';
 	/** Targets one input instance, including when several inputs show the same session. */
 	readonly inputUri?: URI;
 	readonly telemetryId?: string;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { GitHubTokenProvider } from '@github/copilot-sdk';
+import type { GitHubTokenProvider } from '@microsoft/copilot-sdk';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { getExpirationTime, getRemainingTimeInSeconds } from '../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -15,8 +15,8 @@ const COPILOT_GITHUB_TOKEN_REFRESH_THRESHOLD_SECONDS = 60 * 60;
 const COPILOT_GITHUB_TOKEN_REFRESH_TIMEOUT_MS = 30_000;
 
 type CopilotGitHubSdkSessionOptions =
-	| { readonly gitHubToken: string | undefined; readonly gitHubTokenProvider?: never }
-	| { readonly gitHubToken?: never; readonly gitHubTokenProvider: GitHubTokenProvider };
+	| { readonly token: string | undefined; readonly tokenProvider?: never }
+	| { readonly token?: never; readonly tokenProvider: GitHubTokenProvider };
 
 /**
  * The GitHub credential configuration captured when an SDK session launches.
@@ -66,11 +66,11 @@ export class CopilotGitHubSessionCredentials {
 			if (!isScopedCredentialUsable(credential)) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The captured Copilot credential has expired or been revoked');
 			}
-			return { gitHubToken: credential.token };
+			return { token: credential.token };
 		}
 		return this._provider
-			? { gitHubTokenProvider: this._provider.tokenProvider }
-			: { gitHubToken: this._useClientAuthentication ? undefined : this._staticToken };
+			? { tokenProvider: this._provider.tokenProvider }
+			: { token: this._useClientAuthentication ? undefined : this._staticToken };
 	}
 
 	isCurrentToken(token: string): boolean {

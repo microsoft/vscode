@@ -28,7 +28,6 @@ export const AGENT_HOST_CLIENT_PROXY_CHANNEL = 'agentHostClientProxy';
 export interface IAgentHostClientProxyConnection {
 	resolveProxy(url: string): Promise<string | undefined>;
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
-	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 }
 
 /**
@@ -39,7 +38,6 @@ export function createAgentHostClientProxyConnection(channel: IChannel): IAgentH
 	return {
 		resolveProxy: (url) => channel.call('resolveProxy', { url }) as Promise<string | undefined>,
 		lookupAuthorization: authInfo => channel.call('lookupAuthorization', { authInfo }) as Promise<Credentials | undefined>,
-		lookupKerberosAuthorization: url => channel.call('lookupKerberosAuthorization', { url }) as Promise<string | undefined>,
 	};
 }
 
@@ -71,11 +69,6 @@ export class AgentHostClientProxyChannel implements IServerChannel {
 				const { authInfo } = arg as { authInfo: AuthInfo };
 				const credentials = await this._requestService.lookupAuthorization(authInfo);
 				return credentials as T;
-			}
-			case 'lookupKerberosAuthorization': {
-				const { url } = arg as { url: string };
-				const authorization = await this._requestService.lookupKerberosAuthorization(url);
-				return authorization as T;
 			}
 		}
 		throw new Error(`Unknown command '${command}' on AgentHostClientProxyChannel`);

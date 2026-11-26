@@ -11,9 +11,9 @@ import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSe
 import { aiCustomizationManagementSectionRegistry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AHPAgentSettingsWidget, type IAgentGlobalConfigurationSettingsTarget } from '../../../../../workbench/contrib/chat/browser/aiCustomization/agentGlobalConfigurationSettingsWidget.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 
 aiCustomizationManagementSectionRegistry.register({
 	id: AICustomizationManagementSection.HarnessSettings,
@@ -22,10 +22,10 @@ aiCustomizationManagementSectionRegistry.register({
 	description: localize('codexCustomizationSettings.navigationDescription', "Configure global behavior for this harness."),
 	supportsHarness: harnessId => harnessId === SessionType.AgentHostCodex,
 	create: (instantiationService, container) => instantiationService.invokeFunction(accessor => {
-		const sessionsService = accessor.get(ISessionsService);
+		const focusedSessionHostService = accessor.get(IFocusedSessionHostService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const target = derived<IAgentGlobalConfigurationSettingsTarget | undefined>(reader => {
-			const providerId = sessionsService.activeSession.read(reader)?.providerId;
+			const providerId = focusedSessionHostService.focusedHost.read(reader).session.read(reader)?.providerId;
 			const provider = providerId ? sessionsProvidersService.getProvider(providerId) : undefined;
 			if (!provider || !isAgentHostProvider(provider)) { return undefined; }
 			return {

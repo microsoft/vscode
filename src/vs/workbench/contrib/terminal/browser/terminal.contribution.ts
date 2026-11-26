@@ -45,6 +45,7 @@ import { TerminalMainContribution } from './terminalMainContribution.js';
 import { setupTerminalMenus } from './terminalMenus.js';
 import { TerminalProfileService } from './terminalProfileService.js';
 import { TerminalService } from './terminalService.js';
+import { TerminalUnattendedRestartParticipant } from './terminalUnattendedRestart.js';
 import { TerminalViewPane } from './terminalView.js';
 import { AgentHostTerminalService, IAgentHostTerminalService } from './agentHostTerminalService.js';
 
@@ -63,6 +64,7 @@ registerSingleton(IAgentHostTerminalService, AgentHostTerminalService, Instantia
 // This contribution blocks startup as it's critical to enable the web embedder window.createTerminal API
 registerWorkbenchContribution2(TerminalMainContribution.ID, TerminalMainContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RemoteTerminalBackendContribution.ID, RemoteTerminalBackendContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(TerminalUnattendedRestartParticipant.ID, TerminalUnattendedRestartParticipant, WorkbenchPhase.AfterRestored);
 
 // Register configurations
 registerTerminalPlatformConfiguration();

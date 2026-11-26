@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ErrorUtils } from '../../../util/common/errors';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { URI } from '../../../util/vs/base/common/uri';
 import { StringEdit, StringReplacement } from '../../../util/vs/editor/common/core/edits/stringEdit';
@@ -36,17 +37,12 @@ export class SnippyService implements ISnippyService {
 			return;
 		}
 
-		let matchResponse: types.MatchResponse.t | undefined;
-		try {
-			matchResponse = await this.fetcher.fetchMatch(sourceToCheck.source, CancellationToken.None);
-		} catch (e: unknown) {
-			throw e;
-		}
+		const matchResponse = await this.fetcher.fetchMatch(sourceToCheck.source, CancellationToken.None);
 		if (!matchResponse) {
 			throw new Error(`Failed to parse match response: ${matchResponse}`);
 		}
 		if (matchResponse.isError()) {
-			throw new Error(`Failed to match: ${matchResponse.err}`);
+			throw new Error(`Failed to match: ${matchResponse.err.msg}`);
 		}
 		if (matchResponse.val.snippets.length === 0) {
 			// no match found
@@ -57,8 +53,11 @@ export class SnippyService implements ISnippyService {
 
 		const citationPromises = snippets.map(async (snippet) => {
 			const response = await this.fetcher.fetchFilesForMatch(snippet.cursor, CancellationToken.None);
-			if (!response || response.isError()) {
-				return;
+			if (!response) {
+				throw new Error(`Failed to parse files-for-match response: ${response}`);
+			}
+			if (response.isError()) {
+				throw new Error(`Failed to fetch files for match: ${response.err.msg}`);
 			}
 			const { file_matches: files, license_stats: licenseStats } = response.val;
 			return {
@@ -70,14 +69,14 @@ export class SnippyService implements ISnippyService {
 
 		this.notifier.notify();
 
-		const citations = await Promise.all(citationPromises);
-		const filteredCitations: types.SnippetStatistics[] = citations.filter(c => !!c);
-
-		if (filteredCitations.length === 0) {
-			return;
-		}
-
-		for (const citation of filteredCitations) {
+		const citationResults = await Promise.allSettled(citationPromises);
+		const errors: Error[] = [];
+		for (const result of citationResults) {
+			if (result.status === 'rejected') {
+				errors.push(ErrorUtils.fromUnknown(result.reason));
+				continue;
+			}
+			const citation = result.value;
 			const licensesSet = new Set(Object.keys(citation.licenseStats?.count ?? {}));
 
 			if (licensesSet.delete('NOASSERTION')) {
@@ -102,6 +101,13 @@ export class SnippyService implements ISnippyService {
 				shortenedMatchText
 			].join(' '));
 		}
+
+		if (errors.length === 1) {
+			throw errors[0];
+		}
+		if (errors.length > 1) {
+			throw new AggregateError(errors, 'Failed to fetch files for multiple matches');
+		}
 	}
 
 	private computeSourceToCheck(documentBeforeEdits: StringText, singleEdit: StringReplacement) {
@@ -115,34 +121,17 @@ export class SnippyService implements ISnippyService {
 		const newTotalRange = newRanges.reduce((acc, range) => acc.join(range));
 		const documentAfterEdits = edit.applyOnText(documentBeforeEdits);
 
-		let startOffset = newTotalRange.start;
-		let potentialMatchContext = documentAfterEdits.value.substring(newTotalRange.start, newTotalRange.endExclusive);
-
-		// replicates behavior of copilot-client (ghost text extension)
-
-		// In many cases, we will get completion that is shorter than 65 tokens,
-		// e.g. a single line or word completion.
-		// When a completion is too short, we should try and get the preceding tokens and
-		// pass that to snippy as part of the context.
-		if (!SnippyCompute.hasMinLexemeLength(potentialMatchContext)) {
-			const textWithoutCompletion = documentAfterEdits.value.slice(0, newTotalRange.start);
-			const minLexemeStartOffset = SnippyCompute.offsetLastLexemes(
-				textWithoutCompletion,
-				SnippyCompute.MinTokenLength
-			);
-			startOffset = minLexemeStartOffset;
-			potentialMatchContext = documentAfterEdits.value.slice(minLexemeStartOffset, newTotalRange.start + singleEdit.newText.length);
-		}
-
-		if (!SnippyCompute.hasMinLexemeLength(potentialMatchContext)) {
+		const sourceToCheck = SnippyCompute.computeMatchSource(documentAfterEdits.value.slice(0, newTotalRange.start), singleEdit.newText);
+		if ('reason' in sourceToCheck) {
+			this.logService.debug(`Skipping Snippy check: ${sourceToCheck.reason}`);
 			return;
 		}
 
 		const trans = documentAfterEdits.getTransformer();
-		const startPosition = trans.getPosition(startOffset);
+		const startPosition = trans.getPosition(sourceToCheck.startOffset);
 
 		return {
-			source: potentialMatchContext,
+			source: sourceToCheck.source,
 			startPosition,
 		};
 	}

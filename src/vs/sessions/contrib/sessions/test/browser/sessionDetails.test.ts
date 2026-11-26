@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { formatSessionDetails } from '../../browser/sessionDetailsAction.js';
 import { createTestSession } from './sessionsListTestUtils.js';
 

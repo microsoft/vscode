@@ -7,13 +7,16 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { ChatMcpAuthenticationContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMcpAuthenticationContentPart.js';
 import { IChatMcpAuthenticationRequired } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { IChatContentPartRenderContext } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
+import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { registerChatFixtureServices } from './chatFixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
@@ -39,7 +42,8 @@ function renderAuthenticationPart(context: ComponentFixtureContext): void {
 	const instantiationService = createEditorServices(context.disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: registration => {
-			registration.define(IMarkdownRendererService, MarkdownRendererService);
+			registerChatFixtureServices(registration);
+			registration.define(ISessionSummaryHoverService, SessionSummaryHoverService);
 			registration.defineInstance(IAgentHostCustomizationService, customizationService);
 		},
 	});
@@ -53,7 +57,13 @@ function renderAuthenticationPart(context: ComponentFixtureContext): void {
 		}]),
 		isUsed: false,
 	};
-	const part = context.disposableStore.add(instantiationService.createInstance(ChatMcpAuthenticationContentPart, data, {}));
+	const renderContext = upcastPartial<IChatContentPartRenderContext>({
+		content: [],
+		contentIndex: -1,
+		element: upcastPartial<IChatResponseViewModel>({ sessionResource }),
+		currentWidth: observableValue('currentWidth', 720),
+	});
+	const part = context.disposableStore.add(instantiationService.createInstance(ChatMcpAuthenticationContentPart, data, renderContext, {}));
 
 	context.container.style.width = '720px';
 	context.container.style.padding = '16px';

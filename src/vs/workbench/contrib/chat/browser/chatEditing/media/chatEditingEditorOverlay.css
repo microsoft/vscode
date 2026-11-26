@@ -18,20 +18,63 @@
 	overflow: hidden;
 }
 
-@keyframes pulse {
+@keyframes chat-editor-overlay-busy-pulse-in {
 	0% {
-		box-shadow: var(--vscode-shadow-md);
+		opacity: 0;
 	}
 	50% {
-		box-shadow: var(--vscode-shadow-lg);
+		opacity: 1;
 	}
 	100% {
-		box-shadow: var(--vscode-shadow-md);
+		opacity: 0;
 	}
 }
 
-.chat-editor-overlay-widget.busy {
-	animation: pulse ease-in 2.3s infinite;
+@keyframes chat-editor-overlay-busy-pulse-out {
+	0% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0;
+	}
+	100% {
+		opacity: 1;
+	}
+}
+
+/*
+ * Crossfade static shadow layers instead of animating box-shadow, which repaints every frame.
+ * The layers live on the host because the widget clips its overflow.
+ */
+.chat-editing-editor-overlay.busy > .chat-editor-overlay-widget {
+	box-shadow: none;
+}
+
+.chat-editing-editor-overlay.busy::before,
+.chat-editing-editor-overlay.busy::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	border-radius: 6px; /* same as overlay widget */
+	pointer-events: none;
+	animation: ease-in 2.3s infinite;
+}
+
+.chat-editing-editor-overlay.busy::before {
+	box-shadow: var(--vscode-shadow-md);
+	animation-name: chat-editor-overlay-busy-pulse-out;
+}
+
+.chat-editing-editor-overlay.busy::after {
+	box-shadow: var(--vscode-shadow-lg);
+	opacity: 0;
+	animation-name: chat-editor-overlay-busy-pulse-in;
+}
+
+.monaco-reduce-motion .chat-editing-editor-overlay.busy::before,
+.monaco-reduce-motion .chat-editing-editor-overlay.busy::after {
+	animation: none;
 }
 
 .chat-editor-overlay-widget .chat-editor-overlay-progress {

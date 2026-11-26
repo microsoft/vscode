@@ -4,10 +4,13 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/c2719309e91d2e26be21fce0ecaaca86c7b48ce4",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/61acf50cb1c7fcac8097249983dddfba56023608",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
+		{
+			"include": "#hover"
+		},
 		{
 			"include": "#preprocessor"
 		},
@@ -25,6 +28,536 @@
 		}
 	],
 	"repository": {
+		"hover": {
+			"begin": "\\A\\u200B",
+			"name": "meta.hover.cs",
+			"end": "(?!)",
+			"patterns": [
+				{
+					"match": "(?x)\n\\G\\s*\\([^(),]*\\)\\s* |\n\\G\\s*\\([^(),]+,[^(),]+\\)\n(?=\\s+(?:\n  @?[_[:alpha:]][_[:alnum:]]*\n  (?:\\s*(?:\\.|::)\\s*@?[_[:alpha:]][_[:alnum:]]*)*\n  (?<args><(?:[^<>]|\\g<args>)*>)?[\\[\\]?*]*\\s |\n  \\(\n))",
+					"name": "meta.hover.annotation.cs"
+				},
+				{
+					"match": "\\(\\+\\s*\\d+[^()]*\\)",
+					"name": "meta.hover.annotation.cs"
+				},
+				{
+					"match": "<global\\s+namespace>",
+					"name": "meta.hover.placeholder.cs"
+				},
+				{
+					"begin": "\\b(namespace)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.namespace.cs"
+						}
+					},
+					"end": "(?!)",
+					"patterns": [
+						{
+							"match": "@?[_[:alpha:]][_[:alnum:]]*",
+							"name": "entity.name.type.namespace.cs"
+						},
+						{
+							"include": "#punctuation-accessor"
+						}
+					]
+				},
+				{
+					"begin": "\\b(class|struct|interface|enum|record|union)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.$1.cs"
+						}
+					},
+					"end": "(?!)",
+					"patterns": [
+						{
+							"include": "#hover-constraints"
+						},
+						{
+							"match": "\\b(class|struct)\\b",
+							"name": "storage.type.$1.cs"
+						},
+						{
+							"include": "#storage-modifier"
+						},
+						{
+							"include": "#hover-parameters"
+						},
+						{
+							"include": "#hover-type"
+						},
+						{
+							"match": ":",
+							"name": "punctuation.separator.colon.cs"
+						}
+					]
+				},
+				{
+					"begin": "\\b(delegate)\\b(?!\\s*\\*)",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.delegate.cs"
+						}
+					},
+					"end": "(?!)",
+					"patterns": [
+						{
+							"include": "#hover-constraints"
+						},
+						{
+							"include": "#hover-parameters"
+						},
+						{
+							"include": "#hover-type"
+						}
+					]
+				},
+				{
+					"begin": "(?x)\n(?<=\\u200B)\n(?<constructor>\n  @?[_[:alpha:]][_[:alnum:]]*\n  (?<args><(?:[^<>]|\\g<args>)*>)?\n  (?:\\s*(?:\\.|::)\\s*@?[_[:alpha:]][_[:alnum:]]*\\g<args>?)*\n)\\s*(?=\\()",
+					"beginCaptures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#hover-type"
+								}
+							]
+						}
+					},
+					"end": "(?<=\\))",
+					"patterns": [
+						{
+							"include": "#hover-parameters"
+						}
+					]
+				},
+				{
+					"begin": "\\b(event)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.event.cs"
+						}
+					},
+					"end": "(?!)",
+					"patterns": [
+						{
+							"match": "@?[_[:alpha:]][_[:alnum:]]*(?=\\s*(?:$|\\{))",
+							"name": "entity.name.variable.event.cs"
+						},
+						{
+							"include": "#hover-type"
+						}
+					]
+				},
+				{
+					"match": "(?x)\n(@?[_[:alpha:]][_[:alnum:]]*)\n(?=\\s*(?<args><(?:[^<>]|\\g<args>)*>)?\\s*\\.\\s*\n  (?!@?[_[:alpha:]][_[:alnum:]]*\\([^()]*\\)\\.)\n  @?[_[:alpha:]][_[:alnum:]]*\\s*\\g<args>?\\s*\\()",
+					"captures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#type-builtin"
+								},
+								{
+									"match": "@?[_[:alpha:]][_[:alnum:]]*",
+									"name": "entity.name.type.cs"
+								}
+							]
+						}
+					}
+				},
+				{
+					"include": "#hover-constraints"
+				},
+				{
+					"begin": "\\b(implicit|explicit)\\s+(operator)\\b(?:\\s+(checked))?",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.$1.cs"
+						},
+						"2": {
+							"name": "storage.type.operator.cs"
+						},
+						"3": {
+							"name": "keyword.control.context.checked.cs"
+						}
+					},
+					"end": "(?<=\\))",
+					"patterns": [
+						{
+							"include": "#hover-parameters"
+						},
+						{
+							"include": "#hover-type"
+						}
+					]
+				},
+				{
+					"begin": "\\b(operator)\\b\\s*(?:(checked)\\s*)?([^\\s(]+)",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.operator.cs"
+						},
+						"2": {
+							"name": "keyword.control.context.checked.cs"
+						},
+						"3": {
+							"name": "entity.name.function.cs"
+						}
+					},
+					"end": "(?<=\\))",
+					"patterns": [
+						{
+							"include": "#hover-parameters"
+						}
+					]
+				},
+				{
+					"begin": "(@?[_[:alpha:]][_[:alnum:]]*)(?=\\([^()]*\\)\\.)",
+					"beginCaptures": {
+						"1": {
+							"name": "meta.hover.qualifier.cs"
+						}
+					},
+					"end": "(?<=\\))",
+					"patterns": [
+						{
+							"include": "#hover-type"
+						}
+					]
+				},
+				{
+					"begin": "(?x)\n(@?[_[:alpha:]][_[:alnum:]]*)\n(?<args><(?:[^<>]|\\g<args>)*>)?\n\\s*(?=\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.function.cs"
+						},
+						"2": {
+							"patterns": [
+								{
+									"include": "#hover-type-arguments"
+								}
+							]
+						}
+					},
+					"end": "(?<=\\))",
+					"patterns": [
+						{
+							"include": "#hover-parameters"
+						}
+					]
+				},
+				{
+					"begin": "\\b(this)\\s*(?=\\[)",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.variable.property.cs"
+						}
+					},
+					"end": "(?<=\\])",
+					"patterns": [
+						{
+							"begin": "\\[",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.squarebracket.open.cs"
+								}
+							},
+							"end": "\\]",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.squarebracket.close.cs"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#hover-parameter"
+								}
+							]
+						}
+					]
+				},
+				{
+					"match": "@?[_[:alpha:]][_[:alnum:]]*(?=\\s*\\{)",
+					"name": "entity.name.variable.property.cs"
+				},
+				{
+					"match": "\\b(get|set|init|add|remove)\\b",
+					"name": "storage.type.accessor.$1.cs"
+				},
+				{
+					"include": "#storage-modifier"
+				},
+				{
+					"include": "#type-builtin"
+				},
+				{
+					"match": "@?[_[:alpha:]][_[:alnum:]]*(?=\\s*(?:=|$))",
+					"name": "variable.other.readwrite.cs"
+				},
+				{
+					"include": "#hover-default"
+				},
+				{
+					"include": "#hover-type"
+				},
+				{
+					"match": "\\{",
+					"name": "punctuation.curlybrace.open.cs"
+				},
+				{
+					"match": "\\}",
+					"name": "punctuation.curlybrace.close.cs"
+				},
+				{
+					"include": "#punctuation-semicolon"
+				}
+			]
+		},
+		"hover-constraints": {
+			"begin": "\\b(where)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.modifier.where.cs"
+				}
+			},
+			"end": "$",
+			"patterns": [
+				{
+					"match": "\\b(class|struct)\\b",
+					"name": "storage.type.$1.cs"
+				},
+				{
+					"match": "\\b(notnull|unmanaged|default)\\b",
+					"name": "keyword.other.constraint.$1.cs"
+				},
+				{
+					"match": "\\b(new)\\b",
+					"name": "keyword.operator.expression.new.cs"
+				},
+				{
+					"match": "\\b(allows|ref)\\b",
+					"name": "storage.modifier.$1.cs"
+				},
+				{
+					"include": "#hover-type"
+				},
+				{
+					"match": ":",
+					"name": "punctuation.separator.colon.cs"
+				}
+			]
+		},
+		"hover-parameters": {
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.open.cs"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.close.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#hover-parameter"
+				}
+			]
+		},
+		"hover-parameter": {
+			"patterns": [
+				{
+					"include": "#hover-default"
+				},
+				{
+					"begin": "\\[",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.squarebracket.open.cs"
+						}
+					},
+					"end": "\\]",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.squarebracket.close.cs"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#hover-parameter"
+						}
+					]
+				},
+				{
+					"include": "#storage-modifier"
+				},
+				{
+					"match": "@?[_[:alpha:]][_[:alnum:]]*(?=\\s*(?:[,)=\\]]|$))",
+					"name": "entity.name.variable.parameter.cs"
+				},
+				{
+					"include": "#hover-type"
+				}
+			]
+		},
+		"hover-default": {
+			"begin": "=",
+			"beginCaptures": {
+				"0": {
+					"name": "keyword.operator.assignment.cs"
+				}
+			},
+			"end": "(?=[,)\\]]|$)",
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"hover-type": {
+			"patterns": [
+				{
+					"include": "#ref-modifier"
+				},
+				{
+					"include": "#readonly-modifier"
+				},
+				{
+					"match": "\\b(in|out|scoped)\\b",
+					"name": "storage.modifier.$1.cs"
+				},
+				{
+					"match": "<anonymous\\s+delegate>",
+					"name": "meta.hover.placeholder.cs"
+				},
+				{
+					"begin": "\\b(delegate)\\s*(\\*)",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.delegate.cs"
+						},
+						"2": {
+							"name": "punctuation.separator.asterisk.cs"
+						}
+					},
+					"end": "(?<=>)",
+					"patterns": [
+						{
+							"match": "\\b(unmanaged|managed)\\b",
+							"name": "storage.modifier.$1.cs"
+						},
+						{
+							"begin": "\\[",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.squarebracket.open.cs"
+								}
+							},
+							"end": "\\]",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.squarebracket.close.cs"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#hover-type"
+								}
+							]
+						},
+						{
+							"include": "#hover-type-arguments"
+						}
+					]
+				},
+				{
+					"match": "(?x)\n@?[_[:alpha:]][_[:alnum:]]*\n(?=\\s*(?<args><(?:[^<>]|\\g<args>)*>)?\\s*(?:\\.|::))",
+					"name": "meta.hover.qualifier.cs"
+				},
+				{
+					"include": "#type-builtin"
+				},
+				{
+					"include": "#hover-type-arguments"
+				},
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.open.cs"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.close.cs"
+						}
+					},
+					"patterns": [
+						{
+							"match": "(?<=[_[:alnum:]>?\\]*])\\s+(@?[_[:alpha:]][_[:alnum:]]*)(?=\\s*[,)])",
+							"captures": {
+								"1": {
+									"name": "entity.name.variable.tuple-element.cs"
+								}
+							}
+						},
+						{
+							"include": "#hover-type"
+						}
+					]
+				},
+				{
+					"match": "'[[:alpha:]]+",
+					"name": "entity.name.type.cs"
+				},
+				{
+					"match": "@?[_[:alpha:]][_[:alnum:]]*",
+					"name": "entity.name.type.cs"
+				},
+				{
+					"include": "#type-array-suffix"
+				},
+				{
+					"include": "#type-nullable-suffix"
+				},
+				{
+					"include": "#type-pointer-suffix"
+				},
+				{
+					"include": "#punctuation-accessor"
+				},
+				{
+					"match": "::",
+					"name": "punctuation.separator.coloncolon.cs"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"hover-type-arguments": {
+			"begin": "<",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.typeparameters.begin.cs"
+				}
+			},
+			"end": ">",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.typeparameters.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#hover-type"
+				}
+			]
+		},
 		"directives": {
 			"patterns": [
 				{

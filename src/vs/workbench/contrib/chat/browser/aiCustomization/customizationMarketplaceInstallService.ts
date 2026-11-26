@@ -15,12 +15,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { normalizePluginPath, PLUGIN_MANIFEST_PATHS } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, isCustomizationMarketplaceIconEqual } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { mcpGalleryServiceUrlConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { mcpGalleryServiceUrlConfig, normalizeMcpGalleryUrl } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -35,7 +34,7 @@ import { IPluginInstallService } from '../../common/plugins/pluginInstallService
 import { parseMarketplaceReference, parseProviderMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { getConnectorRowPresentation } from './connectorPresentation.js';
-import { CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
+import { copilotConnectorsSourcePageUri, CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
 import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
 import { getPluginCustomizationMarketplaceSourceIdFromIdentifier, getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplaceProvider.js';
 import { CustomizationMarketplaceInstallationAssociationCache as CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationAssociationTarget as CustomizationMarketplaceInstallationRecordTarget, getInstallationAssociationResourceKey as getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationAssociation as ICustomizationMarketplaceInstallationRecord, removeLegacyCustomizationMarketplaceInstallationRecords, toAssociatedMarketplaceResource as toRecordedMarketplaceResource } from './customizationMarketplaceInstallationAssociation.js';
@@ -282,6 +281,14 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return matches.length === 1 ? matches[0] : undefined;
 	}
 
+	findInstallation(resource: ICustomizationMarketplaceResource): IRecordedCustomizationMarketplaceResource | undefined {
+		const providerInstallation = this.findProviderInstallation(resource);
+		if (providerInstallation || this.providerInstallations.some(installation => this.matchesProviderInstallation(installation.resource, resource))) {
+			return providerInstallation;
+		}
+		return this.installations.get().findByResource(resource);
+	}
+
 	private getGitHubMcpRegistryIdentity(resource: ICustomizationMarketplaceResource): string | undefined {
 		const installation = resource.installation;
 		const itemUrl = installation?.kind === 'providerCatalog'
@@ -421,7 +428,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				};
 				const existing = this.findConnectorRecord(connector.name, account);
 				const record = await this.createConnectorRecord(resource, account, existing?.id);
-				const didChange = !existing || existing.version !== record.version || existing.displayName !== record.displayName || existing.description !== record.description || !isCustomizationMarketplaceIconEqual(existing.icon, record.icon);
+				const didChange = !existing || existing.version !== record.version || existing.displayName !== record.displayName || existing.description !== record.description || !isCustomizationMarketplaceIconEqual(existing.icon, record.icon) || !isEqual(existing.url, record.url) || existing.homepage !== record.homepage;
 				if (didChange) {
 					this.recordStore.upsert(record);
 					this.recordStates.set(record.id, { kind: 'checking' });
@@ -453,6 +460,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			description: resource.description,
 			mediaType: resource.mediaType,
 			icon: resource.icon,
+			url: copilotConnectorsSourcePageUri,
+			homepage: resource.homepage,
 			installation,
 			target: {
 				kind: 'copilotConnector',

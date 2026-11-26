@@ -32,11 +32,20 @@ import '../../browser/chatPetAchievements.contribution.js';
 import { ChatPetAchievementsEditorInput } from '../../browser/chatPetAchievementsEditorInput.js';
 import { ChatPetAchievementsEditor } from '../../browser/chatPetAchievementsEditor.js';
 import { ChatPetAchievementsWidget } from '../../browser/chatPetAchievementsWidget.js';
-import { ChatPetService, ChatPetVariant, IChatPetService } from '../../browser/chatPetService.js';
+import { ChatPetAppearanceTarget, ChatPetService, ChatPetVariant, IChatPetService } from '../../browser/chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, getChatPetBodyColor } from '../../browser/chatPetColors.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 suite('Chat Pet Achievements Editor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createEnvironment(isSessionsWindow = false): IWorkbenchEnvironmentService {
+		return new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = isSessionsWindow; }();
+	}
+
+	function createTarget() {
+		return observableValue<ChatPetAppearanceTarget>('chatPetAppearanceTarget', 'both');
+	}
 
 	setup(() => {
 		if (mainWindow.location.protocol === `${Schemas.file}:`) {
@@ -124,10 +133,13 @@ suite('Chat Pet Achievements Editor', () => {
 			override readonly unseenAchievements = constObservable<readonly ChatPetAchievementId[]>([]);
 			override readonly selectedAccessory = constObservable<ChatPetAccessoryId | undefined>(undefined);
 			override readonly color = constObservable<ChatPetVariant>('stable');
+			override getWindowColor() { return this.color; }
+			override getWindowAccessory() { return this.selectedAccessory; }
 		}();
 		store.add(new ChatPetAchievementsWidget(
 			parent,
 			() => { },
+			createTarget(),
 			chatPetService,
 			new TestThemeService(),
 			store.add(new NullLogService()),
@@ -184,6 +196,8 @@ suite('Chat Pet Achievements Editor', () => {
 			override readonly unseenAchievements = constObservable<readonly ChatPetAchievementId[]>([]);
 			override readonly selectedAccessory = selectedAccessory;
 			override readonly color = constObservable<ChatPetVariant>('stable');
+			override getWindowColor() { return this.color; }
+			override getWindowAccessory() { return this.selectedAccessory; }
 
 			override markAchievementSeen(): boolean {
 				return false;
@@ -197,6 +211,7 @@ suite('Chat Pet Achievements Editor', () => {
 		store.add(new ChatPetAchievementsWidget(
 			parent,
 			() => { },
+			createTarget(),
 			chatPetService,
 			new TestThemeService(),
 			store.add(new NullLogService()),
@@ -250,10 +265,13 @@ suite('Chat Pet Achievements Editor', () => {
 			override readonly unseenAchievements = constObservable<readonly ChatPetAchievementId[]>([]);
 			override readonly selectedAccessory = constObservable<ChatPetAccessoryId | undefined>(undefined);
 			override readonly color = constObservable<ChatPetVariant>('stable');
+			override getWindowColor() { return this.color; }
+			override getWindowAccessory() { return this.selectedAccessory; }
 		}();
 		const widget = store.add(new ChatPetAchievementsWidget(
 			parent,
 			() => closeCount++,
+			createTarget(),
 			chatPetService,
 			new TestThemeService(),
 			store.add(new NullLogService()),
@@ -275,7 +293,7 @@ suite('Chat Pet Achievements Editor', () => {
 		const parent = mainWindow.document.createElement('div');
 		mainWindow.document.body.appendChild(parent);
 		store.add(toDisposable(() => parent.remove()));
-		const service = store.add(new ChatPetService(store.add(new TestStorageService()), new NullTelemetryServiceShape(), new NullLogService()));
+		const service = store.add(new ChatPetService(store.add(new TestStorageService()), new NullTelemetryServiceShape(), new NullLogService(), createEnvironment()));
 		service.toggle();
 		service.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);
 		service.setAccessory(ChatPetAccessoryIds.CowboyHat);
@@ -283,6 +301,7 @@ suite('Chat Pet Achievements Editor', () => {
 		store.add(new ChatPetAchievementsWidget(
 			parent,
 			() => { },
+			createTarget(),
 			service,
 			new TestThemeService(),
 			new NullLogService(),
@@ -322,7 +341,7 @@ suite('Chat Pet Achievements Editor', () => {
 		mainWindow.document.body.appendChild(parent);
 		store.add(toDisposable(() => parent.remove()));
 		const storage = store.add(new TestStorageService());
-		const service = store.add(new ChatPetService(storage, new NullTelemetryServiceShape(), new NullLogService()));
+		const service = store.add(new ChatPetService(storage, new NullTelemetryServiceShape(), new NullLogService(), createEnvironment()));
 		service.toggle();
 		const theme = new TestThemeService();
 		const instantiationService = store.add(new TestInstantiationService());
@@ -423,5 +442,97 @@ suite('Chat Pet Achievements Editor', () => {
 		assert.strictEqual(parent.querySelector<HTMLInputElement>('input[aria-label="Custom hex color"]')?.value, getChatPetBodyColor(service.color.get()));
 		entitlement.sentimentObs.set({ hidden: true }, undefined);
 		assert.strictEqual(closeCount, 2, 'The open customization editor closes when AI features are hidden');
+	});
+
+	test('changes hats in the windows chosen in Apply to and labels hats worn in only one window', () => {
+		const parent = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const storage = store.add(new TestStorageService());
+		const service = store.add(new ChatPetService(storage, new NullTelemetryServiceShape(), new NullLogService(), createEnvironment()));
+		const agentsWindow = store.add(new ChatPetService(storage, new NullTelemetryServiceShape(), new NullLogService(), createEnvironment(true)));
+		service.toggle();
+		service.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);
+		service.unlockAchievement(ChatPetAchievementIds.AgentChangesReviewed);
+		const target = createTarget();
+		store.add(new ChatPetAchievementsWidget(parent, () => { }, target, service, new TestThemeService(), new NullLogService(), new class extends mock<ICommandService>() { }()));
+		const getCard = (id: string) => parent.querySelector<HTMLElement>(`[data-accessory-id="${id}"]`)!;
+		const getWornCards = () => Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-achievement-card.wearing')).map(card => ({
+			id: card.dataset.accessoryId,
+			state: card.querySelector('.chat-pet-achievement-state')?.textContent,
+			pressed: card.getAttribute('aria-pressed'),
+			label: card.getAttribute('aria-label'),
+		}));
+		const [, editorOption, agentsOption] = Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-appearance-target [role="radio"]'));
+		getCard(ChatPetAccessoryIds.CowboyHat).click();
+		const both = { editorWindow: service.selectedAccessory.get(), agentsWindow: agentsWindow.selectedAccessory.get() };
+		agentsOption.click();
+		getCard('none').click();
+		editorOption.click();
+		getCard(ChatPetAccessoryIds.BambooHat).click();
+		const editorTarget = getWornCards();
+		target.set('both', undefined);
+		assert.deepStrictEqual({
+			both,
+			separate: { editorWindow: service.selectedAccessory.get(), agentsWindow: agentsWindow.selectedAccessory.get() },
+			editorTarget,
+			bothTarget: getWornCards(),
+		}, {
+			both: { editorWindow: ChatPetAccessoryIds.CowboyHat, agentsWindow: ChatPetAccessoryIds.CowboyHat },
+			separate: { editorWindow: ChatPetAccessoryIds.BambooHat, agentsWindow: undefined },
+			editorTarget: [{ id: ChatPetAccessoryIds.BambooHat, state: 'Wearing', pressed: 'true', label: 'Trust but Verify. Reward: Bamboo Hat. Wearing' }],
+			bothTarget: [
+				{ id: 'none', state: 'Wearing in Agents Window', pressed: 'mixed', label: 'No Hat, selected in the Agents window' },
+				{ id: ChatPetAccessoryIds.BambooHat, state: 'Wearing in Editor Window', pressed: 'mixed', label: 'Trust but Verify. Reward: Bamboo Hat. Wearing in Editor Window' },
+			],
+		});
+	});
+
+	test('keeps Apply to across tabs and resets it to both windows when the page opens', async () => {
+		const parent = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const storage = store.add(new TestStorageService());
+		const service = store.add(new ChatPetService(storage, new NullTelemetryServiceShape(), new NullLogService(), createEnvironment()));
+		service.toggle();
+		const theme = new TestThemeService();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IChatPetService, service);
+		instantiationService.stub(IThemeService, theme);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+		let closeCount = 0;
+		const editor = store.add(new ChatPetAchievementsEditor(
+			new class extends mock<IEditorGroup>() {
+				override windowId = mainWindow.vscodeWindowId;
+				override async closeEditor(): Promise<boolean> { closeCount++; return true; }
+			}(),
+			new NullTelemetryServiceShape(),
+			theme,
+			storage,
+			instantiationService,
+			store.add(new ContextKeyService(new TestConfigurationService())),
+			service,
+			new TestChatEntitlementService(),
+		));
+		editor.create(parent);
+		editor.layout(new Dimension(800, 600));
+		const getChecked = () => Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-appearance-target [role="radio"]')).map(option => option.getAttribute('aria-checked'));
+		await editor.setInput(store.add(ChatPetAchievementsEditorInput.getOrCreate()), { tab: 'achievements' }, {}, CancellationToken.None);
+		const opened = getChecked();
+		parent.querySelectorAll<HTMLElement>('.chat-pet-appearance-target [role="radio"]')[2].click();
+		editor.setOptions({ tab: 'color' });
+		const colorTab = getChecked();
+		const agentsOption = parent.querySelectorAll<HTMLElement>('.chat-pet-appearance-target [role="radio"]')[2];
+		agentsOption.focus();
+		agentsOption.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		editor.clearInput();
+		await editor.setInput(ChatPetAchievementsEditorInput.getOrCreate(), { tab: 'color' }, {}, CancellationToken.None);
+		assert.deepStrictEqual({ opened, colorTab, closedOnEscape: closeCount, reopened: getChecked() }, {
+			opened: ['true', 'false', 'false'],
+			colorTab: ['false', 'false', 'true'],
+			closedOnEscape: 1,
+			reopened: ['true', 'false', 'false'],
+		});
 	});
 });

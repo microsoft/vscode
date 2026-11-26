@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { PageOptions, RepositoryRef } from '../client/types.js';
 import { Account, Actor, Connection, CursorOptions, NodeIdentity, Team } from './core.js';
@@ -308,80 +309,80 @@ export interface ReplyToThreadOptions extends ApiRequestOptions {
 export interface IReviewsClient {
 
 	/** GET /repos/{owner}/{repo}/pulls/{number}/reviews: list one page of reviews, including pending reviews visible to the viewer. */
-	list(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Review[]>;
+	list(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Review[]>;
 
 	/** GET /repos/{owner}/{repo}/pulls/{number}/reviews/{id}: read one review. */
-	get(repository: RepositoryRef, pullNumber: number, reviewId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review>;
+	get(repository: RepositoryRef, pullNumber: number, reviewId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review>;
 
 	/** POST /repos/{owner}/{repo}/pulls/{number}/reviews: create a pending or submitted review; success is HTTP 200. */
-	create(repository: RepositoryRef, pullNumber: number, request: CreateReviewRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review>;
+	create(repository: RepositoryRef, pullNumber: number, request: CreateReviewRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review>;
 
 	/** PUT /repos/{owner}/{repo}/pulls/{number}/reviews/{id}: edit the review body. */
-	update(repository: RepositoryRef, pullNumber: number, reviewId: number, body: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review>;
+	update(repository: RepositoryRef, pullNumber: number, reviewId: number, body: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review>;
 
 	/** POST /repos/{owner}/{repo}/pulls/{number}/reviews/{id}/events: submit a pending review. */
-	submit(repository: RepositoryRef, pullNumber: number, reviewId: number, request: SubmitReviewRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review>;
+	submit(repository: RepositoryRef, pullNumber: number, reviewId: number, request: SubmitReviewRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review>;
 
 	/** DELETE /repos/{owner}/{repo}/pulls/{number}/reviews/{id}: delete a pending review and return the deleted review. */
-	deletePending(repository: RepositoryRef, pullNumber: number, reviewId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review>;
+	deletePending(repository: RepositoryRef, pullNumber: number, reviewId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review>;
 
 	/** PUT /repos/{owner}/{repo}/pulls/{number}/reviews/{id}/dismissals: dismiss a review with a reason. */
-	dismiss(repository: RepositoryRef, pullNumber: number, reviewId: number, message: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review>;
+	dismiss(repository: RepositoryRef, pullNumber: number, reviewId: number, message: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review>;
 
 	/** GET /repos/{owner}/{repo}/pulls/{number}/comments: list one page of inline comments across reviews. */
-	listComments(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ReviewComment[]>;
+	listComments(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ReviewComment[]>;
 
 	/** GET /repos/{owner}/{repo}/pulls/{number}/reviews/{id}/comments: list one page of comments belonging to a review. */
-	listCommentsForReview(repository: RepositoryRef, pullNumber: number, reviewId: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ReviewComment[]>;
+	listCommentsForReview(repository: RepositoryRef, pullNumber: number, reviewId: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ReviewComment[]>;
 
 	/** POST /repos/{owner}/{repo}/pulls/{number}/comments: create an inline review comment. */
-	createComment(repository: RepositoryRef, pullNumber: number, request: CreateReviewCommentRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<ReviewComment>;
+	createComment(repository: RepositoryRef, pullNumber: number, request: CreateReviewCommentRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ReviewComment>;
 
 	/** POST /repos/{owner}/{repo}/pulls/{number}/comments/{id}/replies: reply to a root inline comment by its numeric ID. */
-	replyToComment(repository: RepositoryRef, pullNumber: number, commentId: number, body: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<ReviewComment>;
+	replyToComment(repository: RepositoryRef, pullNumber: number, commentId: number, body: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ReviewComment>;
 
 	/** PATCH /repos/{owner}/{repo}/pulls/comments/{id}: edit an inline comment. */
-	updateComment(repository: RepositoryRef, commentId: number, body: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<ReviewComment>;
+	updateComment(repository: RepositoryRef, commentId: number, body: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ReviewComment>;
 
 	/** DELETE /repos/{owner}/{repo}/pulls/comments/{id}: delete an inline comment. */
-	deleteComment(repository: RepositoryRef, commentId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	deleteComment(repository: RepositoryRef, commentId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 
 	/** GET /repos/{owner}/{repo}/pulls/{number}/requested_reviewers: read requested users and teams. */
-	getRequestedReviewers(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<RequestedReviewers>;
+	getRequestedReviewers(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<RequestedReviewers>;
 
 	/** POST /repos/{owner}/{repo}/pulls/{number}/requested_reviewers: add reviewer requests. */
-	requestReviewers(repository: RepositoryRef, pullNumber: number, request: RequestReviewersRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequestSummary>;
+	requestReviewers(repository: RepositoryRef, pullNumber: number, request: RequestReviewersRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<PullRequestSummary>;
 
 	/** DELETE /repos/{owner}/{repo}/pulls/{number}/requested_reviewers: remove reviewer requests. */
-	removeReviewers(repository: RepositoryRef, pullNumber: number, request: RemoveReviewersRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequestSummary>;
+	removeReviewers(repository: RepositoryRef, pullNumber: number, request: RemoveReviewersRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<PullRequestSummary>;
 
 	/** GraphQL PR reviewThreads connection; null means the PR node was not returned, not an empty connection. */
-	listThreads(pullRequestId: string, signal: AbortSignal, options?: ListReviewThreadsOptions): Promise<Connection<ReviewThread> | null>;
+	listThreads(pullRequestId: string, cancellationToken: CancellationToken, options?: ListReviewThreadsOptions): Promise<Connection<ReviewThread> | null>;
 
 	/** GraphQL thread summaries with the newest comment timestamp, defaulting to 100 per page; null means the PR node was not returned. */
-	listThreadSummaries(pullRequestId: string, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<ReviewThreadSummary> | null>;
+	listThreadSummaries(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<ReviewThreadSummary> | null>;
 
 	/** GraphQL thread comments connection; null means the thread node was not returned. */
-	listThreadComments(threadId: string, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<ThreadComment> | null>;
+	listThreadComments(threadId: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<ThreadComment> | null>;
 
 	/** GraphQL addPullRequestReviewThread: create a review thread; comments attached to a pending review remain unpublished. */
-	createThread(request: CreateReviewThreadRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<ReviewThread>;
+	createThread(request: CreateReviewThreadRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ReviewThread>;
 
 	/** GraphQL addPullRequestReviewThreadReply; a reply can attach to a pending review and remain unpublished. */
-	replyToThread(threadId: string, body: string, signal: AbortSignal, options?: ReplyToThreadOptions): Promise<ThreadComment>;
+	replyToThread(threadId: string, body: string, cancellationToken: CancellationToken, options?: ReplyToThreadOptions): Promise<ThreadComment>;
 
 	/** GraphQL resolveReviewThread; independent of comment publication and review submission. */
-	resolveThread(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<ThreadResolution>;
+	resolveThread(threadId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ThreadResolution>;
 
 	/** GraphQL unresolveReviewThread: mark a review thread as unresolved. */
-	unresolveThread(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<ThreadResolution>;
+	unresolveThread(threadId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ThreadResolution>;
 
 	/** GraphQL PR files connection: read one page of viewed-file states; null indicates an unavailable PR or file comparison. */
-	listFileViewedStates(pullRequestId: string, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<FileViewedState> | null>;
+	listFileViewedStates(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<FileViewedState> | null>;
 
 	/** GraphQL markFileAsViewed; marks only the named file for the current viewer. */
-	markFileViewed(pullRequestId: string, path: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<NodeIdentity>;
+	markFileViewed(pullRequestId: string, path: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<NodeIdentity>;
 
 	/** GraphQL unmarkFileAsViewed: clear the viewed mark for the named file and current viewer. */
-	unmarkFileViewed(pullRequestId: string, path: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<NodeIdentity>;
+	unmarkFileViewed(pullRequestId: string, path: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<NodeIdentity>;
 }

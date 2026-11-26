@@ -307,7 +307,7 @@ export class DisassemblyView extends EditorPane {
 				let changed = false;
 				bpEvent.added?.forEach((bp) => {
 					if (bp instanceof InstructionBreakpoint) {
-						const index = this.getIndexFromReferenceAndOffset(bp.instructionReference, bp.offset);
+						const index = this.getIndexFromAddress(bp.address);
 						if (index >= 0) {
 							this._disassembledInstructions!.row(index).isBreakpointSet = true;
 							this._disassembledInstructions!.row(index).isBreakpointEnabled = bp.enabled;
@@ -318,7 +318,7 @@ export class DisassemblyView extends EditorPane {
 
 				bpEvent.removed?.forEach((bp) => {
 					if (bp instanceof InstructionBreakpoint) {
-						const index = this.getIndexFromReferenceAndOffset(bp.instructionReference, bp.offset);
+						const index = this.getIndexFromAddress(bp.address);
 						if (index >= 0) {
 							this._disassembledInstructions!.row(index).isBreakpointSet = false;
 							changed = true;
@@ -328,7 +328,7 @@ export class DisassemblyView extends EditorPane {
 
 				bpEvent.changed?.forEach((bp) => {
 					if (bp instanceof InstructionBreakpoint) {
-						const index = this.getIndexFromReferenceAndOffset(bp.instructionReference, bp.offset);
+						const index = this.getIndexFromAddress(bp.address);
 						if (index >= 0) {
 							if (this._disassembledInstructions!.row(index).isBreakpointEnabled !== bp.enabled) {
 								this._disassembledInstructions!.row(index).isBreakpointEnabled = bp.enabled;
@@ -340,13 +340,6 @@ export class DisassemblyView extends EditorPane {
 
 				// get an updated list so that items beyond the current range would render when reached.
 				this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
-
-				// breakpoints restored from a previous session can be based on memory
-				// references that may no longer exist in the current session. Request
-				// those instructions to be loaded so the BP can be displayed.
-				for (const bp of this._instructionBpList) {
-					this.primeMemoryReference(bp.instructionReference);
-				}
 
 				if (changed) {
 					this._onDidChangeStackFrame.fire();
@@ -442,30 +435,6 @@ export class DisassemblyView extends EditorPane {
 		return 0;
 	}
 
-	/**
-	 * Sets the memory reference address. We don't just loadDisassembledInstructions
-	 * for this, since we can't really deal with discontiguous ranges (we can't
-	 * detect _if_ a range is discontiguous since we don't know how much memory
-	 * comes between instructions.)
-	 */
-	private async primeMemoryReference(instructionReference: string) {
-		if (this._referenceToMemoryAddress.has(instructionReference)) {
-			return true;
-		}
-
-		const s = await this.debugSession?.disassemble(instructionReference, 0, 0, 1);
-		if (s && s.length > 0) {
-			try {
-				this._referenceToMemoryAddress.set(instructionReference, BigInt(s[0].address));
-				return true;
-			} catch {
-				return false;
-			}
-		}
-
-		return false;
-	}
-
 	/** Loads disasembled instructions. Returns the number of instructions that were loaded. */
 	private async loadDisassembledInstructions(instructionReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<number> {
 		const session = this.debugSession;
@@ -542,25 +511,11 @@ export class DisassemblyView extends EditorPane {
 				return 0;
 			}
 
-			const refBaseAddress = this._referenceToMemoryAddress.get(instructionReference);
-			const bps = this._instructionBpList.map(p => {
-				const base = this._referenceToMemoryAddress.get(p.instructionReference);
-				if (!base) {
-					return undefined;
-				}
-				return {
-					enabled: p.enabled,
-					address: base + BigInt(p.offset || 0),
-				};
-			});
-
-			if (refBaseAddress !== undefined) {
-				for (const entry of newEntries) {
-					const bp = bps.find(p => p?.address === entry.address);
-					if (bp) {
-						entry.isBreakpointSet = true;
-						entry.isBreakpointEnabled = bp.enabled;
-					}
+			for (const entry of newEntries) {
+				const bp = this._instructionBpList.find(bp => bp.address === entry.address);
+				if (bp) {
+					entry.isBreakpointSet = true;
+					entry.isBreakpointEnabled = bp.enabled;
 				}
 			}
 
@@ -608,18 +563,9 @@ export class DisassemblyView extends EditorPane {
 		return 0;
 	}
 
-	private getIndexFromReferenceAndOffset(instructionReference: string, offset: number): number {
-		const addr = this._referenceToMemoryAddress.get(instructionReference);
-		if (addr === undefined) {
-			return -1;
-		}
-
-		return this.getIndexFromAddress(addr + BigInt(offset));
-	}
-
 	private getIndexFromAddress(address: bigint): number {
 		const disassembledInstructions = this._disassembledInstructions;
-		if (disassembledInstructions && disassembledInstructions.length > 0) {
+		if (disassembledInstructions && disassembledInstructions.length > 0 && disassembledInstructions.row(0) !== disassemblyNotAvailable) {
 			return binarySearch2(disassembledInstructions.length, index => {
 				const row = disassembledInstructions.row(index);
 				return Number(row.address - address);

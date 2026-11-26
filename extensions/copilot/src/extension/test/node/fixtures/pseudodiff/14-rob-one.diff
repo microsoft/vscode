@@ -1,9 +1,0 @@
-	static async revealChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
-		const chatService = accessor.get(IChatService);
-+		const viewsService = accessor.get(IViewsService);
-		if (chatService.isEnabled(ChatAgentLocation.Panel)) {
--			return getChatWidgetFromView(viewsService)
-+			return getChatWidgetFromView(viewsService);
-		}
-		return undefined;
-	}

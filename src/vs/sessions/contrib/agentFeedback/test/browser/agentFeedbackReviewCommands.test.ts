@@ -11,10 +11,11 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentFeedbackReviewCommandId } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { registerAgentFeedbackReviewCommands } from '../../browser/agentFeedbackReviewCommands.js';
 
 suite('AgentFeedbackReviewCommands', () => {

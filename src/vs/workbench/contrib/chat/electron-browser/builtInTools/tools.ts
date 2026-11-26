@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { dirname, extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -13,11 +13,11 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ChatExternalPathConfirmationContribution } from '../../common/tools/builtinTools/chatExternalPathConfirmation.js';
-import { ChatUrlFetchingConfirmationContribution } from '../../common/tools/builtinTools/chatUrlFetchingConfirmation.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
-import { FetchWebPageTool, FetchWebPageToolData, IFetchWebPageToolParams } from './fetchPageTool.js';
+import { findRepositoryRoot } from '../../common/promptSyntax/utils/repositoryRoot.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { FetchWebPageTool, FetchWebPageToolData } from './fetchPageTool.js';
 
 export class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -31,19 +31,12 @@ export class NativeBuiltinToolsContribution extends Disposable implements IWorkb
 		@IStorageService storageService: IStorageService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ILabelService labelService: ILabelService,
+		@IPathService pathService: IPathService,
 	) {
 		super();
 
 		const editTool = instantiationService.createInstance(FetchWebPageTool);
 		this._register(toolsService.registerTool(FetchWebPageToolData, editTool));
-
-		this._register(confirmationService.registerConfirmationContribution(
-			InternalFetchWebPageToolId,
-			instantiationService.createInstance(
-				ChatUrlFetchingConfirmationContribution,
-				params => (params as IFetchWebPageToolParams).urls
-			)
-		));
 
 		// Register external path confirmation contribution for read_file and list_dir
 		// They share the same allowlist so approving a folder for reading files also allows listing that directory
@@ -60,25 +53,7 @@ export class NativeBuiltinToolsContribution extends Disposable implements IWorkb
 				return undefined;
 			},
 			labelService,
-			async (pathUri: URI) => {
-				// Walk up from the path looking for a .git folder to find the repository root
-				let dir = dirname(pathUri);
-				for (let i = 0; i < 100; i++) {
-					try {
-						if (await fileService.exists(URI.joinPath(dir, '.git'))) {
-							return dir;
-						}
-					} catch {
-						// ignore permission errors etc.
-					}
-					const parent = dirname(dir);
-					if (extUriBiasedIgnorePathCase.isEqual(parent, dir)) {
-						return undefined;
-					}
-					dir = parent;
-				}
-				return undefined;
-			},
+			async (pathUri: URI) => findRepositoryRoot(fileService, dirname(pathUri), await pathService.userHome()),
 			storageService,
 			async () => {
 				const result = await fileDialogService.showOpenDialog({

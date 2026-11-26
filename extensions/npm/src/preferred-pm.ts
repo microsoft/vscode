@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import findWorkspaceRoot = require('../node_modules/find-yarn-workspace-root');
+import findWorkspaceRoot = require('find-yarn-workspace-root');
 import findUp from 'find-up';
 import * as path from 'path';
 import whichPM from 'which-pm';

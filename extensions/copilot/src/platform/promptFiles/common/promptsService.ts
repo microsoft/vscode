@@ -132,6 +132,13 @@ export interface IPromptsService {
 	getPlugins(token: CancellationToken): Promise<readonly ChatPlugin[]>;
 
 	/**
+	 * Resolves customization discovery roots for the supplied workspace folders,
+	 * including trusted parent repositories when enabled by configuration.
+	 * These roots do not grant edit access outside the workspace.
+	 */
+	getWorkspaceFolderRoots(workspaceFolders: readonly URI[]): Promise<URI[]>;
+
+	/**
 	 * Gets the combined list of agent instruction files (`AGENTS.md`,
 	 * `CLAUDE.md`, `copilot-instructions.md`) that apply to the current
 	 * workspace. Honors the related `chat.useAgentsMdFile`,

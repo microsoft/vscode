@@ -5,8 +5,7 @@
 
 import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService, IPRReviewState, PRReviewStateKind } from '../../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ICodeReviewService, IPRReviewState, PRReviewStateKind } from '../../../../contrib/sessions/browser/codeReviewService.js';
 
 export function createMockCodeReviewService(): ICodeReviewService {
 	return new class extends mock<ICodeReviewService>() {

@@ -6,7 +6,8 @@
 import { assert, suite, test } from 'vitest';
 import { Position, Range, type TextDocument, Uri } from 'vscode';
 import { createTextDocumentData } from '../../../../util/common/test/shims/textDocument';
-import { isSubword, toInlineSuggestion } from '../../vscode-node/isInlineSuggestion';
+import { isSubword } from '../../common/inlineSuggestionEdit';
+import { toInlineSuggestion } from '../../vscode-node/isInlineSuggestion';
 
 suite('toInlineSuggestion', () => {
 

@@ -5,10 +5,25 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { formatUnavailableAutomationsMessage } from '../../browser/views/automationCataloguePresentation.js';
+import { formatUnavailableAutomationsMessage, getConnectedAutomationRemoteCount } from '../../browser/views/automationCataloguePresentation.js';
+import { RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 
 suite('Automation catalogue presentation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('counts only configured connected remotes using the shared address normalization', () => {
+		assert.deepStrictEqual([
+			getConnectedAutomationRemoteCount([], []),
+			getConnectedAutomationRemoteCount([
+				{ name: 'First', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://first:1234' } },
+				{ name: 'Second', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'second:1234' } },
+			], [
+				{ name: 'First', address: 'first:1234', status: RemoteAgentHostConnectionStatus.connected },
+				{ name: 'Second', address: 'second:1234', status: RemoteAgentHostConnectionStatus.disconnected },
+				{ name: 'Unconfigured', address: 'other:1234', status: RemoteAgentHostConnectionStatus.connected },
+			]),
+		], [0, 1]);
+	});
 
 	test('puts distinct reasons on separate lines in first-seen order', () => {
 		assert.strictEqual(formatUnavailableAutomationsMessage([

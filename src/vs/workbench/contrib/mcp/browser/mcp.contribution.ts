@@ -41,7 +41,7 @@ import { IWorkbenchMcpGatewayService } from '../common/mcpGatewayService.js';
 import { BrowserMcpGatewayService } from './mcpGatewayService.js';
 import { McpGatewayToolBrokerContribution } from './mcpGatewayToolBrokerContribution.js';
 import { McpAddContextContribution } from './mcpAddContextContribution.js';
-import { AddConfigurationAction, EditStoredInput, InstallFromManifestAction, ListMcpServerCommand, McpAgentHostServerOptionsCommand, McpBrowseCommand, McpBrowsePageCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, McpConfirmationServerOptionsCommand, MCPServerActionRendering, McpServerOptionsCommand, McpSkipCurrentAutostartCommand, McpStartPromptingServerCommand, OpenRemoteUserMcpResourceCommand, OpenUserMcpResourceCommand, OpenWorkspaceFolderMcpResourceCommand, OpenWorkspaceMcpResourceCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, SetOAuthClientSecret, ShowConfiguration, ShowInstalledMcpServersCommand, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
+import { AddConfigurationAction, EditStoredInput, InstallFromManifestAction, ListMcpServerCommand, McpAgentHostServerOptionsCommand, McpAuthenticateAgentHostServerCommand, McpBrowseCommand, McpBrowsePageCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, McpConfirmationServerOptionsCommand, MCPServerActionRendering, McpServerOptionsCommand, McpSkipCurrentAutostartCommand, McpStartPromptingServerCommand, OpenRemoteUserMcpResourceCommand, OpenUserMcpResourceCommand, OpenWorkspaceFolderMcpResourceCommand, OpenWorkspaceMcpResourceCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, SetOAuthClientSecret, ShowConfiguration, ShowInstalledMcpServersCommand, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import { McpElicitationService } from './mcpElicitationService.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
@@ -81,6 +81,7 @@ registerWorkbenchContribution2('mcpGatewayToolBrokerRemote', McpGatewayToolBroke
 registerAction2(ListMcpServerCommand);
 registerAction2(McpServerOptionsCommand);
 registerAction2(McpAgentHostServerOptionsCommand);
+registerAction2(McpAuthenticateAgentHostServerCommand);
 registerAction2(McpConfirmationServerOptionsCommand);
 registerAction2(ResetMcpTrustCommand);
 registerAction2(ResetMcpCachedTools);

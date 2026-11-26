@@ -8,7 +8,7 @@ import { CancelablePromise, createCancelablePromise } from '../../../../base/com
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { canceled } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery } from '../../../../base/common/fuzzyScorer.js';
+import { createItemsByFuzzyScoreComparator, FuzzyScorerCache, IItemAccessor, prepareQuery } from '../../../../base/common/fuzzyScorer.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { basename, dirname, join, sep } from '../../../../base/common/path.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -259,7 +259,7 @@ export class SearchService implements IRawSearchService {
 		// and as such we want the top items to be included in this result set if the number of items
 		// exceeds config.maxResults.
 		const query = prepareQuery(config.filePattern || '');
-		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByFuzzyScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
+		const compare = createItemsByFuzzyScoreComparator(query, true, FileMatchItemAccessor, scorerCache);
 
 		const maxResults = typeof config.maxResults === 'number' ? config.maxResults : DEFAULT_MAX_SEARCH_RESULTS;
 		return arrays.topAsync(results, compare, maxResults, 10000, token);
@@ -306,11 +306,7 @@ export class SearchService implements IRawSearchService {
 		const cacheFilterSW = StopWatch.create(false);
 
 		const listener = cachedRow.event(progressCallback);
-		if (token) {
-			token.onCancellationRequested(() => {
-				listener.dispose();
-			});
-		}
+		const cancellationListener = token?.onCancellationRequested(() => listener.dispose());
 
 		return cachedRow.promise.then<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]>(([complete, cachedEntries]) => {
 			if (token && token.isCancellationRequested) {
@@ -336,15 +332,18 @@ export class SearchService implements IRawSearchService {
 				cacheFilterTime: cacheFilterSW.elapsed(),
 				cacheEntryCount: cachedEntries.length
 			}];
+		}).finally(() => {
+			listener.dispose();
+			cancellationListener?.dispose();
 		});
 	}
 
 
 
 	private doSearch(engine: ISearchEngine<IRawFileMatch>, progressCallback: IFileProgressCallback, batchSize: number, token?: CancellationToken): Promise<ISearchEngineSuccess> {
+		const cancellationListener = token?.onCancellationRequested(() => engine.cancel());
 		return new Promise<ISearchEngineSuccess>((c, e) => {
 			let batch: IRawFileMatch[] = [];
-			token?.onCancellationRequested(() => engine.cancel());
 
 			engine.search((match) => {
 				if (match) {
@@ -373,7 +372,7 @@ export class SearchService implements IRawSearchService {
 					c(complete);
 				}
 			});
-		});
+		}).finally(() => cancellationListener?.dispose());
 	}
 
 	clearCache(cacheKey: string): Promise<void> {

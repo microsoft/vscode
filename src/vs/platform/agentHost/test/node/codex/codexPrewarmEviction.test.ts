@@ -39,6 +39,7 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../../common/sessionDataService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../../node/agentHostFileEditCoordinator.js';
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentConfigurationService, IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../../../node/agentConfigurationService.js';
@@ -125,6 +126,8 @@ function createTestPeer(): ITestPeer {
 		const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
 		if (request.method === 'skills/list' || request.method === 'hooks/list') {
 			stdout.write(JSON.stringify({ id: request.id, result: { data: [] } }) + '\n');
+		} else if (request.method === 'account/read') {
+			stdout.write(JSON.stringify({ id: request.id, result: { account: null, requiresOpenaiAuth: true } }) + '\n');
 		} else {
 			outbound.write(chunk);
 		}
@@ -208,6 +211,7 @@ function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 }
 
 interface ICreateAgentOptions {
+	readonly syncCustomizations?: IAgentPluginManager['syncCustomizations'];
 	readonly telemetryService?: ITelemetryService;
 	readonly sessionConfig?: Readonly<Record<string, boolean | string | readonly string[]>>;
 	readonly database?: TestSessionDatabase;
@@ -289,11 +293,12 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new TestCodexConfigurationService(stateManager, logService, options.sessionConfig));
 	instantiationService.stub(ISessionDataService, createSessionDataService(options.database));
+	instantiationService.stub(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
 	instantiationService.stub(IAgentPluginManager, {
 		_serviceBrand: undefined,
 		basePath: URI.file('/plugins'),
 		hostPluginsPath: URI.file('/plugins/.host'),
-		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
+		syncCustomizations: options.syncCustomizations ?? (async (_clientId, customizations) => customizations.map(customization => ({ customization }))),
 	});
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
@@ -934,6 +939,44 @@ suite('CodexAgent prewarm eviction', () => {
 			: []), [
 			{ resource: session.toString(), type: ActionType.SessionCustomizationUpdated, id: customization.id },
 			{ resource: session.toString(), type: ActionType.SessionCustomizationRemoved, id: customization.id },
+		]);
+	});
+
+	test('publishes the client and source URIs for materialized bundle children', async () => {
+		const pluginDir = URI.file('/plugins/cache/bundle');
+		const sourceRoot = URI.parse('vscode-synced-customization:/bundle');
+		const childPath = 'skills/review/SKILL.md';
+		const skillUri = URI.joinPath(pluginDir, childPath);
+		const agent = await createAgent(disposables, {
+			syncCustomizations: async (_clientId, customizations, progress) => customizations.map(customization => {
+				progress?.(customization);
+				return { customization, pluginDir };
+			}),
+		});
+		agent['_schedulePrewarm'] = () => { };
+		await agent['_fileService'].writeFile(skillUri, VSBuffer.fromString('---\nname: review\n---\nReview code.'));
+		const { session } = await createSession(agent);
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+
+		await agent['_syncClientCustomizations'](session, 'client-1', [{
+			type: CustomizationType.Plugin, id: 'bundle', uri: sourceRoot.toString(), name: 'VS Code Synced Data',
+		}]);
+
+		assert.deepStrictEqual(signals.flatMap(signal => {
+			if (signal.kind !== 'action' || signal.action.type !== ActionType.SessionCustomizationUpdated || signal.action.customization.type !== CustomizationType.Plugin) {
+				return [];
+			}
+			const { uri, clientId, children } = signal.action.customization;
+			return [{
+				uri, clientId, skills: children?.filter(child => child.type === CustomizationType.Skill).map(child => ({
+					uri: child.uri,
+					sourceUri: child._meta?.['vscode.sourceUri'],
+				}))
+			}];
+		}), [
+			{ uri: sourceRoot.toString(), clientId: 'client-1', skills: undefined },
+			{ uri: sourceRoot.toString(), clientId: 'client-1', skills: [{ uri: skillUri.toString(), sourceUri: URI.joinPath(sourceRoot, childPath).toString() }] },
 		]);
 	});
 
@@ -2075,6 +2118,7 @@ suite('CodexAgent prewarm eviction', () => {
 			_serviceBrand: undefined,
 			onDidChange: onDidChange.event,
 			initializeSession: async () => { },
+			adoptMcpServerOwnership: () => { },
 			getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 			resolve,
 			applyClientGlobalEnablement: resolve,
@@ -5182,38 +5226,35 @@ suite('CodexAgent managed working directory ownership', () => {
 		const userFolder = fs.mkdtempSync(join(os.tmpdir(), 'vscode-codex-test-user-'));
 		const marker = join(userFolder, 'marker.txt');
 		fs.writeFileSync(marker, 'keep-me');
-		try {
-			// An overlay written before the explicit `managedWorkingDirectory`
-			// field existed: only the legacy boolean flag was ever recorded,
-			// and `cwd` has since been overwritten — by an adoption in some
-			// prior process — with a real, unmanaged user folder.
-			await agent['_metadataStore'].write(session, {
-				threadId: 'legacy-thread',
-				cwd: URI.file(userFolder),
-				ownsManagedWorkingDirectory: true,
-			});
+		disposables.add(toDisposable(() => fs.rmSync(userFolder, { recursive: true, force: true })));
+		// An overlay written before the explicit `managedWorkingDirectory`
+		// field existed: only the legacy boolean flag was ever recorded,
+		// and `cwd` has since been overwritten — by an adoption in some
+		// prior process — with a real, unmanaged user folder.
+		await agent['_metadataStore'].write(session, {
+			threadId: 'legacy-thread',
+			cwd: URI.file(userFolder),
+			ownsManagedWorkingDirectory: true,
+		});
 
-			await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
-			assert.strictEqual(
-				agent['_sessions'].get(sessionId)?.managedWorkingDirectory,
-				undefined,
-				'a legacy flag with no explicit path must not resurrect a managed directory',
-			);
+		await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
+		assert.strictEqual(
+			agent['_sessions'].get(sessionId)?.managedWorkingDirectory,
+			undefined,
+			'a legacy flag with no explicit path must not resurrect a managed directory',
+		);
 
-			// Idle-release then dispose: drops the runtime from memory and
-			// untracks the chat's configuration scope, driving the reclaim
-			// path for a session that is no longer live — the exact path a
-			// stale flag could otherwise infer `cwd` from. Clearing the
-			// released-directory memo simulates the in-memory map being
-			// empty, as it would be after a process restart.
-			agent['_releasedManagedWorkingDirectories'].clear();
-			await agent.chats.releaseChat(chat, chatContext(session, chat));
-			await agent.chats.disposeChat(chat, chatContext(session, chat));
+		// Idle-release then dispose: drops the runtime from memory and
+		// untracks the chat's configuration scope, driving the reclaim
+		// path for a session that is no longer live — the exact path a
+		// stale flag could otherwise infer `cwd` from. Clearing the
+		// released-directory memo simulates the in-memory map being
+		// empty, as it would be after a process restart.
+		agent['_releasedManagedWorkingDirectories'].clear();
+		await agent.chats.releaseChat(chat, chatContext(session, chat));
+		await agent.chats.disposeChat(chat, chatContext(session, chat));
 
-			assert.strictEqual(fs.existsSync(marker), true, 'the user folder must never be deleted');
-		} finally {
-			fs.rmSync(userFolder, { recursive: true, force: true });
-		}
+		assert.strictEqual(fs.existsSync(marker), true, 'the user folder must never be deleted');
 	});
 
 	test('an explicit managed working directory is still reclaimed once the session is no longer live', async () => {
@@ -5223,29 +5264,26 @@ suite('CodexAgent managed working directory ownership', () => {
 		const sessionId = AgentSession.id(session);
 
 		const managedFolder = fs.mkdtempSync(join(os.tmpdir(), 'vscode-agent-codex-'));
-		try {
-			await agent['_metadataStore'].write(session, {
-				threadId: 'managed-thread',
-				cwd: URI.file(managedFolder),
-				ownsManagedWorkingDirectory: true,
-				managedWorkingDirectory: URI.file(managedFolder),
-			});
+		disposables.add(toDisposable(() => fs.rmSync(managedFolder, { recursive: true, force: true })));
+		await agent['_metadataStore'].write(session, {
+			threadId: 'managed-thread',
+			cwd: URI.file(managedFolder),
+			ownsManagedWorkingDirectory: true,
+			managedWorkingDirectory: URI.file(managedFolder),
+		});
 
-			await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
-			assert.strictEqual(
-				agent['_sessions'].get(sessionId)?.managedWorkingDirectory?.fsPath,
-				URI.file(managedFolder).fsPath,
-				'an explicit managed path is trusted and restored',
-			);
+		await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
+		assert.strictEqual(
+			agent['_sessions'].get(sessionId)?.managedWorkingDirectory?.fsPath,
+			URI.file(managedFolder).fsPath,
+			'an explicit managed path is trusted and restored',
+		);
 
-			agent['_releasedManagedWorkingDirectories'].clear();
-			await agent.chats.releaseChat(chat, chatContext(session, chat));
-			await agent.chats.disposeChat(chat, chatContext(session, chat));
+		agent['_releasedManagedWorkingDirectories'].clear();
+		await agent.chats.releaseChat(chat, chatContext(session, chat));
+		await agent.chats.disposeChat(chat, chatContext(session, chat));
 
-			assert.strictEqual(fs.existsSync(managedFolder), false, 'the explicitly recorded managed folder is still cleaned up');
-		} finally {
-			fs.rmSync(managedFolder, { recursive: true, force: true });
-		}
+		assert.strictEqual(fs.existsSync(managedFolder), false, 'the explicitly recorded managed folder is still cleaned up');
 	});
 
 	test('adopting a host-supplied working directory abandons a stale managed folder left behind by a failed thread start, and never touches the newly adopted folder', async () => {

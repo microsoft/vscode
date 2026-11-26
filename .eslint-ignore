@@ -8,8 +8,6 @@
 **/extensions/copilot/.eslintplugin/**
 **/extensions/copilot/chat-lib/**
 **/extensions/copilot/test/simulation/fixtures/**
-**/extensions/copilot/test/scenarios/**
-**/extensions/copilot/test/aml/out/**
 **/extensions/copilot/src/util/vs/**
 **/extensions/copilot/src/platform/parser/test/node/fixtures/**
 **/extensions/copilot/src/extension/test/node/fixtures/**

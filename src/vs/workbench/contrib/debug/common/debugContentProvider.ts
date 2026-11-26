@@ -53,7 +53,8 @@ export class DebugContentProvider extends Disposable implements IWorkbenchContri
 	}
 
 	override dispose(): void {
-		this.pendingUpdates.forEach(cancellationSource => cancellationSource.dispose());
+		this.pendingUpdates.forEach(cancellationSource => cancellationSource.dispose(true));
+		this.pendingUpdates.clear();
 		super.dispose();
 	}
 
@@ -104,7 +105,17 @@ export class DebugContentProvider extends Disposable implements IWorkbenchContri
 			return this.modelService.createModel(message, languageSelection, resource);
 		};
 
+		const myToken = new CancellationTokenSource();
+		if (model) {
+			this.pendingUpdates.get(model.id)?.dispose(true);
+			this.pendingUpdates.set(model.id, myToken);
+		}
+		const isCurrent = () => !myToken.token.isCancellationRequested && !model?.isDisposed();
+
 		return session.loadSource(resource).then(response => {
+			if (model && !isCurrent()) {
+				return model;
+			}
 
 			if (response && response.body) {
 
@@ -112,21 +123,9 @@ export class DebugContentProvider extends Disposable implements IWorkbenchContri
 
 					const newContent = response.body.content;
 
-					// cancel and dispose an existing update
-					const cancellationSource = this.pendingUpdates.get(model.id);
-					cancellationSource?.cancel();
-
-					// create and keep update token
-					const myToken = new CancellationTokenSource();
-					this.pendingUpdates.set(model.id, myToken);
-
 					// update text model
 					return this.editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: newContent, range: model.getFullModelRange() }]).then(edits => {
-
-						// remove token
-						this.pendingUpdates.delete(model.id);
-
-						if (!myToken.token.isCancellationRequested && edits && edits.length > 0) {
+						if (isCurrent() && edits && edits.length > 0) {
 							// use the evil-edit as these models show in readonly-editor only
 							model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 						}
@@ -142,6 +141,11 @@ export class DebugContentProvider extends Disposable implements IWorkbenchContri
 
 			return createErrModel();
 
-		}, (err: DebugProtocol.ErrorResponse) => createErrModel(err.message));
+		}, (err: DebugProtocol.ErrorResponse) => model && !isCurrent() ? model : createErrModel(err.message)).finally(() => {
+			if (model && this.pendingUpdates.get(model.id) === myToken) {
+				this.pendingUpdates.delete(model.id);
+			}
+			myToken.dispose();
+		});
 	}
 }

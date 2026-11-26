@@ -21,6 +21,39 @@ import { CombineStreamedChanges, DiffService, EditSourceData, IDocumentWithAnnot
 suite('Documents with Annotated Edits', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('releases consumed document snapshots while continuing to track edits', async function () {
+		if (typeof globalThis.gc !== 'function') {
+			this.skip(); // Run the Electron suite with --js-flags=--expose-gc.
+		}
+		const context = setup('original');
+		try {
+			const snapshots: WeakRef<StringText>[] = [];
+			const source = EditSources.cursor({ kind: 'type' });
+			for (let i = 0; i < 40; i++) {
+				context.document.apply(StringEdit.insert(0, 'a'), source);
+				snapshots.push(new WeakRef(context.document.value.get()));
+				context.document.apply(StringEdit.delete(new OffsetRange(0, 1)), source);
+				await timeout(0);
+			}
+
+			context.document.apply(StringEdit.insert(0, 'last'), source);
+			await timeout(0);
+			await globalThis.gc!({ type: 'major', execution: 'async' });
+
+			assert.deepStrictEqual({
+				retainedSnapshots: snapshots.filter(snapshot => snapshot.deref() !== undefined).length,
+				publishedChanges: context.changes.length,
+				value: context.combined.value.get().value,
+			}, {
+				retainedSnapshots: 0,
+				publishedChanges: 81,
+				value: 'lastoriginal',
+			});
+		} finally {
+			context.disposables.dispose();
+		}
+	});
+
 	test('collapses streamed chat edits into one diff', () => runWithFakedTimers({}, async () => {
 		const context = setup('');
 		const source = chatEdit();
@@ -37,6 +70,23 @@ suite('Documents with Annotated Edits', () => {
 			replacements: [{ start: 0, endExclusive: 0, newText: 'ab' }],
 		}]);
 		context.disposables.dispose();
+	}));
+
+	test('keeps chat revisions separate after a one-second quiet gap', () => runWithFakedTimers({}, async () => {
+		const context = setup('original');
+		try {
+			await timeout(0);
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(8), 'A'.repeat(100)), chatEdit());
+			await timeout(1500);
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(100), 'B'.repeat(100)), chatEdit());
+			await timeout(1500);
+			assert.deepStrictEqual(context.changes.map(change => change.replacements), [
+				[{ start: 0, endExclusive: 8, newText: 'A'.repeat(100) }],
+				[{ start: 0, endExclusive: 100, newText: 'B'.repeat(100) }],
+			]);
+		} finally {
+			context.disposables.dispose();
+		}
 	}));
 
 	test('preserves ordering when a user edit interrupts streamed chat edits', () => runWithFakedTimers({}, async () => {

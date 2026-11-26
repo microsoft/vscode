@@ -9,6 +9,7 @@ import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatContextPickService } from '../../chat/browser/attachments/chatContextPickService.js';
@@ -30,9 +31,10 @@ class EditorCanvasActionsContribution extends Disposable implements IWorkbenchCo
 		@IMenuService menuService: IMenuService,
 		@ILogService logService: ILogService,
 		@INotificationService notificationService: INotificationService,
+		@IProgressService progressService: IProgressService,
 	) {
 		super();
-		this._register(registerEditorCanvasActions(canvasService, widgetService, logService, notificationService));
+		this._register(registerEditorCanvasActions(canvasService, widgetService, logService, notificationService, progressService));
 		this._register(registerCanvasContextPicker(contextPickService, menuService, notificationService, ChatNewCanvasMenuId, isChatViewCanvasContextPickerWidget));
 	}
 }

@@ -5,20 +5,22 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent, IBrowserViewNetwork, IBrowserViewNetworkFileSystem } from '../../../../../platform/browserView/common/browserView.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
-import { BrowserViewSharingState, IBrowserViewSessionRequest, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserViewSharingState, IBrowserViewSessionRequest, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewNetworkStatus, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
 import { applyAvailableEditorIds } from '../../../../common/contextkeys.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorService, type PreferredGroup } from '../../../../services/editor/common/editorService.js';
 import { formatBrowserEditorList, getBrowserPageResourceNavigationError } from '../../electron-browser/tools/browserToolHelpers.js';
@@ -37,9 +39,19 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return undefined;
 	}
 
-	async acquireNetwork(): Promise<IDisposable> {
-		return Disposable.None;
+	getNetworkFileSystem(): IBrowserViewNetworkFileSystem {
+		return { scheme: 'vscode-remote', caseSensitive: true };
 	}
+
+	async acquireNetwork(): Promise<IReference<undefined>> {
+		return { object: undefined, dispose: () => { } };
+	}
+
+	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus {
+		return { label: network.authority, connected: false, proxySupported: undefined };
+	}
+
+	readonly onDidChangeNetworkStatus = Event.None;
 
 	registerNetworkResolver(): IDisposable {
 		return Disposable.None;
@@ -408,7 +420,7 @@ suite('BrowserEditorInput', () => {
 		}, {}, {}));
 		const contextKey = new RawContextKey<string>('browserEditorAvailableEditorIds', '').bindTo(instantiationService.get(IContextKeyService));
 
-		applyAvailableEditorIds(contextKey, input, editorResolverService);
+		applyAvailableEditorIds(contextKey, input, editorResolverService, instantiationService.get(IModelService));
 
 		assert.strictEqual(contextKey.get()?.split(',').includes('test.browserEditor'), true);
 	});
@@ -467,6 +479,34 @@ suite('BrowserEditorInput', () => {
 					}
 				}
 			}
+		});
+	});
+
+	test('follows renames of agent host files and uses the network of the resolved model', async () => {
+		const associatedResource = toAgentHostUri(URI.file('/repo/index.html'), 'host');
+		const target = toAgentHostUri(URI.file('/repo/renamed.html'), 'host');
+		const session = { scope: BrowserViewStorageScope.Workspace, network: { authority: 'host' } } as const;
+		const input = createInput({ id: 'agent-host', associatedResource, session, url: 'file:///repo/index.html?view=preview#content' });
+		const before = await input.rename(1, target);
+		input.model = new class extends mock<IBrowserViewModel>() {
+			override readonly network = undefined;
+			override readonly onDidChangeFavicon = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+			override readonly onDidChangeTitle = Event.None;
+			override readonly onDidNavigate = Event.None;
+			override readonly onWillDispose = Event.None;
+			override readonly onDidClose = Event.None;
+			override dispose() { }
+		};
+
+		assert.deepStrictEqual({
+			renamed: (before?.editor as IUntypedEditorInput).options?.viewState,
+			localModelNetwork: input.activeNetwork,
+			localModelNavigation: getBrowserPageResourceNavigationError(input, 'file:///repo/index.html?x=1'),
+		}, {
+			renamed: { url: 'file:///repo/renamed.html?view=preview#content', title: undefined, favicon: undefined, session },
+			localModelNetwork: undefined,
+			localModelNavigation: 'This browser page is associated with a resource and cannot be navigated to a different resource. Only query and fragment changes are allowed. Use a different page or open a new one with the open_browser_page tool.',
 		});
 	});
 });

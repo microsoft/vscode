@@ -17,11 +17,11 @@ import { TokenizationRegistry } from '../../../../../editor/common/languages.js'
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { AgentFeedbackEditorInputContribution, AgentFeedbackInputWidget } from '../../browser/agentFeedbackEditorInputContribution.js';
-import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
-import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { ISession, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 import '../../../../../workbench/browser/media/feedbackInputWidget.css';
 

@@ -161,29 +161,6 @@
 			}
 		},
 		{
-			"name": "Run tool call s-test",
-			"internalConsoleOptions": "openOnSessionStart",
-			"runtimeExecutable": "npm",
-			"args": [
-				"run",
-				"simulate",
-				"--",
-				"--verbose",
-				"-n=1",
-				"-p=1",
-				"--sidebar",
-				"--scenario-test=toolcall.stest",
-				"--external-scenarios=${workspaceFolder}/test/toolcalls",
-				"--output=${workspaceFolder}/test/out/"
-
-			],
-			"request": "launch",
-			"type": "node",
-			"presentation": {
-				"group": "1_launch"
-			}
-		},
-		{
 			"type": "node",
 			"name": "Postinstall",
 			"request": "launch",

@@ -5,7 +5,8 @@
 
 import * as ts from 'typescript';
 import lazy from 'lazy.js';
-import eventStream from 'event-stream';
+import { through } from './streams.ts';
+import duplexer from 'duplexer';
 import File from 'vinyl';
 import sm from 'source-map';
 import path from 'path';
@@ -20,10 +21,10 @@ type FileWithSourcemap = File & { sourceMap: sm.RawSourceMap };
  */
 export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStream {
 	let base: string;
-	const input = eventStream.through();
+	const input = through();
 	const output = input
 		.pipe(sort()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
-		.pipe(eventStream.through(function (f: FileWithSourcemap) {
+		.pipe(through(function (f: FileWithSourcemap) {
 			if (!f.sourceMap) {
 				return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
 			}
@@ -80,7 +81,7 @@ globalThis._VSCODE_NLS_MESSAGES=${serializeNlsData(_nls.allNLSMessages)};`),
 			this.emit('end');
 		}));
 
-	return eventStream.duplex(input, output);
+	return duplexer(input, output);
 }
 
 const _nls = (() => {

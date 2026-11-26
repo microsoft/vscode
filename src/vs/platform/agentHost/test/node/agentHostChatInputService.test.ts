@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { upcastDeepPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgent, IAgentChats } from '../../common/agent.js';
@@ -24,9 +24,7 @@ import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 
 suite('AgentHostChatInputService', () => {
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function summary(resource: string) {
 		return {
@@ -67,6 +65,50 @@ suite('AgentHostChatInputService', () => {
 			interactivity: stateManager.getSessionState(session)?.chats.find(summary => summary.resource === chat)?.interactivity,
 		};
 	}
+
+	test('unrestricted chats skip preparation without emitting input state changes', async () => {
+		let preparations = 0;
+		const { stateManager, subscriptions, service, source, peer } = setup(upcastDeepPartial<IAgent>({
+			chats: {
+				getInputRestriction: () => undefined,
+				prepareChat: async () => {
+					preparations++;
+					return {};
+				},
+			},
+		}));
+		subscriptions.addSubscriber(URI.parse(peer), 'client');
+		const initialInput = inputOf(stateManager, source, peer);
+		const actions: string[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(({ action }) => actions.push(action.type)));
+
+		await service.prepareChat(URI.parse(peer));
+
+		assert.deepStrictEqual({ preparations, actions, input: inputOf(stateManager, source, peer) }, {
+			preparations: 0, actions: [], input: initialInput,
+		});
+	});
+
+	test('a cleared provider restriction still prepares a chat blocked by the host', async () => {
+		let preparations = 0;
+		const { stateManager, subscriptions, service, source, peer } = setup(upcastDeepPartial<IAgent>({
+			chats: {
+				getInputRestriction: () => undefined,
+				prepareChat: async () => {
+					preparations++;
+					return {};
+				},
+			},
+		}));
+		subscriptions.addSubscriber(URI.parse(peer), 'client');
+		service.setBlocked(peer, { errorType: 'InvalidWorkspaceMetadata', message: 'Invalid workspace metadata' });
+
+		await service.prepareChat(URI.parse(peer));
+
+		assert.deepStrictEqual({ preparations, input: inputOf(stateManager, source, peer) }, {
+			preparations: 1, input: { input: undefined, interactivity: ChatInteractivity.Full },
+		});
+	});
 
 	test('a moved chat takes its blocked input state to its new session', () => {
 		const { stateManager, service, source, target, peer } = setup();

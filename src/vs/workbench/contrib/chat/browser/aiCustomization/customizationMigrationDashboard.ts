@@ -24,7 +24,7 @@ import { Link } from '../../../../../platform/opener/browser/link.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { mcpServerIcon, promptIcon, workspaceIcon } from './aiCustomizationIcons.js';
+import { hookIcon, mcpServerIcon, promptIcon, workspaceIcon } from './aiCustomizationIcons.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight } from './customizationTree.js';
@@ -72,6 +72,8 @@ export interface ICustomizationMigrationDashboardCategory {
 	readonly destinationAriaLabel?: string;
 	readonly actionLabel?: string;
 	readonly learnMoreUrl?: string;
+	/** The category can only be migrated with the agent: no selection and no Migrate action. */
+	readonly agentOnly?: boolean;
 	readonly items: readonly ICustomizationMigrationDashboardItem[];
 }
 
@@ -133,6 +135,7 @@ interface IMigrationGroupEntry extends ICustomizationGroupHeaderEntry {
 	readonly manualReview: boolean;
 	readonly actionLabel: string;
 	readonly learnMoreUrl?: string;
+	readonly agentOnly?: boolean;
 	readonly migrationInProgress: boolean;
 	selectedCount: number;
 	migrateDisabled: boolean;
@@ -145,6 +148,8 @@ interface IMigrationItemEntry extends ICustomizationMigrationDashboardItem {
 	readonly groupKey: string;
 	readonly readOnly?: boolean;
 	readonly learnMoreUrl?: string;
+	/** Migrated only with the agent: no checkbox, and Review opens the customization. */
+	readonly agentOnly?: boolean;
 	selected: boolean;
 }
 
@@ -230,17 +235,19 @@ class MigrationItemRenderer implements IListRenderer<IMigrationItemEntry, IMigra
 		templateData.elementDisposables.clear();
 		templateData.label.textContent = element.label;
 		const manualReview = element.manualReviewReason !== undefined;
-		const reviewable = manualReview || element.readOnly === true;
+		const notSelectable = element.readOnly === true || element.agentOnly === true;
+		const reviewable = manualReview || notSelectable;
 		templateData.container.classList.toggle('manual-review', reviewable);
-		templateData.checkboxContainer.style.visibility = element.readOnly ? 'hidden' : '';
-		templateData.checkbox.domNode.tabIndex = manualReview || element.readOnly ? -1 : 0;
-		templateData.checkbox.domNode.setAttribute('aria-hidden', String(manualReview || !!element.readOnly));
+		templateData.checkboxContainer.style.visibility = notSelectable ? 'hidden' : '';
+		templateData.checkbox.domNode.tabIndex = manualReview || notSelectable ? -1 : 0;
+		templateData.checkbox.domNode.setAttribute('aria-hidden', String(manualReview || notSelectable));
 		templateData.checkbox.checked = element.selected;
 		templateData.checkbox.domNode.setAttribute('aria-label', localize('selectMigrationItem', "Select {0} for migration", element.label));
-		templateData.reviewButton.element.style.display = reviewable ? '' : 'none';
+		// Agent-only items (hooks) open by selecting the row; a Review button would suggest a per-item migration.
+		templateData.reviewButton.element.style.display = reviewable && !element.agentOnly ? '' : 'none';
 		templateData.reviewButton.element.setAttribute('aria-label', localize('reviewMigrationItemAriaLabel', "Review {0}", element.label));
 		templateData.moreButton.element.setAttribute('aria-label', localize('migrationItemActions', "More actions for {0}", element.label));
-		templateData.moreButton.element.style.display = element.readOnly ? 'none' : '';
+		templateData.moreButton.element.style.display = notSelectable ? 'none' : '';
 		templateData.source.textContent = element.sourceLabel;
 		templateData.changes.textContent = element.changesLabel ?? '';
 		templateData.changes.style.display = element.changesLabel ? '' : 'none';
@@ -715,6 +722,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 			[CustomizationMigrationCategoryId.PluginMarketplaces, 2],
 			[CustomizationMigrationCategoryId.UserData, 3],
 			[CustomizationMigrationCategoryId.ConfiguredLocations, 4],
+			[CustomizationMigrationCategoryId.Hooks, 5],
 		]);
 		const migrationGroups = overview.scopes.flatMap(scope => scope.categories
 			.filter(category => category.items.length > 0)
@@ -838,7 +846,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 				groupKey: groupId,
 				readOnly: !!category.learnMoreUrl,
 				learnMoreUrl: category.learnMoreUrl,
-				selected: !category.learnMoreUrl && item.selected !== false,
+				agentOnly: category.agentOnly,
+				selected: !category.learnMoreUrl && !category.agentOnly && item.selected !== false,
 			}));
 			const element: IMigrationGroupEntry = {
 				type: 'group-header',
@@ -856,6 +865,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				storage: scope.storage,
 				hasConfigurableDestination: scope.hasConfigurableDestinations
 					&& !category.learnMoreUrl
+					&& !category.agentOnly
 					&& category.id !== CustomizationMigrationCategoryId.McpServers
 					&& category.id !== CustomizationMigrationCategoryId.PluginMarketplaces,
 				destinationLabel: category.destinationLabel,
@@ -863,6 +873,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				manualReview: false,
 				actionLabel: category.actionLabel ?? localize('migrate', "Migrate..."),
 				learnMoreUrl: category.learnMoreUrl,
+				agentOnly: category.agentOnly,
 				migrationInProgress: category.migrationInProgress === true,
 				selectedCount: category.selectedCount ?? items.length,
 				migrateDisabled: category.migrateDisabled === true,
@@ -937,6 +948,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 				return Codicon.comment;
 			case CustomizationMigrationCategoryId.ToolSets:
 				return Codicon.tools;
+			case CustomizationMigrationCategoryId.Hooks:
+				return hookIcon;
 			default:
 				return workspaceIcon;
 		}
@@ -952,6 +965,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.button(actions, `ignore:${storage}:${categoryId}`, localize('ignoreMigrationGroup', "Ignore"),
 			localize('ignoreMigrationCategory', "Ignore {0}", entry.label),
 			() => this.callbacks.ignoreCategory(categoryId, storage), 'secondary', undefined, disposables);
+		if (entry.agentOnly) {
+			return;
+		}
 		if (entry.learnMoreUrl) {
 			const url = entry.learnMoreUrl;
 			const link = this.button(actions, `learnMore:${storage}:${categoryId}`, localize('migrationLearnMore', "Learn More"),
@@ -1006,7 +1022,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	private openMigrationItem(entry: IMigrationItemEntry): void {
-		if (entry.readOnly) {
+		if (entry.readOnly && !entry.agentOnly) {
 			this.showGuidanceDetail(entry);
 		} else {
 			this.callbacks.openCustomization(entry, entry.storage);
@@ -1014,7 +1030,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	private setMigrationItemSelected(entry: IMigrationItemEntry, selected: boolean): void {
-		if (entry.readOnly || entry.manualReviewReason || entry.selected === selected) {
+		if (entry.readOnly || entry.agentOnly || entry.manualReviewReason || entry.selected === selected) {
 			return;
 		}
 		entry.selected = selected;

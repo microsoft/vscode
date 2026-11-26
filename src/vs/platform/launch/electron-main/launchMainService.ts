@@ -10,13 +10,14 @@ import { URI } from '../../../base/common/uri.js';
 import { whenDeleted } from '../../../base/node/pfs.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IURLService } from '../../url/common/url.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IWindowSettings } from '../../window/common/window.js';
-import { IOpenConfiguration, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { IOpenConfiguration, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IProtocolUrl } from '../../url/electron-main/url.js';
 
 export const ID = 'launchMainService';
@@ -45,6 +46,7 @@ export class LaunchMainService implements ILaunchMainService {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IURLService private readonly urlService: IURLService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 	) { }
 
 	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
@@ -59,7 +61,8 @@ export class LaunchMainService implements ILaunchMainService {
 		// is not in the foreground and since we got instructed
 		// to open a new window from another instance, we ensure
 		// that the app has focus.
-		if (isMacintosh) {
+		// A hidden instance running extension tests must never activate the app.
+		if (isMacintosh && !isHiddenWindowMode(this.environmentMainService)) {
 			app.focus({ steal: true });
 		}
 

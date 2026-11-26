@@ -17,16 +17,22 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentExtensionInventory } from '../../../../../../platform/agentHost/common/agent.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService } from '../../../../canvases/common/canvas.js';
+import { getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService } from '../../../../canvases/common/canvas.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { CopilotCanvasesWidget } from '../../../browser/aiCustomization/copilotCustomizationsWidget.js';
 import { ICopilotExtensionsService } from '../../../browser/aiCustomization/copilotExtensionsService.js';
+import { ICanvas, ICanvasReference } from '../../../../../common/canvasReference.js';
 
 suite('CopilotCanvasesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -44,7 +50,7 @@ suite('CopilotCanvasesWidget', () => {
 		};
 	}
 
-	function inventory(definitions: readonly ICanvasDefinition[], status: 'running' | 'disabled' | 'failed' | 'starting' = 'running'): IAgentExtensionInventory {
+	function inventory(definitions: readonly ICanvasDefinition[], status: 'running' | 'dormant' | 'disabled' | 'failed' | 'starting' = 'running'): IAgentExtensionInventory {
 		const extensions = new Map<string, IAgentExtensionInventory['extensions'][number]>();
 		for (const canvas of definitions) {
 			if (canvas.extensionSource === 'session') {
@@ -73,7 +79,11 @@ suite('CopilotCanvasesWidget', () => {
 		readonly contextAvailable?: boolean;
 		readonly ownerSuffix?: string;
 		readonly mutationGate?: Promise<void>;
+		readonly mutationError?: Error;
+		readonly onMutation?: () => void;
 		readonly plugins?: readonly IAgentPlugin[];
+		readonly discoveryAvailable?: boolean;
+		readonly customizationSessionResource?: URI;
 	}) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test.ai-customization-management-editor'));
 		container.style.width = '900px';
@@ -81,6 +91,7 @@ suite('CopilotCanvasesWidget', () => {
 		store.add({ dispose: () => container.remove() });
 		const ownerSuffix = options?.ownerSuffix ?? 'owner';
 		const frontendSessionResource = URI.parse(`agent-host-copilotcli:/frontend-${ownerSuffix}`);
+		const customizationSessionResource = options?.customizationSessionResource ?? frontendSessionResource;
 		let definitions = options?.definitions ?? [definition()];
 		let extensionInventory = options?.extensionInventory ?? inventory(definitions);
 		const definitionsChanged = store.add(new Emitter<void>());
@@ -140,6 +151,10 @@ suite('CopilotCanvasesWidget', () => {
 				if (!value) {
 					definitions = definitions.filter(canvas => canvas.extensionId !== extensionId);
 				}
+				options?.onMutation?.();
+				if (options?.mutationError) {
+					throw options.mutationError;
+				}
 				definitionsChanged.fire();
 			}
 		}();
@@ -149,10 +164,29 @@ suite('CopilotCanvasesWidget', () => {
 		const plugins = observableValue<readonly IAgentPlugin[]>('plugins', options?.plugins ?? []);
 		const menuActions: IAction[] = [];
 		let hideMenu = () => { };
+		const canvasMarketplaceSetting = 'test.canvasMarketplace.enabled';
+		const discoveryAvailable = options?.discoveryAvailable ?? true;
+		const configurationService = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: discoveryAvailable,
+			[canvasMarketplaceSetting]: discoveryAvailable,
+		});
+		store.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 		const instantiationService = workbenchInstantiationService({}, store);
 		instantiationService.stub(ICanvasContextService, canvasContextService);
 		instantiationService.stub(ICanvasService, canvasService);
 		instantiationService.stub(ICopilotExtensionsService, extensionsService);
+		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeSessionResource = constObservable(customizationSessionResource);
+		}());
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [{
+				id: 'canvasMarketplace',
+				displayName: 'Canvas Marketplace',
+				enablementSetting: canvasMarketplaceSetting,
+			}];
+			override readonly onDidChangeSources = Event.None;
+		}());
 		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
 			override async open(resource: URI | string): Promise<boolean> {
 				openedLinks.push(resource.toString());
@@ -167,6 +201,7 @@ suite('CopilotCanvasesWidget', () => {
 		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override info(message: string): void { notifications.push(message); }
+			override error(message: string): void { notifications.push(message); }
 		}());
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> {
@@ -204,6 +239,7 @@ suite('CopilotCanvasesWidget', () => {
 			definitionsChanged,
 			enabled,
 			frontendSessionResource,
+			configurationService,
 			listRequests,
 			setRequests,
 			get listCalls() { return listCalls; },
@@ -216,12 +252,13 @@ suite('CopilotCanvasesWidget', () => {
 		};
 	}
 
-	test('renders extension parents with Canvas children and parent-only switches', async () => {
+	test('nests extension and plugin Canvases under parents with parent-only switches', async () => {
 		const harness = createHarness({
 			definitions: [
 				definition(),
 				definition({ canvasId: 'workspace', extensionId: 'project:workspace', extensionSource: 'project', extensionName: 'Workspace Tools', displayName: 'Workspace Board' }),
 				definition({ canvasId: 'plugin', extensionId: 'plugin:diagram:canvas', extensionSource: 'plugin', extensionName: 'Diagram Plugin', displayName: 'Diagram Board' }),
+				definition({ canvasId: 'plugin-secondary', extensionId: 'plugin:diagram:canvas', extensionSource: 'plugin', extensionName: 'Diagram Plugin', displayName: 'Diagram Sketch' }),
 			],
 		});
 
@@ -229,8 +266,10 @@ suite('CopilotCanvasesWidget', () => {
 		const extensionRows = [...harness.container.querySelectorAll<HTMLElement>('.copilot-canvas-extension-tree-item')];
 		const userSwitchVisible = harness.container.querySelector('[aria-label="Disable canvas extension \'Preview Extension\'"]')?.checkVisibility();
 		const canvasRows = [...harness.container.querySelectorAll<HTMLElement>('.copilot-canvas-tree-item')];
-		const visibleTreeLevels = [...harness.container.querySelectorAll<HTMLElement>('.copilot-customizations-tree .monaco-list-row')]
-			.map(row => row.getAttribute('aria-level'));
+		const tree = [...harness.container.querySelectorAll<HTMLElement>('.copilot-customizations-tree .monaco-list-row')]
+			.map(row => `${row.getAttribute('aria-level')}:${(row.querySelector('.group-label') ?? row.querySelector('.copilot-customization-tree-label'))?.textContent}`);
+		const canvasDetails = canvasRows.map(row => row.querySelector('.copilot-customization-tree-detail')?.textContent);
+		const userDetail = harness.container.querySelector('.monaco-list-row[aria-label^="Preview Extension."] .copilot-customization-tree-detail')?.textContent;
 		const accessible = harness.widget.getAccessibilityContent();
 		const search = harness.container.querySelector<HTMLInputElement>('input[aria-label="Search Canvases"]');
 		assert.ok(search);
@@ -247,42 +286,59 @@ suite('CopilotCanvasesWidget', () => {
 		search.dispatchEvent(new InputEvent('input', { bubbles: true }));
 		await timeout(0);
 		const pluginSwitchVisible = harness.container.querySelector('[aria-label="Disable canvas extension \'Diagram Plugin\'"]')?.checkVisibility();
+		const pluginDetail = harness.container.querySelector('.copilot-canvas-extension-tree-item .copilot-customization-tree-detail')?.textContent;
 
 		assert.deepStrictEqual({
-			allSourceGroupsAccessible: ['User', 'Workspace', 'Plugins'].every(group => accessible.includes(`${group}. 1 canvas extensions.`)),
+			tree,
+			canvasDetails,
+			sourceGroupsAccessible: [accessible.includes('Workspace. 1 canvas extensions.'), accessible.includes('User. 2 canvas extensions.'), accessible.includes('Plugins.')],
 			allExtensionsAccessible: ['Preview Extension', 'Workspace Tools', 'Diagram Plugin'].every(extension => accessible.includes(extension)),
-			allCanvasesAccessible: ['Preview', 'Workspace Board', 'Diagram Board'].every(canvas => accessible.includes(canvas)),
+			allCanvasesAccessible: ['Preview', 'Workspace Board', 'Diagram Board', 'Diagram Sketch'].every(canvas => accessible.includes(canvas)),
 			userSwitchVisible,
 			workspaceSwitchVisible,
 			workspaceSwitchTabIndex,
 			pluginSwitchVisible,
+			userDetail,
 			workspaceDetail,
+			pluginDetail,
 			workspaceEnablementExplanation: accessible.includes('Workspace canvas extension enablement is not available.'),
-			extensionSourceIcons: extensionRows.filter(row => row.querySelector('.copilot-customization-tree-icon') !== null).length,
+			extensionRows: extensionRows.length,
 			canvasSwitches: canvasRows.filter(row => row.querySelector('[role="switch"]') !== null).length,
 			sharedMoreButtonStyles: [...harness.container.querySelectorAll<HTMLElement>('[data-customization-action="more"]')]
 				.every(button => button.classList.contains('plugin-card-icon-button')),
-			visibleTreeLevelsValid: visibleTreeLevels.length > 0 && visibleTreeLevels.every(level => level === '1' || level === '2' || level === '3'),
 			refreshButton: harness.container.querySelector('[aria-label="Refresh Registered Canvases"]') !== null,
 			listTarget: harness.listRequests.map(request => request.session.toString()),
 			itemCounts: harness.itemCounts,
 		}, {
-			allSourceGroupsAccessible: true,
+			tree: [
+				'1:Workspace',
+				'2:Workspace Tools',
+				'3:Workspace Board',
+				'1:User',
+				'2:Preview Extension',
+				'3:Preview',
+				'2:Diagram Plugin',
+				'3:Diagram Board',
+				'3:Diagram Sketch',
+			],
+			canvasDetails: ['', '', '', ''],
+			sourceGroupsAccessible: [true, true, false],
 			allExtensionsAccessible: true,
 			allCanvasesAccessible: true,
 			userSwitchVisible: true,
 			workspaceSwitchVisible: false,
 			workspaceSwitchTabIndex: -1,
 			pluginSwitchVisible: true,
-			workspaceDetail: 'Workspace Canvas Extension',
+			userDetail: 'Extension: Preview Extension',
+			workspaceDetail: 'Extension: Workspace Tools',
+			pluginDetail: 'Plugin: Diagram Plugin',
 			workspaceEnablementExplanation: true,
-			extensionSourceIcons: 0,
+			extensionRows: 3,
 			canvasSwitches: 0,
 			sharedMoreButtonStyles: true,
-			visibleTreeLevelsValid: true,
 			refreshButton: false,
 			listTarget: [harness.frontendSessionResource.toString()],
-			itemCounts: [3],
+			itemCounts: [4],
 		});
 	});
 
@@ -290,6 +346,7 @@ suite('CopilotCanvasesWidget', () => {
 		const harness = createHarness({
 			definitions: [
 				definition(),
+				definition({ extensionId: 'project:diagram', extensionSource: 'project', extensionName: 'Diagram Tools' }),
 				definition({ extensionId: 'plugin:diagram', extensionSource: 'plugin', extensionName: 'Diagram Plugin' }),
 			],
 		});
@@ -307,24 +364,48 @@ suite('CopilotCanvasesWidget', () => {
 		};
 
 		const userCollapsed = click('User,', '.group-label');
-		const pluginsCollapsed = click('Plugins,', '.monaco-tl-twistie');
-		const pluginsExpanded = click('Plugins,', '.monaco-tl-twistie');
+		const workspaceCollapsed = click('Workspace,', '.monaco-tl-twistie');
+		const workspaceExpanded = click('Workspace,', '.monaco-tl-twistie');
 		const userStillSelected = row('User,').getAttribute('aria-selected');
-		const pluginsFocused = row('Plugins,').classList.contains('focused');
-		const pluginsSelected = row('Plugins,').getAttribute('aria-selected');
-		const extensionCollapsed = click('Diagram Plugin.', '.copilot-customization-tree-label');
-		const extensionExpanded = click('Diagram Plugin.', '.monaco-tl-twistie');
-
+		const workspaceFocused = row('Workspace,').classList.contains('focused');
+		const workspaceSelected = row('Workspace,').getAttribute('aria-selected');
+		const extensionCollapsed = click('Diagram Tools.', '.copilot-customization-tree-label');
+		const extensionExpanded = click('Diagram Tools.', '.monaco-tl-twistie');
 		assert.deepStrictEqual({
-			userCollapsed, pluginsCollapsed, pluginsExpanded, userStillSelected, pluginsFocused, pluginsSelected,
+			userCollapsed, workspaceCollapsed, workspaceExpanded, userStillSelected, workspaceFocused, workspaceSelected,
 			extensionCollapsed, extensionExpanded,
 			selectedRows: harness.container.querySelectorAll('.monaco-list-row.selected').length,
 		}, {
-			userCollapsed: 'false', pluginsCollapsed: 'false', pluginsExpanded: 'true',
-			userStillSelected: 'false', pluginsFocused: true, pluginsSelected: 'true',
+			userCollapsed: 'false', workspaceCollapsed: 'false', workspaceExpanded: 'true',
+			userStillSelected: 'false', workspaceFocused: true, workspaceSelected: 'true',
 			extensionCollapsed: 'false', extensionExpanded: 'true',
 			selectedRows: 1,
 		});
+	});
+
+	test('restores a collapsed extension after a search is cleared', async () => {
+		const harness = createHarness({
+			definitions: [
+				definition(),
+				definition({ canvasId: 'preview-secondary', displayName: 'Preview Secondary' }),
+			],
+		});
+		await timeout(0);
+		const search = harness.container.querySelector<HTMLInputElement>('input[aria-label="Search Canvases"]');
+		assert.ok(search);
+		const expanded = () => harness.container.querySelector('.monaco-list-row[aria-label^="Preview Extension."]')?.getAttribute('aria-expanded');
+		const setQuery = async (value: string) => {
+			search.value = value;
+			search.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			await timeout(0);
+		};
+		harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Preview Extension."] .monaco-tl-twistie')?.click();
+		const collapsed = expanded();
+		await setQuery('Preview Secondary');
+		const searching = expanded();
+		await setQuery('');
+
+		assert.deepStrictEqual({ collapsed, searching, cleared: expanded() }, { collapsed: 'false', searching: 'true', cleared: 'false' });
 	});
 
 	test('opens Canvas documentation from the subtitle', () => {
@@ -346,6 +427,65 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
+	test('opens Canvas discovery from the header when available', async () => {
+		const customizationSessionResource = URI.parse('agent-host-copilotcli:/customization-session');
+		const available = createHarness({ contextAvailable: false, customizationSessionResource });
+		const unavailable = createHarness({ contextAvailable: false, discoveryAvailable: false });
+		const create = available.container.querySelector<HTMLElement>('[aria-label="Create a Canvas"]');
+		const browse = available.container.querySelector<HTMLElement>('[aria-label="Browse Canvas Extensions"]');
+		const hiddenBrowse = unavailable.container.querySelector<HTMLElement>('[aria-label="Browse Canvas Extensions"]');
+		assert.ok(create);
+		assert.ok(browse);
+		assert.ok(hiddenBrowse);
+		create.click();
+		browse.click();
+		await timeout(0);
+		const visibleDisplay = browse.style.display;
+		await available.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		available.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section === CustomizationMarketplaceConfiguration.MarketplaceEnabled;
+			}
+		}());
+		const hiddenAfterConfigurationChange = browse.style.display;
+		await available.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		available.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section === CustomizationMarketplaceConfiguration.MarketplaceEnabled;
+			}
+		}());
+
+		assert.deepStrictEqual({
+			createLabel: create.textContent,
+			createAriaLabel: create.getAttribute('aria-label'),
+			label: browse.textContent,
+			ariaLabel: browse.getAttribute('aria-label'),
+			commands: available.commands,
+			visibleDisplay,
+			hiddenAfterConfigurationChange,
+			restoredDisplay: browse.style.display,
+			hiddenDisplay: hiddenBrowse.style.display,
+			hiddenAccessibilityMentionsBrowse: unavailable.widget.getAccessibilityContent().includes('Use Browse'),
+		}, {
+			createLabel: 'Create a Canvas...',
+			createAriaLabel: 'Create a Canvas',
+			label: 'Browse',
+			ariaLabel: 'Browse Canvas Extensions',
+			commands: [
+				{ id: AICustomizationManagementCommands.CreateCanvas, args: [] },
+				{
+					id: AICustomizationManagementCommands.OpenEditor,
+					args: [{ showDiscover: true, searchQuery: '@type:canvas', sessionResource: customizationSessionResource }],
+				},
+			],
+			visibleDisplay: '',
+			hiddenAfterConfigurationChange: 'none',
+			restoredDisplay: '',
+			hiddenDisplay: 'none',
+			hiddenAccessibilityMentionsBrowse: false,
+		});
+	});
+
 	test('distinguishes a missing compatible chat from a chat with no Canvases', async () => {
 		const withoutContext = createHarness({ contextAvailable: false });
 		const withoutCanvases = createHarness({ definitions: [] });
@@ -359,13 +499,13 @@ suite('CopilotCanvasesWidget', () => {
 		}, {
 			withoutContext: [
 				'Canvases',
-				'Canvas availability follows the chats currently visible in this window.',
+				'Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session, or Browse to find and install Canvas extensions.',
 				'Canvases are only available inside a session',
 				'Select an active Copilot session and then open this Customizations menu again',
 			].join('\n\n'),
 			withoutCanvases: [
 				'Canvases',
-				'Canvas availability follows the chats currently visible in this window.',
+				'Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session, or Browse to find and install Canvas extensions.',
 				'No Canvases Available',
 				'None of the current Copilot chats provide any Canvases.',
 			].join('\n\n'),
@@ -404,7 +544,7 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
-	test('shows No Canvases Reported only while an empty inventory extension is enabled', async () => {
+	test('keeps extension and plugin parents that report no Canvases visible and enableable', async () => {
 		const extensionInventory: IAgentExtensionInventory = {
 			mode: 'load_and_augment',
 			extensions: [{
@@ -413,46 +553,61 @@ suite('CopilotCanvasesWidget', () => {
 				source: 'plugin',
 				status: 'running',
 				pluginName: 'microsoft-foundry',
+			}, {
+				id: 'user:never-run',
+				name: 'never-run',
+				source: 'user',
+				status: 'disabled',
 			}],
 		};
 		const harness = createHarness({ definitions: [], extensionInventory });
 		await timeout(0);
+		harness.widget.fireItemCount();
+		const detail = (name: string) => harness.container.querySelector(`.monaco-list-row[aria-label^="${name}."] .copilot-customization-tree-detail`)?.textContent;
+		const enabledPluginDetail = detail('microsoft-foundry');
+		const enable = harness.container.querySelector<HTMLElement>('[aria-label="Enable canvas extension \'never-run\'"]');
+		assert.ok(enable);
+		const neverRunEnableable = enable.checkVisibility() && enable.getAttribute('aria-disabled') !== 'true';
+		enable.click();
+		await timeout(20);
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'microsoft-foundry\'"]');
+		assert.ok(disable);
+		disable.click();
+		await timeout(20);
 		const search = harness.container.querySelector<HTMLInputElement>('input[aria-label="Search Canvases"]');
 		assert.ok(search);
 		search.value = 'microsoft-foundry';
 		search.dispatchEvent(new InputEvent('input', { bubbles: true }));
 		await timeout(0);
-		harness.widget.fireItemCount();
-		const enabledDetail = harness.container.querySelector('.copilot-canvas-extension-tree-item .copilot-customization-tree-detail')?.textContent;
-		const enabledDetailParts = {
-			plugin: harness.container.querySelector('.copilot-customization-tree-source-link')?.textContent,
-			separator: harness.container.querySelector('.copilot-customization-tree-detail-separator')?.textContent,
-			status: harness.container.querySelector('.copilot-customization-tree-detail-text')?.textContent,
-		};
-		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'microsoft-foundry\'"]');
-		assert.ok(disable);
-		disable.click();
+		const searchedRows = [...harness.container.querySelectorAll('.copilot-canvas-extension-tree-item .copilot-customization-tree-label')].map(label => label.textContent);
+		search.value = '';
+		search.dispatchEvent(new InputEvent('input', { bubbles: true }));
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			accessible: harness.widget.getAccessibilityContent().includes('microsoft-foundry'),
-			label: harness.container.querySelector('.copilot-canvas-extension-tree-item .copilot-customization-tree-label')?.textContent,
-			enabledDetail,
-			enabledDetailParts,
-			disabledDetail: harness.container.querySelector('.copilot-canvas-extension-tree-item .copilot-customization-tree-detail')?.textContent,
+			accessible: ['microsoft-foundry', 'never-run'].every(name => harness.widget.getAccessibilityContent().includes(name)),
+			extensionRows: [...harness.container.querySelectorAll('.copilot-canvas-extension-tree-item .copilot-customization-tree-label')].map(label => label.textContent),
 			canvasRows: harness.container.querySelectorAll('.copilot-canvas-tree-item').length,
+			emptyVisible: harness.container.querySelector<HTMLElement>('.list-empty-state')?.style.display,
+			enabledPluginDetail,
+			disabledPluginDetail: detail('microsoft-foundry'),
+			neverRunEnableable,
+			searchedRows,
+			requests: harness.setRequests.map(request => ({ extensionId: request.extensionId, enabled: request.enabled })),
 			itemCounts: harness.itemCounts,
 		}, {
 			accessible: true,
-			label: 'microsoft-foundry',
-			enabledDetail: 'Plugin: microsoft-foundry·No Canvases Reported',
-			enabledDetailParts: {
-				plugin: 'Plugin: microsoft-foundry',
-				separator: '·',
-				status: 'No Canvases Reported',
-			},
-			disabledDetail: 'Plugin: microsoft-foundry',
+			extensionRows: ['never-run', 'microsoft-foundry'],
 			canvasRows: 0,
+			emptyVisible: 'none',
+			enabledPluginDetail: 'Plugin: microsoft-foundry·No Canvases Reported',
+			disabledPluginDetail: 'Plugin: microsoft-foundry',
+			neverRunEnableable: true,
+			searchedRows: ['microsoft-foundry'],
+			requests: [
+				{ extensionId: 'user:never-run', enabled: true },
+				{ extensionId: 'plugin:microsoft-foundry:microsoft-foundry', enabled: false },
+			],
 			itemCounts: [0],
 		});
 	});
@@ -518,6 +673,77 @@ suite('CopilotCanvasesWidget', () => {
 		harness.hideMenu();
 	});
 
+	test('keeps Open Canvas discoverable when direct opening requires input', async () => {
+		const harness = createHarness({
+			definitions: [definition({
+				canvasId: 'form',
+				displayName: 'Form',
+				description: 'Collects structured input.',
+				requiresInput: true,
+			})],
+		});
+		await timeout(0);
+		const row = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Form."]');
+		assert.ok(row);
+		const more = row.querySelector<HTMLElement>('[data-customization-action="more"]');
+		assert.ok(more);
+		more.click();
+		const open = harness.menuActions.find(action => action.id === 'canvas.show');
+		assert.ok(open);
+		await open.run();
+		harness.hideMenu();
+
+		assert.deepStrictEqual({
+			moreVisible: more.checkVisibility(),
+			moreAriaLabel: more.getAttribute('aria-label'),
+			rowExplainsInput: row.getAttribute('aria-label')?.includes('Opening this canvas requires specific inputs. You can ask an agent to open it.'),
+			accessibleContentExplainsInput: harness.widget.getAccessibilityContent().includes('Opening this canvas requires specific inputs. You can ask an agent to open it.'),
+			action: {
+				label: open.label,
+				enabled: open.enabled,
+			},
+			openCalls: harness.openCalls,
+			closeCalls: harness.closeCalls,
+		}, {
+			moreVisible: true,
+			moreAriaLabel: 'More Actions for Canvas Form. Opening this canvas requires specific inputs. You can ask an agent to open it.',
+			rowExplainsInput: true,
+			accessibleContentExplainsInput: true,
+			action: {
+				label: 'Open Canvas (Requires Specific Inputs)',
+				enabled: false,
+			},
+			openCalls: 0,
+			closeCalls: 0,
+		});
+	});
+
+	test('search treats dashes and spaces as equivalent separators', async () => {
+		const harness = createHarness({
+			definitions: [
+				definition({ canvasId: 'workspace', extensionId: 'project:workspace', extensionSource: 'project', extensionName: 'Workspace Tools', displayName: 'Workspace Board' }),
+				definition({ canvasId: 'plugin', extensionId: 'plugin:diagram:canvas', extensionSource: 'plugin', extensionName: 'diagram-plugin', displayName: 'Diagram Board' }),
+			],
+		});
+		await timeout(0);
+		const search = harness.container.querySelector<HTMLInputElement>('input[aria-label="Search Canvases"]');
+		assert.ok(search);
+		const results: Record<string, string[]> = {};
+		for (const query of ['workspace-tools', 'diagram plugin', 'diagram-board']) {
+			search.value = query;
+			search.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			await timeout(0);
+			const accessible = harness.widget.getAccessibilityContent();
+			results[query] = ['Workspace Tools', 'diagram-plugin', 'Diagram Board'].filter(label => accessible.includes(label));
+		}
+
+		assert.deepStrictEqual(results, {
+			'workspace-tools': ['Workspace Tools'],
+			'diagram plugin': ['diagram-plugin', 'Diagram Board'],
+			'diagram-board': ['diagram-plugin', 'Diagram Board'],
+		});
+	});
+
 	test('does not restore mutation focus after the user moves to search', async () => {
 		const gate = new DeferredPromise<void>();
 		const harness = createHarness({ mutationGate: gate.p });
@@ -536,36 +762,105 @@ suite('CopilotCanvasesWidget', () => {
 		assert.strictEqual(mainWindow.document.activeElement, search);
 	});
 
-	test('disables only at the extension parent and retains its Canvas children', async () => {
-		const harness = createHarness({
-			definitions: [
-				definition({ canvasId: 'review', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'PR Review Board' }),
-				definition({ canvasId: 'release', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'Release Notes Draft' }),
-			],
+	for (const source of ['user', 'plugin'] as const) {
+		test(`disables a ${source} canvas extension only at its parent and retains its Canvas children`, async () => {
+			const extensionId = `${source}:pr-tools`;
+			const harness = createHarness({
+				definitions: [
+					definition({ canvasId: 'review', extensionId, extensionSource: source, extensionName: 'PR Tools', displayName: 'PR Review Board', requiresInput: true }),
+					definition({ canvasId: 'release', extensionId, extensionSource: source, extensionName: 'PR Tools', displayName: 'Release Notes Draft' }),
+				],
+			});
+			await timeout(0);
+			const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'PR Tools\'"]');
+			assert.ok(disable);
+			disable.click();
+			await timeout(20);
+			const accessible = harness.widget.getAccessibilityContent();
+			const reviewRow = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="PR Review Board."]');
+			assert.ok(reviewRow);
+
+			assert.deepStrictEqual({
+				requests: harness.setRequests.map(request => ({ session: request.session.toString(), extensionId: request.extensionId, enabled: request.enabled })),
+				visibleSwitchChecked: harness.container.querySelector('[aria-label="Enable canvas extension \'PR Tools\'"]')?.getAttribute('aria-checked'),
+				retainedCanvases: ['PR Review Board', 'Release Notes Draft'].filter(name => accessible.includes(name)),
+				disabledChildren: [...harness.container.querySelectorAll('.copilot-canvas-tree-item.disabled')].length,
+				canvasSwitches: harness.container.querySelectorAll('.copilot-canvas-tree-item [role="switch"]').length,
+				inputGuidance: accessible.includes('You can ask an agent to open it.'),
+				inputActionVisible: reviewRow.querySelector<HTMLElement>('[data-customization-action="more"]')?.checkVisibility(),
+			}, {
+				requests: [{
+					session: harness.frontendSessionResource.toString(),
+					extensionId,
+					enabled: false,
+				}],
+				visibleSwitchChecked: 'false',
+				retainedCanvases: ['PR Review Board', 'Release Notes Draft'],
+				disabledChildren: 2,
+				canvasSwitches: 0,
+				inputGuidance: false,
+				inputActionVisible: false,
+			});
 		});
-		await timeout(0);
-		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'PR Tools\'"]');
+	}
+
+	test('refreshes committed enablement when Canvas listing also fails', async () => {
+		const preview = definition();
+		let failCanvasListing = false;
+		const harness = createHarness({
+			definitions: [preview],
+			listCanvases: async () => {
+				if (failCanvasListing) {
+					throw new Error('Canvas listing failed.');
+				}
+				return [preview];
+			},
+			onMutation: () => failCanvasListing = true,
+			mutationError: new Error('After disabling \'Preview Extension\', this chat couldn\'t finish updating canvas extensions because \'Other\' failed to start. This chat may not match your canvas extension settings.'),
+		});
+		await timeout(20);
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'Preview Extension\'"]');
 		assert.ok(disable);
+		const requestsBefore = harness.listRequests.length;
 		disable.click();
 		await timeout(20);
-		const accessible = harness.widget.getAccessibilityContent();
-
 		assert.deepStrictEqual({
-			requests: harness.setRequests.map(request => ({ session: request.session.toString(), extensionId: request.extensionId, enabled: request.enabled })),
-			visibleSwitchChecked: harness.container.querySelector('[aria-label="Enable canvas extension \'PR Tools\'"]')?.getAttribute('aria-checked'),
-			retainedCanvases: ['PR Review Board', 'Release Notes Draft'].filter(name => accessible.includes(name)),
-			canvasSwitches: harness.container.querySelectorAll('.copilot-canvas-tree-item [role="switch"]').length,
+			refreshed: harness.listRequests.length > requestsBefore,
+			checked: harness.container.querySelector('[aria-label="Enable canvas extension \'Preview Extension\'"]')?.getAttribute('aria-checked'),
+			notifications: harness.notifications,
 		}, {
-			requests: [{
-				session: harness.frontendSessionResource.toString(),
-				extensionId: 'user:pr-tools',
-				enabled: false,
-			}],
-			visibleSwitchChecked: 'false',
-			retainedCanvases: ['PR Review Board', 'Release Notes Draft'],
-			canvasSwitches: 0,
+			refreshed: true,
+			checked: 'false',
+			notifications: ['After disabling \'Preview Extension\', this chat couldn\'t finish updating canvas extensions because \'Other\' failed to start. This chat may not match your canvas extension settings.'],
 		});
 	});
+
+	for (const scenario of [
+		{ name: 'successful enable', mutationError: undefined },
+		{ name: 'failed live reconciliation', mutationError: new Error('Canvas extension \'Preview Extension\' was enabled in settings, but couldn\'t be started in this chat. Reconciliation failed.') },
+	]) {
+		test(`restores toggle focus after ${scenario.name}`, async () => {
+			const preview = definition();
+			const harness = createHarness({
+				definitions: [preview],
+				extensionInventory: inventory([preview], 'disabled'),
+				mutationError: scenario.mutationError,
+			});
+			await timeout(20);
+			const enable = harness.container.querySelector<HTMLElement>('[aria-label="Enable canvas extension \'Preview Extension\'"]');
+			assert.ok(enable);
+			enable.focus();
+			enable.click();
+			await timeout(20);
+			assert.deepStrictEqual({
+				label: DOM.getActiveElement()?.getAttribute('aria-label'),
+				checked: DOM.getActiveElement()?.getAttribute('aria-checked'),
+			}, {
+				label: 'Disable canvas extension \'Preview Extension\'',
+				checked: 'true',
+			});
+		});
+	}
 
 	test('restores cached children after the Customizations widget is recreated while disabled', async () => {
 		const definitions = [
@@ -590,7 +885,7 @@ suite('CopilotCanvasesWidget', () => {
 			listRequests: second.listRequests.length,
 			extensionVisible: accessible.includes('PR Tools'),
 			children: ['PR Review Board', 'Release Notes Draft'].filter(name => accessible.includes(name)),
-			lastKnown: accessible.includes('Last known:'),
+			lastKnown: accessible.includes('Last known.'),
 			switchChecked: second.container.querySelector('[aria-label="Enable canvas extension \'PR Tools\'"]')?.getAttribute('aria-checked'),
 			itemCounts: second.itemCounts,
 		}, {
@@ -628,39 +923,41 @@ suite('CopilotCanvasesWidget', () => {
 
 		const accessible = restored.widget.getAccessibilityContent();
 		assert.deepStrictEqual({
-			canvas: accessible.includes('Preview. Last known:'),
-			lastKnown: accessible.includes('Last known:'),
+			canvas: accessible.includes('Preview. Last known. Disabled.'),
+			lastKnown: accessible.includes('Last known.'),
 		}, {
 			canvas: true,
 			lastKnown: true,
 		});
 	});
 
-	test('removes cached children after a running extension authoritatively reports none', async () => {
-		const storageService = store.add(new InMemoryStorageService());
-		const first = createHarness({ storageService });
-		await timeout(20);
-		first.widget.dispose();
+	for (const status of ['running', 'dormant'] as const) {
+		test(`removes cached children after a ${status} extension authoritatively reports none`, async () => {
+			const storageService = store.add(new InMemoryStorageService());
+			const first = createHarness({ storageService });
+			await timeout(20);
+			first.widget.dispose();
 
-		const refreshed = createHarness({
-			definitions: [],
-			extensionInventory: inventory([definition()], 'running'),
-			storageService,
-		});
-		await timeout(20);
-		refreshed.widget.fireItemCount();
-		const accessible = refreshed.widget.getAccessibilityContent();
+			const refreshed = createHarness({
+				definitions: [],
+				extensionInventory: inventory([definition()], status),
+				storageService,
+			});
+			await timeout(20);
+			refreshed.widget.fireItemCount();
+			const accessible = refreshed.widget.getAccessibilityContent();
 
-		assert.deepStrictEqual({
-			canvas: accessible.includes('Preview. Last known:'),
-			lastKnown: accessible.includes('Last known:'),
-			itemCounts: refreshed.itemCounts,
-		}, {
-			canvas: false,
-			lastKnown: false,
-			itemCounts: [0],
+			assert.deepStrictEqual({
+				canvas: accessible.includes('Preview. Last known.'),
+				lastKnown: accessible.includes('Last known.'),
+				itemCount: refreshed.itemCounts.at(-1),
+			}, {
+				canvas: false,
+				lastKnown: false,
+				itemCount: 0,
+			});
 		});
-	});
+	}
 
 	test('uses each Canvas frontend target and reveals an existing Canvas', async () => {
 		const canvasResource = URI.parse('canvas:/live-preview');
@@ -715,6 +1012,28 @@ suite('CopilotCanvasesWidget', () => {
 
 		harness.setContextAvailable(false);
 		await timeout(0);
+		await show.run();
+		harness.hideMenu();
+
+		assert.strictEqual(harness.openCalls, 0);
+	});
+
+	test('does not run a retained Canvas action after the definition starts requiring input', async () => {
+		let definitions = [definition()];
+		const harness = createHarness({
+			definitions,
+			listCanvases: async () => definitions,
+		});
+		await timeout(0);
+		const more = harness.container.querySelector<HTMLElement>('[aria-label="More Actions for Canvas Preview"]');
+		assert.ok(more);
+		more.click();
+		const show = harness.menuActions.find(action => action.id === 'canvas.show');
+		assert.ok(show);
+
+		definitions = [definition({ requiresInput: true })];
+		harness.definitionsChanged.fire();
+		await timeout(20);
 		await show.run();
 		harness.hideMenu();
 

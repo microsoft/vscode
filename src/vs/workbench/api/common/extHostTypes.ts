@@ -300,6 +300,18 @@ export class DocumentSymbol {
 	}
 }
 
+export enum StructuralDiffClassification {
+	Declaration = 1,
+	Header = 2,
+	Implementation = 3,
+	Dependency = 4,
+	Other = 5,
+}
+
+export enum StructuralDiffTag {
+	Test = 1,
+}
+
 
 export enum CodeActionTriggerKind {
 	Invoke = 1,
@@ -2563,6 +2575,11 @@ export enum ExtensionKind {
 	Workspace = 2
 }
 
+export enum WorkbenchMode {
+	Editor = 1,
+	Agents = 2
+}
+
 export class FileDecoration {
 
 	static validate(d: FileDecoration): boolean {
@@ -2696,7 +2713,18 @@ export enum NotebookVariablesRequestKind {
 
 @es5ClassCompat
 export class TimelineItem implements vscode.TimelineItem {
-	constructor(public label: string, public timestamp: number) { }
+	label?: string;
+	resourceUri?: URI;
+
+	constructor(label: string, timestamp: number);
+	constructor(resourceUri: URI, timestamp: number);
+	constructor(arg1: string | URI, public timestamp: number) {
+		if (URI.isUri(arg1)) {
+			this.resourceUri = arg1;
+		} else {
+			this.label = arg1;
+		}
+	}
 }
 
 export enum TimelineTriggerKind {
@@ -3553,6 +3581,8 @@ export class ChatToolInvocationPart {
 }
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
+	isRequestHidden?: boolean;
+
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,

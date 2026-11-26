@@ -23,6 +23,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EndOfLineSequence } from '../../../../common/model.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('SnippetController2', function () {
 
@@ -63,7 +64,7 @@ suite('SnippetController2', function () {
 			[ILabelService, new class extends mock<ILabelService>() { }],
 			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override getWorkspace() {
-					return { id: 'foo', folders: [] };
+					return testIWorkspace({ id: 'foo', folders: [] });
 				}
 			}],
 			[ILogService, new NullLogService()],

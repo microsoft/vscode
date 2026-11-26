@@ -9,6 +9,7 @@ import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import {
 	composeAgentHostBootstrapScript,
 	decodeWslOutput,
+	parseDistroProbe,
 	parseRunningDistros,
 	parseWslListVerbose,
 } from '../../node/wslRemoteAgentHostHelpers.js';
@@ -34,6 +35,8 @@ suite('WSL Remote Agent Host Helpers', () => {
 				row({ name: 'Debian', state: 'Stopped', version: 2 }),
 				row({ name: 'Ubuntu 22.04', state: 'Running', version: 2 }),
 				row({ name: 'Legacy', state: 'Stopped', version: 1 }),
+				row({ name: 'docker-desktop', state: 'Running', version: 2 }),
+				row({ name: 'docker-desktop-data', state: 'Running', version: 2 }),
 				'',
 				'',
 			].join('\r\n');
@@ -102,6 +105,18 @@ suite('WSL Remote Agent Host Helpers', () => {
 		});
 	});
 
+	suite('parseDistroProbe', () => {
+		test('parses musl, missing libraries and a CLI that does not run, ignoring unrelated output', () => {
+			assert.deepStrictEqual({
+				alpine: parseDistroProbe('os=Linux\r\narch=x86_64\nlibc=musl\nmissing=libstdc++.so.6\nmissing=libgcc_s.so.1\napk=yes\n'),
+				ubuntu: parseDistroProbe('note: profile output\nos=Linux\narch=aarch64\nlibc=\ncli=ok\n'),
+			}, {
+				alpine: { unameS: 'Linux', unameM: 'x86_64', libc: 'musl', cliRunnable: false, missingLibraries: ['libstdc++.so.6', 'libgcc_s.so.1'], hasApk: true },
+				ubuntu: { unameS: 'Linux', unameM: 'aarch64', libc: '', cliRunnable: true, missingLibraries: [], hasApk: false },
+			});
+		});
+	});
+
 	suite('composeAgentHostBootstrapScript', () => {
 		test('propagates telemetry disablement to the WSL agent host', () => {
 			const commit = 'a'.repeat(40);
@@ -109,12 +124,10 @@ suite('WSL Remote Agent Host Helpers', () => {
 				serverDataFolderName: '.vscode-server',
 				quality: 'stable',
 				commit,
-				os: 'linux',
-				arch: 'x64',
 				telemetryLevel: TelemetryConfiguration.OFF,
 			});
 
-			assert.ok(script.endsWith(`exec ~/.vscode-server/code-${commit} --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0 --idle-timeout 300`));
+			assert.ok(script.endsWith(`exec ~/.vscode-server/code-${commit} --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0 --server-data-dir ~/.vscode-server --idle-timeout 300`));
 		});
 
 		test('exports telemetry disablement for a custom command', () => {
@@ -122,8 +135,6 @@ suite('WSL Remote Agent Host Helpers', () => {
 				serverDataFolderName: '.vscode-server',
 				quality: 'stable',
 				commit: undefined,
-				os: 'linux',
-				arch: 'x64',
 				telemetryLevel: TelemetryConfiguration.OFF,
 				remoteAgentHostCommand: './start-agent-host',
 			});

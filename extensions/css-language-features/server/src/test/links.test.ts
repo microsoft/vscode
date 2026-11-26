@@ -6,9 +6,8 @@ import { suite, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { URI } from 'vscode-uri';
 import { resolve } from 'node:path';
-import { TextDocument, DocumentLink } from 'vscode-languageserver-types';
-import { WorkspaceFolder } from 'vscode-languageserver-protocol';
-import { getCSSLanguageService } from 'vscode-css-languageservice';
+import { WorkspaceFolder } from 'vscode-languageserver';
+import { DocumentLink, getCSSLanguageService, TextDocument } from 'vscode-css-languageservice';
 import { getDocumentContext } from '../utils/documentContext.js';
 import { getNodeFSRequestService } from '../node/nodeFs.js';
 

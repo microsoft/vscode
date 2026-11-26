@@ -20,12 +20,11 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
-import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
@@ -34,7 +33,7 @@ import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAU
 import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IBuiltinPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, IPromptFileContext, IPromptFileResource, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand, matchesSessionType } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IBuiltinPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand, matchesSessionType } from './promptsService.js';
 import { Delayer, Limiter, raceCancellationError } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
@@ -48,11 +47,14 @@ import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders
 import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '../../plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
-import { ExtensionPromptFileService } from './extensionPromptFileService.js';
+import { IChatExtensionCustomizationsService } from './chatExtensionCustomizationsService.js';
+import { IAgenticSkillsService } from './agenticSkillsService.js';
+import { readDisabledPromptFiles, storeDisabledPromptFiles } from './disabledPromptFilesStorage.js';
 import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { isPromptTypeBlocked, StrictPluginOnlyCustomization } from '../../customizationLockdown.js';
 import { isAgentPluginForceEnabledByPolicy } from '../../plugins/agentPluginEnablement.js';
 import { ChatConfiguration } from '../../constants.js';
+import { isValidSlashCommandName, sanitizeSlashCommandName } from '../utils/promptsServiceUtils.js';
 
 /**
  * Maximum number of prompt files to read in parallel during discovery.
@@ -147,7 +149,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	/**
 	 * Cached file locations commands. Caching only happens if the corresponding `fileLocatorEvents` event is used.
 	 */
-	private readonly cachedFileLocations: { [key in PromptsType]?: Promise<readonly IPromptPath[]> } = {};
+	private readonly cachedFileLocations: { [key in PromptsType]?: CachedPromise<readonly IPromptPath[]> } = {};
 
 	/**
 	 * Lazily created events that notify listeners when the file locations for a given prompt type change.
@@ -155,13 +157,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * in the set of prompt files (e.g., when prompt files are added, removed, or modified).
 	 */
 	private readonly fileLocatorEvents: { [key in PromptsType]?: Event<void> } = {};
-
-
-	/**
-	 * Owns the registry of extension-contributed prompt files (both via
-	 * contribution points and via provider API).
-	 */
-	private readonly extensionPromptFiles: ExtensionPromptFileService;
 
 	private readonly _onDidPluginPromptFilesChange = this._register(new Emitter<PromptsType>());
 	private readonly _onDidPluginHooksChange = this._register(new Emitter<void>());
@@ -181,6 +176,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IPathService protected readonly pathService: IPathService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
+		@IChatExtensionCustomizationsService private readonly extensionCustomizations: IChatExtensionCustomizationsService,
+		@IAgenticSkillsService private readonly agenticSkills: IAgenticSkillsService,
 	) {
 		super();
 
@@ -190,26 +187,26 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.cachedParsedPromptFromModels.delete(model.uri);
 		}));
 
-		this.extensionPromptFiles = this._register(this.instantiationService.createInstance(ExtensionPromptFileService));
-		const onDidChangeExtensionPromptFiles = this.extensionPromptFiles.onDidChange;
-		const onDidChangeBundledPromptFiles = Event.any(this._onDidPluginPromptFilesChange.event, this.onDidChangeBuiltinPromptFiles);
+		const onDidChangeExtensionPromptFiles = this.extensionCustomizations.onDidChange;
+		const onDidChangeBuiltinPromptFiles = Event.map(this.agenticSkills.onDidChange, () => PromptsType.skill);
+		const onDidChangeBundledPromptFiles = Event.any(this._onDidPluginPromptFilesChange.event, onDidChangeBuiltinPromptFiles);
 		this._register(onDidChangeBundledPromptFiles(type => {
-			this.cachedFileLocations[type] = undefined;
+			this.cachedFileLocations[type]?.refresh();
 		}));
 		const onDidChangeCustomizationLockdown = Event.filter(this.configurationService.onDidChangeConfiguration,
 			e => e.affectsConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG) || e.affectsConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG));
 		this._register(onDidChangeCustomizationLockdown(() => {
-			this.cachedFileLocations[PromptsType.agent] = undefined;
-			this.cachedFileLocations[PromptsType.skill] = undefined;
-			this.cachedFileLocations[PromptsType.hook] = undefined;
-			this.cachedFileLocations[PromptsType.instructions] = undefined;
+			this.cachedFileLocations[PromptsType.agent]?.refresh();
+			this.cachedFileLocations[PromptsType.skill]?.refresh();
+			this.cachedFileLocations[PromptsType.hook]?.refresh();
+			this.cachedFileLocations[PromptsType.instructions]?.refresh();
 			this._onDidChangeAgentInstructions.fire();
 		}));
 
 		// Invalidate the cached file location list whenever an extension contribution
 		// or provider for the same type changes (or its `when` re-evaluates).
 		this._register(onDidChangeExtensionPromptFiles(e => {
-			this.cachedFileLocations[e.type] = undefined;
+			this.cachedFileLocations[e.type]?.refresh();
 		}));
 
 		const modelChangeEvent = this._register(new ModelChangeTracker(this.modelService)).onDidPromptChange;
@@ -316,7 +313,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 
 			this._pluginPromptFilesByType.set(PromptsType.hook, hookFiles);
-			this.cachedFileLocations[PromptsType.hook] = undefined;
+			this.cachedFileLocations[PromptsType.hook]?.refresh();
 			this._onDidPluginHooksChange.fire();
 		}));
 	}
@@ -360,7 +357,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!event) {
 			event = this.fileLocatorEvents[type] = this._register(this.fileLocator.createFilesUpdatedEvent(type)).event;
 			this._register(event(() => {
-				this.cachedFileLocations[type] = undefined;
+				this.cachedFileLocations[type]?.refresh();
 			}));
 		}
 		return event;
@@ -379,23 +376,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		const cached = this.cachedFileLocations[type];
-		if (cached) {
-			return cached;
-		}
-		// Drop the entry if the computation fails (e.g. it was cancelled), otherwise a
-		// cancelled scan would stay cached as a permanent empty result.
-		const listPromise: Promise<readonly IPromptPath[]> = this.computeListPromptFiles(type, token).catch(err => {
-			if (this.cachedFileLocations[type] === listPromise) {
-				this.cachedFileLocations[type] = undefined;
-			}
-			throw err;
-		});
 		if (!this.fileLocatorEvents[type]) {
-			return listPromise;
+			return this.computeListPromptFiles(type, token);
 		}
-		this.cachedFileLocations[type] = listPromise;
-		return listPromise;
+		// Session disposal must not cancel discovery shared with another session.
+		const cached = this.cachedFileLocations[type] ??= this._register(new CachedPromise(
+			token => this.computeListPromptFiles(type, token),
+			() => Event.None,
+		));
+		return cached.get(token);
 	}
 
 	private async computeListPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
@@ -430,20 +419,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}));
 	}
 
-	/**
-	 * Registers a prompt file provider (CustomAgentProvider, InstructionsProvider, or PromptFileProvider).
-	 * This will be called by the extension host bridge when
-	 * an extension registers a provider via vscode.chat.registerCustomAgentProvider(),
-	 * registerInstructionsProvider(), or registerPromptFileProvider().
-	 */
-	public registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
-		onDidChangePromptFiles?: Event<void>;
-		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
-	}): IDisposable {
-		return this.extensionPromptFiles.registerPromptFileProvider(extension, type, provider);
-	}
-
-
 	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]> {
 		let promptPaths: readonly IPromptPath[];
 		switch (storage) {
@@ -470,21 +445,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IExtensionPromptPath[]> {
-		return this.extensionPromptFiles.getExtensionPromptFiles(type, token);
+		return this.extensionCustomizations.getExtensionPromptFiles(type, token);
 	}
 
-	/**
-	 * Returns the built-in prompt files of the given type. The base service ships
-	 * no built-in prompts; subclasses (e.g. the Agents app) override this to
-	 * contribute bundled prompts such as built-in skills.
-	 */
-	protected async getBuiltinPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IBuiltinPromptPath[]> {
-		return [];
-	}
-
-	/** Notifies discovery and slash-command consumers when a subclass changes its built-in prompt files. */
-	protected get onDidChangeBuiltinPromptFiles(): Event<PromptsType> {
-		return Event.None;
+	private async getBuiltinPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IBuiltinPromptPath[]> {
+		return type === PromptsType.skill ? this.agenticSkills.getSkills(token) : [];
 	}
 
 	public async getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]> {
@@ -675,7 +640,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public isValidSlashCommandName(command: string): boolean {
-		return command.match(/^[\p{L}\d_\-\.:]+$/u) !== null;
+		return isValidSlashCommandName(command);
 	}
 
 	public hasPromptSlashCommand(name: string): boolean {
@@ -714,8 +679,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private asChatPromptSlashCommand(argumentHint: string | undefined, userInvocable: boolean | undefined, promptPath: IPromptPath): IChatPromptSlashCommand {
-		let name = promptPath.name ?? getCleanPromptName(promptPath.uri);
-		name = name.replace(/[^\p{L}\d_\-\.:]+/gu, '-'); // replace spaces with dashes
+		const name = sanitizeSlashCommandName(promptPath.name ?? getCleanPromptName(promptPath.uri));
 		return {
 			uri: promptPath.uri,
 			name: name,
@@ -855,10 +819,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 			throw new CancellationError();
 		}
 		return new PromptFileParser().parse(uri, fileContent.value.toString());
-	}
-
-	public registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name?: string, description?: string, when?: string, sessionTypes?: readonly string[]) {
-		return this.extensionPromptFiles.registerContributedFile(type, uri, extension, name, description, when, sessionTypes);
 	}
 
 	getPromptLocationLabel(promptPath: IPromptPath): string {
@@ -1010,33 +970,40 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	// --- Enabled Prompt Files -----------------------------------------------------------
 
+	/**
+	 * Disabled state of the local harness's custom agents. Built-in skills keep their disabled state in
+	 * {@link IAgenticSkillsService}, which agent hosts also honor.
+	 */
 	private readonly disabledPromptsStorageKeyPrefix = 'chat.disabledPromptFiles.';
 
 	public getDisabledPromptFiles(type: PromptsType): ResourceSet {
-		// Migration: if disabled key absent but legacy enabled key present, convert once.
-		const disabledKey = this.disabledPromptsStorageKeyPrefix + type;
-		const value = this.storageService.get(disabledKey, StorageScope.PROFILE, '[]');
-		const result = new ResourceSet();
-		try {
-			const arr = JSON.parse(value);
-			if (Array.isArray(arr)) {
-				for (const s of arr) {
-					try {
-						result.add(URI.revive(s));
-					} catch {
-						// ignore
-					}
-				}
+		const result = readDisabledPromptFiles(this.storageService, this.disabledPromptsStorageKeyPrefix + type);
+		if (type === PromptsType.skill) {
+			for (const uri of this.agenticSkills.getDisabledSkills()) {
+				result.add(uri);
 			}
-		} catch {
-			// ignore invalid storage values
 		}
 		return result;
 	}
 
 	public setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void {
-		const disabled = Array.from(uris).map(uri => uri.toJSON());
-		this.storageService.store(this.disabledPromptsStorageKeyPrefix + type, JSON.stringify(disabled), StorageScope.PROFILE, StorageTarget.USER);
+		const own = new ResourceSet();
+		const builtin = new ResourceSet();
+		for (const uri of uris) {
+			if (type === PromptsType.skill && this.agenticSkills.isBuiltinSkill(uri)) {
+				builtin.add(uri);
+			} else {
+				own.add(uri);
+			}
+		}
+		if (type === PromptsType.skill) {
+			this.agenticSkills.setDisabledSkills(builtin);
+		}
+		storeDisabledPromptFiles(this.storageService, this.disabledPromptsStorageKeyPrefix + type, own);
+		this.refreshDisabledState(type);
+	}
+
+	private refreshDisabledState(type: PromptsType): void {
 		if (type === PromptsType.agent) {
 			this.cachedCustomAgents.refresh();
 		} else if (type === PromptsType.skill) {
@@ -1790,7 +1757,9 @@ export namespace CustomAgent {
 		if (target === Target.Claude && tools) {
 			tools = mapClaudeTools(tools);
 		}
-		return { id, uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, enabled };
+		const reasoningEffort = ast.header.reasoningEffort;
+		const welcomeMessage = ast.header.welcomeMessage;
+		return { id, uri, name, description, model, ...(reasoningEffort !== undefined ? { reasoningEffort } : {}), ...(ast.header.modelPolicy ? { modelPolicy: ast.header.modelPolicy } : {}), ...(welcomeMessage !== undefined ? { welcomeMessage } : {}), tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, enabled };
 
 	}
 }

@@ -18,11 +18,12 @@ import { createFileSystemProviderError, FileSystemProviderErrorCode } from '../.
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
-import { createNoopGitService } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { MockAgent } from './mockAgent.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
+import { CompatibleSessionDatabase } from '../../node/compatibleSessionDatabase.js';
 import { SessionStorageIdentity, storedChatUri } from '../../node/sessionStorageIdentity.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, MessageKind, MessageAttachmentKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type Message, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
@@ -224,6 +225,33 @@ suite('Session storage identity compatibility', () => {
 		});
 	}
 
+	test('hidden sessions persist in storage spelling and list in runtime spelling after reopening', async () => {
+		const db = await database();
+		const session = 'ahp-session:/hidden';
+		const storage = 'copilotcli:/hidden';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.hideSession(session, 'copilotcli');
+		await db.close();
+		const next = await database();
+		const hidden = {
+			runtime: await next.listHiddenSessions(),
+			storage: await next.raw.listHiddenSessions(),
+			isHidden: await next.isSessionHidden(session),
+			tombstoned: await next.isSessionTombstoned(session),
+			suppressed: await next.isSessionSuppressed(session),
+			stored: await next.raw.isSessionHidden(storage),
+			notRuntime: await next.raw.isSessionHidden(session),
+		};
+		await next.clearSessionTombstone(session);
+		assert.deepStrictEqual({ hidden, cleared: await next.listHiddenSessions(), tombstoned: await next.isSessionTombstoned(session) }, {
+			hidden: {
+				runtime: [{ session, provider: 'copilotcli' }], storage: [{ session: storage, provider: 'copilotcli' }],
+				isHidden: true, tombstoned: false, suppressed: true, stored: true, notRuntime: false,
+			},
+			cleared: [], tombstoned: false,
+		});
+	});
+
 	test('discovery does not allocate a compatibility identity over a deleted legacy backing', async () => {
 		const db = await database();
 		await db.raw.markSessionTombstoned('copilotcli:/deleted');
@@ -236,6 +264,27 @@ suite('Session storage identity compatibility', () => {
 			markers: await db.raw.readStorageIdentityMetadata('sessionStorageIdentity:'),
 		}, { registered: false, tombstoned: true, markers: [] });
 	});
+
+	for (const hidden of ['ahp-session:/hidden', 'copilotcli:/hidden']) {
+		test(`discovery does not allocate a compatibility identity over hidden ${hidden}`, async () => {
+			const db = await database();
+			const session = 'ahp-session:/hidden';
+			await db.raw.hideSession(hidden, 'copilotcli');
+			await db.prepareSessionStorage(session, 'copilotcli');
+			const registered = await db.registerRuntimeSession(session, {
+				provider: 'copilotcli', startTime: 2, source: 'discovery',
+			}, { checkTombstone: true, discoveryBackingSession: 'copilotcli:/hidden' });
+			assert.deepStrictEqual({
+				registered,
+				hidden: await db.raw.isSessionHidden(hidden),
+				tombstoned: await db.raw.isSessionTombstoned(hidden),
+				suppressed: await db.raw.isSessionSuppressed(hidden),
+				identity: db.identity.toStorage(session),
+				markers: await db.raw.readStorageIdentityMetadata('sessionStorageIdentity:'),
+				registrations: await db.listSessionV2Registrations(),
+			}, { registered: false, hidden: true, tombstoned: false, suppressed: true, identity: session, markers: [], registrations: [] });
+		});
+	}
 
 	test('preparing deleted native data cannot bypass explicit creation collision checks', async () => {
 		const db = await database();
@@ -768,6 +817,115 @@ suite('Session storage identity compatibility', () => {
 			opaque: conversation,
 		});
 		legacy.dispose();
+	});
+
+	test('turn-scoped metadata forwards scopes and translates owned keys and values without rewriting opaque data', async () => {
+		const identity = new SessionStorageIdentity();
+		identity.add({ runtime: 'ahp-session:/scoped', storage: 'copilotcli:/scoped', provider: 'copilotcli' });
+		const raw = new TestSessionDatabase();
+		const db = store.add(new CompatibleSessionDatabase(raw, identity));
+		const chat = buildChatUri('ahp-session:/scoped', 'peer');
+		const otherChat = buildChatUri('ahp-session:/scoped', 'other');
+		const titleKey = `customChatTitle:${chat}`;
+		const copiedTitleKey = `customChatTitle:${otherChat}`;
+		const sourceKey = `customChatTitleSource:${chat}`;
+		const opaqueKey = 'copilot.completionReferences';
+		const opaque = JSON.stringify({ text: chat, references: [{ uri: chat }] });
+		const global = { peerChatBacking: chat, [titleKey]: 'Global Title', [sourceKey]: 'global', [opaqueKey]: 'global opaque data' };
+		await db.setMetadataValues(global);
+		const scopes = ['host-turn', ''];
+		const updatedValues: (string | undefined)[] = [];
+		const scoped = [];
+		for (const turnId of scopes) {
+			await db.setMetadata('peerChatBacking', chat, turnId);
+			await db.setMetadataValues({ [titleKey]: 'Turn Title', [opaqueKey]: opaque, stale: 'remove', deleted: 'remove' }, turnId);
+			await db.setTurnEventId(turnId, `sdk-${turnId}`);
+			const created = await db.setMetadataValuesIfAbsent(sourceKey, { [sourceKey]: 'copied' }, { [copiedTitleKey]: titleKey }, turnId);
+			const repeated = await db.setMetadataValuesIfAbsent(sourceKey, { [titleKey]: 'Must Not Replace' }, undefined, turnId);
+			await db.updateMetadata('peerChatBacking', value => {
+				updatedValues.push(value);
+				return otherChat;
+			}, turnId);
+			await db.applyMetadataChanges({ [titleKey]: 'Updated Title' }, ['stale'], turnId);
+			await db.deleteMetadata(['deleted'], turnId);
+			scoped.push({
+				created, repeated,
+				backing: await db.getMetadata('peerChatBacking', turnId),
+				values: await db.getMetadataObject({ [titleKey]: true, [sourceKey]: true, [opaqueKey]: true, stale: true, deleted: true }, turnId),
+				titles: await db.getMetadataByPrefix('customChatTitle:', turnId),
+				storedTitles: await raw.getMetadataByPrefix('customChatTitle:', turnId),
+			});
+		}
+		const aliases = scopes.flatMap(turnId => [turnId, `sdk-${turnId}`]);
+		assert.deepStrictEqual({
+			scoped, updatedValues,
+			global: await db.getMetadataObject(global),
+			backings: [...await db.getTurnMetadata('peerChatBacking')],
+			storedBackings: [...await raw.getTurnMetadata('peerChatBacking')],
+			titles: [...await db.getTurnMetadata(titleKey)],
+			opaque: [...await db.getTurnMetadata(opaqueKey)],
+		}, {
+			scoped: scopes.map(() => ({
+				created: true, repeated: false,
+				backing: otherChat,
+				values: { [titleKey]: 'Updated Title', [sourceKey]: 'copied', [opaqueKey]: opaque, stale: undefined, deleted: undefined },
+				titles: { [titleKey]: 'Updated Title', [copiedTitleKey]: 'Turn Title' },
+				storedTitles: { [identity.metadataKey(titleKey, 'storage')]: 'Updated Title', [identity.metadataKey(copiedTitleKey, 'storage')]: 'Turn Title' },
+			})),
+			updatedValues: scopes.map(() => chat),
+			global,
+			backings: aliases.map(id => [id, otherChat]),
+			storedBackings: aliases.map(id => [id, identity.toStorage(otherChat)]),
+			titles: aliases.map(id => [id, 'Updated Title']),
+			opaque: aliases.map(id => [id, opaque]),
+		});
+	});
+
+	test('shared database fake keeps generic turn metadata with its owner through fork remapping and pruning', async () => {
+		const db = store.add(new TestSessionDatabase());
+		const key = 'provider.turnData';
+		assert.deepStrictEqual({
+			copied: await db.setMetadataValuesIfAbsent(key, {}, { copy: 'missing' }, 'unused-turn'),
+			hasTurns: await db.hasConversationTurns(),
+		}, { copied: true, hasTurns: false });
+		await db.setMetadata(key, 'global');
+		let scopedWriteObserved = false;
+		const listener = store.add(db.onDidChangeMetadata(() => scopedWriteObserved = true));
+		await db.setMetadata(key, 'first', 'host-first');
+		listener.dispose();
+		await db.setMetadata('provider.extra', 'retained', 'host-first');
+		await db.setTurnEventId('host-first', 'sdk-first');
+		await db.setMetadata(key, 'second', 'host-second');
+		await db.setTurnEventId('host-second', 'sdk-second');
+		await db.setMetadata(key, 'foreign', 'host-foreign');
+		await db.setTurnEventId('host-foreign', 'sdk-foreign');
+		await db.setForeignRows(buildDefaultChatUri('ahp-session:/scoped'), ['host-foreign']);
+		const visible = [...await db.getTurnMetadata(key)];
+		await db.remapTurnIds(new Map([['sdk-first', 'fork-first'], ['sdk-second', 'fork-second']]), new Map([['fork-first', 'fork-sdk-first'], ['fork-second', 'fork-sdk-second']]));
+		const forked = {
+			values: [...await db.getTurnMetadata(key)],
+			extra: await db.getMetadata('provider.extra', 'fork-first'),
+			old: await db.getMetadata(key, 'host-first'),
+			foreign: await db.getMetadata(key, 'host-foreign'),
+		};
+		await db.truncateFromTurn('fork-second');
+		const truncated = [...await db.getTurnMetadata(key)];
+		await db.deleteTurn('fork-first');
+		assert.deepStrictEqual({
+			scopedWriteObserved, visible, forked, truncated,
+			deleted: [...await db.getTurnMetadata(key)],
+			global: await db.getMetadata(key),
+		}, {
+			scopedWriteObserved: true,
+			visible: [['host-first', 'first'], ['sdk-first', 'first'], ['host-second', 'second'], ['sdk-second', 'second']],
+			forked: {
+				values: [['fork-first', 'first'], ['fork-sdk-first', 'first'], ['fork-second', 'second'], ['fork-sdk-second', 'second']],
+				extra: 'retained', old: undefined, foreign: undefined,
+			},
+			truncated: [['fork-first', 'first'], ['fork-sdk-first', 'first']],
+			deleted: [],
+			global: 'global',
+		});
 	});
 
 	test('draft-owned chat attachments and delegation translate without rewriting text or provider metadata', () => {

@@ -15,7 +15,7 @@ import { LRUCache, Touch } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { isEmptyObject } from '../../../../base/common/types.js';
-import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from './editor.js';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IEditorPaneTitleMenu } from './editor.js';
 import { joinPath, IExtUri, isEqual } from '../../../../base/common/resources.js';
 import { indexOfPath } from '../../../../base/common/extpath.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -55,6 +55,9 @@ export abstract class EditorPane<MementoType extends object = object> extends Co
 	protected readonly _onDidChangeControl = this._register(new Emitter<void>());
 	readonly onDidChangeControl = this._onDidChangeControl.event;
 
+	/** Fires as {@link titleMenu} changes, such as as the editor shows another input. */
+	readonly onDidChangeTitleMenu: Event<void> = Event.None;
+
 	//#endregion
 
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
@@ -63,6 +66,26 @@ export abstract class EditorPane<MementoType extends object = object> extends Co
 	get maximumWidth() { return DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
 	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
 	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
+
+	/**
+	 * Whether the editor pane renders its own title. A group that holds
+	 * only this editor then does not show its title area, and the editor
+	 * shows its title; see {@link setProvidedTitleVisible}.
+	 */
+	get providesTitle(): boolean { return false; }
+
+	/**
+	 * Called by the group of an editor pane that renders its own title (see {@link providesTitle}): `visible` is false
+	 * while the group shows its title area, such as its tabs, as it holds other editors too, where the editor's title
+	 * then is; the editor then does not show its own title.
+	 */
+	setProvidedTitleVisible(visible: boolean): void { }
+
+	/**
+	 * The menu of the editor's own actions, which the tab bar of its group shows in place of the group's editor actions,
+	 * such as the actions of the title the editor renders itself; `undefined` for the group's editor actions.
+	 */
+	get titleMenu(): IEditorPaneTitleMenu | undefined { return undefined; }
 
 	protected _input: EditorInput | undefined;
 	get input(): EditorInput | undefined { return this._input; }

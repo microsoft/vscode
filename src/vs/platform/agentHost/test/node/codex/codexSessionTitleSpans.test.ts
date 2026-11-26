@@ -19,6 +19,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../c
 import { AgentSession } from '../../../common/agent.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../../node/agentHostFileEditCoordinator.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -36,33 +37,7 @@ import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEn
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
-
-/**
- * Records `emitSessionTitleChanged` invocations so the OTel title-span wiring
- * test can assert what the agent forwarded to the host telemetry pipeline. All
- * other {@link IAgentHostOTelService} members are inert no-ops.
- */
-class RecordingOTelService implements IAgentHostOTelService {
-	readonly _serviceBrand: undefined;
-	readonly enabled = false;
-	readonly diagnosticsEnabled = false;
-	emitTurnTiming(): void { }
-	emitFirstResponse(): void { }
-	emitUserInteraction(): void { }
-	readonly titleChanges: Array<{ conversationId: string; sessionUri: string; title: string }> = [];
-	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
-	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
-	getSessionTraceContext(): undefined { return undefined; }
-	setSessionComparisonMetadata(): void { }
-	releaseSessionTraceContext(): void { }
-	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
-	getCurrentTraceContext(): undefined { return undefined; }
-	getSpansDbPath(): undefined { return undefined; }
-	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void {
-		this.titleChanges.push({ conversationId, sessionUri, title });
-	}
-	async flush(): Promise<void> { }
-}
+import { RecordingOTelService } from '../../common/recordingOTelService.js';
 
 /**
  * Builds a Codex agent whose only host input is the narrow session-title seam,
@@ -76,6 +51,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const otelService = new RecordingOTelService();
 	instantiationService.stub(ISessionDataService, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, {

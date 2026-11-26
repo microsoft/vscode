@@ -14,8 +14,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { localize } from '../../../../../nls.js';
-import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IMenuService, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -44,7 +44,8 @@ import { IOutlineService } from '../../../../services/outline/browser/outline.js
 import { LayoutSettings, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { CHAT_PART_OPTIONS } from '../../../../contrib/chatWindow/browser/chatWindow.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/media/editorBorder.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
@@ -199,6 +200,16 @@ function longLabelEditorSpecs(): IEditorSpec[] {
 		{ resource: file('/project/src/features/authentication/providers/veryLongAuthenticationProviderImplementation.ts'), pinned: true, active: true },
 		{ resource: file('/project/src/features/authentication/providers/anotherExtremelyLongProviderFactoryModule.ts'), pinned: true },
 		{ resource: file('/project/documentation/architecture/decisions/0001-use-a-really-long-descriptive-file-name.md'), icon: ThemeIcon.fromId(Codicon.markdown.id), pinned: true },
+	];
+}
+
+/** Chats with long titles, as the tabs of a chat window's chat part show them, each with its status icon. */
+function longChatTitleEditorSpecs(): IEditorSpec[] {
+	const chat = (path: string) => URI.from({ scheme: 'fixture-chat', path });
+	return [
+		{ resource: chat('/1'), name: 'Chat Windows', icon: ThemeIcon.fromId(Codicon.gitPullRequest.id), pinned: true, active: true },
+		{ resource: chat('/2'), name: 'Bug: Changes pill shows wrong chat\'s diffs; canvas error', icon: ThemeIcon.fromId(Codicon.gitPullRequest.id), pinned: true },
+		{ resource: chat('/3'), name: 'Fix #346721: workspace child of a no-workspace session', icon: ThemeIcon.fromId(Codicon.copilot.id), pinned: true },
 	];
 }
 
@@ -488,6 +499,7 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 		options.showHeader ?? false,
 		options.reserveHeaderSpace ? () => true : undefined,
 		options.useModernUITabs ?? false,
+		undefined,
 	));
 
 	const layout = () => {
@@ -532,7 +544,7 @@ function render(modernUI: boolean, options: Omit<IEditorTabsFixtureOptions, 'mod
 	return ctx => renderEditorTabsFixture(ctx, { ...options, modernUI });
 }
 
-function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeight']): (ctx: ComponentFixtureContext) => void {
+function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeight'], showScrollbar = false): (ctx: ComponentFixtureContext) => void {
 	return ctx => {
 		for (const [name, modernUI, editorTabStyle] of [
 			['Legacy', false, undefined],
@@ -548,8 +560,10 @@ function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeigh
 			renderEditorTabsFixture({ ...ctx, container }, {
 				modernUI,
 				editorTabStyle,
-				partOptions: { tabHeight },
-				editors: [
+				partOptions: { tabHeight, titleScrollbarVisibility: showScrollbar ? 'visible' : 'auto' },
+				width: showScrollbar ? 520 : undefined,
+				breadcrumbs: showScrollbar ? {} : undefined,
+				editors: showScrollbar ? manyEditorSpecs(5) : [
 					{ resource: file('/project/alpha.ts'), pinned: true },
 					{ resource: file('/project/beta.ts'), pinned: true, active: true },
 					{ resource: file('/project/gamma.ts'), pinned: true },
@@ -658,6 +672,9 @@ function createDensityFixtures() {
 }
 
 function createLayoutFixtures() {
+	const narrowFixedEditors = ['a.ts', 'b.ts', 'c.ts'].map((name, index) => ({
+		resource: file(`/project/${name}`), pinned: true, active: index === 1,
+	}));
 	return {
 		ActionsHidden: defineComponentFixture({
 			render: render(true, { partOptions: { tabActionCloseVisibility: false } }),
@@ -708,9 +725,35 @@ function createLayoutFixtures() {
 			render: render(true, { partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 }, editors: longLabelEditorSpecs(), width: 520 }),
 			expectedVisualDescriptions: ['Fixed-size long labels use equal tab widths, real ellipses, and stable action columns.'],
 		}),
+		FixedWidthMaximum: defineComponentFixture({
+			fileIconTheme: 'none',
+			themes: ['dark'],
+			additionalThemes: ['light2026', 'darkHighContrast'],
+			render: render(true, {
+				editors: narrowFixedEditors,
+				partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 50, tabSizingFixedMaxWidth: 60, editorActionsLocation: 'hidden' },
+				width: 420,
+			}),
+			expectedVisualDescriptions: ['Fixed Connected tabs honor a maximum below 80px while keeping the active Close action inside its tab.'],
+		}),
+		FixedWidthMinimum: defineComponentFixture({
+			fileIconTheme: 'none',
+			themes: ['dark'],
+			additionalThemes: ['light2026', 'darkHighContrast'],
+			render: render(true, {
+				editors: narrowFixedEditors,
+				partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 50, tabSizingFixedMaxWidth: 160, editorActionsLocation: 'hidden' },
+				width: 150,
+			}),
+			expectedVisualDescriptions: ['Fixed Connected tabs shrink to the configured minimum before overflowing a narrow editor group.'],
+		}),
 		LongNamesShrink: defineComponentFixture({
 			render: render(true, { partOptions: { tabSizing: 'shrink' }, editors: longLabelEditorSpecs(), width: 520 }),
 			expectedVisualDescriptions: ['Shrink-sized long labels ellipsize while preserving extensions and action targets.'],
+		}),
+		ChatPartLongTitles: defineComponentFixture({
+			render: render(true, { partOptions: CHAT_PART_OPTIONS, editors: longChatTitleEditorSpecs(), width: 640 }),
+			expectedVisualDescriptions: ['The tabs of a chat window\'s chat part are equally wide, at most as wide as fixed-size editor tabs by default, keep each chat\'s status icon, and ellipsize long chat titles before the Close action.'],
 		}),
 		ModifiedAndMultiSelected: defineComponentFixture({
 			render: render(true, { editors: multiSelectEditorSpecs() }),
@@ -736,6 +779,46 @@ function createLayoutFixtures() {
 	};
 }
 
+// ============================================================================
+// New tab (+) button
+// ============================================================================
+
+const newTabButtonMenu = MenuId.for('fixture.editorTabs.newTabButton');
+const newTabButtonAction = { id: 'fixture.editorTabs.newUntitledFile', title: localize2('fixture.editorTabs.newUntitledFile', "New Untitled Text File"), icon: Codicon.newFile };
+MenuRegistry.addCommand(newTabButtonAction);
+MenuRegistry.appendMenuItem(newTabButtonMenu, { command: newTabButtonAction, group: 'navigation' });
+
+/**
+ * Wrapped tabs with the new tab (+) button. Fixed-width tabs fill their rows exactly, so that the button would be alone
+ * on the last row; it follows the last tab instead, unless the width does not fit the last tab next to it.
+ */
+function renderNewTabButtonWrapped(modernUI: boolean, editorTabStyle: ModernUIEditorTabStyle | undefined, width: number, expected: 'followsLastTab' | 'ownRow'): (ctx: ComponentFixtureContext) => Promise<void> {
+	return async ctx => {
+		renderEditorTabsFixture(ctx, {
+			modernUI,
+			editorTabStyle,
+			width,
+			partOptions: { wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 },
+			headerMenuIds: { tabsBarAddTab: newTabButtonMenu },
+			editors: manyEditorSpecs(3).slice(0, 4),
+		});
+		let previousLayout: string | undefined;
+		await waitForFixtureCondition(() => {
+			const tabs = Array.from(ctx.container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+			const add = ctx.container.querySelector<HTMLElement>('.tabs-bar-add-tab:not(.hidden)');
+			const strip = ctx.container.querySelector<HTMLElement>('.tabs-and-actions-container.wrapping');
+			if (tabs.length !== 4 || !add || !strip || tabs.some(tab => tab.offsetHeight === 0)) {
+				return false;
+			}
+			const layout = JSON.stringify({ tabs: tabs.map(tab => [tab.offsetLeft, tab.offsetTop, tab.offsetWidth]), add: [add.offsetLeft, add.offsetTop] });
+			const stable = layout === previousLayout;
+			previousLayout = layout;
+			const followsLastTab = tabs.at(-1)!.offsetTop === add.offsetTop;
+			return stable && followsLastTab === (expected === 'followsLastTab');
+		}, `The new tab button did not reach its expected wrapped layout (${expected})`);
+	};
+}
+
 function renderPinnedSeparateRow(): (ctx: ComponentFixtureContext) => void {
 	const editors = defaultEditorSpecs().slice(0, 3).map((spec, index) => ({
 		...spec,
@@ -758,10 +841,34 @@ function renderPinnedSeparateRow(): (ctx: ComponentFixtureContext) => void {
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Density: defineThemedFixtureGroup(createDensityFixtures()),
 	Layout: defineThemedFixtureGroup(createLayoutFixtures()),
+	NewTabButton: defineThemedFixtureGroup({
+		WrappedConnected: defineComponentFixture({
+			render: renderNewTabButtonWrapped(true, ModernUIEditorTabStyle.Connected, 300, 'followsLastTab'),
+			expectedVisualDescriptions: ['When tabs wrap, the new tab (+) button sits right after the last tab on the last row, never alone on a row of its own.'],
+		}),
+		WrappedPill: defineComponentFixture({
+			render: renderNewTabButtonWrapped(true, ModernUIEditorTabStyle.Pill, 300, 'followsLastTab'),
+		}),
+		WrappedLegacy: defineComponentFixture({
+			render: renderNewTabButtonWrapped(false, undefined, 300, 'followsLastTab'),
+		}),
+		WrappedTooNarrow: defineComponentFixture({
+			render: renderNewTabButtonWrapped(true, ModernUIEditorTabStyle.Connected, 170, 'ownRow'),
+			expectedVisualDescriptions: ['When the last tab does not fit next to the new tab (+) button and the editor actions, the button keeps a row of its own without overlapping the actions.'],
+		}),
+	}),
+	ScrollbarPlacement: defineComponentFixture({
+		render: renderTabStyleDensityComparison('default', true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: [
+			'Overflowing Modern UI Pill and Connected tabs show the scrollbar at the top, keeping a consistent tab-strip treatment.',
+			'Legacy tabs retain their bottom scrollbar; the breadcrumb bar and editor body remain below each tab strip in all styles.',
+		],
+	}),
 	Styles: defineThemedFixtureGroup({
 		Connected: defineComponentFixture({
 			render: render(true, {}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'Connected tabs use the dedicated connected strip color while the active tab remains joined to the editor surface.',
 			],

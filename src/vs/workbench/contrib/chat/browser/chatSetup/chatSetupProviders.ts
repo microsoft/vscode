@@ -22,7 +22,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatEntitlementContext, chatRequiresSetup, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../../common/model/chatModel.js';
@@ -128,19 +128,6 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			// Register terminal agent
 			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(terminalDisposable);
-
-			// Register tools
-			disposables.add(SetupTool.registerTool(instantiationService, {
-				id: 'setup_tools_createNewWorkspace',
-				source: ToolDataSource.Internal,
-				icon: Codicon.newFolder,
-				displayName: localize('setupToolDisplayName', "New Workspace"),
-				modelDescription: 'Scaffold a new workspace in VS Code',
-				userDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
-				canBeReferencedInPrompt: true,
-				toolReferenceName: 'new',
-				when: ContextKeyExpr.true(),
-			}));
 
 			return disposables;
 		});
@@ -828,35 +815,6 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			attachedContext: [chatRequestToolEntry],
 			isCompleteAddedRequest: requestModel.isCompleteAddedRequest,
 		});
-	}
-}
-
-export class SetupTool implements IToolImpl {
-
-	static registerTool(instantiationService: IInstantiationService, toolData: IToolData): IDisposable {
-		return instantiationService.invokeFunction(accessor => {
-			const toolService = accessor.get(ILanguageModelToolsService);
-
-			const tool = instantiationService.createInstance(SetupTool);
-			return toolService.registerTool(toolData, tool);
-		});
-	}
-
-	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const result: IToolResult = {
-			content: [
-				{
-					kind: 'text',
-					value: ''
-				}
-			]
-		};
-
-		return result;
-	}
-
-	async prepareToolInvocation?(parameters: unknown, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		return undefined;
 	}
 }
 

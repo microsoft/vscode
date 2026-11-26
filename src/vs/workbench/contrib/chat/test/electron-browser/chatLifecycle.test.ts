@@ -10,7 +10,7 @@ import { IConfirmation, IDialogService } from '../../../../../platform/dialogs/c
 import { ShutdownReason } from '../../../../services/lifecycle/common/lifecycle.js';
 import { AgentSessionProviders } from '../../browser/agentSessions/agentSessions.js';
 import { AgentSessionStatus } from '../../browser/agentSessions/agentSessionsModel.js';
-import { confirmSessionShutdown, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from '../../electron-browser/chatLifecycle.js';
+import { confirmSessionShutdown, getChatUnattendedRestartBlocker, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from '../../electron-browser/chatLifecycle.js';
 
 suite('ChatLifecycle', () => {
 	type TestSession = Parameters<typeof shouldWarnForSessionShutdown>[0];
@@ -103,6 +103,24 @@ suite('ChatLifecycle', () => {
 			codexQuit: true,
 			localClose: false,
 			cloudQuit: false,
+		});
+	});
+
+	test('getChatUnattendedRestartBlocker', () => {
+		assert.deepStrictEqual({
+			idle: getChatUnattendedRestartBlocker(false, [], [createSession(AgentSessionProviders.Local, AgentSessionStatus.Completed)]),
+			requestInProgress: getChatUnattendedRestartBlocker(true, [], []),
+			requestMaterializing: getChatUnattendedRestartBlocker(false, [AgentSessionProviders.AgentHostCopilot], []),
+			cloudSessionInProgress: getChatUnattendedRestartBlocker(false, [], [createSession(AgentSessionProviders.Cloud)]),
+			archivedSessionInProgress: getChatUnattendedRestartBlocker(false, [], [createSession(AgentSessionProviders.Local, AgentSessionStatus.InProgress, true)]),
+			remoteSessionNeedsInput: getChatUnattendedRestartBlocker(false, [], [createSession('remote-host-copilotcli', AgentSessionStatus.NeedsInput)]),
+		}, {
+			idle: undefined,
+			requestInProgress: 'chat.requestInProgress',
+			requestMaterializing: 'chat.requestInProgress',
+			cloudSessionInProgress: undefined,
+			archivedSessionInProgress: 'chat.sessionInProgress',
+			remoteSessionNeedsInput: 'chat.sessionInProgress',
 		});
 	});
 

@@ -6,8 +6,8 @@
 import { localize } from '../../../../../nls.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxSessionFeedEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { RemoteAgentHostsEnabledSettingId, WorkspaceRemoteAgentHostsSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
@@ -17,15 +17,17 @@ import { CloudSandboxDraftPreparationService } from './cloudSandboxDraftPreparat
 import { CloudSandboxModelCatalogService, ICloudSandboxModelCatalogService } from './cloudSandboxModels.js';
 import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from './cloudSandboxTelemetry.js';
 import { EditorCloudSandboxContribution } from './editorCloudSandboxContribution.js';
+import { EditorExtensionRemoteAgentHostsContribution } from './editorExtensionRemoteAgentHosts.js';
 import { RemoteAgentHostContribution } from './remoteAgentHostChatContribution.js';
 import './missionControlEnvironmentActions.js';
-import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlSharingService, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlSharingService, IRemoteGitHubEnvironmentSharingService, MissionControlUseLocalCredentialsConfigKey, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { MissionControlEnvironmentService } from './missionControlEnvironmentService.js';
 import { MissionControlSharingService } from './missionControlSharingService.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { RemoteAgentHostAuthenticationResolver } from './remoteAgentHostAuthenticationResolver.js';
 import { MissionControlAvailabilityService } from './missionControlAvailabilityService.js';
+import { RemoteGitHubEnvironmentSharingService } from './remoteGitHubEnvironmentSharingService.js';
 
 class MissionControlContribution {
 	static readonly ID = 'workbench.contrib.missionControl';
@@ -41,12 +43,14 @@ registerSingleton(ICloudSandboxModelCatalogService, CloudSandboxModelCatalogServ
 registerSingleton(ICloudSandboxAgentHostService, CloudSandboxAgentHostService, InstantiationType.Delayed);
 registerSingleton(IMissionControlEnvironmentService, MissionControlEnvironmentService, InstantiationType.Delayed);
 registerSingleton(IMissionControlSharingService, MissionControlSharingService, InstantiationType.Delayed);
+registerSingleton(IRemoteGitHubEnvironmentSharingService, RemoteGitHubEnvironmentSharingService, InstantiationType.Delayed);
 registerSingleton(IMissionControlAvailabilityService, MissionControlAvailabilityService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService, InstantiationType.Delayed);
 registerSingleton(IAgentHostAdvertisedAuthenticationResolver, RemoteAgentHostAuthenticationResolver, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(RemoteAgentHostContribution.ID, RemoteAgentHostContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(EditorCloudSandboxContribution.ID, EditorCloudSandboxContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(EditorExtensionRemoteAgentHostsContribution.ID, EditorExtensionRemoteAgentHostsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(MissionControlContribution.ID, MissionControlContribution, WorkbenchPhase.AfterRestored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -69,6 +73,23 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
+			tags: ['experimental', 'advanced'],
+		},
+		[WorkspaceRemoteAgentHostsSettingId]: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					address: { type: 'string', description: localize('chat.workspaceRemoteAgentHosts.address', "The WebSocket address of the remote agent host (e.g. \"localhost:3000\").") },
+					name: { type: 'string', description: localize('chat.workspaceRemoteAgentHosts.name', "A display name for this remote agent host.") },
+					connectionToken: { type: 'string', description: localize('chat.workspaceRemoteAgentHosts.connectionToken', "An optional connection token for authenticating with the remote agent host.") },
+				},
+				required: ['address', 'name'],
+			},
+			markdownDescription: localize('chat.workspaceRemoteAgentHosts', "WebSocket remote agent hosts that editor windows connect to while this workspace is open. Their agents become available in Chat, and their sessions are listed there. Editor windows also connect to the hosts that extensions register, but not to the hosts in `#chat.remoteAgentHosts#`; those belong to the Agents window. Only applies in trusted workspaces; connected hosts receive your GitHub credentials, so only list hosts you trust."),
+			default: [],
+			scope: ConfigurationScope.WINDOW,
 			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
@@ -103,13 +124,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[MissionControlUseLocalCredentialsSettingId]: {
 			type: 'boolean',
-			description: localize('missionControl.useLocalCredentials', "Use the OAuth token already available on this host for work started by a remote client through Mission Control, instead of the remote client's token. Remote clients must still authenticate as the same GitHub account. Requests use the host account's permissions and usage allowance. Changing this setting disconnects existing Mission Control clients."),
+			description: localize('missionControl.useLocalCredentials', "Use this host's GitHub and Copilot credentials for Mission Control sessions, including repository operations and restored background work, instead of the remote client's credentials. Remote clients must still authenticate as the same GitHub account. Requests use the host account's permissions and usage allowance. Changing this setting disconnects existing Mission Control clients."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
 			tags: ['experimental', 'advanced'],
 			ignoreSync: true,
 			experiment: { mode: 'auto' },
+			agentHost: { key: MissionControlUseLocalCredentialsConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 		},
 		[CloudSandboxEnabledSettingId]: {
 			type: 'boolean',

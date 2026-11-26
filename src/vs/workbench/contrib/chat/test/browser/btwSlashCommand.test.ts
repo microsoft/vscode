@@ -61,6 +61,7 @@ suite('BtwSlashCommandContribution', () => {
 		let registration: { data: IChatSlashData; callback: IChatSlashCallback } | undefined;
 		const calls: object[] = [];
 		const selections: (IChatSideChatSelection | undefined)[] = [];
+		const contextInheritance: (boolean | undefined)[] = [];
 		const warnings: string[] = [];
 		const errors: string[] = [];
 		const participants: string[] = [];
@@ -112,9 +113,10 @@ suite('BtwSlashCommandContribution', () => {
 			upcastPartial<IChatSessionsService>({
 				sessionSupportsSideChat: () => options?.supported !== false,
 				observeSideChatOrigin: () => options?.origin ?? constObservable(undefined),
-				createSideChat: async (resource, turnId, _token, selection) => {
+				createSideChat: async (resource, turnId, _token, selection, includeSourceContext) => {
 					calls.push({ create: resource, turnId, selection });
 					selections.push(selection);
+					contextInheritance.push(includeSourceContext);
 					if (options?.fail === 'create') {
 						throw new Error('Create failed');
 					}
@@ -159,7 +161,7 @@ suite('BtwSlashCommandContribution', () => {
 		));
 
 		return {
-			registration, calls, selections, warnings, errors, participants, telemetryEvents, sourceGroup, splitGroup, sideChatService,
+			registration, calls, selections, contextInheritance, warnings, errors, participants, telemetryEvents, sourceGroup, splitGroup, sideChatService,
 			run: async (prompt = 'question', requestOptions?: IChatSendRequestOptions, input = `/btw ${prompt}`) => {
 				assert.ok(registration);
 				await registration.callback(prompt, { report: () => { } }, [], ChatAgentLocation.Chat, source, CancellationToken.None, requestOptions, { input });
@@ -270,6 +272,17 @@ suite('BtwSlashCommandContribution', () => {
 		await harness.run('first question');
 		await harness.run('second question');
 		assert.deepStrictEqual(harness.participants, [source.scheme, source.scheme]);
+	});
+
+	test('a fresh side chat does not change subsequent /btw context inheritance', async () => {
+		const harness = setup();
+		await harness.sideChatService.askInSideChat(source, 'Explain this command: git status', undefined, { includeSourceContext: false });
+		await harness.run('question');
+
+		assert.deepStrictEqual({ contextInheritance: harness.contextInheritance, telemetry: harness.telemetryEvents }, {
+			contextInheritance: [false, undefined],
+			telemetry: ['chatBtwUsed'],
+		});
 	});
 
 	test('anchors a selected older response to its own turn instead of the latest turn', async () => {

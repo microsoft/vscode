@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -14,10 +15,11 @@ import { GitHubService } from '../../common/githubService.js';
 import { RequestFetch } from '../../common/types.js';
 import { getGitHubClientInternals } from './githubClientTestUtils.js';
 
+
 suite('GitHub bootstrap clients', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const apiBaseUri = 'https://api.github.com';
-	const signal = () => new AbortController().signal;
+	const cancellationToken = () => CancellationToken.None;
 	const create = (fetch: RequestFetch) => store.add(new GitHubService({
 		fetch,
 		credentialProvider: { onDidChange: Event.None, getToken: () => { throw new Error('Bootstrap must not look up an accepted credential'); } },
@@ -30,7 +32,7 @@ suite('GitHub bootstrap clients', () => {
 			return Response.json({ access_type_sku: 'test' });
 		});
 		const client = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'pending-token' })).object;
-		const result = await client.get('/copilot_internal/user', signal());
+		const result = await client.get('/copilot_internal/user', cancellationToken());
 		assert.deepStrictEqual({ requests, data: result.data }, {
 			requests: [{ path: '/copilot_internal/user', token: 'Bearer pending-token', credentials: 'omit' }],
 			data: { access_type_sku: 'test' },
@@ -49,8 +51,8 @@ suite('GitHub bootstrap clients', () => {
 		});
 		const first = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'first', accountId: '101' })).object;
 		const second = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'second', accountId: '101' })).object;
-		const responses = await Promise.all([first.get('/copilot_internal/user', signal()), second.get('/copilot_internal/user', signal())]);
-		const revalidated = await first.get('/copilot_internal/user', signal());
+		const responses = await Promise.all([first.get('/copilot_internal/user', cancellationToken()), second.get('/copilot_internal/user', cancellationToken())]);
+		const revalidated = await first.get('/copilot_internal/user', cancellationToken());
 		assert.deepStrictEqual({
 			requests, data: responses.map(response => response.data), revalidated: revalidated.data,
 		}, {
@@ -71,11 +73,11 @@ suite('GitHub bootstrap clients', () => {
 					: Response.json({ ok: true });
 			});
 			const first = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'first', accountId }));
-			await assert.rejects(first.object.get('/denied', signal()), { kind: 'authorization', statusCode: 403 });
-			await first.object.get('/after', signal(), { deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time) });
+			await assert.rejects(first.object.get('/denied', cancellationToken()), { kind: 'authorization', statusCode: 403 });
+			await first.object.get('/after', cancellationToken(), { deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time) });
 			first.dispose();
 			const second = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'second', accountId })).object;
-			await second.get('/replacement', signal(), { deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time) });
+			await second.get('/replacement', cancellationToken(), { deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time) });
 			assert.deepStrictEqual({ requests, hasCooldown: blockedUntil.some(time => time > Date.now()) }, {
 				requests: ['/denied', '/after', '/replacement'], hasCooldown: false,
 			});
@@ -86,10 +88,10 @@ suite('GitHub bootstrap clients', () => {
 		let calls = 0;
 		const service = create(async () => { calls++; return new Response(null, { status: 429, headers: { 'Retry-After': '60' } }); });
 		const first = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'first' }));
-		await assert.rejects(first.object.get('/copilot_internal/user', signal()), { kind: 'rateLimit' });
+		await assert.rejects(first.object.get('/copilot_internal/user', cancellationToken()), { kind: 'rateLimit' });
 		first.dispose();
 		const replacement = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'second' })).object;
-		await assert.rejects(replacement.get('/copilot_internal/user', signal(), { deadline: Date.now() + 100 }), { kind: 'rateLimit', statusCode: 429 });
+		await assert.rejects(replacement.get('/copilot_internal/user', cancellationToken(), { deadline: Date.now() + 100 }), { kind: 'rateLimit', statusCode: 429 });
 		assert.strictEqual(calls, 1);
 	}));
 
@@ -103,17 +105,17 @@ suite('GitHub bootstrap clients', () => {
 				: Response.json({ ok: true });
 		});
 		const bootstrap = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'copilot', accountId: '101' })).object;
-		await assert.rejects(bootstrap.get('/copilot_internal/user', signal()), { kind: 'rateLimit' });
+		await assert.rejects(bootstrap.get('/copilot_internal/user', cancellationToken()), { kind: 'rateLimit' });
 		const repository = store.add(service.acquireClient({
 			authorization: { providerId: 'test', sessionId: 'repository', scopes: ['repo'] },
 			apiBaseUri, graphQlUri: `${apiBaseUri}/graphql`,
 		})).object;
 		await assert.rejects(getGitHubClientInternals(repository).transport.rest({ host: 'api.github.com', accountId: '101' }, 'repository', {
 			method: 'GET', url: `${apiBaseUri}/repos/owner/repo`, deadline: Date.now() + 100,
-		}, signal()), { kind: 'timeout' });
+		}, cancellationToken()), { kind: 'timeout' });
 		await getGitHubClientInternals(repository).transport.rest({ host: 'api.github.com', accountId: '202' }, 'peer', {
 			method: 'GET', url: `${apiBaseUri}/repos/peer/repo`,
-		}, signal());
+		}, cancellationToken());
 		assert.deepStrictEqual(requests, ['/copilot_internal/user', '/repos/peer/repo']);
 	}));
 
@@ -121,31 +123,31 @@ suite('GitHub bootstrap clients', () => {
 		let calls = 0;
 		const service = create(async () => { calls++; return new Response(null, { status: 429, headers: { 'Retry-After': '60' } }); });
 		const unknown = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'token' }));
-		await assert.rejects(unknown.object.get('/copilot_internal/user', signal()), { kind: 'rateLimit' });
+		await assert.rejects(unknown.object.get('/copilot_internal/user', cancellationToken()), { kind: 'rateLimit' });
 		unknown.dispose();
 		const known = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'token', accountId: '101' })).object;
-		await assert.rejects(known.get('/copilot_internal/user', signal(), { deadline: Date.now() + 100 }), { kind: 'rateLimit', statusCode: 429 });
+		await assert.rejects(known.get('/copilot_internal/user', cancellationToken(), { deadline: Date.now() + 100 }), { kind: 'rateLimit', statusCode: 429 });
 		assert.strictEqual(calls, 1);
 	}));
 
 	test('the last reference cancels work while a peer reference remains usable', async () => {
-		const started = new DeferredPromise<AbortSignal>();
+		const started = new DeferredPromise<CancellationToken>();
 		const response = new DeferredPromise<Response>();
-		const service = create(async (_input, init) => {
-			assert.ok(init?.signal);
-			void started.complete(init.signal);
+		const service = create(async (_input, init, fetchToken) => {
+			assert.ok(fetchToken);
+			void started.complete(fetchToken);
 			return response.p;
 		});
 		const first = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'token' }));
 		const peer = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'token' }));
-		const pending = assert.rejects(peer.object.get('/copilot_internal/user', signal()));
+		const pending = assert.rejects(peer.object.get('/copilot_internal/user', cancellationToken()));
 		const active = await started.p;
 		first.dispose();
-		assert.strictEqual(active.aborted, false);
+		assert.strictEqual(active.isCancellationRequested, false);
 		peer.dispose();
 		await pending;
 		await response.complete(Response.json({}));
-		assert.strictEqual(active.aborted, true);
+		assert.strictEqual(active.isCancellationRequested, true);
 	});
 
 	test('bootstrap reads reject escaping redirects before dispatching the target', async () => {
@@ -155,7 +157,7 @@ suite('GitHub bootstrap clients', () => {
 			return new Response(null, { status: 302, headers: { Location: '/outside' } });
 		});
 		const client = store.add(service.acquireBootstrapClient({ apiBaseUri: `${apiBaseUri}/api/v3`, token: 'token' })).object;
-		await assert.rejects(client.get('/copilot_internal/user', signal()), { kind: 'authorization' });
+		await assert.rejects(client.get('/copilot_internal/user', cancellationToken()), { kind: 'authorization' });
 		assert.deepStrictEqual(requests, [`${apiBaseUri}/api/v3/copilot_internal/user`]);
 	});
 
@@ -170,7 +172,7 @@ suite('GitHub bootstrap clients', () => {
 		const first = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'first' })).object;
 		const second = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'second' })).object;
 		const paths = Array.from({ length: 12 }, (_, index) => `/request-${index}`);
-		const reads = paths.map((path, index) => (index % 2 ? first : second).get(path, signal(), { caller: `caller-${index % 2}` }));
+		const reads = paths.map((path, index) => (index % 2 ? first : second).get(path, cancellationToken(), { caller: `caller-${index % 2}` }));
 		await timeout(0);
 		const initiallyStarted = requests.length;
 		await gate.complete();

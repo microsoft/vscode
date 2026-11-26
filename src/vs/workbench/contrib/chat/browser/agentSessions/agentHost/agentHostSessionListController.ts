@@ -8,12 +8,13 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
-import { ChatInteractivity, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatOriginKind, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInteractivity, SessionOriginKind, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatOriginKind, SessionStatus, readFolderScopeGitState, readSessionEhcliAdoptable, readSessionGitState, readWorkingDirectoryScopeId, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
@@ -22,7 +23,7 @@ import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
-import { AgentHostSessionListStore, type IAgentHostSessionListDelta } from './agentHostSessionListStore.js';
+import { AgentHostSessionListStore, type IAgentHostSessionListDelta, type IAgentHostSessionListEntry } from './agentHostSessionListStore.js';
 import { AgentHostChatMoveTracker, IAgentHostChatMove } from './agentHostChatMoveTracker.js';
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
@@ -39,9 +40,34 @@ function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus 
 }
 
 /**
+ * The branch `summary` reports: of its working directory's own git state, where it has one, even without a branch (a
+ * detached head); else of the session's.
+ */
+export function readSessionSummaryBranchName(summary: SessionSummary): string | undefined {
+	const folderGitState = summary.workingDirectories?.length ? readFolderScopeGitState(summary._meta, readWorkingDirectoryScopeId(summary._meta, summary.workingDirectories)) : undefined;
+	return (folderGitState ?? readSessionGitState(summary._meta))?.branchName;
+}
+
+/** An item converted from a store entry, with everything its conversion depends on that is not part of the entry. */
+interface ICachedSessionItem {
+	readonly entry: IAgentHostSessionListEntry;
+	readonly session: URI;
+	readonly resource: URI;
+	readonly canArchiveChat: boolean;
+	readonly item: IChatSessionItem;
+}
+
+/** An item as last reported to the listeners of the controller, and what it shows. */
+interface IReportedSessionItem {
+	readonly item: IChatSessionItem;
+	readonly signature: string;
+}
+
+/**
  * Provides provider-specific session list items for the chat sessions sidebar
  * by projecting the shared {@link AgentHostSessionListStore} state. The
- * controller derives items from the store on demand.
+ * controller derives items from the store on demand, converting only the
+ * entries that changed since they were last converted.
  */
 export class AgentHostSessionListController extends Disposable implements IChatSessionItemController {
 
@@ -50,6 +76,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private readonly _chatMoves = this._register(new AgentHostChatMoveTracker<{ readonly resource: URI }>());
 	/** Fires when a chat of this provider's sessions moved to another of them; resources are chat session resources. */
 	readonly onDidMoveChat: Event<IAgentHostChatMove<{ readonly resource: URI }>> = this._chatMoves.onDidMoveChat;
+
+	/** The items last converted, by session: an item changes only as its entry and the inputs of the conversion do, so most are given out again unconverted. */
+	private _itemCache = new Map<string, ICachedSessionItem>();
+
+	/** The items last reported by a change, by session; what the readers have been told, whatever they have read since. */
+	private readonly _reportedItems = new Map<string, IReportedSessionItem>();
 
 	constructor(
 		private readonly _sessionType: string,
@@ -103,8 +135,19 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	get items(): readonly IChatSessionItem[] {
-		return this._sessionListStore.getSessions(this._provider)
-			.map(entry => this._makeItemFromSummary(entry.summary, entry.statusKnown));
+		const canArchiveChat = this._sessionListStore.canArchiveChat;
+		const cache = new Map<string, ICachedSessionItem>();
+		const items = this._sessionListStore.getSessions(this._provider).map(entry => {
+			const key = entry.summary.resource;
+			let cached = this._itemCache.get(key);
+			if (!cached || cached.entry !== entry || cached.canArchiveChat !== canArchiveChat || cached.resource !== this._sessionListStore.getSessionResource(cached.session)) {
+				cached = this._convert(entry, canArchiveChat);
+			}
+			cache.set(key, cached);
+			return cached.item;
+		});
+		this._itemCache = cache;
+		return items;
 	}
 
 	isNewSession(resource: URI): boolean {
@@ -147,9 +190,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// untitled-to-real rebind. The untitled entry is left in place and
 			// cleaned up when its compose model disposes; clearing it here would
 			// briefly fire a change while the widget still points at the untitled
-			// resource, flickering the chip back to the first folder.
+			// resource, flickering the chip back to the first folder. Carrying a
+			// folder forward is not a new choice, so the window's default stays as
+			// it is (a folder chosen on the user's behalf must not become it).
 			if (workingDirectory) {
-				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
+				this._newSessionFolderService.setFolder(item.resource, workingDirectory, { updateDefault: false });
 			}
 			// Carry any imported ("Continue in…") conversation snapshot from the
 			// untitled chat-input resource to the freshly-minted real resource so
@@ -180,7 +225,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					?? this._newSessionFolderService.getDefaultFolder()
 					?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 				if (currentDirectory) {
-					this._newSessionFolderService.setFolder(nextResource, currentDirectory);
+					this._newSessionFolderService.setFolder(nextResource, currentDirectory, { updateDefault: false });
 				}
 				this._newSessionFolderService.clear(previousResource);
 				this._importConversationStore.rename(previousResource, nextResource);
@@ -199,17 +244,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return;
 		}
 
-		const session = this._resolveSession(resource);
-		const entry = this._sessionListStore.getSession(this._provider, session);
 		if (resource.fragment) {
-			const chat = entry?.summary.chats?.find(chat => getAgentHostChatId(chat.resource) === resource.fragment);
-			if (!chat) {
-				throw new Error(`Cannot resolve chat '${resource.fragment}' in session '${session.toString()}'`);
-			}
-			await this._sessionListStore.disposeChat(URI.parse(chat.resource));
+			await this._sessionListStore.disposeChat(this._resolveChat(resource));
 			return;
 		}
 
+		const session = this._resolveSession(resource);
 		await this._sessionListStore.disposeSession(session);
 
 		// `root/sessionRemoved` only fires for sessions the backend had previously announced, so remove the session from
@@ -223,7 +263,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return;
 		}
 
-		this._sessionListStore.setSessionArchived(this._provider, this._resolveSession(resource), archived);
+		if (resource.fragment) {
+			this._sessionListStore.setChatArchived(this._resolveChat(resource), archived);
+		} else {
+			this._sessionListStore.setSessionArchived(this._provider, this._resolveSession(resource), archived);
+		}
 	}
 
 	setChatSessionItemRead(resource: URI, isRead: boolean): void {
@@ -231,7 +275,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return;
 		}
 
-		this._sessionListStore.setSessionRead(this._provider, this._resolveSession(resource), isRead);
+		if (resource.fragment) {
+			this._sessionListStore.setChatRead(this._resolveChat(resource), isRead);
+		} else {
+			this._sessionListStore.setSessionRead(this._provider, this._resolveSession(resource), isRead);
+		}
 	}
 
 	async refresh(token: CancellationToken): Promise<void> {
@@ -244,17 +292,32 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private _projectDelta(delta: IAgentHostSessionListDelta): IChatSessionItemsDelta | undefined {
 		let addedOrUpdated: IChatSessionItem[] | undefined;
 		let removed: URI[] | undefined;
+		const canArchiveChat = this._sessionListStore.canArchiveChat;
 		for (const entry of delta.addedOrUpdated ?? []) {
 			if (entry.provider !== this._provider) {
 				continue;
 			}
-			(addedOrUpdated ??= []).push(this._makeItemFromSummary(entry.summary, entry.statusKnown));
+			const key = entry.summary.resource;
+			const converted = this._convert(entry, canArchiveChat);
+			// The project is read from the store by wrappers that filter this controller's items by it, so a change of it is a change of the list
+			const signature = JSON.stringify([converted.item, entry.summary.project]);
+			const reported = this._reportedItems.get(key);
+			if (reported?.signature === signature) {
+				// Nothing the item shows changed, such as a summary change of the session's metadata only: it is not a change of the list
+				this._itemCache.set(key, { ...converted, item: reported.item });
+				continue;
+			}
+			this._reportedItems.set(key, { item: converted.item, signature });
+			this._itemCache.set(key, converted);
+			(addedOrUpdated ??= []).push(converted.item);
 		}
 
 		for (const removal of delta.removed ?? []) {
 			if (removal.provider !== this._provider) {
 				continue;
 			}
+			this._itemCache.delete(removal.session.toString());
+			this._reportedItems.delete(removal.session.toString());
 			(removed ??= []).push(this._sessionListStore.getSessionResource(removal.session));
 		}
 
@@ -262,6 +325,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return undefined;
 		}
 		return { ...(addedOrUpdated ? { addedOrUpdated } : undefined), ...(removed ? { removed } : undefined) };
+	}
+
+	private _convert(entry: IAgentHostSessionListEntry, canArchiveChat: boolean): ICachedSessionItem {
+		const session = URI.parse(entry.summary.resource);
+		const resource = this._sessionListStore.getSessionResource(session);
+		return { entry, session, resource, canArchiveChat, item: this._makeItemFromSummary(entry.summary, entry.statusKnown) };
 	}
 
 	private _makeItemFromSummary(summary: SessionSummary, statusKnown: boolean): IChatSessionItem {
@@ -277,6 +346,9 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			modifiedAt: Date.parse(summary.modifiedAt),
 			changesSummary: summary.changes,
 			adoptable: readSessionEhcliAdoptable(summary._meta),
+			isAutomation: summary.origin?.kind === SessionOriginKind.Automation,
+			project: summary.project && URI.parse(summary.project.uri),
+			branchName: readSessionSummaryBranchName(summary),
 		};
 		if (!summary.chats?.length) {
 			return this._makeItem(resource, base);
@@ -293,7 +365,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			title: this._useSessionTitleForDefaultChat ? summary.title : defaultChat?.title || summary.title,
 			children: peerChats.length ? peerChats.map(chat => this._makeItem(resource, {
 				title: chat.title || summary.title,
+				status: chat.status,
 				workingDirectory: base.workingDirectory,
+				project: base.project,
+				branchName: base.branchName,
 				createdAt: base.createdAt,
 				modifiedAt: base.modifiedAt,
 				chat,
@@ -313,14 +388,19 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		changesSummary?: ChangesSummary;
 		/** Un-adopted legacy Copilot CLI session surfaced as adoptable; must not be passively restored. */
 		adoptable?: boolean;
+		isAutomation?: boolean;
+		/** The session's project, as the agent host resolves it: for a git working directory, its primary worktree's root. */
+		project?: URI;
+		branchName?: string;
 		chat?: SessionChatSummary;
 		children?: readonly IChatSessionItem[];
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
-		const metadata = opts.adoptable
-			? { ...(this._buildMetadata(opts.workingDirectory) ?? {}), [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
-			: this._buildMetadata(opts.workingDirectory);
+		const metadata = this._buildMetadata(opts.workingDirectory, opts.isAutomation, opts.project, opts.branchName);
+		const itemMetadata = opts.adoptable
+			? { ...metadata, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
+			: metadata;
 		return {
 			resource: opts.chat ? resource.with({ fragment: getAgentHostChatId(opts.chat.resource) }) : resource,
 			label: opts.title || `Session ${AgentSession.id(resource).substring(0, 8)}`,
@@ -329,13 +409,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			iconPath: getAgentSessionProviderIcon(this._sessionType),
 			...(opts.status !== undefined ? { status: mapSessionStatus(opts.status) } : undefined),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
+			canArchive: opts.chat ? this._sessionListStore.canArchiveChat : undefined,
 			// Without a host-provided status there is no opinion on read state —
 			// a pending new session, or a cold one the host has no record for.
 			// Leave it unset rather than reporting the synthesized bit as unread.
 			isRead: opts.status !== undefined && opts.statusKnown !== false
 				? (opts.status & SessionStatus.IsRead) === SessionStatus.IsRead
 				: undefined,
-			metadata,
+			metadata: itemMetadata,
 			timing: {
 				created: opts.createdAt,
 				lastRequestStarted: opts.modifiedAt,
@@ -361,6 +442,16 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return identity.backendSession;
 	}
 
+	private _resolveChat(resource: URI): URI {
+		const session = this._resolveSession(resource);
+		const entry = this._sessionListStore.getSession(this._provider, session);
+		const chat = entry?.summary.chats?.find(chat => getAgentHostChatId(chat.resource) === resource.fragment);
+		if (!chat) {
+			throw new Error(`Cannot resolve chat '${resource.fragment}' in session '${session.toString()}'`);
+		}
+		return URI.parse(chat.resource);
+	}
+
 	/** Tells the move tracker which chats the session lists, each with its chat session resource; a summary without a catalog says nothing about it. */
 	private _updateChatCatalog(summary: SessionSummary): void {
 		if (!summary.chats) {
@@ -381,8 +472,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return URI.from({ scheme: this._sessionType, path: `/${rawId}` });
 	}
 
-	private _buildMetadata(workingDirectory: URI | undefined): { readonly [key: string]: unknown } | undefined {
-		if (!this._description && !workingDirectory) {
+	private _buildMetadata(workingDirectory: URI | undefined, isAutomation: boolean | undefined, project: URI | undefined, branchName: string | undefined): { readonly [key: string]: unknown } | undefined {
+		if (!this._description && !workingDirectory && !isAutomation && !project && !branchName) {
 			return undefined;
 		}
 		const result: { [key: string]: unknown } = {};
@@ -391,6 +482,16 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		}
 		if (workingDirectory) {
 			result.workingDirectoryPath = workingDirectory.fsPath;
+		}
+		if (isAutomation) {
+			result.isAutomation = true;
+		}
+		// Where the session's local project is, such as to tell its worktrees apart from the folder they are of
+		if (project?.scheme === Schemas.file) {
+			result.projectPath = project.fsPath;
+		}
+		if (branchName) {
+			result.branchName = branchName;
 		}
 		return Object.keys(result).length > 0 ? result : undefined;
 	}

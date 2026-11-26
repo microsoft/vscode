@@ -338,6 +338,7 @@ const toolCallResultFields = {
 	pastTenseMessage: stringOrMarkdownValidator,
 	content: vOptionalProp(vArray(toolResultContentValidator)),
 	structuredContent: vOptionalProp(openMetaValidator),
+	resultMetadata: vOptionalProp(openMetaValidator),
 	error: vOptionalProp(vObj({
 		message: vString(),
 		code: vOptionalProp(vString()),

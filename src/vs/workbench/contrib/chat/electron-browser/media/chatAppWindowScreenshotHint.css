@@ -1,0 +1,30 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-attachment-hint-container {
+	width: 100%;
+}
+
+/*
+ * The frame, row layout and type come from `.chat-input-notice`. Like the
+ * getting-started tip, this is one row of text, so it centres rather than taking
+ * the variant's top alignment. Prefixed with the base class so it out-ranks it.
+ */
+.chat-attachment-hint-container .chat-input-notice.chat-app-window-screenshot-hint {
+	align-items: center;
+}
+
+.chat-app-window-screenshot-hint .chat-app-window-screenshot-hint-icon {
+	flex: 0 0 auto;
+}
+
+.chat-app-window-screenshot-hint .chat-app-window-screenshot-hint-message {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-app-window-screenshot-hint .chat-app-window-screenshot-hint-message .rendered-markdown p {
+	margin: 0;
+}

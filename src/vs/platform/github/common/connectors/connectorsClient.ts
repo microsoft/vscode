@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiRequestOptions, IApiRequestProvider } from '../client/request.js';
 import { pathSegment } from '../client/routing.js';
 import { parse } from '../client/schema.js';
@@ -12,8 +13,8 @@ import { ConnectorCatalog, ConnectorConnectionResult, ConnectorPlugin, Connector
 export class ConnectorsClient implements IConnectorsClient {
 	constructor(private readonly provider?: IApiRequestProvider) { }
 
-	async getCatalog(signal: AbortSignal, options?: ApiRequestOptions): Promise<ConnectorCatalog> {
-		signal.throwIfAborted();
+	async getCatalog(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ConnectorCatalog> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!this.provider) {
 			throw new GitHubRequestError('No approved Copilot connectors endpoint is configured for this client', 'validation');
 		}
@@ -25,12 +26,12 @@ export class ConnectorsClient implements IConnectorsClient {
 			accept: 'application/json',
 			expectedStatus: 200,
 			options,
-		}, signal, parseCatalog);
+		}, cancellationToken, parseCatalog);
 		return response.data;
 	}
 
-	async connect(name: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<ConnectorConnectionResult> {
-		signal.throwIfAborted();
+	async connect(name: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ConnectorConnectionResult> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!this.provider) {
 			throw new GitHubRequestError('No approved Copilot connectors endpoint is configured for this client', 'validation');
 		}
@@ -43,12 +44,12 @@ export class ConnectorsClient implements IConnectorsClient {
 			accept: 'application/json',
 			expectedStatus: 200,
 			options,
-		}, signal, parseConnection);
+		}, cancellationToken, parseConnection);
 		return response.data;
 	}
 
-	async disconnect(name: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
-		signal.throwIfAborted();
+	async disconnect(name: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!this.provider) {
 			throw new GitHubRequestError('No approved Copilot connectors endpoint is configured for this client', 'validation');
 		}
@@ -61,7 +62,7 @@ export class ConnectorsClient implements IConnectorsClient {
 			expectedStatus: 204,
 			responseBody: 'none',
 			options,
-		}, signal);
+		}, cancellationToken);
 	}
 }
 

@@ -5,30 +5,23 @@
 
 import assert from 'assert';
 import * as fs from 'fs';
-import { EOL } from 'os';
 import * as path from 'path';
-import type { NotebookDocument } from 'vscode';
 import { Intent } from '../../src/extension/common/constants';
 import { IDiffService } from '../../src/platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../src/platform/diff/node/diffServiceImpl';
 import { IAlternativeNotebookContentService } from '../../src/platform/notebook/common/alternativeContent';
 import { AlternativeNotebookContentEditGenerator, IAlternativeNotebookContentEditGenerator } from '../../src/platform/notebook/common/alternativeContentEditGenerator';
-import { AlternativeNotebookFormat } from '../../src/platform/notebook/common/alternativeContentFormat';
-import { MockAlternativeNotebookContentService } from '../../src/platform/notebook/common/mockAlternativeContentService';
 import { INotebookService, VariablesResult } from '../../src/platform/notebook/common/notebookService';
 import { ITestingServicesAccessor } from '../../src/platform/test/node/services';
-import { IFile, SimulationWorkspace } from '../../src/platform/test/node/simulationWorkspace';
+import { SimulationWorkspace } from '../../src/platform/test/node/simulationWorkspace';
 import { SimulationAlternativeNotebookContentService, SimulationNotebookService } from '../../src/platform/test/node/simulationWorkspaceServices';
-import { ExtHostNotebookDocumentData } from '../../src/util/common/test/shims/notebookDocument';
-import { DisposableStore } from '../../src/util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../src/util/vs/base/common/map';
 import { Schemas } from '../../src/util/vs/base/common/network';
-import { URI } from '../../src/util/vs/base/common/uri';
 import { SyncDescriptor } from '../../src/util/vs/platform/instantiation/common/descriptors';
 import { ssuite, stest } from '../base/stest';
 import { getDiagnostics } from './diagnosticProviders';
 import { DiagnosticsProvider, ITestDiagnostic } from './diagnosticProviders/diagnosticsProvider';
-import { canExecutePythonCodeWithoutErrors, isValidPythonFile } from './diagnosticProviders/python';
+import { isValidPythonFile } from './diagnosticProviders/python';
 import { simulateInlineChat } from './inlineChatSimulator';
 import { fromFixture, getFixturesDir } from './stestUtil';
 import { DiagnosticProviderId, IOutcome, IScenario } from './types';
@@ -228,35 +221,6 @@ ssuite({ title: 'notebook', subtitle: 'edit', location: 'inline' }, () => {
 			]
 		});
 	});
-
-	// import matplotlib.pyplot as plt
-
-	// months = range(1, 13)
-	// nyc_temp_2000 = [20.0, 30.5, 80.1, 80.3, 56.5, 99.6]
-	// plt.plot(months, nyc_temp_2000)
-	// stest({ description: '/fix Matplotlib: x and y must have same first dimension', language: 'python' }, (testingServiceCollection) => {
-	// 	return runScenario(accessor, {
-	// 		files: [fromFixture('notebook/errors.ipynb')],
-	// 		queries: [
-	// 			{
-	// 				file: 'errors.ipynb',
-	// 				activeCell: 6,
-	// 				selection: [4, 0, 4, 0],
-	// 				query: '/fix ValueError: x and y must have same first dimension, but have shapes (12,) and (6,)',
-	// 				expectedIntent: 'edit',
-	// 				validate: async (outcome, workspace, accessor) => {
-	// 					assert.strictEqual(outcome.type, 'inlineEdit');
-	// 					assert.strictEqual(outcome.appliedEdits.length, 1);
-	// 					const edit = outcome.appliedEdits[0];
-	// 					assert.ok(edit.newText.includes('global'));
-	// 				}
-	// 			}
-	// 		]
-	// 	});
-	// });
-
-
-
 
 	// NameError: name 'df' is not defined -> should suggest rerun cell
 });
@@ -1013,156 +977,6 @@ ssuite({ title: 'notebook', subtitle: 'fix', location: 'inline' }, () => {
 		});
 	});
 });
-
-const shouldEvaluate = 1 >> 1;
-
-ssuite.optional((opes) => !shouldEvaluate, { title: 'notebook', subtitle: 'mbpp', location: 'inline' }, () => {
-	const mbppFile = fromFixture('notebook/filtered-mbpp.json');
-	const mbppTests = JSON.parse(mbppFile.fileContents).tests;
-	const testScenarios: { task_id: number; text: string; test_list: string[] }[] = mbppTests.map((test: any) => ({
-		task_id: test.task_id,
-		text: test.prompt,
-		test_list: test.test_list.map((line: string) => `${line}\n`)
-	}));
-
-	for (const test of testScenarios) {
-		const prompt = test.text;
-		const test_list = test.test_list;
-		const task_id = test.task_id;
-
-		stest({ description: 'mbpp ' + task_id + ' ' + prompt, language: 'python' }, async (testingServiceCollection) => {
-			const templateFile = fromFixture('notebook/mbpp.ipynb');
-
-			const notebook = JSON.parse(templateFile.fileContents);
-			const cells = notebook.cells as any[];
-			const cell = cells[1];
-			cell.source = test_list;
-
-			const notebookFile = { kind: 'relativeFile' as const, fileName: templateFile.fileName, fileContents: JSON.stringify(notebook, undefined, 2) };
-
-			return simulateInlineChat(testingServiceCollection, {
-				files: [notebookFile],
-				queries: [
-					{
-						file: notebookFile.fileName,
-						activeCell: 0,
-						selection: [0, 0, 0, 0],
-						query: `${prompt} Your code should pass the tests in the next cell.`,
-						expectedIntent: 'edit',
-						validate: async (outcome, _workspace, accessor) => {
-							assert.strictEqual(outcome.type, 'inlineEdit');
-
-							if (shouldEvaluate) {
-								const testTimeoutPromise = new Promise<void>((_, reject) => {
-									setTimeout(() => reject(new Error('Test execution timed out')), 60000);
-								});
-
-								await Promise.race([testTimeoutPromise, assertPythonCodeIsValid(accessor, outcome.fileContents, 'Generated Code is not valid', 'Generated not did not execute without errors')]);
-
-								const codeWithTests = `${outcome.fileContents}${EOL}${EOL}${EOL}# Tests${EOL}${EOL}${test_list.join('')}`;
-								await Promise.race([testTimeoutPromise, assertPythonCodeIsValid(accessor, codeWithTests, 'Generated Code with Tests is not valid', 'Generated did not pass the tests')]);
-							}
-						}
-					}
-				]
-			});
-		});
-	}
-});
-
-function generateMBPPNotebookFixture(pathOrDirnameWithinFixturesDir: string, tests: string[]) {
-	const filePath = path.join(getFixturesDir(), pathOrDirnameWithinFixturesDir);
-	const baseDirname = path.dirname(filePath);
-	const fileName = path.relative(baseDirname, filePath);
-	const uri = URI.parse(filePath);
-	const fileContents = fs.readFileSync(filePath).toString();
-
-	try {
-		const notebook = JSON.parse(fileContents);
-		const cells = notebook.cells as any[];
-		const cell = cells[1];
-		cell.source = tests;
-
-		return { kind: 'relativeFile' as const, uri, fileName, fileContents: JSON.stringify(notebook, undefined, 2) };
-	} catch {
-		return { kind: 'relativeFile' as const, uri, fileName, fileContents };
-	}
-}
-
-
-ssuite.optional((opes) => !shouldEvaluate || true, { title: 'notebook', subtitle: 'notebookEditsMbpp', location: 'panel' }, () => {
-	const mbppFile = fromFixture('notebook/filtered-mbpp.json');
-	const mbppTests = JSON.parse(mbppFile.fileContents).tests;
-	const testScenarios: { task_id: number; text: string; test_list: string[] }[] = mbppTests.map((test: any) => ({
-		task_id: test.task_id,
-		text: test.prompt,
-		test_list: test.test_list.map((line: string) => `${line}\n`)
-	}));
-
-	for (const test of testScenarios) {
-		const prompt = test.text;
-		const test_list = test.test_list;
-		const task_id = test.task_id;
-
-		stest({ description: 'mbpp ' + task_id + ' ' + prompt, language: 'python' }, async (testingServiceCollection) => {
-			const notebookFile = generateMBPPNotebookFixture('notebook/mbpp.ipynb', test_list);
-			const disposables = new DisposableStore();
-
-			const nbJson = JSON.parse(notebookFile.fileContents);
-			const cells = nbJson.cells as any[];
-			const cell = cells[1];
-			cell.source = test_list;
-
-			let notebook: NotebookDocument;
-			const currentFile: IFile = {
-				kind: 'qualifiedFile',
-				uri: notebookFile.uri,
-				fileContents: JSON.stringify(nbJson, undefined, 2)
-			};
-
-			return simulateInlineChat(testingServiceCollection, {
-				files: [currentFile],
-				async extraWorkspaceSetup(workspace) {
-					const extHostNotebook = ExtHostNotebookDocumentData.createJupyterNotebook(notebookFile.uri, notebookFile.fileContents, workspace);
-					notebook = extHostNotebook.document;
-					// TODO@DonJayamanne
-				},
-				async onBeforeStart(accessor) {
-					(accessor.get<IAlternativeNotebookContentService>(IAlternativeNotebookContentService) as MockAlternativeNotebookContentService).format = AlternativeNotebookFormat.json;
-				},
-				queries: [
-					{
-						file: currentFile.uri,
-						activeCell: 0,
-						selection: [1, 0, 1, 0],
-						query: `${prompt} Your code should pass the tests in the next cell.`,
-						expectedIntent: 'edit',
-						validate: async (_outcome, _workspace, accessor) => {
-							if (shouldEvaluate) {
-								const testTimeoutPromise = new Promise<void>((_, reject) => {
-									setTimeout(() => reject(new Error('Test execution timed out')), 60000);
-								});
-
-								await Promise.race([testTimeoutPromise, assertPythonCodeIsValid(accessor, notebook.cellAt(0).document.getText(), 'Generated Code is not valid', 'Generated not did not execute without errors')]);
-
-								const codeWithTests = `${notebook.cellAt(0).document.getText()}${EOL}${EOL}${EOL}# Tests${EOL}${EOL}${notebook.cellAt(1).document.getText()}`;
-								await Promise.race([testTimeoutPromise, assertPythonCodeIsValid(accessor, codeWithTests, 'Generated Code with Tests is not valid', 'Generated code did not pass the tests')]);
-							}
-						}
-					}
-				]
-			}).finally(() => disposables.dispose());
-		});
-	}
-});
-
-async function assertPythonCodeIsValid(accessor: ITestingServicesAccessor, pythonCode: string, validationMessage: string, executionMessage: string): Promise<void> {
-	const cellIsValid = await isValidPythonFile(accessor, pythonCode);
-	assert.ok(cellIsValid, `${validationMessage}:${EOL}${pythonCode}`);
-
-	const cellExecutesWithoutErrors = await canExecutePythonCodeWithoutErrors(accessor, pythonCode);
-	assert.ok(cellExecutesWithoutErrors, `${executionMessage}:${EOL}${pythonCode}`);
-}
 
 async function getNotebookCellDiagnostics(accessor: ITestingServicesAccessor, workspace: SimulationWorkspace, method: DiagnosticProviderId | DiagnosticsProvider): Promise<ITestDiagnostic[]> {
 	const files = workspace.documents.filter(doc => doc.document.uri.scheme === Schemas.vscodeNotebookCell).map(doc => ({ fileName: workspace.getFilePath(doc.document.uri), fileContents: doc.document.getText() }));

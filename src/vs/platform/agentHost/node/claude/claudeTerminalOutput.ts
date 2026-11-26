@@ -126,8 +126,9 @@ export class ClaudeTerminalOutputs {
 				return;
 			}
 			try {
+				const storedSizes = await database.object.getTerminalOutputSizes(toolCalls.map(toolCall => toolCall.toolCallId));
 				for (const toolCall of toolCalls) {
-					if (await database.object.getTerminalOutputSize(toolCall.toolCallId) === undefined) {
+					if (!storedSizes.has(toolCall.toolCallId)) {
 						continue;
 					}
 					const terminal = buildTerminalContent(storage, session, chat, toolCall.toolCallId, toolCall.displayName, getText(toolCall.content), toolCall.success, this._logService);

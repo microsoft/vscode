@@ -6,8 +6,8 @@
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
-import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
-import { sandboxSettingIdToAgentHostKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
+import { AgentSandboxSettingId, type IAgentSandboxMaskedCredentials } from '../../../../../platform/sandbox/common/settings.js';
+import { AgentHostSandboxKey, sandboxSettingIdToAgentHostKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 
 /** Setting IDs that affect the engine's sandbox configuration. */
 export const SANDBOX_SETTING_KEYS: readonly string[] = [
@@ -19,7 +19,7 @@ export const SANDBOX_SETTING_KEYS: readonly string[] = [
 	AgentSandboxSettingId.AgentSandboxLspServers,
 	AgentSandboxSettingId.AgentSandboxAuthenticateGit,
 	AgentSandboxSettingId.AgentSandboxAuthenticateGh,
-	AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables,
+	AgentSandboxSettingId.AgentSandboxCredentialEnvVars,
 	AgentSandboxSettingId.AgentSandboxAllowDevToolAccess,
 	AgentSandboxSettingId.AgentSandboxUserConfiguredPaths,
 	AgentSandboxSettingId.AgentSandboxLinuxFileSystem,
@@ -52,6 +52,10 @@ export function readAgentHostSandboxValues(configurationService: IConfigurationS
 		if (value !== undefined) {
 			values[sandboxKey] = value;
 		}
+	}
+	const envVars = readSandboxSetting<IAgentSandboxMaskedCredentials['envVars'] | null>(configurationService, logService, AgentSandboxSettingId.AgentSandboxCredentialEnvVars);
+	if (envVars !== undefined && envVars !== null) {
+		values[AgentHostSandboxKey.MaskedCredentials] = { envVars };
 	}
 	return values;
 }

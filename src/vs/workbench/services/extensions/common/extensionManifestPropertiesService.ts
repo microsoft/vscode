@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS, ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionContributions, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY } from '../../../../platform/extensions/common/extensions.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS, ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionContributions, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
 import { ExtensionKind } from '../../../../platform/environment/common/environment.js';
 import { ExtensionsRegistry } from './extensionsRegistry.js';
 import { getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -113,6 +113,41 @@ export function getSessionsWindowMissingFeatures(manifest: IExtensionManifest): 
 	return [...new Set(SESSIONS_WINDOW_WARNING_SIGN_CONTRIBUTION_POINTS.values())].filter(feature => contributed.has(feature));
 }
 
+function hasCodeEntryPoint(manifest: IExtensionManifest): boolean {
+	return !!manifest.main || !!manifest.browser;
+}
+
+/**
+ * Whether an extension only contributes to themes and other declarative, non-executing contribution points.
+ */
+function hasOnlyDeclarativeContributions(manifest: IExtensionManifest): boolean {
+	const contributionPoints = Object.keys(manifest.contributes || {}) as Array<keyof IExtensionContributions>;
+	return contributionPoints.every(point => SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS.has(point));
+}
+
+/**
+ * Whether an extension without declared sessions window support only supports the sessions window while
+ * {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT} is enabled: it has no code, but contributes more than themes and other
+ * declarative contributions, which are always supported.
+ */
+export function isSupportedOnSessionsWindowOnlyWhenManaged(manifest: IExtensionManifest): boolean {
+	return !hasCodeEntryPoint(manifest) && !hasOnlyDeclarativeContributions(manifest);
+}
+
+/**
+ * The boolean value of an extension in an object that is keyed by extension identifiers, which match case-insensitively.
+ */
+function getExtensionValue(values: unknown, extensionId: string): boolean | undefined {
+	if (isObject(values)) {
+		for (const [id, value] of Object.entries(values)) {
+			if (isBoolean(value) && ExtensionIdentifier.equals(id, extensionId)) {
+				return value;
+			}
+		}
+	}
+	return undefined;
+}
+
 export interface IExtensionManifestPropertiesService {
 	readonly _serviceBrand: undefined;
 
@@ -123,6 +158,11 @@ export interface IExtensionManifestPropertiesService {
 	canExecuteOnUI(manifest: IExtensionManifest): boolean;
 	canExecuteOnWorkspace(manifest: IExtensionManifest): boolean;
 	canExecuteOnWeb(manifest: IExtensionManifest): boolean;
+	/**
+	 * Whether an extension supports the sessions window, so it runs there by default. Unless the user, the product, or
+	 * the author declares its support, a user extension supports the sessions window when it has no code and either
+	 * {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT} is enabled or it only makes declarative contributions such as themes.
+	 */
 	canExecuteOnSessionsWindow(manifest: IExtensionManifest, isBuiltin?: boolean): boolean;
 	/**
 	 * Whether an extension that doesn't support the sessions window can be enabled there automatically: it contributes
@@ -131,12 +171,22 @@ export interface IExtensionManifestPropertiesService {
 	 */
 	canAutoEnableOnSessionsWindow(manifest: IExtensionManifest, isBuiltin?: boolean): boolean;
 	/**
-	 * Whether {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE} enables an extension that doesn't support the sessions window
-	 * there automatically: when the setting is `true` and the extension {@link canAutoEnableOnSessionsWindow can be
-	 * enabled automatically}, or when the setting lists the extension, even if it relies on features the sessions window
-	 * lacks. Built-in extensions and extensions that their author or the user declared unsupported are never enabled.
+	 * Whether an extension that doesn't support the sessions window is enabled there automatically. For each extension,
+	 * the first of these that is set decides: the user's value for the extension in
+	 * {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS}, the user's value of {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE},
+	 * the experiment value for the extension, and the default of {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE}. That setting
+	 * enables the extension when it is `true` and the extension {@link canAutoEnableOnSessionsWindow can be enabled
+	 * automatically}, or when it lists the extension. Listed extensions and extensions enabled for themselves are enabled
+	 * even if they rely on features the sessions window lacks. Extensions that aren't
+	 * {@link isEligibleForSessionsWindowAutoEnablement eligible} are never enabled.
 	 */
 	shouldAutoEnableOnSessionsWindow(manifest: IExtensionManifest, isBuiltin?: boolean): boolean;
+	/**
+	 * Whether an extension can be enabled in the sessions window automatically at all. Built-in extensions are curated by
+	 * the product, and extensions that support the sessions window are enabled there anyway. Authors and users can declare
+	 * that an extension doesn't support the sessions window.
+	 */
+	isEligibleForSessionsWindowAutoEnablement(manifest: IExtensionManifest, isBuiltin?: boolean): boolean;
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
 	getUserConfiguredExtensionKind(extensionIdentifier: IExtensionIdentifier): ExtensionKind[] | undefined;
@@ -198,7 +248,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 
 		const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
-		if (declaredSessionsWindowSupport !== undefined && (isBuiltin || this.configurationService.getValue<boolean>(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY))) {
+		if (declaredSessionsWindowSupport !== undefined) {
 			return declaredSessionsWindowSupport;
 		}
 
@@ -208,13 +258,13 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 
 		// Extensions without declared support must not have executable code.
-		if (manifest.main || manifest.browser) {
+		if (hasCodeEntryPoint(manifest)) {
 			return false;
 		}
 
-		// Only allow extensions that contribute to themes and other declarative, non-executing contribution points
-		const contributionPoints = Object.keys(manifest.contributes || {}) as Array<keyof IExtensionContributions>;
-		return contributionPoints.every(point => SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS.has(point));
+		// Extensions without code that only contribute themes and the like always run in the sessions window. When users
+		// manage which extensions run there, other extensions without code do too.
+		return hasOnlyDeclarativeContributions(manifest) || this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT) === true;
 	}
 
 	canAutoEnableOnSessionsWindow(manifest: IExtensionManifest, isBuiltin: boolean = false): boolean {
@@ -223,19 +273,30 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	}
 
 	shouldAutoEnableOnSessionsWindow(manifest: IExtensionManifest, isBuiltin: boolean = false): boolean {
-		const autoEnable = this.configurationService.getValue<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE);
-		if (Array.isArray(autoEnable)) {
-			const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-			return autoEnable.some(id => isString(id) && ExtensionIdentifier.equals(id, extensionId)) && this.isEligibleForSessionsWindowAutoEnablement(manifest, isBuiltin);
+		if (!this.isEligibleForSessionsWindowAutoEnablement(manifest, isBuiltin)) {
+			return false;
 		}
-		return autoEnable === true && this.canAutoEnableOnSessionsWindow(manifest, isBuiltin);
+		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+		const autoEnable = this.configurationService.inspect<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE);
+		const autoEnableExtensions = this.configurationService.inspect<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS);
+		// What users set for an extension wins over its experiment, and what users set for all extensions wins over experiments for single extensions.
+		const userValue = getExtensionValue(autoEnableExtensions.applicationValue, extensionId) ?? getExtensionValue(autoEnableExtensions.userValue, extensionId);
+		if (userValue !== undefined) {
+			return userValue;
+		}
+		if (!isConfigured(autoEnable)) {
+			const experimentValue = getExtensionValue(autoEnableExtensions.defaultValue, extensionId);
+			if (experimentValue !== undefined) {
+				return experimentValue;
+			}
+		}
+		if (Array.isArray(autoEnable.value)) {
+			return autoEnable.value.some(id => isString(id) && ExtensionIdentifier.equals(id, extensionId));
+		}
+		return autoEnable.value === true && this.canAutoEnableOnSessionsWindow(manifest, isBuiltin);
 	}
 
-	/**
-	 * Built-in extensions are curated by the product, and extensions that support the sessions window are enabled there
-	 * anyway. Authors and users can declare that an extension doesn't support the sessions window.
-	 */
-	private isEligibleForSessionsWindowAutoEnablement(manifest: IExtensionManifest, isBuiltin: boolean): boolean {
+	isEligibleForSessionsWindowAutoEnablement(manifest: IExtensionManifest, isBuiltin: boolean = false): boolean {
 		return !isBuiltin && !this.canExecuteOnSessionsWindow(manifest, isBuiltin)
 			&& manifest.capabilities?.agentsWindow?.supported !== false && this.getConfiguredSessionsWindowSupport(manifest) !== false;
 	}
@@ -315,7 +376,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 
 	getExtensionUntrustedWorkspaceSupportType(manifest: IExtensionManifest): ExtensionUntrustedWorkspaceSupportType {
 		// Workspace trust feature is disabled, or extension has no entry point
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled() || !manifest.main) {
+		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled() || (!manifest.main && !manifest.browser)) {
 			return true;
 		}
 

@@ -17,7 +17,7 @@ import { MainThreadTimelineShape } from '../../common/extHost.protocol.js';
 import { ExtHostTimeline } from '../../common/extHostTimeline.js';
 import { MarkdownString, ThemeColor, ThemeIcon, TimelineItem, TimelineTriggerKind as ApiTimelineTriggerKind } from '../../common/extHostTypes.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
-import { TimelineOptions, TimelineTriggerKind } from '../../../contrib/timeline/common/timeline.js';
+import { TimelineOptions, TimelineProviderDescriptor, TimelineTriggerKind, WorkspaceTimelineProviderDescriptor } from '../../../contrib/timeline/common/timeline.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 
@@ -27,9 +27,11 @@ suite('ExtHostTimeline', function () {
 	const uri = URI.parse('file:///timeline.txt');
 	const options: TimelineOptions = { cacheResults: true, triggerKind: TimelineTriggerKind.Automatic };
 	const converter = new class extends mock<CommandsConverter>() { };
+	const providerId = 'test-timeline';
+	const providerLabel = 'Test Timeline';
 
-	function createExtension(id: string, enabledApiProposals: IExtensionDescription['enabledApiProposals'] = ['timeline']): IExtensionDescription {
-		return { ...nullExtensionDescription, identifier: new ExtensionIdentifier(id), enabledApiProposals };
+	function createExtension(id: string): IExtensionDescription {
+		return { ...nullExtensionDescription, identifier: new ExtensionIdentifier(id) };
 	}
 
 	function createTimeline() {
@@ -40,10 +42,15 @@ suite('ExtHostTimeline', function () {
 			}
 		};
 		const calls: unknown[][] = [];
+		const registrations: unknown[][] = [];
 		const proxy = new class extends mock<MainThreadTimelineShape>() {
-			override $registerTimelineProvider(): void { }
+			override $registerTimelineProvider(provider: TimelineProviderDescriptor): void {
+				registrations.push(['timeline', provider]);
+			}
 			override $unregisterTimelineProvider(): void { }
-			override $registerWorkspaceTimelineProvider(): void { }
+			override $registerWorkspaceTimelineProvider(provider: WorkspaceTimelineProviderDescriptor): void {
+				registrations.push(['workspaceTimeline', provider]);
+			}
 			override $unregisterWorkspaceTimelineProvider(): void { }
 			override $emitTimelineChangeEvent(id: string, uris: UriComponents[] | undefined): void {
 				calls.push(['change', id, uris?.map(uri => URI.revive(uri).toString())]);
@@ -53,30 +60,40 @@ suite('ExtHostTimeline', function () {
 			}
 		};
 		const timeline = new ExtHostTimeline(SingleProxyRPCProtocol(proxy), commands);
-		return { timeline, calls, processArgument: (arg: unknown, extension: IExtensionDescription) => argumentProcessor.processArgument(arg, extension) };
+		return { timeline, calls, registrations, processArgument: (arg: unknown, extension: IExtensionDescription | undefined) => argumentProcessor.processArgument(arg, extension) };
 	}
 
 	function toContext(handle: string, source: string, uri: URI | undefined) {
 		return { $mid: MarshalledId.TimelineActionContext, handle, source, uri };
 	}
 
+	test('registers providers with the id and label passed at registration', function () {
+		const { timeline, registrations } = createTimeline();
+		const extension = createExtension('test.timeline');
+		store.add(timeline.registerTimelineProvider(providerId, providerLabel, ['file', 'git'], { provideTimeline: () => undefined }, extension.identifier, converter));
+		store.add(timeline.registerWorkspaceTimelineProvider(providerId, providerLabel, { provideWorkspaceTimeline: () => undefined }, extension.identifier, converter));
+
+		assert.deepStrictEqual(registrations, [
+			['timeline', { id: providerId, label: providerLabel, scheme: ['file', 'git'] }],
+			['workspaceTimeline', { id: providerId, label: providerLabel }],
+		]);
+	});
+
 	test('disposes cached timeline items with their provider', async function () {
 		const { timeline, processArgument } = createTimeline();
 		const extension = createExtension('test.timeline');
 		const item = new TimelineItem('first item', 1);
 		const provider = {
-			id: 'test-timeline',
-			label: 'Test Timeline',
 			provideTimeline: () => ({ items: [item] }),
 		};
-		const registration = store.add(timeline.registerTimelineProvider('file', provider, extension.identifier, converter));
-		const result = await timeline.$getTimeline(provider.id, uri, options, CancellationToken.None);
+		const registration = store.add(timeline.registerTimelineProvider(providerId, providerLabel, 'file', provider, extension.identifier, converter));
+		const result = await timeline.$getTimeline(providerId, uri, options, CancellationToken.None);
 		assert.ok(result);
-		const context = toContext(result.items[0].handle, provider.id, uri);
+		const context = toContext(result.items[0].handle, providerId, uri);
 		assert.strictEqual(processArgument(context, extension), item);
 
 		registration.dispose();
-		const replacement = store.add(timeline.registerTimelineProvider('file', provider, extension.identifier, converter));
+		const replacement = store.add(timeline.registerTimelineProvider(providerId, providerLabel, 'file', provider, extension.identifier, converter));
 		assert.strictEqual(processArgument(context, extension), undefined);
 		replacement.dispose();
 	});
@@ -86,22 +103,20 @@ suite('ExtHostTimeline', function () {
 		const extension = createExtension('test.timeline');
 		const deferredResult = new DeferredPromise<{ items: TimelineItem[] }>();
 		const provider = {
-			id: 'test-timeline',
-			label: 'Test Timeline',
 			provideTimeline: () => deferredResult.p,
 		};
-		const registration = store.add(timeline.registerTimelineProvider('file', provider, extension.identifier, converter));
-		const resultPromise = timeline.$getTimeline(provider.id, uri, options, CancellationToken.None);
+		const registration = store.add(timeline.registerTimelineProvider(providerId, providerLabel, 'file', provider, extension.identifier, converter));
+		const resultPromise = timeline.$getTimeline(providerId, uri, options, CancellationToken.None);
 
 		registration.dispose();
-		const replacement = store.add(timeline.registerTimelineProvider('file', {
+		const replacement = store.add(timeline.registerTimelineProvider(providerId, providerLabel, 'file', {
 			...provider,
 			provideTimeline: () => ({ items: [] }),
 		}, extension.identifier, converter));
 		deferredResult.complete({ items: [new TimelineItem('stale item', 1)] });
 
 		assert.strictEqual(await resultPromise, undefined);
-		assert.strictEqual(processArgument(toContext(`${provider.id}|1`, provider.id, uri), extension), undefined);
+		assert.strictEqual(processArgument(toContext(`${providerId}|1`, providerId, uri), extension), undefined);
 		replacement.dispose();
 	});
 
@@ -116,15 +131,15 @@ suite('ExtHostTimeline', function () {
 		first.command = { title: 'Open', command: 'test.open', arguments: [{ private: true }] };
 		const second: vscode.TimelineItem = new TimelineItem('second item', 1);
 		second.id = 'second';
-		const provider = { id: 'test-timeline', label: 'Test Timeline', provideTimeline: () => ({ items: [first, second] }) };
+		const provider = { provideTimeline: () => ({ items: [first, second] }) };
 		const toInternal = new class extends mock<CommandsConverter>() {
 			override toInternal(command: vscode.Command) {
 				return { id: command.command, title: command.title };
 			}
 		};
-		const registration = store.add(timeline.registerTimelineProvider('file', provider, owner.identifier, toInternal));
-		const result = await timeline.$getTimeline(provider.id, uri, options, CancellationToken.None);
-		const [firstContext, secondContext] = result!.items.map(item => toContext(item.handle, provider.id, uri));
+		const registration = store.add(timeline.registerTimelineProvider(providerId, providerLabel, 'file', provider, owner.identifier, toInternal));
+		const result = await timeline.$getTimeline(providerId, uri, options, CancellationToken.None);
+		const [firstContext, secondContext] = result!.items.map(item => toContext(item.handle, providerId, uri));
 
 		const copy = processArgument(firstContext, createExtension('test.other')) as vscode.TimelineItem;
 		const copies = processArgument([firstContext, secondContext], createExtension('test.other')) as vscode.TimelineItem[];
@@ -134,8 +149,8 @@ suite('ExtHostTimeline', function () {
 			copy: { ...copy },
 			copyIsFrozen: Object.isFrozen(copy) && copy !== first,
 			copies: copies.map(item => item.label),
-			withoutProposal: processArgument(firstContext, createExtension('test.other', [])),
-			selectionWithoutProposal: processArgument([firstContext, secondContext], createExtension('test.other', [])),
+			withoutExtension: processArgument(firstContext, undefined),
+			selectionWithoutExtension: processArgument([firstContext, secondContext], undefined),
 		}, {
 			owner: true,
 			ownerSelection: true,
@@ -152,8 +167,28 @@ suite('ExtHostTimeline', function () {
 			},
 			copyIsFrozen: true,
 			copies: ['first item', 'second item'],
-			withoutProposal: undefined,
-			selectionWithoutProposal: undefined,
+			withoutExtension: undefined,
+			selectionWithoutExtension: undefined,
+		});
+		registration.dispose();
+	});
+
+	test('passes items created from a resource without a label', async function () {
+		const { timeline, processArgument } = createTimeline();
+		const resourceUri = URI.parse('git:/timeline.txt?ref');
+		const item: vscode.TimelineItem = new TimelineItem(resourceUri, 1);
+		const registration = store.add(timeline.registerTimelineProvider(providerId, providerLabel, 'file', { provideTimeline: () => ({ items: [item] }) }, createExtension('test.owner').identifier, converter));
+		const result = await timeline.$getTimeline(providerId, uri, options, CancellationToken.None);
+		const copy = processArgument(toContext(result!.items[0].handle, providerId, uri), createExtension('test.other')) as vscode.TimelineItem;
+
+		assert.deepStrictEqual({
+			item: { label: item.label, resourceUri: item.resourceUri?.toString() },
+			converted: { label: result!.items[0].label, resourceUri: result!.items[0].resourceUri?.toString() },
+			copy: { label: copy.label, resourceUri: copy.resourceUri?.toString() },
+		}, {
+			item: { label: undefined, resourceUri: 'git:/timeline.txt?ref' },
+			converted: { label: undefined, resourceUri: 'git:/timeline.txt?ref' },
+			copy: { label: undefined, resourceUri: 'git:/timeline.txt?ref' },
 		});
 		registration.dispose();
 	});
@@ -166,10 +201,10 @@ suite('ExtHostTimeline', function () {
 		item.tooltip.isTrusted = { enabledCommands: ['test.command'] };
 		item.accessibilityInformation = { label: 'label' };
 		item.iconPath = new ThemeIcon('git-commit', new ThemeColor('color'));
-		const registration = store.add(timeline.registerTimelineProvider('file', { id: 'test-timeline', label: 'Test Timeline', provideTimeline: () => ({ items: [item] }) }, owner.identifier, converter));
-		const result = await timeline.$getTimeline('test-timeline', uri, options, CancellationToken.None);
+		const registration = store.add(timeline.registerTimelineProvider(providerId, providerLabel, 'file', { provideTimeline: () => ({ items: [item] }) }, owner.identifier, converter));
+		const result = await timeline.$getTimeline(providerId, uri, options, CancellationToken.None);
 
-		const copy = processArgument(toContext(result!.items[0].handle, 'test-timeline', uri), createExtension('test.other')) as vscode.TimelineItem;
+		const copy = processArgument(toContext(result!.items[0].handle, providerId, uri), createExtension('test.other')) as vscode.TimelineItem;
 		const tryChange = (change: () => void) => { try { change(); } catch { /* frozen */ } };
 		tryChange(() => (copy.tooltip as vscode.MarkdownString).appendMarkdown(' changed'));
 		tryChange(() => ((copy.tooltip as vscode.MarkdownString).isTrusted as { enabledCommands: string[] }).enabledCommands.push('other.command'));
@@ -201,17 +236,15 @@ suite('ExtHostTimeline', function () {
 		const requests: vscode.TimelineOptions[] = [];
 		const onDidChangeTimeline = store.add(new Emitter<vscode.Uri | vscode.Uri[] | undefined>());
 		const provider = {
-			id: 'test-timeline',
-			label: 'Test Timeline',
 			onDidChangeTimeline: onDidChangeTimeline.event,
 			provideTimeline: (_uri: vscode.Uri, options: vscode.TimelineOptions) => {
 				requests.push(options);
 				return { items: [new TimelineItem('item', 1)], cursor: 'next' };
 			},
 		};
-		const registration = store.add(timeline.registerTimelineProvider('file', provider, extension.identifier, converter));
+		const registration = store.add(timeline.registerTimelineProvider(providerId, providerLabel, 'file', provider, extension.identifier, converter));
 
-		const result = await timeline.$getTimeline(provider.id, uri, { cursor: 'start', limit: 10, triggerKind: TimelineTriggerKind.Invoke, cacheResults: true, resetCache: true }, CancellationToken.None);
+		const result = await timeline.$getTimeline(providerId, uri, { cursor: 'start', limit: 10, triggerKind: TimelineTriggerKind.Invoke, cacheResults: true, resetCache: true }, CancellationToken.None);
 		onDidChangeTimeline.fire(uri);
 		onDidChangeTimeline.fire([uri, URI.parse('file:///other.txt')]);
 		onDidChangeTimeline.fire(undefined);
@@ -220,9 +253,9 @@ suite('ExtHostTimeline', function () {
 			requests: [{ cursor: 'start', limit: 10, triggerKind: ApiTimelineTriggerKind.Invoke }],
 			cursor: 'next',
 			calls: [
-				['change', provider.id, ['file:///timeline.txt']],
-				['change', provider.id, ['file:///timeline.txt', 'file:///other.txt']],
-				['change', provider.id, undefined],
+				['change', providerId, ['file:///timeline.txt']],
+				['change', providerId, ['file:///timeline.txt', 'file:///other.txt']],
+				['change', providerId, undefined],
 			],
 		});
 		registration.dispose();
@@ -233,29 +266,27 @@ suite('ExtHostTimeline', function () {
 		const extension = createExtension('test.timeline');
 		const item = new TimelineItem('workspace item', 1);
 		const onDidChangeWorkspaceTimeline = store.add(new Emitter<void>());
-		const workspaceRegistration = store.add(timeline.registerWorkspaceTimelineProvider({
-			id: 'test-timeline',
-			label: 'Test Timeline',
+		const workspaceRegistration = store.add(timeline.registerWorkspaceTimelineProvider(providerId, providerLabel, {
 			onDidChangeWorkspaceTimeline: onDidChangeWorkspaceTimeline.event,
 			provideWorkspaceTimeline: () => ({ items: [item] }),
 		}, extension.identifier, converter));
-		const fileRegistration = store.add(timeline.registerTimelineProvider('file', { id: 'test-timeline', label: 'Test Timeline', provideTimeline: () => ({ items: [] }) }, extension.identifier, converter));
+		const fileRegistration = store.add(timeline.registerTimelineProvider(providerId, providerLabel, 'file', { provideTimeline: () => ({ items: [] }) }, extension.identifier, converter));
 
-		const result = await timeline.$getTimeline('test-timeline', undefined, options, CancellationToken.None);
+		const result = await timeline.$getTimeline(providerId, undefined, options, CancellationToken.None);
 		onDidChangeWorkspaceTimeline.fire();
 
 		assert.deepStrictEqual({
-			workspaceItem: processArgument(toContext(result!.items[0].handle, 'test-timeline', undefined), extension) === item,
-			fileItem: processArgument(toContext(result!.items[0].handle, 'test-timeline', uri), extension),
+			workspaceItem: processArgument(toContext(result!.items[0].handle, providerId, undefined), extension) === item,
+			fileItem: processArgument(toContext(result!.items[0].handle, providerId, uri), extension),
 			calls,
 		}, {
 			workspaceItem: true,
 			fileItem: undefined,
-			calls: [['workspaceChange', 'test-timeline']],
+			calls: [['workspaceChange', providerId]],
 		});
-		assert.throws(() => timeline.registerWorkspaceTimelineProvider({ id: 'test-timeline', label: 'Duplicate', provideWorkspaceTimeline: () => undefined }, extension.identifier, converter));
+		assert.throws(() => timeline.registerWorkspaceTimelineProvider(providerId, providerLabel, { provideWorkspaceTimeline: () => undefined }, extension.identifier, converter));
 		fileRegistration.dispose();
-		assert.throws(() => timeline.registerTimelineProvider('file', { id: 'test-timeline', label: 'Other', provideTimeline: () => undefined }, createExtension('test.other').identifier, converter));
+		assert.throws(() => timeline.registerTimelineProvider(providerId, providerLabel, 'file', { provideTimeline: () => undefined }, createExtension('test.other').identifier, converter));
 
 		workspaceRegistration.dispose();
 	});

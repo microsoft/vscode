@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -29,7 +30,7 @@ import { StateComponents } from '../../../../../platform/agentHost/common/state/
 import { terminalReducer } from '../../../../../platform/agentHost/common/state/protocol/reducers.js';
 import { AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH } from '../../../../../platform/agentHost/common/terminalConstants.js';
 import type { IRemoteWatchHandle } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 // ---- Mock IAgentConnection --------------------------------------------------
 
 class MockAgentConnection implements IAgentConnection {
@@ -218,6 +219,32 @@ suite('AgentHostPty', () => {
 		assert.strictEqual(conn.createdTerminals[0].name, 'test');
 		assert.deepStrictEqual(conn.createdTerminals[0].claim, { kind: TerminalClaimKind.Client, clientId: 'test-client' });
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`start() maps the cwd through the connection resource mapper (${kind.name})`, async () => {
+			const conn = disposables.add(new class extends MockAgentConnection {
+				override readonly resourceUris = kind.resourceUris;
+			}());
+			const hostCwds = [URI.file('/workspace'), URI.file('/with space').with({ query: 'revision=1', fragment: 'L3' })];
+			const opaque = URI.parse('terminal-test:opaque');
+			const cwds = [...hostCwds.map(kind.toClient), opaque];
+
+			for (const cwd of cwds) {
+				await disposables.add(new AgentHostPty(1, conn, terminalUri, { cwd }, logService)).start();
+			}
+
+			assert.deepStrictEqual(conn.createdTerminals.map(terminal => terminal.cwd), [...hostCwds, opaque].map(uri => uri.toString()));
+		});
+
+		test(`start() preserves a cwd wrapper owned by another connection (${kind.name})`, async () => {
+			const conn = disposables.add(new class extends MockAgentConnection {
+				override readonly resourceUris = kind.resourceUris;
+			}());
+			const cwd = toAgentHostUri(URI.file('/foreign/workspace'), 'foreign-authority');
+			await disposables.add(new AgentHostPty(1, conn, terminalUri, { cwd }, logService)).start();
+			assert.deepStrictEqual(conn.createdTerminals.map(terminal => terminal.cwd), [cwd.toString()]);
+		});
+	}
 
 	test('start() fires onProcessReady', async () => {
 		const conn = new MockAgentConnection();
@@ -534,22 +561,22 @@ suite('AgentHostPty', () => {
 		assert.strictEqual(cwd, '/home/user/project');
 	});
 
-	test('terminal/titleChanged updates title property', async () => {
-		const conn = new MockAgentConnection();
-		disposables.add(conn);
+	test('reports the host title on start, change, and reconnect, shortening Windows shell paths', async () => {
+		const conn = disposables.add(new MockAgentConnection({ title: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }));
 		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
-		let changedTitle = '';
+		const titles: string[] = [];
 		disposables.add(pty.onDidChangeProperty!(e => {
 			if (e.type === 'title') {
-				changedTitle = e.value as string;
+				titles.push(e.value as string);
 			}
 		}));
 
 		await pty.start();
 		conn.fireAction(terminalUri, { type: ActionType.TerminalTitleChanged, title: 'npm test' });
+		await pty.reconnect(disposables.add(new MockAgentConnection({ title: 'zsh' })));
 
-		assert.strictEqual(changedTitle, 'npm test');
+		assert.deepStrictEqual(titles, ['pwsh', 'npm test', 'zsh']);
 	});
 
 	test('ignores actions for other terminals', async () => {

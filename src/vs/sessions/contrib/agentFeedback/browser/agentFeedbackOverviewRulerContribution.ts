@@ -13,8 +13,11 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 
 const overviewRulerAgentFeedbackForeground = registerColor(
 	'editorOverviewRuler.agentFeedbackForeground',
@@ -32,6 +35,7 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -42,6 +46,12 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 		this._store.add(this._agentFeedbackService.onDidChangeFeedbackScope(() => {
 			this._resolveSession();
 			this._updateDecorations();
+		}));
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
+				this._resolveSession();
+				this._updateDecorations();
+			}
 		}));
 		this._store.add(this._editor.onDidChangeModel(() => {
 			this._resolveSession();
@@ -54,7 +64,7 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 
 	private _resolveSession(): void {
 		const model = this._editor.getModel();
-		if (!model) {
+		if (!model || this._configurationService.getValue<boolean>(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
 			this._sessionResource = undefined;
 			return;
 		}

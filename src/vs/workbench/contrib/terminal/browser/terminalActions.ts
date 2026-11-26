@@ -62,7 +62,7 @@ import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
-import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { LayoutModeContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -393,7 +393,8 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.MoveToTerminalPanel,
 		title: terminalStrings.moveToTerminalPanel,
-		precondition: sharedWhenClause.terminalAvailable_and_editorActive,
+		// Not in a window with layout modes, which keeps its terminals in a part of its own: the panel is the main window's.
+		precondition: ContextKeyExpr.and(sharedWhenClause.terminalAvailable_and_editorActive, LayoutModeContext.negate()),
 		run: (c, _, args) => {
 			const source = toOptionalUri(args) ?? c.editorService.activeInstance;
 			if (source) {
@@ -1241,10 +1242,12 @@ export function registerTerminalActions() {
 					eventOrOptions.location = { viewColumn: editorGroupToColumn(editorGroupsService, editorGroupsService.activeGroup) };
 				}
 
+				const resolvedLocation = await c.service.resolveLocation(eventOrOptions.location) ?? c.configService.defaultLocation;
+				const panelDefaultCwd = resolvedLocation === TerminalLocation.Panel ? c.service.getPanelDefaultCwd() : undefined;
 				let instance: ITerminalInstance | undefined;
-				if (folders.length <= 1) {
+				if (eventOrOptions.cwd || panelDefaultCwd || folders.length <= 1) {
 					// Allow terminal service to handle the path when there is only a
-					// single root
+					// single root or a context-specific default is available.
 					instance = await c.service.createTerminal(eventOrOptions);
 				} else {
 					const cwd = (await pickTerminalCwd(accessor))?.cwd;

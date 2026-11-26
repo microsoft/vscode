@@ -4,20 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { Event as BaseEvent } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
+import { Emitter, Event as BaseEvent } from '../../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { createRegExp } from '../../../../../../base/common/strings.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatTreeItem } from '../../../browser/chat.js';
+import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { ChatFindModel } from '../../../browser/widget/chatFind/chatFindModel.js';
 import { ChatFindWidget, computeRevealScrollTop, findMatchRangesInDom, IChatFindHost, openAncestorDisclosures, rangesEqual, shouldCaptureFocusBeforeShow } from '../../../browser/widget/chatFind/chatFindWidget.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
+import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 
 suite('ChatFindWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWidget(items: readonly ChatTreeItem[] = []) {
+	function createWidget(items: readonly ChatTreeItem[] = [], overrides?: Partial<IChatFindHost>) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const container = document.createElement('div');
@@ -30,18 +35,21 @@ suite('ChatFindWidget', () => {
 			getTemplateDataForRequestId: () => undefined,
 			onDidRerenderRow: BaseEvent.None,
 			editorsInUse: () => [],
+			getCodeBlockInfoForEditor: () => undefined,
 			getScrollTop: () => 0,
 			setScrollTop: () => { },
 			getRenderHeight: () => 0,
 			getViewportAnchorItemId: () => undefined,
+			...overrides,
 		};
 		const widget = disposables.add(instantiationService.createInstance(ChatFindWidget, host));
 		const model = Reflect.get(widget, '_model') as ChatFindModel;
-		return { disposables, model, widget };
+		return { disposables, model, widget, container };
 	}
 
 	test('does not search intermediate IME composition text', async () => {
 		const { model, widget } = createWidget();
+		widget.show(undefined, false);
 		const input = widget.getDomNode().querySelector('input');
 		assert.ok(input);
 
@@ -108,6 +116,302 @@ suite('ChatFindWidget', () => {
 		});
 		next.disposables.dispose();
 		previous.disposables.dispose();
+	});
+
+	suite('older history', () => {
+		function createPagedWidget(recent = '') {
+			const items: ChatTreeItem[] = [];
+			const templates = new Map<string, IChatListItemTemplate>();
+			function prepend(id: string, text: string) {
+				const value = document.createElement('div');
+				value.textContent = text;
+				templates.set(id, upcastPartial<IChatListItemTemplate>({ value }));
+				items.unshift(upcastPartial<IChatRequestViewModel>({ id, message: { text, parts: [] }, messageText: text }));
+			}
+			prepend('recent', recent);
+			const cursor = observableValue<string | undefined>('cursor', 'p1');
+			const unavailable = observableValue('unavailable', false);
+			const transcriptVisible = observableValue('transcriptVisible', true);
+			const notInTree = new Set<string>();
+			const content = store.add(new Emitter<void>());
+			const reads: string[] = [];
+			const reveals: string[] = [];
+			let pending: DeferredPromise<void> | undefined;
+			function loadOlderHistory() {
+				if (!pending) {
+					reads.push(cursor.get()!);
+					pending = new DeferredPromise<void>();
+				}
+				return pending.p;
+			}
+			const activeModel = observableValue<IChatModel | undefined>('active model', upcastPartial<IChatModel>({ olderHistoryCursor: cursor, olderHistoryUnavailable: unavailable, loadOlderHistory }));
+			const fixture = createWidget(items, {
+				activeModel,
+				transcriptVisible,
+				getTemplateDataForRequestId: id => id ? templates.get(id) : undefined,
+				onDidChangeContent: content.event,
+				hasElement: item => !notInTree.has(item.id),
+				reveal: item => {
+					assert.ok(!notInTree.has(item.id), 'cannot reveal an element before the list refresh');
+					reveals.push(item.id);
+				},
+			});
+			const count = fixture.widget.getDomNode().querySelector<HTMLElement>('.matchesCount')!;
+			async function finish(next: string | undefined, text?: string, error?: Error) {
+				assert.ok(pending);
+				if (text) {
+					prepend(cursor.get()!, text);
+				}
+				cursor.set(next, undefined);
+				content.fire();
+				const page = pending;
+				pending = undefined;
+				if (error) {
+					await page.error(error);
+				} else {
+					await page.complete();
+				}
+				await timeout(0);
+			}
+			const label = (expected: string) => retry(async () => assert.strictEqual(count.textContent, expected), 10, 100);
+			return { ...fixture, activeModel, transcriptVisible, cursor, unavailable, notInTree, content, reads, reveals, prepend, loadOlderHistory, finish, label };
+		}
+
+		test('searches pages in order with the current options and stops at the first matching page', async () => {
+			const { widget, reads, reveals, finish, label } = createPagedWidget('Marker12');
+			widget.show(undefined, false);
+			widget.toggleRegex();
+			widget.toggleWholeWord();
+			widget.toggleCaseSensitive();
+			widget.show('marker\\d+');
+			await label('Searching…');
+			await finish('p2', 'prefixmarker12');
+			await finish('p3', 'found marker42 here');
+			await label('1 of 1+');
+			assert.deepStrictEqual({ reads, reveals }, { reads: ['p1', 'p2'], reveals: ['p2'] });
+		});
+
+		test('navigates past the known boundary to the nearest unseen occurrence before wrapping', async () => {
+			const { widget, model, container, reads, reveals, finish, label } = createPagedWidget('needle needle');
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			widget.show('needle');
+			await label('1 of 2+');
+			widget.find(false);
+			await label('2 of 2+');
+			assert.deepStrictEqual(reads, []);
+			widget.find(false);
+			widget.find(false);
+			await label('Searching…');
+			await finish('p2', 'no match');
+			assert.deepStrictEqual([model.activeMatch?.itemId, model.activeMatch?.occurrenceIndex], ['recent', 0]);
+			await finish('p3', 'needle needle');
+			await label('3 of 4+');
+			assert.deepStrictEqual([model.activeMatch?.itemId, model.activeMatch?.occurrenceIndex], ['p2', 1]);
+			widget.find(false);
+			await label('4 of 4+');
+			widget.find(false);
+			await finish(undefined);
+			await label('1 of 4');
+			assert.deepStrictEqual({ reads, reveals, focused: document.activeElement === widget.getDomNode().querySelector('input') }, {
+				reads: ['p1', 'p2', 'p3'], reveals: ['recent', 'recent', 'p2', 'p2', 'recent'], focused: true,
+			});
+		});
+
+		test('a new query can reuse a shared pending page without continuing the released search', async () => {
+			const { widget, loadOlderHistory, reads, reveals, finish, label } = createPagedWidget();
+			const externalRead = loadOlderHistory();
+			widget.show('not here');
+			await label('Searching…');
+			const input = widget.getDomNode().querySelector('input')!;
+			input.value = 'needle';
+			input.dispatchEvent(new Event('input'));
+			widget.find(false);
+			await finish('p2', 'needle');
+			await externalRead;
+			await label('1 of 1+');
+			assert.deepStrictEqual({ reads, reveals }, { reads: ['p1'], reveals: ['p1'] });
+		});
+
+		test('a newly loaded hit releases a still-pending read without losing the selected occurrence', async () => {
+			const { widget, content, prepend, reads, reveals, finish, label, model } = createPagedWidget();
+			widget.show('needle');
+			await label('Searching…');
+			prepend('streamed', 'needle needle');
+			content.fire();
+			await label('1 of 2+');
+			await finish('p2', 'needle');
+			await label('1 of 3+');
+			assert.deepStrictEqual({ reads, reveals, occurrence: model.activeMatch?.occurrenceIndex }, { reads: ['p1'], reveals: ['streamed'], occurrence: 1 });
+		});
+
+		test('changing options releases a pending read when a loaded occurrence now matches', async () => {
+			const { widget, reads, reveals, finish, label } = createPagedWidget('NEEDLE');
+			widget.show(undefined, false);
+			widget.toggleCaseSensitive();
+			widget.show('needle');
+			await label('Searching…');
+			widget.toggleCaseSensitive();
+			await label('1 of 1+');
+			await finish('p2', 'needle');
+			await label('1 of 2+');
+			assert.deepStrictEqual({ reads, reveals }, { reads: ['p1'], reveals: ['recent'] });
+		});
+
+		test('empty and invalid queries do not read and hiding Find releases an outstanding read', async () => {
+			const { widget, content, reads, reveals, finish, label } = createPagedWidget();
+			content.fire();
+			widget.show(undefined, false);
+			widget.toggleRegex();
+			widget.show('[');
+			widget.find(false);
+			assert.deepStrictEqual(reads, []);
+			widget.show('needle');
+			await label('Searching…');
+			widget.hide();
+			await finish('p2', 'needle');
+			content.fire();
+			widget.find(false);
+			await timeout(220);
+			assert.deepStrictEqual({ reads, reveals, visible: widget.visible }, { reads: ['p1'], reveals: [], visible: false });
+		});
+
+		for (const end of ['switch', 'dispose'] as const) {
+			test(`a pending page cannot navigate or start another read after ${end}`, async () => {
+				const { widget, activeModel, reads, reveals, finish, label } = createPagedWidget();
+				widget.show('needle');
+				await label('Searching…');
+				if (end === 'switch') {
+					activeModel.set(upcastPartial<IChatModel>({}), undefined);
+				} else {
+					widget.dispose();
+				}
+				await finish('p2', 'needle');
+				assert.deepStrictEqual({ reads, reveals, visible: widget.visible }, { reads: ['p1'], reveals: [], visible: false });
+			});
+		}
+
+		test('unchanged cursors and failed reads stay incomplete until deliberate navigation retries', async () => {
+			const { widget, reads, finish, label } = createPagedWidget();
+			widget.show('needle');
+			await finish('p1');
+			await label('Search incomplete');
+			const next = widget.getDomNode().querySelector<HTMLElement>('.codicon-find-next-match')!;
+			assert.strictEqual(next.classList.contains('disabled'), false);
+			next.click();
+			await finish('p1', undefined, new Error('offline'));
+			await label('Search incomplete');
+			widget.find(true);
+			await finish(undefined);
+			await label('No results');
+			assert.deepStrictEqual(reads, ['p1', 'p1', 'p1']);
+		});
+
+		test('history without a usable cursor or loader is not counted as a complete search', async () => {
+			const { widget, activeModel, loadOlderHistory, cursor, reads, label } = createPagedWidget();
+			for (const model of [{ loadOlderHistory }, { olderHistoryCursor: cursor }]) {
+				activeModel.set(upcastPartial<IChatModel>(model), undefined);
+				widget.show('needle');
+				widget.find(false);
+				await label('Search incomplete');
+			}
+			assert.deepStrictEqual(reads, []);
+		});
+
+		test('counts a page before the tree refresh and reveals only the still-active occurrence afterward', async () => {
+			const { widget, notInTree, content, reveals, finish, label } = createPagedWidget();
+			notInTree.add('p1');
+			widget.show('needle');
+			await finish('p2', 'needle');
+			await label('1 of 1+');
+			assert.deepStrictEqual(reveals, []);
+			notInTree.clear();
+			content.fire();
+			await retry(async () => assert.deepStrictEqual(reveals, ['p1']), 10, 100);
+			notInTree.add('p2');
+			widget.find(false);
+			await finish(undefined, 'needle');
+			await label('2 of 2');
+			widget.show('different');
+			notInTree.clear();
+			content.fire();
+			await label('No results');
+			await timeout(220);
+			assert.deepStrictEqual(reveals, ['p1']);
+		});
+
+		test('Previous visits every occurrence on a newly loaded page before it requests another', async () => {
+			for (const next of [undefined, 'p2']) {
+				const { widget, model, reads, finish, label } = createPagedWidget('needle needle');
+				widget.show('needle');
+				await label('1 of 2+');
+				widget.find(true);
+				await finish(next, 'needle needle');
+				await label(next ? '4 of 4+' : '4 of 4');
+				const oldest = model.activeMatch?.occurrenceIndex;
+				widget.find(true);
+				await label(next ? '3 of 4+' : '3 of 4');
+				assert.deepStrictEqual([oldest, model.activeMatch?.itemId, model.activeMatch?.occurrenceIndex, reads], [0, 'p1', 1, ['p1']]);
+			}
+		});
+
+		test('a failed boundary read still wraps through loaded hits and can be retried', async () => {
+			const { widget, reads, finish, label } = createPagedWidget('needle needle');
+			widget.show('needle');
+			await label('1 of 2+');
+			widget.find(true);
+			await finish('p1', undefined, new Error('offline'));
+			await label('2 of 2+ (search incomplete)');
+			widget.find(false);
+			await finish(undefined);
+			await label('1 of 2');
+			assert.deepStrictEqual(reads, ['p1', 'p1']);
+		});
+
+		test('hiding the transcript pauses paging but retains the search in the same chat', async () => {
+			const { widget, transcriptVisible, reads, reveals, finish, label } = createPagedWidget();
+			widget.show('needle');
+			await label('Searching…');
+			transcriptVisible.set(false, undefined);
+			await finish('p2');
+			widget.find(false);
+			assert.deepStrictEqual({ visible: widget.visible, reads, reveals }, { visible: true, reads: ['p1'], reveals: [] });
+			transcriptVisible.set(true, undefined);
+			await label('Searching…');
+			await retry(async () => assert.strictEqual(reads.length, 2), 10, 100);
+			await finish(undefined, 'needle');
+			await label('1 of 1');
+		});
+
+		test('another reader advancing or exhausting the failed cursor clears the failure', async () => {
+			const { widget, reads, cursor, finish, label } = createPagedWidget();
+			widget.show('absent');
+			await finish('p1', undefined, new Error('offline'));
+			await label('Search incomplete');
+			cursor.set('p2', undefined);
+			await label('Searching…');
+			await finish('p2');
+			await label('Search incomplete');
+			cursor.set(undefined, undefined);
+			await label('No results');
+			assert.deepStrictEqual(reads, ['p1', 'p2']);
+		});
+
+		test('suspending history releases the read and keeps counts partial without requesting another page', async () => {
+			const { widget, cursor, unavailable, reads, finish, label } = createPagedWidget();
+			widget.show('needle');
+			await label('Searching…');
+			unavailable.set(true, undefined);
+			await finish('p2');
+			await label('Search incomplete');
+			widget.find(false);
+			cursor.set(undefined, undefined);
+			widget.find(true);
+			await label('Search incomplete');
+			unavailable.set(false, undefined);
+			await label('No results');
+			assert.deepStrictEqual(reads, ['p1']);
+		});
 	});
 });
 
@@ -177,6 +481,14 @@ suite('ChatFindWidget DOM highlighting', () => {
 		root.append('dle');
 
 		assert.deepStrictEqual(findMatchRangesInDom(root, regex('needle'), 100, [editor]), []);
+	});
+
+	test('excludes marked preview chrome without shifting response matches', () => {
+		const root = document.createElement('div');
+		root.innerHTML = '<div data-chat-find-ignore><button>Show Source</button><div hidden>Show Source</div></div><p>Show Source in the response.</p>';
+		assert.deepStrictEqual(findMatchRangesInDom(root, regex('Show Source'), 100).map(range => ({
+			text: range.toString(), parent: range.startContainer.parentElement?.tagName,
+		})), [{ text: 'Show Source', parent: 'P' }]);
 	});
 
 	test('returns no ranges when there is no text content', () => {

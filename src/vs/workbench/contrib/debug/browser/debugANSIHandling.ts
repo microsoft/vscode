@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { CharCode } from '../../../../base/common/charCode.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
+import { Ellipsis, isHighSurrogate, isLowSurrogate } from '../../../../base/common/strings.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { editorHoverBackground, listActiveSelectionBackground, listFocusBackground, listInactiveFocusBackground, listInactiveSelectionBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
+import { getModernSideBarBackground, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { ansiColorIdentifiers } from '../../terminal/common/terminalColorRegistry.js';
 import { DebugLinkHoverBehaviorTypeData, ILinkDetector } from './linkDetector.js';
 
 /**
  * @param text The content to stylize.
+ * @param maxLineLength If set, each line shows at most this many characters, followed by an ellipsis. Escape sequences in the text that is cut off still apply.
  * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
  */
-export function handleANSIOutput(text: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined, highlights: IHighlight[] | undefined, hoverBehavior: DebugLinkHoverBehaviorTypeData): HTMLSpanElement {
+export function handleANSIOutput(text: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined, highlights: IHighlight[] | undefined, hoverBehavior: DebugLinkHoverBehaviorTypeData, maxLineLength?: number): HTMLSpanElement {
 
 	const root: HTMLSpanElement = document.createElement('span');
 	const textLength: number = text.length;
@@ -30,6 +33,10 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 	let currentPos: number = 0;
 	let unprintedChars = 0;
 	let buffer: string = '';
+	let lineLength = 0;
+	let lineTruncated = false;
+	let nextEscape = -1;
+	let nextLineBreak = -1;
 
 	while (currentPos < textLength) {
 
@@ -101,8 +108,12 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 		}
 
 		if (sequenceFound === false) {
-			buffer += text.charAt(currentPos);
-			currentPos++;
+			if (maxLineLength === undefined || keepCharacter(maxLineLength)) {
+				buffer += text.charAt(currentPos);
+				currentPos++;
+			} else {
+				currentPos = endOfDroppedText();
+			}
 		}
 	}
 
@@ -112,6 +123,66 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 	}
 
 	return root;
+
+	/**
+	 * Counts the character at the current position against the length of its line.
+	 * When the line reaches the limit, flushes the buffer and appends an ellipsis with the current styles.
+	 * @param limit The number of characters a line may show.
+	 * @returns Whether to show the character.
+	 */
+	function keepCharacter(limit: number): boolean {
+		const charCode = text.charCodeAt(currentPos);
+		if (charCode === CharCode.LineFeed) {
+			lineLength = 0;
+			lineTruncated = false;
+			return true;
+		}
+		if (charCode === CharCode.CarriageReturn && text.charCodeAt(currentPos + 1) === CharCode.LineFeed) {
+			return true;
+		}
+		if (lineTruncated) {
+			return false;
+		}
+		if (isLowSurrogate(charCode) && currentPos > 0 && isHighSurrogate(text.charCodeAt(currentPos - 1))) {
+			// The high surrogate before it counted the whole pair.
+			return true;
+		}
+		const length = isHighSurrogate(charCode) && isLowSurrogate(text.charCodeAt(currentPos + 1)) ? 2 : 1;
+		if (lineLength + length <= limit) {
+			lineLength += length;
+			return true;
+		}
+
+		lineTruncated = true;
+		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length - unprintedChars, hoverBehavior);
+		buffer = '';
+		// Appended on its own, so that it never becomes part of a link.
+		appendStylizedStringToContainer(root, Ellipsis, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - unprintedChars, hoverBehavior);
+		return false;
+	}
+
+	/**
+	 * The text that a truncated line drops ends at the next escape character, since escape sequences
+	 * still apply, or at the line break. Both positions are cached, so that the whole pass stays linear.
+	 * @returns The position to continue at, after the current one.
+	 */
+	function endOfDroppedText(): number {
+		if (nextEscape <= currentPos) {
+			nextEscape = text.indexOf('\x1b', currentPos + 1);
+			if (nextEscape === -1) {
+				nextEscape = textLength;
+			}
+		}
+		if (nextLineBreak <= currentPos) {
+			nextLineBreak = text.indexOf('\n', currentPos + 1);
+			if (nextLineBreak === -1) {
+				nextLineBreak = textLength;
+			} else if (nextLineBreak > currentPos + 1 && text.charCodeAt(nextLineBreak - 1) === CharCode.CarriageReturn) {
+				nextLineBreak--;
+			}
+		}
+		return Math.min(nextEscape, nextLineBreak);
+	}
 
 	/**
 	 * Change the foreground or background color by clearing the current color
@@ -494,6 +565,10 @@ registerThemingParticipant((theme, collector) => {
 		{ selector: '.monaco-workbench .monaco-list:focus .monaco-list-row.selected', bg: theme.getColor(listActiveSelectionBackground) },
 		{ selector: '.debug-hover-widget', bg: theme.getColor(editorHoverBackground) },
 	];
+	const modernSideBarBackground = getModernSideBarBackground(theme);
+	if (modernSideBarBackground) {
+		areas.splice(1, 0, { selector: '.monaco-workbench.modern-ui :is(.sidebar, .auxiliarybar)', bg: modernSideBarBackground });
+	}
 
 	for (const { selector, bg } of areas) {
 		const content = ansiColorIdentifiers

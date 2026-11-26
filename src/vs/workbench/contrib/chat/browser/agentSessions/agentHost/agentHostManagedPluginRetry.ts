@@ -46,18 +46,18 @@ function describeManagedPluginRetry(plugins: readonly IAgentManagedPluginRetryEn
 		const details = failed.map(plugin => plugin.error ? `${plugin.spec}: ${plugin.error}` : plugin.spec).join('; ');
 		return {
 			severity: Severity.Warning,
-			message: localize('agentHost.managedPluginRetry.failed', "Some plugins required by your organization admin could not be prepared. {0}", details),
+			message: localize('agentHost.managedPluginRetry.failed', "Some plugins required by your organization could not be prepared. {0}", details),
 		};
 	}
 	if (plugins.some(plugin => plugin.status === 'deferred')) {
 		return {
 			severity: Severity.Info,
-			message: localize('agentHost.managedPluginRetry.deferred', "Some plugins required by your organization admin will be prepared before your next message."),
+			message: localize('agentHost.managedPluginRetry.deferred', "Some plugins required by your organization will be prepared before your next message."),
 		};
 	}
 	return {
 		severity: Severity.Info,
-		message: localize('agentHost.managedPluginRetry.ready', "Plugins required by your organization admin are ready."),
+		message: localize('agentHost.managedPluginRetry.ready', "Plugins required by your organization are ready."),
 	};
 }
 
@@ -90,14 +90,14 @@ registerAction2(class RetryManagedPluginsAction extends Action2 {
 			plugins = await progressService.withProgress({
 				location: ProgressLocation.Notification,
 				telemetry: NotificationTelemetryId.PluginManagedRetry,
-				title: localize('agentHost.managedPluginRetry.progress', "Preparing plugins required by your organization admin..."),
+				title: localize('agentHost.managedPluginRetry.progress', "Preparing plugins required by your organization..."),
 			}, () => agentHostService.retryManagedPlugins!(target.provider, URI.parse(target.session), URI.parse(target.chat)));
 		} catch (error) {
 			logService.error('[AgentHost] Retrying managed plugins failed', error);
 			notificationService.notify({
 				severity: Severity.Error,
 				telemetry: NotificationTelemetryId.PluginManagedRetryError,
-				message: localize('agentHost.managedPluginRetry.error', "Could not retry plugins required by your organization admin: {0}", toErrorMessage(error)),
+				message: localize('agentHost.managedPluginRetry.error', "Could not retry plugins required by your organization: {0}", toErrorMessage(error)),
 			});
 			return;
 		}

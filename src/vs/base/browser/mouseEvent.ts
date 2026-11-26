@@ -182,7 +182,7 @@ export class StandardWheelEvent {
 			// horizontal delta scroll
 			if (typeof e1.wheelDeltaX !== 'undefined') {
 				if (browser.isSafari && platform.isWindows) {
-					this.deltaX = - (e1.wheelDeltaX / 120);
+					this.deltaX = -(e1.wheelDeltaX / 120);
 				} else if (shouldFactorDPR) {
 					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
 					this.deltaX = e1.wheelDeltaX / (120 * devicePixelRatio);

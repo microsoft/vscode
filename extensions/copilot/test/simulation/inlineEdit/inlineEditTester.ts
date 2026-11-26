@@ -16,7 +16,7 @@ import { ConfigKey, IConfigurationService } from '../../../src/platform/configur
 import { IGitExtensionService } from '../../../src/platform/git/common/gitExtensionService';
 import { DocumentId } from '../../../src/platform/inlineEdits/common/dataTypes/documentId';
 import { RootedEdit } from '../../../src/platform/inlineEdits/common/dataTypes/edit';
-import { deserializeStringEdit, SerializedEdit, serializeStringEdit } from '../../../src/platform/inlineEdits/common/dataTypes/editUtils';
+import { deserializeStringEdit, serializeStringEdit } from '../../../src/platform/inlineEdits/common/dataTypes/editUtils';
 import { InlineEditRequestLogContext } from '../../../src/platform/inlineEdits/common/inlineEditLogContext';
 import { ObservableGit } from '../../../src/platform/inlineEdits/common/observableGit';
 import { ObservableWorkspace } from '../../../src/platform/inlineEdits/common/observableWorkspace';
@@ -43,17 +43,8 @@ import { CriticalError } from '../../testExecutor';
 import { fileExists } from '../../util';
 import { ISerializedFileEdit, ISerializedNesUserEditsHistory, NES_LOG_CONTEXT_TAG, NES_USER_EDITS_HISTORY_TAG, NEXT_EDIT_SUGGESTION_TAG } from '../shared/sharedTypes';
 import { ITestInformation } from '../testInformation';
-import { IInlineEditBaseFile, ILoadedFile } from './fileLoading';
+import { ILoadedFile } from './fileLoading';
 import { inlineEditScoringService } from './inlineEditScoringService';
-
-export interface IInlineEditTest {
-	recentEdit: IInlineEditTestDocument | IInlineEditTestDocument[];
-}
-
-export interface IInlineEditTestDocument {
-	base: IInlineEditBaseFile;
-	edit: SerializedEdit;
-}
 
 export interface IInlineEditTestRunResult {
 	aiEditDocumentUri: DocumentId;
@@ -71,8 +62,6 @@ export class EditNotScoredError extends CriticalError {
 		super(`Edit is not scored yet in \n${scoredEditsFilePath}\n! Please manually score it and run the test again.`);
 	}
 }
-
-export type NextCursorPosition = /* lineNumber (1-based) */ number | { cursorOffset: number };
 
 export class InlineEditTester {
 	constructor(

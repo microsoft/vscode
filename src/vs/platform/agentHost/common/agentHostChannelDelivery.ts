@@ -5,13 +5,14 @@
 
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, vUndefined } from '../../../base/common/validation.js';
+import { vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
+import { AgentHostChannelError, AgentHostChannelErrorCode } from './agentHostChannelTelemetry.js';
+import { readChannelReceiveLimits } from './agentHostProtocolTransition.js';
 import type { ChannelFlowControl, ChannelReceiveLimits } from './state/protocol/common/state.js';
 import { countsAgainstWindow, WINDOW_EXEMPT_METHODS } from './state/protocol/window-exempt.generated.js';
 import type { JsonRpcNotification } from './state/sessionProtocol.js';
 import { getProtocolMessageSize, type IProtocolTransport } from './state/sessionTransport.js';
 
-const receiveLimitsValidator = vObj({ windowBytes: vNumber(), maximumFrameBytes: vNumber() });
 const notificationValidator = vObj({
 	jsonrpc: vEnum('2.0'), method: vString(), id: vOptionalProp(vUndefined()),
 	params: vObj({ channel: vString() }),
@@ -29,9 +30,9 @@ const controlBytesPerSecond = 1024 * 1024;
  * second of paced controls at once.
  */
 const controlSendFraction = 0.5;
-/** Release smaller than this share of the receive window is credited after {@link creditDelay}. */
-const creditWindowFraction = 0.25;
-const creditDelay = 10;
+/** Smaller releases are batched for at most {@link creditDelay} after the first uncredited release. */
+const creditWindowFraction = 0.75;
+const creditDelay = 5000;
 
 class ControlBudget {
 	private _messages: number;
@@ -65,17 +66,15 @@ interface IOutgoingControl {
 }
 
 export function validateChannelLimits(limits: ChannelReceiveLimits): void {
-	if (![limits.windowBytes, limits.maximumFrameBytes].every(value => Number.isSafeInteger(value) && value > 0)
-		|| limits.maximumFrameBytes < 1024) {
-		throw new Error('Invalid channel receive limits');
+	if (![limits.windowBytes, limits.maxFrameBytes].every(value => Number.isSafeInteger(value) && value > 0)
+		|| limits.maxFrameBytes < 1024) {
+		throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Invalid channel receive limits');
 	}
 }
 
 export function readChannelFlowControl(value: unknown): ChannelFlowControl {
-	const result = vObj({ clientReceive: receiveLimitsValidator, hostReceive: receiveLimitsValidator }).validateOrThrow(value);
-	validateChannelLimits(result.clientReceive);
-	validateChannelLimits(result.hostReceive);
-	return result;
+	const result = vObj({ clientReceive: vUnknown(), hostReceive: vUnknown() }).validateOrThrow(value);
+	return { clientReceive: readChannelReceiveLimits(result.clientReceive), hostReceive: readChannelReceiveLimits(result.hostReceive) };
 }
 
 /** Routes windowed subscriptions and fairly schedules bounded transport bursts. */
@@ -97,7 +96,7 @@ export class AgentHostChannelScheduler extends Disposable {
 
 	add(channel: AgentHostChannelDelivery): void {
 		if (this._store.isDisposed || this._channels.has(channel.channel)) {
-			throw new Error('Channel scheduler is disposed or channel is already registered');
+			throw new AgentHostChannelError(this._store.isDisposed ? AgentHostChannelErrorCode.Closed : AgentHostChannelErrorCode.InvalidMessage, 'Channel scheduler is disposed or channel is already registered');
 		}
 		this.clearControls(channel.channel);
 		this._channels.set(channel.channel, channel);
@@ -136,11 +135,11 @@ export class AgentHostChannelScheduler extends Disposable {
 			}
 			const bytes = getProtocolMessageSize(message);
 			if (bytes > maximumControlBytes || !this._receiveControlBudget.take(bytes)) {
-				throw new Error('Channel control receive budget exceeded');
+				throw new AgentHostChannelError(AgentHostChannelErrorCode.ControlLimitExceeded, 'Channel control receive budget exceeded');
 			}
 			return true;
 		} catch (error) {
-			this._fail(error instanceof Error ? error : new Error(String(error)));
+			this._fail(error instanceof Error ? error : new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, String(error)));
 			return false;
 		}
 	}
@@ -157,7 +156,7 @@ export class AgentHostChannelScheduler extends Disposable {
 		try {
 			channel.accept(message, getProtocolMessageSize(message));
 		} catch (error) {
-			channel.fail(error instanceof Error ? error : new Error(String(error)));
+			channel.fail(error instanceof Error ? error : new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, String(error)));
 		}
 		return true;
 	}
@@ -170,20 +169,23 @@ export class AgentHostChannelScheduler extends Disposable {
 		try {
 			const { channel } = notificationValidator.validateOrThrow(message).params;
 			const bytes = JSON.stringify(message).length * 2;
-			if (countsAgainstWindow(message.method) || bytes > maximumControlBytes) {
-				throw new Error('Invalid or oversized channel control');
+			if (countsAgainstWindow(message.method)) {
+				throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Invalid or oversized channel control');
+			}
+			if (bytes > maximumControlBytes) {
+				throw new AgentHostChannelError(AgentHostChannelErrorCode.ControlLimitExceeded, 'Invalid or oversized channel control');
 			}
 			const key = `${message.method}:${channel}`;
 			const previous = this._controls.get(key);
 			const queuedBytes = this._controlBytes - (previous?.bytes ?? 0) + bytes;
 			if ((!previous && this._controls.size >= maximumQueueLength) || queuedBytes > maximumControlQueueBytes) {
-				throw new Error('Channel control send queue capacity exceeded');
+				throw new AgentHostChannelError(AgentHostChannelErrorCode.ControlLimitExceeded, 'Channel control send queue capacity exceeded');
 			}
 			this._controls.set(key, { message, bytes, onSend });
 			this._controlBytes = queuedBytes;
 			this._sendControls();
 		} catch (error) {
-			this._fail(error instanceof Error ? error : new Error(String(error)));
+			this._fail(error instanceof Error ? error : new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, String(error)));
 		}
 	}
 
@@ -208,7 +210,7 @@ export class AgentHostChannelScheduler extends Disposable {
 				this._transport.send(control.message);
 			}
 		} catch (error) {
-			this._fail(error instanceof Error ? error : new Error(String(error)));
+			this._fail(error instanceof Error ? error : new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, String(error)));
 		} finally {
 			this._sendingControls = false;
 		}
@@ -255,11 +257,7 @@ export class AgentHostChannelScheduler extends Disposable {
 					this.schedule(transportDrainPollInterval);
 					return;
 				}
-				if (this._burstBytes + channels[index].maximumFrameBytes > channelSendBurstBytes) {
-					this._cursor = index;
-					this.schedule(0);
-					return;
-				}
+				// A burst may overshoot by its last frame; reserving a whole frame up front would send one small message per timer turn.
 				this._burstBytes += channels[index].sendFrame();
 				this._cursor = index + 1;
 				if (this._burstBytes >= channelSendBurstBytes) {
@@ -288,15 +286,15 @@ export class AgentHostChannelScheduler extends Disposable {
 		this._controls.clear();
 		this._controlBytes = 0;
 		for (const channel of [...this._channels.values()]) {
-			channel.fail(new Error('Agent host transport closed'));
+			channel.fail(new AgentHostChannelError(AgentHostChannelErrorCode.Closed, 'Agent host transport closed'));
 		}
 		super.dispose();
 	}
 }
 
 interface IOutgoingMessage {
-	readonly message: JsonRpcNotification;
-	readonly text: string;
+	message: JsonRpcNotification;
+	text: string;
 	readonly sent: DeferredPromise<number>;
 	offset: number;
 }
@@ -318,7 +316,9 @@ export class AgentHostChannelDelivery extends Disposable {
 	private _receivedBytes = 0;
 	private _consumedBytes = 0;
 	private _creditedBytes = 0;
-	private _fragments = '';
+	/** Fragments of the message being reassembled; joined once, since appending to and indexing one growing string flattens it on every frame. */
+	private _fragments: string[] = [];
+	private _fragmentsLength = 0;
 	private _error: Error | undefined;
 	private _creditTimer: ReturnType<typeof setTimeout> | undefined;
 	private _creditPrompt = false;
@@ -331,7 +331,10 @@ export class AgentHostChannelDelivery extends Disposable {
 		private readonly _scheduler: AgentHostChannelScheduler,
 		private readonly _accept: (message: JsonRpcNotification, release: () => void) => void,
 		private readonly _onError: (error: Error) => void,
+		/** Bounds data queued or retained in addition to the one message being sent or received. */
 		private readonly _maximumBufferedBytes = 4 * 1024 * 1024,
+		/** Bounds one complete message received from the peer. Messages this side sends are not bounded. */
+		private readonly _maximumMessageBytes = Number.POSITIVE_INFINITY,
 	) {
 		super();
 		try {
@@ -344,7 +347,7 @@ export class AgentHostChannelDelivery extends Disposable {
 		}
 	}
 
-	get maximumFrameBytes(): number { return Math.min(this._sendLimits.maximumFrameBytes, channelSendBurstBytes); }
+	get maxFrameBytes(): number { return Math.min(this._sendLimits.maxFrameBytes, channelSendBurstBytes); }
 
 	setSendLimits(limits: ChannelReceiveLimits): void {
 		validateChannelLimits(limits);
@@ -352,18 +355,40 @@ export class AgentHostChannelDelivery extends Disposable {
 		this._scheduler.schedule();
 	}
 
-	send(message: JsonRpcNotification): Promise<number> {
+	/**
+	 * Queues a data notification. `merge` may replace the last queued message
+	 * that has not started sending and is still smaller than a frame; both
+	 * callers then settle together.
+	 */
+	send(message: JsonRpcNotification, merge?: (previous: JsonRpcNotification) => JsonRpcNotification | undefined): Promise<number> {
 		if (this._error) {
 			return Promise.reject(this._error);
+		}
+		const tail = this._outgoing.at(-1);
+		// Bounding the tail keeps each merge's reserialization cheap while the window is full.
+		const merged = tail && !tail.offset && tail.text.length * 2 < this.maxFrameBytes ? merge?.(tail.message) : undefined;
+		if (merged) {
+			message = merged;
 		}
 		const text = JSON.stringify(message);
 		const bytes = text.length * 2;
 		if (notificationValidator.validateOrThrow(message).params.channel !== this.channel
 			|| message.method === 'channel/frame' || !countsAgainstWindow(message.method)) {
-			return Promise.reject(new Error('Expected a data notification for this channel'));
+			return Promise.reject(new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Expected a data notification for this channel'));
 		}
-		if (this._outgoing.length >= maximumQueueLength || this._queuedBytes + bytes > this._maximumBufferedBytes) {
-			return Promise.reject(new Error('Channel send queue capacity exceeded'));
+		// The backlog is what waits between the message being sent and this one. Neither of
+		// those counts, so one large message (such as a snapshot) never blocks the channel.
+		const head = this._outgoing[0];
+		const replaced = tail && merged ? tail.text.length * 2 : 0;
+		const backlogBytes = this._queuedBytes - replaced - (head && !(merged && tail === head) ? head.text.length * 2 : 0);
+		if (backlogBytes > this._maximumBufferedBytes || (!merged && this._outgoing.length >= maximumQueueLength)) {
+			return Promise.reject(new AgentHostChannelError(AgentHostChannelErrorCode.BacklogLimitExceeded, 'Channel send queue capacity exceeded'));
+		}
+		if (tail && merged) {
+			this._queuedBytes = this._queuedBytes - replaced + bytes;
+			tail.message = message;
+			tail.text = text;
+			return tail.sent.p;
 		}
 		const sent = new DeferredPromise<number>();
 		this._queuedBytes += bytes;
@@ -388,7 +413,7 @@ export class AgentHostChannelDelivery extends Disposable {
 			const envelopeLength = JSON.stringify(envelope).length;
 			const remainingCredit = this._sendLimits.windowBytes - (this._sentBytes - this._peerConsumed);
 			// Even a one-byte window must fit the envelope and one escaped code point.
-			const frameBytes = Math.min(this.maximumFrameBytes, Math.max((envelopeLength + 6) * 2, remainingCredit));
+			const frameBytes = Math.min(this.maxFrameBytes, Math.max((envelopeLength + 6) * 2, remainingCredit));
 			if (next.offset || next.text.length * 2 > frameBytes) {
 				let budget = frameBytes / 2 - envelopeLength;
 				end = next.offset;
@@ -404,7 +429,7 @@ export class AgentHostChannelDelivery extends Disposable {
 					end += units;
 				}
 				if (end === next.offset) {
-					throw new Error('Frame limit cannot fit the channel envelope');
+					throw new AgentHostChannelError(AgentHostChannelErrorCode.ReceiveLimitExceeded, 'Frame limit cannot fit the channel envelope');
 				}
 				envelope.params.data = next.text.slice(next.offset, end);
 				envelope.params.final = end === next.text.length;
@@ -412,7 +437,7 @@ export class AgentHostChannelDelivery extends Disposable {
 			}
 			const bytes = JSON.stringify(message).length * 2;
 			if (!Number.isSafeInteger(this._sentBytes + bytes)) {
-				throw new Error('Channel byte counter exhausted');
+				throw new AgentHostChannelError(AgentHostChannelErrorCode.BacklogLimitExceeded, 'Channel byte counter exhausted');
 			}
 			this._sentBytes += bytes;
 			const sentBytes = this._sentBytes;
@@ -431,7 +456,7 @@ export class AgentHostChannelDelivery extends Disposable {
 			if (!next.sent.isSettled) {
 				next.sent.error(error);
 			}
-			this.fail(error instanceof Error ? error : new Error(String(error)));
+			this.fail(error instanceof Error ? error : new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, String(error)));
 			return 0;
 		}
 	}
@@ -443,11 +468,11 @@ export class AgentHostChannelDelivery extends Disposable {
 		try {
 			let notification = notificationValidator.validateOrThrow(message);
 			if (notification.params.channel !== this.channel || !Number.isSafeInteger(bytes) || bytes <= 0) {
-				throw new Error('Invalid channel notification');
+				throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Invalid channel notification');
 			}
 			if (!countsAgainstWindow(message.method)) {
 				if (bytes > maximumControlBytes) {
-					throw new Error('Channel control size exceeded');
+					throw new AgentHostChannelError(AgentHostChannelErrorCode.ControlLimitExceeded, 'Channel control size exceeded');
 				}
 				if (message.method === 'channel/credit') {
 					this.acceptCredit(vObj({ consumedBytes: vNumber() }).validateOrThrow(message.params).consumedBytes);
@@ -456,10 +481,10 @@ export class AgentHostChannelDelivery extends Disposable {
 				}
 				return;
 			}
-			if (bytes > this._receiveLimits.maximumFrameBytes
+			if (bytes > this._receiveLimits.maxFrameBytes
 				|| this._receivedBytes - this._creditedBytes >= this._receiveLimits.windowBytes
 				|| !Number.isSafeInteger(this._receivedBytes + bytes)) {
-				throw new Error('Channel receive limit exceeded');
+				throw new AgentHostChannelError(AgentHostChannelErrorCode.ReceiveLimitExceeded, 'Channel receive limit exceeded');
 			}
 			this._receivedBytes += bytes;
 			// Uncredited wire bytes bound receipt count; a fixed count would reject valid small messages.
@@ -468,32 +493,45 @@ export class AgentHostChannelDelivery extends Disposable {
 			let retainedBytes = bytes;
 			if (message.method === 'channel/frame') {
 				const fragment = vObj({ data: vString(), final: vOptionalProp(vBoolean()) }).validateOrThrow(message.params);
-				if (!fragment.data.length || this._retainedBytes + (this._fragments.length + fragment.data.length) * 2 > this._maximumBufferedBytes) {
-					throw new Error('Channel reassembly capacity exceeded');
+				if (!fragment.data.length) {
+					throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Channel reassembly capacity exceeded');
 				}
-				const previous = this._fragments.charCodeAt(this._fragments.length - 1);
+				if ((this._fragmentsLength + fragment.data.length) * 2 > this._maximumMessageBytes) {
+					throw new AgentHostChannelError(AgentHostChannelErrorCode.MessageLimitExceeded, 'Channel reassembly capacity exceeded');
+				}
+				if (this._retainedBytes > this._maximumBufferedBytes) {
+					throw new AgentHostChannelError(AgentHostChannelErrorCode.BacklogLimitExceeded, 'Channel reassembly capacity exceeded');
+				}
+				const last = this._fragments.at(-1);
+				const previous = last?.charCodeAt(last.length - 1) ?? 0;
 				const first = fragment.data.charCodeAt(0);
 				if (previous >= 0xd800 && previous <= 0xdbff && first >= 0xdc00 && first <= 0xdfff) {
-					throw new Error('Channel fragment split a surrogate pair');
+					throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Channel fragment split a surrogate pair');
 				}
-				this._fragments += fragment.data;
+				this._fragments.push(fragment.data);
+				this._fragmentsLength += fragment.data.length;
 				if (!fragment.final) {
 					this._release(boundary);
 					return;
 				}
-				retainedBytes = this._fragments.length * 2;
-				const parsed: JsonRpcNotification = JSON.parse(this._fragments);
+				retainedBytes = this._fragmentsLength * 2;
+				const text = this._fragments.join('');
+				this._fragments = [];
+				this._fragmentsLength = 0;
+				const parsed: JsonRpcNotification = JSON.parse(text);
 				notification = notificationValidator.validateOrThrow(parsed);
 				message = parsed;
-				this._fragments = '';
 				if (notification.params.channel !== this.channel || message.method === 'channel/frame' || !countsAgainstWindow(message.method)) {
-					throw new Error('Invalid fragmented channel notification');
+					throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Invalid fragmented channel notification');
 				}
-			} else if (this._fragments) {
-				throw new Error('Data interleaved with an incomplete channel message');
+			} else if (this._fragments.length) {
+				throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Data interleaved with an incomplete channel message');
 			}
-			if (this._retainedBytes + retainedBytes > this._maximumBufferedBytes) {
-				throw new Error('Channel consumer capacity exceeded');
+			if (retainedBytes > this._maximumMessageBytes) {
+				throw new AgentHostChannelError(AgentHostChannelErrorCode.MessageLimitExceeded, 'Channel consumer capacity exceeded');
+			}
+			if (this._retainedBytes > this._maximumBufferedBytes) {
+				throw new AgentHostChannelError(AgentHostChannelErrorCode.BacklogLimitExceeded, 'Channel consumer capacity exceeded');
 			}
 			this._retainedBytes += retainedBytes;
 			this._accept(message, () => {
@@ -503,13 +541,13 @@ export class AgentHostChannelDelivery extends Disposable {
 				}
 			});
 		} catch (error) {
-			this.fail(error instanceof Error ? error : new Error(String(error)));
+			this.fail(error instanceof Error ? error : new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, String(error)));
 		}
 	}
 
 	acceptCredit(consumedBytes: number): void {
 		if (!Number.isSafeInteger(consumedBytes) || consumedBytes < 0 || consumedBytes > this._sentBytes) {
-			this.fail(new Error('Invalid channel credit'));
+			this.fail(new AgentHostChannelError(AgentHostChannelErrorCode.InvalidCredit, 'Invalid channel credit'));
 			return;
 		}
 		if (consumedBytes <= this._peerConsumed || this._error) {
@@ -535,7 +573,7 @@ export class AgentHostChannelDelivery extends Disposable {
 			return;
 		}
 		if (this._drains.size >= maximumQueueLength) {
-			throw new Error('Too many channel drain waiters');
+			throw new AgentHostChannelError(AgentHostChannelErrorCode.BacklogLimitExceeded, 'Too many channel drain waiters');
 		}
 		const deferred = new DeferredPromise<void>();
 		this._drains.add({ end, deferred });
@@ -547,10 +585,8 @@ export class AgentHostChannelDelivery extends Disposable {
 		while (this._received[0]?.released) {
 			this._consumedBytes = this._received.shift()!.end;
 		}
-		// A sender using a smaller window can stall mid-message before reaching
-		// our batching threshold. Credit fragments promptly; coalesce small complete messages.
-		const prompt = this._fragments.length > 0
-			|| this._consumedBytes - this._creditedBytes >= this._receiveLimits.windowBytes * creditWindowFraction;
+		// A full outstanding window always reaches this threshold, including during reassembly.
+		const prompt = this._consumedBytes - this._creditedBytes >= this._receiveLimits.windowBytes * creditWindowFraction;
 		if (this._creditPrompt || (this._creditTimer !== undefined && !prompt)) {
 			return;
 		}
@@ -560,7 +596,7 @@ export class AgentHostChannelDelivery extends Disposable {
 			try {
 				this.flushCredit();
 			} catch (error) {
-				this.fail(error instanceof Error ? error : new Error(String(error)));
+				this.fail(error instanceof Error ? error : new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, String(error)));
 			}
 		};
 		if (prompt) {
@@ -605,7 +641,8 @@ export class AgentHostChannelDelivery extends Disposable {
 		}
 		this._drains.clear();
 		this._received.length = 0;
-		this._fragments = '';
+		this._fragments = [];
+		this._fragmentsLength = 0;
 		try {
 			this._onError(error);
 		} finally {
@@ -614,7 +651,7 @@ export class AgentHostChannelDelivery extends Disposable {
 	}
 
 	override dispose(): void {
-		this.fail(new Error('Channel disposed'));
+		this.fail(new AgentHostChannelError(AgentHostChannelErrorCode.Closed, 'Channel disposed'));
 		super.dispose();
 	}
 }

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Project, Symbol as NativeSymbol } from '@typescript/native/unstable/async';
-import type { ArrowFunction, FunctionDeclaration, FunctionExpression } from '@typescript/native/unstable/ast';
+import type { Project, Symbol as NativeSymbol } from '@typescript/native/async';
+import type { ArrowFunction, FunctionDeclaration, FunctionExpression } from '@typescript/native/ast';
 import { FunctionLikeContextProvider } from './baseContextProviders';
 import type { ComputeContextSession, ContextRunnableCollector, ProviderComputeContext, RequestContext } from './contextProvider';
 import type tss from './typescripts';

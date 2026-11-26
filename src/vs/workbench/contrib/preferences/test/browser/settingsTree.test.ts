@@ -293,7 +293,7 @@ suite('SettingsTree renderer', () => {
 				return {
 					disabled: isEnabled ? container.querySelector('select')!.disabled : container.querySelector('[role="checkbox"]')!.getAttribute('aria-disabled') === 'true',
 					value: isEnabled ? container.querySelector('select')!.selectedOptions[0].text : container.querySelector('[role="checkbox"]')!.getAttribute('aria-checked') === 'true',
-					indicator: container.textContent?.includes('Managed by organization'),
+					indicator: container.textContent?.includes('Managed by your organization'),
 				};
 			};
 			const managed = render();
@@ -357,7 +357,7 @@ suite('SettingsTree renderer', () => {
 					addHidden: !!container.querySelector('.setting-list-hide-add-button'),
 					actions: container.querySelectorAll('[aria-label="Edit Item"], [aria-label="Remove Item"]').length,
 					draggable: Array.from(container.querySelectorAll<HTMLElement>('.setting-list-row'), row => row.draggable),
-					indicator: container.textContent?.includes('Managed by organization'),
+					indicator: container.textContent?.includes('Managed by your organization'),
 				};
 			};
 			const initial = render();

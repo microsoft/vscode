@@ -6,7 +6,7 @@
 import { Limiter, Promises, raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { compareItemsByFuzzyScore, FuzzyScorerCache, prepareQuery } from '../../../../base/common/fuzzyScorer.js';
+import { createItemsByFuzzyScoreComparator, FuzzyScorerCache, IItemAccessor, prepareQuery } from '../../../../base/common/fuzzyScorer.js';
 import * as glob from '../../../../base/common/glob.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
@@ -83,11 +83,12 @@ export class FileSystemFileSearchProvider extends Disposable implements ISearchR
 		if (query.sortByScore && query.filePattern && !query.shouldGlobMatchFilePattern) {
 			const prepared = prepareQuery(query.filePattern);
 			const scorerCache: FuzzyScorerCache = Object.create(null);
-			matches.sort((a, b) => compareItemsByFuzzyScore(a, b, prepared, true, {
+			const accessor: IItemAccessor<{ resource: URI; relativePath: string }> = {
 				getItemLabel: item => basename(item.resource),
 				getItemDescription: item => item.relativePath,
 				getItemPath: item => item.relativePath,
-			}, scorerCache));
+			};
+			matches.sort(createItemsByFuzzyScoreComparator(prepared, true, accessor, scorerCache));
 		}
 		const limit = query.exists ? 0 : query.maxResults || matches.length;
 		return {
@@ -106,7 +107,7 @@ export class FileSystemFileSearchProvider extends Disposable implements ISearchR
 		const limiter = disposables.add(new Limiter<[string, FileType][]>(16));
 		const tester = new QueryGlobTester(query, folderQuery);
 		const files: URI[] = [];
-		const visit = async (directory: URI, relativeDirectory: string, parentIgnore?: IgnoreFile): Promise<void> => {
+		const visit = async (directory: URI, relativeDirectory: string, parentIgnore?: IgnoreFile, isParentExcluded = false): Promise<void> => {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -134,15 +135,24 @@ export class FileSystemFileSearchProvider extends Disposable implements ISearchR
 				}
 				const relativePath = relativeDirectory + name;
 				const isDirectory = !!(type & FileType.Directory);
-				if ((folderQuery.ignoreSymlinks && (type & FileType.SymbolicLink))
-					|| (ignore && !ignore.isPathIncludedInTraversal(`/${relativePath}`, isDirectory))
-					|| tester.matchesExcludesSync(relativePath, name, sibling => siblings.has(sibling))) {
+				if (folderQuery.ignoreSymlinks && (type & FileType.SymbolicLink)) {
+					continue;
+				}
+				const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(tester, {
+					path: relativePath,
+					basename: name,
+					isDirectory,
+					isParentExcluded,
+					isHidden: () => !!ignore && !ignore.isPathIncludedInTraversal(`/${relativePath}`, isDirectory),
+					hasSibling: sibling => siblings.has(sibling),
+				});
+				if (!isVisited) {
 					continue;
 				}
 				const resource = joinPath(directory, name);
 				if (isDirectory) {
-					directories.push(visit(resource, `${relativePath}/`, ignore));
-				} else if ((type & FileType.File) && tester.includedInQuerySync(relativePath, name, sibling => siblings.has(sibling))) {
+					directories.push(visit(resource, `${relativePath}/`, ignore, isExcluded));
+				} else if ((type & FileType.File) && !isExcluded && tester.includedInQuerySync(relativePath, name, sibling => siblings.has(sibling))) {
 					files.push(resource);
 				}
 			}

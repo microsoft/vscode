@@ -85,8 +85,7 @@ const defaultChat = product.defaultChatAgent;
  * Variation A — Classic Wizard Modal
  *
  * A centered modal overlay with progress dots, clean step transitions,
- * and polished navigation. Sits on top of the agent sessions welcome
- * tab. When dismissed, the welcome tab is revealed underneath.
+ * and polished navigation.
  *
  * Steps:
  * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options, plus
@@ -567,9 +566,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}));
 		this.stepDisposables.add(addDisposableListener(microsoftBtn, EventType.CLICK, () => {
 			this._logAction('signIn', undefined, 'microsoft');
-			this._handleSignIn(defaultChat.provider.microsoft.id);
+			this._handleSignIn('microsoft');
 		}));
-		// Only offered once a linked Microsoft account is found, which can happen while this step shows.
 		this.microsoftSignInProbeService.notifySignInShown();
 		this.stepDisposables.add(autorun(reader => {
 			microsoftBtn.style.display = this.microsoftSignInProbeService.offerMicrosoftSignIn.read(reader) ? '' : 'none';
@@ -645,7 +643,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				case GheParseResultKind.Invalid:
 					inputBox.element.classList.add('error');
 					message.classList.add('error');
-					message.textContent = localize('onboarding.signIn.enterprise.invalid', "Enter a GHE.com instance name or HTTPS URL.");
+					message.textContent = localize('onboarding.signIn.enterprise.invalid2', "Enter a GHE.com instance name or HTTPS URL.");
 					submitAction.enabled = false;
 					return false;
 			}
@@ -729,18 +727,18 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const provider = socialProvider ?? 'github';
 		const watch = StopWatch.create();
 		try {
-			const account = await this.defaultAccountService.signIn({
-				extraAuthorizeParameters: { get_started_with: 'copilot-vscode' },
-				provider: socialProvider,
+			const strategies: Record<string, ChatSetupStrategy> = {
+				microsoft: ChatSetupStrategy.SetupWithMicrosoftProvider,
+				google: ChatSetupStrategy.SetupWithGoogleProvider,
+				apple: ChatSetupStrategy.SetupWithAppleProvider,
+			};
+			const success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
+				disableChatViewReveal: true,
+				setupStrategy: strategies[provider] ?? ChatSetupStrategy.SetupWithoutEnterpriseProvider,
 			});
-			if (account) {
+			if (success && this._isShowing) {
 				this._userSignedIn = true;
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
-				// Run chat setup in the background (sign-up, extension install, entitlement resolution)
-				this.commandService.executeCommand('workbench.action.chat.triggerSetup', undefined, {
-					disableChatViewReveal: true,
-					setupStrategy: ChatSetupStrategy.DefaultSetup,
-				});
 				this._nextStep();
 			}
 		} catch (error) {

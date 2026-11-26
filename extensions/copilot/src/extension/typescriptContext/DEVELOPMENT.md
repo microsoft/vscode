@@ -1,7 +1,7 @@
 ### Developing
 Prior to beginning these steps, please make sure you are running the latest version of VS Code Insiders.
 - Follow the steps [here](../../../CONTRIBUTING.md#first-time-setup)
-    - You may need to run `npm run compile` as well
+    - You may need to run `pnpm run compile` as well
 - Add the following to your VS Code `settings.json` (File -> Preferences -> Settings):
     ```
     "github.copilot.chat.languageContext.typescript.enabled": true,

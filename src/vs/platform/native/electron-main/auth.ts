@@ -47,6 +47,9 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 
 	private sessionCredentials = new Map<string, Credentials | undefined>();
 
+	/** The credentials of the `http.proxy` setting or a proxy environment variable last answered per auth info, and whether the proxy rejected them. */
+	private configuredCredentialsStates = new Map<string, { readonly key: string; rejected: boolean }>();
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -155,40 +158,40 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 			return undefined;
 		}
 
-		// Reply with manually supplied credentials. Fail if they are wrong.
-		const newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
-			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim()
-			|| undefined;
-
-		if (newHttpProxy?.indexOf('@') !== -1) {
-			const uri = URI.parse(newHttpProxy!);
-			const i = uri.authority.indexOf('@');
-			if (i !== -1) {
-				if (authInfo.attempt > 1) {
-					this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - ignoring previously used config/envvar credentials');
-					return undefined; // We tried already, let the user handle it.
-				}
+		// Reply with manually supplied credentials until the proxy rejects them, then
+		// fall back to session or stored credentials or the login dialog. Reply with
+		// them again when they change.
+		let attempt = authInfo.attempt;
+		const configuredCredentials = this.readConfiguredProxyCredentials();
+		if (configuredCredentials) {
+			// Compare the exact credentials: a hash could collide and skip changed credentials as rejected.
+			const key = JSON.stringify([configuredCredentials.username, configuredCredentials.password]);
+			const state = this.configuredCredentialsStates.get(authInfoHash);
+			if (state?.key !== key) {
 				this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found config/envvar credentials to use');
-				const credentials = uri.authority.substring(0, i);
-				const j = credentials.indexOf(':');
-				if (j !== -1) {
-					return {
-						username: credentials.substring(0, j),
-						password: credentials.substring(j + 1)
-					};
-				} else {
-					return {
-						username: credentials,
-						password: ''
-					};
+
+				this.configuredCredentialsStates.set(authInfoHash, { key, rejected: false });
+				return configuredCredentials;
+			}
+			if (!state.rejected) {
+				if (attempt === 1) {
+					this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found config/envvar credentials to use');
+
+					return configuredCredentials;
 				}
+
+				// The previous attempt used the config/envvar credentials.
+				this.logService.trace('auth#doResolveProxyCredentials (proxy) - config/envvar credentials were rejected, falling back to session or stored credentials');
+
+				state.rejected = true;
+				attempt = 1;
 			}
 		}
 
 		// Reply with session credentials unless we used them already.
 		// In that case we need to show a login dialog again because
 		// they seem invalid.
-		const sessionCredentials = authInfo.attempt === 1 && this.sessionCredentials.get(authInfoHash);
+		const sessionCredentials = attempt === 1 && this.sessionCredentials.get(authInfoHash);
 		if (sessionCredentials) {
 			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found session credentials to use');
 
@@ -213,7 +216,7 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 		// Reply with stored credentials unless we used them already.
 		// In that case we need to show a login dialog again because
 		// they seem invalid.
-		if (authInfo.attempt === 1 && typeof storedUsername === 'string' && typeof storedPassword === 'string') {
+		if (attempt === 1 && typeof storedUsername === 'string' && typeof storedPassword === 'string') {
 			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found stored credentials to use');
 
 			this.sessionCredentials.set(authInfoHash, { username: storedUsername, password: storedPassword });
@@ -230,6 +233,24 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 			return credentials;
 		})();
 		return currentDialog;
+	}
+
+	private readConfiguredProxyCredentials(): Credentials | undefined {
+		const proxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim();
+		if (!proxy) {
+			return undefined;
+		}
+		const authority = URI.parse(proxy).authority;
+		const i = authority.indexOf('@');
+		if (i === -1) {
+			return undefined;
+		}
+		const userinfo = authority.substring(0, i);
+		const j = userinfo.indexOf(':');
+		return j === -1
+			? { username: userinfo, password: '' }
+			: { username: userinfo.substring(0, j), password: userinfo.substring(j + 1) };
 	}
 
 	private async showProxyCredentialsDialog(authInfo: AuthInfo, authInfoHash: string, storedUsername: string | undefined, storedPassword: string | undefined): Promise<Credentials | undefined> {

@@ -18,6 +18,13 @@ export interface FindSectionHeaderOptions {
 	findRegionSectionHeaders: boolean;
 	findMarkSectionHeaders: boolean;
 	markSectionHeaderRegex: string;
+	/**
+	 * The tokens that open and close a block comment in the model's language (e.g. `<!--` and `-->`).
+	 * When a mark section header is inside a block comment that closes at the end of the header,
+	 * the closing token is comment syntax and not part of the label.
+	 */
+	blockCommentStartToken?: string;
+	blockCommentEndToken?: string;
 }
 
 export interface SectionHeader {
@@ -67,15 +74,22 @@ export function findSectionHeaders(model: ISectionHeaderFinderTarget, options: F
 function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSectionHeaderOptions): SectionHeader[] {
 	const regionHeaders: SectionHeader[] = [];
 	const endLineNumber = model.getLineCount();
+	const startMarker = options.foldingRules!.markers!.start;
+	// 'd' for the indices of a `label` group, without 'g' or 'y' so that every line is matched from its start
+	const regex = new RegExp(startMarker.source, startMarker.flags.replace(/[dgy]/g, '') + 'd');
 	for (let lineNumber = 1; lineNumber <= endLineNumber; lineNumber++) {
 		const lineContent = model.getLineContent(lineNumber);
-		const match = lineContent.match(options.foldingRules!.markers!.start);
+		const match = regex.exec(lineContent);
 		if (match) {
-			const range = { startLineNumber: lineNumber, startColumn: match[0].length + 1, endLineNumber: lineNumber, endColumn: lineContent.length + 1 };
+			// The label is the marker's `label` group if it has one, e.g. in `<!-- #region Label -->`,
+			// otherwise the text after the marker, e.g. in `// #region Label`
+			const labelIndices = match.indices?.groups?.['label'];
+			const [labelStart, labelEnd] = labelIndices ?? [match.index + match[0].length, lineContent.length];
+			const range = { startLineNumber: lineNumber, startColumn: labelStart + 1, endLineNumber: lineNumber, endColumn: labelEnd + 1 };
 			if (range.endColumn > range.startColumn) {
 				const sectionHeader = {
 					range,
-					...getHeaderText(lineContent.substring(match[0].length)),
+					...getHeaderText(lineContent.substring(labelStart, labelEnd)),
 					shouldBeInComments: false
 				};
 				if (sectionHeader.text || sectionHeader.hasSeparatorLine) {
@@ -148,8 +162,23 @@ export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: F
 				endColumn
 			};
 
-			const text2 = (match.groups ?? {})['label'] ?? '';
-			const hasSeparatorLine = ((match.groups ?? {})['separator'] ?? '') !== '';
+			let label = (match.groups ?? {})['label'] ?? '';
+			let separator = (match.groups ?? {})['separator'] ?? '';
+			const { blockCommentStartToken, blockCommentEndToken } = options;
+			if (blockCommentStartToken && blockCommentEndToken) {
+				// The comment context is determined right before the captured text, because a custom
+				// regex may consume the comment start token itself, e.g. `^<!--\s*MARK:\s*(?<label>.*)$`
+				const separatorIndices = match.indices?.groups?.['separator'];
+				const labelIndices = match.indices?.groups?.['label'];
+				const capturesStart = Math.min(separatorIndices?.[0] ?? Number.MAX_SAFE_INTEGER, labelIndices?.[0] ?? Number.MAX_SAFE_INTEGER, match.index + match[0].length);
+				const capturesLineStart = capturesStart === 0 ? 0 : text.lastIndexOf('\n', capturesStart - 1) + 1;
+				if (isInsideBlockComment(text.substring(capturesLineStart, capturesStart), blockCommentStartToken, blockCommentEndToken)) {
+					const capturesAreContiguous = !!separatorIndices && !!labelIndices && separatorIndices[1] === labelIndices[0];
+					({ label, separator } = stripBlockCommentEnd(label, separator, blockCommentEndToken, capturesAreContiguous));
+				}
+			}
+			const text2 = label;
+			const hasSeparatorLine = separator !== '';
 
 			const sectionHeader = {
 				range,
@@ -171,6 +200,43 @@ export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: F
 	}
 
 	return markHeaders;
+}
+
+/**
+ * Whether the text that precedes the captured header on its line leaves a block comment open,
+ * e.g. `<!-- ` in `<!-- MARK: Section -->`, but not `// ` in `// MARK: Regex /foo.*\/`.
+ * The tokens are matched in order, so identical start and end tokens (e.g. `"""`) are supported.
+ */
+function isInsideBlockComment(linePrefix: string, blockCommentStartToken: string, blockCommentEndToken: string): boolean {
+	let isOpen = false;
+	for (let offset = 0; offset < linePrefix.length;) {
+		const token = isOpen ? blockCommentEndToken : blockCommentStartToken;
+		const index = linePrefix.indexOf(token, offset);
+		if (index === -1) {
+			break;
+		}
+		isOpen = !isOpen;
+		offset = index + token.length;
+	}
+	return isOpen;
+}
+
+/**
+ * Removes the token that closes the enclosing block comment (e.g. `-->` in `<!-- MARK: Section -->`)
+ * from the end of a mark section header.
+ */
+function stripBlockCommentEnd(label: string, separator: string, blockCommentEndToken: string, capturesAreContiguous: boolean): { label: string; separator: string } {
+	const trimmedLabel = label.trimEnd();
+	if (trimmedLabel.endsWith(blockCommentEndToken)) {
+		return { label: trimmedLabel.substring(0, trimmedLabel.length - blockCommentEndToken.length).trimEnd(), separator };
+	}
+	const combined = separator + trimmedLabel;
+	if (capturesAreContiguous && trimmedLabel.length < blockCommentEndToken.length && combined.endsWith(blockCommentEndToken)) {
+		// The token was split across the separator and the label, e.g. `<!-- MARK: -->`
+		const remainingSeparator = combined.substring(0, combined.length - blockCommentEndToken.length);
+		return { label: '', separator: remainingSeparator.trim() ? remainingSeparator : '' };
+	}
+	return { label, separator };
 }
 
 function getHeaderText(text: string): { text: string; hasSeparatorLine: boolean } {

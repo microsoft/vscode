@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { RepoContext } from '../../../platform/git/common/gitService';
 import { createServiceIdentifier } from '../../../util/common/services';
 
 export interface ChatSessionWorktreeFile {
@@ -74,7 +73,6 @@ export interface IChatSessionWorktreeService {
 	setWorktreeProperties(sessionId: string, properties: string | ChatSessionWorktreeProperties): Promise<void>;
 	updateWorktreeProperties(sessionId: string, properties: Partial<ChatSessionWorktreeProperties>): Promise<void>;
 
-	getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined>;
 	getWorktreePath(sessionId: string): Promise<vscode.Uri | undefined>;
 
 	applyWorktreeChanges(sessionId: string): Promise<void>;
@@ -83,18 +81,7 @@ export interface IChatSessionWorktreeService {
 
 	refreshWorktreeChanges(sessionId: string): Promise<void>;
 
-	hasCachedChanges(sessionId: string): Promise<boolean>;
-
 	handleRequestCompleted(sessionId: string): Promise<void>;
-
-	/** Get worktree properties for all additional workspaces in a session. */
-	getAdditionalWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties[]>;
-
-	/** Store worktree properties for additional workspaces in a session. */
-	setAdditionalWorktreeProperties(sessionId: string, properties: ChatSessionWorktreeProperties[]): Promise<void>;
-
-	/** Commit changes in a specific worktree, identified by its properties directly. */
-	handleRequestCompletedForWorktree(worktreeProperties: ChatSessionWorktreeProperties): Promise<void>;
 
 	/**
 	 * Attempts to clean up a worktree when a session is archived.

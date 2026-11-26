@@ -8,7 +8,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatRequestOriginService } from '../../../../workbench/contrib/chat/common/chatRequestOrigin.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 
 class SessionsChatRequestOriginProviderContribution extends Disposable implements IWorkbenchContribution {
 

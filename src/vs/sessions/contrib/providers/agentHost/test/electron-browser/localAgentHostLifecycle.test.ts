@@ -8,20 +8,18 @@ import { constObservable } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INativeHostService } from '../../../../../../platform/native/common/native.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/electron-browser/environmentService.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, ShutdownReason } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISession, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LocalAgentHostLifecycleContribution } from '../../electron-browser/localAgentHostLifecycle.contribution.js';
 
 suite('Local Agent Host Lifecycle', () => {
@@ -62,7 +60,6 @@ suite('Local Agent Host Lifecycle', () => {
 				return { confirmed };
 			},
 		}));
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
 			getWindowCount: async () => windowCount,
 		}));

@@ -5,8 +5,8 @@
 After installing the root development dependencies:
 
 ```sh
-npm run agent-host:generate-copilot-meta -- --source /path/to/copilot-host
-npm run agent-host:check-copilot-meta -- --source /path/to/copilot-host
+pnpm run agent-host:generate-copilot-meta --source /path/to/copilot-host
+pnpm run agent-host:check-copilot-meta --source /path/to/copilot-host
 ```
 
 [generateCopilotMetadata.ts](./generateCopilotMetadata.ts) uses the exactly pinned `json-schema-to-typescript` development dependency to produce checked-in [copilotdMetadata.ts](../../src/vs/platform/agentHost/common/meta/copilotd/generated/copilotdMetadata.ts). The workspace marks the generated folder read-only. Both commands require an explicit local upstream checkout containing the pinned commit. `git show` reads the committed inputs, so the checkout's current branch and uncommitted changes do not affect generation. References resolve only through the selected schemas at that commit; filesystem and HTTP resolution are disabled. Nothing is fetched, and the upstream checkout is never modified. `--check` generates in memory and exits nonzero on missing or stale output or invalid inputs without writing files.

@@ -18,6 +18,7 @@ import { defineSessionPersistenceTests } from './sessionPersistenceSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
+import { defineMultipleChatProvidersTests } from './multipleChatProvidersSuite.js';
 import { defineChatMoveTests } from './chatMoveSuite.js';
 import { defineMcpPluginTests } from './mcpPluginSuite.js';
 import { defineMcpSideChannelTests } from './mcpSideChannelSuite.js';
@@ -190,6 +191,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		// peer turns and capability advertisement are provider-dependent
 		// (parity). The registrars self-select on `context.tier`.
 		defineMultiChatTests(context);
+		defineMultipleChatProvidersTests(context);
 		defineChatMoveTests(context);
 		defineChangesetTests(context);
 		defineMcpPluginTests(context);

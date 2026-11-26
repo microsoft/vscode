@@ -195,6 +195,8 @@ Use:
 
 Spotlights are keyboard operable, dismissible with Escape, and keep interactive targets available when requested. Important state changes remain the responsibility of the owning feature.
 
+A spotlight never shows over modal UI: a dialog or the Quick Input, such as the simple file dialog or the Command Palette (`OnboardingModalUi` defines it). Don't target elements inside them. An automatic tour doesn't count as shown until open modal UI closes, a step waits for it to close before it starts, and a visible step hides while modal UI shows, so Escape there does not end the tour. When the last one closes, the step comes back as it was, unless what the user did there advanced it, including a target click that opened the modal UI, removed its target, or made its `when` false; then the tour moves on. Without the backdrop, a step that comes back leaves focus where the user works and doesn't reopen its target.
+
 For a selection-driven step, `primaryAction` can offer the same action through a labeled callout button. It runs only on an explicit button click and does not advance the tour itself: use `advanceOnTargetSelection` or `advanceWhen` to confirm the outcome. The button is disabled after activation, and the action's cancellation token is cancelled when the step ends or its target is replaced. Check that token after asynchronous preparation and before changing state. End Tour remains available even on the final action step.
 
 ## Own and scope spotlight targets
@@ -350,7 +352,7 @@ At minimum:
 6. Test setup actions without executing them automatically.
 7. For cross-window examples, test cancellation, supersession, destination validation, and one-shot delivery.
 8. For native browser targets, verify the real `WebContentsView` is hidden behind overlays.
-9. Run the smallest relevant unit suites, layer validation for import changes, and `npm run build-fast` when broad product validation is appropriate.
+9. Run the smallest relevant unit suites, layer validation for import changes, and `pnpm run build-fast` when broad product validation is appropriate.
 10. Test that the feature's normal controls, commands, and automatic-tour targets work without registering its tryout adapter.
 11. Test broken availability providers, overlapping automatic tours, cancellation while waiting for presentation, and registration without initializing execution services.
 

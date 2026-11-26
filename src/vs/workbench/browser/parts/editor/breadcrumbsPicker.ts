@@ -269,7 +269,7 @@ class FileAccessibilityProvider implements IListAccessibilityProvider<IWorkspace
 
 class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 
-	private readonly _cachedExpressions = new Map<string, glob.ParsedExpression>();
+	private readonly _cachedExpressions = new Map<string, glob.IParsedExcludeExpression>();
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -291,14 +291,15 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 					if (typeof excludesConfig[pattern] !== 'boolean') {
 						continue;
 					}
-					const patternAbs = pattern.indexOf('**/') !== 0
+					// exceptions stay relative because the filter matches folder-relative paths
+					const patternAbs = pattern.indexOf('**/') !== 0 && !glob.isExcludeException(pattern)
 						? posix.join(folder.uri.path, pattern)
 						: pattern;
 
 					adjustedConfig[patternAbs] = excludesConfig[pattern];
 				}
 				const ignoreCase = !fileService.hasCapability(folder.uri, FileSystemProviderCapabilities.PathCaseSensitive);
-				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig, { ignoreCase }));
+				this._cachedExpressions.set(folder.uri.toString(), glob.parseExcludeExpression(adjustedConfig, { ignoreCase }));
 			});
 		};
 		update();
@@ -323,7 +324,30 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 		}
 
 		const expression = this._cachedExpressions.get(folder.uri.toString())!;
-		return !expression(relative(folder.uri.path, element.resource.path), basename(element.resource));
+		const path = relative(folder.uri.path, element.resource.path);
+		const name = basename(element.resource);
+		if (!expression.exceptions.length) {
+			return !expression.matches(path, name);
+		}
+
+		// the picker shows folders that lead to an exception, so their other children must stay excluded
+		return glob.evaluateExcludeTreeEntry(expression, {
+			path,
+			basename: name,
+			isDirectory: !!element.isDirectory,
+			isParentExcluded: this.isParentFolderExcluded(expression, path),
+		}).isVisited;
+	}
+
+	private isParentFolderExcluded(expression: glob.IParsedExcludeExpression, path: string): boolean {
+		const segments = path.split(/[\\/]/);
+		for (let i = 1; i < segments.length; i++) {
+			if (expression.matchesExclude(segments.slice(0, i).join('/'), segments[i - 1])) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
 

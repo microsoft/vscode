@@ -3,22 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILinkPresentation, ILinkPresentationProvider, ILinkPresentationService, ILinkPresentationStatus, ILinkPresentationWatcher, LinkPresentationKind } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IGitHubClient } from '../../../../platform/github/common/githubService.js';
-import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
+import { FragmentState, PullRequestChecks, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../platform/github/common/githubPullRequestService.js';
 import { GitHubHydratableResourceRef, GitHubIssue, GitHubIssueRef, GitHubRepository } from '../../../../platform/github/common/githubQueryService.js';
-import { FragmentState, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../platform/github/common/githubPullRequestService.js';
+import { IGitHubClient } from '../../../../platform/github/common/githubService.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTransport.js';
-import { AccountHandle, RequestErrorKind } from '../../../../platform/github/common/types.js';
 import { GitHubLinkTarget, parseGitHubLinkTarget } from '../../../../platform/github/common/githubUrls.js';
+import { getRequiredPullRequestChecksStatus } from '../../../../platform/github/common/pullRequestRequiredChecks.js';
+import { AccountHandle, RequestErrorKind } from '../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
+
 
 const githubRepositoryProviderId = 'workbench.github.repositoryLinkPresentation';
 const githubIssueProviderId = 'workbench.github.issueLinkPresentation';
@@ -132,7 +135,7 @@ class GitHubLinkPresentationProvider extends Disposable implements ILinkPresenta
 
 class GitHubLinkPresentationHydrator extends Disposable {
 
-	private readonly _controller = new AbortController();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 	private _pending: {
 		readonly client: IGitHubClient;
 		readonly resource: GitHubHydratableResourceRef;
@@ -145,7 +148,6 @@ class GitHubLinkPresentationHydrator extends Disposable {
 		private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(toDisposable(() => this._controller.abort()));
 	}
 
 	hydrate(target: GitHubLinkTarget, account: AccountHandle, client: IGitHubClient): Promise<void> {
@@ -188,7 +190,7 @@ class GitHubLinkPresentationHydrator extends Disposable {
 				item.resource,
 			])).values()];
 			try {
-				await group[0].client.query.hydrateResources(resources, this._controller.signal);
+				await group[0].client.query.hydrateResources(resources, this._disposeToken);
 				this._logService.trace(`[GitHubLinkPresentation] Hydrated ${resources.length} resource(s) in one request`);
 				for (const item of group) {
 					item.resolve();
@@ -234,24 +236,24 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 		const generation = ++this._generation;
 		const target = this._target;
 		const store = new DisposableStore();
-		const controller = new AbortController();
-		store.add(toDisposable(() => controller.abort()));
+		const controller = new CancellationTokenSource();
+		store.add(toDisposable(() => controller.dispose(true)));
 		this._activeSubscription.value = store;
 		this._presentation.set(undefined, undefined);
 
 		void this._initializeSubscription(target, generation, controller, store);
 	}
 
-	private async _initializeSubscription(target: GitHubLinkTarget, generation: number, controller: AbortController, store: DisposableStore): Promise<void> {
+	private async _initializeSubscription(target: GitHubLinkTarget, generation: number, controller: CancellationTokenSource, store: DisposableStore): Promise<void> {
 		try {
-			const reference = await this._gitHubService.acquireDefaultAccountClient(controller.signal);
+			const reference = await this._gitHubService.acquireDefaultAccountClient(controller.token);
 			if (store.isDisposed) {
 				reference.dispose();
 				return;
 			}
 			const client = store.add(reference).object;
-			const credential = await client.credentials.getCredential(controller.signal);
-			if (controller.signal.aborted || generation !== this._generation) {
+			const credential = await client.credentials.getCredential(controller.token);
+			if (controller.token.isCancellationRequested || generation !== this._generation) {
 				return;
 			}
 			const account = credential.account;
@@ -285,7 +287,7 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 					const subscription = store.add(client.pullRequests.subscribePullRequest(ref, {
 						priority: 'visible',
 						core: true,
-						checks: { includeOptional: true },
+						checks: { required: true, includeOptional: true },
 					}));
 					store.add(autorun(reader => {
 						const snapshot = subscription.resource.snapshot.read(reader);
@@ -295,7 +297,7 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 				}
 			}
 		} catch (error) {
-			if (controller.signal.aborted || generation !== this._generation) {
+			if (controller.token.isCancellationRequested || generation !== this._generation) {
 				return;
 			}
 			this._logService.trace(`[GitHubLinkPresentation] Failed to resolve ${formatTarget(this._target)}`, error);
@@ -358,7 +360,7 @@ function pullRequestPresentation(target: Extract<GitHubLinkTarget, { kind: 'pull
 	}
 	const status = pullRequestStatus(core.value);
 	const checksStatus = status.kind === 'open' || status.kind === 'draft'
-		? pullRequestChecksStatus(snapshot.checks.value?.checks)
+		? pullRequestChecksStatus(snapshot.checks.value)
 		: undefined;
 	return {
 		kind: 'pullRequest',
@@ -395,25 +397,18 @@ function pullRequestStatus(pullRequest: PullRequestCore): ILinkPresentationStatu
 		: { kind: 'open', label: localize('github.status.open', "Open") };
 }
 
-function pullRequestChecksStatus(checks: readonly PullRequestCheck[] | undefined): ILinkPresentationStatus | undefined {
-	if (!checks?.length) {
-		return undefined;
+/** Presents the checks that count; see {@link getRequiredPullRequestChecksStatus}. */
+function pullRequestChecksStatus(checks: PullRequestChecks | undefined): ILinkPresentationStatus | undefined {
+	switch (checks ? getRequiredPullRequestChecksStatus(checks) : undefined) {
+		case 'failure':
+			return { kind: 'error', label: localize('github.checks.failed', "Checks failed") };
+		case 'pending':
+			return { kind: 'pending', label: localize('github.checks.running', "Checks running") };
+		case 'success':
+			return { kind: 'success', label: localize('github.checks.passed', "Checks passed") };
+		default:
+			return undefined;
 	}
-	if (checks.some(check => check.type === 'checkRun'
-		? check.status !== 'COMPLETED'
-		: check.status === 'PENDING' || check.status === 'EXPECTED')) {
-		return { kind: 'pending', label: localize('github.checks.running', "Checks running") };
-	}
-	if (checks.some(check => check.type === 'checkRun'
-		? check.conclusion === 'FAILURE'
-		|| check.conclusion === 'TIMED_OUT'
-		|| check.conclusion === 'CANCELLED'
-		|| check.conclusion === 'ACTION_REQUIRED'
-		|| check.conclusion === 'STARTUP_FAILURE'
-		: check.status === 'FAILURE' || check.status === 'ERROR')) {
-		return { kind: 'error', label: localize('github.checks.failed', "Checks failed") };
-	}
-	return { kind: 'success', label: localize('github.checks.passed', "Checks passed") };
 }
 
 function failurePresentation(kind: LinkPresentationKind, errorKind: RequestErrorKind | undefined): ILinkPresentation {

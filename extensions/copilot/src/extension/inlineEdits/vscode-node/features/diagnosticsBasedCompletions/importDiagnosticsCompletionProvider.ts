@@ -181,8 +181,6 @@ class WorkspaceInformation {
 
 export class ImportDiagnosticCompletionProvider implements IDiagnosticCompletionProvider<ImportDiagnosticCompletionItem> {
 
-	public static SupportedLanguages = new Set<string>(['typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'python', 'java']);
-
 	public readonly providerName = 'import';
 
 	private readonly _importRejectionMap = new Map<DocumentId, Set<string>>();

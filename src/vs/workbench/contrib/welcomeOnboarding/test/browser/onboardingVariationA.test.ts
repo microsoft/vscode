@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { $ } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -59,6 +59,46 @@ suite('OnboardingVariationA', () => {
 		assert.ok(button);
 		button.click();
 	}
+
+	test('onboarding keeps all provider choices and waits for shared setup completion', async () => {
+		const f = createOnboarding(undefined, undefined, true, { _serviceBrand: undefined, offerMicrosoftSignIn: constObservable(true), notifySignInShown() { } });
+		f.executeCommand.resolves(false);
+		const microsoft = f.container.querySelector<HTMLButtonElement>('[aria-label="Continue with Microsoft"]');
+		assert.ok(microsoft);
+		microsoft.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			commands: f.executeCommand.getCalls().map(call => call.args),
+			githubOffered: !!f.container.querySelector('[aria-label="Continue with GitHub"]'),
+			stillOnSignIn: !!f.container.querySelector('.onboarding-a-signin-actions'),
+		}, {
+			commands: [['workbench.action.chat.triggerSetup', undefined, { disableChatViewReveal: true, setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider }]],
+			githubOffered: true,
+			stillOnSignIn: true,
+		});
+	});
+
+	test('Microsoft availability updates leave provider controls and dialog focus intact', () => {
+		const observed = [];
+		for (const externalFocus of [false, true]) {
+			const offered = observableValue('offerMicrosoft', false);
+			const { container } = createOnboarding(undefined, undefined, true, { _serviceBrand: undefined, offerMicrosoftSignIn: offered, notifySignInShown() { } });
+			const externalButton = mainWindow.document.body.appendChild($('button'));
+			store.add(toDisposable(() => externalButton.remove()));
+			const original = container.querySelector<HTMLButtonElement>('[aria-label="Continue with GitHub"]')!;
+			(externalFocus ? externalButton : original).focus();
+			offered.set(true, undefined);
+			observed.push({ externalFocus, correctFocus: mainWindow.document.activeElement === (externalFocus ? externalButton : original) });
+			if (!externalFocus) {
+				mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+				container.querySelector('.onboarding-a-overlay.exiting')?.dispatchEvent(new mainWindow.Event('transitionend'));
+				observed.push({ dismissedByEscape: !container.querySelector('.onboarding-a-overlay') });
+			}
+		}
+		assert.deepStrictEqual(observed, [
+			{ externalFocus: false, correctFocus: true }, { dismissedByEscape: true }, { externalFocus: true, correctFocus: true },
+		]);
+	});
 
 	for (const settingsUrl of [undefined, 'https://tenant.ghe.com/settings/copilot/features']) {
 		test(`settings disclaimer ${settingsUrl ? 'links to the selected server' : 'has no link or focus stop when the URL is unavailable'}`, () => {

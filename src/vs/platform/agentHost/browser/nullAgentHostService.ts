@@ -67,6 +67,7 @@ export class NullAgentHostService implements IAgentHostService {
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
 	async removeSessionArtifact(_session: URI, _artifactId: string): Promise<void> { return notSupported(); }
 	async stopBackgroundWork(_chat: URI, _id: string): Promise<boolean> { return notSupported(); }
+	async answerShellAuthentication(_chat: URI, _requestId: string, _answer: string | undefined): Promise<boolean> { return notSupported(); }
 	async importSession(_session: URI): Promise<void> { return notSupported(); }
 	async moveSession(_session: URI, _destination: URI, _after: URI | undefined): Promise<URI> { throw new AgentHostSessionMoveUnsupportedError(); }
 	async moveChat(_chat: URI, _destination: AgentChatMoveDestination): Promise<URI> { return notSupported(); }
@@ -80,6 +81,8 @@ export class NullAgentHostService implements IAgentHostService {
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return notSupported(); }
 	async runAutomation(_params: RunAutomationParams): Promise<RunAutomationResult> { return notSupported(); }
+	async deleteAutomation(_resource: string, _deleteHistory: boolean, _legacySessions?: readonly URI[], _requestId?: string): Promise<readonly string[]> { return notSupported(); }
+	async acknowledgeAutomationDeletion(_requestId: string): Promise<void> { return notSupported(); }
 	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return notSupported(); }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async startWebSocketServer(): Promise<IAgentHostSocketInfo> { return notSupported(); }

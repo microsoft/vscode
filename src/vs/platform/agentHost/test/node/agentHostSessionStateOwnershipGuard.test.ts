@@ -32,7 +32,7 @@ const OWNED_IDENTIFIERS: readonly string[] = [
 	'customChatTitleMetadataKey', 'customChatTitleSourceMetadataKey',
 	'META_SOURCE_CONTROL_STATE', 'META_PENDING_RECORDED_PULL_REQUESTS', 'META_CHANGES_SUMMARY',
 	'META_GIT_STATE', 'META_GIT_DATA_STATE', 'META_GITHUB_STATE', 'META_GITHUB_DATA_STATE', 'META_DIFF_BASE_BRANCH',
-	'REMOTE_SESSION_ORIGIN_METADATA_KEY', 'SESSION_INITIATOR_METADATA_KEY', 'SESSION_META_MULTI_ROOT_KEY', 'SESSION_META_FOLDER_PICKER_KEY',
+	'REMOTE_SESSION_ORIGIN_METADATA_KEY', 'SESSION_INITIATOR_METADATA_KEY', 'SESSION_ORIGIN_KEY', 'SESSION_META_MULTI_ROOT_KEY', 'SESSION_META_FOLDER_PICKER_KEY',
 	'CHAT_WORKING_DIRECTORIES_MIRROR_KEY', 'getChatChangesSummaryMetadataKey',
 ];
 
@@ -143,6 +143,7 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_REPOSITORY_ROOT', count: 3, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_SYMLINK_PATTERNS', count: 2, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_SYMLINK_SOURCE_ROOT', count: 2, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
+	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_GIT_LFS_POINTER_FILES', count: 3, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_CREATION_FAILURE', count: 1, removedBy: 'permanent', reason: 'readers use worktreeMetadataSource (the store for a session, a detached record\'s own db)' },
 ];
 

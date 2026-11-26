@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from '../../common/fuzzyScorer.js';
+import { compareItemsByFuzzyScore, createItemsByFuzzyScoreComparator, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from '../../common/fuzzyScorer.js';
 import { hash } from '../../common/hash.js';
 import { Schemas } from '../../common/network.js';
 import { basename, dirname, posix, sep, win32 } from '../../common/path.js';
@@ -140,6 +140,21 @@ suite('Fuzzy Scorer', () => {
 		// assert.strictEqual(positions.length, 'HW'.length);
 		// assert.strictEqual(positions[0], 0);
 		// assert.strictEqual(positions[1], 6);
+	});
+
+	test('score matches equivalent separators, lowercase expansions and non-contiguous characters', () => {
+		const cases = [
+			['a\\b', 'a/b'],
+			['a/b', 'a\\b'],
+			['i', 'İ'],
+			['abc', 'ac'],
+		];
+		assert.deepStrictEqual(cases.map(([target, query]) => scoreFuzzy(target, query, query.toLowerCase(), true)), [
+			[36, [0, 1, 2]],
+			[36, [0, 1, 2]],
+			[9, [0]],
+			[12, [0, 2]],
+		]);
 	});
 
 	test('score (non fuzzy)', function () {
@@ -1231,6 +1246,49 @@ suite('Fuzzy Scorer', () => {
 		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
 		assert.strictEqual(res[0], resourceB);
 		assert.strictEqual(res[1], resourceA);
+	});
+
+	test('createItemsByFuzzyScoreComparator - sorts like compareItemsByFuzzyScore and scores each item once', () => {
+		const resources = [
+			URI.file('/xyz/some/path/someFile123.txt'),
+			URI.file('/xyz/some/path/other/someFile.txt'),
+			URI.file('/xyz/some/path/aFile.txt'),
+			URI.file('/abc/some/fileSome.txt'),
+			URI.file('/abc/foo/bar.txt'),
+			URI.file('/abc/foo/barSome.txt')
+		];
+		const queries = ['some', 'xyz sm', 'xyz "sm"', 'file', ''].map(value => prepareQuery(value));
+
+		// one cache shared by all queries, like a quick open session
+		const cache: FuzzyScorerCache = Object.create(null);
+		const sortedByComparator = queries.map(query => resources.slice().sort(createItemsByFuzzyScoreComparator(query, true, ResourceAccessor, cache)).map(resource => resource.path));
+		const sortedByCompare = queries.map(query => resources.slice().sort((r1, r2) => compareItemsByFuzzyScore(r1, r2, query, true, ResourceAccessor, Object.create(null))).map(resource => resource.path));
+
+		let accessorReads = 0;
+		const countingAccessor: IItemAccessor<URI> = {
+			getItemLabel: resource => {
+				accessorReads++;
+				return ResourceAccessor.getItemLabel(resource);
+			},
+			getItemDescription: resource => {
+				accessorReads++;
+				return ResourceAccessor.getItemDescription(resource);
+			},
+			getItemPath: resource => {
+				accessorReads++;
+				return ResourceAccessor.getItemPath(resource);
+			}
+		};
+		const compare = createItemsByFuzzyScoreComparator(queries[0], true, countingAccessor, Object.create(null));
+		const [labelMatch, descriptionMatch] = [resources[0], resources[2]];
+		const firstResult = compare(labelMatch, descriptionMatch);
+		accessorReads = 0;
+		const repeatedResults = [compare(labelMatch, descriptionMatch), compare(descriptionMatch, labelMatch)];
+
+		assert.deepStrictEqual(
+			{ sorted: sortedByComparator, firstResult, repeatedResults, accessorReads },
+			{ sorted: sortedByCompare, firstResult: -1, repeatedResults: [-1, 1], accessorReads: 0 }
+		);
 	});
 
 	test('prepareQuery', () => {

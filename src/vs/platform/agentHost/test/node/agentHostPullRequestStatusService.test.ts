@@ -5,34 +5,37 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { ImmortalReference } from '../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
 import type { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import type { PullRequestFragment, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
 import type { IGitHubClient } from '../../../github/common/githubService.js';
-import { createTestGitHubService } from './testGitHubService.js';
+import { GitHubRequestError } from '../../../github/common/githubTypes.js';
 import type { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { buildChatUri, buildDefaultChatUri, readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
-import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
+import { AgentHostGitHubArtifactIgnoredChecksConfigKey } from '../../common/agentHostSchema.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { AgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
-import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
-import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
-import { GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { SessionStatus, buildChatUri, buildDefaultChatUri, readSessionGitHubState, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { ImmortalReference } from '../../../../base/common/lifecycle.js';
-import { GitHubRequestError } from '../../../github/common/githubTypes.js';
+import { createTestGitHubService } from './testGitHubService.js';
 
 const account = { host: 'api.github.com', accountId: '1' };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/7';
@@ -166,7 +169,7 @@ class TestCredentials implements IGitHubCredentials {
 
 	private readonly _onDidInvalidate = new Emitter<GitHubCredentialInvalidation>();
 	readonly onDidInvalidate = this._onDidInvalidate.event;
-	private _controller = new AbortController();
+	private _controller = new CancellationTokenSource();
 	lookups = 0;
 
 	/** Resolved by the test so a sync can be suspended mid-flight. */
@@ -174,20 +177,20 @@ class TestCredentials implements IGitHubCredentials {
 
 	async getCredential(): Promise<GitHubCredential> {
 		this.lookups++;
-		const signal = this._controller.signal;
+		const cancellationToken = this._controller.token;
 		if (this.pending) {
 			await this.pending.p;
 		}
-		return { account, token: 'token', generation: 1, signal };
+		return { account, token: 'token', generation: 1, cancellationToken };
 	}
 
 	handleRequestError(): void { }
 
 	invalidate(reason: GitHubCredentialInvalidation['reason']): void {
 		const controller = this._controller;
-		this._controller = new AbortController();
-		controller.abort();
-		this._onDidInvalidate.fire({ credential: { account, token: 'token', generation: 1, signal: controller.signal }, reason });
+		this._controller = new CancellationTokenSource();
+		controller.cancel();
+		this._onDidInvalidate.fire({ credential: { account, token: 'token', generation: 1, cancellationToken: controller.token }, reason });
 	}
 
 	dispose(): void { this._onDidInvalidate.dispose(); }
@@ -261,8 +264,8 @@ suite('AgentHostPullRequestStatusService', () => {
 		}(), Event.signal(Event.filter(credentials.onDidInvalidate, event => event.reason === 'account' || event.reason === 'endpoint')));
 		const observedTokens: string[] = [];
 		const gitHubService = authentication ? disposables.add(new class extends AgentHostGitHubService {
-			override acquireRepositoryClient(signal: AbortSignal, source?: IAgentHostCredentialSource, session?: string) {
-				return legacyService.acquireRepositoryClient(signal, source, session);
+			override acquireRepositoryClient(cancellationToken: CancellationToken, source?: IAgentHostCredentialSource, session?: string) {
+				return legacyService.acquireRepositoryClient(cancellationToken, source, session);
 			}
 		}({ fetch: async () => { throw new Error('Unexpected GitHub network request'); } }, authentication, createTestGitHubEndpointService(), logService, NullTelemetryService)) : getSource ? new class extends mock<IAgentHostGitHubService>() {
 			override readonly onDidChangeRepositoryClient = legacyService.onDidChangeRepositoryClient;
@@ -274,13 +277,13 @@ suite('AgentHostPullRequestStatusService', () => {
 			override captureSessionCredentialSource(_session: string, source?: IAgentHostCredentialSource) {
 				return captureCredentialSource(source ?? getSource(), [GITHUB_REPO_PROTECTED_RESOURCE]);
 			}
-			override acquireRepositoryClient(_signal: AbortSignal, source?: IAgentHostCredentialSource) {
+			override acquireRepositoryClient(_signal: CancellationToken, source?: IAgentHostCredentialSource) {
 				return new ImmortalReference(new class extends mock<IGitHubClient>() {
 					override readonly pullRequests = resources;
 					override readonly credentials = new class extends mock<IGitHubCredentials>() {
 						override readonly onDidInvalidate = credentials.onDidInvalidate;
-						override async getCredential(signal: AbortSignal) {
-							signal.throwIfAborted();
+						override async getCredential(cancellationToken: CancellationToken) {
+							CancellationToken.throwIfCanceled(cancellationToken);
 							const result = await credentials.getCredential();
 							const scoped = source?.getCredential({ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported });
 							if (!scoped) {
@@ -307,6 +310,7 @@ suite('AgentHostPullRequestStatusService', () => {
 				}));
 			}
 		}();
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const service = disposables.add(new AgentHostPullRequestStatusService(
 			stateManager,
 			subscriptions,
@@ -314,6 +318,7 @@ suite('AgentHostPullRequestStatusService', () => {
 			gitHubService,
 			logService,
 			createTestChatOwnershipService(stateManager),
+			configurationService,
 		));
 
 		const session = 'copilot:/pr-status';
@@ -326,7 +331,7 @@ suite('AgentHostPullRequestStatusService', () => {
 			{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
 		));
 
-		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, publishedStateKeys, chatGitStates, session, observedTokens, statusLogs, errors };
+		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, publishedStateKeys, chatGitStates, session, observedTokens, statusLogs, errors, configurationService };
 	}
 
 	test('logs unavailable real background sponsorship without creating a legacy watcher', async () => {
@@ -613,6 +618,34 @@ suite('AgentHostPullRequestStatusService', () => {
 				readyForReview: undefined,
 			},
 		});
+	});
+
+	test('leaves the user\'s check exclusions, or else the folder\'s workspace ones, out of review readiness', async () => {
+		const { service, stateManager, subscriptions, resources, session, configurationService } = createHarness();
+		const agentMerge = (readyIgnoredChecks?: readonly string[]) => ({
+			[SessionConfigKey.AgentMerge]: { enabled: true, ...(readyIgnoredChecks ? { readyIgnoredChecks } : {}) },
+			[SessionConfigKey.AgentMergeController]: {
+				target: { branchName: 'feature', pullRequestUrl, enabledAt: new Date(1).toISOString(), commentWatermark: '' },
+			},
+		});
+		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: agentMerge() });
+		const ready = agentMergeReadySnapshot({ ...account, owner: 'octo', repo: 'repo', number: 7 });
+		// A required check that waits for approvals never finishes on a draft.
+		resources.setNextSubscriptionSnapshot({
+			...ready,
+			checks: { ...ready.checks, value: { ...ready.checks.value!, requiredContexts: ['VS Code PR Check'], checks: [{ id: 'approval', type: 'checkRun', name: 'VS Code PR Check', status: 'IN_PROGRESS', required: true }] } },
+		});
+		subscriptions.addSubscription(session, `${session}/changes`);
+		await waitForWatch(resources);
+		const readiness = () => service.getPullRequestStatus(session)?.agentMergeReadyForReview;
+		const withoutExclusions = readiness();
+		configurationService.updateRootConfig({ [AgentHostGitHubArtifactIgnoredChecksConfigKey]: ['VS Code *'] });
+		const userExclusions = readiness();
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: agentMerge([]), replace: true });
+		await pump();
+		const emptyWorkspaceExclusions = readiness();
+
+		assert.deepStrictEqual({ withoutExclusions, userExclusions, emptyWorkspaceExclusions }, { withoutExclusions: false, userExclusions: true, emptyWorkspaceExclusions: false });
 	});
 
 	test('optimistically records a successful merge in host pull request state', async () => {

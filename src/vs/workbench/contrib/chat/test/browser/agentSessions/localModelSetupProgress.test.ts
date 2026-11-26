@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -49,9 +48,7 @@ class RecordingOpenerService extends mock<IOpenerService>() {
 }
 
 suite('LocalModelSetupProgress', () => {
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup(initial: ILocalModelStatusV1 | undefined, options: { readonly confirmStopNow?: boolean[]; readonly screenReader?: boolean; readonly chatInputNotifications?: IChatInputNotificationService } = {}) {
 		const connection = new TestLocalModelConnection();

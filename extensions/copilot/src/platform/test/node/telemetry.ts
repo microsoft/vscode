@@ -12,7 +12,7 @@ import { IEnvService } from '../../env/common/envService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { GHTelemetryService } from '../../telemetry/common/ghTelemetryService';
 import { ITelemetryUserConfig } from '../../telemetry/common/telemetry';
-import { APP_INSIGHTS_KEY_ENHANCED, APP_INSIGHTS_KEY_STANDARD, setupGHTelemetry } from '../../telemetry/node/azureInsights';
+import { setupGHTelemetry } from '../../telemetry/node/azureInsights';
 import { ITestingServicesAccessor, TestingServiceCollection } from './services';
 import { startFakeTelemetryServerIfNecessary } from './telemetryFake';
 
@@ -88,20 +88,8 @@ export async function collectCapturedTelemetry(capiClientService: ICAPIClientSer
 	return messages;
 }
 
-export function isStandardTelemetryMessage(message: CapturedTelemetry<any>): boolean {
-	return message.iKey === APP_INSIGHTS_KEY_STANDARD;
-}
-
-export function isEnhancedTelemetryMessage(message: CapturedTelemetry<any>): boolean {
-	return message.iKey === APP_INSIGHTS_KEY_ENHANCED;
-}
-
 export function isEvent(message: CapturedTelemetry<any>): message is CapturedTelemetry<EventData> {
 	return message.data.baseType === 'EventData';
-}
-
-export function isException(message: CapturedTelemetry<any>): message is CapturedTelemetry<ExceptionData> {
-	return message.data.baseType === 'ExceptionData';
 }
 
 export function allEvents(messages: CapturedTelemetry<any>[]): messages is CapturedTelemetry<EventData>[] {

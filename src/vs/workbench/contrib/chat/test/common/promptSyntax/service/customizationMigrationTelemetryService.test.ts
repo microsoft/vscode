@@ -11,21 +11,11 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../common/model/chatModel.js';
 import { CustomizationMigrationType, FileCustomizationMigrationFailureReason } from '../../../../common/promptSyntax/service/customizationMigrationService.js';
 import { CustomizationMigrationTelemetryService, parseCustomizationMigrationAgentResult } from '../../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
 
 suite('CustomizationMigrationTelemetryService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -79,8 +69,9 @@ suite('CustomizationMigrationTelemetryService', () => {
 				{ category: 'promptFiles', scope: 'workspace', customizationType: 'skill', outcome: 'migrated', count: 2 },
 				{ category: 'promptFiles', scope: 'user', customizationType: 'skill', outcome: 'failed', count: 1 },
 				{ category: 'promptFiles', scope: 'user', customizationType: 'skill', outcome: 'skipped', count: 1 },
+				{ category: 'hooks', scope: 'workspace', customizationType: 'hook', outcome: 'migrated', count: 1 },
 			],
-		}), 'migration-flow-id', new Map([[CustomizationMigrationType.PromptFiles, 4]]));
+		}), 'migration-flow-id', new Map([[CustomizationMigrationType.PromptFiles, 4], [CustomizationMigrationType.Hooks, 1]]));
 
 		assert.deepStrictEqual(report, {
 			cancelled: true,
@@ -89,6 +80,11 @@ suite('CustomizationMigrationTelemetryService', () => {
 				requestedCount: 3,
 				migratedCount: 2,
 				failedCount: 1,
+			}, {
+				category: CustomizationMigrationType.Hooks,
+				requestedCount: 1,
+				migratedCount: 1,
+				failedCount: 0,
 			}],
 		});
 	});

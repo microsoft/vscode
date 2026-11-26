@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, toParsedSkill, type IParsedRule } from '../../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../../files/common/files.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { CustomizationType, McpServerStatus, type AgentSelection, type DirectoryCustomization, type HookCustomization, type McpServerCustomization } from '../../../common/state/protocol/state.js';
 import { customizationId, type PluginCustomization } from '../../../common/state/sessionState.js';
@@ -18,7 +19,7 @@ import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkP
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, mapDiscoveredCustomizations, resolveClaudeAgentName } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { CLAUDE_BUILTIN_AGENTS } from '../../../node/claude/customizations/claudeBuiltinCommands.js';
 import type { IResolvedNativePlugin } from '../../../node/claude/customizations/scan/claudeNativePluginScan.js';
-import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
+import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, seedFile } from './claudeCustomizationTestUtils.js';
 
 suite('claudeSessionCustomizationDiscovery', () => {
 

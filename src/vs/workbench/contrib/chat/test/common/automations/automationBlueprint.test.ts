@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AutomationDisableConditionKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAutomationDescriptor } from '../../../common/automations/automation.js';
@@ -75,6 +76,34 @@ suite('Automation blueprints', () => {
 		assert.throws(() => automationToBlueprint({ ...automation, schedule: { ...automation.schedule, timeZone: 'UTC' } }), AutomationBlueprintParseError);
 	});
 
+	test('refuses to export a cron automation bound to a foreign time zone', () => {
+		const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+		const foreignTimeZone = localTimeZone === 'UTC' ? 'Asia/Tokyo' : 'UTC';
+		const automation: IAutomationDescriptor = {
+			id: 'runtime-id',
+			name: 'Cron review',
+			prompt: 'Review the workspace.',
+			schedule: { interval: 'cron', cronExpression: '30 9 * * 1-6', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
+			enabled: true,
+			createdAt: '2026-01-01T00:00:00.000Z',
+			updatedAt: '2026-01-01T00:00:00.000Z',
+		};
+		// Blueprints only express `timeZone: local`, so exporting a foreign zone would import at the wrong time.
+		assert.throws(() => automationToBlueprint({
+			...automation, schedule: { ...automation.schedule, cronTimeZone: foreignTimeZone },
+		}), AutomationBlueprintParseError);
+		assert.deepStrictEqual({
+			implicitLocal: automationToBlueprint(automation).schedule,
+			explicitLocal: automationToBlueprint({
+				...automation, schedule: { ...automation.schedule, cronTimeZone: localTimeZone },
+			}).schedule,
+		}, {
+			implicitLocal: { interval: 'cron', cronExpression: '30 9 * * 1-6', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			explicitLocal: { interval: 'cron', cronExpression: '30 9 * * 1-6', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+		});
+	});
+
 	test('parses a portable automation blueprint', () => {
 		const blueprint = parseAutomationBlueprint([
 			'---',
@@ -124,6 +153,13 @@ suite('Automation blueprints', () => {
 				prompt: 'Review the workspace every hour.',
 				schedule: { interval: 'hourly' as const, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			},
+			{
+				version: 1 as const,
+				id: 'cron-review',
+				name: 'Cron review',
+				prompt: 'Review every two minutes.',
+				schedule: { interval: 'cron' as const, cronExpression: '*/2 * * * *', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			},
 		];
 
 		assert.deepStrictEqual({
@@ -163,11 +199,12 @@ suite('Automation blueprints', () => {
 	test('rejects invalid authority and schedule fields', () => {
 		const documents = [
 			'Review the workspace.',
-			'---\nversion: 2\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
+			'---\nversion: 3\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: Review Task\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nenabled: true\nschedule:\n  kind: manual\n---\nReview.',
-			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "20 * * * *"\n  timeZone: local\n---\nReview.',
+			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "20 * * * * *"\n  timeZone: local\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "0 24 * * *"\n  timeZone: local\n---\nReview.',
+			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "20/15 * * * *"\n  timeZone: local\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "0 9 * * 1"\n  timeZone: Europe/Berlin\n---\nReview.',
 		];
 
@@ -181,13 +218,91 @@ suite('Automation blueprints', () => {
 			}
 		}), [
 			{ code: 'invalidFrontmatter', property: undefined },
-			{ code: 'unsupportedVersion', property: '2' },
+			{ code: 'unsupportedVersion', property: '3' },
 			{ code: 'invalidId', property: 'Review Task' },
 			{ code: 'unknownProperty', property: 'enabled' },
-			{ code: 'unsupportedSchedule', property: '20 * * * *' },
+			{ code: 'unsupportedSchedule', property: '20 * * * * *' },
 			{ code: 'unsupportedSchedule', property: '0 24 * * *' },
+			{ code: 'unsupportedSchedule', property: '20/15 * * * *' },
 			{ code: 'unsupportedTimeZone', property: 'Europe/Berlin' },
 		]);
+	});
+
+	test('round trips an end date', () => {
+		const automation: IAutomationDescriptor = {
+			id: 'review', name: 'Review', prompt: 'Review.',
+			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'mock' },
+			enabled: false, disableConditions: [
+				{ kind: AutomationDisableConditionKind.AfterDate, date: '2026-10-01T00:00:00Z' },
+			], createdAt: '', updatedAt: '',
+		};
+		assert.deepStrictEqual(parseAutomationBlueprint(serializeAutomationBlueprint(automationToBlueprint(automation))), {
+			version: 2, id: 'review', name: 'Review', prompt: 'Review.',
+			schedule: automation.schedule, disableConditions: automation.disableConditions,
+		});
+	});
+
+	test('rejects run-count conditions in version 2', () => {
+		for (const value of ['1', '0', '-1', '1.5', '9007199254740992', 'null']) {
+			assert.throws(() => parseAutomationBlueprint(`---\nversion: 2\nid: review\nname: Review\ndisableConditions:\n  - kind: afterRuns\n    max: ${value}\nschedule:\n  kind: manual\n---\nReview.`),
+				AutomationBlueprintParseError);
+		}
+	});
+
+	test('rejects duplicate and malformed conditions and omits empty conditions on export', () => {
+		const blueprint = parseAutomationBlueprint('---\nversion: 2\nid: review\nname: Review\ndisableConditions: []\nschedule:\n  kind: manual\n---\nReview.');
+		const serialized = serializeAutomationBlueprint(blueprint);
+		assert.deepStrictEqual({
+			hasConditionsField: serialized.includes('disableConditions'),
+			parsed: parseAutomationBlueprint(serialized),
+		}, {
+			hasConditionsField: false,
+			parsed: { version: 1, id: 'review', name: 'Review', prompt: 'Review.', schedule: blueprint.schedule },
+		});
+		for (const conditions of [
+			'null',
+			'\n  - kind: afterRuns\n    max: 1\n  - kind: afterRuns\n    max: 1',
+			'\n  - kind: afterDate\n    date: invalid',
+			'\n  - kind: unknown',
+		]) {
+			assert.throws(() => parseAutomationBlueprint(`---\nversion: 2\nid: review\nname: Review\ndisableConditions: ${conditions}\nschedule:\n  kind: manual\n---\nReview.`), AutomationBlueprintParseError);
+		}
+	});
+
+	test('retains the strict version 1 schema and upgrades exports that add conditions', () => {
+		const legacy = '---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.';
+		assert.throws(() => parseAutomationBlueprint(legacy.replace('schedule:', 'disableConditions: []\nschedule:')),
+			/^Error: unknownProperty: disableConditions$/);
+		const blueprint = parseAutomationBlueprint(legacy);
+		assert.deepStrictEqual({
+			legacy: parseAutomationBlueprint(serializeAutomationBlueprint(blueprint)).version,
+			upgraded: parseAutomationBlueprint(serializeAutomationBlueprint({ ...blueprint, disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' }] })).version,
+			current: parseAutomationBlueprint(legacy.replace('version: 1', 'version: 2')).version,
+		}, { legacy: 1, upgraded: 2, current: 2 });
+	});
+
+	test('clearing an end date restores a condition-free version 1 export', () => {
+		const automation: IAutomationDescriptor = {
+			id: 'review', name: 'Review', prompt: 'Review.',
+			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'mock' },
+			enabled: true, createdAt: '', updatedAt: '',
+		};
+		const neverLimited = automationToBlueprint(automation);
+		const cleared = automationToBlueprint({ ...automation, disableConditions: [] });
+		assert.deepStrictEqual({
+			blueprint: cleared,
+			serialized: serializeAutomationBlueprint(cleared),
+			hasConditionsField: Object.hasOwn(cleared, 'disableConditions'),
+		}, {
+			blueprint: neverLimited,
+			serialized: serializeAutomationBlueprint(neverLimited),
+			hasConditionsField: false,
+		});
+		assert.throws(() => automationToBlueprint({
+			...automation, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }],
+		}), /^Error: invalidField: disableConditions$/);
 	});
 
 	test('exports only portable automation state', () => {

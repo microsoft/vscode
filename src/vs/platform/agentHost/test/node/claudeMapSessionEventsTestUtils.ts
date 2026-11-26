@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { SDKAssistantMessage, SDKPartialAssistantMessage, SDKResultError, SDKResultSuccess, SDKSystemMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKAssistantMessage, SDKMessage, SDKPartialAssistantMessage, SDKResultError, SDKResultSuccess, SDKSystemMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
 // Beta event-stream type aliases. The `Anthropic` namespace re-exports
 // these from `@anthropic-ai/sdk/resources/beta/messages.js`, but
@@ -222,6 +222,17 @@ export function makeContentBlockStop(index: number): BetaRawContentBlockStopEven
 
 export function makeMessageStop(): BetaRawMessageStopEvent {
 	return { type: 'message_stop' };
+}
+
+export function makeTextResponseMessages(sessionId: string, text: string): SDKMessage[] {
+	return [
+		makeStreamEvent(sessionId, makeMessageStart()),
+		makeStreamEvent(sessionId, makeContentBlockStartText(0)),
+		makeStreamEvent(sessionId, makeTextDelta(0, text)),
+		makeStreamEvent(sessionId, makeContentBlockStop(0)),
+		makeStreamEvent(sessionId, makeMessageStop()),
+		makeResultSuccess(sessionId),
+	];
 }
 
 /**

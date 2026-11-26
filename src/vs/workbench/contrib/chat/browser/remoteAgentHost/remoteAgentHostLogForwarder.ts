@@ -51,6 +51,7 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 	/** Tracks whatever needs to be torn down for a single subscribe cycle. */
 	private readonly _subscriptionStore = this._register(new MutableDisposable<DisposableStore>());
 	private _currentLevel: OtlpLogLevelName | undefined;
+	private _subscribedChannel: string | undefined;
 
 	constructor(
 		private readonly _client: AgentHostProtocolClient,
@@ -86,7 +87,9 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 		this._register(_logService.onDidChangeLogLevel(() => this._attach()));
 
 		this._register(_client.onDidReceiveOtlpLogs(params => {
-			this._handleBatch(params.payload);
+			if (this._subscribedChannel && URI.parse(params.channel).toString() === this._subscribedChannel) {
+				this._handleBatch(params.payload);
+			}
 		}));
 
 		// If the client is already connected when the forwarder is
@@ -140,7 +143,8 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 		this._subscriptionStore.value = store;
 		this._currentLevel = desiredLevel;
 
-		const channelUri = this._expandLogsChannel(template, desiredLevel);
+		const channelUri = URI.parse(this._expandLogsChannel(template, desiredLevel)).toString();
+		this._subscribedChannel = channelUri;
 
 		// Best-effort: the server may reject the subscribe (incompatible
 		// protocol version, host without OTLP, etc.). Log to our channel
@@ -193,6 +197,7 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 	private _detach(): void {
 		this._subscriptionStore.clear();
 		this._currentLevel = undefined;
+		this._subscribedChannel = undefined;
 	}
 
 	/**

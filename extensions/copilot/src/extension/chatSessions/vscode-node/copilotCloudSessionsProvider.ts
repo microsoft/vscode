@@ -23,6 +23,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { emitCloudSessionInvokeEvent } from '../../../platform/otel/common/genAiEvents';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
+import { PromptFileParser } from '../../../platform/promptFiles/common/promptsService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IntervalTimer, Limiter, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
@@ -34,7 +35,7 @@ import { joinPath } from '../../../util/vs/base/common/resources';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
-import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { CONTINUE_TRUNCATION, extractTitle, getRepoId, isActiveTaskState, SessionIdForTask, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
 import { CloudAgentBackend, CloudDelegationResult, CloudSessionData, TaskContent } from '../vscode/cloudAgentBackend';
 import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsManager';
@@ -508,7 +509,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private readonly sessionRepositoryMap = new ResourceMap<string>();
 	private readonly sessionReferencesMap = new ResourceMap<readonly vscode.ChatPromptReference[]>();
 	public chatParticipant = vscode.chat.createChatParticipant(CopilotCloudSessionsProvider.TYPE, async (request, context, stream, token) => {
-		await this.chatParticipantImpl(request, context, stream, token);
+		return this.chatParticipantImpl(request, context, stream, token);
 	});
 	private cachedSessionsSize: number = 0;
 	private cachedSessionItems: vscode.ChatSessionItem[] | undefined;
@@ -617,15 +618,16 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			this.refresh();
 		}));
 
+		const onDebouncedAuthRefresh = Event.debounce(this._authenticationService.onDidAuthenticationChange, () => { }, 500);
+		this._register(onDebouncedAuthRefresh(() => this.refreshSessionsAndOptions()));
+
 		// Refresh when CAPI URL changes (e.g., when GHE Copilot token arrives and updates the base URL)
 		this._register(this._domainService.onDidChangeDomains(e => {
 			if (e.capiUrlChanged) {
 				this.sessionSourceGeneration++;
 				this.explicitlyResolvedSessions.clear();
 				this.logService.debug('copilotCloudSessionsProvider: CAPI URL changed, refreshing sessions');
-				this.clearOptionsCaches();
-				this.refresh();
-				this._onDidChangeChatSessionProviderOptions.fire();
+				this.refreshSessionsAndOptions();
 			}
 		}));
 
@@ -680,11 +682,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				}));
 
 			}
-			const onDebouncedAuthRefresh = Event.debounce(this._authenticationService.onDidAuthenticationChange, () => { }, 500);
-			this._register(onDebouncedAuthRefresh(() => {
-				this.clearOptionsCaches();
-				this.refresh();
-			}));
 			this.telemetry.sendTelemetryEvent('copilotCloudSessions.refreshInterval', { microsoft: true, github: false }, telemetryObj);
 		});
 	}
@@ -911,9 +908,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		this._register(vscode.commands.registerCommand(CLEAR_CACHES_COMMAND_ID, () => {
 			this.logService.debug('copilotCloudSessionsProvider#clearCaches: clearing all cloud agent caches');
-			this.clearOptionsCaches();
-			this.refresh();
-			this._onDidChangeChatSessionProviderOptions.fire();
+			this.refreshSessionsAndOptions();
 		}));
 
 		this._register(vscode.commands.registerCommand(CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID, (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => this.handleCreatePullRequestForTaskCommand(sessionItemOrResource)));
@@ -982,7 +977,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this.cachedSessionItemsExpiresAt = Infinity;
 		this.chatSessionItemsPromise = undefined;
 		// Note: _ccaEnabledCache and _optionsCache are TTL-based and NOT cleared on refresh.
-		// Use clearOptionsCaches() to force-clear them (e.g. on auth change).
+		// Use refreshSessionsAndOptions() to force-clear them (e.g. on auth change).
 		this._onDidChangeChatSessionItems.fire();
 	}
 
@@ -997,13 +992,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this.cachedSessionItemsExpiryScheduler.schedule(Math.min(delay, 2 ** 31 - 1));
 	}
 
-	/**
-	 * Force-clears the TTL-based caches for /enabled and session provider options.
-	 * Use for auth changes or explicit user-initiated refresh where stale data is unacceptable.
-	 */
-	private clearOptionsCaches(): void {
+	private refreshSessionsAndOptions(): void {
 		this._ccaEnabledCache.clear();
 		this._optionsCache.clear();
+		this.refresh();
+		this._onDidChangeChatSessionProviderOptions.fire();
 	}
 
 	/**
@@ -1109,7 +1102,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	 * Scans local .github/agents/ directory and categorizes agent files.
 	 * Returns two groups:
 	 * - matches: local files that correlate with remote agents (name exists in both)
-	 * - localOnly: local files that don't have a corresponding remote agent
+	 * - localOnly: user-invocable local files that don't have a corresponding remote agent
 	 */
 	private async getLocalCustomAgentFiles(remoteAgents: { name: string }[]): Promise<{
 		matches: Set<string>;
@@ -1150,11 +1143,19 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					// This local file matches a remote agent
 					matches.add(agentName.toLowerCase());
 				} else {
-					// This local file has no corresponding remote agent
-					localOnly.push({
-						name: agentName,
-						path: vscode.workspace.asRelativePath(fileUri)
-					});
+					try {
+						const content = await this._fileSystemService.readFile(fileUri);
+						const agent = new PromptFileParser().parse(fileUri, new TextDecoder().decode(content));
+						if (agent.header?.userInvocable === false) {
+							continue;
+						}
+						localOnly.push({
+							name: agentName,
+							path: vscode.workspace.asRelativePath(fileUri)
+						});
+					} catch (error) {
+						this.logService.warn(`Error reading local agent ${fileUri.toString()}: ${error}`);
+					}
 				}
 			}
 		} catch (error) {
@@ -1243,12 +1244,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				});
 			}
 
-			// Find local agent files and categorize them
-			const { matches, localOnly } = await this.getLocalCustomAgentFiles(
-				customAgents.status === 'fulfilled' ? customAgents.value : []
-			);
+			// Match all remote names so hidden agents cannot reappear as local-only entries.
+			const remoteAgents = customAgents.status === 'fulfilled' ? customAgents.value : [];
+			const { matches, localOnly } = await this.getLocalCustomAgentFiles(remoteAgents);
+			const userInvocableAgents = remoteAgents.filter(agent => agent.user_invocable !== false);
 
-			if ((customAgents.status === 'fulfilled' && customAgents.value.length > 0) || (repoIds?.length === 1 && localOnly.length > 0)) {
+			if (userInvocableAgents.length > 0 || (repoIds?.length === 1 && localOnly.length > 0)) {
 				const agentItems: vscode.ChatSessionProviderOptionItem[] = [
 					{
 						id: DEFAULT_CUSTOM_AGENT_ID,
@@ -1256,11 +1257,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						name: vscode.l10n.t('Agent'),
 						icon: new vscode.ThemeIcon('agent')
 					},
-					...(customAgents.status === 'fulfilled' ? customAgents.value.map(agent => ({
+					...userInvocableAgents.map(agent => ({
 						id: agent.name,
 						name: agent.display_name || agent.name,
 						...(matches.has(agent.name.toLowerCase()) && { description: `${agent.name}.md` })
-					})) : []),
+					})),
 					// Add local-only agents as disabled items with "push to remote" hint
 					...localOnly.map(localAgent => ({
 						id: localAgent.name,
@@ -1647,7 +1648,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return this.createEmptySession(resource);
 		}
 
-		const events = await backend.fetchTaskEvents(taskId);
+		const [events, initialAutomationPrompt] = await Promise.all([
+			backend.fetchTaskEvents(taskId),
+			backend.getInitialAutomationPrompt(taskContent.task),
+		]);
 
 		// Best-effort PR decoration for the header card.
 		let pullRequest: PullRequestSearchItem | undefined;
@@ -1662,6 +1666,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			events,
 			pullRequest,
 			storedReferences,
+			initialAutomationPrompt,
 		);
 
 		const latestTurn = taskContent.task.sessions?.[taskContent.task.sessions.length - 1];
@@ -2475,8 +2480,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		// Follow up
 		if (context.chatSessionContext && !this.isUntitledChatSession(context) && request.sessionResource.scheme === CopilotCloudSessionsProvider.TYPE) {
-			await this.handleFollowUp(request, context, stream, token);
-			return {};
+			return this.handleFollowUp(request, context, stream, token);
 		}
 
 		// New request
@@ -2511,7 +2515,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 	}
 
-	private async handleTaskFollowUp(taskId: string, prompt: string, stream: vscode.ChatResponseStream, token: vscode.CancellationToken, context: vscode.ChatContext): Promise<{}> {
+	private async handleTaskFollowUp(taskId: string, prompt: string, stream: vscode.ChatResponseStream, token: vscode.CancellationToken, context: vscode.ChatContext): Promise<vscode.ChatResult> {
 		const backend = this._backend;
 		// Sending a message adopts an external task. It stays adopted even if the message fails.
 		if (await this.recordTaskFromVSCode(taskId)) {
@@ -2522,7 +2526,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			stream.progress(vscode.l10n.t('Steering'));
 			const steerResult = await backend.sendFollowUpToTask(taskId, prompt);
 			if (!steerResult) {
-				stream.markdown(vscode.l10n.t('Failed to send follow-up to the task.'));
+				return { errorDetails: { message: vscode.l10n.t('Failed to send follow-up to the task.') } };
 			}
 			return {};
 		}
@@ -2538,8 +2542,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}),
 		]);
 		if (!before) {
-			stream.warning(vscode.l10n.t('Could not find the task for this chat session.'));
-			return {};
+			return { errorDetails: { message: vscode.l10n.t('Could not find the task for this chat session.') } };
 		}
 		const priorTurnCount = before.task.sessions?.length ?? 0;
 		const seedEventIds = new Set(priorEvents.map(e => e.id));
@@ -2552,8 +2555,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		stream.progress(vscode.l10n.t('Delegating'));
 		const result = await backend.sendFollowUpToTask(taskId, prompt);
 		if (!result) {
-			stream.markdown(vscode.l10n.t('Failed to send follow-up to the task.'));
-			return {};
+			return { errorDetails: { message: vscode.l10n.t('Failed to send follow-up to the task.') } };
 		}
 
 		// Stay yield-aware (mirrors the CLI provider): steering must cancel only this local streamer,
@@ -2585,17 +2587,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 		const { prompt } = request;
 		if (!prompt || prompt.trim().length === 0) {
-			stream.markdown(vscode.l10n.t('Please provide a message for the cloud agent.'));
-			return {};
+			return { errorDetails: { message: vscode.l10n.t('Please provide a message for the cloud agent.') } };
 		}
 
 		stream.progress(vscode.l10n.t('Preparing'));
 		const resource = context.chatSessionContext.chatSessionItem.resource;
 		const taskId = SessionIdForTask.parseTaskId(resource);
 		if (!taskId) {
-			stream.warning(vscode.l10n.t('Could not resolve the task for this chat session.'));
 			this.logService.error(`Invalid cloud task resource: ${resource}`);
-			return {};
+			return { errorDetails: { message: vscode.l10n.t('Could not resolve the task for this chat session.') } };
 		}
 		return this.handleTaskFollowUp(taskId, prompt, stream, token, context);
 	}

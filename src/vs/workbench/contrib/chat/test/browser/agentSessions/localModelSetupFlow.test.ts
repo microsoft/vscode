@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { computeLocalModelConsentScope, type ILocalModelFamilyV1, type ILocalModelStatusV1 } from '../../../../../../platform/agentHost/common/localModel.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -16,9 +15,7 @@ import { createStatus, installedFamily, offeredFamily, otherFamily, ScriptedDial
 const KEEP_WORKING = 'You can keep using Copilot while it downloads.';
 
 suite('LocalModelSetupFlow', () => {
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** The download consent of `family`'s detail page, and what agreeing to it sends. */
 	function consentOf(status: ILocalModelStatusV1, family: ILocalModelFamilyV1) {

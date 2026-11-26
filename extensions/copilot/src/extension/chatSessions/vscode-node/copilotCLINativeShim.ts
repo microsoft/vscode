@@ -10,9 +10,10 @@ import { timeout } from '../../../util/vs/base/common/async';
 import * as path from '../../../util/vs/base/common/path';
 import { isUUID } from '../../../util/vs/base/common/uuid';
 
-// Fill in absolute local build paths on the extension-host machine (Linux paths for WSL/SSH).
+// Builds from source only: fill in absolute local build paths on the extension-host machine (Linux paths for WSL/SSH)
+// for local testing, and never commit them.
 const LOCAL_SHIM_SOURCE_PATHS: Partial<Record<NodeJS.Platform, string>> = {
-	win32: 'C:\\development\\vsc\\vscode\\copilot_shim\\target\\debug\\copilot.exe',
+	win32: '',
 	darwin: '',
 	linux: '',
 };

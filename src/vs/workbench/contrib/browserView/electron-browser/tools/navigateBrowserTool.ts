@@ -7,10 +7,11 @@ import type { CancellationToken } from '../../../../../base/common/cancellation.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
+import { IBrowserViewNetwork, remoteUrlToFileUrl } from '../../../../../platform/browserView/common/browserView.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
-import { createBrowserPageLink, errorResult, getBrowserNetworkPolicyError, getBrowserPageResourceNavigationError, getExternalTunnelNetworkPolicyError, getSessionId, playwrightInvoke, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, getBrowserNetworkPolicyError, getBrowserPageResourceNavigationError, getExternalTunnelNetworkPolicyError, getSessionId, playwrightInvoke, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl, getSessionIdForResource } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
@@ -97,7 +98,9 @@ export class NavigateBrowserTool implements IToolImpl {
 					throw new Error(resourceNavigationError);
 				}
 
-				const networkPolicyError = getBrowserNetworkPolicyError(params.url, this.agentNetworkFilterService);
+				const pageNetwork = this.getPageNetwork(params.pageId, getSessionIdForResource(context.chatSessionResource));
+				// A resource of the page's remote is loaded as a `file:` URL, so the policy applies to that.
+				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(pageNetwork, params.url), this.agentNetworkFilterService);
 				if (networkPolicyError) {
 					throw new Error(networkPolicyError);
 				}
@@ -131,7 +134,10 @@ export class NavigateBrowserTool implements IToolImpl {
 			case 'forward':
 				return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page) => page.goForward({ waitUntil: 'domcontentloaded' }));
 			default: {
-				const networkPolicyError = getBrowserNetworkPolicyError(params.url!, this.agentNetworkFilterService);
+				const network = this.getPageNetwork(params.pageId, sessionId);
+				// A resource of the page's remote is loaded as a `file:` URL, so the policy, the rewrite and the navigation use that.
+				const url = remoteUrlToFileUrl(network, params.url!);
+				const networkPolicyError = getBrowserNetworkPolicyError(url, this.agentNetworkFilterService);
 				if (networkPolicyError) {
 					return errorResult(networkPolicyError);
 				}
@@ -144,9 +150,7 @@ export class NavigateBrowserTool implements IToolImpl {
 				// A page on the local network in a remote workspace runs locally and cannot reach the
 				// remote's localhost directly. Rewrite to the forwarded local address (if
 				// any) so the page can be reached. The page keeps the network it was created with.
-				const model = this.browserViewService.getKnownBrowserViews().get(params.pageId)?.model;
-				const usesRemoteNetwork = model ? !!model.network : !!this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
-				const rewrite = rewriteRemoteLocalhostUrl(params.url!, this.remoteExplorerService, usesRemoteNetwork);
+				const rewrite = rewriteRemoteLocalhostUrl(url, this.remoteExplorerService, !!network);
 				const tunnelPolicyError = getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
 				if (tunnelPolicyError) {
 					return errorResult(tunnelPolicyError);
@@ -164,5 +168,11 @@ export class NavigateBrowserTool implements IToolImpl {
 	private getResourceNavigationError(pageId: string, target: string): string | undefined {
 		const editor = this.browserViewService.getKnownBrowserViews().get(pageId);
 		return getBrowserPageResourceNavigationError(editor, target);
+	}
+
+	/** The network of the page, or the one a new page of the session would use before it has a model. */
+	private getPageNetwork(pageId: string, sessionId: string): IBrowserViewNetwork | undefined {
+		const model = this.browserViewService.getKnownBrowserViews().get(pageId)?.model;
+		return model ? model.network : this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
 	}
 }

@@ -12,12 +12,8 @@ import 'source-map-support/register';
 // Load other imports
 import { Raw } from '@vscode/prompt-tsx';
 import * as fs from 'fs';
-import minimist from 'minimist';
-import { createConnection } from 'net';
 import * as path from 'path';
 import * as v8 from 'v8';
-import type * as vscodeType from 'vscode';
-import { SimpleRPC } from '../src/extension/onboardDebug/node/copilotDebugWorker/rpc';
 import { ChatMLFetcherImpl } from '../src/extension/prompt/node/chatMLFetcher';
 import { ISimulationModelConfig, createExtensionUnitTestingServices } from '../src/extension/test/node/services';
 import { IChatMLFetcher } from '../src/platform/chat/common/chatMLFetcher';
@@ -44,25 +40,22 @@ import { IChatMLCache } from './base/cachingChatMLFetcher';
 import { usedResourceCaches } from './base/cachingResourceFetcher';
 import { ChatMLSQLiteCache } from './base/chatMLCache';
 import { CompletionsSQLiteCache, ICompletionsCache } from './base/completionsCache';
-import { usedEmbeddingsCaches } from './base/embeddingsCache';
 import { TestingCacheSalts } from './base/salts';
 import { ICompleteBaselineComparison, IModifiedScenario, SimulationBaseline } from './base/simulationBaseline';
 import { CacheMode, CurrentTestRunInfo, SimulationServicesOptions, createSimulationChatModelThrottlingTaskLaunchers, loadConfigFile } from './base/simulationContext';
-import { ProxiedSimulationEndpointHealth, SimulationEndpointHealthImpl } from './base/simulationEndpointHealth';
+import { SimulationEndpointHealthImpl } from './base/simulationEndpointHealth';
 import { BASELINE_RUN_COUNT, SimulationOptions } from './base/simulationOptions';
-import { ProxiedSimulationOutcome, SimulationOutcomeImpl } from './base/simulationOutcome';
+import { SimulationOutcomeImpl } from './base/simulationOutcome';
 import { drainStdoutAndExit } from './base/stdout';
 import { SimulationSuite, SimulationTest, SimulationTestsRegistry, createSimulationTestFilter } from './base/stest';
-import { CollectingJSONOutputPrinter, ConsoleJSONOutputPrinter, IJSONOutputPrinter, ProxiedSONOutputPrinter } from './jsonOutputPrinter';
+import { CollectingJSONOutputPrinter, ConsoleJSONOutputPrinter, IJSONOutputPrinter } from './jsonOutputPrinter';
 import { green, orange, red, violet, yellow } from './outputColorer';
 import { runInputPipeline, runInputPipelineParallel } from './pipeline/pipeline';
-import { ITestDiscoveryOptions, discoverTests } from './simulation/externalScenarios';
 import { discoverCoffeTests } from './simulation/nesCoffeTests';
 import { discoverNesTests } from './simulation/nesExternalTests';
 import { AdhocResponseOutput, AdhocResponseType, IAdhocRequest, OLD_BASELINE_FILENAME, OutputType, PRODUCED_BASELINE_FILENAME, REPORT_FILENAME, RUN_METADATA, SCORECARD_FILENAME, SIMULATION_FOLDER_NAME, generateOutputFolderName } from './simulation/shared/sharedTypes';
 import { logger } from './simulationLogger';
-import { IInitParams, IInitResult, IRunTestParams, IRunTestResult } from './testExecutionInExtension';
-import { GroupedScores, ITestResult, SimulationTestContext, executeTestOnce, executeTests } from './testExecutor';
+import { GroupedScores, ITestResult, SimulationTestContext, executeTests } from './testExecutor';
 import { createScoreRenderer, fileExists, printTime } from './util';
 const dotSimulationPath = path.join(__dirname, `../${SIMULATION_FOLDER_NAME}`);
 
@@ -77,14 +70,10 @@ async function main() {
 	});
 
 	try {
-		if (process.env.VSCODE_SIMULATION_EXTENSION_ENTRY) {
-			await runInExtensionHost();
-		} else {
-			const opts = SimulationOptions.fromProcessArgs();
-			const result = await run(opts);
-			if (result) {
-				errors.push(...result.errors);
-			}
+		const opts = SimulationOptions.fromProcessArgs();
+		const result = await run(opts);
+		if (result) {
+			errors.push(...result.errors);
 		}
 	} catch (err) {
 		errors.push(err?.stack || err?.message || String(err));
@@ -149,81 +138,7 @@ async function run(opts: SimulationOptions): Promise<RunResult> {
 	}
 }
 
-async function runInExtensionHost() {
-	const nodeOptions = process.env.NODE_OPTIONS;
-
-	// Hook for the js-debug bootloader, which is not automatically executed in the extension host
-	if (nodeOptions) {
-		// NODE_OPTIONS is a CLI argument fragment that we need to parse here
-		const regex = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+/g;
-		const parsed = minimist(Array.from(nodeOptions.matchAll(regex), match => {
-			let arg = match[0];
-			// Remove surrounding quotes and unescape internal quotes if necessary
-			if (arg[0] === arg.at(-1) && (arg[0] === '"' || arg[0] === '\'')) {
-				arg = arg.slice(1, -1).replaceAll(`\\${arg[0]}`, arg[0]);
-			}
-			return arg;
-		}));
-
-		if (parsed.require) {
-			const reqPaths = Array.isArray(parsed.require) ? parsed.require : [parsed.require];
-			logger.info(`Loading NODE_OPTIONS require: ${reqPaths.join(', ')}`);
-			reqPaths.forEach(r => require(r));
-		}
-	}
-
-	const port = Number(process.env.VSCODE_SIMULATION_CONTROL_PORT);
-	const rpc = await new Promise<SimpleRPC>((resolve, reject) => {
-		const socket = createConnection({ host: '127.0.0.1', port });
-		socket.on('connect', () => resolve(new SimpleRPC(socket)));
-		socket.on('error', reject);
-	});
-
-	const vscode: typeof vscodeType = require('vscode');
-	const folder = vscode.workspace.workspaceFolders![0];
-
-	Cache.Instance.on('deviceCodeCallback', (url: string) => {
-		rpc.callMethod('deviceCodeCallback', { url });
-	});
-
-	rpc.registerMethod('runTest', async (params: IRunTestParams): Promise<IRunTestResult> => {
-		const { simulationTestContext, tests } = await allTests;
-
-		simulationTestContext.baseline.clear();
-		simulationTestContext.simulationEndpointHealth.failures.splice(0, simulationTestContext.simulationEndpointHealth.failures.length);
-
-		const test = tests.get(params.testName);
-		if (!test) {
-			throw new Error(`Test ${params.testName} not found`);
-		}
-
-		const result = await executeTestOnce(
-			simulationTestContext,
-			1,
-			params.outcomeDirectory,
-			test,
-			params.runNumber,
-			true,
-		);
-
-		return { result };
-	});
-
-	const allTests = rpc.callMethod('init', { folder: folder.uri.fsPath } satisfies IInitParams).then(async (res: IInitResult) => {
-		const opts = SimulationOptions.fromArray(res.argv);
-		const { testsToRun } = await loadTests(opts);
-		const { simulationTestContext } = await prepareTestEnvironment(opts, new ProxiedSONOutputPrinter(rpc), rpc);
-		return { opts, tests: new Map(testsToRun.map(t => [t.fullName, t])), simulationTestContext };
-	});
-
-	return new Promise<void>(resolve => {
-		rpc.registerMethod('close', async () => {
-			resolve();
-		});
-	});
-}
-
-async function prepareTestEnvironment(opts: SimulationOptions, jsonOutputPrinter: IJSONOutputPrinter, rpcInExtensionHost?: SimpleRPC) {
+async function prepareTestEnvironment(opts: SimulationOptions, jsonOutputPrinter: IJSONOutputPrinter) {
 
 	if (opts.verbose) {
 		logger.setLogLevel(LogLevel.Trace);
@@ -248,9 +163,7 @@ async function prepareTestEnvironment(opts: SimulationOptions, jsonOutputPrinter
 			outputPath = path.join(process.cwd(), outputPath);
 		}
 	}
-	if (!rpcInExtensionHost) { // don't clean if we're just one participant in a larger run
-		await clearOrCreateDir(outputPath);
-	}
+	await clearOrCreateDir(outputPath);
 
 	jsonOutputPrinter.print({
 		type: OutputType.initialTestSummary,
@@ -292,7 +205,7 @@ async function prepareTestEnvironment(opts: SimulationOptions, jsonOutputPrinter
 	const configs = opts.configFile ? loadConfigFile(opts.configFile) : undefined;
 
 	return {
-		...createSimulationTestContext(opts, runningAllTests, baseline, canUseBaseline, jsonOutputPrinter, outputPath, externalScenariosPath, rpcInExtensionHost, configs),
+		...createSimulationTestContext(opts, runningAllTests, baseline, canUseBaseline, jsonOutputPrinter, outputPath, externalScenariosPath, configs),
 		testsToRun,
 		baseline,
 		canUseBaseline,
@@ -395,9 +308,7 @@ async function runTests(opts: SimulationOptions, jsonOutputPrinter: IJSONOutputP
 	const writeUsedOtherCaches = false;
 	if (writeUsedOtherCaches) {
 		await fs.promises.writeFile('other-caches.json', JSON.stringify(
-			([] as string[])
-				.concat(Array.from(usedEmbeddingsCaches))
-				.concat(Array.from(usedResourceCaches))
+			Array.from(usedResourceCaches)
 		));
 	}
 
@@ -433,13 +344,9 @@ async function loadTests(opts: SimulationOptions) {
 	let externalScenariosPath = opts.externalScenarios;
 	if (externalScenariosPath) {
 		let usageError = false;
-		if (!opts.inline && !opts.sidebar && !opts.nes) {
+		if (!opts.nes) {
 			usageError = true;
-			console.error(`Missing --inline or --sidebar or --nes flag`);
-		}
-		if ([opts.inline, opts.sidebar, opts.nes].filter(Boolean).length > 1) {
-			usageError = true;
-			console.error(`Can only have one of --inline or --sidebar or --nes flags set`);
+			console.error(`Missing --nes flag`);
 		}
 
 		if (typeof opts.output !== 'string') {
@@ -448,8 +355,7 @@ async function loadTests(opts: SimulationOptions) {
 		}
 
 		if (usageError) { // process.exit() if there's a usage error
-			console.error(`Usage: npm run simulate -- --external-scenarios=<path> --inline --output=<path>`);
-			console.error(`Usage: npm run simulate -- --external-scenarios=<path> --sidebar --output=<path>`);
+			console.error(`Usage: npm run simulate -- --external-scenarios=<path> --nes=external --output=<path>`);
 			await drainStdoutAndExit(1);
 		}
 
@@ -459,30 +365,18 @@ async function loadTests(opts: SimulationOptions) {
 			externalScenariosPath = path.join(process.cwd(), externalScenariosPath);
 		}
 
-		if (opts.scenarioTest) {
-			SimulationTestsRegistry.setInputPath(externalScenariosPath);
+		const filter = createSimulationTestFilter(opts.grep, opts.omitGrep);
+		if (opts.nes === 'external') {
+			// run external stests
+			allSuites = [await discoverNesTests(externalScenariosPath, opts)];
 		} else {
-			const filter = createSimulationTestFilter(opts.grep, opts.omitGrep);
-			if (opts.nes) {
-				if (opts.nes === 'external') {
-					// run external stests
-					allSuites = [await discoverNesTests(externalScenariosPath, opts)];
-				} else {
-					// run coffe stests
-					allSuites = [await discoverCoffeTests(externalScenariosPath, opts)];
-				}
-			} else {
-				const testDiscoveryOptions: ITestDiscoveryOptions = {
-					chatKind: (opts.inline && !opts.sidebar) ? 'inline' : 'panel',
-					applyChatCodeBlocks: opts.applyChatCodeBlocks,
-				};
-				allSuites = await discoverTests(externalScenariosPath, testDiscoveryOptions);
-			}
-			testsToRun = allSuites
-				.flatMap(suite => suite.tests)
-				.filter(filter)
-				.sort((t0, t1) => t0.fullName.localeCompare(t1.fullName));
+			// run coffe stests
+			allSuites = [await discoverCoffeTests(externalScenariosPath, opts)];
 		}
+		testsToRun = allSuites
+			.flatMap(suite => suite.tests)
+			.filter(filter)
+			.sort((t0, t1) => t0.fullName.localeCompare(t1.fullName));
 	}
 
 	if (testsToRun.length === 0) {
@@ -667,10 +561,9 @@ function createSimulationTestContext(
 	jsonOutputPrinter: IJSONOutputPrinter,
 	outputPath: string,
 	externalScenariosPath: string | undefined,
-	rpcInExtensionHost: SimpleRPC | undefined,
 	configs: Record<string, unknown> | undefined,
 ) {
-	const simulationEndpointHealth = rpcInExtensionHost ? new ProxiedSimulationEndpointHealth(rpcInExtensionHost) : new SimulationEndpointHealthImpl();
+	const simulationEndpointHealth = new SimulationEndpointHealthImpl();
 
 	let createChatMLCache: ((info: CurrentTestRunInfo) => IChatMLCache) | undefined;
 	let createNesFetchCache: ((info: CurrentTestRunInfo) => ICompletionsCache) | undefined;
@@ -692,9 +585,6 @@ function createSimulationTestContext(
 		languageModelCacheMode: opts.lmCacheMode,
 		resourcesCacheMode: opts.resourcesCacheMode,
 		disabledTools: opts.disabledTools,
-		summarizeHistory: opts.summarizeHistory,
-		swebenchPrompt: opts.swebenchPrompt,
-		useExperimentalCodeSearchService: opts.useExperimentalCodeSearchService,
 		configs
 	};
 
@@ -718,7 +608,7 @@ function createSimulationTestContext(
 	};
 
 
-	const simulationOutcome = rpcInExtensionHost ? new ProxiedSimulationOutcome(rpcInExtensionHost) : new SimulationOutcomeImpl(runningAllTests);
+	const simulationOutcome = new SimulationOutcomeImpl(runningAllTests);
 
 	const simulationTestContext: SimulationTestContext = {
 		opts,

@@ -6,29 +6,22 @@
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { createAgentModelGroupMeta } from '../../common/agentModelSource.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
+import { parseProviderQualifiedModelId, toProviderQualifiedModelId } from '../../common/providerQualifiedModelId.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { toSdkModelId } from './claudeModelId.js';
 import type { ClaudeTransportMode } from './claudeTransportMode.js';
 
 /**
- * Prefix that marks a {@link ModelSelection.id} as carrying an explicit
- * provider. Mirrors Codex's `@provider=` convention so the two harnesses read
- * the same way. Kept module-private: callers encode/decode through the
- * functions below rather than string-matching the id themselves.
- */
-const CLAUDE_MODEL_SELECTION_PREFIX = '@provider=';
-
-/**
  * Encodes a provider + model id into a single opaque {@link ModelSelection.id}
- * string of the form `@provider=<provider>:<modelId>`. Both halves are
- * url-encoded so provider/model names containing `:` or `/` round-trip cleanly.
+ * string of the form `@provider=<provider>:<modelId>`, the same convention Codex
+ * uses (see {@link toProviderQualifiedModelId}).
  *
  * The same model name under two providers yields two distinct ids, which is
  * what lets "a model via Copilot" and "the same model via Anthropic" appear as
  * separately selectable picker rows.
  */
 export function toClaudeModelSelectionId(provider: string, modelId: string): string {
-	return `${CLAUDE_MODEL_SELECTION_PREFIX}${encodeURIComponent(provider)}:${encodeURIComponent(modelId)}`;
+	return toProviderQualifiedModelId(provider, modelId);
 }
 
 /**
@@ -45,24 +38,10 @@ export function toClaudeModelSelectionId(provider: string, modelId: string): str
  * transport.
  */
 export function parseClaudeModelSelection(selection: ModelSelection): { readonly provider: string; readonly modelId: string; readonly explicitProvider: boolean } {
-	const { id } = selection;
-	if (!id.startsWith(CLAUDE_MODEL_SELECTION_PREFIX)) {
-		return { provider: CLAUDE_PROVIDER_COPILOT, modelId: id, explicitProvider: false };
-	}
-	const separator = id.indexOf(':', CLAUDE_MODEL_SELECTION_PREFIX.length);
-	if (separator < CLAUDE_MODEL_SELECTION_PREFIX.length) {
-		// No `:` after the prefix — not a well-formed provider-qualified id.
-		return { provider: CLAUDE_PROVIDER_COPILOT, modelId: id, explicitProvider: false };
-	}
-	try {
-		return {
-			provider: decodeURIComponent(id.slice(CLAUDE_MODEL_SELECTION_PREFIX.length, separator)),
-			modelId: decodeURIComponent(id.slice(separator + 1)),
-			explicitProvider: true,
-		};
-	} catch {
-		return { provider: CLAUDE_PROVIDER_COPILOT, modelId: id, explicitProvider: false };
-	}
+	const parsed = parseProviderQualifiedModelId(selection.id);
+	return parsed
+		? { ...parsed, explicitProvider: true }
+		: { provider: CLAUDE_PROVIDER_COPILOT, modelId: selection.id, explicitProvider: false };
 }
 
 /**

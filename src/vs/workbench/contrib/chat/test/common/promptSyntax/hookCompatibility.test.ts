@@ -5,12 +5,45 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { HookType } from '../../../common/promptSyntax/hookTypes.js';
-import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat } from '../../../common/promptSyntax/hookCompatibility.js';
+import { getCanonicalAgentHookName, HOOKS_BY_TARGET, HookType } from '../../../common/promptSyntax/hookTypes.js';
+import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat, buildNewCopilotHookFile, getLocalFormatHookEvents } from '../../../common/promptSyntax/hookCompatibility.js';
+import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
 suite('HookCompatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('buildNewCopilotHookFile', () => {
+		test('creates a versioned Copilot file', () => {
+			assert.deepStrictEqual(buildNewCopilotHookFile('preToolUse'), {
+				version: 1,
+				hooks: {
+					preToolUse: [{ type: 'command', command: '' }]
+				}
+			});
+		});
+
+		test('new files for Copilot events VS Code parses are discoverable', () => {
+			const eventNames = Object.keys(HOOKS_BY_TARGET[Target.GitHubCopilot]);
+			assert.deepStrictEqual(
+				eventNames.map(eventName => [...parseCopilotHooks(buildNewCopilotHookFile(eventName), undefined, '').values()].map(entry => entry.originalId)),
+				eventNames.map(eventName => [eventName]));
+		});
+	});
+
+	test('recognizes userPromptTransformed for Copilot without advertising it for other harnesses', () => {
+		assert.deepStrictEqual({
+			copilot: HOOKS_BY_TARGET[Target.GitHubCopilot].userPromptTransformed,
+			alias: getCanonicalAgentHookName(Target.GitHubCopilot, 'UserPromptTransformed'),
+			vscode: getCanonicalAgentHookName(Target.VSCode, 'UserPromptTransformed'),
+			claude: getCanonicalAgentHookName(Target.Claude, 'UserPromptTransformed'),
+		}, {
+			copilot: HookType.UserPromptTransformed,
+			alias: 'userPromptTransformed',
+			vscode: undefined,
+			claude: undefined,
+		});
+	});
 
 	suite('parseCopilotHooks', () => {
 		const workspaceRoot = URI.file('/workspace');
@@ -214,6 +247,30 @@ suite('HookCompatibility', () => {
 
 			assert.strictEqual(result.disabledAllHooks, true);
 			assert.strictEqual(result.hooks.size, 0);
+		});
+	});
+
+	suite('getLocalFormatHookEvents', () => {
+		test('marks capitalised event names, with or without a version, outside .claude folders', () => {
+			const hookFile = URI.file('/workspace/.github/hooks/guard.json');
+			const hooks = (json: object) => ({ hooks: json });
+			assert.deepStrictEqual({
+				local: getLocalFormatHookEvents(hookFile, hooks({ PreToolUse: [], Stop: [] })),
+				halfMigrated: getLocalFormatHookEvents(hookFile, { version: 1, ...hooks({ PreToolUse: [], postToolUse: [] }) }),
+				nativeWithoutVersion: getLocalFormatHookEvents(hookFile, hooks({ preToolUse: [] })),
+				claudeSettings: getLocalFormatHookEvents(URI.file('/workspace/.claude/settings.json'), hooks({ PreToolUse: [] })),
+				claudeFolder: getLocalFormatHookEvents(URI.file('/workspace/.claude/hooks/guard.json'), hooks({ PreToolUse: [] })),
+				unknownCapitalised: getLocalFormatHookEvents(hookFile, hooks({ BeforeAnything: [] })),
+				invalid: getLocalFormatHookEvents(hookFile, { hooks: [] }),
+			}, {
+				local: ['PreToolUse', 'Stop'],
+				halfMigrated: ['PreToolUse'],
+				nativeWithoutVersion: [],
+				claudeSettings: [],
+				claudeFolder: [],
+				unknownCapitalised: [],
+				invalid: [],
+			});
 		});
 	});
 });

@@ -12,6 +12,8 @@ type RuntimeSlashCommandCatalog = {
 	readonly commands: readonly RuntimeSlashCommandInfo[];
 	readonly byName: ReadonlyMap<string, RuntimeSlashCommandInfo>;
 	readonly byAlias: ReadonlyMap<string, RuntimeSlashCommandInfo>;
+	/** Plugin-namespaced skills (`<plugin>:<skill>`) by their unique bare skill name. */
+	readonly bySkillName: ReadonlyMap<string, RuntimeSlashCommandInfo>;
 };
 
 type RuntimeSlashCommandCache = {
@@ -50,7 +52,7 @@ export class CopilotSlashCommandProvider {
 		}
 		try {
 			const catalog = await this._getRuntimeSlashCommandCatalog(maxWaitMs);
-			return this._withHandler(catalog.byName.get(key) ?? catalog.byAlias.get(key) ?? (key === copilotSandboxPolicyCommand.name ? copilotSandboxPolicyCommand : undefined));
+			return this._withHandler(catalog.byName.get(key) ?? catalog.byAlias.get(key) ?? (key === copilotSandboxPolicyCommand.name ? copilotSandboxPolicyCommand : catalog.bySkillName.get(key)));
 		} catch (err) {
 			if (key !== copilotSandboxPolicyCommand.name) {
 				throw err;
@@ -96,6 +98,7 @@ export class CopilotSlashCommandProvider {
 			commands: [],
 			byName: new Map(),
 			byAlias: new Map(),
+			bySkillName: new Map(),
 		};
 	}
 
@@ -145,7 +148,34 @@ export class CopilotSlashCommandProvider {
 				byAlias.set(aliasKey, canonical);
 			}
 		}
-		return { commands: deduped, byName, byAlias };
+		return { commands: deduped, byName, byAlias, bySkillName: this._toSkillNameIndex(deduped, byName, byAlias) };
+	}
+
+	/**
+	 * Plugin skills are registered as `<plugin>:<skill>`, and a plugin name may contain spaces (such as
+	 * the synced `VS Code Synced Data` plugin), so `/<skill>` must resolve to them or it reaches the model
+	 * as plain text instead of loading the skill. Only unambiguous names that no command or alias claims.
+	 */
+	private _toSkillNameIndex(commands: readonly RuntimeSlashCommandInfo[], byName: ReadonlyMap<string, RuntimeSlashCommandInfo>, byAlias: ReadonlyMap<string, RuntimeSlashCommandInfo>): ReadonlyMap<string, RuntimeSlashCommandInfo> {
+		const candidates = new Map<string, RuntimeSlashCommandInfo | undefined>();
+		for (const command of commands) {
+			const separator = command.name.lastIndexOf(':');
+			if (command.kind !== 'skill' || separator < 0) {
+				continue;
+			}
+			const key = this._normalizeSlashCommandKey(command.name.slice(separator + 1));
+			if (!key || byName.has(key) || byAlias.has(key)) {
+				continue;
+			}
+			candidates.set(key, candidates.has(key) ? undefined : command);
+		}
+		const result = new Map<string, RuntimeSlashCommandInfo>();
+		for (const [key, command] of candidates) {
+			if (command) {
+				result.set(key, command);
+			}
+		}
+		return result;
 	}
 
 	private _normalizeSlashCommandKey(command: string): string | undefined {

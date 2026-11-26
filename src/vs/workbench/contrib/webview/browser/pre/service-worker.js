@@ -399,8 +399,22 @@ sw.addEventListener('install', (event) => {
 	event.waitUntil(sw.skipWaiting()); // Activate worker immediately
 });
 
-sw.addEventListener('activate', (event) => {
-	event.waitUntil(sw.clients.claim()); // Become available to all pages
+sw.addEventListener('activate', event => {
+	event.waitUntil((async () => {
+		try {
+			const cacheNames = await caches.keys();
+			await Promise.all(cacheNames.map(async cacheName => {
+				const cacheVersion = /^vscode-resource-cache-(?<version>\d+)$/.exec(cacheName)?.groups?.version;
+				if (cacheVersion !== undefined && Number(cacheVersion) < VERSION) {
+					await caches.delete(cacheName);
+				}
+			}));
+		} catch {
+			// Cache cleanup must not prevent the webview from loading.
+		}
+
+		await sw.clients.claim();
+	})());
 });
 
 

@@ -44,7 +44,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { createCommandUri, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { escapeIcons } from '../../../../base/common/iconLabels.js';
 import { verifiedPublisherIcon } from './extensionsIcons.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
@@ -868,8 +869,15 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			}
 		};
 
+		const escapeLabel = (label: string) => escapeMarkdownSyntaxTokens(escapeIcons(label.replace(/\s+/g, ' '))).replace(/[<:.@]/g, '\\$&');
+
 		const getPublisherLink = ({ publisherDisplayName, publisherLink }: { publisherDisplayName: string; publisherLink?: string }) => {
-			return publisherLink ? `[${publisherDisplayName}](${publisherLink})` : publisherDisplayName;
+			const label = escapeLabel(publisherDisplayName);
+			return publisherLink ? `[${label}](${publisherLink})` : label;
+		};
+
+		const getExtensionLink = ({ displayName, detailsLink }: { displayName: string; detailsLink?: string }) => {
+			return `[${escapeLabel(displayName)}](${detailsLink})`;
 		};
 
 		const unverifiedLink = 'https://aka.ms/vscode-verify-publisher';
@@ -880,13 +888,13 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 				? localize('checkTwoTrustedPublishersTitle', "Do you trust publishers \"{0}\" and \"{1}\"?", allPublishers[0].publisherDisplayName, allPublishers[1].publisherDisplayName)
 				: localize('checkAllTrustedPublishersTitle', "Do you trust the publisher \"{0}\" and {1} others?", allPublishers[0].publisherDisplayName, allPublishers.length - 1);
 
-		const customMessage = new MarkdownString('', { supportThemeIcons: true, isTrusted: true });
+		const customMessage = new MarkdownString('', { supportThemeIcons: true, isTrusted: { enabledCommands: ['extension.open'] } });
 
 		if (untrustedExtensions.length === 1) {
 			const extension = untrustedExtensions[0];
 			const manifest = untrustedExtensionManifests[0];
 			if (otherUntrustedPublishers.length) {
-				customMessage.appendMarkdown(localize('extension published by message', "The extension {0} is published by {1}.", `[${extension.displayName}](${extension.detailsLink})`, getPublisherLink(extension)));
+				customMessage.appendMarkdown(localize('extension published by message', "The extension {0} is published by {1}.", getExtensionLink(extension), getPublisherLink(extension)));
 				customMessage.appendMarkdown('&nbsp;');
 				const commandUri = createCommandUri('extension.open', extension.identifier.id, manifest.extensionPack?.length ? 'extensionPack' : 'dependencies').toString();
 				if (otherUntrustedPublishers.length === 1) {
@@ -897,7 +905,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 				customMessage.appendMarkdown('&nbsp;');
 				customMessage.appendMarkdown(localize('firstTimeInstallingMessage', "This is the first time you're installing extensions from these publishers."));
 			} else {
-				customMessage.appendMarkdown(localize('message1', "The extension {0} is published by {1}. This is the first extension you're installing from this publisher.", `[${extension.displayName}](${extension.detailsLink})`, getPublisherLink(extension)));
+				customMessage.appendMarkdown(localize('message1', "The extension {0} is published by {1}. This is the first extension you're installing from this publisher.", getExtensionLink(extension), getPublisherLink(extension)));
 			}
 		} else {
 			customMessage.appendMarkdown(localize('multiInstallMessage', "This is the first time you're installing extensions from publishers {0} and {1}.", getPublisherLink(allPublishers[0]), getPublisherLink(allPublishers[allPublishers.length - 1])));
@@ -906,7 +914,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		if (verifiedPublishers.length || unverfiiedPublishers.length === 1) {
 			for (const publisher of verifiedPublishers) {
 				customMessage.appendText('\n');
-				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of {1}.", getPublisherLink(publisher), `[$(link-external) ${URI.parse(publisher.publisherDomain!.link).authority}](${publisher.publisherDomain!.link})`);
+				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of {1}.", getPublisherLink(publisher), `[$(link-external) ${escapeLabel(URI.parse(publisher.publisherDomain!.link).authority)}](${publisher.publisherDomain!.link})`);
 				customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
 			}
 			if (unverfiiedPublishers.length) {
@@ -1143,7 +1151,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		}
 
 		// Check if the extension is allowed by publisher or extension id
-		if (this.allowedExtensionsService.allowedExtensionsConfigValue && this.allowedExtensionsService.isAllowed(extension)) {
+		if (this.allowedExtensionsService.allowedExtensionsConfigValue && this.allowedExtensionsService.isAllowed(extension) === true) {
 			return true;
 		}
 

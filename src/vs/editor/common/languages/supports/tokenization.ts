@@ -5,6 +5,7 @@
 
 import { Color } from '../../../../base/common/color.js';
 import { IFontTokenOptions } from '../../../../platform/theme/common/themeService.js';
+import { sanitizeFontFamily } from '../../config/fontInfo.js';
 import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts } from '../../encodedTokenAttributes.js';
 
 export interface ITokenThemeRule {
@@ -439,9 +440,9 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 		fonts.add(className);
 		let rule = `.${className} {`;
 		if (font.fontFamily) {
-			rule += `font-family: ${font.fontFamily};`;
+			rule += `font-family: ${sanitizeFontFamily(font.fontFamily)};`;
 		}
-		if (font.fontSizeMultiplier) {
+		if (typeof font.fontSizeMultiplier === 'number' && Number.isFinite(font.fontSizeMultiplier) && font.fontSizeMultiplier > 0) {
 			rule += `font-size: calc(var(--editor-font-size)*${font.fontSizeMultiplier});`;
 		}
 		rule += `}`;

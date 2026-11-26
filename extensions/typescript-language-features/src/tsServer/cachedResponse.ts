@@ -15,7 +15,7 @@ type Resolve<T extends Proto.Response> = () => Promise<ServerResponse.Response<T
 export class CachedResponse<T extends Proto.Response> {
 	private response?: Promise<ServerResponse.Response<T>>;
 	private version: number = -1;
-	private document: string = '';
+	private document?: WeakRef<vscode.TextDocument>;
 
 	/**
 	 * Execute a request. May return cached value or resolve the new value
@@ -34,7 +34,7 @@ export class CachedResponse<T extends Proto.Response> {
 	}
 
 	private matches(document: vscode.TextDocument): boolean {
-		return this.version === document.version && this.document === document.uri.toString();
+		return this.version === document.version && this.document?.deref() === document;
 	}
 
 	private async reset(
@@ -42,7 +42,7 @@ export class CachedResponse<T extends Proto.Response> {
 		resolve: Resolve<T>
 	): Promise<ServerResponse.Response<T>> {
 		this.version = document.version;
-		this.document = document.uri.toString();
+		this.document = new WeakRef(document);
 		return this.response = resolve();
 	}
 }

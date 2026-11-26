@@ -35,6 +35,10 @@ const moveSessionInputSchema: ToolDefinition['inputSchema'] = {
 	},
 };
 
+/** `move_session`'s sentence on agents, and its wording where chats of the session may use their own agents. */
+const moveSessionSameAgentSentence = 'A moved session keeps its history, folders and running work, including a session without a workspace; both sessions must use the same agent.';
+const moveSessionOwnAgentSentence = 'A moved session keeps its history, folders, running work and agent, including a session without a workspace; it can move into a session of another agent when that agent supports multiple chats.';
+
 /** The `move_session` tool, offered only while moving chats is enabled. */
 export const moveSessionToolDefinition: IAgentServerToolDefinition = {
 	name: SessionServerToolName.MoveSession,
@@ -214,6 +218,9 @@ const refusalMessages: { readonly [K in AgentChatMoveRefusal]: string } = {
 	[AgentChatMoveRefusal.NotSingleChat]: 'This session has nested sessions; move them out first, or move each nested session on its own.',
 	[AgentChatMoveRefusal.NotStarted]: 'This session has no messages yet; it can be moved after its first message.',
 	[AgentChatMoveRefusal.DifferentCredentialOwner]: 'Sessions with different credential owners can\'t be combined; pick a destination that uses the same account, or move it to its own session.',
+	[AgentChatMoveRefusal.AgentUnavailable]: 'The agent of this session is unknown or disabled on this host, so it can\'t move to a session of another agent or become its own session; ask the user to enable that agent.',
+	[AgentChatMoveRefusal.AgentWithoutChats]: 'The destination session\'s agent can\'t host sessions of another agent, or this session\'s agent can\'t join one; pick a destination session whose agent supports multiple chats, or one of the same agent.',
+	[AgentChatMoveRefusal.AgentConfigUnavailable]: 'The agent of this session couldn\'t describe its settings for the move; try again.',
 };
 
 /** For a whole session, `notMovable` means it isn't a session of its own anymore or couldn't be opened, not the reasons a nested session stays. */
@@ -400,6 +407,10 @@ export function createSessionMoveToolGroup(accessor: ISessionServerToolAccessor,
 		getDisplay: (_toolName, args, result) => getMoveSessionDisplay(args, result, (session, chatId) => accessor.isKnownSessionLink(session, chatId)),
 		isEnabled: toolName => toolName === SessionServerToolName.MoveSession && accessor.isChatMoveEnabled(),
 		isEnabledForSession: (_toolName, sessionUri) => accessor.supportsChatMoves(URI.parse(sessionUri)),
+		// Mentions moves across agents only while chats of the session may use their own agents; otherwise it reads as before.
+		getDefinitionForSession: (definition, sessionUri) => definition.name === SessionServerToolName.MoveSession && accessor.getChatHarnesses?.(URI.parse(sessionUri)) !== undefined
+			? { ...definition, description: definition.description?.replace(moveSessionSameAgentSentence, moveSessionOwnAgentSentence) }
+			: definition,
 		canRequireConfirmation: toolName => sessionToolRequiresConfirmation(toolName),
 		async execute(_stateManager, context, _toolName, rawArgs): Promise<string> {
 			if (!accessor.isChatMoveEnabled()) {

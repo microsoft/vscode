@@ -1,0 +1,309 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.automations-modal-editor {
+	overflow: hidden;
+}
+
+.automations-modal-widget {
+	display: flex;
+	height: 100%;
+	min-height: 0;
+	gap: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size200);
+	box-sizing: border-box;
+	color: var(--vscode-foreground);
+}
+
+.automations-modal-categories {
+	display: flex;
+	flex-direction: column;
+	flex: 0 0 164px;
+	gap: var(--vscode-spacing-size40);
+}
+
+.automations-modal-categories .monaco-button {
+	justify-content: flex-start;
+	border-color: transparent;
+	background: transparent;
+}
+
+.automations-modal-categories .monaco-button[aria-pressed="true"] {
+	background: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
+
+.automations-modal-categories .monaco-button:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.automations-modal-filter {
+	min-width: 120px;
+}
+
+.automations-modal-filter .monaco-select-box {
+	width: 100%;
+}
+
+.automations-modal-sort {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 220px;
+}
+
+.automations-modal-sort > span {
+	white-space: nowrap;
+}
+
+.automations-modal-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	gap: var(--vscode-spacing-size120);
+}
+
+.automations-modal-content h2 {
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: 0;
+}
+
+.automations-modal-description {
+	color: var(--vscode-descriptionForeground);
+	margin: 0;
+}
+
+.automations-modal-controls {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automations-modal-search {
+	flex: 1;
+	min-width: 160px;
+}
+
+.automations-modal-actions .monaco-action-bar .actions-container {
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+}
+
+.automations-modal-actions .monaco-button {
+	box-sizing: border-box;
+	height: 26px;
+	width: auto;
+	white-space: nowrap;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.automations-modal-actions .monaco-button-dropdown > .monaco-text-button {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.automations-modal-actions .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	height: 26px;
+	width: 26px;
+	flex-shrink: 0;
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.monaco-workbench .automations-modal-actions .action-label.automations-modal-more-actions {
+	box-sizing: border-box;
+	width: auto;
+	height: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-button-secondaryForeground);
+	background-color: var(--vscode-button-secondaryBackground);
+}
+
+.monaco-workbench .automations-modal-actions .action-label.automations-modal-more-actions:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.monaco-workbench .automations-modal-actions .monaco-action-bar:not(.vertical) .action-item .action-label.automations-modal-more-actions:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-modal-message,
+.automations-modal-warnings {
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-modal-warnings[hidden] {
+	display: none;
+}
+
+.automations-modal-warnings {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automations-modal-warnings > .codicon[hidden] {
+	display: none;
+}
+
+.automations-modal-warnings.has-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.automations-modal-table {
+	flex: 1;
+	min-height: 100px;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.automations-modal-table > .monaco-scrollable-element,
+.automations-modal-table-viewport {
+	height: 100%;
+}
+
+.automations-modal-table-viewport {
+	width: 100%;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+}
+
+.automations-modal-table-viewport::-webkit-scrollbar {
+	display: none;
+}
+
+.automations-modal-cell {
+	display: block;
+	height: 100%;
+	line-height: 36px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.automations-modal-cell.toggle-cell {
+	display: flex;
+	align-items: center;
+}
+
+.automations-modal-detail {
+	flex: 0 1 280px;
+	min-width: 160px;
+	overflow: auto;
+	padding-left: var(--vscode-spacing-size200);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.automations-modal-detail[hidden] {
+	display: none;
+}
+
+.automations-modal-detail-content {
+	overflow-wrap: anywhere;
+}
+
+.automations-modal-detail-content h3 {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-modal-history {
+	min-width: 0;
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.automations-modal-history > h3 {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-modal-history-message,
+.automations-modal-history .automations-history-group-header {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.automations-modal-history .automations-history-group {
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.automations-modal-history .automations-history-show-more {
+	width: fit-content;
+	margin: 0 auto;
+}
+
+.automations-modal-history .automations-history-group-runs {
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+}
+
+.automations-modal-history .automations-run-session-list .monaco-list-row.session-list-inset-row {
+	margin: 0;
+	width: 100%;
+	border-radius: 0;
+}
+
+.automations-modal-history .automations-run-session-list .monaco-list-row:not(:first-child) {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+}
+
+.automations-modal-history .automations-temporary-run {
+	height: 54px;
+	width: 100%;
+}
+
+.automations-modal-history .automations-temporary-run.can-open {
+	cursor: pointer;
+}
+
+.automations-modal-history .automations-temporary-run.can-open:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-modal-history .automations-temporary-run.can-open:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-modal-history .automations-run-actions {
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size80);
+}
+
+.automations-modal-widget.narrow {
+	flex-direction: column;
+	overflow-y: auto;
+}
+
+.automations-modal-widget.narrow .automations-modal-categories,
+.automations-modal-widget.narrow .automations-modal-content,
+.automations-modal-widget.narrow .automations-modal-detail {
+	flex: 0 0 auto;
+	min-width: 0;
+}
+
+.automations-modal-widget.narrow .automations-modal-table {
+	flex: 0 0 240px;
+}
+
+.automations-modal-widget.narrow .automations-modal-detail {
+	overflow: visible;
+	padding-left: 0;
+	padding-top: var(--vscode-spacing-size160);
+	border-left: none;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}

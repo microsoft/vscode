@@ -18,7 +18,7 @@ suite('Chat Issue Icons', () => {
 			computeIssueIcon('closed', 'duplicate'),
 		];
 		assert.deepStrictEqual(icons.map(icon => ({ id: icon.id, color: icon.color?.id })), [
-			{ id: 'issue-opened', color: 'charts.green' },
+			{ id: 'issues', color: 'charts.green' },
 			{ id: 'issue-closed', color: 'charts.purple' },
 			{ id: 'issue-closed', color: 'descriptionForeground' },
 			{ id: 'issue-closed', color: 'descriptionForeground' },
@@ -34,9 +34,9 @@ suite('Chat Issue Icons', () => {
 			computeAggregateIssueIcon([{ state: 'closed', stateReason: 'not_planned' }, { state: 'closed', stateReason: 'duplicate' }]),
 		];
 		assert.deepStrictEqual(icons.map(icon => ({ id: icon.id, color: icon.color?.id })), [
-			{ id: 'issue-opened', color: 'charts.green' },
-			{ id: 'issue-opened', color: 'charts.green' },
-			{ id: 'issue-opened', color: 'charts.green' },
+			{ id: 'issues', color: 'charts.green' },
+			{ id: 'issues', color: 'charts.green' },
+			{ id: 'issues', color: 'charts.green' },
 			{ id: 'issue-closed', color: 'charts.purple' },
 			{ id: 'issue-closed', color: 'descriptionForeground' },
 		]);

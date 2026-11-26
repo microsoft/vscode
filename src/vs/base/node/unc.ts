@@ -51,6 +51,32 @@ function toSafeStringArray(arg0: unknown): string[] {
 	return Array.from(allowedUNCHosts);
 }
 
+/**
+ * Whether `path` is not a UNC path or refers to a UNC host in `allowedHosts`.
+ * Fails closed for paths that look like UNC paths without a host we understand.
+ */
+export function isPathAllowedByUNCHostAllowlist(path: string, allowedHosts: readonly string[]): boolean {
+	const host = getUNCHost(path)?.toLowerCase(); // UNC hosts are case-insensitive
+	if (host) {
+		return allowedHosts.some(allowedHost => allowedHost.toLowerCase() === host);
+	}
+
+	return !/^[\\/]{2}/.test(path);
+}
+
+/**
+ * Whether accessing `path` is permitted by the UNC host restrictions of this
+ * process. Use for accesses that do not go through node.js `fs`, which
+ * enforces these restrictions itself.
+ */
+export function isUNCAccessAllowed(path: string): boolean {
+	if (process.platform !== 'win32' || isUNCAccessRestrictionsDisabled()) {
+		return true;
+	}
+
+	return isPathAllowedByUNCHostAllowlist(path, getUNCHostAllowlist());
+}
+
 export function getUNCHost(maybeUNCPath: string | undefined | null): string | undefined {
 	if (typeof maybeUNCPath !== 'string') {
 		return undefined; // require a valid string

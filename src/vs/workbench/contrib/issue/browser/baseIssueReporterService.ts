@@ -6,13 +6,15 @@ import { $, isHTMLInputElement, isHTMLTextAreaElement, reset } from '../../../..
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { Button, ButtonWithDropdown, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Action } from '../../../../base/common/actions.js';
 import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { debounce } from '../../../../base/common/decorators.js';
-import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isLinuxSnap, isMacintosh } from '../../../../base/common/platform.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
@@ -20,19 +22,22 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { escape } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Action } from '../../../../base/common/actions.js';
+import { createCancellableFetch } from '../../../../base/parts/request/common/fetch.js';
 import { localize } from '../../../../nls.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { withGitHubCredentialDeadline } from '../../../../platform/github/common/githubCredentialService.js';
+import { GitHubRequestError, isEqualAuthorization } from '../../../../platform/github/common/githubTypes.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
 import { IIssueFormService, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
-import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -71,6 +76,7 @@ export class BaseIssueReporterService extends Disposable {
 	private privateAction: Action;
 	private readonly similarIssueSearch = this._register(new MutableDisposable());
 	private similarIssueSearchGeneration = 0;
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(
 		public disableExtensions: boolean,
@@ -108,13 +114,23 @@ export class BaseIssueReporterService extends Disposable {
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async () => {
+			const authorization = this.data.githubAuthorization;
+			// A caller-supplied token without a known session must not switch to another account.
+			if (!authorization && this.data.githubAccessToken) {
+				return;
+			}
 			const previousAuthState = !!this.data.githubAccessToken;
 
 			let githubAccessToken = '';
 			try {
 				const githubSessions = await this.authenticationService.getSessions('github');
-				const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-				githubAccessToken = potentialSessions[0]?.accessToken;
+				const session = githubSessions.find(session => authorization
+					? isEqualAuthorization(authorization, toGitHubAuthorizationContext('github', session))
+					: session.scopes.includes('repo'));
+				githubAccessToken = session?.accessToken ?? '';
+				if (session) {
+					this.data.githubAuthorization ??= toGitHubAuthorizationContext('github', session);
+				}
 			} catch (e) {
 				// Ignore
 			}
@@ -164,7 +180,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		const issueTitle = data.issueTitle;
 		if (issueTitle) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const issueTitleElement = this.getElementById<HTMLInputElement>('issue-title');
 			if (issueTitleElement) {
 				issueTitleElement.value = issueTitle;
@@ -173,7 +189,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		const issueBody = data.issueBody;
 		if (issueBody) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const description = this.getElementById<HTMLTextAreaElement>('description');
 			if (description) {
 				description.value = issueBody;
@@ -182,7 +198,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		if (this.window.document.documentElement.lang !== 'en') {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			show(this.getElementById('english'));
 		}
 
@@ -207,7 +223,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		// initialize the reporting button(s)
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 			this.updateButtonStates();
@@ -221,18 +237,18 @@ export class BaseIssueReporterService extends Disposable {
 	setInitialFocus() {
 		const { fileOnExtension } = this.issueReporterModel.getData();
 		if (fileOnExtension) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const issueTitle = this.window.document.getElementById('issue-title');
 			issueTitle?.focus();
 		} else {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const issueType = this.window.document.getElementById('issue-type');
 			issueType?.focus();
 		}
 	}
 
 	public updateButtonStates() {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (!issueReporterElement) {
 			// shouldn't occur -- throw?
@@ -241,7 +257,7 @@ export class BaseIssueReporterService extends Disposable {
 
 
 		// public elements section
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		let publicElements = this.getElementById('public-elements');
 		if (!publicElements) {
 			publicElements = document.createElement('div');
@@ -254,7 +270,7 @@ export class BaseIssueReporterService extends Disposable {
 
 
 		// private filing section
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		let internalElements = this.getElementById('internal-elements');
 		if (!internalElements) {
 			internalElements = document.createElement('div');
@@ -263,7 +279,7 @@ export class BaseIssueReporterService extends Disposable {
 			internalElements.classList.add('hidden');
 			issueReporterElement.appendChild(internalElements);
 		}
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		let filingRow = this.getElementById('internal-top-row');
 		if (!filingRow) {
 			filingRow = document.createElement('div');
@@ -277,7 +293,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	private updateInternalFilingNote(container: HTMLElement) {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		let filingNote = this.getElementById('internal-preview-message');
 		if (!filingNote) {
 			filingNote = document.createElement('span');
@@ -290,7 +306,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	private updatePublicGithubButton(container: HTMLElement): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (!issueReporterElement) {
 			return;
@@ -335,7 +351,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		// make sure that the repo link is after the button
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const repoLink = this.getElementById('show-repo-name');
 		if (repoLink) {
 			container.insertBefore(this.publicGithubButton.element, repoLink);
@@ -343,7 +359,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	private updatePublicRepoLink(container: HTMLElement): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		let issueRepoName = this.getElementById('show-repo-name') as HTMLAnchorElement;
 		if (!issueRepoName) {
 			issueRepoName = document.createElement('a');
@@ -378,7 +394,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	private updateInternalGithubButton(container: HTMLElement): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (!issueReporterElement) {
 			return;
@@ -404,7 +420,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	private updateInternalElementsVisibility(): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const container = this.getElementById('internal-elements');
 		if (!container) {
 			// shouldn't happen
@@ -448,7 +464,7 @@ export class BaseIssueReporterService extends Disposable {
 			const spinnerIcon = renderIcon(ThemeIcon.modify(Codicon.loading, 'spin'));
 			buttonEl.prepend(spinnerIcon);
 		} else {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const spinnerEl = buttonEl.querySelector('.codicon-loading');
 			spinnerEl?.remove();
 			if (this.preSubmitButtonLabel !== undefined) {
@@ -479,7 +495,7 @@ export class BaseIssueReporterService extends Disposable {
 		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: installedExtensions });
 		this.updateExtensionTable(nonThemes ?? [], numberOfThemeExtesions);
 		if (this.disableExtensions || installedExtensions.length === 0) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			(<HTMLButtonElement>this.getElementById('disableExtensions')).disabled = true;
 		}
 
@@ -522,7 +538,7 @@ export class BaseIssueReporterService extends Disposable {
 			}, extension.name);
 		};
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionsSelector = this.getElementById<HTMLSelectElement>('extension-selector');
 		if (extensionsSelector) {
 			const { selectedExtension } = this.issueReporterModel.getData();
@@ -606,7 +622,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	private updateAcknowledgementState() {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const acknowledgementCheckbox = this.getElementById<HTMLInputElement>('includeAcknowledgement');
 		if (acknowledgementCheckbox) {
 			this.acknowledged = acknowledgementCheckbox.checked;
@@ -627,7 +643,7 @@ export class BaseIssueReporterService extends Disposable {
 			this.updateAcknowledgementState();
 		});
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const showInfoElements = this.window.document.getElementsByClassName('showInfo');
 		for (let i = 0; i < showInfoElements.length; i++) {
 			const showInfo = showInfoElements.item(i)!;
@@ -650,7 +666,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		this.addEventListener('issue-source', 'change', (e: Event) => {
 			const value = (<HTMLInputElement>e.target).value;
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const problemSourceHelpText = this.getElementById('problem-source-help-text')!;
 			if (value === '') {
 				this.issueReporterModel.update({ fileOnExtension: undefined });
@@ -662,7 +678,7 @@ export class BaseIssueReporterService extends Disposable {
 				hide(problemSourceHelpText);
 			}
 
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
 			if (value === IssueSource.VSCode) {
 				descriptionTextArea.placeholder = localize('vscodePlaceholder', "E.g Workbench is missing problems panel");
@@ -686,7 +702,7 @@ export class BaseIssueReporterService extends Disposable {
 			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace, fileOnProduct });
 			this.render();
 
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
@@ -696,14 +712,14 @@ export class BaseIssueReporterService extends Disposable {
 			this.issueReporterModel.update({ issueDescription });
 
 			if (this.issueReporterModel.fileOnExtension() === false && !this.issueReporterModel.getData().fileOnMarketplace) {
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 				this.searchVSCodeIssues(title, issueDescription);
 			}
 		});
 
 		this.addEventListener('issue-title', 'input', _ => {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const titleElement = this.getElementById('issue-title') as HTMLInputElement;
 			if (titleElement) {
 				const title = titleElement.value;
@@ -713,7 +729,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		this.addEventListener('issue-title', 'input', (e: Event) => {
 			const title = (<HTMLInputElement>e.target).value;
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const lengthValidationMessage = this.getElementById('issue-title-length-validation-error');
 			const issueUrl = this.getIssueUrl();
 			if (title && this.getIssueUrlWithTitle(title, issueUrl).length > MAX_URL_LENGTH) {
@@ -721,7 +737,7 @@ export class BaseIssueReporterService extends Disposable {
 			} else {
 				hide(lengthValidationMessage);
 			}
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const issueSource = this.getElementById<HTMLSelectElement>('issue-source');
 			if (!issueSource || issueSource.value === '') {
 				return;
@@ -770,7 +786,7 @@ export class BaseIssueReporterService extends Disposable {
 				e.stopPropagation();
 				e.preventDefault();
 
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const issueTitle = (<HTMLInputElement>this.getElementById('issue-title'))!.value;
 				const { issueDescription } = this.issueReporterModel.getData();
 				if (!this.hasBeenSubmitted && (issueTitle || issueDescription)) {
@@ -909,7 +925,7 @@ export class BaseIssueReporterService extends Disposable {
 	public clearSearchResults(): void {
 		this.similarIssueSearchGeneration++;
 		this.similarIssueSearch.clear();
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const similarIssues = this.getElementById('similar-issues')!;
 		similarIssues.innerText = '';
 		this.numberOfSearchResultsDisplayed = 0;
@@ -920,18 +936,18 @@ export class BaseIssueReporterService extends Disposable {
 		if (this._store.isDisposed || generation !== this.similarIssueSearchGeneration) {
 			return;
 		}
-		const controller = new AbortController();
-		this.similarIssueSearch.value = toDisposable(() => controller.abort());
-		// eslint-disable-next-line no-restricted-syntax
+		const controller = new CancellationTokenSource();
+		this.similarIssueSearch.value = toDisposable(() => controller.dispose(true));
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const similarIssues = this.getElementById('similar-issues')!;
 
-		void this.issueFormService.searchGitHubIssues(repo, title, controller.signal).then(results => {
-			if (!controller.signal.aborted) {
+		void this.issueFormService.searchGitHubIssues(repo, title, controller.token).then(results => {
+			if (!controller.token.isCancellationRequested) {
 				similarIssues.innerText = '';
 				this.displaySearchResults(results);
 			}
 		}).catch(error => {
-			if (!controller.signal.aborted) {
+			if (!controller.token.isCancellationRequested) {
 				this.logService.warn('[IssueReporter] Error fetching GitHub issues', error);
 			}
 		});
@@ -942,8 +958,13 @@ export class BaseIssueReporterService extends Disposable {
 		if (this._store.isDisposed || generation !== this.similarIssueSearchGeneration) {
 			return;
 		}
-		const controller = new AbortController();
-		this.similarIssueSearch.value = toDisposable(() => controller.abort());
+		const lifetime = new DisposableStore();
+		const source = new CancellationTokenSource();
+		this.similarIssueSearch.value = toDisposable(() => {
+			source.dispose(true);
+			lifetime.dispose();
+		});
+		const token = source.token;
 		const url = 'https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates';
 		const init = {
 			method: 'POST',
@@ -954,12 +975,11 @@ export class BaseIssueReporterService extends Disposable {
 			headers: new Headers({
 				'Content-Type': 'application/json'
 			}),
-			signal: controller.signal,
 		};
 
-		void this.fetcher(url, init).then(async response => {
+		void createCancellableFetch(this.fetcher)(url, init, token, lifetime).then(async response => {
 			const result: { candidates?: readonly ISimilarIssue[] } | null = await response.json();
-			if (controller.signal.aborted) {
+			if (token.isCancellationRequested) {
 				return;
 			}
 			if (!result || !Array.isArray(result.candidates)) {
@@ -967,14 +987,17 @@ export class BaseIssueReporterService extends Disposable {
 			}
 			this.displaySearchResults(result.candidates);
 		}).catch(error => {
-			if (!controller.signal.aborted) {
+			if (!token.isCancellationRequested) {
 				this.logService.warn('[IssueReporter] Error fetching duplicate issues', error);
 			}
+		}).finally(() => {
+			lifetime.dispose();
+			source.dispose();
 		});
 	}
 
 	private displaySearchResults(results: readonly ISimilarIssue[]) {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const similarIssues = this.getElementById('similar-issues')!;
 		if (results.length) {
 			const issues = $('div.issues-container');
@@ -1021,7 +1044,7 @@ export class BaseIssueReporterService extends Disposable {
 	private setUpTypes(): void {
 		const makeOption = (issueType: IssueType, description: string) => $('option', { 'value': issueType.valueOf() }, escape(description));
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const typeSelect = this.getElementById('issue-type')! as HTMLSelectElement;
 		const { issueType } = this.issueReporterModel.getData();
 		reset(typeSelect,
@@ -1045,7 +1068,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public setSourceOptions(): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const sourceSelect = this.getElementById('issue-source')! as HTMLSelectElement;
 		const { issueType, fileOnExtension, selectedExtension, fileOnMarketplace, fileOnProduct } = this.issueReporterModel.getData();
 		let selected = sourceSelect.selectedIndex;
@@ -1077,7 +1100,7 @@ export class BaseIssueReporterService extends Disposable {
 			sourceSelect.selectedIndex = selected;
 		} else {
 			sourceSelect.selectedIndex = 0;
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			hide(this.getElementById('problem-source-help-text'));
 		}
 	}
@@ -1085,37 +1108,37 @@ export class BaseIssueReporterService extends Disposable {
 	public async renderBlocks(): Promise<void> {
 		// Depending on Issue Type, we render different blocks and text
 		const { issueType, fileOnExtension, fileOnMarketplace, selectedExtension } = this.issueReporterModel.getData();
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const blockContainer = this.getElementById('block-container');
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const systemBlock = this.window.document.querySelector('.block-system');
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const processBlock = this.window.document.querySelector('.block-process');
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const workspaceBlock = this.window.document.querySelector('.block-workspace');
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionsBlock = this.window.document.querySelector('.block-extensions');
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const experimentsBlock = this.window.document.querySelector('.block-experiments');
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionDataBlock = this.window.document.querySelector('.block-extension-data');
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const problemSource = this.getElementById('problem-source')!;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const descriptionTitle = this.getElementById('issue-description-label')!;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const descriptionSubtitle = this.getElementById('issue-description-subtitle')!;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionSelector = this.getElementById('extension-selection')!;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const downloadExtensionDataLink = <HTMLAnchorElement>this.getElementById('extension-data-download')!;
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const titleTextArea = this.getElementById('issue-title-container')!;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const descriptionTextArea = this.getElementById('description')!;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionDataTextArea = this.getElementById('extension-data')!;
 
 		// Hide all by default
@@ -1228,11 +1251,11 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public validateInput(inputId: string): boolean {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const descriptionShortMessage = this.getElementById(`description-short-error`);
 		if (inputId === 'description' && this.nonGitHubIssueUrl && this.data.extensionId) {
 			return true;
@@ -1270,27 +1293,27 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
-		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
-		const init = {
-			method: 'POST',
-			body: JSON.stringify({
-				title: issueTitle,
-				body: issueBody
-			}),
-			headers: new Headers({
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${this.data.githubAccessToken}`,
-				'User-Agent': 'request'
-			})
-		};
-
-		const response = await fetch(url, init);
-		if (!response.ok) {
-			console.error('Invalid GitHub URL provided.');
-			return false;
+		const authorization = this.data.githubAuthorization;
+		let issueUrl: string;
+		try {
+			const sessions = await withGitHubCredentialDeadline(this._disposeToken, () => this.authenticationService.getSessions('github', [], { silent: true }, true));
+			const session = authorization && sessions.find(session => isEqualAuthorization(authorization, toGitHubAuthorizationContext('github', session)));
+			if (!session) {
+				throw new GitHubRequestError(localize('issueReporter.githubSessionUnavailable', "The GitHub session selected for this issue report is no longer available. Sign in again or preview the report on GitHub."), 'authentication');
+			}
+			issueUrl = await this.issueFormService.createGitHubIssue('github', session, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this._disposeToken);
+			CancellationToken.throwIfCanceled(this._disposeToken);
+		} catch (error) {
+			CancellationToken.throwIfCanceled(this._disposeToken);
+			if (!isCancellationError(error)) {
+				this.logService.error('[IssueReporter] Failed to create GitHub issue', error);
+			}
+			if (error instanceof GitHubRequestError && error.statusCode !== undefined && error.statusCode >= 400) {
+				return false;
+			}
+			throw error;
 		}
-		const result = await response.json();
-		await this.openLink(result.html_url);
+		await this.openLink(issueUrl);
 		this.close();
 		return true;
 	}
@@ -1309,7 +1332,7 @@ export class BaseIssueReporterService extends Disposable {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const invalidInput = this.window.document.getElementsByClassName('invalid-input');
 			if (invalidInput.length) {
 				(<HTMLInputElement>invalidInput[0]).focus();
@@ -1338,7 +1361,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		this.hasBeenSubmitted = true;
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
@@ -1357,7 +1380,7 @@ export class BaseIssueReporterService extends Disposable {
 			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 		}
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
@@ -1478,7 +1501,7 @@ export class BaseIssueReporterService extends Disposable {
 		// uses this.configuuration.data to ensure that data is coming from `openReporter` command.
 		const template = this.data.issueBody;
 		if (template) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const descriptionTextArea = this.getElementById('description')!;
 			const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
 			if (descriptionText === '' || !descriptionText.includes(template.toString())) {
@@ -1492,7 +1515,7 @@ export class BaseIssueReporterService extends Disposable {
 		if (data) {
 			this.issueReporterModel.update({ extensionData: data });
 			extension.data = data;
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const extensionDataBlock = this.window.document.querySelector('.block-extension-data')!;
 			show(extensionDataBlock);
 			this.renderBlocks();
@@ -1505,7 +1528,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		this.validateSelectedExtension();
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		this.searchExtensionIssues(title);
 
@@ -1514,9 +1537,9 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public validateSelectedExtension(): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionValidationMessage = this.getElementById('extension-selection-validation-error')!;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionValidationNoUrlsMessage = this.getElementById('extension-selection-validation-error-no-url')!;
 		hide(extensionValidationMessage);
 		hide(extensionValidationNoUrlsMessage);
@@ -1546,15 +1569,15 @@ export class BaseIssueReporterService extends Disposable {
 		this.loadingExtensionData = true;
 		this.updateButtonStates();
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionDataCaption = this.getElementById('extension-id')!;
 		hide(extensionDataCaption);
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionDataCaption2 = Array.from(this.window.document.querySelectorAll('.ext-parens'));
 		extensionDataCaption2.forEach(extensionDataCaption2 => hide(extensionDataCaption2));
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
 		while (showLoading.firstChild) {
@@ -1570,15 +1593,15 @@ export class BaseIssueReporterService extends Disposable {
 		this.loadingExtensionData = false;
 		this.updateButtonStates();
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionDataCaption = this.getElementById('extension-id')!;
 		show(extensionDataCaption);
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionDataCaption2 = Array.from(this.window.document.querySelectorAll('.ext-parens'));
 		extensionDataCaption2.forEach(extensionDataCaption2 => show(extensionDataCaption2));
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
 		if (hideLoading.firstChild) {
@@ -1588,14 +1611,14 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	private setExtensionValidationMessage(): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionValidationMessage = this.getElementById('extension-selection-validation-error')!;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const extensionValidationNoUrlsMessage = this.getElementById('extension-selection-validation-error-no-url')!;
 		const bugsUrl = this.getExtensionBugsUrl();
 		if (bugsUrl) {
 			show(extensionValidationMessage);
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const link = this.getElementById('extensionBugsLink')!;
 			link.textContent = bugsUrl;
 			return;
@@ -1604,7 +1627,7 @@ export class BaseIssueReporterService extends Disposable {
 		const extensionUrl = this.getExtensionRepositoryUrl();
 		if (extensionUrl) {
 			show(extensionValidationMessage);
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const link = this.getElementById('extensionBugsLink');
 			link!.textContent = extensionUrl;
 			return;
@@ -1614,7 +1637,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	private updateProcessInfo(state: IssueReporterModelData) {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const target = this.window.document.querySelector('.block-process .block-info') as HTMLElement;
 		if (target) {
 			reset(target, $('code', undefined, state.processInfo ?? ''));
@@ -1622,12 +1645,12 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	private updateWorkspaceInfo(state: IssueReporterModelData) {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		this.window.document.querySelector('.block-workspace .block-info code')!.textContent = '\n' + state.workspaceInfo;
 	}
 
 	public updateExtensionTable(extensions: IssueReporterExtensionData[], numThemeExtensions: number): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-extensions .block-info');
 		if (target) {
 			if (this.disableExtensions) {
@@ -1679,7 +1702,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public getElementById<T extends HTMLElement = HTMLElement>(elementId: string): T | undefined {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = this.window.document.getElementById(elementId) as T | undefined;
 		if (element) {
 			return element;
@@ -1689,7 +1712,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public addEventListener(elementId: string, eventType: string, handler: (event: Event) => void): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = this.getElementById(elementId);
 		element?.addEventListener(eventType, handler);
 	}

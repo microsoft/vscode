@@ -117,7 +117,7 @@ suite('ToolSetsContribution', () => {
 	test('ClientToolSetsContribution exposes Appearance tools only in the Sessions window', () => {
 		const createContribution = (isSessionsWindow: boolean) => {
 			const toolsService = createToolsService();
-			for (const name of ['getThemeColors', 'setChatBackground']) {
+			for (const name of ['getThemeColors', 'setChatBackground', 'screenshotWindow']) {
 				store.add(toolsService.registerToolData({ id: name, modelDescription: name, displayName: name, toolReferenceName: name, source: ToolDataSource.Internal }));
 			}
 			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
@@ -131,7 +131,7 @@ suite('ToolSetsContribution', () => {
 			sessionsMembers: Array.from(createContribution(true).getToolSet('vscode-appearance')?.getTools() ?? [], tool => tool.toolReferenceName),
 			coreHasSet: !!createContribution(false).getToolSet('vscode-appearance'),
 		}, {
-			sessionsMembers: ['getThemeColors', 'setChatBackground'],
+			sessionsMembers: ['getThemeColors', 'setChatBackground', 'screenshotWindow'],
 			coreHasSet: false,
 		});
 	});

@@ -477,9 +477,9 @@ async function waitForCDP(port, timeoutMs = 60_000) {
  * Find the workbench page among all CDP pages.
  * For dev builds this checks for `globalThis.driver` (smoke-test driver).
  * For stable builds it checks for `.monaco-workbench` in the DOM.
- * @param {import('playwright').Browser} browser
+ * @param {import('@playwright/test').Browser} browser
  * @param {number} timeoutMs
- * @returns {Promise<import('playwright').Page>}
+ * @returns {Promise<import('@playwright/test').Page>}
  */
 async function findWorkbenchPage(browser, timeoutMs = 60_000) {
 	const deadline = Date.now() + timeoutMs;
@@ -510,10 +510,10 @@ let nextPort = 19222;
  * @param {string[]} launchArgs - Arguments to pass to the executable
  * @param {Record<string, string>} env - Environment variables
  * @param {{ verbose?: boolean }} [opts]
- * @returns {Promise<{ page: import('playwright').Page, browser: import('playwright').Browser, close: () => Promise<void> }>}
+ * @returns {Promise<{ page: import('@playwright/test').Page, browser: import('@playwright/test').Browser, close: () => Promise<void> }>}
  */
 async function launchVSCode(executable, launchArgs, env, opts = {}) {
-	const { chromium } = require('playwright');
+	const { chromium } = require('@playwright/test');
 	const port = nextPort++;
 
 	const args = [`--remote-debugging-port=${port}`, ...launchArgs];

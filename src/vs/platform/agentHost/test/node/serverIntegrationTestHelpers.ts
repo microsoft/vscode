@@ -10,6 +10,7 @@ import { getErrorCode } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { appendFileSync, mkdirSync } from 'fs';
+import type { IncomingMessage, ServerResponse } from 'http';
 import { userInfo } from 'os';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
@@ -674,6 +675,19 @@ export interface IServerHandle {
 }
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
+/**
+ * Part of {@link SERVER_SHUTDOWN_TIMEOUT_MS} kept back from the server's own
+ * graceful-shutdown budget: capturing its descendants before stdin is closed,
+ * and its disposal and exit after the budget ends, share the same deadline.
+ */
+const SERVER_SHUTDOWN_RESERVE_MS = 5_000;
+/**
+ * The server's own graceful-shutdown budget. A restart must persist what the
+ * replacement server restores, and on a loaded CI machine that can take longer
+ * than the server's 4.5s default, so it gets the time {@link stopServer}
+ * already waits, less {@link SERVER_SHUTDOWN_RESERVE_MS}.
+ */
+const SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = Math.max(4_500, SERVER_SHUTDOWN_TIMEOUT_MS - SERVER_SHUTDOWN_RESERVE_MS);
 const SERVER_EXIT_TIMEOUT_MS = 1_000;
 const SERVER_DESCENDANT_CLEANUP_TIMEOUT_MS = 5_000;
 
@@ -974,9 +988,12 @@ interface IMockLlmServerHandleWithLog extends IMockLlmServerHandle {
 }
 
 interface IMockLlmServerModule {
-	startServer(port: number, options?: { logger?: (msg: string) => void; verbose?: boolean; captureRequests?: boolean }): Promise<IMockLlmServerHandle>;
+	startServer(port: number, options?: { logger?: (msg: string) => void; verbose?: boolean; captureRequests?: boolean; routes?: MockLlmRoutes }): Promise<IMockLlmServerHandle>;
 	registerScenario(id: string, definition: unknown): void;
 }
+
+/** Serves extra endpoints from the mock LLM origin before its built-in handlers; returns `true` when handled. */
+export type MockLlmRoutes = (req: IncomingMessage, res: ServerResponse, path: string) => boolean;
 
 /** A mock-LLM scenario to register before recording (see `mock-llm-server.ts`). */
 export interface IMockScenario {
@@ -1014,7 +1031,7 @@ function buildCopilotChatToken(mockUrl: string, copilotPlan: 'free' | 'pro' = 'f
 	})).toString('base64');
 }
 
-async function startMockLlmServer(scenarios?: readonly IMockScenario[]): Promise<IMockLlmServerHandleWithLog> {
+async function startMockLlmServer(scenarios?: readonly IMockScenario[], routes?: MockLlmRoutes): Promise<IMockLlmServerHandleWithLog> {
 	const mockServerPath = fileURLToPath(new URL('../../../../../../scripts/chat-simulation/common/mock-llm-server.ts', import.meta.url));
 	const nodeRequire = createRequire(import.meta.url);
 	const mockModule = nodeRequire(mockServerPath) as IMockLlmServerModule;
@@ -1026,14 +1043,14 @@ async function startMockLlmServer(scenarios?: readonly IMockScenario[]): Promise
 		mockModule.registerScenario(scenario.id, scenario.definition);
 	}
 	const messages: string[] = [];
-	const serverHandle = await mockModule.startServer(0, { logger: msg => messages.push(msg), verbose: true, captureRequests: true });
+	const serverHandle = await mockModule.startServer(0, { logger: msg => messages.push(msg), verbose: true, captureRequests: true, routes });
 	return { ...serverHandle, logMessages: messages };
 }
 
 export async function startServer(options?: { readonly quiet?: boolean; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv; readonly startupTimeoutMs?: number }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
-		const args = ['--enable-mock-agent', '--port', '0', '--without-connection-token'];
+		const args = ['--enable-mock-agent', '--port', '0', '--without-connection-token', '--shutdown-timeout', String(SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS)];
 		if (options?.quiet ?? true) {
 			args.push('--quiet');
 		}
@@ -1079,12 +1096,12 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean; readonly matchModelRequestsByProjection?: boolean; readonly recordingModelResponse?: ICapiReplayResponse }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean; readonly matchModelRequestsByProjection?: boolean; readonly recordingModelResponse?: ICapiReplayResponse }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[]; readonly mockRoutes?: MockLlmRoutes }): Promise<IServerHandle> {
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
 	const realCapture = options.capiReplay?.real === true;
-	const mockLlmServer = (options.mockLlm || (options.capiReplay && !realCapture)) ? await startMockLlmServer(options.mockScenarios) : undefined;
+	const mockLlmServer = (options.mockLlm || (options.capiReplay && !realCapture)) ? await startMockLlmServer(options.mockScenarios, options.mockRoutes) : undefined;
 	let capiReplayProxy = options.existingCapiReplay;
 	if (capiReplayProxy && !options.capiReplay) {
 		throw new Error('Reusing a CAPI replay proxy requires its replay configuration');
@@ -1120,7 +1137,7 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 	const capiUrl = capiReplayProxy?.url ?? mockLlmServer?.url;
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
-		const args = ['--port', '0', '--without-connection-token'];
+		const args = ['--port', '0', '--without-connection-token', '--shutdown-timeout', String(SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS)];
 		if (options.claudeSdkRoot) {
 			args.push('--claude-sdk-root', options.claudeSdkRoot);
 		}

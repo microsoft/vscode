@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export type { IAgentSandboxCertificateStatus } from './vscode/agentSandboxCertificate.js';
-export { readAgentSandboxCertificate, withAgentSandboxCertificate, sandboxCertificateInstallationCapability, supportsSandboxCertificateInstallation, sandboxCertificateRotationCapability, supportsSandboxCertificateRotation, sandboxCertificateRemovalCapability, supportsSandboxCertificateRemoval } from './vscode/agentSandboxCertificate.js';
+export { readAgentSandboxCertificate, withAgentSandboxCertificate, sandboxCertificateInstallationCapability, supportsSandboxCertificateInstallation, sandboxCertificateRotationCapability, supportsSandboxCertificateRotation, sandboxCertificateRemovalCapability, supportsSandboxCertificateRemoval, sandboxCertificateRefreshCapability, supportsSandboxCertificateRefresh } from './vscode/agentSandboxCertificate.js';

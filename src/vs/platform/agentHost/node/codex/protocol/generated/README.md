@@ -16,7 +16,7 @@ locked across machines and CI.
 ## Regenerating
 
 ```sh
-npm run codex:gen-protocol
+pnpm run codex:gen-protocol
 ```
 
 This wipes `generated/` (except `README.md`) and rewrites it from the locally
@@ -30,8 +30,9 @@ Override with `--no-version-check` for ad-hoc experimentation.
 The generator looks for codex in this order:
 
 1. `$CODEX_BIN` environment variable
-2. `node_modules/@openai/codex-<platform>-<arch>/.../bin/codex` (vendored via npm)
-3. `which codex` (PATH fallback)
+2. The platform binary package resolved from the installed `@openai/codex` package, including pnpm's isolated dependency layout
+3. `node_modules/@openai/codex-<platform>-<arch>/.../bin/codex` (standalone platform package)
+4. `which codex` (PATH fallback)
 
 ## CI freshness check
 
@@ -43,6 +44,6 @@ scratch dir and fails if the committed files differ. PRs that touch neither are
 skipped. Run it locally with:
 
 ```sh
-npm run codex:check-protocol
+pnpm run codex:check-protocol
 ```
 

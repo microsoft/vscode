@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { AgentSession } from '../common/agent.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -27,9 +28,10 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 
 	public static readonly OPERATION_COMMIT = AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID;
 
+	readonly changesGitState = true;
+
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		private readonly _onCommitted: (sessionKey: string, source?: IAgentHostCredentialSource) => Promise<void>,
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
@@ -119,6 +121,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		try {
 			message = this._cleanCommitMessage(await this._copilotApiService.utilityChatCompletion(authToken, {
 				messages: this._buildCommitMessagePrompt(workingDirectory, branchName, diffs),
+				telemetry: { source: 'gitCommitMessageGenerator', agentSessionId: AgentSession.id(sessionUri) },
 			}, { signal }));
 		} catch (err) {
 			this._throwIfCancelled(token);
@@ -142,12 +145,6 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		} catch (err) {
 			this._throwIfCancelled(token);
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to commit changes: ${err instanceof Error ? err.message : String(err)}`);
-		}
-
-		try {
-			await this._onCommitted(parsed.ownerUri, source);
-		} catch (err) {
-			this._logService.warn(`[AgentHostCommitOperationHandler] Post-commit refresh failed for ${parsed.ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.commit.committed', "Committed changes with message: `{0}`", message.split('\n')[0]) } };

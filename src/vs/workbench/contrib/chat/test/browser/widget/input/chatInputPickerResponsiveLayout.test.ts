@@ -215,7 +215,7 @@ suite('ChatInputPickerResponsiveLayout', () => {
 			measurements: clone.callCount,
 		}, {
 			compact: [false, true, true],
-			measurements: 2,
+			measurements: 1,
 		});
 	});
 

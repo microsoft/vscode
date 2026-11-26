@@ -12,8 +12,9 @@ import { IURITransformer } from '../../../base/common/uriIpc.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { ReadableStreamEventPayload, listenStream } from '../../../base/common/stream.js';
-import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from '../common/files.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions, IFileRealpathOptions } from '../common/files.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { transformErrorForSerialization } from '../../../base/common/errors.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IRecursiveWatcherOptions } from '../common/watcher.js';
 
@@ -33,20 +34,21 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		super();
 	}
 
-	call<TResult>(ctx: T, command: string, args: unknown[]): Promise<TResult> {
+	call<TResult>(ctx: T, command: string, args: unknown[], cancellationToken?: CancellationToken): Promise<TResult> {
 		const uriTransformer = this.getUriTransformer(ctx);
 
 		switch (command) {
 			case 'stat': return this.stat(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
-			case 'realpath': return this.realpath(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
+			case 'realpath': return this.realpath(uriTransformer, args[0] as UriComponents, args[1] as IFileRealpathOptions | undefined) as Promise<TResult>;
 			case 'readdir': return this.readdir(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
 			case 'open': return this.open(uriTransformer, args[0] as UriComponents, args[1] as IFileOpenOptions) as Promise<TResult>;
 			case 'close': return this.close(args[0] as number) as Promise<TResult>;
 			case 'read': return this.read(args[0] as number, args[1] as number, args[2] as number) as Promise<TResult>;
-			case 'readFile': return this.readFile(uriTransformer, args[0] as UriComponents, args[1] as IFileAtomicReadOptions) as Promise<TResult>;
+			case 'readFile': return this.readFile(uriTransformer, args[0] as UriComponents, args[1] as IFileAtomicReadOptions, cancellationToken) as Promise<TResult>;
 			case 'write': return this.write(args[0] as number, args[1] as number, args[2] as VSBuffer, args[3] as number, args[4] as number) as Promise<TResult>;
 			case 'writeFile': return this.writeFile(uriTransformer, args[0] as UriComponents, args[1] as VSBuffer, args[2] as IFileWriteOptions) as Promise<TResult>;
 			case 'rename': return this.rename(uriTransformer, args[0] as UriComponents, args[1] as UriComponents, args[2] as IFileOverwriteOptions) as Promise<TResult>;
+			case 'renameFileAtomic': return this.renameFileAtomic(uriTransformer, args[0] as UriComponents, args[1] as UriComponents, args[2] as IFileOverwriteOptions) as Promise<TResult>;
 			case 'copy': return this.copy(uriTransformer, args[0] as UriComponents, args[1] as UriComponents, args[2] as IFileOverwriteOptions) as Promise<TResult>;
 			case 'cloneFile': return this.cloneFile(uriTransformer, args[0] as UriComponents, args[1] as UriComponents) as Promise<TResult>;
 			case 'mkdir': return this.mkdir(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
@@ -81,10 +83,10 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return this.provider.stat(resource);
 	}
 
-	private realpath(uriTransformer: IURITransformer, _resource: UriComponents): Promise<string> {
+	private realpath(uriTransformer: IURITransformer, _resource: UriComponents, options: IFileRealpathOptions | undefined): Promise<string> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 
-		return this.provider.realpath(resource);
+		return this.provider.realpath(resource, options);
 	}
 
 	private readdir(uriTransformer: IURITransformer, _resource: UriComponents): Promise<[string, FileType][]> {
@@ -97,9 +99,11 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 	//#region File Reading/Writing
 
-	private async readFile(uriTransformer: IURITransformer, _resource: UriComponents, opts?: IFileAtomicReadOptions): Promise<VSBuffer> {
+	private async readFile(uriTransformer: IURITransformer, _resource: UriComponents, opts?: IFileAtomicReadOptions, token?: CancellationToken): Promise<VSBuffer> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
-		const buffer = await this.provider.readFile(resource, opts);
+
+		// The token cancels when the client goes away, which stops waiting for a named pipe
+		const buffer = await this.provider.readFile(resource, opts, token);
 
 		return VSBuffer.wrap(buffer);
 	}
@@ -120,7 +124,8 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		const fileStream = this.provider.readFileStream(resource, opts, cts.token);
 		listenStream(fileStream, {
 			onData: chunk => emitter.fire(VSBuffer.wrap(chunk)),
-			onError: error => emitter.fire(error),
+			// Events are serialized as JSON, which would drop the message of an `Error`
+			onError: error => emitter.fire(transformErrorForSerialization(error)),
 			onEnd: () => {
 
 				// Forward event
@@ -184,6 +189,13 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		const target = this.transformIncoming(uriTransformer, _target);
 
 		return this.provider.rename(source, target, opts);
+	}
+
+	private renameFileAtomic(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
+		const source = this.transformIncoming(uriTransformer, _source);
+		const target = this.transformIncoming(uriTransformer, _target);
+
+		return this.provider.renameFileAtomic(source, target, opts);
 	}
 
 	private copy(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {

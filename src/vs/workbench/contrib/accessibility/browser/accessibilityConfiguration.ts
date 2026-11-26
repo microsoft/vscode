@@ -61,6 +61,7 @@ export const enum AccessibilityVerbositySettingId {
 	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
 	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
+	SandboxProfiles = 'accessibility.verbosity.sandboxProfiles',
 	Notebook = 'accessibility.verbosity.notebook',
 	Editor = 'accessibility.verbosity.editor',
 	Hover = 'accessibility.verbosity.hover',
@@ -88,7 +89,10 @@ export const enum AccessibilityVerbositySettingId {
 	AgentsWindowExtensions = 'accessibility.verbosity.agentsWindowExtensions',
 	ConnectionDiagnostics = 'accessibility.verbosity.connectionDiagnostics',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
-	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements'
+	ScreenshotTool = 'accessibility.verbosity.screenshotTool',
+	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements',
+	ChatPetJumpGame = 'accessibility.verbosity.chatPetJumpGame',
+	ChatPlanNudge = 'accessibility.verbosity.chatPlanNudge'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -195,6 +199,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
 			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused and how to navigate to the results table.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SandboxProfiles]: {
+			description: localize('verbosity.sandboxProfiles', "Provide information about accessing help in the sandbox profiles editor."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {
@@ -306,8 +314,20 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.browserElementCommenting', 'Provide information about how to access element commenting accessibility help in the Integrated Browser.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.ScreenshotTool]: {
+			description: localize('verbosity.screenshotTool', "Provide information about how to access the screenshot tool accessibility help when the screenshot tool opens."),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.ChatPetAchievements]: {
 			description: localize('verbosity.chatPetAchievements', 'Provide information about how to access chat pet achievements accessibility help when the Achievements modal is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ChatPlanNudge]: {
+			description: localize('verbosity.chatPlanNudge', 'Provide information about how to access the Copilot plan suggestion accessibility help menu when a suggestion is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ChatPetJumpGame]: {
+			description: localize('verbosity.chatPetJumpGame', "Provide information about how to access accessibility help when Blobby's jump game is focused."),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {
@@ -808,6 +828,19 @@ const configuration: IConfigurationNode = {
 			'default': {
 				'sound': 'on',
 				'announcement': 'auto'
+			}
+		},
+		'accessibility.signals.dictationDisconnected': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.dictationDisconnected', "Plays a sound / audio cue when dictation has been disconnected."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.dictationDisconnected.sound', "Plays a sound when dictation has been disconnected."),
+					...soundFeatureBase,
+				},
+			},
+			'default': {
+				'sound': 'on'
 			}
 		},
 		'accessibility.signals.clear': {

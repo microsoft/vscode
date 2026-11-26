@@ -20,9 +20,9 @@ import { TextDiffEditor } from '../../../../workbench/browser/parts/editor/textD
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
-import { SessionChangesEditor } from '../../changes/browser/sessionChangesEditor.js';
-import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING } from '../common/diffEditorOptionsService.js';
-import { DiffEditorOptionsService } from './diffEditorOptionsService.js';
+import { SessionChangesEditor } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { IDiffEditorOptionsService, SESSIONS_EDITOR_WORD_WRAP_SETTING } from '../../../../workbench/services/editor/common/diffEditorOptionsService.js';
+import { DiffEditorOptionsService } from '../../../../workbench/services/editor/browser/diffEditorOptionsService.js';
 
 /** Drives the shared preferred diff layout for supported editors in the Agents window. */
 export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService {
@@ -173,20 +173,6 @@ registerWorkbenchContribution2(SessionsDiffEditorLayoutContribution.ID, Sessions
 export const sessionsEditorWordWrapConfiguration = {
 	id: 'sessions',
 	properties: {
-		[SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING]: {
-			type: 'string',
-			enum: ['off', 'on', 'inherit'],
-			default: 'inherit',
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-			markdownEnumDescriptions: [
-				localize('sessions.diffEditor.wordWrap.off', "Lines will never wrap."),
-				localize('sessions.diffEditor.wordWrap.on', "Lines will wrap at the viewport width."),
-				localize('sessions.diffEditor.wordWrap.inherit', "Lines will wrap according to the {0} setting.", '`#editor.wordWrap#`'),
-			],
-			description: localize('sessions.diffEditor.wordWrap', "Controls how diff editors in the Agents window wrap lines."),
-		},
 		[SESSIONS_EDITOR_WORD_WRAP_SETTING]: {
 			type: 'string',
 			enum: ['off', 'on', 'inherit'],

@@ -18,10 +18,16 @@ import { IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services
 import { IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { TextEditorPaneSelection } from '../../../../browser/parts/editor/textEditor.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 suite('Editor Type Picker', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const noModels = new class extends mock<IModelService>() {
+		override getModel() { return null; }
+	};
 
 	function createGroup(input: IUntypedEditorInput | undefined, activate: (group: IEditorGroupView) => void = () => { }, getSelection?: () => IEditorPaneSelection, capabilities = EditorInputCapabilities.None): IEditorGroupView {
 		const sourceEditor = disposables.add(new class extends EditorInput {
@@ -96,7 +102,7 @@ suite('Editor Type Picker', () => {
 			}
 		};
 
-		const result = getAvailableEditorTypes(input, editorResolverService);
+		const result = getAvailableEditorTypes(input, editorResolverService, noModels);
 
 		assert.deepStrictEqual({ requestedResources, requestedOptions, result }, {
 			requestedResources: [modified],
@@ -139,7 +145,7 @@ suite('Editor Type Picker', () => {
 		};
 		const markdownEditor = disposables.add(new TestEditorInput('test.markdownEditor'));
 		const markdownPreview = disposables.add(new TestEditorInput('test.markdownPreview'));
-		const getEditorIds = (input: EditorInput) => getAvailableEditorTypes(input, editorResolverService, ['test.markdownPreview'])?.editors.map(editor => editor.id);
+		const getEditorIds = (input: EditorInput) => getAvailableEditorTypes(input, editorResolverService, noModels, ['test.markdownPreview'])?.editors.map(editor => editor.id);
 
 		assert.deepStrictEqual({
 			hidden: getEditorIds(markdownEditor),
@@ -169,7 +175,38 @@ suite('Editor Type Picker', () => {
 			}
 		};
 
-		assert.strictEqual(getAvailableEditorTypes(input, editorResolverService), undefined);
+		assert.strictEqual(getAvailableEditorTypes(input, editorResolverService, noModels), undefined);
+	});
+
+	test('untitled files in a custom editor only offer other editors while their text model exists', () => {
+		const resource = URI.from({ scheme: Schemas.untitled, path: 'example.png' });
+		const registeredEditors = [
+			editor(DEFAULT_EDITOR_ASSOCIATION.id, RegisteredEditorPriority.builtin),
+			editor('test.imagePreview', RegisteredEditorPriority.default),
+		];
+		const matches = editorMatches(registeredEditors, 'test.imagePreview');
+		const input = disposables.add(new class extends EditorInput {
+			override get typeId(): string { return 'test.customEditorInput'; }
+			override get editorId(): string { return 'test.imagePreview'; }
+			override get resource(): URI { return resource; }
+			override getName(): string { return 'test'; }
+		}());
+		const editorResolverService = new class extends mock<IEditorResolverService>() {
+			override getEditorMatches(): EditorMatches {
+				return matches;
+			}
+		};
+		const withModel = new class extends mock<IModelService>() {
+			override getModel(): ITextModel | null { return new class extends mock<ITextModel>() { }; }
+		};
+
+		assert.deepStrictEqual({
+			withoutModel: getAvailableEditorTypes(input, editorResolverService, noModels),
+			withModel: getAvailableEditorTypes(input, editorResolverService, withModel)?.editors.map(editor => editor.id),
+		}, {
+			withoutModel: undefined,
+			withModel: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.imagePreview'],
+		});
 	});
 
 	test('unconfigured universal optional matches only make the picker visible while active', () => {
@@ -204,8 +241,8 @@ suite('Editor Type Picker', () => {
 		const universalPreview = disposables.add(new TestEditorInput('test.universalPreview'));
 
 		assert.deepStrictEqual({
-			inactive: getAvailableEditorTypes(textEditor, editorResolverService),
-			activeEditorIds: getAvailableEditorTypes(universalPreview, editorResolverService)?.editors.map(editor => editor.id)
+			inactive: getAvailableEditorTypes(textEditor, editorResolverService, noModels),
+			activeEditorIds: getAvailableEditorTypes(universalPreview, editorResolverService, noModels)?.editors.map(editor => editor.id)
 		}, {
 			inactive: undefined,
 			activeEditorIds: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.universalPreview']

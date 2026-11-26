@@ -11,9 +11,9 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestUrl, getExistingPullRequests, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
-import { IGitHubPullRequestSummary } from '../../common/types.js';
+import { IGitHubPullRequestSummary } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
 suite('Create Session from Pull Request', () => {

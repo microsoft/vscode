@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { XtabProvider } from '../../../src/extension/xtab/node/xtabProvider';
 import { ConfigKey } from '../../../src/platform/configuration/common/configurationService';
-import { Configuration, ISimulationSuiteDescriptor, ssuite, stest } from '../../base/stest';
+import { Configuration, ssuite, stest } from '../../base/stest';
 import { inlineEditsFixture, loadFile } from './fileLoading';
 import { InlineEditTester } from './inlineEditTester';
 
@@ -19,10 +19,6 @@ function getTester() {
 type TestConfiguration = {
 	providerName: string;
 	extensionConfiguration: Configuration<any>[];
-	/**
-	 * Default is true.
-	 */
-	shouldBeRun?: boolean;
 };
 
 const commonXtabTestConfigurations: Configuration<unknown>[] = [
@@ -48,21 +44,7 @@ const testConfigs: TestConfiguration[] = [
 
 for (const testConfig of testConfigs) {
 
-	const providerName = testConfig.providerName;
-
-	function ssuiteByProvider(descr: ISimulationSuiteDescriptor, testRegistrationFactory: () => void) {
-		if (providerName === 'server') {
-			return ssuite.optional( // remember: optional tests aren't run in CI (which matches current desired behavior but don't be surprised)
-				(opts) => !opts.runServerPoweredNesProvider,
-				descr,
-				testRegistrationFactory
-			);
-		} else {
-			return ssuite(descr, testRegistrationFactory);
-		}
-	}
-
-	ssuiteByProvider({ title: 'InlineEdit GoldenScenario', subtitle: `[${testConfig.providerName}]`, location: 'external', configurations: testConfig.extensionConfiguration }, () => {
+	ssuite({ title: 'InlineEdit GoldenScenario', subtitle: `[${testConfig.providerName}]`, location: 'external', configurations: testConfig.extensionConfiguration }, () => {
 
 		const tester = getTester();
 

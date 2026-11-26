@@ -16,15 +16,18 @@ import { AbstractResourceEditorInput } from '../../../common/editor/resourceEdit
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ICustomEditorCompatibleInput } from '../../customEditor/common/customEditor.js';
 import { IMAGE_PREVIEW_EDITOR_ID } from '../common/mediaPreview.js';
 import { saveMediaFileAs } from './mediaPreviewSaveAs.js';
 
 /**
  * Editor input for previewing an image file.
  */
-export class ImagePreviewEditorInput extends AbstractResourceEditorInput {
+export class ImagePreviewEditorInput extends AbstractResourceEditorInput implements ICustomEditorCompatibleInput {
 
 	static readonly ID = 'workbench.input.imagePreview';
+
+	readonly customEditorViewType = IMAGE_PREVIEW_EDITOR_ID;
 
 	constructor(
 		resource: URI,

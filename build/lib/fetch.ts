@@ -3,22 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { mapStream } from './streams.ts';
 import VinylFile from 'vinyl';
 import log from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import crypto from 'crypto';
 import through2 from 'through2';
-import { Stream } from 'stream';
+import { Readable, Stream, type Duplex } from 'stream';
 
 export interface IFetchOptions {
 	base?: string;
 	nodeFetchOptions?: RequestInit;
 	verbose?: boolean;
 	checksumSha256?: string;
+	/**
+	 * Milliseconds after which a download whose response body stops arriving is aborted and retried. Defaults to 30
+	 * seconds.
+	 */
+	idleTimeout?: number;
 }
 
-export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.ThroughStream {
+const defaultIdleTimeout = 30 * 1000;
+
+export function fetchUrls(urls: string[] | string, options: IFetchOptions): Duplex {
 	if (options === undefined) {
 		options = {};
 	}
@@ -31,7 +38,7 @@ export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.T
 		urls = [urls];
 	}
 
-	return es.readArray(urls).pipe(es.map<string, VinylFile | void>((data: string, cb) => {
+	return Readable.from(urls).pipe(mapStream<string, VinylFile | void>((data: string, cb) => {
 		const url = [options.base, data].join('');
 		fetchUrl(url, options).then(file => {
 			cb(undefined, file);
@@ -63,7 +70,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 				// Reset timeout for body download - large files need more time
 				clearTimeout(timeout);
 				timeout = setTimeout(() => controller.abort(), 5 * 60 * 1000);
-				const contents = Buffer.from(await response.arrayBuffer());
+				const contents = await readBody(response, controller, options.idleTimeout ?? defaultIdleTimeout);
 				if (options.checksumSha256) {
 					const actualSHA256Checksum = crypto.createHash('sha256').update(contents).digest('hex');
 					if (actualSHA256Checksum !== options.checksumSha256) {
@@ -102,6 +109,32 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 		}
 		throw e;
 	}
+}
+
+/**
+ * Reads a response body and aborts the request when no data arrives for `idleTimeout` milliseconds, so that a stalled
+ * download is retried right away instead of when the timeout of the whole download expires.
+ */
+async function readBody(response: Response, controller: AbortController, idleTimeout: number): Promise<Buffer> {
+	if (!response.body) {
+		return Buffer.from(await response.arrayBuffer());
+	}
+	const chunks: Uint8Array[] = [];
+	const reader = response.body.getReader();
+	const idleTimer = setTimeout(() => controller.abort(new Error(`No data received for ${idleTimeout} ms`)), idleTimeout);
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+			chunks.push(value);
+			idleTimer.refresh();
+		}
+	} finally {
+		clearTimeout(idleTimer);
+	}
+	return Buffer.concat(chunks);
 }
 
 const ghApiHeaders: Record<string, string> = {

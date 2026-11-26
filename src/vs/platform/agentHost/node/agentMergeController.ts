@@ -13,33 +13,33 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IGitHubAccountClient } from '../../github/common/account/account.js';
-import { IGitHubClient } from '../../github/common/githubService.js';
-import { IParsedPullRequestUrl, parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { GitHubWorkflowRerunOptions, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
-import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription, firstCredentialFailure } from '../../github/common/githubPullRequestService.js';
+import { PullRequestCheck, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, firstCredentialFailure } from '../../github/common/githubPullRequestService.js';
+import { IGitHubClient } from '../../github/common/githubService.js';
 import { GitHubRequestError, isSamlEnforcementError } from '../../github/common/githubTransport.js';
+import { IParsedPullRequestUrl, parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { ILogService } from '../../log/common/log.js';
-import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeMoveConflictNotice, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeChatInjectedConfigurations, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeChatInjectedConfiguration, withAgentMergeFolderState, withAgentMergeInjectedConfiguration, hasAgentMergeFolderControllerState, hasAgentMergeElevation, AgentMergeFolderControllerState, getAgentMergeRepairBlockers, hasAgentMergeRepairProgress } from '../common/agentMerge.js';
-import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
-import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { IAgentHostGitStateService, IPullRequestLookupFailure } from '../common/agentHostGitStateService.js';
+import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
+import { AGENT_MERGE_UNKNOWN_COMMIT, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderControllerState, AgentMergeFolderState, AgentMergeSessionOverrides, AgentMergeTarget, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeMissingPullRequestNotice, agentMergeMoveConflictNotice, agentMergeSingleSignOnNotice, classifyAgentMergeRequiredChecks, evaluateAgentMerge, getAgentMergeRepairBlockers, hasAgentMergeElevation, hasAgentMergeFolderControllerState, hasAgentMergeRepairProgress, isAnyAgentMergeEnabled, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeChatInjectedConfiguration, withAgentMergeFolderControllerState, withAgentMergeFolderState, withAgentMergeInjectedConfiguration } from '../common/agentMerge.js';
+import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { AgentSystemNotificationKind } from '../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { isChatConfigProperty } from '../common/sessionConfigProperties.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
-import { getSessionRelatedPullRequestUrls, ISessionWithDefaultChat, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, readFolderGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
-import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
+import { ISessionWithDefaultChat, SessionLifecycle, TurnState, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, readFolderGitHubState, readSessionGitState } from '../common/state/sessionState.js';
+import { IAgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { resolveAgentMergeElevatedChat, resolveAgentMergeOwningChat, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
-import { getWorkflowRuns, IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
 import { getAgentMergeConfiguration, isAgentMergeEnabled } from './agentMergeConfiguration.js';
-import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { IAgentMergeTurnContext, getWorkflowRuns, isFailedConclusion, workflowRunId } from './agentMergeTools.js';
 
 const snapshotDebounce = 30_000;
 const backstopInterval = 60_000;
@@ -53,6 +53,10 @@ const maximumLifetimePromptCount = 20;
 const maximumIndeterminateDuration = 30 * 60_000;
 /** How long a gap between indeterminate observations may be before the budget window restarts. */
 const indeterminateObservationGap = 2 * backstopInterval;
+/** GitHub expires a single sign-on authorization page after an hour, so a fresh one is offered once it has. */
+const singleSignOnNoticeInterval = 60 * 60_000;
+/** How long a folder waits for a pull request on its branch before the user is told, since one opened just after enabling is found on its own. */
+const missingPullRequestNoticeDelay = 5 * 60_000;
 
 export interface IAgentMergeControllerOptions {
 	readonly startTurn: (chat: string, turnId: string, prompt: string, credentials?: IAgentHostCredentialSource) => boolean;
@@ -73,7 +77,9 @@ interface IAnnouncedAgentMergeConfiguration {
 interface IDeferredWorkflowRerun {
 	readonly headSha: string;
 	readonly options: GitHubWorkflowRerunOptions;
-	readonly checkIds: ReadonlySet<string>;
+	readonly checkIds: Set<string>;
+	/** The required checks that wait for the checks in {@link checkIds}; see {@link adoptDeferredGateFailures}. */
+	readonly requiredBy: Set<string>;
 	/** Retain handled check IDs until the check snapshot catches up with the rerun. */
 	settled: boolean;
 }
@@ -93,7 +99,6 @@ class AgentMergeRuntime extends Disposable {
 	readonly subscription = this._register(new MutableDisposable<PullRequestSubscription>());
 	readonly snapshotObserver = this._register(new MutableDisposable<DisposableStore>());
 	readonly cancellation = new CancellationTokenSource();
-	readonly abortController = new AbortController();
 	readonly evaluationScheduler: RunOnceScheduler;
 	readonly backstopScheduler: RunOnceScheduler;
 	readonly deferredWorkflowReruns = new Map<string, IDeferredWorkflowRerun>();
@@ -107,6 +112,10 @@ class AgentMergeRuntime extends Disposable {
 	indeterminate: { readonly cause: string; readonly since: number; observedAt: number } | undefined;
 	/** The refused fragment a credential was last requested for, if any. */
 	reportedCredentialFailure: string | undefined;
+	/** The organization whose single sign-on refused the credential, and when the user was last asked to authorize it. */
+	singleSignOnNotice: { readonly organization: string; readonly postedAt: number } | undefined;
+	/** Since when the folder has waited for a pull request on its branch, and whether the user was told. */
+	missingPullRequest: { readonly since: number; observedAt: number; readonly reported: boolean } | undefined;
 
 	get client(): IGitHubClient {
 		if (!this.clientReference.value) {
@@ -132,7 +141,6 @@ class AgentMergeRuntime extends Disposable {
 		this.evaluationScheduler = this._register(new RunOnceScheduler(() => evaluate(false), snapshotDebounce));
 		this.backstopScheduler = this._register(new RunOnceScheduler(() => evaluate(true), backstopInterval));
 		this._register(toDisposable(() => this.cancellation.dispose(true)));
-		this._register(toDisposable(() => this.abortController.abort(new Error('Agent Merge stopped'))));
 		this._register(toDisposable(() => this.deferredWorkflowReruns.clear()));
 	}
 
@@ -895,11 +903,13 @@ export class AgentMergeController extends Disposable {
 					return;
 				}
 				if (isAuthRequiredError(error)) {
-					this._requestGitHubAuthorization(session, 'authentication', error.message);
 					this._logService.trace(`[AgentMergeController] Evaluation needs an execution sponsor: key=${key}`);
 				} else {
 					if (error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {
 						this._requestGitHubAuthorization(session, error.kind, error.message);
+						if (isSamlEnforcementError(error.message)) {
+							this._reportSingleSignOnRequired(runtime, error.responseMetadata?.ssoAuthorizationUrl, runtime.ref?.owner);
+						}
 					}
 					this._logService.error(error, `[AgentMergeController] Evaluation failed: key=${key}, kind=${githubErrorKind(error)}`);
 				}
@@ -965,7 +975,7 @@ export class AgentMergeController extends Disposable {
 		}
 
 		const gitStateKey = runtime.folderKey === this._sessionFolderKey(state) ? session : chat;
-		await this._gitStateService.attachSessionGitHubPullRequest(gitStateKey, this._workingDirectoryForFolder(session, runtime.folderKey));
+		const lookupFailure = await this._gitStateService.attachSessionGitHubPullRequest(gitStateKey) || undefined;
 		if (!this._isCurrentEvaluation(key, runtime, agentMerge, chat, configuration)) {
 			return;
 		}
@@ -990,9 +1000,12 @@ export class AgentMergeController extends Disposable {
 		if (!target.pullRequestUrl) {
 			if (!pullRequestUrl) {
 				this._logService.trace(`[AgentMergeController] Waiting for a pull request on the captured branch: session=${session}, folder=${runtime.folderKey}`);
+				this._reportMissingPullRequest(runtime, target.branchName, gitHubState?.owner, lookupFailure);
 				runtime.scheduleBackstop();
 				return;
 			}
+			runtime.missingPullRequest = undefined;
+			runtime.singleSignOnNotice = undefined;
 			target = { ...target, pullRequestUrl };
 			this._logService.info(`[AgentMergeController] Bound folder to its pull request: session=${session}, folder=${runtime.folderKey}`);
 			this._updateAgentMergeState(session, runtime.folderKey, { target });
@@ -1044,6 +1057,7 @@ export class AgentMergeController extends Disposable {
 		if (gate.kind !== 'indeterminate') {
 			runtime.indeterminate = undefined;
 			runtime.reportedCredentialFailure = undefined;
+			runtime.singleSignOnNotice = undefined;
 		}
 		switch (gate.kind) {
 			case 'indeterminate':
@@ -1124,7 +1138,7 @@ export class AgentMergeController extends Disposable {
 					snapshot,
 					client: runtime.client,
 					apiClient: runtime.apiClient,
-					signal: runtime.abortController.signal,
+					cancellationToken: runtime.cancellation.token,
 					commentWatermark: gate.context.commentWatermark,
 					reviewReplies: [],
 					completing: false,
@@ -1201,6 +1215,10 @@ export class AgentMergeController extends Disposable {
 				failedJobsOnly: options.failedJobsOnly !== false && (!sameAttempt || previous.options.failedJobsOnly !== false),
 			},
 			checkIds: new Set([...(previous?.checkIds ?? []), ...checkIds]),
+			requiredBy: new Set([
+				...(previous?.requiredBy ?? []),
+				...(context.snapshot.checks.value?.checks ?? []).flatMap(check => checkIds.includes(check.id) ? check.requiredBy ?? [] : []),
+			]),
 			settled: sameAttempt && previous.settled,
 		});
 		return true;
@@ -1208,10 +1226,14 @@ export class AgentMergeController extends Disposable {
 
 	private _pruneDeferredWorkflowReruns(key: string, runtime: AgentMergeRuntime, snapshot: PullRequestSnapshot): Set<string> {
 		const headSha = snapshot.core.value?.headSha;
-		const checks = snapshot.checks.status === 'ready' && snapshot.checks.complete && snapshot.checks.value?.headSha && snapshot.checks.value.headSha === headSha
-			? classifyAgentMergeRequiredChecks(snapshot.checks.value) : undefined;
+		const value = snapshot.checks.status === 'ready' && snapshot.checks.complete && snapshot.checks.value?.headSha && snapshot.checks.value.headSha === headSha
+			? snapshot.checks.value : undefined;
+		const checks = value ? classifyAgentMergeRequiredChecks(value) : undefined;
 		const deferredCheckIds = new Set<string>();
 		for (const [runId, request] of runtime.deferredWorkflowReruns) {
+			if (value && checks?.kind === 'ready' && !request.settled) {
+				adoptDeferredGateFailures(request, runId, value.checks, checks.failed);
+			}
 			if ((headSha && request.headSha !== headSha)
 				|| (checks?.kind === 'ready' && !checks.failed.some(check => request.checkIds.has(check.id)))) {
 				this._logService.info(`[AgentMergeController] Discarding stale workflow rerun: key=${key}, run=${runId}, headChanged=${request.headSha !== headSha}`);
@@ -1233,7 +1255,7 @@ export class AgentMergeController extends Disposable {
 		if (pending.length === 0) {
 			return;
 		}
-		const runs = await getWorkflowRuns(runtime.apiClient, ref, headSha, runtime.abortController.signal, { priority: 'background' });
+		const runs = await getWorkflowRuns(runtime.apiClient, ref, headSha, runtime.cancellation.token, { priority: 'background' });
 		for (const request of pending) {
 			const state = this._stateManager.getSessionState(session.toString());
 			const current = readAgentMergeFolderState(state?.config?.values, runtime.folderKey, this._sessionFolderKey(state));
@@ -1277,7 +1299,7 @@ export class AgentMergeController extends Disposable {
 				continue;
 			}
 			try {
-				const result = await runtime.client.mutations.rerunWorkflow(ref, request.options, runtime.abortController.signal);
+				const result = await runtime.client.mutations.rerunWorkflow(ref, request.options, runtime.cancellation.token);
 				request.settled = result.outcome !== 'indeterminate';
 				this._logService.info(`[AgentMergeController] Deferred workflow rerun requested: session=${session}, run=${run.id}, outcome=${result.outcome}`);
 			} finally {
@@ -1313,7 +1335,7 @@ export class AgentMergeController extends Disposable {
 		}
 		this._logService.debug(`[AgentMergeController] Refreshing git state before resolving the branch: session=${runtime.session}, folder=${runtime.folderKey}, hasTarget=${targetBranchName !== undefined}`);
 		const gitStateKey = runtime.folderKey === this._sessionFolderKey(state) ? runtime.session : chat;
-		await this._gitStateService.refreshSessionGitState(gitStateKey, this._workingDirectoryForFolder(runtime.session, runtime.folderKey));
+		await this._gitStateService.refreshSessionGitState(gitStateKey);
 		if (!this._isCurrentRuntime(key, runtime)) {
 			return undefined;
 		}
@@ -1363,9 +1385,9 @@ export class AgentMergeController extends Disposable {
 
 	private async _resolveRef(parsed: IParsedPullRequestUrl, runtime: AgentMergeRuntime, chat: string): Promise<PullRequestRef | undefined> {
 		this._captureRuntimeCredentials(runtime, chat);
-		runtime.clientReference.value ??= this._gitHubService.acquireRepositoryClient(runtime.abortController.signal, runtime.credentialSource, runtime.credentialSource ? chat : undefined);
-		runtime.apiClientReference.value ??= this._gitHubService.acquireRepositoryApiClient(runtime.abortController.signal, runtime.credentialSource, runtime.credentialSource ? chat : undefined);
-		const credential = await runtime.client.credentials.getCredential(runtime.abortController.signal);
+		runtime.clientReference.value ??= this._gitHubService.acquireRepositoryClient(runtime.cancellation.token, runtime.credentialSource, runtime.credentialSource ? chat : undefined);
+		runtime.apiClientReference.value ??= this._gitHubService.acquireRepositoryApiClient(runtime.cancellation.token, runtime.credentialSource, runtime.credentialSource ? chat : undefined);
+		const credential = await runtime.client.credentials.getCredential(runtime.cancellation.token);
 		// The bound pull request URL carries its own host: after a restore or an
 		// endpoint switch the same owner/repo/number can name a different GitHub
 		// instance, which must never be acted on with this account's credential.
@@ -1422,7 +1444,7 @@ export class AgentMergeController extends Disposable {
 	}
 
 	private _isCurrentRuntime(key: string, runtime: AgentMergeRuntime): boolean {
-		return this._runtimes.get(key) === runtime && !runtime.abortController.signal.aborted;
+		return this._runtimes.get(key) === runtime && !runtime.cancellation.token.isCancellationRequested;
 	}
 
 	private _isCurrentEvaluation(key: string, runtime: AgentMergeRuntime, agentMerge: AgentMergeFolderState, chat: string, configuration: AgentMergeConfiguration): boolean {
@@ -1530,7 +1552,7 @@ export class AgentMergeController extends Disposable {
 			runtime.scheduleBackstop();
 			return;
 		}
-		const preparation = await runtime.client.mutations.prepareMerge(ref, headSha, runtime.abortController.signal);
+		const preparation = await runtime.client.mutations.prepareMerge(ref, headSha, runtime.cancellation.token);
 		this._logService.debug(`[AgentMergeController] Native merge preparation completed: session=${session}`);
 		if (!chat || !this._isCurrentRuntime(key, runtime) || this._stateManager.getChatState(chat)?.activeTurn) {
 			runtime.scheduleBackstop();
@@ -1568,7 +1590,7 @@ export class AgentMergeController extends Disposable {
 			authorizationId: `${currentTarget.enabledAt}:${currentTarget.pullRequestUrl}`,
 		};
 		if (preparation.snapshot.mergeability.value!.mergeQueueRequired) {
-			const result = await runtime.client.mutations.enqueue(preparation, authorization, runtime.abortController.signal);
+			const result = await runtime.client.mutations.enqueue(preparation, authorization, runtime.cancellation.token);
 			this._logService.info(`[AgentMergeController] Pull request submitted to merge queue: session=${session}, outcome=${result.outcome}`);
 			runtime.scheduleBackstop();
 			return;
@@ -1579,7 +1601,7 @@ export class AgentMergeController extends Disposable {
 			runtime.scheduleBackstop();
 			return;
 		}
-		const result = await runtime.client.mutations.merge(preparation, { method, authorization }, runtime.abortController.signal);
+		const result = await runtime.client.mutations.merge(preparation, { method, authorization }, runtime.cancellation.token);
 		this._logService.info(`[AgentMergeController] Pull request merged natively: session=${session}, method=${method}, outcome=${result.outcome}`);
 		const mergedPullRequest = preparation.snapshot.core.value!;
 		// Where the folder is monitored now: its chat may have moved while the merge ran, taking its monitoring along.
@@ -1626,7 +1648,7 @@ export class AgentMergeController extends Disposable {
 			const completedTurn = this._stateManager.getChatState(context.chat)?.turns.find(turn => turn.id === context.turnId);
 			const agentMerge = readAgentMergeFolderState(state?.config?.values, folder.folderKey, this._sessionFolderKey(state));
 			const runtime = this._runtimes.get(key);
-			if (!agentMerge?.enabled || !runtime?.subscription.value || runtime.abortController.signal !== context.signal) {
+			if (!agentMerge?.enabled || !runtime?.subscription.value || runtime.cancellation.token !== context.cancellationToken) {
 				this._logService.debug(`[AgentMergeController] Repair turn ended after Agent Merge stopped: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}`);
 				return;
 			}
@@ -1931,16 +1953,20 @@ export class AgentMergeController extends Disposable {
 	}
 
 	/**
-	 * Asks the client for a credential that can read the bound pull request,
-	 * naming the organization to authorize when GitHub reports SAML enforcement.
+	 * Asks the client for a credential that can read the bound pull request.
+	 * A SAML enforcement refusal is only logged, naming the organization to
+	 * authorize, since signing in again would not grant the access.
 	 */
 	private _requestGitHubAuthorization(session: string, kind: 'authentication' | 'authorization', message: string): void {
-		this._stateManager.emitAuthRequired({
-			resource: this._gitHubEndpointService.getRepoResource(),
-			reason: AuthRequiredReason.Required,
-		});
+		const singleSignOn = isSamlEnforcementError(message);
+		if (!singleSignOn) {
+			this._stateManager.emitAuthRequired({
+				resource: this._gitHubEndpointService.getRepoResource(),
+				reason: AuthRequiredReason.Required,
+			});
+		}
 		const organization = this._organizationForSession(session);
-		const remedy = isSamlEnforcementError(message) && organization
+		const remedy = singleSignOn && organization
 			? `; the credential must be SSO-authorized for ${organization}`
 			: '';
 		this._logService.warn(`[AgentMergeController] GitHub refused the credential (${kind})${remedy}: session=${session}`);
@@ -1956,11 +1982,62 @@ export class AgentMergeController extends Disposable {
 			runtime.reportedCredentialFailure = undefined;
 			return;
 		}
+		if (isSamlEnforcementError(blocked.message)) {
+			this._reportSingleSignOnRequired(runtime, blocked.ssoAuthorizationUrl, runtime.ref?.owner);
+		}
 		if (runtime.reportedCredentialFailure === blocked.id) {
 			return;
 		}
 		runtime.reportedCredentialFailure = blocked.id;
 		this._requestGitHubAuthorization(session, blocked.kind, blocked.message);
+	}
+
+	/**
+	 * Tells the user why the folder has no pull request to monitor: at once when
+	 * GitHub refused the lookup for single sign-on, and otherwise once the folder
+	 * has waited {@link missingPullRequestNoticeDelay} while observed.
+	 */
+	private _reportMissingPullRequest(runtime: AgentMergeRuntime, branchName: string, owner: string | undefined, failure: IPullRequestLookupFailure | undefined): void {
+		if (failure && isSamlEnforcementError(failure.message)) {
+			this._reportSingleSignOnRequired(runtime, failure.ssoAuthorizationUrl, owner);
+			return;
+		}
+		const now = Date.now();
+		const waiting = runtime.missingPullRequest;
+		if (!waiting || now - waiting.observedAt > indeterminateObservationGap) {
+			runtime.missingPullRequest = { since: now, observedAt: now, reported: waiting?.reported ?? false };
+			return;
+		}
+		waiting.observedAt = now;
+		if (waiting.reported || now - waiting.since < missingPullRequestNoticeDelay) {
+			return;
+		}
+		runtime.missingPullRequest = { ...waiting, reported: true };
+		this._logService.info(`[AgentMergeController] No pull request found for the captured branch: session=${runtime.session}, folder=${runtime.folderKey}, lookupFailure=${failure?.kind ?? 'none'}`);
+		this._postNotice(runtime.session, runtime.folderKey, AgentSystemNotificationKind.AgentMergeBlocked, agentMergeMissingPullRequestNotice(branchName));
+	}
+
+	/**
+	 * Asks the user to authorize the credential for an organization that
+	 * enforces SAML single sign-on, linking the GitHub page that does when GitHub
+	 * named one. GitHub expires that page after an hour, so while the folder
+	 * stays blocked a fresh one is offered once the previous one expired.
+	 *
+	 * @param owner The organization to name when GitHub named no page.
+	 */
+	private _reportSingleSignOnRequired(runtime: AgentMergeRuntime, authorizationUrl: string | undefined, owner: string | undefined): void {
+		const organization = getSingleSignOnOrganization(authorizationUrl) ?? owner;
+		if (!organization) {
+			return;
+		}
+		const now = Date.now();
+		const previous = runtime.singleSignOnNotice;
+		if (previous?.organization.toLowerCase() === organization.toLowerCase() && now - previous.postedAt < singleSignOnNoticeInterval) {
+			return;
+		}
+		runtime.singleSignOnNotice = { organization, postedAt: now };
+		this._logService.warn(`[AgentMergeController] GitHub single sign-on blocks the folder: session=${runtime.session}, folder=${runtime.folderKey}, organization=${organization}, authorizationPage=${authorizationUrl !== undefined}`);
+		this._postNotice(runtime.session, runtime.folderKey, AgentSystemNotificationKind.AgentMergeBlocked, agentMergeSingleSignOnNotice(organization, authorizationUrl));
 	}
 
 	/**
@@ -2004,12 +2081,48 @@ export class AgentMergeController extends Disposable {
 	}
 }
 
+/** The organization a GitHub single sign-on authorization page belongs to, from its `/orgs/<organization>/sso` path. */
+function getSingleSignOnOrganization(authorizationUrl: string | undefined): string | undefined {
+	if (!authorizationUrl) {
+		return undefined;
+	}
+	try {
+		const organization = /^\/orgs\/(?<organization>[^/]+)\/sso$/.exec(new URL(authorizationUrl).pathname)?.groups?.organization;
+		return organization ? decodeURIComponent(organization) : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 function sameRef(left: PullRequestRef, right: PullRequestRef): boolean {
 	return left.host.toLowerCase() === right.host.toLowerCase()
 		&& left.accountId === right.accountId
 		&& left.owner.toLowerCase() === right.owner.toLowerCase()
 		&& left.repo.toLowerCase() === right.repo.toLowerCase()
 		&& left.number === right.number;
+}
+
+/**
+ * A required check that waits for the checks a deferred rerun covers, such as
+ * an aggregate `PR Gate` job, only reports once the run's jobs finish. It then
+ * fails because they did, and they stop counting (see
+ * `classifyRequiredPullRequestChecks`). Until the rerun is requested, its
+ * failure in the same run is the deferred failure, which the rerun repairs
+ * along with them.
+ */
+function adoptDeferredGateFailures(request: IDeferredWorkflowRerun, runId: string, checks: readonly PullRequestCheck[], failed: readonly PullRequestCheck[]): void {
+	for (const check of checks) {
+		if (request.checkIds.has(check.id)) {
+			for (const name of check.requiredBy ?? []) {
+				request.requiredBy.add(name);
+			}
+		}
+	}
+	for (const check of failed) {
+		if (request.requiredBy.has(check.name) && workflowRunId(check) === runId) {
+			request.checkIds.add(check.id);
+		}
+	}
 }
 
 function shouldRunFingerprint(state: AgentMergeFolderState, fingerprint: string, minimumInterval: number): boolean {

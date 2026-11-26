@@ -9,7 +9,9 @@ import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectBoxOptions, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -37,9 +39,12 @@ export class AutomationTriggerEditor extends Disposable {
 	private catalog: AutomationTriggerCatalog | undefined;
 	private choices: readonly IAutomationTriggerChoice[] = [];
 	private cloud = false;
+	private allowReadAccessTriggers: boolean | undefined;
 	private initialized = false;
 	private eventSelector: SelectBox | undefined;
 	private eventsButton: Button | undefined;
+	private actorPermissionCheckbox: Checkbox | undefined;
+	private actorPermissionDisabledReason: HTMLElement | undefined;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -60,13 +65,19 @@ export class AutomationTriggerEditor extends Disposable {
 		super();
 	}
 
-	update(catalog: AutomationTriggerCatalog | undefined, cloud: boolean): void {
+	update(catalog: AutomationTriggerCatalog | undefined, cloud: boolean, allowReadAccessTriggers?: boolean): void {
 		if (this.initialized && catalog === this.catalog && cloud === this.cloud) {
+			if (allowReadAccessTriggers !== this.allowReadAccessTriggers) {
+				this.allowReadAccessTriggers = allowReadAccessTriggers;
+				this.updateActorPermission();
+				this.changed();
+			}
 			return;
 		}
 		this.initialized = true;
 		this.catalog = catalog;
 		this.cloud = cloud;
+		this.allowReadAccessTriggers = allowReadAccessTriggers;
 		this.choices = catalog?.kind === 'ready' ? automationTriggerChoices(catalog.definitions) : [];
 		this.render();
 	}
@@ -99,6 +110,8 @@ export class AutomationTriggerEditor extends Disposable {
 		this.controls.clear();
 		this.requiredFieldControls.clear();
 		this.fieldControls.clear();
+		this.actorPermissionCheckbox = undefined;
+		this.actorPermissionDisabledReason = undefined;
 		DOM.clearNode(this.container);
 		DOM.clearNode(this.eventContainer);
 		DOM.clearNode(this.requiredFieldsContainer);
@@ -283,15 +296,48 @@ export class AutomationTriggerEditor extends Disposable {
 	}
 
 	private renderActorPermission(): void {
-		const label = localize('automation.trigger.actor', "Require write access to trigger");
-		const container = this.row(this.fieldsContainer, label);
-		const checkbox = this.fieldControls.add(new Checkbox(label, this.state.cloudTrigger?.requireActorWritePermission ?? false, defaultCheckboxStyles));
-		DOM.append(container, checkbox.domNode);
-		DOM.append(container, DOM.$('span', undefined, localize('automation.trigger.actorDescription', "Only people with write access to the repository can trigger this automation.")));
+		const label = localize('automation.trigger.includeReadAccessActivity', "Include activity from users without write access to this repository");
+		const container = this.row(this.fieldsContainer, localize('automation.trigger.activity', "Trigger activity"));
+		container.classList.add('automation-trigger-actor-permission');
+		const option = DOM.append(container, DOM.$('.automation-trigger-actor-option'));
+		const checkbox = this.fieldControls.add(new Checkbox('', !this.state.cloudTrigger?.requireActorWritePermission, defaultCheckboxStyles));
+		checkbox.domNode.setAttribute('aria-label', label);
+		DOM.append(option, checkbox.domNode);
+		DOM.append(option, DOM.$('span', undefined, label));
+		this.actorPermissionCheckbox = checkbox;
+		const disabledReason = localize('automation.trigger.readAccessDisabled', "Disabled by your repository settings");
+		this.actorPermissionDisabledReason = DOM.append(container, DOM.$('.automation-trigger-actor-reason', undefined,
+			DOM.$(`span${ThemeIcon.asCSSSelector(Codicon.lock)}`, { 'aria-hidden': 'true' }),
+			DOM.$('span', undefined, disabledReason)));
+		this.fieldControls.add(this.hoverService.setupDelayedHover(container, () => ({
+			content: this.allowReadAccessTriggers === false ? disabledReason : label,
+			style: HoverStyle.Pointer,
+		})));
+		this.updateActorPermission();
 		this.fieldControls.add(checkbox.onChange(() => {
-			this.state.cloudTrigger = { ...this.state.cloudTrigger!, requireActorWritePermission: checkbox.checked };
+			this.state.cloudTrigger = { ...this.state.cloudTrigger!, requireActorWritePermission: !checkbox.checked };
 			this.changed();
 		}));
+	}
+
+	private updateActorPermission(): void {
+		const checkbox = this.actorPermissionCheckbox;
+		const reason = this.actorPermissionDisabledReason;
+		if (!checkbox || !reason) {
+			return;
+		}
+		const disabled = this.allowReadAccessTriggers === false;
+		checkbox.domNode.parentElement!.classList.toggle('disabled', disabled);
+		reason.hidden = !disabled;
+		if (disabled) {
+			this.state.cloudTrigger = { ...this.state.cloudTrigger!, requireActorWritePermission: true };
+			checkbox.checked = false;
+			checkbox.disable();
+			checkbox.domNode.setAttribute('aria-description', reason.textContent!);
+		} else {
+			checkbox.enable();
+			checkbox.domNode.removeAttribute('aria-description');
+		}
 	}
 
 	private validate(): void {

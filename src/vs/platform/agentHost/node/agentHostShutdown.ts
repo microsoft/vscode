@@ -3,8 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../base/common/async.js';
+import { MAX_TIMEOUT_DELAY, raceTimeout } from '../../../base/common/async.js';
 import type { ILogService } from '../../log/common/log.js';
+
+export const DEFAULT_SHUTDOWN_TIMEOUT_MS = 4500;
+
+/**
+ * Reads `--shutdown-timeout <ms>` from the command line. Returns {@link DEFAULT_SHUTDOWN_TIMEOUT_MS}
+ * when the flag is absent, or an error message for a missing value or one that a timer cannot wait for.
+ */
+export function parseShutdownTimeoutArg(argv: readonly string[]): { readonly timeoutMs: number; readonly error?: undefined } | { readonly timeoutMs?: undefined; readonly error: string } {
+	const index = argv.indexOf('--shutdown-timeout');
+	if (index < 0) {
+		return { timeoutMs: DEFAULT_SHUTDOWN_TIMEOUT_MS };
+	}
+	const raw = argv[index + 1];
+	if (raw === undefined || raw.startsWith('--')) {
+		return { error: `Missing value for --shutdown-timeout; expected milliseconds (e.g. ${DEFAULT_SHUTDOWN_TIMEOUT_MS})` };
+	}
+	const timeoutMs = Number(raw);
+	// Node clamps larger timer delays to 1 ms, which would end shutdown almost immediately.
+	if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMEOUT_DELAY) {
+		return { error: `--shutdown-timeout must be a whole number of milliseconds from 1 to ${MAX_TIMEOUT_DELAY}, got '${raw}'` };
+	}
+	return { timeoutMs };
+}
 
 /**
  * Drains protocol requests and providers before flushing persistence, without letting shutdown block process exit indefinitely.

@@ -12,7 +12,8 @@ import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { localize } from '../../../../../nls.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
-import { IsNewChatSessionContext, NewSessionOnboardingHandoffContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 
 /**
  * Spotlight steps that walk a brand-new user through the new-session view the

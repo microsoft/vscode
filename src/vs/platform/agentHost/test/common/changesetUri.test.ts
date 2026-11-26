@@ -146,12 +146,23 @@ suite('changesetUri', () => {
 			{ ownerUri: sessionUri, sessionUri, changesetId: 'working-set', kind: ChangesetKind.WorkingSet });
 		assert.deepStrictEqual(parseChangesetUri(buildUncommittedChangesetUri(sessionUri)),
 			{ ownerUri: sessionUri, sessionUri, changesetId: 'uncommitted', kind: ChangesetKind.Uncommitted });
-		assert.deepStrictEqual(parseChangesetUri(buildTurnChangesetUri(sessionUri, 't1')),
-			{ ownerUri: sessionUri, sessionUri, changesetId: 'turn/t1', kind: ChangesetKind.Turn, turnId: 't1' });
 		assert.deepStrictEqual(parseChangesetUri(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2')),
 			{ ownerUri: sessionUri, sessionUri, changesetId: 'compare/t1/t2', kind: ChangesetKind.Compare, originalTurnId: 't1', modifiedTurnId: 't2' });
 		assert.deepStrictEqual(parseChangesetUri(buildChangesetUri(sessionUri, 'staged')),
 			{ ownerUri: sessionUri, sessionUri, changesetId: 'staged', kind: ChangesetKind.Unknown });
+	});
+
+	test('parseChangesetUri requires a chat owner for turns, including opaque chat URIs', () => {
+		const shapedChat = buildChatUri(sessionUri, 'peer');
+		const opaqueChat = 'ahp-chat:/opaque-peer';
+		const turn = (ownerUri: string) => parseChangesetUri(buildTurnChangesetUri(ownerUri, 't1'));
+		assert.deepStrictEqual([shapedChat, opaqueChat, sessionUri, buildFolderChangesetOwnerUri(sessionUri, 'folder-id'), 'ahp-chat:/'].map(turn), [
+			{ ownerUri: shapedChat, sessionUri: undefined, changesetId: 'turn/t1', kind: ChangesetKind.Turn, turnId: 't1' },
+			{ ownerUri: opaqueChat, sessionUri: undefined, changesetId: 'turn/t1', kind: ChangesetKind.Turn, turnId: 't1' },
+			undefined,
+			undefined,
+			undefined,
+		]);
 	});
 
 	test('parseChangesetUri preserves chat ownership and resolves the containing session from the recorded owner', () => {
@@ -180,12 +191,13 @@ suite('changesetUri', () => {
 	});
 
 	test('parseChangesetUri returns undefined for non-changeset / malformed URIs', () => {
+		const chatUri = buildDefaultChatUri(sessionUri);
 		assert.strictEqual(parseChangesetUri(sessionUri), undefined);
 		assert.strictEqual(parseChangesetUri('agenthost:/root'), undefined);
 		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/foo/bar`), undefined);
-		assert.strictEqual(parseChangesetUri(buildTurnChangesetUriTemplate(sessionUri)), undefined);
-		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/turn/`), undefined);
-		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/turn/a/b`), undefined);
+		assert.strictEqual(parseChangesetUri(buildTurnChangesetUriTemplate(chatUri)), undefined);
+		assert.strictEqual(parseChangesetUri(`${chatUri}/changeset/turn/`), undefined);
+		assert.strictEqual(parseChangesetUri(`${chatUri}/changeset/turn/a/b`), undefined);
 		assert.strictEqual(parseChangesetUri(buildCompareTurnsChangesetUriTemplate(sessionUri)), undefined);
 		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/compare/t1`), undefined);
 		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/compare/t1/t2/t3`), undefined);
@@ -194,10 +206,11 @@ suite('changesetUri', () => {
 	});
 
 	test('parseTurnChangesetUri only matches expanded turn URIs', () => {
-		assert.deepStrictEqual(parseTurnChangesetUri(buildTurnChangesetUri(sessionUri, 't42')),
-			{ ownerUri: sessionUri, turnId: 't42' });
+		const chatUri = buildDefaultChatUri(sessionUri);
+		assert.deepStrictEqual(parseTurnChangesetUri(buildTurnChangesetUri(chatUri, 't42')),
+			{ chatUri, turnId: 't42' });
 		assert.strictEqual(parseTurnChangesetUri(buildSessionChangesetUri(sessionUri)), undefined);
-		assert.strictEqual(parseTurnChangesetUri(buildTurnChangesetUriTemplate(sessionUri)), undefined);
+		assert.strictEqual(parseTurnChangesetUri(buildTurnChangesetUriTemplate(chatUri)), undefined);
 		assert.strictEqual(parseTurnChangesetUri(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2')), undefined);
 	});
 
@@ -247,7 +260,7 @@ suite('changesetUri', () => {
 	test('predicates match the parser semantics', () => {
 		assert.strictEqual(isChangesetUri(buildSessionChangesetUri(sessionUri)), true);
 		assert.strictEqual(isChangesetUri(buildUncommittedChangesetUri(sessionUri)), true);
-		assert.strictEqual(isChangesetUri(buildTurnChangesetUri(sessionUri, 't1')), true);
+		assert.strictEqual(isChangesetUri(buildTurnChangesetUri(buildDefaultChatUri(sessionUri), 't1')), true);
 		assert.strictEqual(isChangesetUri(sessionUri), false);
 		assert.strictEqual(isSessionChangesetUri(buildSessionChangesetUri(sessionUri)), true);
 		assert.strictEqual(isSessionChangesetUri(buildUncommittedChangesetUri(sessionUri)), false);

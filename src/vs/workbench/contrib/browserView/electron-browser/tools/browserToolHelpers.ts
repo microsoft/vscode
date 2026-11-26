@@ -6,7 +6,7 @@
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewNetwork } from '../../../../../platform/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
@@ -29,7 +29,12 @@ export const DEFAULT_ELEMENT_LABEL = localize('browser.element', 'element');
  * Falls back to a default string when no session context is available.
  */
 export function getSessionId(invocation: IToolInvocation): string {
-	return invocation.context?.sessionResource?.toString() ?? '<default>';
+	return getSessionIdForResource(invocation.context?.sessionResource);
+}
+
+/** The session ID of a chat session resource, or a default string without one. */
+export function getSessionIdForResource(sessionResource: URI | undefined): string {
+	return sessionResource?.toString() ?? '<default>';
 }
 
 export interface FormatBrowserEditorLinesOptions {
@@ -75,7 +80,7 @@ export function formatBrowserEditorList(editorService: IEditorService, editors: 
 }
 
 export function getBrowserPageResourceNavigationError(editor: BrowserEditorInput | undefined, target: string): string | undefined {
-	if (!editor?.associatedResource || isBrowserViewAssociatedResourceNavigation(editor.associatedResource, target)) {
+	if (!editor?.associatedResource || editor.isAssociatedResourceNavigation(target)) {
 		return undefined;
 	}
 
@@ -303,6 +308,21 @@ export function remoteUrlRewriteNotice(originalUrl: string, rewrittenUrl: string
 }
 
 /**
+ * A notice for pages that use the user's local network although the session
+ * requested a remote one (`requested`), for example because the agent host
+ * cannot proxy browsers. `used` is the network the pages actually use.
+ */
+export function localNetworkFallbackNotice(requested: IBrowserViewNetwork | undefined, used: IBrowserViewNetwork | undefined): { kind: 'text'; value: string } | undefined {
+	if (!requested || used) {
+		return undefined;
+	}
+	return {
+		kind: 'text',
+		value: 'Note: These browser pages load from the user\'s local network, not the remote host\'s network, so `localhost` refers to the user\'s machine. Services running on the remote host are not reachable from them.',
+	};
+}
+
+/**
  * Checks whether a browser editor with the same host (hostname + port) on the
  * same network already exists. Pages keep the network they were opened on, so
  * the same URL on another network is a different destination.
@@ -328,9 +348,7 @@ export function findExistingPagesByHost(
 		if (options?.sharingState && editor.model?.sharingState !== options.sharingState) {
 			continue;
 		}
-		// A page uses the network of its model once created, which may be the local network it fell back to.
-		const pageNetwork = editor.model ? editor.model.network : editor.network;
-		if (pageNetwork?.authority !== network?.authority) {
+		if (editor.activeNetwork?.authority !== network?.authority) {
 			continue;
 		}
 		if (browserViewUrlMatches(editor.url, url, options?.includeBlank)) {

@@ -89,8 +89,11 @@ export interface SessionChatUpdatedAction {
 	/**
 	 * Mutable summary fields that changed; omitted fields are unchanged.
 	 *
-	 * Identity fields (`resource`) never change and MUST be omitted by
-	 * senders; receivers SHOULD ignore them if present.
+	 * `resource` is an identity field and never changes. `provider` is reported
+	 * relative to the owning session and changes only when the chat moves to
+	 * another session, which republishes the whole summary through
+	 * `session/chatAdded`. Senders MUST omit both fields here; receivers SHOULD
+	 * ignore them if present.
 	 */
 	changes: Partial<ChatSummary>;
 }
@@ -413,8 +416,9 @@ export interface SessionCustomizationsChangedAction {
  *
  * Matches `id` against every top-level customization first — a plugin or
  * directory container, or a bare top-level MCP server — then against the
- * children inside each container (a skill, agent, or other entry). Plugins
- * and MCP servers retain the matched entry's explicit decisions; other
+ * children inside each container (a skill, agent, or other entry), including
+ * skills served by top-level or container-child MCP servers. Plugins and
+ * MCP servers retain the matched entry's explicit decisions; other
  * entries update their `enabled` flag. Disabling a plugin still disables all
  * of its children — the effective state of a plugin child is the plugin's
  * derived enabled value and `(child.enabled ?? true)` — so toggling a child

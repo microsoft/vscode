@@ -11,12 +11,13 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { alert as ariaAlert, status as ariaStatus } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { isObject } from '../../../../../base/common/types.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -24,7 +25,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { AgentsVoiceSettingId, AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, getVoiceRecentTurns, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, getVoiceRecentTurns, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { voiceCloseCodeInfo, VoiceCloseCode } from '../../common/voiceClient/voiceCloseCodes.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
@@ -41,6 +42,8 @@ import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../com
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../common/model/chatModel.js';
+import { isUntitledChatSession } from '../../common/model/chatUri.js';
+import { isAgentHostTarget } from '../../common/chatSessionsService.js';
 import { isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -276,14 +279,6 @@ export interface IVoiceSessionController {
 	finishListeningAndSubmitTo(session: URI): void;
 
 	/**
-	 * Mark a session as having been cancelled by the user from VS Code UI. The
-	 * next state-change detected for this session (typically the chat model
-	 * transitioning to `idle`) will be suppressed so the backend doesn't
-	 * narrate a status update the user already knows about.
-	 */
-	markUserCancelled(sessionId: string): void;
-
-	/**
 	 * Set the target session for transcription. When set, transcriptions are
 	 * sent to this session instead of the currently active one.
 	 */
@@ -291,10 +286,8 @@ export interface IVoiceSessionController {
 	/** Bind Voice Mode to the currently shown new-session draft. */
 	setDraftTarget(): void;
 
-	/**
-	 * Create a new chat session and set it as the target for transcription.
-	 */
-	newSessionAsTarget(): void;
+	/** Creates a voice target, showing it when a host is available. Returns whether preparation succeeded. */
+	newSessionAsTarget(): Promise<boolean>;
 
 	/**
 	 * Declares the session shown in the UI for playback deferral and buffered
@@ -315,12 +308,6 @@ export interface IVoiceSessionController {
 	 * view-model change event fired.
 	 */
 	activateSession(resource: URI): void;
-
-	/**
-	 * Submit user feedback along with full diagnostic data (transcript history,
-	 * client state, environment info). Returns success/failure.
-	 */
-	submitFeedback(feedbackText: string): Promise<{ ok: boolean; error?: string }>;
 
 	/** DEV ONLY: Simulate a connected session with fake transcript for UI testing. */
 	simulateConnection(): void;
@@ -466,6 +453,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * no chat pane picks the new session up.
 	 */
 	private readonly _newSessionRef = this._register(new MutableDisposable<IChatModelReference>());
+	private _newSessionTargetGeneration = 0;
+	private _pendingNewSessionTarget: { readonly resource: URI; readonly generation: number } | undefined;
 	/**
 	 * Watchdog that resets `isConnecting` (and surfaces feedback) if the connect
 	 * handshake never completes. Armed up front in {@link connect} so a step that
@@ -668,13 +657,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// --- Session state tracking for explicit change notifications ---
 	private readonly _prevSessionStates = new Map<string, { state: string; detail: string; pendingId: string; confirmationType?: VoiceConfirmationType; lastResponseSummary: string }>();
 
-	// Sessions the user explicitly cancelled from VS Code UI. We swallow the
-	// NEXT state change for each (typically the chat model going `idle`) so the
-	// backend doesn't narrate "the session became idle" right after the user
-	// already hit Stop. Stored with a safety expiry in case the cancellation
-	// never produces a state change.
-	private readonly _userCancelledSessions = new Map<string, ReturnType<typeof setTimeout>>();
-	private static readonly _USER_CANCEL_SUPPRESS_MS = 10_000;
 	/** After a focus-change discard, drop a stray backend `send_to_chat` for
 	 *  this long so late-finalized buffered speech isn't misrouted. */
 	private static readonly _DISCARD_SEND_SUPPRESS_MS = 2_000;
@@ -1583,14 +1565,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							if (currentState === 'idle' && !!normalizedSummary) {
 								this._sessionsAwaitingResponseSummary.delete(sessionId);
 							}
-							const cancelExpiry = this._userCancelledSessions.get(sessionId);
-							if (cancelExpiry) {
-								this.logService.trace(`[voice] autorun swallowing transition (user-cancelled) id=${sessionId.slice(-32)}`);
-								clearTimeout(cancelExpiry);
-								this._userCancelledSessions.delete(sessionId);
-							} else {
-								stateChanges.push({ sessionId, currentState, label, detail, confirmationType, lastResponseSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId, fromPendingId: prev?.pendingId ?? '' });
-							}
+							stateChanges.push({ sessionId, currentState, label, detail, confirmationType, lastResponseSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId, fromPendingId: prev?.pendingId ?? '' });
 						}
 						if (currentState !== 'unknown') {
 							// Preserve a known summary rather than clobbering it with ''
@@ -1677,21 +1652,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 									continue;
 								}
 								this._sessionsAwaitingResponseSummary.delete(sessionId);
-								if (!this._userCancelledSessions.has(sessionId)) {
-									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', lastResponseSummary: cachedSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
-								}
+								stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', lastResponseSummary: cachedSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
 								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', pendingId: '', lastResponseSummary: cachedSummary ?? '' });
 								continue;
 							}
 
 							if (isStateTransition) {
-								const cancelExpiry = this._userCancelledSessions.get(sessionId);
-								if (cancelExpiry) {
-									clearTimeout(cancelExpiry);
-									this._userCancelledSessions.delete(sessionId);
-								} else {
-									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
-								}
+								stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
 							}
 							if (currentState !== 'unknown') {
 								// Preserve a known summary rather than clobbering with ''
@@ -2504,8 +2471,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._cancelledPendingNarrationIds.clear();
 		this._awaitingReplyForSession = undefined;
 		this._prevSessionStates.clear();
-		for (const t of this._userCancelledSessions.values()) { clearTimeout(t); }
-		this._userCancelledSessions.clear();
 		for (const t of this._confirmationFlushWatchdogs.values()) { clearTimeout(t); }
 		this._confirmationFlushWatchdogs.clear();
 		if (this._stateChangeEmitTimer) { clearTimeout(this._stateChangeEmitTimer); this._stateChangeEmitTimer = undefined; }
@@ -3274,17 +3239,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		});
 	}
 
-	markUserCancelled(sessionId: string): void {
-		this._cancelVoiceProgress(sessionId);
-		this._preemptCheckpointPlayback(sessionId);
-		const existing = this._userCancelledSessions.get(sessionId);
-		if (existing) { clearTimeout(existing); }
-		const expiry = setTimeout(() => {
-			this._userCancelledSessions.delete(sessionId);
-		}, VoiceSessionController._USER_CANCEL_SUPPRESS_MS);
-		this._userCancelledSessions.set(sessionId, expiry);
-	}
-
 	setTargetSession(resource: URI | undefined): void {
 		this._prepareDirectVoiceForInputChange(resource);
 		this._hasDraftTarget.set(false, undefined);
@@ -3322,25 +3276,62 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	newSessionAsTarget(): void {
+	async newSessionAsTarget(): Promise<boolean> {
 		this._prepareDirectVoiceForInputChange(undefined);
-		const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-		const resource = ref.object.sessionResource;
-		// Keep the only reference alive until a host adopts the session: an empty
-		// untitled local session is deleted as soon as its last reference goes
-		// away, which would strand `_targetSession` on a dead resource.
-		this._newSessionRef.value = ref;
-		this._hasDraftTarget.set(false, undefined);
-		this._setTargetSession(resource);
-		// Try to switch the view to the new session (works if chat pane is open)
-		this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', resource.toString()).then(switched => {
-			// Only release once a host holds its own reference. On failure the
-			// reference is deliberately retained so the next utterance can still
-			// load this target.
-			if (switched === true && this._newSessionRef.value === ref) {
+		try {
+			await this._createNewSessionTarget();
+			return true;
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.error('[voice] Failed to create a chat session', error);
+				this.notificationService.error(localize('agentsVoice.newSessionFailed', "Unable to start a new voice conversation. Try again."));
+			}
+			return false;
+		}
+	}
+
+	private async _createNewSessionTarget(): Promise<URI> {
+		const generation = ++this._newSessionTargetGeneration;
+		const connectionGeneration = this._connectAttemptGeneration;
+		const initializationGeneration = this._sessionInitializationGeneration;
+		const cts = new CancellationTokenSource();
+		const request = this._voiceRequestDisposables.add(new DisposableStore());
+		request.add(toDisposable(() => cts.dispose(true)));
+		const isCurrent = () => !this._store.isDisposed && generation === this._newSessionTargetGeneration
+			&& connectionGeneration === this._connectAttemptGeneration && initializationGeneration === this._sessionInitializationGeneration;
+		try {
+			const ref = await this.voiceToolDispatchService.createChatSession(cts.token);
+			if (!isCurrent()) {
+				ref.dispose();
+				throw new CancellationError();
+			}
+			request.add(ref);
+			const resource = ref.object.sessionResource;
+			this._pendingNewSessionTarget = { resource, generation };
+			const hasHost = !!CommandsRegistry.getCommand('_chat.voice.switchToSession');
+			if (hasHost) {
+				const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', resource.toString());
+				if (!isCurrent()) {
+					throw new CancellationError();
+				}
+				if (switched !== true) {
+					throw new Error(localize('agentsVoice.switchSessionFailed', "Unable to show the new voice conversation."));
+				}
+			}
+			request.deleteAndLeak(ref);
+			this._newSessionRef.value = ref;
+			this._hasDraftTarget.set(false, undefined);
+			this._setTargetSession(resource);
+			if (hasHost) {
 				this._newSessionRef.clear();
 			}
-		}, () => { /* pane may not exist — keep holding the reference */ });
+			return resource;
+		} finally {
+			if (this._pendingNewSessionTarget?.generation === generation) {
+				this._pendingNewSessionTarget = undefined;
+			}
+			this._voiceRequestDisposables.delete(request);
+		}
 	}
 
 	/**
@@ -3364,6 +3355,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _setTargetSession(resource: URI | undefined, tx?: ITransaction): void {
+		if (!this._pendingNewSessionTarget || !isEqual(resource, this._pendingNewSessionTarget.resource)) {
+			this._newSessionTargetGeneration++;
+		}
 		this._releaseNewSessionRefUnlessTargeting(resource);
 		this._targetSession.set(resource, tx);
 	}
@@ -3625,15 +3619,64 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private async _sendVoiceRequest(sessionResource: URI, text: string): Promise<ChatSendResult | undefined> {
 		const generation = this._connectAttemptGeneration;
 		const initializationGeneration = this._sessionInitializationGeneration;
-		const result = await this.chatService.sendRequest(sessionResource, text, {
+		const targetGeneration = this._newSessionTargetGeneration;
+		const ownedTarget = isEqual(this._targetSession.get(), sessionResource);
+		const isCurrent = () => !this._store.isDisposed && generation === this._connectAttemptGeneration && initializationGeneration === this._sessionInitializationGeneration;
+		let result = await this.chatService.sendRequest(sessionResource, text, {
 			isVoiceModeInput: this._isVoiceProgressEnabled(),
 			...(this.chatService.getSession(sessionResource)?.requestInProgress.get() ? { queue: ChatRequestQueueKind.Steering } : {}),
 		}).catch(err => {
 			this.logService.warn('[voice] Error sending transcription:', err);
 			return undefined;
 		});
-		if (!result) {
+		if (!result || !isCurrent()) {
 			return undefined;
+		}
+		if (isUntitledChatSession(sessionResource) && ChatSendResult.isQueued(result)) {
+			const cts = new CancellationTokenSource();
+			const request = this._voiceRequestDisposables.add(toDisposable(() => cts.dispose(true)));
+			try {
+				while (ChatSendResult.isQueued(result)) {
+					result = await raceCancellationError(result.deferred, cts.token);
+				}
+			} finally {
+				this._voiceRequestDisposables.delete(request);
+			}
+		}
+		if (!ChatSendResult.isQueued(result) && result.newSessionResource) {
+			const materializedResource = result.newSessionResource;
+			const canAdopt = () => isCurrent() && (targetGeneration === this._newSessionTargetGeneration || isEqual(this._targetSession.get(), materializedResource));
+			if (!canAdopt()) {
+				return undefined;
+			}
+			const shown = CommandsRegistry.getCommand('_chat.voice.getCurrentSession')
+				? await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession') : undefined;
+			if (!canAdopt()) {
+				return undefined;
+			}
+			if (shown === sessionResource.toString()) {
+				const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', materializedResource.toString());
+				if (!canAdopt()) {
+					return undefined;
+				}
+				if (switched !== true) {
+					throw new Error(localize('agentsVoice.switchSessionFailed', "Unable to show the new voice conversation."));
+				}
+			} else if (ownedTarget) {
+				const cts = new CancellationTokenSource();
+				const request = this._voiceRequestDisposables.add(toDisposable(() => cts.dispose(true)));
+				const ref = await this.chatService.acquireOrLoadSession(materializedResource, ChatAgentLocation.Chat, cts.token, 'voice-materialized-session')
+					.finally(() => this._voiceRequestDisposables.delete(request));
+				if (!canAdopt()) {
+					ref?.dispose();
+					return undefined;
+				}
+				if (!ref) {
+					throw new Error(localize('agentsVoice.sessionUnavailable', "Unable to start the selected chat session."));
+				}
+				this._newSessionRef.value = ref;
+			}
+			this._rebindMaterializedSession(sessionResource, materializedResource);
 		}
 
 		const sentResult = ChatSendResult.isQueued(result) ? result.deferred : Promise.resolve(result);
@@ -3641,7 +3684,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (ChatSendResult.isSent(sent)) {
 				const response = await sent.data.responseCreatedPromise;
 				if (this._isConnected.get() && generation === this._connectAttemptGeneration && initializationGeneration === this._sessionInitializationGeneration) {
-					this._watchVoiceProgress(sessionResource, response);
+					this._watchVoiceProgress(sent.newSessionResource ?? sessionResource, response);
 				}
 			}
 		}).catch(err => this.logService.warn('[voice] Failed to watch voice response:', err));
@@ -3828,20 +3871,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					}
 					return false;
 				}
-				const result = await this._sendVoiceRequest(target, text);
+				const result = await this._sendVoiceRequest(target, text).catch(err => {
+					ref.dispose();
+					throw err;
+				});
 				const accepted = !!result && !ChatSendResult.isRejected(result);
+				const responseResource = result && !ChatSendResult.isQueued(result) ? result.newSessionResource ?? target : target;
 				if (!isCurrent()) {
 					ref.dispose();
 					return accepted;
 				}
 				if (accepted) {
 					// Surface response in floating window
-					this._watchResponseForFloatingWindow(target);
-					// Open the floating window so user can see the response
-					this.commandService.executeCommand('_agentsVoice.openWindow').catch(() => { /* ignore */ });
+					this._watchResponseForFloatingWindow(responseResource);
 					// Keep the session model loaded until the response completes
 					// so the autorun can observe state transitions and trigger narration.
-					const model = this.chatService.getSession(target);
+					const model = this.chatService.getSession(responseResource);
 					if (model) {
 						const lastReq = model.getRequests().at(-1);
 						if (lastReq?.response && !lastReq.response.isComplete && !lastReq.response.isCanceled) {
@@ -3889,12 +3934,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						accepted = !!result && !ChatSendResult.isRejected(result);
 					}
 				} else {
-					// Truly no sessions exist — create one
-					const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-					const resource = ref.object.sessionResource;
-					ref.dispose();
-					// Switch to the new session so the user sees the response
-					this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* pane may not exist */ });
+					const resource = await this._createNewSessionTarget();
+					if (!isCurrent()) {
+						return false;
+					}
 					const result = await this._sendVoiceRequest(resource, text);
 					accepted = !!result && !ChatSendResult.isRejected(result);
 				}
@@ -3937,7 +3980,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}
 
-		this.newSessionAsTarget();
+		if (!await this.newSessionAsTarget()) {
+			return 'failed';
+		}
 		if (text.trim()) {
 			this._setPinnedSubmitSession(this._targetSession.get());
 		}
@@ -4405,7 +4450,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			!previous
 			|| !current
 			|| previous.scheme !== current.scheme
-			|| !previous.scheme.startsWith('agent-host-')
+			|| !isAgentHostTarget(previous.scheme)
 			|| !previous.path.replace(/^\//, '').startsWith('untitled-')
 			|| current.path.replace(/^\//, '').startsWith('untitled-')
 		) {
@@ -5146,7 +5191,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this._getFocusedSessionId();
 	}
 
-	private _pinActiveSessionAsTarget(): void {
+	private _pinActiveSessionAsTarget(nextResource?: URI): void {
+		if (this._pendingNewSessionTarget && isEqual(nextResource, this._pendingNewSessionTarget.resource)) {
+			return;
+		}
 		if ((this._isConnected.get() || this._isConnecting.get()) && this._activeSessionShown && !this._targetSession.get() && !this._hasDraftTarget.get()) {
 			// Changing the visible session must not move an existing voice
 			// conversation with it. Pin voice to its current session while the
@@ -5198,7 +5246,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			return;
 		}
-		this._pinActiveSessionAsTarget();
+		this._pinActiveSessionAsTarget(resource);
 		this.logService.trace(`[voice] setActiveSessionShown=${definedKey} (was ${this._activeSessionShown ?? '<none>'})`);
 		this._activeSessionShown = definedKey;
 		this._suspendPlaybackForHiddenSessions();
@@ -6551,16 +6599,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 
 			if (isStateChange || isDetailChange || isResponseSummaryChange) {
-				const cancelExpiry = this._userCancelledSessions.get(sessionId);
-				if (cancelExpiry) {
-					clearTimeout(cancelExpiry);
-					this._userCancelledSessions.delete(sessionId);
-				} else {
-					if (isDetailChange) {
-						this.voiceClientService.invalidateSessionCache(sessionId);
-					}
-					stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', detail, confirmationType, lastResponseSummary });
+				if (isDetailChange) {
+					this.voiceClientService.invalidateSessionCache(sessionId);
 				}
+				stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', detail, confirmationType, lastResponseSummary });
 			}
 			if (currentState !== 'unknown') {
 				// Preserve a known summary rather than clobbering with '' so a
@@ -7295,7 +7337,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _isOpenPendingPart(part: IChatProgressResponseContent): boolean {
 		if (part.kind === 'questionCarousel') {
-			return !part.isUsed && !part.answeredExternally;
+			return !part.isUsed && !part.answeredExternally && !part.questions.some(question => question.password);
 		}
 		if (part.kind === 'elicitation2') {
 			return part.state.get() === 'pending';
@@ -7564,67 +7606,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _getMachineId(): string {
 		return (this.environmentService as { machineId?: string }).machineId ?? 'unknown';
-	}
-
-	// --- Feedback ---
-
-	async submitFeedback(feedbackText: string): Promise<{ ok: boolean; error?: string }> {
-		let userId = this._userLogin;
-		if (!userId) {
-			try {
-				const sessions = await this.authenticationService.getSessions('github');
-				userId = sessions[0]?.account.label ?? 'unknown';
-			} catch {
-				userId = 'unknown';
-			}
-		}
-		let transcriptHistory: IVoiceFeedbackTranscriptTurn[] = [];
-		try {
-			const turns = await this.voiceTranscriptStore.loadTurns(userId);
-			transcriptHistory = turns.map(t => ({
-				role: t.role,
-				text: t.text,
-				timestamp: t.timestamp,
-			}));
-		} catch (err) {
-			this.logService.warn('[voice] failed to load transcript history for feedback', err);
-		}
-
-		const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
-		const clientSessionState: Record<string, unknown> = {
-			voiceState: this._voiceState.get(),
-			isConnected: this._isConnected.get(),
-			isConnecting: this._isConnecting.get(),
-			isReconnecting: this._isReconnecting.get(),
-			pendingToolConfirmations: this._pendingToolConfirmations.get().map(tc => ({
-				type: tc.type,
-				sessionLabel: tc.sessionLabel,
-				description: tc.description,
-			})),
-			activeSessions: sessions.map(s => ({
-				id: s.resource.toString(),
-				label: s.label,
-				status: s.status,
-			})),
-		};
-
-		const clientEnvironment: Record<string, unknown> = {
-			machineId: this._getMachineId(),
-		};
-
-		const payload: IVoiceFeedbackPayload = {
-			feedbackText,
-			machineId: this._getMachineId(),
-			userId,
-			sessionId: this.voiceClientService.currentSessionId ?? '',
-			submissionId: generateUuid(),
-			transcriptHistory,
-			clientSessionState,
-			clientEnvironment,
-			timestamp: new Date().toISOString(),
-		};
-
-		return this.voiceClientService.submitFeedback(payload);
 	}
 }
 

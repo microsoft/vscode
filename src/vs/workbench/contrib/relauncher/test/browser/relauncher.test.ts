@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -18,7 +17,7 @@ import { SettingsChangeRelauncher } from '../../browser/relauncher.contribution.
 
 suite('SettingsChangeRelauncher', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let restartCount: number;
 	let confirmResult: boolean;
@@ -66,10 +65,6 @@ suite('SettingsChangeRelauncher', () => {
 		confirmResult = false;
 	});
 
-	teardown(() => {
-		disposables.clear();
-	});
-
 	test('prompts to restart when chat.agentHost.claudeAgent.enabled changes', async () => {
 		confirmResult = true;
 		await changeSetting(
@@ -89,6 +84,21 @@ suite('SettingsChangeRelauncher', () => {
 			c => c.chat.agentHost.computerUse.enabled = true);
 
 		assert.deepStrictEqual({ confirmCount, restartCount }, { confirmCount: 1, restartCount: 1 });
+	});
+
+	test('does not prompt to restart when chat.viewSessions.sessionsList.enabled is turned on or off, which applies live', async () => {
+		confirmResult = true;
+		await changeSetting(
+			'chat.viewSessions.sessionsList.enabled',
+			() => ({ chat: { viewSessions: { sessionsList: { enabled: false } } } }),
+			c => c.chat.viewSessions.sessionsList.enabled = true);
+		const turnedOn = { confirmCount, restartCount };
+		await changeSetting(
+			'chat.viewSessions.sessionsList.enabled',
+			() => ({ chat: { viewSessions: { sessionsList: { enabled: true } } } }),
+			c => c.chat.viewSessions.sessionsList.enabled = false);
+
+		assert.deepStrictEqual({ turnedOn, turnedOff: { confirmCount, restartCount } }, { turnedOn: { confirmCount: 0, restartCount: 0 }, turnedOff: { confirmCount: 0, restartCount: 0 } });
 	});
 
 	test('does not prompt to restart when chat.agentHost.codexAgent.enabled changes', async () => {
@@ -147,5 +157,4 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 0);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

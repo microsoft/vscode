@@ -23,6 +23,7 @@ suite('Markdown editor lazy embedded editors', () => {
 		let loadCount = 0;
 		let changes = 0;
 		let disposals = 0;
+		let layouts = 0;
 		let options: VirtualizedIframeEmbeddedEditorOptions | undefined;
 		const factory = new LazyCodeBlockEditorFactory({
 			providers,
@@ -35,6 +36,7 @@ suite('Markdown editor lazy embedded editors', () => {
 				return {
 					create: (...args) => { creations.push(args); return undefined; },
 					updateProviders: value => { updates.push(value); initialOptions.onDidChange?.(); },
+					layout: () => layouts++,
 					dispose: () => disposals++,
 				};
 			};
@@ -42,6 +44,7 @@ suite('Markdown editor lazy embedded editors', () => {
 		return {
 			factory, errors, creations, updates,
 			get state() { return { loadCount, changes, disposals, providers: options?.providers }; },
+			get layouts() { return layouts; },
 			async finish(error?: Error) {
 				if (error) { load.reject(error); } else { load.resolve(); }
 				await new Promise<void>(resolve => setImmediate(resolve));
@@ -78,6 +81,19 @@ suite('Markdown editor lazy embedded editors', () => {
 		assert.deepStrictEqual(test.updates, [[provider]]);
 		assert.strictEqual(test.state.changes, 3);
 		test.factory.dispose();
+	});
+
+	test('forwards layout to the loaded adapter so iframes follow blocks that moved', async () => {
+		const test = setup();
+		test.factory.create('test', 'test', '');
+		test.factory.layout();
+		assert.strictEqual(test.layouts, 0);
+		await test.finish();
+		test.factory.layout();
+		assert.strictEqual(test.layouts, 1);
+		test.factory.dispose();
+		test.factory.layout();
+		assert.strictEqual(test.layouts, 1);
 	});
 
 	test('does not construct or refresh after disposal during loading', async () => {

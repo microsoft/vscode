@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -17,5 +18,8 @@ export const ICanonicalUriService = createDecorator<ICanonicalUriService>('canon
 
 export interface ICanonicalUriService {
 	readonly _serviceBrand: undefined;
+	readonly onDidRegisterCanonicalUriProvider: Event<string>;
+
 	registerCanonicalUriProvider(provider: ICanonicalUriProvider): IDisposable;
+	provideCanonicalUri(uri: URI, targetScheme: string, token: CancellationToken): Promise<URI | undefined>;
 }

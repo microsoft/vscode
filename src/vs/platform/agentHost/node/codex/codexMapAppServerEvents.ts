@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { hasKey } from '../../../../base/common/types.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentModelCallCompletedSignal } from '../../common/agent.js';
@@ -16,7 +17,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { parseCodexDelegation } from './codexDelegation.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
-import { codexRetainedCommandOutputContent } from './codexTerminalOutput.js';
+import { codexInlineCommandOutput, codexRetainedCommandOutputContent } from './codexTerminalOutput.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
 import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
@@ -152,6 +153,8 @@ export interface ICodexToolCallEntry {
 	readonly turnId: string;
 	readonly toolName: string;
 	output: string;
+	/** The newest streamed {@link output}, bounded because every delta republishes it. Cleared when {@link output} is replaced. */
+	liveOutput?: string;
 	/** Latest `mcpToolCall/progress` message, kept out of {@link output} so it never becomes the result. */
 	progressMessage?: string;
 	/** The `_meta` emitted at start, re-spread by later actions since the reducer replaces the whole bag. */
@@ -976,12 +979,11 @@ export function mapCommandExecutionOutputDelta(
 	if (!entry) {
 		return [];
 	}
-	entry.output += params.delta;
 	return [{
 		type: ActionType.ChatToolCallContentChanged,
 		turnId: entry.turnId,
 		toolCallId: entry.toolCallId,
-		content: [{ type: ToolResultContentType.Text, text: entry.output }],
+		content: [{ type: ToolResultContentType.Text, text: appendStreamedOutput(entry, params.delta) }],
 	}];
 }
 
@@ -994,6 +996,7 @@ export function mapFileChangePatchUpdated(
 		return [];
 	}
 	entry.output = fileChangeOutput(params.changes);
+	entry.liveOutput = undefined;
 	return [{
 		type: ActionType.ChatToolCallContentChanged,
 		turnId: entry.turnId,
@@ -1010,13 +1013,23 @@ export function mapFileChangeOutputDelta(
 	if (!entry) {
 		return [];
 	}
-	entry.output += params.delta;
 	return [{
 		type: ActionType.ChatToolCallContentChanged,
 		turnId: entry.turnId,
 		toolCallId: entry.toolCallId,
-		content: [{ type: ToolResultContentType.Text, text: entry.output }],
+		content: [{ type: ToolResultContentType.Text, text: appendStreamedOutput(entry, params.delta) }],
 	}];
+}
+
+/**
+ * Each delta republishes the live output, so only its newest characters are shown: otherwise a command's traffic
+ * to every client grows with the square of its output. The live text is built from the bounded previous text, since
+ * slicing the growing full output would copy all of it on every delta. The full output is kept for completion.
+ */
+function appendStreamedOutput(entry: ICodexToolCallEntry, delta: string): string {
+	entry.liveOutput = codexInlineCommandOutput((entry.liveOutput ?? codexInlineCommandOutput(entry.output)) + delta);
+	entry.output += delta;
+	return entry.liveOutput;
 }
 
 /**
@@ -1165,7 +1178,8 @@ export function mapItemCompleted(
 		}];
 	}
 	if (params.item.type === 'imageGeneration') {
-		const success = params.item.status === 'completed' && params.item.result.length > 0;
+		const imageData = hasKey(params.item, { result: true }) ? params.item.result : undefined;
+		const success = params.item.status === 'completed' && !!(hasKey(params.item, { result: true }) ? params.item.result : params.item.fileId);
 		const labels = codexImageGenerationLabels(params.item.status);
 		const actions: ChatAction[] = [];
 		const toolInput = codexImageGenerationToolInput(params.item.revisedPrompt);
@@ -1186,9 +1200,9 @@ export function mapItemCompleted(
 			result: {
 				success,
 				pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
-				content: success ? [{
+				content: success && imageData ? [{
 					type: ToolResultContentType.EmbeddedResource,
-					data: params.item.result,
+					data: imageData,
 					contentType: 'image/png',
 				}] : undefined,
 				...(success ? {} : { error: { message: labels.errorMessage } }),

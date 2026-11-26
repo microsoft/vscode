@@ -278,5 +278,31 @@ suite('Files - View Model', function () {
 		assert.ok(existingChild === merge1.getChild(existingChild!.name));
 	});
 
+	test('getId reflects renames, moves and find filter marks', function () {
+		const d = new Date().getTime();
+		const root = createStat.call(this, '/root', 'root', true, false, 8096, d);
+		const otherRoot = createStat.call(this, '/other', 'other', true, false, 8096, d);
+		const folder = createStat.call(this, '/root/folder', 'folder', true, false, 8096, d);
+		const file = createStat.call(this, '/root/folder/file.txt', 'file.txt', false, false, 8096, d);
+		root.addChild(folder);
+		folder.addChild(file);
+
+		const ids = [file.getId()];
+		folder.rename({ name: 'renamed' });
+		ids.push(file.getId());
+		file.move(otherRoot);
+		ids.push(file.getId());
+		file.markItemAndParentsAsFiltered();
+		ids.push(file.getId());
+
+		const id = (rootPath: string, path: string) => `${toResource.call(this, rootPath).toString()}::${toResource.call(this, path).toString()}`;
+		assert.deepStrictEqual(ids, [
+			id('/root', '/root/folder/file.txt'),
+			id('/root', '/root/renamed/file.txt'),
+			id('/other', '/other/file.txt'),
+			`${id('/other', '/other/file.txt')}::findFilterResult`,
+		]);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

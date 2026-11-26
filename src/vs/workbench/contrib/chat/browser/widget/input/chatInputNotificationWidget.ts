@@ -102,6 +102,7 @@ export interface IChatInputNotificationModelSelection {
 
 /** Input-local capabilities used to filter and execute semantic notification actions. */
 export interface IChatInputNotificationDelegate {
+	readonly placement?: 'transcript';
 	readonly hostVisible?: IObservable<boolean>;
 	readonly inputUri?: URI;
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
@@ -193,7 +194,19 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 	private _render(): void {
 		const bodies = new Map<string, IChatInputNotificationBody>();
-		const notification = this._notificationService.getActiveNotification(candidate => {
+		const policyError = this._modelState.agentModelPolicyError;
+		const notification: IChatInputNotification | undefined = policyError ? {
+			id: 'agentRequiredModel',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: policyError,
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+		} : this._notificationService.getActiveNotification(candidate => {
+			if (candidate.placement !== this._delegate?.placement) {
+				return false;
+			}
 			const body = this._resolveBody(candidate);
 			if (body) {
 				bodies.set(candidate.id, body);
@@ -201,7 +214,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			}
 			return false;
 		});
-		const body = notification ? bodies.get(notification.id) : undefined;
+		const body = policyError ? notification : notification ? bodies.get(notification.id) : undefined;
 		if (notification && body && this._updateInPlace(notification, body)) {
 			this._currentNotification = notification;
 			this._announce(notification, body);

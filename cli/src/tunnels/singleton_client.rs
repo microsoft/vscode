@@ -76,7 +76,7 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 		thread::spawn(move || {
 			let mut input = String::new();
 			loop {
-				input.truncate(0);
+				input.clear();
 				match std::io::stdin().read_line(&mut input) {
 					Err(_) | Ok(0) => return, // EOF or not a tty
 					_ => {}

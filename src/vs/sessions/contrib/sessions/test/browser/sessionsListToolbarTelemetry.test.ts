@@ -20,9 +20,11 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsFlatList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFlatList.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { createListHarness, createTestSession, IListHarness } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';

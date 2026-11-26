@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { API, Project, Snapshot, DocumentIdentifier } from '@typescript/native/unstable/async';
+import type { API, Project, Snapshot, DocumentIdentifier } from '@typescript/native/async';
 import {
 	SyntaxKind,
 	isArrowFunction,
@@ -18,7 +18,7 @@ import {
 	isSourceFile,
 	type Node,
 	type SourceFile,
-} from '@typescript/native/unstable/ast';
+} from '@typescript/native/ast';
 import * as protocol from '../../common/serverProtocol';
 import { CompilerOptionsRunnable } from './baseContextProviders';
 import { ClassContextProvider } from './classContextProvider';
@@ -288,7 +288,7 @@ function getRenameTarget(sourceFile: SourceFile, position: number, oldName: stri
 }
 
 async function getUpdatedProject(snapshot: Snapshot, project: Project, fileName: string): Promise<Project | undefined> {
-	return snapshot.getProject(project.configFileName) ?? await snapshot.getDefaultProjectForFile(fileName);
+	return snapshot.getProject(project.id) ?? await snapshot.getDefaultProjectForFile(fileName);
 }
 
 function getOldText(sourceFile: SourceFile, position: number, oldName: string, newName: string, lastSymbolRename: protocol.Range): [string, number] {

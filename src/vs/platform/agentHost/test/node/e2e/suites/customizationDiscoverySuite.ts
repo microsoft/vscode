@@ -13,7 +13,8 @@ import { customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCu
 import { ActionType, type SessionCustomizationsChangedAction } from '../../../../common/state/sessionActions.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { AgentHostWorkspaceTrustConfigKey } from '../../../../common/agentHostSchema.js';
+import { createRealSession, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { defaultChatChannel, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
@@ -38,8 +39,28 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		return workspace;
 	}
 
+	let rootConfigClientSeq = 20_000;
+
+	/** Trusts `workspace` in the agent host, as VS Code does for a trusted folder, so sessions run its repository hooks. */
+	async function trustWorkspace(workspace: string): Promise<void> {
+		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+		const clientSeq = rootConfigClientSeq++;
+		const applied = context.client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.RootConfigChanged)
+			&& getActionEnvelope(notification).channel === ROOT_STATE_URI
+			&& getActionEnvelope(notification).origin?.clientSeq === clientSeq,
+			30_000,
+		);
+		context.client.dispatch({
+			channel: ROOT_STATE_URI,
+			clientSeq,
+			action: { type: ActionType.RootConfigChanged, config: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] } } },
+		});
+		await applied;
+	}
+
 	async function createDiscoverySession(prefix: string, workspace: string, customizations?: readonly ClientPluginCustomization[]): Promise<string> {
-		const sessionUri = await createRealSession(context.client, config, `customizations-${prefix}`, createdSessions, URI.file(workspace));
+		const sessionUri = await createRealSession(context.client, config, `customizations-${prefix}`, createdSessions, URI.file(workspace), () => trustWorkspace(workspace));
 		if (customizations) {
 			context.client.dispatch({
 				channel: sessionUri,
@@ -97,7 +118,9 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		}
 		writeFileSync(instruction, '---\napplyTo:\n  - "**/*"\n---\nPrefer short answers.');
 		writeFileSync(skill, '---\nname: hello-skill\ndescription: Says hello\n---\nReturn a greeting.');
-		writeFileSync(hook, JSON.stringify({ PreToolUse: [] }));
+		writeFileSync(hook, JSON.stringify({
+			version: 1, hooks: { preToolUse: [{ type: 'command', bash: 'exit 0', powershell: 'exit 0' }] },
+		}));
 		return [
 			{ type: CustomizationType.Agent, path: agent },
 			{ type: CustomizationType.Rule, path: instruction },
@@ -121,6 +144,9 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		: 'provider-supported workspace customizations';
 	customizationDiscoveryTest(`customization discovery: discover finds ${supportedCustomizations}`, async function () {
 		const workspace = createWorkspace('all');
+		if (config.provider === 'copilotcli') {
+			initTestGitRepo(workspace);
+		}
 		const files = writeWorkspaceCustomizations(workspace);
 		const sessionUri = await createDiscoverySession('all', workspace);
 		const customizations = await sessionCustomizations(sessionUri);
@@ -128,6 +154,13 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		assert.deepStrictEqual(discoveredFixtureFiles(customizations, files), files
 			.map(file => ({ type: file.type, uri: URI.file(file.path).toString() }))
 			.sort((a, b) => a.uri.localeCompare(b.uri)));
+		if (config.provider === 'copilotcli') {
+			const hooks = customizations.flatMap(item => item.type === CustomizationType.Directory ? item.children ?? [] : [])
+				.filter(child => child.type === CustomizationType.Hook);
+			assert.deepStrictEqual(hooks.map(hook => ({ name: hook.name, enabled: hook.enabled, scheme: URI.parse(hook.uri).scheme })), [
+				{ name: 'preToolUse', enabled: true, scheme: 'file' },
+			], JSON.stringify(customizations.filter(item => item.type === CustomizationType.Directory && item.contents === CustomizationType.Hook)));
+		}
 	});
 
 	if (config.provider === 'copilotcli') {
@@ -256,7 +289,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			(loaded?.children ?? []).map(child => ({ type: child.type, name: child.name })).sort((a, b) => a.name.localeCompare(b.name)),
 			[
 				{ type: CustomizationType.Agent, name: 'Plugin Agent' },
-				{ type: CustomizationType.Rule, name: 'plugin' },
+				{ type: CustomizationType.Rule, name: 'Plugin Rule' },
 				{ type: CustomizationType.Skill, name: 'plugin-skill' },
 			].sort((a, b) => a.name.localeCompare(b.name)),
 		);

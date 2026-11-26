@@ -182,9 +182,15 @@ export const enum ExtensionBlockingOrigin {
 	Policy = 'policy',
 }
 
+export const enum ExtensionBlockingScope {
+	Extension = 'extension',
+	Version = 'version',
+}
+
 /** Present only when the gallery reports an extension, or the version in hand, as blocked. */
 export interface IExtensionBlockingInfo {
 	readonly origin: ExtensionBlockingOrigin;
+	readonly scope: ExtensionBlockingScope;
 }
 
 export interface IGalleryExtensionAsset {
@@ -252,6 +258,7 @@ export interface IGalleryExtension {
 	private: boolean;
 	/** Set when this extension, or the version in hand, must not be acquired or used. Absence means "not known to be blocked", not "known to be safe". */
 	blockingInfo?: IExtensionBlockingInfo;
+	deprecationInfo?: IDeprecationInfo;
 	hasPreReleaseVersion: boolean;
 	hasReleaseVersion: boolean;
 	isSigned: boolean;
@@ -352,6 +359,7 @@ export const enum StatisticType {
 }
 
 export interface IDeprecationInfo {
+	readonly source?: 'marketplace';
 	readonly disallowInstall?: boolean;
 	readonly extension?: {
 		readonly id: string;
@@ -406,6 +414,7 @@ export interface IExtensionQueryOptions {
 	productVersion?: IProductVersion;
 	compatible?: boolean;
 	queryAllVersions?: boolean;
+	/** Include a blocked version only when it is requested by exact version. */
 	includeBlockedVersions?: boolean;
 	source?: string;
 }
@@ -734,6 +743,7 @@ export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences')
 export const AllowedExtensionsConfigKey = 'extensions.allowed';
 export const VerifyExtensionSignatureConfigKey = 'extensions.verifySignature';
 export const ExtensionRequestsTimeoutConfigKey = 'extensions.requestTimeout';
+export const MarketplaceDeprecationConfigKey = 'extensions.experimental.marketplaceDeprecation';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration({
@@ -742,6 +752,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 		title: localize('extensionsConfigurationTitle', "Extensions"),
 		type: 'object',
 		properties: {
+			[MarketplaceDeprecationConfigKey]: {
+				type: 'boolean',
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+				included: false,
+				experiment: { mode: 'auto' },
+				description: localize('extensions.marketplaceDeprecation', "Use deprecation details from the extension Marketplace, with existing deprecation details as a fallback.")
+			},
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
 				type: 'object',

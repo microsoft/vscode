@@ -32,6 +32,7 @@ export class AuthenticationService extends BaseAuthenticationService {
 			}
 		}));
 		this._register(runOnChange(configurationService.getConfigObservable(ConfigKey.Shared.AuthProvider), () => {
+			this._tokenStore.authenticationState = 'unknown';
 			this._anyGitHubSession = undefined;
 			this._permissiveGitHubSession = undefined;
 			this.resetCopilotToken();
@@ -61,11 +62,13 @@ export class AuthenticationService extends BaseAuthenticationService {
 				const previous = this._anyGitHubSession;
 				this._anyGitHubSession = session;
 				if (!authenticationSessionIdentityEquals(previous, session)) {
+					this._tokenStore.authenticationState = 'unknown';
 					this.resetCopilotToken();
 				}
 				this._tokenStore.githubEnterpriseUri = session && providerId === AuthProviderId.GitHubEnterprise
 					? resolveGitHubSessionUri(session, providerId)
 					: undefined;
+				this._tokenStore.authenticationState = session ? 'signedIn' : 'signedOut';
 			}
 			return session;
 		};

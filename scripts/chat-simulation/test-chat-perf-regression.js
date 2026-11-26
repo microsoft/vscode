@@ -13,12 +13,12 @@
  * gathering, tool resolution, rendering, GC, and layout overhead.
  *
  * Usage:
- *   npm run perf:chat                                 # all scenarios vs 1.115.0
- *   npm run perf:chat -- --runs 10                    # 10 runs per scenario
- *   npm run perf:chat -- --scenario text-only         # single scenario
- *   npm run perf:chat -- --no-baseline                # skip baseline comparison
- *   npm run perf:chat -- --build 1.110.0 --baseline-build 1.115.0
- *   npm run perf:chat -- --resume .chat-simulation-data/2026-04-14/results.json --runs 3
+ *   pnpm run perf:chat                                 # all scenarios vs 1.115.0
+ *   pnpm run perf:chat --runs 10                       # 10 runs per scenario
+ *   pnpm run perf:chat --scenario text-only            # single scenario
+ *   pnpm run perf:chat --no-baseline                   # skip baseline comparison
+ *   pnpm run perf:chat --build 1.110.0 --baseline-build 1.115.0
+ *   pnpm run perf:chat --resume .chat-simulation-data/2026-04-14/results.json --runs 3
  */
 
 const path = require('path');
@@ -204,7 +204,7 @@ function buildProductionBuild() {
 
 	const { execSync } = require('child_process');
 	try {
-		execSync('npm run gulp -- vscode', {
+		execSync('pnpm run gulp vscode', {
 			cwd: ROOT,
 			stdio: 'inherit',
 			timeout: 10 * 60 * 1000, // 10 minute timeout
@@ -1648,7 +1648,7 @@ async function main() {
 		console.log('[chat-simulation]   comparisons, use the same build type for both.');
 		if (testBuildMode === 'dev') {
 			console.log('[chat-simulation]   To use a local production build instead:');
-			console.log('[chat-simulation]     npm run perf:chat -- --production-build');
+			console.log('[chat-simulation]     pnpm run perf:chat --production-build');
 		}
 		if (!opts.ci && !opts.force) {
 			const readline = require('readline');
@@ -1907,7 +1907,7 @@ async function printComparison(jsonReport, opts) {
 			console.log('');
 			console.log('[chat-simulation] Some metrics exceeded the threshold but were not statistically significant.');
 			console.log('[chat-simulation] To increase confidence, add more runs with --resume:');
-			console.log(`[chat-simulation]   npm run perf:chat -- --resume ${resultsPath} --runs ${suggestedRuns}`);
+			console.log(`[chat-simulation]   pnpm run perf:chat --resume ${resultsPath} --runs ${suggestedRuns}`);
 		}
 	}
 

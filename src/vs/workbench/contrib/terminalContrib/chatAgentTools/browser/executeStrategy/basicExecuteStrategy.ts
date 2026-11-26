@@ -10,11 +10,12 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../.
 import { isNumber } from '../../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { PromptInputState } from '../../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { ITerminalLogService, type ITerminalLaunchError } from '../../../../../../platform/terminal/common/terminal.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
+import { canClearPromptInputWithCtrlU, createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isMultilineCommand } from '../runInTerminalHelpers.js';
@@ -132,7 +133,11 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// via `promoteToFullCommand()`, while `onCommandFinished` creates
 			// another. Both share the same xterm `IMarker` from
 			// `commandStartMarker`.
-			const staleMarker = this._commandDetection.executingCommandObject?.marker;
+			//
+			// Only capture it when a command is actually executing. At an idle
+			// prompt the command we are about to send finishes with that same
+			// marker, so filtering it would drop our own finished event.
+			const staleMarker = this._isCommandExecuting() ? this._commandDetection.executingCommandObject?.marker : undefined;
 			const onCommandFinishedFiltered = staleMarker
 				? Event.filter(this._commandDetection.onCommandFinished, e => e.marker !== staleMarker, store)
 				: this._commandDetection.onCommandFinished;
@@ -190,23 +195,23 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				this._log.bind(this)
 			);
 
-			if (this._hasReceivedUserInput()) {
-				// Only send SIGINT (Ctrl+C) when shell integration confirms a previous
-				// command is still executing. Sending Ctrl+C at an idle prompt can be
-				// misinterpreted by the shell as cancelling the command we are about
-				// to send via sendText, producing spurious "Command exited with code
-				// 130" results for what should be the next, unrelated command.
-				if (this._commandDetection.executingCommandObject !== undefined) {
-					this._log('Previous command still executing with pending input, sending SIGINT before retrying');
-					await this._instance.sendText('\x03', false);
-					await waitForIdle(this._instance.onData, 100);
-				} else {
-					// Use Ctrl+U (kill line) to clear any pending input on the prompt
-					// without killing any running command. No-op on a clean prompt.
-					this._log('Prompt is idle; clearing pending input with Ctrl+U instead of SIGINT');
-					await this._instance.sendText('\x15', false);
-					await waitForIdle(this._instance.onData, 100);
-				}
+			// Only send SIGINT (Ctrl+C) when shell integration confirms a previous
+			// command is still executing (e.g. a previous execution finished via the
+			// idle fallback while its process kept running), otherwise the command
+			// line would be typed into that process. Sending Ctrl+C at an idle prompt
+			// can be misinterpreted by the shell as cancelling the command we are
+			// about to send via sendText, producing spurious "Command exited with
+			// code 130" results for what should be the next, unrelated command.
+			if (this._isCommandExecuting()) {
+				this._log('Previous command still executing, sending SIGINT before retrying');
+				await this._instance.sendText('\x03', false);
+				await waitForIdle(this._instance.onData, 100);
+			} else if (this._hasReceivedUserInput() && canClearPromptInputWithCtrlU(this._instance)) {
+				// Use Ctrl+U (kill line) to clear any pending input on the prompt
+				// without killing any running command. No-op on a clean prompt.
+				this._log('Prompt is idle; clearing pending input with Ctrl+U instead of SIGINT');
+				await this._instance.sendText('\x15', false);
+				await waitForIdle(this._instance.onData, 100);
 			}
 
 			// Execute the command
@@ -309,6 +314,15 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 		} finally {
 			this._executionStores.delete(store);
 		}
+	}
+
+	/**
+	 * Whether shell integration reports a command that is actually executing. `executingCommandObject`
+	 * alone is not enough as it is defined from the command start (B) sequence on, including while the
+	 * prompt is idle; the prompt input model only enters the execute state once the command executes.
+	 */
+	private _isCommandExecuting(): boolean {
+		return this._commandDetection.executingCommandObject !== undefined && this._commandDetection.promptInputModel.state === PromptInputState.Execute;
 	}
 
 	private _log(message: string) {

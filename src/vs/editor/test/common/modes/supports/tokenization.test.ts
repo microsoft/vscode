@@ -5,8 +5,53 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFontTokenOptions } from '../../../../../platform/theme/common/themeService.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../common/config/fontInfo.js';
 import { FontStyle } from '../../../../common/encodedTokenAttributes.js';
-import { ColorMap, ExternalThemeTrieElement, ParsedTokenThemeRule, ThemeTrieElementRule, TokenTheme, parseTokenTheme, strcmp } from '../../../../common/languages/supports/tokenization.js';
+import { ColorMap, ExternalThemeTrieElement, ParsedTokenThemeRule, ThemeTrieElementRule, TokenTheme, classNameForFontTokenDecorations, generateTokensCSSForFontMap, parseTokenTheme, strcmp } from '../../../../common/languages/supports/tokenization.js';
+
+suite('Token font CSS', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves font lists and positive fractional sizes and deduplicates rules', () => {
+		const fontFamily = '"Fira Code", monospace';
+		const font = { fontFamily, fontSizeMultiplier: 1.2 };
+		assert.strictEqual(generateTokensCSSForFontMap([{}, font, font, { fontSizeMultiplier: 0.75 }]), [
+			`.${classNameForFontTokenDecorations(fontFamily, 1.2)} {font-family: ${fontFamily};font-size: calc(var(--editor-font-size)*1.2);}`,
+			`.${classNameForFontTokenDecorations('', 0.75)} {font-size: calc(var(--editor-font-size)*0.75);}`,
+		].join('\n'));
+	});
+
+	test('sanitizes font families before inserting them into CSS', () => {
+		const fontFamilies = [
+			'monospace; color: red',
+			'monospace} .token-font-injection {color: red',
+			'monospace/*',
+		];
+		assert.deepStrictEqual(
+			fontFamilies.map(fontFamily => generateTokensCSSForFontMap([{}, { fontFamily, fontSizeMultiplier: 1.2 }])),
+			fontFamilies.map(fontFamily => `.${classNameForFontTokenDecorations(fontFamily, 1.2)} {font-family: ${EDITOR_FONT_DEFAULTS.fontFamily};font-size: calc(var(--editor-font-size)*1.2);}`)
+		);
+	});
+
+	test('ignores nonpositive and nonfinite sizes without dropping the font family', () => {
+		const fontSizes = [0, -1, NaN, Infinity, -Infinity];
+		assert.deepStrictEqual(
+			fontSizes.map(fontSizeMultiplier => generateTokensCSSForFontMap([{}, { fontFamily: 'monospace', fontSizeMultiplier }])),
+			fontSizes.map(fontSizeMultiplier => `.${classNameForFontTokenDecorations('monospace', fontSizeMultiplier)} {font-family: monospace;}`)
+		);
+	});
+
+	test('does not interpolate nonnumeric font sizes from configuration', () => {
+		const fontMap: IFontTokenOptions[] = JSON.parse('[{}, {"fontFamily": "monospace", "fontSizeMultiplier": "1);color:red"}, {"fontFamily": "serif", "fontSizeMultiplier": "1.2"}, {"fontFamily": "sans-serif", "fontSizeMultiplier": true}]');
+		const rules = generateTokensCSSForFontMap(fontMap).split('\n');
+		assert.deepStrictEqual(rules.map(rule => rule.slice(rule.indexOf('{'))), [
+			'{font-family: monospace;}',
+			'{font-family: serif;}',
+			'{font-family: sans-serif;}',
+		]);
+	});
+});
 
 suite('Token theme matching', () => {
 

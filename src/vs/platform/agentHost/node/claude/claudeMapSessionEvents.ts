@@ -17,6 +17,7 @@ import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayNam
 import { claudeToolDenialCode } from './claudeToolDenial.js';
 import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkdown } from '../../common/state/protocol/state.js';
+import type { SessionClientToolsModel } from './clientTools/claudeSessionClientToolsModel.js';
 
 /**
  * Cross-call state for {@link mapSDKMessageToAgentSignals}. One instance
@@ -253,7 +254,7 @@ export function mapSDKMessageToAgentSignals(
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
-	clientToolOwner?: (toolName: string) => string | undefined,
+	clientTools?: SessionClientToolsModel,
 	turnDuration?: number,
 ): AgentSignal[] {
 	if (logService.getLevel() <= LogLevel.Trace) {
@@ -267,7 +268,7 @@ export function mapSDKMessageToAgentSignals(
 	switch (message.type) {
 		case 'stream_event':
 			return tagWithParent(
-				mapStreamEvent(message.event, chat, turnId, state, logService, message.parent_tool_use_id, registry, clientToolOwner),
+				mapStreamEvent(message.event, chat, turnId, state, logService, message.parent_tool_use_id, registry, clientTools),
 				chat,
 				message.parent_tool_use_id,
 				registry,
@@ -276,7 +277,7 @@ export function mapSDKMessageToAgentSignals(
 			return mapResult(message, chat, turnId, turnDuration, state, logService, registry);
 		case 'assistant':
 			return tagWithParent(
-				mapAssistantCanonical(message, chat, turnId, state, message.parent_tool_use_id, registry, clientToolOwner),
+				mapAssistantCanonical(message, chat, turnId, state, message.parent_tool_use_id, registry, clientTools),
 				chat,
 				message.parent_tool_use_id,
 				registry,
@@ -324,7 +325,7 @@ function mapAssistantCanonical(
 	state: ClaudeMapperState,
 	parentToolUseId: string | null,
 	registry: SubagentRegistry,
-	clientToolOwner?: (toolName: string) => string | undefined,
+	clientTools?: SessionClientToolsModel,
 ): AgentSignal[] {
 	const completedSignal: AgentSignal = {
 		kind: 'model_call_completed',
@@ -343,7 +344,7 @@ function mapAssistantCanonical(
 		}
 		return top;
 	}
-	return [...completedSignals, ...emitInnerAssistantSignals(message, chat, turnId, state, parentToolUseId, registry, clientToolOwner)];
+	return [...completedSignals, ...emitInnerAssistantSignals(message, chat, turnId, state, parentToolUseId, registry, clientTools)];
 }
 
 /**
@@ -582,7 +583,7 @@ function mapStreamEvent(
 	logService: ILogService,
 	parentToolUseId: string | null,
 	registry: SubagentRegistry,
-	clientToolOwner: ((toolName: string) => string | undefined) | undefined,
+	clientTools: SessionClientToolsModel | undefined,
 ): AgentSignal[] {
 	switch (event.type) {
 		case 'message_start':
@@ -659,7 +660,7 @@ function mapStreamEvent(
 				// produced by `buildClaudeToolMeta` because
 				// `getClaudeToolKind('Task') === 'subagent'`.
 				const meta = isClientTool ? undefined : buildClaudeToolMeta(toolName);
-				const toolClientId = isClientTool ? clientToolOwner?.(toolName) : undefined;
+				const toolClientId = isClientTool ? clientTools?.ownerOf(toolName) : undefined;
 				return [{
 					kind: 'action',
 					resource: chat,

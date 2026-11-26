@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { gulp, filter } from './lib/gulp/facade.ts';
-import es from 'event-stream';
+import { through } from './lib/streams.ts';
+import { Readable } from 'stream';
 import minimist from 'minimist';
 import path from 'path';
 import fs from 'fs';
@@ -15,15 +16,19 @@ import { getChangedFilesScope, getHygieneScope } from './lib/changedFiles.ts';
 
 const dirName = path.dirname(new URL(import.meta.url).pathname);
 
-function checkPackageJSON(this: NodeJS.ReadWriteStream, actualPath: string) {
+/**
+ * Checks that the dependencies of `actualPath` that the root package.json also declares have the
+ * same versions there. `allowedDifferences` names the dependencies that may differ.
+ */
+function checkPackageJSON(this: NodeJS.ReadWriteStream, actualPath: string, allowedDifferences: readonly string[] = []) {
 	const actual = JSON.parse(fs.readFileSync(path.join(dirName, '..', actualPath), 'utf8'));
 	const rootPackageJSON = JSON.parse(fs.readFileSync(path.join(dirName, '..', 'package.json'), 'utf8'));
 	const checkIncluded = (set1: Record<string, string>, set2: Record<string, string>) => {
 		for (const depName in set1) {
 			const depVersion = set1[depName];
 			const rootDepVersion = set2[depName];
-			if (!rootDepVersion) {
-				// missing in root is allowed
+			if (!rootDepVersion || allowedDifferences.includes(depName)) {
+				// missing in root, or allowed to differ
 				continue;
 			}
 			if (depVersion !== rootDepVersion) {
@@ -41,10 +46,11 @@ function checkPackageJSON(this: NodeJS.ReadWriteStream, actualPath: string) {
 
 const checkPackageJSONTask = task.define('check-package-json', () => {
 	return gulp.src('package.json').pipe(
-		es.through(function () {
+		through(function () {
 			checkPackageJSON.call(this, 'remote/package.json');
 			checkPackageJSON.call(this, 'remote/web/package.json');
-			checkPackageJSON.call(this, 'build/package.json');
+			// The build scripts use glob 7 (and its types); the root's test runners still use glob 5.
+			checkPackageJSON.call(this, 'build/package.json', ['glob']);
 
 			const repoRoot = path.join(dirName, '..');
 			const copilotError = checkCopilotEnginesVersion(repoRoot);
@@ -81,7 +87,7 @@ function runHygiene(): NodeJS.ReadWriteStream {
 	// Pass a stream rather than paths, so that changing only files that no check covers, such as images, passes.
 	const files = scope.files.length > 0
 		? vfs.src(Array.from(scope.files), { base: '.', follow: true, allowEmpty: true }).pipe(filter(Array.from(all)))
-		: es.readArray([]);
+		: Readable.from([]);
 	return hygiene(files, false);
 }
 

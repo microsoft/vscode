@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
+import type { Context, CreateRule, RuleMeta, Visitor } from '@oxlint/plugins';
 import { createImportRuleListener } from './utils.ts';
 
-export default new class implements eslint.Rule.RuleModule {
+export default new class implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			noNlsLocalize: 'Do not import localize from nls. Use vscode.l10n.t or import l10n from @vscode/l10n instead.'
 		},
@@ -18,7 +18,7 @@ export default new class implements eslint.Rule.RuleModule {
 		schema: []
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		return createImportRuleListener((node, path) => {
 			// Match paths ending with /nls, /nls.js, /vs/nls, etc.
 			if (path.endsWith('/nls') || path.endsWith('/nls.js') || path === 'vs/nls') {

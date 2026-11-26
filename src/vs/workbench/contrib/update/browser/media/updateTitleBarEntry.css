@@ -42,7 +42,7 @@
 }
 
 /* Progress underline bar (shared base) */
-.monaco-action-bar .update-indicator.progress-indefinite .indicator-label::after,
+.monaco-action-bar .update-indicator.progress-indefinite .indicator-progress,
 .monaco-action-bar .update-indicator.progress-percent .indicator-label::after {
 	content: '';
 	position: absolute;
@@ -52,22 +52,37 @@
 	border-radius: 1px;
 }
 
-/* Progress: indefinite — animated shimmer underline */
-.monaco-action-bar .update-indicator.progress-indefinite .indicator-label::after {
+/*
+ * Progress: indefinite — animated shimmer underline.
+ * The bar clips a strip of two gradient tiles (each twice the bar width), so moving the strip
+ * by one tile with a compositor-only transform loops seamlessly without repainting.
+ */
+.monaco-action-bar .update-indicator.progress-indefinite .indicator-progress {
 	width: 100%;
+	overflow: hidden;
+}
+
+.monaco-action-bar .update-indicator.progress-indefinite .indicator-progress::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 100%;
+	width: 400%;
 	background: linear-gradient(
 		90deg,
 		transparent 0%,
 		var(--vscode-progressBar-background) 80%,
 		transparent 100%
 	);
-	background-size: 200% 100%;
+	background-size: 50% 100%;
+	transform: translateX(-50%);
 	animation: update-indicator-shimmer 1.5s ease-in-out infinite;
 }
 
 @keyframes update-indicator-shimmer {
-	0% { background-position: 100% 0; }
-	100% { background-position: -100% 0; }
+	0% { transform: translateX(-75%); }
+	100% { transform: translateX(-25%); }
 }
 
 /* Progress: percentage — left-to-right fill underline */
@@ -82,7 +97,7 @@
 }
 
 /* Reduced motion */
-.monaco-workbench.monaco-reduce-motion .update-indicator.progress-indefinite .indicator-label::after {
+.monaco-workbench.monaco-reduce-motion .update-indicator.progress-indefinite .indicator-progress::after {
 	animation: none;
 }
 

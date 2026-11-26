@@ -51,8 +51,9 @@ export interface IColorTheme {
 	 * specify the color, the default color is returned unless <code>useDefault</code> is set to false.
 	 * @param color the id of the color
 	 * @param useDefault specifies if the default color should be used. If not set, the default is used.
+	 * @param ignoreOverrides ignores user and transient overrides for this color.
 	 */
-	getColor(color: ColorIdentifier, useDefault?: boolean): Color | undefined;
+	getColor(color: ColorIdentifier, useDefault?: boolean, ignoreOverrides?: boolean): Color | undefined;
 
 	/**
 	 * Returns whether the theme defines a value for the color. If not, that means the
@@ -263,6 +264,7 @@ export interface IPartsSplash {
 		windowBorderRadius: string | undefined;
 		modernUI: boolean;
 		modernUICompact: boolean;
+		panelSpacing?: number;
 		partBounds: {
 			activityBar?: IPartsSplashPartBounds;
 			sideBar: IPartsSplashPartBounds | undefined;
@@ -278,6 +280,7 @@ export interface IPartsSplashPartBounds {
 	left: number;
 	width: number;
 	height: number;
+	cornerRadius?: number;
 	outerEdges?: {
 		left: boolean;
 		right: boolean;

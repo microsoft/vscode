@@ -24,19 +24,21 @@ import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onb
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { WorkspaceHistoryLoadState } from '../../../../common/workspaceSelection.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IOpenNewSessionResult, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, ISessionChangesSummary } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChangesViewService } from '../../../changes/common/changesViewService.js';
-import { ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
-import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
-import { SessionsView } from '../../../sessions/browser/views/sessionsView.js';
+import { WorkspaceHistoryLoadState } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { AUTOMATIONS_TOUR_SEEN_KEY } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IOpenNewSessionResult, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISession, ISessionChangesSummary, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ISessionChangesService } from '../../../../../workbench/services/sessions/common/sessionChangesService.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { GetStartedItemId } from '../../common/getStartedChecklist.js';
 import { GetStartedTourRunner } from '../../browser/getStartedTourRunner.js';
+import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 interface IRunnerScenario {
 	readonly sessions: readonly ISession[];
@@ -60,20 +62,21 @@ function testSession(title: string, minutesAgo: number, options: Parameters<type
 suite('GetStartedTourRunner', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function toActiveSession(session: ISession): IActiveSession {
-		return new class extends mock<IActiveSession>() {
+	function toActiveSession(session: ISession): ITestSessionWithChat {
+		return new class extends mock<ITestSessionWithChat>() {
 			override readonly resource = session.resource;
 			override readonly isCreated = constObservable(true);
+			override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 			override readonly isArchived = session.isArchived;
 			override readonly changesSummary = session.changesSummary;
 		}();
 	}
 
 	/** Runs an item's tour, resolving its steps like the spotlight presentation does when the tour starts. */
-	async function runTour(item: GetStartedItemId, scenario: IRunnerScenario) {
+	async function runTour(item: GetStartedItemId, scenario: IRunnerScenario, onScenario?: (scenario: IOnboardingScenario<ISpotlightPayload>) => void) {
 		const events: string[] = [];
 		let steps: readonly ISpotlightStep[] = [];
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', scenario.active && toActiveSession(scenario.active));
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', scenario.active && toActiveSession(scenario.active));
 		const list = new class extends mock<SessionsList>() {
 			override revealSessionWorkspaceForOnboarding(session: ISession): IDisposable & { readonly targetId: string } {
 				events.push(`reveal ${session.title.get()}`);
@@ -89,6 +92,9 @@ suite('GetStartedTourRunner', () => {
 		instantiationService.stub(IOnboardingScenarioService, new class extends mock<IOnboardingScenarioService>() {
 			override async runScenario(id: string): Promise<OnboardingOutcome> {
 				const registered = onboardingScenarioRegistry.getScenario(id) as IOnboardingScenario<ISpotlightPayload> | undefined;
+				if (registered) {
+					onScenario?.(registered);
+				}
 				steps = await registered?.presentation.payload.resolveSteps?.() ?? [];
 				for (const step of steps) {
 					await step.onBeforeShow?.();
@@ -102,7 +108,7 @@ suite('GetStartedTourRunner', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
+			readonly activeSession = activeSession;
 			override async openSession(resource: URI): Promise<void> {
 				events.push(`open session ${resource.authority}`);
 				const opened = scenario.sessions.find(candidate => extUri.isEqual(candidate.resource, resource));
@@ -114,6 +120,7 @@ suite('GetStartedTourRunner', () => {
 				return { session: undefined, trustDeclined: false };
 			}
 		}());
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] { return [...scenario.sessions]; }
 		}());
@@ -250,10 +257,17 @@ suite('GetStartedTourRunner', () => {
 		});
 	});
 
-	test('the automation tour opens Automations for its templates and create steps', async () => {
-		assert.deepStrictEqual((await runTour(GetStartedItemId.Automation, { sessions: [] })).events, [
-			'show sessions.customView.automations',
-			'show sessions.customView.automations',
-		]);
+	test('the automation tour introduces creation without preventing manual replay', async () => {
+		let seenKey: string | undefined;
+		let repeatable: boolean | undefined;
+		const result = await runTour(GetStartedItemId.Automation, { sessions: [] }, scenario => {
+			seenKey = scenario.seenKey;
+			repeatable = scenario.repeatable;
+		});
+		assert.deepStrictEqual({ events: result.events, seenKey, repeatable }, {
+			events: ['show sessions.customView.automations', 'show sessions.customView.automations'],
+			seenKey: AUTOMATIONS_TOUR_SEEN_KEY,
+			repeatable: true,
+		});
 	});
 });

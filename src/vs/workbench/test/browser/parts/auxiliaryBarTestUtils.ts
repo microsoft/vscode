@@ -19,24 +19,25 @@ import { ViewDescriptorService } from '../../../services/views/browser/viewDescr
 import { workbenchInstantiationService } from '../workbenchTestServices.js';
 
 const newChatMenu = MenuId.for('test.auxiliaryBar.newChat');
-const globalActionsMenu = MenuId.for('test.auxiliaryBar.title');
+/** The menu of the part's own title actions, after those of its view, such as Maximize and Hide. */
+export const testAuxiliaryBarGlobalActionsMenu = MenuId.for('test.auxiliaryBar.title');
 
 class TestAuxiliaryBarMenuService extends MenuService {
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions) {
-		return super.createMenu(id === MenuId.AuxiliaryBarTitle ? globalActionsMenu : id, contextKeyService, options);
+		return super.createMenu(id === MenuId.AuxiliaryBarTitle ? testAuxiliaryBarGlobalActionsMenu : id, contextKeyService, options);
 	}
 }
 
-export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>): TestAuxiliaryBarPart {
+export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean }): TestAuxiliaryBarPart {
 	const instantiationService = workbenchInstantiationService({}, store);
 	instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
 	instantiationService.stub(IViewDescriptorService, store.add(instantiationService.createInstance(ViewDescriptorService)));
 	instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(TestAuxiliaryBarMenuService)));
-	for (const [order, [id, title, icon]] of ([
+	for (const [order, [id, title, icon]] of (options?.globalActions === false ? [] : [
 		['test.maximize', 'Maximize Secondary Side Bar', Codicon.screenFull],
 		['test.close', 'Hide Secondary Side Bar', Codicon.close],
 	] as const).entries()) {
-		store.add(MenuRegistry.appendMenuItem(globalActionsMenu, { command: { id, title, icon }, group: 'navigation', order }));
+		store.add(MenuRegistry.appendMenuItem(testAuxiliaryBarGlobalActionsMenu, { command: { id, title, icon }, group: 'navigation', order }));
 	}
 	const part = store.add(instantiationService.createInstance(TestAuxiliaryBarPart));
 	part.create(container);

@@ -6,6 +6,7 @@
 // Common search service registrations shared between the main workbench and the Agents window.
 
 import * as nls from '../../../../nls.js';
+import { EXCLUDE_EXCEPTION_KEY_PATTERN } from '../../../../base/common/glob.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -24,8 +25,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[SEARCH_EXCLUDE_CONFIG]: {
 			type: 'object',
-			markdownDescription: nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders in fulltext searches and file search in quick open. To exclude files from the recently opened list in quick open, patterns must be absolute (for example `**/node_modules/**`). Inherits all glob patterns from the `#files.exclude#` setting."),
+			markdownDescription: nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders in fulltext searches and file search in quick open. To exclude files from the recently opened list in quick open, patterns must be absolute (for example `**/node_modules/**`). Inherits all glob patterns from the `#files.exclude#` setting. Prefix a pattern with `!` to search matching files and folders even if another pattern, including one from `#files.exclude#`, excludes them."),
 			default: { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
+			patternProperties: {
+				[EXCLUDE_EXCEPTION_KEY_PATTERN]: {
+					type: 'boolean',
+					description: nls.localize('exclude.exception', "An exception: files and folders that match the glob pattern after the `!`, and everything inside them, are searched even if another pattern excludes them. Version control folders such as `.git` stay excluded unless the pattern names them. Set to true or false to enable or disable the exception."),
+				}
+			},
 			additionalProperties: {
 				anyOf: [
 					{

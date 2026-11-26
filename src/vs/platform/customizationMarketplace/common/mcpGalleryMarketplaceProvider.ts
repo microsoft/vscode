@@ -11,7 +11,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
+import { getConfiguredCustomMcpGalleryUrl, IGalleryMcpServer, IMcpGalleryService, isProductMcpGalleryEnabled, normalizeMcpGalleryUrl } from '../../mcp/common/mcpManagement.js';
 import { getMcpGalleryServerCardUrl, McpGalleryInvalidCursorError } from '../../mcp/common/mcpGalleryService.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -46,19 +46,10 @@ function cloneContinuation(continuation: IMcpGalleryMarketplaceContinuation): IM
 	};
 }
 
-export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
-	const normalized = typeof value === 'string' ? value.replace(/\/+$/, '') : undefined;
-	return normalized || undefined;
-}
-
-function getConfiguredCustomMcpGalleryUrl(configurationService: IConfigurationService, productService: IProductService): string | undefined {
-	const configuredUrl = normalizeMcpGalleryUrl(configurationService.getValue<string>(mcpGalleryServiceUrlConfig));
-	const productUrl = normalizeMcpGalleryUrl(productService.mcpGallery?.serviceUrl);
-	return configuredUrl && configuredUrl !== productUrl ? configuredUrl : undefined;
-}
-
-export function getCustomizationMarketplaceSourceInfos(status: McpGalleryManifestStatus): readonly ICustomizationMarketplaceSourceInfo[] {
-	return status === McpGalleryManifestStatus.Available ? getAllMcpGalleryMarketplaceSourceInfos() : [];
+export function getCustomizationMarketplaceSourceInfos(status: McpGalleryManifestStatus, configurationService: IConfigurationService, productService: IProductService): readonly ICustomizationMarketplaceSourceInfo[] {
+	return status === McpGalleryManifestStatus.Available && (getConfiguredCustomMcpGalleryUrl(configurationService, productService) || isProductMcpGalleryEnabled(configurationService, productService))
+		? getAllMcpGalleryMarketplaceSourceInfos()
+		: [];
 }
 
 export function getAllMcpGalleryMarketplaceSourceInfos(): readonly ICustomizationMarketplaceSourceInfo[] {
@@ -140,6 +131,9 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 	async query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
 		if (options.mediaType && options.mediaType !== CustomizationMarketplaceMediaType.McpServer) {
 			return { items: [] };
+		}
+		if (this.registry === 'default' && !isProductMcpGalleryEnabled(this.configurationService, this.productService)) {
+			return { items: [], total: 0 };
 		}
 		const configuredUrl = getConfiguredCustomMcpGalleryUrl(this.configurationService, this.productService);
 		const manifest = this.registry === 'default'

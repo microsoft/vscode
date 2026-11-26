@@ -17,16 +17,16 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IBranch, IDetachedHead, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchRef, tryResolvePrimaryWorktreeRoot, WorktreeAddError } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore, type ISessionStateWorktreeCoOwner, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME, DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
-import { getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
+import { AGENT_BRANCH_PREFIX, getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
-import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
+import { IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { IAgentHostPullRequestResolver } from './pullRequestResolver.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from './sessionAdditionalWorktrees.js';
@@ -66,6 +66,8 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	resolveForWorkspaceConversion(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined>;
 	createDetachedWorktree(request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree(handle: string): Promise<void>;
+	/** Worktrees retained by the detached lifecycle, including claims on behalf of another host. */
+	getDetachedWorktreePaths(): Promise<readonly URI[]>;
 	/** Records a detached worktree's archived state on its record. Returns `false` when the record is unavailable. */
 	markDetachedWorktreeArchived(handle: string, archived: boolean): Promise<boolean>;
 	/** Recreates an unarchived detached worktree from its branch when its folder is missing. */
@@ -130,10 +132,10 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	 * before the folder is removed. Throws when Git fails, so the removal can
 	 * be retried.
 	 */
-	removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome>;
+	removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>, discardChanges?: boolean): Promise<WorktreeRemovalOutcome>;
 	readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined>;
 	adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean>;
-	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void>;
+	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI; readonly managedCleanup?: boolean }): Promise<void>;
 	resolveExternalWorktreeProject(workingDirectory: URI): Promise<IResolvedExternalWorktreeProject | undefined>;
 	recordExternalWorktreeProject(sessionUri: URI, workingDirectory: URI): Promise<IAgentSessionProjectInfo | undefined>;
 	resolveWorktreeProject(sessionUri: URI): Promise<IAgentSessionProjectInfo | undefined>;
@@ -150,11 +152,13 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
  * is already scoped by session, so there is no cross-agent collision.
  */
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
+const WORKTREE_META_MANAGED_CLEANUP = 'copilot.worktree.managedCleanup';
 export const WORKTREE_META_PATH = 'copilot.worktree.path';
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
 const WORKTREE_META_SYMLINK_PATTERNS = 'copilot.worktree.symlinkPatterns';
 const WORKTREE_META_SYMLINK_SOURCE_ROOT = 'copilot.worktree.symlinkSourceRoot';
 const WORKTREE_META_CREATION_FAILURE = 'copilot.worktree.creationFailure';
+const WORKTREE_META_GIT_LFS_POINTER_FILES = 'copilot.worktree.gitLfsPointerFiles';
 const DETACHED_WORKTREE_SCOPE = 'vscode.devContainerWorktree.scope';
 const DETACHED_WORKTREE_CREATED_AT = 'vscode.devContainerWorktree.createdAt';
 const DETACHED_WORKTREE_CLAIMED = 'vscode.devContainerWorktree.claimed';
@@ -233,6 +237,8 @@ export interface IReadWorktreeForRemovalOptions {
 /** A worktree as recorded for its owner, enough to remove it without opening the owner's database. */
 export interface IRecordedWorktree extends ISessionWorktree {
 	readonly branchName: string;
+	/** Cleanup adoption must retain managed-path guards and a checkout-scoped removal owner on subsequent archives. */
+	readonly managedCleanup?: boolean;
 }
 
 export interface IAgentHostSessionWorktreeInfo {
@@ -247,6 +253,8 @@ export interface IWorktreeMetadata {
 	readonly repositoryRoot?: URI;
 	readonly symlinkPatterns?: readonly string[];
 	readonly symlinkSourceRoot?: URI;
+	/** Git LFS files in the worktree are pointer files, because `git-lfs` could not be run when it was checked out. */
+	readonly gitLfsPointerFiles?: boolean;
 }
 
 /**
@@ -317,6 +325,22 @@ export function buildWorktreeFailureNotification(diagnostic?: string): Extract<R
 		content,
 		_meta: toAgentSystemNotificationMeta({
 			kind: AgentSystemNotificationKind.WorktreeCreationFailure,
+			severity: AgentSystemNotificationSeverity.Warning,
+		}),
+	};
+}
+
+/** Builds the warning shown when a worktree was checked out with Git LFS pointer files. */
+export function buildWorktreeGitLfsNotification(): Extract<ResponsePart, { kind: ResponsePartKind.SystemNotification }> {
+	return {
+		kind: ResponsePartKind.SystemNotification,
+		content: localize(
+			'agentHost.worktreeGitLfsUnavailable',
+			"Git LFS isn't installed or can't be found on the PATH, so files stored with Git LFS are pointer files in this worktree. Changes to those files can't be committed. Install Git LFS, then run {0} in the worktree to get their contents.",
+			appendEscapedMarkdownInlineCode('git lfs pull')
+		),
+		_meta: toAgentSystemNotificationMeta({
+			kind: AgentSystemNotificationKind.WorktreeGitLfsUnavailable,
 			severity: AgentSystemNotificationSeverity.Warning,
 		}),
 	};
@@ -443,7 +467,7 @@ export function prependAnnouncementToFirstTurn(turns: readonly Turn[], announcem
 	return result;
 }
 
-function prependWorktreeFailureToFirstTurn(turns: readonly Turn[], diagnostic: string | undefined): readonly Turn[] {
+function prependPartsToFirstTurn(turns: readonly Turn[], parts: readonly ResponsePart[]): readonly Turn[] {
 	if (turns.length === 0) {
 		return turns;
 	}
@@ -451,7 +475,7 @@ function prependWorktreeFailureToFirstTurn(turns: readonly Turn[], diagnostic: s
 	const first = result[0];
 	result[0] = {
 		...first,
-		responseParts: [buildWorktreeFailureNotification(diagnostic), ...first.responseParts],
+		responseParts: [...parts, ...first.responseParts],
 	};
 	return result;
 }
@@ -463,7 +487,7 @@ export interface IResolveIsolationConfigRequest {
 }
 
 interface IIsolationGitInfo {
-	readonly headRef: IBranch | IDetachedHead;
+	readonly headName: string;
 	readonly defaultBranch: Branch | undefined;
 }
 
@@ -508,6 +532,12 @@ export interface IResolveWorkingDirectoryRequest {
 	readonly config: Record<string, unknown> | undefined;
 	readonly prompt?: string;
 	readonly githubToken?: string;
+	/**
+	 * The agent session a detached worktree is created for, used to attribute
+	 * its branch-name model call in telemetry. A detached worktree's
+	 * {@link sessionUri} is its own record, not an agent session.
+	 */
+	readonly ownerSession?: URI;
 	/**
 	 * Receives localized activity labels while the worktree is being created,
 	 * so callers can surface live progress. Only called for sessions that
@@ -643,7 +673,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				}
 				return resolved;
 			} catch (error) {
-				const diagnostic = normalizeWorktreeFailureDiagnostic(errorMessage(error));
+				const diagnostic = error instanceof WorktreeAddError ? error.message : normalizeWorktreeFailureDiagnostic(errorMessage(error));
 				const failure = new Error(localize('agentHost.worktreeSessionFailed', "Couldn't create the isolated worktree. This session cannot continue. Start a new session to try again.\n\n{0}", diagnostic ?? errorMessage(error)));
 				this._creationErrors.set(request.sessionId, failure);
 				throw failure;
@@ -737,6 +767,28 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	async getDetachedWorktreePaths(): Promise<readonly URI[]> {
+		const paths: URI[] = [];
+		const dataIds = await this._sessionDataService.listSessionDataIds?.(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX) ?? [];
+		for (const dataId of dataIds) {
+			const handle = dataId.substring(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX.length);
+			if (isAgentDevContainerWorktreeHandle(handle)) {
+				const ref = await this._sessionDataService.tryOpenDatabase(detachedWorktreeRecordUri(handle));
+				if (ref) {
+					try {
+						const path = (await readWorktreeMetadataFields(ref.object))[WORKTREE_META_PATH];
+						if (path) {
+							paths.push(URI.parse(path));
+						}
+					} finally {
+						ref.dispose();
+					}
+				}
+			}
+		}
+		return paths;
 	}
 
 	async markDetachedWorktreeArchived(handle: string, archived: boolean): Promise<boolean> {
@@ -949,12 +1001,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	/**
 	 * Builds the `isolation` / `branch` schema contribution for
 	 * `resolveSessionConfig`. When {@link IResolveIsolationConfigRequest.workingDirectory}
-	 * is not a git repository (or has no commits yet) isolation is forced to
+	 * is not a git repository with a resolvable HEAD name, isolation is forced to
 	 * `folder` and no branch property is offered.
 	 */
 	async resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution> {
 		const gitInfo = request.workingDirectory
-			? await this._getGitInfo(request.workingDirectory)
+			? await this._getGitInfo(request.workingDirectory, request.config?.[SessionConfigKey.Isolation] !== 'folder' || getSessionPullRequestUrl(request.config) !== undefined)
 			: undefined;
 
 		const isolationProperty = schemaProperty<'folder' | 'worktree'>({
@@ -1016,11 +1068,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				} else if (gitInfo.defaultBranch?.kind === GitRefType.RemoteHead) {
 					branchDefault = gitInfo.defaultBranch.name;
 				} else {
-					branchDefault = gitInfo.headRef.name;
+					branchDefault = gitInfo.headName;
 				}
 			} else {
 				// Folder
-				branchDefault = gitInfo.headRef.name;
+				branchDefault = gitInfo.headName;
 			}
 
 			branchValue = typeof request.config?.[SessionConfigKey.Branch] === 'string'
@@ -1117,6 +1169,9 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 */
 	async resolveWorkingDirectory(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> {
 		const { config, workingDirectory, sessionId, prompt, githubToken, onProgress } = request;
+		if (workingDirectory && workingDirectory.scheme !== Schemas.file) {
+			return workingDirectory;
+		}
 
 		// Pull request session
 		const pullRequestUrl = getSessionPullRequestUrl(config);
@@ -1160,16 +1215,17 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			? config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
 
-		// Get the default branch, preferring its upstream ref when available
-		const defaultBranch = await this._gitService.getDefaultBranch2(repositoryRoot);
-		const baseBranch = resolveDefaultBaseBranchName(defaultBranch, selectedBranch);
+		// The base is the default branch, preferring its upstream ref when available, else the selected branch
+		const baseBranch = await resolveDefaultBaseBranchRef(this._gitService, repositoryRoot, selectedBranch);
 
-		const { worktreePath, branchName } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
+		const { worktreePath, branchName, gitLfsPointerFiles } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			const worktreesRoot = getWorktreesRoot(repositoryRoot);
 
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
+			const telemetrySession = request.ownerSession ?? (request.sessionUri.scheme === DETACHED_WORKTREE_OWNER_SCHEME ? undefined : request.sessionUri);
 			const newBranchName = await this._branchNameGenerator.generateBranchName({
 				sessionId,
+				agentSessionId: telemetrySession ? AgentSession.id(telemetrySession) : undefined,
 				message: prompt,
 				githubToken,
 				branchPrefix: worktreeBranchPrefix,
@@ -1218,7 +1274,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				}
 			}
 
-			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
+			const { gitLfsPointerFiles } = await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
 				this._gitService.addWorktree(repositoryRoot, {
 					path: worktreePath,
 					commitish,
@@ -1227,10 +1283,10 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 					onProgress: progress,
 				}));
 
-			return { branchName: newBranchName, worktreePath };
+			return { branchName: newBranchName, worktreePath, gitLfsPointerFiles };
 		});
 
-		return this._completeWorktreeCreation(request, { checkoutRoot, repositoryRoot, worktreePath, branchName, baseBranch });
+		return this._completeWorktreeCreation(request, { checkoutRoot, repositoryRoot, worktreePath, branchName, baseBranch, gitLfsPointerFiles });
 	}
 
 	/**
@@ -1271,8 +1327,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			? request.config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
 		const branchName = getPullRequestSessionBranchName(pullRequest.number, sessionId, worktreeBranchPrefix);
-		const baseBranch = `${remote.name}/${pullRequest.baseRef}`;
-		const worktreePath = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
+		const baseBranch = `refs/remotes/${remote.name}/${pullRequest.baseRef}`;
+		const { worktreePath, gitLfsPointerFiles } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			try {
 				await this._gitService.fetch(repositoryRoot, toRemoteBranch(remote.name, pullRequest.headRef), { timeout: 60_000 });
 			} catch (error) {
@@ -1291,7 +1347,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 			// Git's default `branch.autoSetupMerge` makes a branch started from a
 			// remote-tracking branch track it, whatever the local branch is named.
-			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
+			const { gitLfsPointerFiles } = await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
 				this._gitService.addWorktree(repositoryRoot, {
 					path: worktreePath,
 					commitish: `${remote.name}/${pullRequest.headRef}`,
@@ -1299,11 +1355,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 					track: true,
 					onProgress: progress,
 				}));
-			return worktreePath;
+			return { worktreePath, gitLfsPointerFiles };
 		});
 		this._logService.info(`[${this._logLabel}:${sessionId}] Checked out pull request #${pullRequest.number} ('${pullRequest.headRef}') on '${branchName}' at '${worktreePath.fsPath}'`);
 
-		return this._completeWorktreeCreation(request, { checkoutRoot, repositoryRoot, worktreePath, branchName, baseBranch });
+		return this._completeWorktreeCreation(request, { checkoutRoot, repositoryRoot, worktreePath, branchName, baseBranch, gitLfsPointerFiles });
 	}
 
 	/**
@@ -1313,10 +1369,10 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 */
 	private async _completeWorktreeCreation(
 		request: IResolveWorkingDirectoryRequest,
-		worktree: { readonly checkoutRoot: URI; readonly repositoryRoot: URI; readonly worktreePath: URI; readonly branchName: string; readonly baseBranch: string | undefined },
+		worktree: { readonly checkoutRoot: URI; readonly repositoryRoot: URI; readonly worktreePath: URI; readonly branchName: string; readonly baseBranch: string | undefined; readonly gitLfsPointerFiles: boolean },
 	): Promise<URI> {
 		const { config, sessionId, sessionUri, onProgress } = request;
-		const { checkoutRoot, repositoryRoot, worktreePath, branchName, baseBranch } = worktree;
+		const { checkoutRoot, repositoryRoot, worktreePath, branchName, baseBranch, gitLfsPointerFiles } = worktree;
 		const worktreeIncludeFiles = readStringArray(config?.[SessionConfigKey.WorktreeIncludeFiles]);
 		const worktreeSymlinkFolders = readStringArray(config?.[SessionConfigKey.WorktreeSymlinkFolders]);
 		let createdSymlinkFolders: readonly string[] = [];
@@ -1347,7 +1403,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		try {
 			await this._writeWorktreeMetadata(
 				sessionUri,
-				{ repositoryRoot, worktreePath, baseBranch, branchName },
+				{ repositoryRoot, worktreePath, baseBranch, branchName, gitLfsPointerFiles },
 				{ sourceRoot: checkoutRoot, patterns: worktreeSymlinkFolders ?? [] },
 			);
 		} catch (error) {
@@ -1413,7 +1469,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				repositoryRoot: meta.repositoryRoot,
 				symlinkPatterns: meta.symlinkPatterns,
 				symlinkSourceRoot: meta.symlinkSourceRoot,
-			});
+			}, sessionUri);
 			if (recreated.ok) {
 				this._logService.info(`[${this._logLabel}:${sessionId}] Recreated missing worktree '${meta.worktreePath.fsPath}' for a live session on resume`);
 				return meta.worktreePath;
@@ -1612,6 +1668,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				[WORKTREE_META_PATH]: metadata.worktreePath.toString(),
 				[WORKTREE_META_REPOSITORY_ROOT]: metadata.repositoryRoot.toString(),
 				...(baseBranch ? { [META_DIFF_BASE_BRANCH]: baseBranch } : {}),
+				...(metadata.gitLfsPointerFiles ? { [WORKTREE_META_GIT_LFS_POINTER_FILES]: 'true' } : {}),
 				...(metadata.symlinkPatterns && metadata.symlinkSourceRoot ? {
 					[WORKTREE_META_SYMLINK_PATTERNS]: JSON.stringify(metadata.symlinkPatterns),
 					[WORKTREE_META_SYMLINK_SOURCE_ROOT]: metadata.symlinkSourceRoot.toString(),
@@ -1704,6 +1761,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		await this.removeSessionWorktree(sessionId, worktree);
 		const keys = [
 			WORKTREE_META_BRANCH,
+			WORKTREE_META_MANAGED_CLEANUP,
 			WORKTREE_META_PATH,
 			WORKTREE_META_REPOSITORY_ROOT,
 			WORKTREE_META_SYMLINK_PATTERNS,
@@ -1742,8 +1800,9 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	}
 
 	async readSessionWorktreeForRemoval(sessionUri: URI, options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> {
-		const values = await this._sessionStateStore.readWithoutImport(sessionUri, [WORKTREE_META_BRANCH, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT, LEGACY_WORKTREE_META_WORKING_DIRECTORY]);
-		return recordedWorktree(values.get(WORKTREE_META_BRANCH), values.get(WORKTREE_META_PATH) ?? values.get(LEGACY_WORKTREE_META_WORKING_DIRECTORY), values.get(WORKTREE_META_REPOSITORY_ROOT))
+		const values = await this._sessionStateStore.readWithoutImport(sessionUri, [WORKTREE_META_BRANCH, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT, LEGACY_WORKTREE_META_WORKING_DIRECTORY, WORKTREE_META_MANAGED_CLEANUP]);
+		const recorded = recordedWorktree(values.get(WORKTREE_META_BRANCH), values.get(WORKTREE_META_PATH) ?? values.get(LEGACY_WORKTREE_META_WORKING_DIRECTORY), values.get(WORKTREE_META_REPOSITORY_ROOT));
+		return (recorded && values.get(WORKTREE_META_MANAGED_CLEANUP) === 'true' ? { ...recorded, managedCleanup: true } : recorded)
 			?? (options?.includeUnpersisted ? this._knownWorktree(AgentSession.id(sessionUri)) : undefined);
 	}
 
@@ -1759,8 +1818,16 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		return worktree && { worktree: worktree.worktree, repositoryRoot: worktree.repositoryRoot, branchName: this._materializedWorktrees.get(key)?.branchName ?? '' };
 	}
 
-	async removeRecordedWorktree(key: string, recorded: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome> {
+	async removeRecordedWorktree(key: string, recorded: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>, discardChanges = false): Promise<WorktreeRemovalOutcome> {
 		const { worktree, branchName } = recorded;
+		if (discardChanges) {
+			if (canRemove && !await canRemove()) {
+				return 'inUse';
+			}
+			await this._gitService.removeWorktree(recorded.repositoryRoot, worktree, { force: true, discardChanges: true });
+			this._forgetRemovedWorktree(key);
+			return 'removed';
+		}
 		if (!await fileExists(worktree.fsPath)) {
 			// Prune its registration, so the branch is free and unarchive can recreate the folder.
 			if (await fileExists(recorded.repositoryRoot.fsPath)) {
@@ -1795,7 +1862,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			}
 			if (mode === 'commit') {
 				if (await this._gitService.hasUncommittedChanges(worktree).catch(() => true)) {
-					await this._gitService.commitAll(worktree, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"));
+					if (canRemove && !await canRemove()) {
+						return 'inUse';
+					}
+					// This commit only preserves work, so it must not prompt for a signing passphrase in the background.
+					await this._gitService.commit(worktree, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"), { all: true, noVerify: true, signCommit: false });
 				}
 			} else if (!await this._isBranchUpToDateWithRemote(worktree, branchName, key)) {
 				return 'skipped';
@@ -1869,11 +1940,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				repositoryRoot,
 				symlinkPatterns: meta.symlinkPatterns,
 				symlinkSourceRoot: meta.symlinkSourceRoot,
-			});
+			}, sessionUri);
 		});
 	}
 
-	private async _recreateWorktree(sessionId: string, meta: { readonly branchName: string; readonly worktreePath: URI; readonly repositoryRoot: URI; readonly symlinkPatterns?: readonly string[]; readonly symlinkSourceRoot?: URI }): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }> {
+	/** Re-adds a worktree for its branch; `metadataResource`, when given, records whether the new checkout has Git LFS pointer files. */
+	private async _recreateWorktree(sessionId: string, meta: { readonly branchName: string; readonly worktreePath: URI; readonly repositoryRoot: URI; readonly symlinkPatterns?: readonly string[]; readonly symlinkSourceRoot?: URI }, metadataResource?: URI): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }> {
 		const { branchName, worktreePath, repositoryRoot, symlinkPatterns, symlinkSourceRoot } = meta;
 		const branchPresent = await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false);
 		if (!branchPresent) {
@@ -1883,7 +1955,14 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 		try {
 			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
-			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
+			const { gitLfsPointerFiles } = await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
+			if (metadataResource) {
+				try {
+					await this._writeMetadata(metadataResource, { [WORKTREE_META_GIT_LFS_POINTER_FILES]: gitLfsPointerFiles ? 'true' : null }, SessionStateMirrorFlush.Immediate);
+				} catch (error) {
+					this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to persist Git LFS state of recreated worktree '${worktreePath.fsPath}': ${errorMessage(error)}`);
+				}
+			}
 			if (symlinkSourceRoot && symlinkPatterns?.length) {
 				try {
 					await this._gitService.symlinkWorktreeFolders(symlinkSourceRoot, worktreePath, symlinkPatterns, sessionId);
@@ -1936,7 +2015,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * gone (resume recreates it) and when it still exists but the predecessor recorded
 	 * a base branch that could not otherwise be recovered without a remote (#333642).
 	 */
-	async recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void> {
+	async recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI; readonly managedCleanup?: boolean }): Promise<void> {
 		this._logService.info(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Recorded adopted worktree metadata: worktree='${metadata.worktreePath.fsPath}' branch='${metadata.branchName}' base='${metadata.baseBranch ?? '(none)'}' repo='${metadata.repositoryRoot.fsPath}'`);
 		await this._writeWorktreeMetadata(sessionUri, metadata);
 	}
@@ -1977,7 +2056,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
 			return undefined;
 		}
-		const baseBranch = (await this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined))?.name;
+		// The base is the default branch's upstream when it has one, like the base a new worktree records.
+		const baseBranch = await resolveDefaultBaseBranchRef(this._gitService, primaryRoot, undefined).catch(() => undefined);
 		return { worktreeRoot, primaryRoot, baseBranch };
 	}
 
@@ -2024,8 +2104,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		} : undefined;
 	}
 
-	private _getGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
-		const key = workingDirectory.toString();
+	private _getGitInfo(workingDirectory: URI, resolveDefaultBranch: boolean): Promise<IIsolationGitInfo | undefined> {
+		const key = JSON.stringify([workingDirectory.toString(), resolveDefaultBranch]);
 		const pending = this._pendingGitInfo.get(key);
 		if (pending) {
 			return pending;
@@ -2033,30 +2113,31 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		// Overlapping callers share one best-effort read, including changes made
 		// while it is in flight. Once settled, the next caller reads Git afresh.
-		const request = this._readGitInfo(workingDirectory)
+		const request = this._readGitInfo(workingDirectory, resolveDefaultBranch)
 			.finally(() => this._pendingGitInfo.delete(key));
 		this._pendingGitInfo.set(key, request);
 
 		return request;
 	}
 
-	private async _readGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
+	private async _readGitInfo(workingDirectory: URI, resolveDefaultBranch: boolean): Promise<IIsolationGitInfo | undefined> {
 		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
 		if (!repositoryRoot) {
 			return undefined;
 		}
 
 		const [headRef, defaultBranch] = await Promise.all([
-			this._gitService.getHEAD(repositoryRoot),
-			this._gitService.getDefaultBranch2(repositoryRoot),
+			this._gitService.getHEAD(repositoryRoot, { nameOnly: !resolveDefaultBranch }),
+			resolveDefaultBranch ? this._gitService.getDefaultBranch2(repositoryRoot) : undefined,
 		]);
 
-		// getHEAD only returns an existing ref or commit, so an unborn HEAD cannot offer worktree isolation.
 		if (!headRef) {
-			return undefined;
+			// Unborn branches use a working-tree snapshot when creating the isolated worktree.
+			const headName = await this._gitService.getCurrentBranch(repositoryRoot);
+			return headName ? { headName, defaultBranch: undefined } : undefined;
 		}
 
-		return { headRef, defaultBranch };
+		return { headName: headRef.name, defaultBranch };
 	}
 
 	/**
@@ -2085,13 +2166,15 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 	private async _writeWorktreeMetadata(
 		sessionUri: URI,
-		metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI },
+		metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI; managedCleanup?: boolean; gitLfsPointerFiles?: boolean },
 		symlinkSetup?: { readonly sourceRoot: URI; readonly patterns: readonly string[] },
 	): Promise<void> {
 		const values: Record<string, string | null> = {
 			[WORKTREE_META_BRANCH]: metadata.branchName,
 			[WORKTREE_META_PATH]: metadata.worktreePath.toString(),
 			[WORKTREE_META_REPOSITORY_ROOT]: metadata.repositoryRoot.toString(),
+			[WORKTREE_META_GIT_LFS_POINTER_FILES]: metadata.gitLfsPointerFiles ? 'true' : null,
+			...(metadata.managedCleanup ? { [WORKTREE_META_MANAGED_CLEANUP]: 'true' } : {}),
 		};
 		if (metadata.baseBranch) {
 			values[META_DIFF_BASE_BRANCH] = metadata.baseBranch;
@@ -2182,6 +2265,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async resolveForWorkspaceConversion(_request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> { return undefined; }
 	async createDetachedWorktree(_request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }> { throw new Error('Worktree isolation is not supported.'); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { }
+	async getDetachedWorktreePaths(): Promise<readonly URI[]> { return []; }
 	async markDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<boolean> { return false; }
 	async recreateDetachedWorktreeOnUnarchive(_handle: string): Promise<void> { }
 	async canAutomaticallyDeleteDetachedWorktree(_handle: string): Promise<boolean> { return true; }
@@ -2328,25 +2412,29 @@ export async function readPersistedWorktreeMetadata(source: WorktreeMetadataSour
 export async function applySavedWorktreeAnnouncement(source: WorktreeMetadataSource, sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
 	const notice = await readPersistedWorktreeNotice(source, sessionUri).catch(() => undefined);
 	if (notice?.kind === 'failure') {
-		return prependWorktreeFailureToFirstTurn(turns, notice.diagnostic);
+		return prependPartsToFirstTurn(turns, [buildWorktreeFailureNotification(notice.diagnostic)]);
 	}
 	if (notice?.kind !== 'success') {
 		return turns;
 	}
-	return prependAnnouncementToFirstTurn(turns, buildWorktreeAnnouncementText(notice.branchName));
+	const announcement = buildWorktreeAnnouncementText(notice.branchName);
+	if (notice.gitLfsPointerFiles) {
+		return prependPartsToFirstTurn(turns, [{ kind: ResponsePartKind.Markdown, id: generateUuid(), content: announcement }, buildWorktreeGitLfsNotification()]);
+	}
+	return prependAnnouncementToFirstTurn(turns, announcement);
 }
 
-async function readPersistedWorktreeNotice(source: WorktreeMetadataSource, sessionUri: URI): Promise<{ kind: 'success'; branchName: string } | { kind: 'failure'; diagnostic?: string } | undefined> {
+async function readPersistedWorktreeNotice(source: WorktreeMetadataSource, sessionUri: URI): Promise<{ kind: 'success'; branchName: string; gitLfsPointerFiles: boolean } | { kind: 'failure'; diagnostic?: string } | undefined> {
 	const opened = await source(sessionUri);
 	if (!opened) {
 		return undefined;
 	}
 	try {
-		const values = await opened.reader.getMetadataObject({ [WORKTREE_META_BRANCH]: true, [WORKTREE_META_CREATION_FAILURE]: true });
+		const values = await opened.reader.getMetadataObject({ [WORKTREE_META_BRANCH]: true, [WORKTREE_META_CREATION_FAILURE]: true, [WORKTREE_META_GIT_LFS_POINTER_FILES]: true });
 		const branchName = values[WORKTREE_META_BRANCH];
 		const failureRaw = values[WORKTREE_META_CREATION_FAILURE];
 		if (branchName) {
-			return { kind: 'success', branchName };
+			return { kind: 'success', branchName, gitLfsPointerFiles: values[WORKTREE_META_GIT_LFS_POINTER_FILES] === 'true' };
 		}
 		if (!failureRaw) {
 			return undefined;
@@ -2368,15 +2456,20 @@ async function readPersistedWorktreeNotice(source: WorktreeMetadataSource, sessi
 	}
 }
 
-async function readWorktreeMetadataValues(reader: WorktreeMetadataReader, sessionUri: URI, logService: ILogService): Promise<IWorktreeMetadata | undefined> {
-	const values = await reader.getMetadataObject({
+function readWorktreeMetadataFields(reader: WorktreeMetadataReader) {
+	return reader.getMetadataObject({
 		[WORKTREE_META_BRANCH]: true,
 		[WORKTREE_META_PATH]: true,
 		[WORKTREE_META_REPOSITORY_ROOT]: true,
 		[WORKTREE_META_SYMLINK_PATTERNS]: true,
 		[WORKTREE_META_SYMLINK_SOURCE_ROOT]: true,
+		[WORKTREE_META_GIT_LFS_POINTER_FILES]: true,
 		[LEGACY_WORKTREE_META_WORKING_DIRECTORY]: true,
 	});
+}
+
+async function readWorktreeMetadataValues(reader: WorktreeMetadataReader, sessionUri: URI, logService: ILogService): Promise<IWorktreeMetadata | undefined> {
+	const values = await readWorktreeMetadataFields(reader);
 	const branchName = values[WORKTREE_META_BRANCH];
 	const worktreePathRaw = values[WORKTREE_META_PATH];
 	const repositoryRootRaw = values[WORKTREE_META_REPOSITORY_ROOT];
@@ -2407,5 +2500,8 @@ async function readWorktreeMetadataValues(reader: WorktreeMetadataReader, sessio
 			logService.warn(`[WorktreeIsolation] Failed to read worktree symlink metadata for '${sessionUri.toString()}': ${errorMessage(error)}`);
 		}
 	}
-	return { branchName, worktreePath, repositoryRoot, symlinkPatterns, symlinkSourceRoot };
+	return {
+		branchName, worktreePath, repositoryRoot, symlinkPatterns, symlinkSourceRoot,
+		...(values[WORKTREE_META_GIT_LFS_POINTER_FILES] === 'true' ? { gitLfsPointerFiles: true } : {}),
+	};
 }

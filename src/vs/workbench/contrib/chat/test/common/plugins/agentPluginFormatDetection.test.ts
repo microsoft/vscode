@@ -32,6 +32,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
  * allowing format detection and content reading to be tested in isolation.
  */
 class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
+	protected readonly _discoveryKind = 'configured';
 	private _sources: URI[] = [];
 	private _remove: (() => Promise<boolean>) | undefined = async () => true;
 	private _nextDiscoveryBarrier: Promise<void> | undefined;
@@ -436,6 +437,28 @@ suite('AgentPlugin format detection', () => {
 			hooks: ['PostToolUse'],
 			instructions: ['project'],
 		});
+	}));
+
+	test('discovers an Agent Plugin containing only userPromptTransformed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/prompt-transform');
+		await writeFile('/plugins/prompt-transform/plugin.json', JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA,
+			name: 'prompt-transform',
+			extensions: { 'com.github.copilot': {} },
+		}));
+		await writeFile('/plugins/prompt-transform/com.github.copilot/hooks/hooks.json', JSON.stringify({
+			hooks: { userPromptTransformed: [{ type: 'command', command: 'echo context' }] },
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		await waitForState(plugin.hooks, hooks => hooks.length > 0);
+		assert.deepStrictEqual(plugin.hooks.get().map(hook => ({ type: hook.type, originalId: hook.originalId })), [
+			{ type: 'UserPromptTransformed', originalId: 'userPromptTransformed' },
+		]);
 	}));
 
 	test('recognized Agent Plugin without a name uses the directory label without legacy fallback', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

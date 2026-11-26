@@ -5,7 +5,6 @@
 import { detectLanguage } from './language/languageDetection';
 import { normalizeUri } from './util/uri';
 import { TextEdit } from '../../types/src';
-import { TextDocumentContentChangeEvent } from 'vscode-languageserver-protocol';
 import { TextDocument as LspTextDocument } from 'vscode-languageserver-textdocument';
 import { Position, Range, SelectedCompletionInfo } from 'vscode-languageserver-types';
 
@@ -197,21 +196,6 @@ export class CopilotTextDocument implements ITextDocument {
 		private readonly _textDocument: LspTextDocument,
 		readonly detectedLanguageId: string
 	) { }
-
-	/**
-	 * Return a copy of a document with a new version number and changes applied. Used when a document is changed
-	 * canonically (e.g., synced via textDocument/didChange).
-	 */
-	static withChanges(textDocument: ITextDocument, changes: TextDocumentContentChangeEvent[], version: number) {
-		const lspDoc = LspTextDocument.create(
-			textDocument.clientUri,
-			textDocument.clientLanguageId,
-			version,
-			textDocument.getText()
-		);
-		LspTextDocument.update(lspDoc, changes, version);
-		return new CopilotTextDocument(textDocument.uri, lspDoc, textDocument.detectedLanguageId);
-	}
 
 	/**
 	 * Return a copy of a document with the same version number and edits applied.
