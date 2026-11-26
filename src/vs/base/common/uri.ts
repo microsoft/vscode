@@ -538,7 +538,7 @@ const encodeTable: { [ch: number]: string } = {
 	[CharCode.Space]: '%20',
 };
 
-// The characters `encodeURIComponentFast` leaves unchanged in a path
+// Matches any character that `encodeURIComponentFast` changes in a path
 const pathCharsToEncode = /[^\w.~/-]/;
 
 function encodeURIComponentFast(uriComponent: string, isPath: boolean, isAuthority: boolean): string {
