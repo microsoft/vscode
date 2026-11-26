@@ -112,4 +112,22 @@ suite('CompositeBarActionViewItem', () => {
 			assert.deepStrictEqual(numberState(), initialNumberState);
 		});
 	}
+
+	test('keeps the descriptions of number badges in the label while an icon badge is shown', () => {
+		const container = append(workbench, $('li.action-item'));
+		const action = store.add(new CompositeBarAction({ id: 'testing', name: 'Explorer' }));
+		const viewItem = store.add(workbenchInstantiationService(undefined, store).createInstance(CompositeBarActionViewItem, action, {
+			icon: true,
+			colors: () => ({}),
+			hoverOptions: { position: () => HoverPosition.RIGHT },
+		}, () => true));
+		viewItem.render(container);
+
+		action.activities = [
+			{ badge: new NumberBadge(2, () => '2 unsaved files') },
+			{ badge: new IconBadge(spinningLoading, () => `'project' is open at feature-x`) }
+		];
+
+		assert.strictEqual(container.getAttribute('aria-label'), `Explorer - 'project' is open at feature-x - 2 unsaved files`);
+	});
 });

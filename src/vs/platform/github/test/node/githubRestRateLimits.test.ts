@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -14,11 +16,12 @@ import { GitHubService } from '../../common/githubService.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
 import { FakeScheduler } from './fakeScheduler.js';
 
+
 suite('GitHub REST rate limits', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const origin = 'https://github.example.test';
 	const account = { host: 'github.example.test', accountId: '101' };
-	const signal = () => new AbortController().signal;
+	const cancellationToken = () => CancellationToken.None;
 	const headers = (resource: string) => ({
 		'x-ratelimit-resource': resource, 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1060',
 	});
@@ -89,14 +92,14 @@ suite('GitHub REST rate limits', () => {
 					calls.push({ path: target.pathname + target.search, at: scheduler.now() });
 					return calls.length === 1 ? Response.json({}, { status, headers: headers(family.resource) }) : Response.json({});
 				}, scheduler));
-				const first = transport.rest(account, 'token', { method: 'GET', url: origin + family.first }, signal());
+				const first = transport.rest(account, 'token', { method: 'GET', url: origin + family.first }, cancellationToken());
 				if (status === 200) {
 					await first;
 				} else {
 					await assert.rejects(first, { kind: status === 403 ? 'rateLimit' : 'server' });
 				}
-				await transport.rest(account, 'token', { method: 'GET', url: origin + family.independent }, signal());
-				const pending = transport.rest(account, 'token', { method: 'GET', url: origin + family.next }, signal());
+				await transport.rest(account, 'token', { method: 'GET', url: origin + family.independent }, cancellationToken());
+				const pending = transport.rest(account, 'token', { method: 'GET', url: origin + family.next }, cancellationToken());
 				scheduler.advanceBy(59_999);
 				await Promise.resolve();
 				const beforeReset = calls.length;
@@ -119,7 +122,7 @@ suite('GitHub REST rate limits', () => {
 					calls.push(scheduler.now());
 					return calls.length === 1 ? Response.json({}, { status, headers: headers(resource) }) : Response.json({ data: {} });
 				}, scheduler));
-				const first = transport.rest(account, 'token', { method: 'GET', url: `${origin}/custom` }, signal());
+				const first = transport.rest(account, 'token', { method: 'GET', url: `${origin}/custom` }, cancellationToken());
 				if (status === 200) {
 					await first;
 				} else {
@@ -129,11 +132,11 @@ suite('GitHub REST rate limits', () => {
 				transport.rateLimits.updateFromResponse(account, new Response(null, {
 					headers: { ...headers('different_resource'), 'x-ratelimit-remaining': '4999' },
 				}), undefined, 'core');
-				await transport.graphql(account, 'token', `${origin}/graphql`, 'query { viewer { login } }', {}, signal());
-				await transport.rest({ ...account, accountId: '202' }, 'peer', { method: 'GET', url: `${origin}/custom` }, signal());
-				await transport.rest({ ...account, host: 'other.example.test' }, 'other', { method: 'GET', url: 'https://other.example.test/custom' }, signal());
+				await transport.graphql(account, 'token', `${origin}/graphql`, 'query { viewer { login } }', {}, cancellationToken());
+				await transport.rest({ ...account, accountId: '202' }, 'peer', { method: 'GET', url: `${origin}/custom` }, cancellationToken());
+				await transport.rest({ ...account, host: 'other.example.test' }, 'other', { method: 'GET', url: 'https://other.example.test/custom' }, cancellationToken());
 				const pending = ['/repos/o/r/issues/1', '/repos/o/r/check-runs/1', '/search/code', '/search/issues?search_type=semantic'].map(path =>
-					transport.rest(account, 'token', { method: 'GET', url: origin + path }, signal()));
+					transport.rest(account, 'token', { method: 'GET', url: origin + path }, cancellationToken()));
 				scheduler.advanceBy(59_999);
 				await Promise.resolve();
 				const beforeReset = calls.length;
@@ -169,12 +172,12 @@ suite('GitHub REST rate limits', () => {
 				return Response.json({});
 			}));
 			try {
-				await transport.rest(account, 'token', { method: 'GET', url: `${origin}/first` }, signal());
+				await transport.rest(account, 'token', { method: 'GET', url: `${origin}/first` }, cancellationToken());
 				await timeout(60_000);
-				await transport.rest(account, 'token', { method: 'GET', url: `${origin}/second` }, signal());
+				await transport.rest(account, 'token', { method: 'GET', url: `${origin}/second` }, cancellationToken());
 				const next = transport.rest(account, 'token', {
 					method: 'GET', url: `${origin}/after`, deadline: Date.now() + 100,
-				}, signal());
+				}, cancellationToken());
 				if (remaining === '0') {
 					await assert.rejects(next, { kind: 'timeout' });
 				} else {
@@ -198,11 +201,11 @@ suite('GitHub REST rate limits', () => {
 			return Response.json({}, { status: 403, headers: headers('custom_resource') });
 		}, scheduler));
 		const request = { method: 'GET' as const, url: `${origin}/custom` };
-		await assert.rejects(transport.rest(account, 'token', request, signal()), { kind: 'rateLimit' });
-		const controller = new AbortController();
-		const cancelled = assert.rejects(transport.rest(account, 'token', { ...request, url: `${origin}/search/code` }, controller.signal), /cancelled/);
-		const expired = assert.rejects(transport.rest(account, 'token', { ...request, deadline: scheduler.now() + 100 }, signal()), { kind: 'timeout' });
-		controller.abort(new Error('cancelled'));
+		await assert.rejects(transport.rest(account, 'token', request, cancellationToken()), { kind: 'rateLimit' });
+		const controller = store.add(new CancellationTokenSource());
+		const cancelled = assert.rejects(transport.rest(account, 'token', { ...request, url: `${origin}/search/code` }, controller.token), isCancellationError);
+		const expired = assert.rejects(transport.rest(account, 'token', { ...request, deadline: scheduler.now() + 100 }, cancellationToken()), { kind: 'timeout' });
+		controller.cancel();
 		scheduler.advanceBy(100);
 		await Promise.all([cancelled, expired]);
 		assert.deepStrictEqual({ calls, timers: scheduler.pendingCount }, { calls: 1, timers: 0 });
@@ -216,8 +219,8 @@ suite('GitHub REST rate limits', () => {
 				calls++;
 				return Response.json({}, { headers: { ...headers('custom_resource'), 'x-ratelimit-remaining': remaining, 'retry-after': '-1' } });
 			}, scheduler));
-			await transport.rest(account, 'token', { method: 'GET', url: `${origin}/custom` }, signal());
-			await transport.rest(account, 'token', { method: 'GET', url: `${origin}/search/code` }, signal());
+			await transport.rest(account, 'token', { method: 'GET', url: `${origin}/custom` }, cancellationToken());
+			await transport.rest(account, 'token', { method: 'GET', url: `${origin}/search/code` }, cancellationToken());
 			assert.deepStrictEqual({ calls, delay: transport.rateLimits.getRequestDelay(account, 'core'), timers: scheduler.pendingCount }, { calls: 2, delay: 0, timers: 0 });
 		});
 	}
@@ -243,10 +246,10 @@ suite('GitHub REST rate limits', () => {
 				const first = store.add(service.acquireBootstrapClient({ ...options, token: 'first' }));
 				const peer = store.add(service.acquireBootstrapClient({ ...options, token: 'peer' }));
 				const firstRejected = Promise.all(Array.from({ length: 8 }, (_, index) =>
-					assert.rejects(first.object.get(`/repos/o/r/check-runs/${index + 1}`, signal()), { kind: 'rateLimit' })));
+					assert.rejects(first.object.get(`/repos/o/r/check-runs/${index + 1}`, cancellationToken()), { kind: 'rateLimit' })));
 				await started.p;
 				await timeout(0);
-				const peerRejected = assert.rejects(peer.object.get('/repos/other/repo/check-suites/2', signal(), {
+				const peerRejected = assert.rejects(peer.object.get('/repos/other/repo/check-suites/2', cancellationToken(), {
 					deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time),
 				}), { kind: 'rateLimit', statusCode: 429 });
 				await response.complete();
@@ -254,7 +257,7 @@ suite('GitHub REST rate limits', () => {
 				first.dispose();
 				peer.dispose();
 				const replacement = store.add(service.acquireBootstrapClient({ apiBaseUri: origin, accountId: account.accountId, token: 'replacement' })).object;
-				await assert.rejects(replacement.get('/repos/o/r/check-runs/3', signal(), { deadline: Date.now() + 100 }), { kind: 'rateLimit', statusCode: 429 });
+				await assert.rejects(replacement.get('/repos/o/r/check-runs/3', cancellationToken(), { deadline: Date.now() + 100 }), { kind: 'rateLimit', statusCode: 429 });
 				assert.deepStrictEqual({ calls, notified: blockedUntil.some(time => time > Date.now()) }, { calls: 8, notified: true });
 			}));
 		}
@@ -271,10 +274,10 @@ suite('GitHub REST rate limits', () => {
 					? new Response(null, { status: 302, headers: { Location: '/repos/o/r/check-runs/2' } })
 					: Response.json({}, { status: 403, headers: headers('checks') });
 			}, scheduler));
-			await assert.rejects(transport.rest(account, 'token', { method: 'GET', url: `${origin}/repos/o/r/check-runs/1` }, signal()), { kind: 'rateLimit' });
+			await assert.rejects(transport.rest(account, 'token', { method: 'GET', url: `${origin}/repos/o/r/check-runs/1` }, cancellationToken()), { kind: 'rateLimit' });
 			const request = kind === 'REST'
-				? transport.rest(account, 'token', { method: 'GET', url: `${origin}/alias` }, signal())
-				: transport.download(account, 'token', { url: `${origin}/alias`, maximumBytes: 100, timeout: 1_000 }, signal());
+				? transport.rest(account, 'token', { method: 'GET', url: `${origin}/alias` }, cancellationToken())
+				: transport.download(account, 'token', { url: `${origin}/alias`, maximumBytes: 100, timeout: 1_000 }, cancellationToken());
 			await assert.rejects(request, { kind: 'rateLimit' });
 			assert.deepStrictEqual({ paths, timers: scheduler.pendingCount }, { paths: ['/repos/o/r/check-runs/1', '/alias'], timers: 0 });
 		});
@@ -290,9 +293,9 @@ suite('GitHub REST rate limits', () => {
 				? new Response(null, { status: 302, headers: { Location: '/repos/o/r/check-runs/1' } })
 				: path.endsWith('/2') ? Response.json({}, { status: 403, headers: headers('checks') }) : Response.json({});
 		}, scheduler));
-		await transport.rest(account, 'token', { method: 'GET', url: `${origin}/alias` }, signal());
-		await assert.rejects(transport.rest(account, 'token', { method: 'GET', url: `${origin}/repos/o/r/check-runs/2` }, signal()), { kind: 'rateLimit' });
-		const rejected = assert.rejects(transport.rest(account, 'token', { method: 'GET', url: `${origin}/alias`, deadline: scheduler.now() + 100 }, signal()), { kind: 'timeout' });
+		await transport.rest(account, 'token', { method: 'GET', url: `${origin}/alias` }, cancellationToken());
+		await assert.rejects(transport.rest(account, 'token', { method: 'GET', url: `${origin}/repos/o/r/check-runs/2` }, cancellationToken()), { kind: 'rateLimit' });
+		const rejected = assert.rejects(transport.rest(account, 'token', { method: 'GET', url: `${origin}/alias`, deadline: scheduler.now() + 100 }, cancellationToken()), { kind: 'timeout' });
 		scheduler.advanceBy(100);
 		await rejected;
 		assert.deepStrictEqual({ paths, timers: scheduler.pendingCount }, { paths: ['/alias', '/repos/o/r/check-runs/1', '/repos/o/r/check-runs/2'], timers: 0 });

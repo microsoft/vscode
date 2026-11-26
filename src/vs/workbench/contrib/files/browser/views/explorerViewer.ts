@@ -52,7 +52,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { IExplorerService } from '../files.js';
-import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from '../fileImportExport.js';
+import { BrowserFileUpload, canMergeFolders, confirmMergeOrReplace, ExternalFileImport, FolderConflictChoice, getMergeFileEdits, getMultipleFilesOverwriteConfirm } from '../fileImportExport.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { WebFileSystemAccess } from '../../../../../platform/files/browser/webFileSystemAccess.js';
 import { IgnoreFile } from '../../../../services/search/common/ignoreFile.js';
@@ -1968,7 +1968,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 
 		// Do not allow moving readonly items
-		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
+		const movableSources = sources.filter(source => !source.isReadonly);
+		const resourceFileEdits = movableSources.map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
 		const labelSuffix = getFileOrFolderLabelSuffix(sources);
 		const options = {
 			confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
@@ -1984,16 +1985,27 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
 
 				const overwrites: URI[] = [];
+				let canMerge = false;
 				for (const edit of resourceFileEdits) {
-					if (edit.newResource && await this.fileService.exists(edit.newResource)) {
+					if (edit.oldResource && edit.newResource && await this.fileService.exists(edit.newResource)) {
 						overwrites.push(edit.newResource);
+						canMerge ||= await canMergeFolders(this.fileService, edit.oldResource, edit.newResource);
 					}
 				}
 
-				// Move with overwrite if the user confirms
-				const confirm = getMultipleFilesOverwriteConfirm(overwrites);
-				const { confirmed } = await this.dialogService.confirm(confirm);
-				if (confirmed) {
+				// Ask to merge folders that already exist or to replace them
+				let choice: FolderConflictChoice;
+				if (canMerge) {
+					choice = await confirmMergeOrReplace(this.dialogService, overwrites);
+				} else {
+					const { confirmed } = await this.dialogService.confirm(getMultipleFilesOverwriteConfirm(overwrites));
+					choice = confirmed ? FolderConflictChoice.Replace : FolderConflictChoice.Cancel;
+				}
+
+				if (choice === FolderConflictChoice.Merge) {
+					const mergeFileEdits = await getMergeFileEdits(this.fileService, movableSources.map(source => source.resource), target.resource, false);
+					await this.explorerService.applyBulkEdit(mergeFileEdits, options);
+				} else if (choice === FolderConflictChoice.Replace) {
 					await this.explorerService.applyBulkEdit(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
 				}
 			}

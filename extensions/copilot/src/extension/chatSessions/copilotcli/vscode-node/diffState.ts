@@ -77,10 +77,6 @@ export class DiffStateManager {
 		return undefined;
 	}
 
-	hasActiveDiffs(): boolean {
-		return this._activeDiffs.size > 0;
-	}
-
 	closeAllForSession(sessionId: string): void {
 		const toClose: ActiveDiff[] = [];
 		for (const diff of this._activeDiffs.values()) {

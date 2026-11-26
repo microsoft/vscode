@@ -21,7 +21,8 @@ import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, Change
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../../services/sessions/common/session.js';
+import { AgentHostBaseBranchSelection } from './agentHostBaseBranchSelection.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { AgentHostPullRequestCreation } from './agentHostPullRequestCreation.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
@@ -181,7 +182,7 @@ export function createChatChangesets(
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
 	currentTurnChanges?: IObservable<IAgentHostCurrentTurnChanges | undefined>,
-	defaultChangesetKind: DefaultChangesetKind | undefined = options.defaultChangesetKind,
+	defaultChangesetKindObs: IObservable<DefaultChangesetKind | undefined> = constObservable(options.defaultChangesetKind),
 ): IObservable<readonly ISessionChangeset[] | undefined> {
 	const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 		options,
@@ -199,6 +200,7 @@ export function createChatChangesets(
 	let lastSessionCatalogue: readonly Changeset[] | undefined;
 	let lastChatUri: URI | undefined;
 	let lastDefaultChatUri: string | undefined;
+	let lastDefaultChangesetKind: DefaultChangesetKind | undefined;
 	let lastChangesets: readonly ISessionChangeset[] | undefined;
 	const currentTurnFileChanges = currentTurnChanges
 		? derived(reader => currentTurnChanges.read(reader)?.changes)
@@ -211,7 +213,8 @@ export function createChatChangesets(
 			return undefined;
 		}
 		const defaultChatUri = sessionState?.defaultChat;
-		if (isEqual(chatUri, lastChatUri) && defaultChatUri === lastDefaultChatUri
+		const defaultChangesetKind = defaultChangesetKindObs.read(reader);
+		if (isEqual(chatUri, lastChatUri) && defaultChatUri === lastDefaultChatUri && defaultChangesetKind === lastDefaultChangesetKind
 			&& chatState.changesets === lastChatCatalogue && sessionState?.changesets === lastSessionCatalogue && lastChangesets !== undefined) {
 			return lastChangesets;
 		}
@@ -226,6 +229,7 @@ export function createChatChangesets(
 		lastSessionCatalogue = sessionState?.changesets;
 		lastChatUri = chatUri;
 		lastDefaultChatUri = defaultChatUri;
+		lastDefaultChangesetKind = defaultChangesetKind;
 		lastChangesets = createChangesets(sessionUri, options, isActiveSessionObs, resolvedCatalogue.map(({ changeset, owner }) => ({
 			...changeset,
 			uriTemplate: resolveChangesetUriTemplate((owner === 'session' ? sessionUri : chatUri).toString(), changeset.uriTemplate),
@@ -351,6 +355,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	readonly isLoadingChanges: IObservable<boolean>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	readonly operations: IObservable<readonly ISessionChangesetOperation[]>;
+	readonly baseBranchSelection: IObservable<ISessionChangesetBaseBranchSelection | undefined>;
 
 	readonly capabilities: ISessionChangesetCapabilities;
 
@@ -500,9 +505,15 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			(operationId, metadata) => this._invokeOperation(operationId, undefined, metadata),
 			chat => this._options.getBackendChatResource?.(chat),
 		);
+		const baseBranchSelection = new AgentHostBaseBranchSelection(
+			() => this._options.getConnection(),
+			() => this.channelUriObs.get(),
+			(operationId, metadata) => this._invokeOperation(operationId, undefined, metadata),
+		);
+		this.baseBranchSelection = derived(this, reader => baseBranchSelection.isAvailable(operationsObs.read(reader)) ? baseBranchSelection : undefined);
 		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
 			const locallyRunningOperationCounts = this._locallyRunningOperationCounts.read(reader);
-			return pullRequestCreation.mapOperations(operationsObs.read(reader))
+			return pullRequestCreation.mapOperations(baseBranchSelection.mapOperations(operationsObs.read(reader)))
 				.map(operation => locallyRunningOperationCounts.has(operation.id) && operation.status !== SessionChangesetOperationStatus.Running
 					? { ...operation, status: SessionChangesetOperationStatus.Running }
 					: operation);

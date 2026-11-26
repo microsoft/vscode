@@ -17,17 +17,37 @@ export interface IChatSubmitRequest {
 	readonly input: string;
 }
 
-/** Handler offered a chat input submission before the normal send path. */
+/** What becomes of a submission that the handlers were offered. */
+export enum ChatSubmitRequestOutcome {
+	/** The normal send goes on. */
+	Continue = 'continue',
+	/** A handler handled it: it is not sent, and the input is cleared. */
+	Handled = 'handled',
+	/** A handler stopped it: it is neither sent nor cleared, the input kept as it is. */
+	Cancelled = 'cancelled',
+}
+
+/** The handlers' answer to a submission. */
+export interface IChatSubmitRequestResult {
+	readonly outcome: ChatSubmitRequestOutcome;
+	/**
+	 * Whether a handler held the submission while it waited on something else, such as the user's answer: the chat, its
+	 * input or the draft may have changed meanwhile, which the caller checks before it acts on the outcome.
+	 */
+	readonly held?: boolean;
+}
+
+/** Handler offered a chat input submission before the normal send path: `true` where it handled it, `false` where the send goes on. */
 export interface IChatSubmitRequestHandler {
 	readonly id: string;
-	tryHandle(request: IChatSubmitRequest): Promise<boolean>;
+	tryHandle(request: IChatSubmitRequest): Promise<boolean | IChatSubmitRequestResult>;
 }
 
 /** Registry for provider-specific pre-submit chat handlers. */
 export interface IChatSubmitRequestHandlerService {
 	readonly _serviceBrand: undefined;
 	register(handler: IChatSubmitRequestHandler): IDisposable;
-	tryHandle(request: IChatSubmitRequest): Promise<boolean>;
+	tryHandle(request: IChatSubmitRequest): Promise<IChatSubmitRequestResult>;
 }
 
 /** Default sequential first-match implementation of the submit handler registry. */
@@ -47,12 +67,16 @@ export class ChatSubmitRequestHandlerService implements IChatSubmitRequestHandle
 		});
 	}
 
-	async tryHandle(request: IChatSubmitRequest): Promise<boolean> {
+	async tryHandle(request: IChatSubmitRequest): Promise<IChatSubmitRequestResult> {
+		let held = false;
 		for (const handler of this._handlers) {
-			if (await handler.tryHandle(request)) {
-				return true;
+			const answer = await handler.tryHandle(request);
+			const result = typeof answer === 'boolean' ? { outcome: answer ? ChatSubmitRequestOutcome.Handled : ChatSubmitRequestOutcome.Continue } : answer;
+			held ||= !!result.held;
+			if (result.outcome !== ChatSubmitRequestOutcome.Continue) {
+				return { outcome: result.outcome, held };
 			}
 		}
-		return false;
+		return { outcome: ChatSubmitRequestOutcome.Continue, held };
 	}
 }

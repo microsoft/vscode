@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isSafari } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { cancelResponseBody, parseResponseJson, readBoundedResponse } from '../../common/responseReader.js';
 import { RequestError } from '../../common/types.js';
-import { NullLogService } from '../../../log/common/log.js';
+
 
 suite('Response readers', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,7 +27,7 @@ suite('Response readers', () => {
 			},
 			cancel: () => { cancellations++; },
 		});
-		const result = await readBoundedResponse(new Response(body), 4, new AbortController().signal);
+		const result = await readBoundedResponse(new Response(body), 4, CancellationToken.None);
 		assert.deepStrictEqual({ bytes: [...result.bytes], truncated: result.truncated, cancellations, locked: body.locked }, {
 			bytes: [1, 2, 3, 4], truncated: false, cancellations: 0, locked: isSafari,
 		});
@@ -41,7 +44,7 @@ suite('Response readers', () => {
 				},
 				cancel: () => { cancellations++; },
 			});
-			const result = await readBoundedResponse(new Response(body), limit, new AbortController().signal);
+			const result = await readBoundedResponse(new Response(body), limit, CancellationToken.None);
 			assert.deepStrictEqual({ bytes: [...result.bytes], truncated: result.truncated, cancellations, locked: body.locked }, {
 				bytes: [1, 2, 3].slice(0, limit), truncated: true, cancellations: 1, locked: isSafari,
 			});
@@ -52,7 +55,7 @@ suite('Response readers', () => {
 		// releaseLock() can hang WebKit (regressed by https://bugs.webkit.org/show_bug.cgi?id=309882).
 		const read = async (maximumBytes: number) => {
 			const response = new Response('hello');
-			const { bytes, truncated } = await readBoundedResponse(response, maximumBytes, new AbortController().signal);
+			const { bytes, truncated } = await readBoundedResponse(response, maximumBytes, CancellationToken.None);
 			return { text: new TextDecoder().decode(bytes), truncated, locked: response.body?.locked };
 		};
 		assert.deepStrictEqual([await read(5), await read(2)], [
@@ -62,11 +65,10 @@ suite('Response readers', () => {
 	});
 
 	test('a missing response body is empty unless the caller already cancelled', async () => {
-		const controller = new AbortController();
-		assert.deepStrictEqual(await readBoundedResponse(new Response(null), 0, controller.signal), { bytes: new Uint8Array(), truncated: false });
-		const reason = new Error('Cancelled');
-		controller.abort(reason);
-		await assert.rejects(readBoundedResponse(new Response(null), 0, controller.signal), error => error === reason);
+		const controller = store.add(new CancellationTokenSource());
+		assert.deepStrictEqual(await readBoundedResponse(new Response(null), 0, controller.token), { bytes: new Uint8Array(), truncated: false });
+		controller.cancel();
+		await assert.rejects(readBoundedResponse(new Response(null), 0, controller.token), isCancellationError);
 	});
 
 	test('cancellation settles a stalled read without awaiting stalled body cancellation', async () => {
@@ -74,18 +76,17 @@ suite('Response readers', () => {
 		const body = new ReadableStream<Uint8Array>({
 			cancel: () => { cancellations++; return new Promise<void>(() => { }); },
 		});
-		const controller = new AbortController();
-		const pending = readBoundedResponse(new Response(body), 10, controller.signal);
-		const reason = new Error('Cancelled');
-		controller.abort(reason);
-		await assert.rejects(pending, error => error === reason);
+		const controller = store.add(new CancellationTokenSource());
+		const pending = readBoundedResponse(new Response(body), 10, controller.token);
+		controller.cancel();
+		await assert.rejects(pending, isCancellationError);
 		assert.deepStrictEqual({ cancellations, locked: body.locked }, { cancellations: 1, locked: isSafari });
 	});
 
 	test('read errors propagate without retaining the reader lock outside WebKit', async () => {
 		const error = new Error('Body read failed');
 		const body = new ReadableStream<Uint8Array>({ start: controller => controller.error(error) });
-		await assert.rejects(readBoundedResponse(new Response(body), 10, new AbortController().signal), actual => actual === error);
+		await assert.rejects(readBoundedResponse(new Response(body), 10, CancellationToken.None), actual => actual === error);
 		assert.strictEqual(body.locked, isSafari);
 	});
 

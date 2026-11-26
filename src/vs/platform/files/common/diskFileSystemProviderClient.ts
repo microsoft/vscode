@@ -94,8 +94,8 @@ export class DiskFileSystemProviderClient extends Disposable implements
 
 	//#region File Reading/Writing
 
-	async readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array> {
-		const { buffer } = await this.channel.call('readFile', [resource, opts]) as VSBuffer;
+	async readFile(resource: URI, opts?: IFileAtomicReadOptions, token?: CancellationToken): Promise<Uint8Array> {
+		const { buffer } = await this.channel.call('readFile', [resource, opts], token) as VSBuffer;
 
 		return buffer;
 	}

@@ -113,6 +113,11 @@ suite('DecorationsService', function () {
 			onDidChange: Event.None,
 			provideDecorations: resource => decorationData.get(resource.toString()),
 		});
+		const problems = service.registerDecorationsProvider({
+			label: 'Problems',
+			onDidChange: Event.None,
+			provideDecorations: resource => resource.toString() === textUri.toString() ? { letter: '2', weight: 10 } : undefined,
+		});
 
 		const textDecoration = service.getDecoration(textUri, false)!;
 		const iconDecoration = service.getDecoration(iconUri, false)!;
@@ -120,14 +125,15 @@ suite('DecorationsService', function () {
 		const bubbleDecoration = service.getDecoration(parentUri, true)!;
 
 		assert.deepStrictEqual(
-			[textDecoration.isTextBadge, iconDecoration.isTextBadge, bubbleDecoration.isTextBadge],
-			[true, false, false]
+			[textDecoration, iconDecoration, bubbleDecoration].map(({ isTextBadge, badgeText }) => ({ isTextBadge, badgeText })),
+			[{ isTextBadge: true, badgeText: '2, M' }, { isTextBadge: false, badgeText: undefined }, { isTextBadge: false, badgeText: undefined }]
 		);
 
 		textDecoration.dispose();
 		iconDecoration.dispose();
 		bubbleDecoration.dispose();
 		registration.dispose();
+		problems.dispose();
 	});
 
 	test('Falls back to lower-weight decoration color when a theme color is undefined', function () {

@@ -271,6 +271,11 @@
 	z-index: 10;
 }
 
+/* Compact cards only draw their leading edges, so the Session Activity Bar column owns the separator beside them. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact:not(.hc-black):not(.hc-light) .session-activity-bar-column .session-activity-bar.docked {
+	border-left-color: var(--vscode-agentsPanel-border, transparent);
+}
+
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact.dock-detail-panel .part.auxiliarybar::before {
 	display: none;
 }

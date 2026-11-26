@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Point, SyntaxNode } from 'web-tree-sitter';
+import type { SyntaxNode } from 'web-tree-sitter';
 import { BugIndicatingError } from '../../../util/vs/base/common/errors';
 import { Range, Uri } from '../../../vscodeTypes';
 
@@ -61,11 +61,6 @@ export const TreeSitterOffsetRange = {
 		const end = Math.min(a.endIndex, b.endIndex);
 		return Math.max(end - start, 0);
 	},
-
-	/** Check the given object extends TreeSitterOffsetRange  */
-	isTreeSitterOffsetRange(obj: any): obj is TreeSitterOffsetRange {
-		return typeof obj.startIndex === 'number' && typeof obj.endIndex === 'number';
-	},
 };
 
 export const TreeSitterPoint = {
@@ -79,10 +74,6 @@ export const TreeSitterPoint = {
 			return true;
 		}
 		return false;
-	},
-
-	isAfter(n: TreeSitterPoint, other: TreeSitterPoint): boolean {
-		return TreeSitterPoint.isBefore(other, n);
 	},
 
 	isBeforeOrEqual(n: TreeSitterPoint, other: TreeSitterPoint): boolean {
@@ -101,11 +92,6 @@ export const TreeSitterPoint = {
 	isAfterOrEqual(n: TreeSitterPoint, other: TreeSitterPoint): boolean {
 		return TreeSitterPoint.isBeforeOrEqual(other, n);
 	},
-
-	ofPoint: (n: Point): TreeSitterPoint => ({
-		row: n.row,
-		column: n.column
-	}),
 };
 
 export const TreeSitterPointRange = {
@@ -133,20 +119,6 @@ export const Node = {
 	ofSyntaxNode: (n: SyntaxNode) => ({
 		type: n.type,
 		startIndex: n.startIndex,
-		endIndex: n.endIndex,
-	}),
-};
-
-export interface TreeSitterChunkHeaderInfo extends TreeSitterOffsetRange {
-	text: string;
-	range: TreeSitterPointRange;
-}
-
-export const TreeSitterChunkHeaderInfo = {
-	ofSyntaxNode: (n: SyntaxNode): TreeSitterChunkHeaderInfo => ({
-		range: TreeSitterPointRange.ofSyntaxNode(n),
-		startIndex: n.startIndex,
-		text: n.text,
 		endIndex: n.endIndex,
 	}),
 };

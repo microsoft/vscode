@@ -20,14 +20,16 @@ import { appendUpdateMenuItems as registerUpdateMenuItems } from '../../../../wo
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventType, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventType, findParentWithClass, getDomNodePagePosition, isHTMLElement } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { HoverStyle, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { registerUpdateTitleBarMenuPlacement } from '../../../../workbench/contrib/update/browser/updateTitleBarEntry.js';
 import { ChatEntitlement, ChatEntitlementService, getChatPlanName, getQuotaReset, getQuotaUsage, IChatEntitlementService, IQuotaSnapshot, QuotaUsageKind } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -35,7 +37,7 @@ import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../wo
 import { getCodexRateLimitLabel, getCodexRateLimits } from '../../../../workbench/contrib/chat/browser/chatStatus/codexStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo, showsGitHubCopilotDetails } from '../../../browser/accountTitleBarState.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
@@ -296,6 +298,15 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		this.showCombinedPanel();
 	}
 
+	override getActionToRun(): IAction {
+		return toAction({
+			id: this.action.id,
+			label: this.action.label,
+			enabled: this.action.enabled,
+			run: () => this.showCombinedPanel(true),
+		});
+	}
+
 	private async refreshAccount(): Promise<void> {
 		const requestId = ++this.accountRequestCounter;
 		this.isAccountLoading = true;
@@ -512,7 +523,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		};
 	}
 
-	private showCombinedPanel(): void {
+	private showCombinedPanel(focusFirstAction = false): void {
 		if (!this.container) {
 			return;
 		}
@@ -538,38 +549,90 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		this.container.classList.add('menu-visible');
 		this.renderState();
 
+		const panelContent = $('div.sessions-account-titlebar-panel');
 		panelStore.add({
 			dispose: () => {
+				const panelHover = findParentWithClass(panelContent, 'sessions-account-titlebar-panel-hover');
+				const restoreFocus = panelHover?.contains(mainWindow.document.activeElement);
 				this.isMenuVisible = false;
 				this.container?.classList.remove('menu-visible');
 				this.renderState();
-				this.container?.focus();
+				if (restoreFocus) {
+					this.container?.focus();
+				}
 			}
 		});
 
-		const panelContent = this.createCombinedPanelContent(panelStore);
+		const focus = this.createCombinedPanelContent(panelStore, panelContent);
+		let hoverHidden = false;
 		const hoverWidget = this.hoverService.showInstantHover({
 			content: panelContent,
 			target: this.getHoverTarget(),
 			additionalClasses: ['sessions-account-titlebar-panel-hover'],
 			position: { hoverPosition: HoverPosition.BELOW },
+			trapFocus: focusFirstAction,
 			persistence: { sticky: true, hideOnHover: false },
 			appearance: { showPointer: false, skipFadeInAnimation: true, maxHeightRatio: 0.8 },
+			onDidShow: () => {
+				if (focusFirstAction) {
+					focus();
+				}
+			},
+			onDidHide: () => {
+				hoverHidden = true;
+				if (this.clickPanelDisposable.value === panelStore) {
+					this.clickPanelDisposable.clear();
+				}
+			},
 		}, true);
 
-		if (hoverWidget) {
-			panelStore.add(hoverWidget);
+		if (!hoverWidget || hoverHidden) {
+			if (this.clickPanelDisposable.value === panelStore) {
+				this.clickPanelDisposable.clear();
+			}
+			return;
 		}
 
+		panelStore.add(toDisposable(() => {
+			if (!hoverHidden) {
+				hoverWidget.dispose();
+			}
+		}));
 		panelStore.add(disposableWindowInterval(mainWindow, () => {
-			if (!panelContent.isConnected || hoverWidget?.isDisposed) {
+			if (!panelContent.isConnected) {
 				this.clickPanelDisposable.clear();
 			}
 		}, 500));
 	}
 
-	private createCombinedPanelContent(panelStore: DisposableStore): HTMLElement {
-		const panel = $('div.sessions-account-titlebar-panel');
+	private createCombinedPanelContent(panelStore: DisposableStore, panel: HTMLElement): () => void {
+		const actionBars: ActionBar[] = [];
+		const showsCopilotDetails = showsGitHubCopilotDetails(this.defaultAccountService.currentDefaultAccount);
+		const actionHover = panelStore.add(new MutableDisposable<IHoverWidget>());
+		const hoverGroupId = generateUuid();
+		const setupKeyboardActionHover = (container: HTMLElement, actionBar: ActionBar) => {
+			panelStore.add(addDisposableListener(container, EventType.FOCUS_IN, event => {
+				const target = event.target;
+				if (!isHTMLElement(target) || !target.matches(':focus-visible, .focus-visible')) {
+					actionHover.clear();
+					return;
+				}
+				const action = actionBar.getAction(target);
+				if (action) {
+					actionHover.value = this.hoverService.showDelayedHover({
+						target,
+						content: action.tooltip || action.label,
+						style: HoverStyle.Pointer,
+						persistence: { hideOnKeyDown: true },
+					}, { groupId: hoverGroupId });
+				}
+			}));
+			panelStore.add(addDisposableListener(container, EventType.FOCUS_OUT, event => {
+				if (!isHTMLElement(event.relatedTarget) || !container.contains(event.relatedTarget)) {
+					actionHover.clear();
+				}
+			}));
+		};
 
 		// Build the menu actions once and partition them.
 		const menu = this.menuService.createMenu(AccountMenu, this.contextKeyService);
@@ -598,12 +661,14 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				avatar.referrerPolicy = 'no-referrer';
 			} else {
 				const accountIcon = append(copilotIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
-				accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.github));
+				accountIcon.classList.add(...ThemeIcon.asClassNameArray(showsCopilotDetails ? Codicon.github : Codicon.account));
 			}
 			const title = append(copilotIdentity, $('div.sessions-account-titlebar-panel-provider-name'));
 			title.textContent = this.getPanelHeaderLabel();
 			const copilotActions = append(copilotIdentity, $('.sessions-account-titlebar-panel-provider-actions'));
 			const copilotActionBar = panelStore.add(new ActionBar(copilotActions));
+			actionBars.push(copilotActionBar);
+			setupKeyboardActionHover(copilotActions, copilotActionBar);
 			panelStore.add(copilotActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -621,7 +686,9 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			if (partitioned.signOut) {
 				copilotActionBar.push(partitioned.signOut, { icon: true, label: false });
 			}
-			this.appendCopilotUsage(copilotAccount, panelStore);
+			if (showsCopilotDetails) {
+				this.appendCopilotUsage(copilotAccount, panelStore);
+			}
 		} else if (partitioned.signIn) {
 			const copilotAccount = append(identities, $('section.sessions-account-titlebar-panel-provider-account.signed-out', {
 				'aria-label': localize('copilotAccountSectionLabel', "Copilot account")
@@ -631,6 +698,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.github));
 			const signInActions = append(copilotIdentity, $('.sessions-account-titlebar-panel-provider-sign-in-actions'));
 			const signInActionBar = panelStore.add(new ActionBar(signInActions));
+			actionBars.push(signInActionBar);
 			panelStore.add(signInActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -666,6 +734,8 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			accountName.textContent = codexAccount.email ?? localize('chatGPTAccountName', "ChatGPT");
 			const accountActions = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-actions'));
 			const accountActionBar = panelStore.add(new ActionBar(accountActions));
+			actionBars.push(accountActionBar);
+			setupKeyboardActionHover(accountActions, accountActionBar);
 			panelStore.add(accountActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -699,6 +769,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
 				const signInActions = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-sign-in-actions'));
 				const signInActionBar = panelStore.add(new ActionBar(signInActions));
+				actionBars.push(signInActionBar);
 				panelStore.add(signInActionBar.onWillRun(() => {
 					this.hoverService.hideHover(true);
 					this.clickPanelDisposable.clear();
@@ -730,6 +801,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			const actionsActionBar = panelStore.add(new ActionBar(actionsSection, {
 				orientation: ActionsOrientation.VERTICAL,
 			}));
+			actionBars.push(actionsActionBar);
 			panelStore.add(actionsActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -754,7 +826,17 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			summary.textContent = this.lastState.ariaLabel;
 		}
 
-		return panel;
+		return () => {
+			for (const actionBar of actionBars) {
+				for (let i = 0; i < actionBar.length(); i++) {
+					const action = actionBar.getAction(i);
+					if (action?.enabled && !(action instanceof Separator)) {
+						actionBar.focus(true);
+						return;
+					}
+				}
+			}
+		};
 	}
 
 	private appendCopilotUsage(accountSection: HTMLElement, panelStore: DisposableStore): void {
@@ -951,7 +1033,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private shouldShowCopilotDashboardHover(): boolean {
-		return !this.chatEntitlementService.sentiment.hidden && !!this.accountName;
+		return !this.chatEntitlementService.sentiment.hidden && !!this.accountName && showsGitHubCopilotDetails(this.defaultAccountService.currentDefaultAccount);
 	}
 
 	private createCopilotHoverContent(extraOptions?: Partial<IChatStatusDashboardOptions>): HTMLElement {

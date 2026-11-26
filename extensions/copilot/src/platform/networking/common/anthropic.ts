@@ -84,24 +84,6 @@ export interface ContextManagementResponse {
 }
 
 /**
- * Interleaved thinking is supported by:
- * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
- * - Claude Sonnet 4 (claude-sonnet-4-*)
- * - Claude Haiku 4.5 (claude-haiku-4-5-* or claude-haiku-4.5-*)
- * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
- * @param modelId The model ID to check
- * @returns true if the model supports interleaved thinking
- */
-export function modelSupportsInterleavedThinking(modelId: string): boolean {
-	// Normalize: lowercase and replace dots with dashes so "4.5" matches "4-5"
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-sonnet-4') ||
-		normalized.startsWith('claude-haiku-4-5') ||
-		normalized.startsWith('claude-opus-4-5');
-}
-
-/**
  * Memory is supported by:
  * - Claude Fable 5
  * - Claude Haiku 4.5

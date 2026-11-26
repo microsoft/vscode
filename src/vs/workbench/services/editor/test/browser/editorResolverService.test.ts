@@ -16,17 +16,19 @@ import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { EditorResolverService } from '../../browser/editorResolverService.js';
 import { IEditorGroupsService } from '../../common/editorGroupsService.js';
-import { diffEditorsAssociationsAgentsWindowDefault, EditorInputFactoryObject, EditorMatchRuleSource, EditorMatches, IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
+import { diffEditorsAssociationsAgentsWindowDefault, EditorInputFactoryObject, EditorMatchRuleSource, EditorMatches, IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId, markdownDefaultEditorAgentsWindowSettingId, MarkdownDefaultEditorMode } from '../../common/editorResolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
+import { ConfigurationMigration, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 
 suite('EditorResolverService', () => {
 	test('Agents window editor defaults use the Integrated Browser for HTML when available and follow the Markdown editor setting', () => {
 		assert.deepStrictEqual({
-			enabled: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: true, integratedBrowserAvailable: true }),
-			disabled: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: false, integratedBrowserAvailable: true }),
-			unavailable: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: true, integratedBrowserAvailable: false }),
+			enabled: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: 'on', integratedBrowserAvailable: true }),
+			disabled: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: 'off', integratedBrowserAvailable: true }),
+			unavailable: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: 'on', integratedBrowserAvailable: false }),
 		}, {
 			enabled: { '*.html': 'workbench.editor.browser', '*.md': 'vscode.markdown.editor' },
 			disabled: { '*.html': 'workbench.editor.browser', '*.md': 'vscode.markdown.preview.editor' },
@@ -34,14 +36,56 @@ suite('EditorResolverService', () => {
 		});
 	});
 
-	test('Agents window diff editor default follows the Markdown editor setting', () => {
-		assert.deepStrictEqual({
-			enabled: diffEditorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: true }),
-			disabled: diffEditorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: false }),
-		}, {
-			enabled: { '*.md': 'vscode.markdown.editor' },
-			disabled: { '*.md': 'vscode.markdown.preview.editor' },
-		});
+	test('Agents window Markdown file and diff defaults follow screen-reader mode only in auto', () => {
+		const modes: (MarkdownDefaultEditorMode | undefined)[] = [undefined, 'auto', 'on', 'off'];
+		const defaults = modes.flatMap(markdownDefaultEditor =>
+			[false, true].map(screenReaderOptimized => {
+				const options = { markdownDefaultEditor, screenReaderOptimized, integratedBrowserAvailable: false };
+				return [editorsAssociationsAgentsWindowDefault(options), diffEditorsAssociationsAgentsWindowDefault(options)];
+			}));
+		const expectedEditors = [
+			'vscode.markdown.editor', DEFAULT_EDITOR_ASSOCIATION.id,
+			'vscode.markdown.editor', DEFAULT_EDITOR_ASSOCIATION.id,
+			'vscode.markdown.editor', 'vscode.markdown.editor',
+			'vscode.markdown.preview.editor', 'vscode.markdown.preview.editor'
+		];
+		assert.deepStrictEqual(defaults, expectedEditors.map(editor => [{ '*.md': editor }, { '*.md': editor }]));
+	});
+
+	test('Agents window Markdown default migration preserves boolean preferences and leaves modes unchanged', async () => {
+		const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchExtensions.ConfigurationMigration).migrations;
+		const migration = migrations.find(migration => migration.key === markdownDefaultEditorAgentsWindowSettingId);
+		assert.deepStrictEqual(await Promise.all([true, false, 'auto', 'on', 'off', undefined].map(value => migration?.migrateFn(value, () => undefined))), [
+			{ value: 'on' }, { value: 'off' }, [], [], [], []
+		]);
+	});
+
+	test('Explicit Markdown associations take precedence over screen-reader-aware defaults', async () => {
+		let screenReaderOptimized = false;
+		let workspaceAssociation = false;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				if (key !== editorsAssociationsSettingId) {
+					return super.inspect<T>(key);
+				}
+				const defaultValue = editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: 'auto', screenReaderOptimized, integratedBrowserAvailable: false });
+				return {
+					defaultValue: defaultValue as T,
+					userValue: { '*.md': 'test.userEditor' } as T,
+					workspaceValue: workspaceAssociation ? { '*.md': 'test.workspaceEditor' } as T : undefined
+				};
+			}
+		}();
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		const associations = [false, true].flatMap(workspace => [false, true].map(screenReader => {
+			workspaceAssociation = workspace;
+			screenReaderOptimized = screenReader;
+			return service.getAllUserAssociations();
+		}));
+		assert.deepStrictEqual(associations, [
+			'test.userEditor', 'test.userEditor', 'test.workspaceEditor', 'test.workspaceEditor'
+		].map(viewType => [{ filenamePattern: '*.md', viewType }]));
 	});
 
 
@@ -1180,6 +1224,48 @@ suite('EditorResolverService', () => {
 			defaultEditorId: 'test.componentEditor',
 			updateCount: 1
 		});
+	});
+
+	test('setDefaultEditor writes an explicit association pattern and announces only actual changes', async () => {
+		const configurationService = createMutableConfigurationService({
+			[editorsAssociationsSettingId]: {
+				'*': DEFAULT_EDITOR_ASSOCIATION.id
+			}
+		});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		registerDefaultEditorTestEditors(service);
+		const announced: string[] = [];
+		disposables.add(service.onWillSetDefaultEditor(e => announced.push(`${e.editorId}:${e.source}`)));
+		const resource = URI.file('/workspace/example.component.html');
+
+		service.setDefaultEditor(resource, 'test.componentEditor', false, { source: 'editorTypePicker', associationPattern: '*.component.html' });
+
+		assert.deepStrictEqual({
+			associations: service.getAllUserAssociations(),
+			defaultEditorId: service.getEditorMatches(resource).defaultRule.editor.id,
+			announced
+		}, {
+			associations: [
+				{ filenamePattern: '*', viewType: DEFAULT_EDITOR_ASSOCIATION.id },
+				{ filenamePattern: '*.component.html', viewType: 'test.componentEditor' }
+			],
+			defaultEditorId: 'test.componentEditor',
+			announced: ['test.componentEditor:editorTypePicker']
+		});
+	});
+
+	test('setDefaultEditor does not announce a change when the editor already is the default', async () => {
+		const configurationService = createMutableConfigurationService({});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		registerDefaultEditorTestEditors(service);
+		const announced: string[] = [];
+		disposables.add(service.onWillSetDefaultEditor(e => announced.push(e.editorId)));
+
+		service.setDefaultEditor(URI.file('/workspace/plain.txt'), DEFAULT_EDITOR_ASSOCIATION.id, false, { source: 'editorTypePicker' });
+
+		assert.deepStrictEqual({ announced, updateCount: configurationService.updateCount }, { announced: [], updateCount: 0 });
 	});
 
 	test('setDefaultEditor retains the association when a broader rule masks the natural default', async () => {

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationError } from '../../../base/common/errors.js';
+import { raceCancellationError } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { captureCredentialSource, isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -68,6 +70,10 @@ export class AgentHostUtilityModelUnavailableError extends Error {
 
 export const IAgentHostUtilityModelService = createDecorator<IAgentHostUtilityModelService>('agentHostUtilityModelService');
 
+export interface IAgentHostUtilityModelRequestOptions extends Omit<ICopilotApiServiceRequestOptions, 'signal'> {
+	readonly cancellationToken?: CancellationToken;
+}
+
 /**
  * Runs the host's small utility completions (titles, pull request text) on the
  * model the user configured, matching the Copilot Chat extension's
@@ -96,7 +102,7 @@ export interface IAgentHostUtilityModelService {
 	 *
 	 * @throws {@link AgentHostUtilityModelUnavailableError} when no utility model is available.
 	 */
-	chatCompletion(context: IAgentHostUtilityModelContext, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string>;
+	chatCompletion(context: IAgentHostUtilityModelContext, request: ICopilotUtilityChatCompletionRequest, options?: IAgentHostUtilityModelRequestOptions): Promise<string>;
 }
 
 type UtilityModelRoute =
@@ -122,14 +128,23 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
-	async chatCompletion(context: IAgentHostUtilityModelContext, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
+	async chatCompletion(context: IAgentHostUtilityModelContext, request: ICopilotUtilityChatCompletionRequest, options?: IAgentHostUtilityModelRequestOptions): Promise<string> {
+		const { cancellationToken = CancellationToken.None, ...requestOptions } = options ?? {};
 		const route = this._resolveRoute(context);
 		const attributedRequest: ICopilotUtilityChatCompletionRequest = { ...request, telemetry: { ...request.telemetry, agentSessionId: AgentSession.id(context.session) } };
 		if (route.kind === 'copilot') {
 			// The Copilot API service reports Copilot calls.
-			return this._copilotApiService.utilityChatCompletion(route.githubToken, attributedRequest, options);
+			const lifetime = new DisposableStore();
+			try {
+				return await this._copilotApiService.utilityChatCompletion(route.githubToken, attributedRequest, {
+					...requestOptions,
+					signal: cancellationToken === CancellationToken.None ? undefined : CancellationToken.toAbortSignal(cancellationToken, lifetime),
+				});
+			} finally {
+				lifetime.dispose();
+			}
 		}
-		return this._byokChatCompletion(context, route.vendor, route.modelId, attributedRequest, options?.signal);
+		return this._byokChatCompletion(context, route.vendor, route.modelId, attributedRequest, cancellationToken);
 	}
 
 	private _resolveRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
@@ -279,7 +294,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostByokUtilityModelDefaultConfigKey) ?? 'copilot';
 	}
 
-	private async _byokChatCompletion(context: IAgentHostUtilityModelContext, vendor: string, modelId: string, request: ICopilotUtilityChatCompletionRequest, signal: AbortSignal | undefined): Promise<string> {
+	private async _byokChatCompletion(context: IAgentHostUtilityModelContext, vendor: string, modelId: string, request: ICopilotUtilityChatCompletionRequest, cancellationToken: CancellationToken): Promise<string> {
 		const startTime = Date.now();
 		// Same keys as the Responses translation, and the same defaults as the Copilot route.
 		const modelOptions: Record<string, unknown> = {
@@ -318,9 +333,10 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		this._logService.debug(`[AgentHostUtilityModelService] BYOK utility request: ${vendor}/${modelId}`);
 		let result: IByokLmChatResult;
 		try {
-			result = await raceAbort(connection.chat(bridgeRequest), signal);
+			CancellationToken.throwIfCanceled(cancellationToken);
+			result = await raceCancellationError(connection.chat(bridgeRequest), cancellationToken);
 		} catch (error) {
-			report(getUtilityModelCallFailureOutcome(error, signal));
+			report(cancellationToken.isCancellationRequested ? 'cancelled' : getUtilityModelCallFailureOutcome(error, undefined));
 			throw error;
 		}
 		const text = result.error ? '' : result.output.flatMap(item => item.type === 'message' ? item.content.map(part => part.text) : []).join('');
@@ -357,19 +373,4 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 			return undefined;
 		}
 	}
-}
-
-/** The bridge has no cancellation channel, so stop waiting when `signal` aborts. */
-function raceAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
-	if (!signal) {
-		return promise;
-	}
-	if (signal.aborted) {
-		return Promise.reject(new CancellationError());
-	}
-	return new Promise<T>((resolve, reject) => {
-		const onAbort = () => reject(new CancellationError());
-		signal.addEventListener('abort', onAbort, { once: true });
-		promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
-	});
 }

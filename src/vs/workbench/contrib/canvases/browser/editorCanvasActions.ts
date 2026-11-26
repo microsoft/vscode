@@ -8,17 +8,19 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader, observableFromEvent, observableSignal, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { CanvasDefinitionOpener, getCanvasDefinitionLabels, getCanvasInstanceLabels, ICanvasContext, ICanvasDefinition, ICanvasService, isCanvasOwner } from '../common/canvas.js';
+import { CanvasDefinitionOpener, getCanvasDefinitionLabels, getCanvasIconUri, getCanvasInstanceLabels, ICanvasContext, ICanvasDefinition, ICanvasService, isCanvasOwner } from '../common/canvas.js';
 import { CanvasDefinitionStore } from '../common/canvasDefinitionStore.js';
 import { canvasOwnerKey, getCanvasReferenceKey, ICanvasOpenOptions, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
-import { CanvasExtensionConsentDeniedError, notifyCanvasExtensionConsentDenied } from '../common/agentHostCanvasConsent.js';
+import { openCanvasForUser } from '../common/agentHostCanvasConsent.js';
 
 export const OPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.openCanvas';
 export const REOPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.reopenCanvas';
@@ -38,6 +40,8 @@ class CanvasMenuActionRegistration extends Disposable {
 	private title: string | undefined;
 	private group: string | undefined;
 	private order: number | undefined;
+	/** The path of the canvas's icon data URI, which holds the whole image. */
+	private iconKey: string | undefined;
 	private run: () => Promise<void>;
 
 	constructor(
@@ -49,19 +53,21 @@ class CanvasMenuActionRegistration extends Disposable {
 		this._register(CommandsRegistry.registerCommand(commandId, () => this.run()));
 	}
 
-	update(title: string, group: string, order: number, run: () => Promise<void>): void {
+	/** Shows the entry with `title`, and with `icon`, the canvas's own icon, or else the default canvas icon. */
+	update(title: string, group: string, order: number, run: () => Promise<void>, icon: URI | undefined): void {
 		this.run = run;
-		if (this.title === title && this.group === group && this.order === order) {
+		if (this.title === title && this.group === group && this.order === order && this.iconKey === icon?.path) {
 			return;
 		}
 		this.title = title;
 		this.group = group;
 		this.order = order;
+		this.iconKey = icon?.path;
 		this.menuRegistration.value = MenuRegistry.appendMenuItem(ChatNewCanvasMenuId, {
 			command: {
 				id: this.commandId,
 				title,
-				icon: Codicon.preview,
+				icon: icon ? { dark: icon } : Codicon.preview,
 				precondition: ChatContextKeys.enabled,
 			},
 			group,
@@ -77,6 +83,7 @@ export function registerEditorCanvasActions(
 	widgetService: IChatWidgetService,
 	logService: ILogService,
 	notificationService: INotificationService,
+	progressService: IProgressService,
 ): IDisposable {
 	const store = new DisposableStore();
 	store.add(MenuRegistry.appendMenuGroup(ChatNewCanvasMenuId, { group: CanvasMenuGroup.Running, title: localize('editorCanvas.running', "Running") }));
@@ -139,6 +146,7 @@ export function registerEditorCanvasActions(
 					CanvasMenuGroup.Available,
 					index,
 					() => openCanvasDefinition(context.owner, canvas, label),
+					getCanvasIconUri(canvas.icon),
 				);
 			}
 
@@ -158,6 +166,7 @@ export function registerEditorCanvasActions(
 					CanvasMenuGroup.Running,
 					index,
 					() => revealCanvas(target.reference, label),
+					target.canvas.icon,
 				);
 			}
 		}
@@ -179,16 +188,8 @@ export function registerEditorCanvasActions(
 	}));
 
 	/** Opens a new canvas of `canvas`'s type, beside any canvases of that type the chat already has. */
-	async function openCanvasDefinition(owner: ICanvasOwner, canvas: ICanvasDefinition, label: string): Promise<void> {
-		try {
-			await openCanvasDefinitionIn(owner, canvas);
-		} catch (error) {
-			if (error instanceof CanvasExtensionConsentDeniedError) {
-				notifyCanvasExtensionConsentDenied(notificationService, error, () => openCanvasDefinitionIn(owner, canvas, { retryDeniedConsent: true }));
-				return;
-			}
-			notificationService.error(localize('editorCanvas.openFailed', "Could not open canvas {0}: {1}", label, toErrorMessage(error)));
-		}
+	function openCanvasDefinition(owner: ICanvasOwner, canvas: ICanvasDefinition, label: string): Promise<void> {
+		return openCanvasForUser(progressService, notificationService, label, options => openCanvasDefinitionIn(owner, canvas, options));
 	}
 
 	/** Opens a new canvas of `canvas`'s type while `owner` is the current chat, throwing when the open fails. */

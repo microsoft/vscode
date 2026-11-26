@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
+import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { RequestQueue } from './requestQueue.js';
 import { IRequestScheduler, schedulerDelay } from './scheduler.js';
 import { RequestAccount } from './types.js';
@@ -71,10 +72,10 @@ export class CooldownState extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async wait(account: RequestAccount, resource: string, signal: AbortSignal): Promise<void> {
+	async wait(account: RequestAccount, resource: string, cancellationToken: CancellationToken): Promise<void> {
 		const delay = this.getDelay(account, resource);
 		if (delay > 0) {
-			await schedulerDelay(this._scheduler, delay, signal);
+			await schedulerDelay(this._scheduler, delay, cancellationToken);
 		}
 	}
 

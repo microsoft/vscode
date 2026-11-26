@@ -12,12 +12,12 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IResourceEditorInput, ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IResourceMultiDiffEditorInput, IResourceMergeEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IResourceMultiDiffEditorInput, IResourceMergeEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from '../../../common/editor.js';
 import { IEditorGroup } from './editorGroupsService.js';
 import { PreferredGroup } from './editorService.js';
 import { AtLeastOne } from '../../../../base/common/types.js';
@@ -40,34 +40,36 @@ export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociation
 export const hiddenEditorTypesSettingId = 'workbench.editor.hiddenEditorTypes';
 
 /**
- * Setting that controls whether the Markdown editor is the default editor for
- * `*.md` files in the Agents window. Gated behind an experiment so it can be
- * rolled out gradually. Defaults to on.
+ * Controls the default Markdown editor in the Agents window, using the text editor
+ * in screen-reader mode when set to `auto`.
  */
 export const markdownDefaultEditorAgentsWindowSettingId = 'workbench.editor.markdownDefaultEditorInAgentsWindow';
 
-function markdownEditorAgentsWindowDefault(markdownDefaultEditor?: boolean): string {
-	return markdownDefaultEditor === true ? 'vscode.markdown.editor' : 'vscode.markdown.preview.editor';
+export type MarkdownDefaultEditorMode = 'auto' | 'on' | 'off';
+
+function markdownEditorAgentsWindowDefault(markdownDefaultEditor: MarkdownDefaultEditorMode = 'auto', screenReaderOptimized = false): string {
+	if (markdownDefaultEditor === 'off') {
+		return 'vscode.markdown.preview.editor';
+	}
+	return markdownDefaultEditor === 'auto' && screenReaderOptimized ? DEFAULT_EDITOR_ASSOCIATION.id : 'vscode.markdown.editor';
 }
 
 /**
  * Builds the default value for `workbench.editorAssociations` in the Agents window.
  * Shared so that dynamic re-registrations of the setting preserve the override.
- *
- * Pass `false` to use the Markdown preview editor for `*.md` files.
  */
-export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean; integratedBrowserAvailable?: boolean }): Record<string, string> {
+export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: MarkdownDefaultEditorMode; screenReaderOptimized?: boolean; integratedBrowserAvailable?: boolean }): Record<string, string> {
 	const associations: Record<string, string> = {};
 	if (options?.integratedBrowserAvailable ?? !isWeb) {
 		associations['*.html'] = 'workbench.editor.browser';
 	}
-	associations['*.md'] = markdownEditorAgentsWindowDefault(options?.markdownDefaultEditor);
+	associations['*.md'] = markdownEditorAgentsWindowDefault(options?.markdownDefaultEditor, options?.screenReaderOptimized);
 	return associations;
 }
 
-export function diffEditorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean }): Record<string, string> {
+export function diffEditorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: MarkdownDefaultEditorMode; screenReaderOptimized?: boolean }): Record<string, string> {
 	return {
-		'*.md': markdownEditorAgentsWindowDefault(options?.markdownDefaultEditor)
+		'*.md': markdownEditorAgentsWindowDefault(options?.markdownDefaultEditor, options?.screenReaderOptimized)
 	};
 }
 
@@ -77,11 +79,17 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
 	properties: {
 		[markdownDefaultEditorAgentsWindowSettingId]: {
-			type: 'boolean',
-			default: true,
-			tags: ['experimental'],
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			enumDescriptions: [
+				localize('editor.markdownDefaultEditorInAgentsWindow.auto', "Use the Markdown editor unless screen-reader mode is enabled, in which case use the text editor."),
+				localize('editor.markdownDefaultEditorInAgentsWindow.on', "Always use the Markdown editor."),
+				localize('editor.markdownDefaultEditorInAgentsWindow.off', "Use Markdown Preview."),
+			],
+			default: 'auto',
+			tags: ['experimental', 'accessibility'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('editor.markdownDefaultEditorInAgentsWindow', "Controls whether the Markdown editor is used as the default editor for Markdown files in the Agents window."),
+			markdownDescription: localize('editor.markdownDefaultEditorInAgentsWindow', "Controls the default editor for Markdown files and diffs in the Agents window. Explicit `#workbench.editorAssociations#` and `#workbench.diffEditorAssociations#` take precedence."),
 		},
 		[editorsAssociationsSettingId]: {
 			type: 'object',
@@ -116,6 +124,12 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 		}
 	}
 };
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: markdownDefaultEditorAgentsWindowSettingId,
+	includeApplication: true,
+	migrateFn: (value: unknown) => typeof value === 'boolean' ? { value: value ? 'on' : 'off' } : []
+}]);
 
 export interface IEditorType {
 	readonly id: string;
@@ -175,6 +189,23 @@ export interface IEditorResolverServiceGetEditorsOptions {
 
 export interface IEditorResolverServiceGetEditorMatchesOptions {
 	readonly isDiffEditor?: boolean;
+}
+
+/** The UI that changed a default editor through {@link IEditorResolverService.setDefaultEditor}. */
+export type DefaultEditorChangeSource = 'editorTypePicker' | 'reopenWithPicker' | 'markdownEditorNudge';
+
+export interface ISetDefaultEditorOptions {
+	/** What made the change, for telemetry about default editor changes. */
+	readonly source?: DefaultEditorChangeSource;
+	/** The glob pattern to associate, instead of the pattern of the resource's current default rule. */
+	readonly associationPattern?: string;
+}
+
+export interface IWillSetDefaultEditorEvent {
+	readonly resource: URI;
+	readonly editorId: string;
+	readonly forDiffEditor: boolean;
+	readonly source: DefaultEditorChangeSource | undefined;
 }
 
 export interface IEditorResolverServiceGetAllEditorsOptions {
@@ -352,8 +383,12 @@ export interface IEditorResolverService {
 	 * @param editorID The ID of the editor to make the default.
 	 * @param forDiffEditor When `true`, the diff editor association (`workbench.diffEditorAssociations`)
 	 * is updated instead of the general editor association (`workbench.editorAssociations`).
+	 * @param options What made the change, and optionally a specific pattern to associate.
 	 */
-	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean): void;
+	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean, options?: ISetDefaultEditorOptions): void;
+
+	/** Fires when {@link setDefaultEditor} is about to change the associations. Not fired when nothing changes. */
+	readonly onWillSetDefaultEditor: Event<IWillSetDefaultEditorEvent>;
 
 	/**
 	 * Removes the user's diff editor association (`workbench.diffEditorAssociations`) for the given

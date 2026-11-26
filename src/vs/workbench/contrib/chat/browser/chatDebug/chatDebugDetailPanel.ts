@@ -5,6 +5,7 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { CopyButton } from '../../../../../base/browser/ui/button/copyButton.js';
 import { Orientation, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
@@ -156,12 +157,10 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.editorService.openEditor({ contents: this.currentDetailText, resource: undefined } satisfies IUntitledTextResourceEditorInput);
 		}));
 
-		const copyButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.copyToClipboard', "Copy"), title: localize('chatDebug.copyToClipboard', "Copy") }));
-		copyButton.element.classList.add('chat-debug-detail-button');
-		copyButton.icon = Codicon.copy;
-		this.detailDisposables.add(copyButton.onDidClick(() => {
-			this.clipboardService.writeText(this.currentDetailText);
+		const copyButton = this.detailDisposables.add(new CopyButton(header, {
+			copy: () => this.clipboardService.writeText(this.currentDetailText),
 		}));
+		copyButton.element.classList.add('chat-debug-detail-button');
 
 		const closeButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.closeDetail', "Close"), title: localize('chatDebug.closeDetail', "Close") }));
 		closeButton.element.classList.add('chat-debug-detail-button');

@@ -5,8 +5,6 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -28,7 +26,6 @@ export class AutomationSessionsListingContribution extends Disposable implements
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(chatService.onDidAcceptRequest(({ chatSessionResource }) => {
@@ -36,7 +33,6 @@ export class AutomationSessionsListingContribution extends Disposable implements
 			if (!session?.isAutomation?.get() || session.isScheduledChat?.get()) {
 				return;
 			}
-			logSettingExperimentTrigger(telemetryService, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING);
 			if (configurationService.getValue<AutomationSessionsListMode>(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING) === AutomationSessionsListMode.AfterReply) {
 				sessionsListModelService.showRepliedAutomationSession(session);
 			}

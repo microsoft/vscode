@@ -52,7 +52,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId, isDevContainerWorktreeEnabled } from '../../../common/devContainerAgentHostService.js';
-import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
+import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, NewSessionFolderPickerOffersNewWorktreeContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';
 import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
@@ -82,7 +82,7 @@ import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/com
 import { AgentHostCodexApprovalsPicker } from './agentHostCodexApprovalsPicker.js';
 import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted } from '../../../../chat/common/agentHostConfigPolicy.js';
 import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
-import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
+import { ensureSelectedBranchPickerItem, filterBranchPickerItems, getBranchPickerListOptions, IPinnedBranchGroup, takePinnedBranchItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { type IChat, type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -211,19 +211,6 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 	return actionItems;
 }
 
-/** A branch pinned above the remaining branches. */
-interface IPinnedBranch {
-	readonly name: string | undefined;
-	/** Remote-tracking branches are listed even when missing from the results. */
-	readonly isRemote: boolean;
-}
-
-/** Pinned branches listed together under a labeled separator. */
-interface IPinnedBranchGroup {
-	readonly label: string;
-	readonly branches: readonly IPinnedBranch[];
-}
-
 /**
  * The branch groups pinned, in order, above the remaining branches.
  *
@@ -266,59 +253,6 @@ function getPinnedBranchGroups(currentValue: unknown, branchContext: IBranchPick
 			],
 		},
 	];
-}
-
-/**
- * Removes the pinned branches from `actionItems` and returns them grouped, each
- * group after the first under a separator labeled with its name, followed by a
- * separator labeled "Branches" before the remaining branches. Every branch
- * carries its group name as its group title so screen readers, which skip
- * separators, announce it, including in the first group; the remaining
- * branches are updated in place. A branch is pinned once, in its first group;
- * missing remote-tracking branches are created when they match `query`.
- */
-function takePinnedBranchItems(actionItems: IActionListItem<IConfigPickerItem>[], groups: readonly IPinnedBranchGroup[], query: string | undefined): IActionListItem<IConfigPickerItem>[] {
-	const withGroupTitle = (item: IActionListItem<IConfigPickerItem>, title: string): IActionListItem<IConfigPickerItem> => ({ ...item, group: { ...item.group, title } });
-	const pinnedItems: IActionListItem<IConfigPickerItem>[] = [];
-	const pinnedNames = new Set<string>();
-	for (const group of groups) {
-		const groupItems: IActionListItem<IConfigPickerItem>[] = [];
-		for (const { name, isRemote } of group.branches) {
-			if (!name || pinnedNames.has(name)) {
-				continue;
-			}
-			const index = actionItems.findIndex(item => item.item?.value === name);
-			const item: IActionListItem<IConfigPickerItem> | undefined = index >= 0
-				? actionItems.splice(index, 1)[0]
-				: isRemote && (!query || name.toLowerCase().includes(query))
-					? {
-						kind: ActionListItemKind.Action,
-						label: name,
-						group: { title: '', icon: Codicon.gitBranch },
-						item: { id: name, value: name, label: name },
-					}
-					: undefined;
-			if (item) {
-				pinnedNames.add(name);
-				groupItems.push(withGroupTitle(item, group.label));
-			}
-		}
-		if (groupItems.length > 0) {
-			// The first group needs no separator above it.
-			if (pinnedItems.length > 0) {
-				pinnedItems.push({ kind: ActionListItemKind.Separator, label: group.label });
-			}
-			pinnedItems.push(...groupItems);
-		}
-	}
-	if (pinnedItems.length > 0 && actionItems.length > 0) {
-		const remainingLabel = localize('agentHostSessionConfig.otherBranchesGroup', "Branches");
-		pinnedItems.push({ kind: ActionListItemKind.Separator, label: remainingLabel });
-		for (let i = 0; i < actionItems.length; i++) {
-			actionItems[i] = withGroupTitle(actionItems[i], remainingLabel);
-		}
-	}
-	return pinnedItems;
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -1271,8 +1205,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		this._openedPickerSessionId = sessionId;
 		trigger.setAttribute('aria-expanded', 'true');
 		repositoryConfigContainer?.setAttribute(PICKER_OPEN_ATTRIBUTE, 'true');
-		// Count the branches rather than the items, which add the default branch's remote only for worktrees.
-		const showFilter = (branchCompletions ?? items).length > 10;
+		const filterPlaceholder = localize('agentHostSessionConfig.filter', "Filter options...");
 		this._actionWidgetService.show<IConfigPickerItem>(
 			`agentHostSessionConfig.${property}`,
 			false,
@@ -1295,13 +1228,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				},
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
-			{
-				...(showFilter ? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options...") } : {}),
-				className: isolationRecommendation?.className,
-				minWidth: isolationRecommendation?.minWidth ?? 255,
-				anchorPosition: AnchorPosition.BELOW,
-				maxVisibleItems: isBranchPicker ? BRANCH_PICKER_MAX_VISIBLE_ITEMS : undefined,
-			},
+			isBranchPicker
+				// Count the branches rather than the items, which add the default branch's remote only for worktrees.
+				? getBranchPickerListOptions((branchCompletions ?? items).length, filterPlaceholder)
+				: {
+					...(items.length > 10 ? { showFilter: true, filterPlaceholder } : {}),
+					className: isolationRecommendation?.className,
+					minWidth: isolationRecommendation?.minWidth ?? 255,
+					anchorPosition: AnchorPosition.BELOW,
+				},
 		);
 		this._pickerPresentation.value = isolationRecommendation?.onDidShow?.(optionItems, items => {
 			this._actionWidgetService.updateItems(items, undefined, { preserveScrollPosition: true });
@@ -2033,6 +1968,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			properties.forEach(([property, schema], index) => {
 				const commandId = this._registerRepositoryProperty(property, actionViewItemService);
 				const order = index + 1;
+				// A quick chat has no workspace to isolate or branch, but takes the host's other options, such as where it runs.
+				const workspaceScoped = property === workspace.isolation?.key || property === workspace.baseBranch?.key || getSessionConfigPresentationKey(property, config.schema) === 'newBranch';
 				this._repositoryMenuItems.add(MenuRegistry.appendMenuItem(Menus.NewSessionRepositoryConfig, {
 					command: {
 						id: commandId,
@@ -2042,7 +1979,9 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 					order,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						IsQuickChatSessionContext.negate(),
+						workspaceScoped ? IsQuickChatSessionContext.negate() : undefined,
+						// Where the composer offers New Worktree itself, its isolation picker would offer it a second time
+						property === workspace.isolation?.key ? NewSessionFolderPickerOffersNewWorktreeContext.negate() : undefined,
 						SessionIdContext.isEqualTo(session.sessionId),
 					),
 				}));
@@ -2144,7 +2083,7 @@ export class NewSessionApprovePickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
 			}],
 		});
 	}
@@ -2164,7 +2103,7 @@ export class NewSessionPermissionModePickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
 			}],
 		});
 	}
@@ -2190,7 +2129,7 @@ export class NewSessionCodexApprovalsPickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
 			}],
 		});
 	}
@@ -2216,6 +2155,7 @@ export class NewSessionModePickerAction extends Action2 {
 				// this picker with a unified mode + model bottom sheet, so
 				// gate this desktop-only Action out of phone layouts.
 				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
 					ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
 					IsPhoneLayoutContext.negate(),
 				),
@@ -2241,12 +2181,12 @@ export class RunningSessionConfigPickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.2,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2266,12 +2206,12 @@ export class RunningSessionPermissionModePickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.3,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2296,12 +2236,12 @@ export class RunningSessionCodexApprovalsPickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.4,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2325,6 +2265,7 @@ export class RunningSessionModePickerAction extends Action2 {
 				group: 'navigation',
 				order: 0.1,
 				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
 					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
@@ -2336,6 +2277,7 @@ export class RunningSessionModePickerAction extends Action2 {
 				order: 9,
 				// Hide the agent mode picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
 					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),

@@ -30,10 +30,10 @@ suite('universal app ASAR merge', () => {
 		t.after(() => rm(root, { recursive: true, force: true }));
 
 		const filesForArch = (arch: string) => ({
-			[`@github/copilot-sdk-darwin-${arch}/plugins/browser-use/.mcp.json`]: `{"arch":"${arch}"}`,
-			[`@github/copilot-sdk-darwin-${arch}/plugins/browser-use/.plugin/plugin.json`]: `{"name":"browser-use-${arch}"}`,
-			[`@github/copilot-sdk-darwin-${arch}/plugins/browser-use/.release-target`]: `darwin-${arch}`,
-			[`@github/copilot-sdk-darwin-${arch}/copilot-sdk/index.js`]: `export const arch = '${arch}';`,
+			[`@microsoft/copilot-sdk-darwin-${arch}/plugins/browser-use/.mcp.json`]: `{"arch":"${arch}"}`,
+			[`@microsoft/copilot-sdk-darwin-${arch}/plugins/browser-use/.plugin/plugin.json`]: `{"name":"browser-use-${arch}"}`,
+			[`@microsoft/copilot-sdk-darwin-${arch}/plugins/browser-use/.release-target`]: `darwin-${arch}`,
+			[`@microsoft/copilot-sdk-darwin-${arch}/copilot-sdk/index.js`]: `export const arch = '${arch}';`,
 		});
 		const x64Files = filesForArch('x64');
 		const arm64Files = filesForArch('arm64');

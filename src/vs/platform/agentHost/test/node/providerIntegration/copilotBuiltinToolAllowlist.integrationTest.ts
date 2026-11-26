@@ -7,11 +7,11 @@ import assert from 'assert';
 import { mkdir, mkdtemp, rm } from 'fs/promises';
 import type { Server } from 'http';
 import { tmpdir } from 'os';
-import { CopilotClient, type SessionConfig } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient, type CreateSessionOptions } from '@microsoft/copilot-sdk';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { COPILOT_DEFAULT_AVAILABLE_TOOLS, COPILOT_ENABLED_BUILTIN_TOOL_NAMES } from '../../../node/copilot/copilotBuiltinToolAllowlist.js';
+import { COPILOT_DEFAULT_AVAILABLE_TOOLS, COPILOT_ENABLED_BUILTIN_TOOL_NAMES, PROGRAMMATIC_TOOL_CALLING_TOOL_NAME } from '../../../node/copilot/copilotBuiltinToolAllowlist.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME } from '../../../node/copilot/copilotManagedSettings.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
@@ -149,16 +149,23 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 		assert.ok(address && typeof address !== 'string');
 		endpoint = `http://127.0.0.1:${address.port}`;
 		client = new CopilotClient({
-			useLoggedInUser: false,
-			gitHubToken: 'synthetic-no-real-credential',
-			logLevel: 'error',
-			env: {
-				...createCopilotCliEnvironment(createIsolatedProviderEnvironment(directory), [], false, undefined, undefined, true),
-				COPILOT_API_URL: endpoint,
-				COPILOT_DEBUG_GITHUB_API_URL: endpoint,
-				COPILOT_MANAGED_SETTINGS_CACHE: '0',
-				COPILOT_TELEMETRY_ENABLED: 'false',
+			mode: 'coding-agent',
+			github: {
+				useLoggedInUser: false,
+				token: 'synthetic-no-real-credential',
 			},
+			observability: {
+				logLevel: 'error',
+			},
+			runtime: RuntimeConnection.forSpawnedStdio({
+				env: {
+					...createCopilotCliEnvironment(createIsolatedProviderEnvironment(directory), [], false, undefined, undefined, true),
+					COPILOT_API_URL: endpoint,
+					COPILOT_DEBUG_GITHUB_API_URL: endpoint,
+					COPILOT_MANAGED_SETTINGS_CACHE: '0',
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				},
+			}),
 		});
 		await client.start();
 	});
@@ -182,23 +189,24 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 	});
 
 	/** The built-ins a session registers across every mode, by name, with their descriptions. */
-	async function registeredBuiltins(model: string, availableTools: string[] | undefined): Promise<Map<string, string>> {
-		const config: SessionConfig = {
+	async function registeredBuiltins(model: string, availableTools: string[] | undefined, flags: Record<string, boolean> = {}): Promise<Map<string, string>> {
+		const config: CreateSessionOptions = {
 			model,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			workingDirectory: join(directory, 'workspace'),
-			onPermissionRequest: () => ({ kind: 'denied-interactively-by-user' }),
-			onUserInputRequest: () => ({ answer: '', wasFreeform: true }),
-			askUserVariant: 'elicitation',
-			onElicitationRequest: () => ({ action: 'cancel' }),
-			onExitPlanModeRequest: () => ({ approved: false }),
-			interactiveUser: true,
+			permissions: { onRequest: () => ({ kind: 'denied-interactively-by-user' }) },
+			interaction: {
+				onUserInputRequest: () => ({ answer: '', wasFreeform: true }),
+				askUserVariant: 'elicitation',
+				onElicitationRequest: () => ({ action: 'cancel' }),
+				onExitPlanModeRequest: () => ({ approved: false }),
+			},
+			github: { interactiveUser: true },
 			enableConfigDiscovery: false,
-			enableSkills: true,
-			featureFlags: { MCP_SKILLS: true },
-			enableSessionStore: true,
-			infiniteSessions: { enabled: true },
-			...(availableTools ? { availableTools } : {}),
+			skills: { enabled: true },
+			experiments: { flags: { MCP_SKILLS: true, ...flags } },
+			state: { enableCrossSessionStore: true, infiniteSessions: { enabled: true } },
+			...(availableTools ? { tools: { availableTools } } : {}),
 		};
 		const session = await client!.createSession(config);
 		try {
@@ -246,5 +254,20 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 			allowListedButNotRegistered: Object.keys(NOT_EXERCISED).sort(),
 			filteredMismatches: [],
 		}, describeDrift(registered, registeredButNotAllowListed, allowListedButNotRegistered, filteredMismatches));
+	});
+
+	test('the programmatic tool calling opt-in registers run_program and its filter keeps it', async function () {
+		this.timeout(120_000);
+
+		const flags = { CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING: true };
+		const name = PROGRAMMATIC_TOOL_CALLING_TOOL_NAME;
+		const model = MODELS[0];
+		assert.deepStrictEqual({
+			defaultFilter: (await registeredBuiltins(model, [...COPILOT_DEFAULT_AVAILABLE_TOOLS], flags)).has(name),
+			optInFilter: (await registeredBuiltins(model, [...COPILOT_DEFAULT_AVAILABLE_TOOLS, `builtin:${name}`], flags)).has(name),
+		}, {
+			defaultFilter: false,
+			optInFilter: true,
+		});
 	});
 });

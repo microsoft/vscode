@@ -30,7 +30,12 @@ export class ChatHostPart extends Part {
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	/** The editor area takes the width a window gains or loses first; the chat part keeps its own. */
-	readonly priority = LayoutPriority.Low;
+	get priority(): LayoutPriority {
+		return this.fillsEditorArea ? LayoutPriority.High : LayoutPriority.Low;
+	}
+
+	/** Set while the editor area is hidden for the chat part, which takes the width the editor area had and keeps it when the window resizes. */
+	fillsEditorArea = false;
 
 	private _content: IContentPart | undefined;
 	private readonly _contentListener = this._register(new MutableDisposable());

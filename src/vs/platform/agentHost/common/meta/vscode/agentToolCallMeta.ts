@@ -41,6 +41,8 @@ export interface IToolCallMeta {
 	readonly 'vscode.assistedApprovalNotice'?: string;
 	/** The host accepts optional feedback about this Assisted permissions prompt with the user's decision. */
 	readonly 'vscode.assistedApprovalFeedbackAccepted'?: true;
+	/** A user's hook denied this failed call, as correlated by the host. Absent for any other failure, including the host's own denials. */
+	readonly 'vscode.deniedByHook'?: IToolCallHookDenialMeta;
 	/**
 	 * VS Code rendering hint. `terminal` routes the call to the command/output
 	 * renderer, `subagent` to the subagent UI, `search` to the search renderer,
@@ -67,6 +69,12 @@ export interface IToolCallMeta {
 	readonly subagentChatUri?: string;
 	/** Originating MCP server name, when the call came from an MCP server. */
 	readonly mcpServerName?: string;
+	/**
+	 * User-facing label for the originating MCP server (e.g. "Slack" for a
+	 * Connector). Presentation only; {@link mcpServerName} stays the identity.
+	 * When absent, display {@link mcpServerName}.
+	 */
+	readonly 'vscode.mcpServerDisplayName'?: string;
 	/** Originating MCP tool name, when the call came from an MCP server. */
 	readonly mcpToolName?: string;
 	/** MCP App render data, when the call exposes an interactive App surface. */
@@ -89,6 +97,8 @@ const fusionPhaseStatuses = ['running', 'succeeded', 'failed', 'cancelled'] as c
 export type AgentFusionPhaseStatus = typeof fusionPhaseStatuses[number];
 const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuses);
 
+const maxMcpServerDisplayNameLength = 256;
+
 const toolCallMetaKeys = [
 	imageGenerationToolMetaKey,
 	'vscode.toolCallDurationMs',
@@ -98,8 +108,10 @@ const toolCallMetaKeys = [
 	'vscode.sandboxPathGrant',
 	'vscode.assistedApprovalNotice',
 	'vscode.assistedApprovalFeedbackAccepted',
+	'vscode.deniedByHook',
 	'vscode.terminalWorkingDirectory',
 	'vscode.terminalEnvironment',
+	'vscode.mcpServerDisplayName',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
 	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
@@ -115,6 +127,28 @@ export interface IFusionPhaseMeta {
 	readonly status: AgentFusionPhaseStatus;
 	readonly startedAt: number;
 	readonly duration?: number;
+}
+
+/** The hook that denied a tool call, under {@link IToolCallMeta}'s `vscode.deniedByHook`. */
+export interface IToolCallHookDenialMeta {
+	/** The agent's hook event name, such as `preToolUse`. */
+	readonly hookType: string;
+	/** The hook that failed and so denied the call. Absent when the hook denied the call itself. */
+	readonly source?: string;
+}
+
+const maxHookDenialFieldLength = 1024;
+
+function readHookDenial(value: unknown): IToolCallHookDenialMeta | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const isField = (field: unknown): field is string => typeof field === 'string' && field.trim().length > 0 && field.length <= maxHookDenialFieldLength;
+	if (!isField(raw.hookType) || raw.source !== undefined && !isField(raw.source)) {
+		return undefined;
+	}
+	return raw.source === undefined ? { hookType: raw.hookType } : { hookType: raw.hookType, source: raw.source };
 }
 
 /** Minimal metadata needed to embed and rank a deferred tool. */
@@ -225,6 +259,8 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	const assistedApprovalNotice = meta['vscode.assistedApprovalNotice'];
 	if (typeof assistedApprovalNotice === 'string' && assistedApprovalNotice.trim()) { result['vscode.assistedApprovalNotice'] = assistedApprovalNotice; }
 	if (meta['vscode.assistedApprovalFeedbackAccepted'] === true) { result['vscode.assistedApprovalFeedbackAccepted'] = true; }
+	const deniedByHook = readHookDenial(meta['vscode.deniedByHook']);
+	if (deniedByHook) { result['vscode.deniedByHook'] = deniedByHook; }
 	if (isToolKind(meta.toolKind)) { result.toolKind = meta.toolKind; }
 	if (typeof meta.language === 'string') { result.language = meta.language; }
 	const terminalWorkingDirectory = meta['vscode.terminalWorkingDirectory'];
@@ -235,6 +271,9 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta.subagentAgentName === 'string') { result.subagentAgentName = meta.subagentAgentName; }
 	if (typeof meta.subagentChatUri === 'string') { result.subagentChatUri = meta.subagentChatUri; }
 	if (typeof meta.mcpServerName === 'string') { result.mcpServerName = meta.mcpServerName; }
+	const rawMcpServerDisplayName = meta['vscode.mcpServerDisplayName'];
+	const mcpServerDisplayName = typeof rawMcpServerDisplayName === 'string' ? rawMcpServerDisplayName.trim() : undefined;
+	if (mcpServerDisplayName && mcpServerDisplayName.length <= maxMcpServerDisplayNameLength) { result['vscode.mcpServerDisplayName'] = mcpServerDisplayName; }
 	if (typeof meta.mcpToolName === 'string') { result.mcpToolName = meta.mcpToolName; }
 	if (typeof meta.progressMessage === 'string') { result.progressMessage = meta.progressMessage; }
 	const imageGeneration = readImageGenerationToolMetadata(source);

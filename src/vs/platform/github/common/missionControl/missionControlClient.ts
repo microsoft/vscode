@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { PaginatedApiRequest, collectPages, nextPagePath } from '../client/pagination.js';
 import { ApiRequest, ApiResponse, IApiRequestProvider } from '../client/request.js';
-import { collectPages, nextPagePath, PaginatedApiRequest } from '../client/pagination.js';
-import { parse, SchemaError } from '../client/schema.js';
+import { SchemaError, parse } from '../client/schema.js';
 import { normalizeReadApiBaseUri } from '../githubEndpoints.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { parseResponseJson } from '../responseReader.js';
 import { RequestError, RequestErrorKind } from '../types.js';
 import { ActivationContext, ApiError, ApiErrorResponse, CodedApiErrorResponse, PaginatedResponse, User } from './missionControl.js';
-import { parseMissionControlErrorCode, MissionControlErrorMetadata } from './missionControlError.js';
+import { MissionControlErrorMetadata, parseMissionControlErrorCode } from './missionControlError.js';
 
 /** An approved Mission Control API endpoint and its request-header configuration. */
 export interface ApiEndpoint {
@@ -85,11 +86,11 @@ export class MissionControlClient {
 
 	constructor(private readonly _provider?: IApiRequestProvider) { }
 
-	async requestPages<T extends PaginatedResponse<unknown>>(request: PaginatedApiRequest, signal: AbortSignal, parser: (response: ApiResponse) => T, merge: (pages: readonly T[]) => T): Promise<T> {
+	async requestPages<T extends PaginatedResponse<unknown>>(request: PaginatedApiRequest, cancellationToken: CancellationToken, parser: (response: ApiResponse) => T, merge: (pages: readonly T[]) => T): Promise<T> {
 		const { maxPages, pageLimitBehavior, ...options } = request.options ?? {};
 		if (maxPages === undefined) {
-			const data = await this.request({ ...request, options }, signal, parser);
-			signal.throwIfAborted();
+			const data = await this.request({ ...request, options }, cancellationToken, parser);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return data;
 		}
 		let serverDate: string | undefined;
@@ -97,7 +98,7 @@ export class MissionControlClient {
 		let retryAfterSeconds: number | undefined;
 		const response = await collectPages(
 			request.path,
-			path => this.request({ ...request, path: path ?? request.path, options }, signal, response => {
+			path => this.request({ ...request, path: path ?? request.path, options }, cancellationToken, response => {
 				const date = response.metadata?.serverDate;
 				const dateMs = date === undefined ? Number.NaN : Date.parse(date);
 				if (Number.isFinite(dateMs) && (serverTimeMs === undefined || dateMs < serverTimeMs)) {
@@ -112,15 +113,15 @@ export class MissionControlClient {
 			}),
 			page => nextPagePath(page.metadata),
 			pages => ({ ...pages[pages.length - 1], data: merge(pages.map(page => page.data)) }),
-			signal,
+			cancellationToken,
 			{ maxPages, pageLimitBehavior },
 		);
 		return { ...response.data, serverDate, ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}) };
 	}
 
 	/** Executes a Mission Control request and returns the result of the response parser. */
-	async request<T>(request: ApiRequest, signal: AbortSignal, parser: (response: ApiResponse<unknown>) => T): Promise<T> {
-		signal.throwIfAborted();
+	async request<T>(request: ApiRequest, cancellationToken: CancellationToken, parser: (response: ApiResponse<unknown>) => T): Promise<T> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const provider = this._provider;
 		if (!provider) {
 			throw new GitHubRequestError('No approved Mission Control API endpoint is configured for this client', 'validation');
@@ -131,10 +132,10 @@ export class MissionControlClient {
 			accept: request.accept ?? 'application/json',
 		};
 		const response = request.responseBody === 'none'
-			? await provider.request({ ...operation, responseBody: 'none' }, signal)
-			: await provider.request({ ...operation, responseBody: 'text' }, signal, parse.string);
+			? await provider.request({ ...operation, responseBody: 'none' }, cancellationToken)
+			: await provider.request({ ...operation, responseBody: 'text' }, cancellationToken, parse.string);
 		try {
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const data = request.responseBody === 'text' || typeof response.data !== 'string'
 				? response.data
 				: parseResponseJson<unknown>(response.data, () => new GitHubRequestError('API response was not valid JSON', 'malformedResponse', response.status));

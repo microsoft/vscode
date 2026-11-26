@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError } from '../../../../base/common/async.js';
-import { abortOnDispose, CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -20,7 +20,7 @@ export class GitHubApiClient extends Disposable {
 	private readonly _clientStore = this._register(new DisposableStore());
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
-	private _signal = abortOnDispose(this._clientStore);
+	private _clientToken = cancelOnDispose(this._clientStore);
 	private _client: Promise<IGitHubAccountClient> | undefined;
 	private _generation = 0;
 
@@ -68,18 +68,18 @@ export class GitHubApiClient extends Disposable {
 		await this.withClient(async () => { }, token);
 	}
 
-	async withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>, token: CancellationToken = CancellationToken.None): Promise<T> {
+	async withClient<T>(task: (client: IGitHubAccountClient, cancellationToken: CancellationToken) => Promise<T>, token: CancellationToken = CancellationToken.None): Promise<T> {
 		const lifetime = new DisposableStore();
-		const signal = AbortSignal.any([this._signal, CancellationToken.toAbortSignal(token, lifetime)]);
+		const cancellationToken = CancellationToken.any([this._clientToken, token], lifetime);
 		try {
-			signal.throwIfAborted();
-			const pending = this._client ??= this.acquireClient(this._signal);
-			const client = await raceCancellationError(pending, CancellationToken.fromAbortSignal(signal, lifetime));
-			const result = await task(client, signal);
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
+			const pending = this._client ??= this.acquireClient(this._clientToken);
+			const client = await raceCancellationError(pending, cancellationToken);
+			const result = await task(client, cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return result;
 		} catch (error) {
-			if (signal.aborted) {
+			if (cancellationToken.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			throw error;
@@ -88,10 +88,10 @@ export class GitHubApiClient extends Disposable {
 		}
 	}
 
-	private async acquireClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
+	private async acquireClient(cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
 		try {
-			const client = await this._gitHubService.acquireDefaultAccountApiClient(signal);
-			if (signal.aborted) {
+			const client = await this._gitHubService.acquireDefaultAccountApiClient(cancellationToken);
+			if (cancellationToken.isCancellationRequested) {
 				client.dispose();
 				throw new CancellationError();
 			}
@@ -99,7 +99,7 @@ export class GitHubApiClient extends Disposable {
 			this._clientStore.add(client.onDidInvalidate(() => this.reset()));
 			return client;
 		} catch (error) {
-			if (signal === this._signal) {
+			if (cancellationToken === this._clientToken) {
 				this._client = undefined;
 			}
 			throw error;
@@ -110,7 +110,7 @@ export class GitHubApiClient extends Disposable {
 		this._client = undefined;
 		this._generation++;
 		this._clientStore.clear();
-		this._signal = abortOnDispose(this._clientStore);
+		this._clientToken = cancelOnDispose(this._clientStore);
 		this._onDidChange.fire();
 	}
 

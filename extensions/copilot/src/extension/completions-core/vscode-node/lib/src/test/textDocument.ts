@@ -31,50 +31,6 @@ export function createTextDocument(
 	);
 }
 
-interface JupyterCellVSCodeMetadata {
-	languageId?: string;
-}
-
-interface JupyterCellMetadata {
-	vscode?: JupyterCellVSCodeMetadata;
-	[key: string]: unknown;
-}
-
-interface JupyterCell {
-	cell_type: 'code' | 'markdown';
-	source: string[];
-	metadata: JupyterCellMetadata;
-}
-
-interface JupyterNotebook {
-	cells: JupyterCell[];
-	metadata: Record<string, unknown>;
-	nbformat: number;
-	nbformat_minor: number;
-}
-
-export function parseNotebook(doc: ITextDocument): INotebookDocument {
-	const notebook: JupyterNotebook = JSON.parse(doc.getText()) as JupyterNotebook;
-	const cells: INotebookCell[] = notebook.cells.map((cell, index) => {
-		const cellUri = `${doc.uri.replace(/#.*/, '')}#${index}`;
-		const cellText = Array.isArray(cell.source) ? cell.source.join('') : cell.source;
-
-		const languageId =
-			(cell.metadata?.['vscode']?.['languageId'] as string) ||
-			(cell.cell_type === 'code' ? 'python' : 'markdown');
-
-		const document = CopilotTextDocument.create(cellUri, languageId, 0, cellText, languageId);
-
-		return {
-			index,
-			document,
-			metadata: cell.metadata,
-			kind: cell.cell_type === 'code' ? 2 : 1,
-		};
-	});
-	return new InMemoryNotebookDocument(cells);
-}
-
 export class InMemoryNotebookDocument implements INotebookDocument {
 	constructor(private readonly _cells: INotebookCell[]) { }
 	getCells(): INotebookCell[] {

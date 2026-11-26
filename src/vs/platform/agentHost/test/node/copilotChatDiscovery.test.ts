@@ -488,6 +488,108 @@ suite('CopilotChatDiscovery', () => {
 		});
 	});
 
+	for (const emit of [true, false]) {
+		for (const readyImmediately of [true, false]) {
+			testDiscovery(`prioritizes new sessions over parked history (event=${emit}, ready=${readyImmediately})`, async (files, catalog, discovery) => {
+				for (let index = 0; index < 3_900; index++) {
+					const id = `incomplete-${index}`;
+					files.mkdir(id, false);
+					files.write(id, 'events.jsonl', false);
+					catalog.sessions.add(id);
+					catalog.incomplete.add(id);
+				}
+				await discovery.start();
+				await timeout(65_001);
+				const calls = catalog.calls.length;
+				const createdAt = Date.now();
+				files.watchDelay = 5_000;
+				files.mkdir('fresh', emit);
+				if (!readyImmediately) {
+					await timeout(1_001);
+				}
+				files.write('fresh', 'events.jsonl');
+				files.write('fresh', 'workspace.yaml');
+				catalog.sessions.add('fresh');
+				await timeout(10_001);
+				const scan = catalog.calls[calls];
+				assert.deepStrictEqual({
+					published: catalog.published,
+					requests: catalog.calls.slice(calls).map(call => call.ids),
+					prompt: scan !== undefined && scan.time - createdAt <= 10_000,
+					maxWatches: files.maxWatches,
+					maxActiveStats: files.maxActiveStats,
+				}, {
+					published: ['fresh'], requests: [['fresh']], prompt: true, maxWatches: 33, maxActiveStats: 4,
+				});
+			});
+		}
+	}
+
+	testDiscovery('rotates recent candidates through bounded watches and probes during a burst', async (files, catalog, discovery) => {
+		for (let index = 0; index < 3_900; index++) {
+			files.mkdir(`history-${index}`, false);
+		}
+		await discovery.start();
+		const fresh = Array.from({ length: 40 }, (_, index) => `fresh-${index}`);
+		for (const id of fresh) {
+			files.mkdir(id);
+			files.write(id, 'events.jsonl');
+			catalog.sessions.add(id);
+			catalog.incomplete.add(id);
+		}
+		await timeout(30_001);
+		const before = [...catalog.published];
+		for (const id of fresh) {
+			catalog.incomplete.delete(id);
+			files.write(id, 'vscode.metadata.json', false);
+		}
+		await timeout(20_001);
+		assert.deepStrictEqual({
+			before,
+			published: [...catalog.published].sort(),
+			maxWatches: files.maxWatches,
+			maxActiveStats: files.maxActiveStats,
+			maxActiveScans: catalog.maxActive,
+		}, {
+			before: [], published: [...fresh].sort(), maxWatches: 33, maxActiveStats: 4, maxActiveScans: 1,
+		});
+	});
+
+	testDiscovery('keeps displaced history observable and watches a new CLI waiting for its first request', async (files, catalog, discovery) => {
+		const history = Array.from({ length: 40 }, (_, index) => `incomplete-${index}`);
+		for (const id of history) {
+			files.mkdir(id);
+			files.write(id, 'events.jsonl');
+			catalog.sessions.add(id);
+			catalog.incomplete.add(id);
+		}
+		await discovery.start();
+		await timeout(65_001);
+		const watchedHistory = history.filter(id => files.watches.has(URI.joinPath(root, id).path));
+		files.mkdir('empty-cli');
+		await timeout(501);
+		const displaced = watchedHistory.find(id => !files.watches.has(URI.joinPath(root, id).path));
+		assert.ok(displaced, 'A historical watcher must yield to the new CLI');
+		await timeout(70_001);
+		const idleScans = catalog.calls.length;
+		catalog.sessions.add('empty-cli');
+		files.write('empty-cli', 'events.jsonl');
+		await timeout(5_001);
+		const prompt = [...catalog.published];
+		catalog.incomplete.delete(displaced);
+		files.write(displaced, 'vscode.metadata.json', false);
+		await timeout(120_001);
+		assert.deepStrictEqual({
+			idleScans,
+			prompt,
+			published: catalog.published,
+			maxWatches: files.maxWatches,
+			maxActiveStats: files.maxActiveStats,
+		}, {
+			idleScans: 2, prompt: ['empty-cli'], published: ['empty-cli', displaced], maxWatches: 33, maxActiveStats: 4,
+		});
+	});
+
 	testDiscovery('bounds repeated successful catalog scans for history despite retries and fresh file events', async (files, catalog, discovery) => {
 		files.mkdir('unresolved');
 		files.write('unresolved', 'events.jsonl');

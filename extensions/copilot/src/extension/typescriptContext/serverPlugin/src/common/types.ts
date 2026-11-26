@@ -25,10 +25,8 @@ export type CodeCacheItem = {
 
 export interface EmitterContext extends KeyComputationContext {
 	getCachedCode(key: string): CodeCacheItem | undefined;
-	getCachedCode(symbol: tt.Symbol): CodeCacheItem | undefined;
 
 	cacheCode(key: string, code: CodeCacheItem): void;
-	cacheCode(symbol: tt.Symbol, code: CodeCacheItem): void;
 }
 
 export abstract class ProgramContext {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { mapStream } from './lib/streams.ts';
 import { gulp, gunzip } from './lib/gulp/facade.ts';
 import * as path from 'path';
 import fancyLog from 'fancy-log';
@@ -95,7 +95,7 @@ const acquireBuiltOpenSSL = (callback: (err?: unknown) => void) => {
 		});
 };
 
-const compileWithOpenSSLCheck = (reporter: import('./lib/reporter.ts').IReporter) => es.map((_, callback) => {
+const compileWithOpenSSLCheck = (reporter: import('./lib/reporter.ts').IReporter) => mapStream((_, callback) => {
 	compileFromSources(err => {
 		if (!err) {
 			// no-op

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { PageOptions, RepositoryRef } from '../client/types.js';
 import { CheckConclusion, CheckStatus } from './core.js';
@@ -167,26 +168,26 @@ export type ListCheckRunsOptions = ApiPaginationOptions<PageOptions & {
 export interface IChecksClient {
 
 	/** GET /repos/{owner}/{repo}/commits/{ref}/check-runs: list one page of check runs for a commit or ref. */
-	listRuns(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ListCheckRunsOptions): Promise<CheckRunsPage>;
+	listRuns(repository: RepositoryRef, commitRef: string, cancellationToken: CancellationToken, options?: ListCheckRunsOptions): Promise<CheckRunsPage>;
 
 	/** GET /repos/{owner}/{repo}/check-runs/{id}: read a single check run. */
-	getRun(repository: RepositoryRef, checkRunId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<CheckRun>;
+	getRun(repository: RepositoryRef, checkRunId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<CheckRun>;
 
 	/** GET /repos/{owner}/{repo}/check-suites/{id}/check-runs: list one page of check runs in a suite. */
-	listRunsForSuite(repository: RepositoryRef, suiteId: number, signal: AbortSignal, options?: ListCheckRunsOptions): Promise<CheckRunsPage>;
+	listRunsForSuite(repository: RepositoryRef, suiteId: number, cancellationToken: CancellationToken, options?: ListCheckRunsOptions): Promise<CheckRunsPage>;
 
 	/** GET /repos/{owner}/{repo}/commits/{ref}/check-suites: list one page of check suites. */
-	listSuites(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<CheckSuitesPage>;
+	listSuites(repository: RepositoryRef, commitRef: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<CheckSuitesPage>;
 
 	/** GET /repos/{owner}/{repo}/check-suites/{id}: read a single check suite. */
-	getSuite(repository: RepositoryRef, suiteId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<CheckSuite>;
+	getSuite(repository: RepositoryRef, suiteId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<CheckSuite>;
 
 	/** GET /repos/{owner}/{repo}/check-runs/{id}/annotations: list one page of check annotations. */
-	listAnnotations(repository: RepositoryRef, checkRunId: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly CheckAnnotation[]>;
+	listAnnotations(repository: RepositoryRef, checkRunId: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly CheckAnnotation[]>;
 
 	/** GET /repos/{owner}/{repo}/commits/{ref}/status: read combined legacy status and one page of its contexts. */
-	getCombinedStatus(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<CombinedStatus>;
+	getCombinedStatus(repository: RepositoryRef, commitRef: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<CombinedStatus>;
 
 	/** GET /repos/{owner}/{repo}/commits/{ref}/statuses: read one page of legacy status history. */
-	listStatuses(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly CommitStatus[]>;
+	listStatuses(repository: RepositoryRef, commitRef: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly CommitStatus[]>;
 }

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../../../chat/test/common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -12,6 +13,7 @@ import { IChatViewHost, IChatViewHostService } from '../../../chat/browser/chatV
 import { ChatViewHostService } from '../../../chat/browser/widgetHosts/viewPane/chatViewHostService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
@@ -27,12 +29,15 @@ suite('openPanelChatAndGetWidget', () => {
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (() => null) as IViewsService['getViewWithId'],
 			openView: (async (id: string, focus?: boolean) => { calls.push(`openView ${id} focus=${focus}`); return upcastPartial<ChatViewPane>({ widget: chatViewWidget }); }) as IViewsService['openView'],
 		}));
 		instantiationService.stub(IViewDescriptorService, {});
 		instantiationService.stub(IWorkbenchLayoutService, {});
 		instantiationService.stub(IProgressService, {});
-		return { service: instantiationService.createInstance(ChatViewHostService) as IChatViewHostService, calls };
+		stubChatViewHostServiceDependencies(instantiationService);
+		return { service: disposables.add(instantiationService.createInstance(ChatViewHostService)) as IChatViewHostService, calls };
 	}
 
 	test('returns the Chat view\'s widget, not a chat editor opened before it', async () => {
@@ -43,9 +48,11 @@ suite('openPanelChatAndGetWidget', () => {
 
 	test('returns what a host that replaces the Chat view shows, also none, asking it to wait for its widget', async () => {
 		const { service, calls } = createService(upcastPartial<ChatWidget>({}));
-		const registration = service.registerHost(upcastPartial<IChatViewHost>({
-			reveal: async (preserveFocus, options) => { calls.push(`reveal preserveFocus=${preserveFocus} waitForWidget=${options?.waitForWidget}`); return undefined; },
-		}));
+		const registration = service.register({
+			host: upcastPartial<IChatViewHost>({
+				reveal: async (preserveFocus, options) => { calls.push(`reveal preserveFocus=${preserveFocus} waitForWidget=${options?.waitForWidget}`); return undefined; },
+			})
+		});
 		const widget = await openPanelChatAndGetWidget(service);
 		registration.dispose();
 		assert.deepStrictEqual({ widget, calls }, { widget: undefined, calls: ['reveal preserveFocus=false waitForWidget=true'] });

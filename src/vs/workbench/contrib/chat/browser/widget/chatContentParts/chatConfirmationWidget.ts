@@ -27,6 +27,7 @@ import { IRenderFileWidgetsOptions, renderFileWidgets } from './chatInlineAnchor
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, IChatMarkdownContentPartOptions } from './chatMarkdownContentPart.js';
+import { renderSubagentChatLinks } from './chatSubagentOpenChat.js';
 import './media/chatConfirmationWidget.css';
 
 export interface IChatConfirmationButton<T> {
@@ -60,6 +61,7 @@ export interface IChatConfirmationWidgetOptions<T> {
 export interface IChatQueryTitlePartOptions {
 	readonly markdownRenderOptions?: MarkdownRenderOptions;
 	readonly renderFileWidgets?: boolean;
+	readonly parentSessionResource?: string;
 }
 
 export class ChatQueryTitlePart extends Disposable {
@@ -131,6 +133,9 @@ export class ChatQueryTitlePart extends Disposable {
 			return { element, dispose: () => { } };
 		}
 		const renderedTitle = this._renderer.render(markdown, this.getRenderOptions());
+		if (this.options?.parentSessionResource) {
+			this._fileWidgetStore.add(renderSubagentChatLinks(renderedTitle.element, this.options.parentSessionResource, this._instantiationService));
+		}
 		if (this.options?.renderFileWidgets) {
 			renderFileWidgets(renderedTitle.element, this._instantiationService, this._chatMarkdownAnchorService, this._fileWidgetStore);
 		}

@@ -22,14 +22,7 @@ A user adds `"systemWide": true` to a keybinding entry in **`keybindings.json`**
 
 While VS Code is running (even unfocused), pressing that combination runs the command. Rules:
 
-- **User keybindings, and built-in ones that opt in.** A built-in keybinding rule can set
-  `systemWide: true` (`IKeybindingRule.systemWide`), such as Attach Screenshot of App Window,
-  which is system-wide while `chat.appWindowScreenshots.enabled` is on. When the OS refuses a
-  built-in one, that is only logged, as the user didn't ask for it. Editing a built-in one in the
-  Keyboard Shortcuts editor gives a user keybinding that is not system-wide, and the default
-  keybindings JSON doesn't show the flag, because a user's system-wide keybinding ignores its
-  `when` clause and would always register. Extension-contributed keybindings can never be
-  system-wide — this prevents extensions from silently grabbing OS-global shortcuts.
+- **User keybindings, and built-in ones that opt in.** A built-in keybinding rule can set `systemWide: true` (`IKeybindingRule.systemWide`). No built-in keybinding does so today: a keybinding that fires in other apps should be the user's choice, so features offer a one-click opt-in instead (see below). When the OS refuses a built-in one, that is only logged, as the user didn't ask for it. Editing a built-in one in the Keyboard Shortcuts editor gives a user keybinding that is not system-wide, and the default keybindings JSON doesn't show the flag, because a user's system-wide keybinding ignores its `when` clause and would always register. Extension-contributed keybindings can never be system-wide — this prevents extensions from silently grabbing OS-global shortcuts.
 - **Single key combinations only.** Chords (`ctrl+k ctrl+c`) and single-modifier bindings cannot be
   expressed as an Electron accelerator; they are skipped with a `warn` log.
 - **`when` clauses are ignored** for the global trigger — an OS-global shortcut has no editor/UI
@@ -44,7 +37,7 @@ While VS Code is running (even unfocused), pressing that combination runs the co
 - **Desktop only.** The flag is inert on web/server (there is no `globalShortcut` there, and the
   contribution is `electron-browser`).
 - **Always on.** There is no setting to enable/disable it and no first-run dialog.
-- **Features can offer a one-click opt-in.** The Agents Window's Open Agents Window tip writes a user keybinding with `"systemWide": true` through `IKeybindingEditingService`, after checking `selectSystemWideKeybindings` for conflicts. Features never register OS shortcuts themselves. The Agents window registers the system-wide keybindings of Open Agents Window, Show Agents Launcher and Attach Screenshot of App Window, so that they work while it is the only window open.
+- **Features can offer a one-click opt-in.** A chat tip built on `SystemWideKeybindingTip` (`src/vs/workbench/contrib/chat/electron-browser/systemWideKeybindingTip.ts`) writes a user keybinding with `"systemWide": true` through `IKeybindingEditingService`, after checking `selectSystemWideKeybindings` for conflicts. The Agents Window's tip offers Open Agents Window on `ctrl+cmd+a`, and chat offers the keybinding of Attach Screenshot of App Window once the user has attached such a screenshot. Features never register OS shortcuts themselves. The Agents window registers the system-wide keybindings of Open Agents Window, Show Agents Launcher and Attach Screenshot of App Window, so that they work while it is the only window open.
 
 The `systemWide` boolean is declared in the `keybindings.json` JSON schema in
 `src/vs/workbench/services/keybinding/browser/keybindingService.ts`.

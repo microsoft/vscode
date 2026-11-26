@@ -122,10 +122,6 @@ export enum PromptsStorage {
 	builtIn = 'builtin',
 }
 
-export function isUserToggleableCustomization(type: PromptsType, storage: PromptsStorage): boolean {
-	return type === PromptsType.skill && storage === PromptsStorage.builtIn;
-}
-
 /**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
@@ -291,6 +287,12 @@ export interface ICustomAgent {
 	readonly uri: URI;
 
 	/**
+	 * Original location of an agent that was copied for another host, such as a VS Code agent synced to an Agent Host.
+	 * Provenance checks, like whether an agent is organization-provided, need it because {@link uri} is the copy.
+	 */
+	readonly sourceUri?: URI;
+
+	/**
 	 * Name of the custom agent as used in prompt files or contexts
 	 */
 	readonly name: string;
@@ -317,6 +319,7 @@ export interface ICustomAgent {
 	 * Argument hint metadata in the prompt header that describes what inputs the agent expects or supports.
 	 */
 	readonly argumentHint?: string;
+	readonly welcomeMessage?: string;
 
 	/**
 	 * Target of the agent: Copilot, VSCode, Claude, or undefined if not specified.
@@ -705,13 +708,6 @@ export interface IPromptsService extends IDisposable {
 	 */
 	parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile>;
 
-	/**
-	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
-	 * Not intended for extension authors; used by contribution point handler.
-	 */
-	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined, when?: string, sessionTypes?: readonly string[]): IDisposable;
-
-
 	getPromptLocationLabel(promptPath: IPromptPath): string;
 
 	/**
@@ -752,18 +748,6 @@ export interface IPromptsService extends IDisposable {
 	 * Persists the set of disabled prompt file URIs for the given type.
 	 */
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
-
-	/**
-	 * Registers a prompt file provider that can provide prompt files for repositories.
-	 * @param extension The extension registering the provider.
-	 * @param type The type of contribution.
-	 * @param provider The provider implementation with optional change event.
-	 * @returns A disposable that unregisters the provider when disposed.
-	 */
-	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
-		onDidChangePromptFiles?: Event<void>;
-		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
-	}): IDisposable;
 
 	/**
 	 * Gets list of agent skills files.

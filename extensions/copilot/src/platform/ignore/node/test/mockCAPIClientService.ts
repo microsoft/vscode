@@ -76,11 +76,6 @@ export class MockCAPIClientService {
 		return this.requestedBatches.flat();
 	}
 
-	/** How many times the given repo was asked for. */
-	timesRequested(repo: string): number {
-		return this.requestedRepos.filter(candidate => candidate === repo).length;
-	}
-
 	reset(): void {
 		this.requestedBatches.length = 0;
 	}

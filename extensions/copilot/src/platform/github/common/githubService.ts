@@ -30,8 +30,6 @@ export type IGetRepositoryInfoResponseData = Endpoints['GET /repos/{owner}/{repo
 export const IGithubRepositoryService = createServiceIdentifier<IGithubRepositoryService>('IGithubRepositoryService');
 export const IOctoKitService = createServiceIdentifier<IOctoKitService>('IOctoKitService');
 
-export const VSCodeTeamId = 1682102;
-
 export interface IGithubRepositoryService {
 
 	_serviceBrand: undefined;
@@ -224,6 +222,9 @@ export interface IOctoKitService {
 	 * @returns The complete custom agent configuration including the prompt
 	 */
 	getCustomAgentDetails(owner: string, repo: string, agentName: string, version: string, authOptions: AuthOptions): Promise<CustomAgentDetails | undefined>;
+
+	/** Reads the saved prompt for an automation (or its exact revision) without prompting for access. */
+	getAutomationPrompt(owner: string, repo: string, automationId: string, revisionId: string | undefined): Promise<string | undefined>;
 
 	/**
 	 * Gets the list of files changed in a pull request.

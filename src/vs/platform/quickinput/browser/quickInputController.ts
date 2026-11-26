@@ -101,6 +101,7 @@ export class QuickInputController extends Disposable {
 	private dndController: QuickInputDragAndDropController | undefined;
 	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
 	private readonly anchorResizeObserver = this._register(new MutableDisposable<IDisposable>());
+	private readonly anchorRects = new WeakMap<HTMLElement, IRect>();
 
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
 	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
@@ -1061,6 +1062,14 @@ export class QuickInputController extends Disposable {
 				const verticalPadding = 6 + 26 + 16; // Accounts for input box and padding
 
 				let anchor = getAnchorRect(target);
+				if (isElement) {
+					if (target.isConnected) {
+						this.anchorRects.set(target, anchor);
+					} else {
+						// A virtualized row may replace the invoking control while its picker remains open.
+						anchor = this.anchorRects.get(target) ?? anchor;
+					}
+				}
 				let preferredAnchorPosition = AnchorPosition.ABOVE;
 				let listHeightRatio = 0.2;
 				let maxListHeight = 200;

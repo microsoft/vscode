@@ -3,34 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from '../../../../base/common/path.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { parseArgs, OPTIONS } from '../../../environment/node/argv.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { OPTIONS, parseArgs } from '../../../environment/node/argv.js';
 import { NativeEnvironmentService } from '../../../environment/node/environmentService.js';
-import { LogLevel, NullLogService } from '../../../log/common/log.js';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import product from '../../../product/common/product.js';
-import { createAgentHostRuntime } from '../../node/agentHostBootstrap.js';
-import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
-import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
+import { getGitHubClientInternals } from '../../../github/test/common/githubClientTestUtils.js';
 import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
-import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
-import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { LogLevel, NullLogService } from '../../../log/common/log.js';
+import product from '../../../product/common/product.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
+import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
+import { SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { createAgentHostRuntime } from '../../node/agentHostBootstrap.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
-import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
-import { getGitHubClientInternals } from '../../../github/test/common/githubClientTestUtils.js';
+import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
+import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
+import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
+import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -181,13 +183,12 @@ suite('agentHostBootstrap', () => {
 			override readonly telemetryLevel = TelemetryLevel.USAGE;
 			override publicLog2(name: string): void { events.push(name); }
 		}()));
-		const controller = new AbortController();
-		const reason = new Error('cancelled');
-		controller.abort(reason);
-		const client = disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
+		const controller = disposables.add(new CancellationTokenSource());
+		controller.cancel();
+		const client = disposables.add(service.acquireRepositoryClient(CancellationToken.None)).object;
 		await assert.rejects(getGitHubClientInternals(client).transport.rest({ host: 'api.github.com', accountId: '1' }, 'token', {
 			method: 'GET', url: 'https://api.github.com/user',
-		}, controller.signal), error => error === reason);
+		}, controller.token), isCancellationError);
 		foundation.configurationService.updateRootConfig({ [AgentHostTelemetryLevelConfigKey]: 'off' });
 		foundation.configurationService.updateRootConfig({ [AgentHostTelemetryLevelConfigKey]: 'all' });
 		service.dispose();

@@ -19,6 +19,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AH_META_IS_ARCHIVED_DB_KEY } from '../../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostWorktreeCleanupService, IAgentHostWorktreeCleanupOptions } from '../../node/agentHostWorktreeCleanupService.js';
 import type { WorktreeRemovalMode } from '../../node/agentHostWorktreeRemovalDatabase.js';
@@ -175,28 +176,90 @@ suite('AgentHostWorktreeCleanupService', () => {
 		});
 	}
 
-	test('explicit cleanup durably adopts an existing managed worktree used with Branch isolation', async () => {
+	for (const source of ['metadata', 'catalog'] as const) {
+		test(`explicit cleanup durably adopts an existing Branch worktree from ${source}`, async () => {
+			const { database, cleanup, worktree, repository, managed, external } = await createManagedInventory();
+			worktree.sessions.clear();
+			await useWorktree(database, SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' }, true);
+			await setCatalogWorkingDirectories(database, [source === 'catalog' ? managed : external]);
+			if (source === 'catalog') {
+				const state = await database.readSessionState(SESSION.toString());
+				assert.ok(state);
+				await database.writeSessionState(SESSION.toString(), state.header.revision, { values: { [SESSION_WORKING_DIRECTORIES_KEY]: null }, folders: [], chats: [], markPayloadDirty: false });
+			}
+			await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+			const afterArchive = await pending(database);
+			const status = await cleanup.sessionWorktreeCleanup(SESSION, true);
+			const requests = (await database.listPendingWorktreeRemovals()).map(removal => ({
+				kind: removal.kind, ownerSession: removal.ownerSession, repository: removal.repositoryRoot, worktree: removal.worktreePath, branch: removal.branch, mode: removal.mode,
+			}));
+			await cleanup.runPass();
+			await cleanup.restoreSessionWorktree(SESSION);
+			assert.deepStrictEqual({ afterArchive, status, requests, recorded: worktree.sessions.get(SESSION.toString()), calls: worktree.calls, pending: await pending(database) }, {
+				afterArchive: [],
+				status: { state: 'pending' },
+				requests: [{
+					kind: 'detached', ownerSession: SESSION.toString(), repository: repository.toString(), worktree: managed.toString(), branch: 'agents/recovered', mode: 'commit',
+				}],
+				recorded: { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered', managedCleanup: true },
+				calls: [`remove:${managed.toString()}:commit:agents/recovered`, `recreate:${sessionId}`],
+				pending: [],
+			});
+		});
+	}
+
+	async function setCatalogWorkingDirectories(database: AgentHostDatabase, directories: readonly URI[]): Promise<void> {
+		const encoded = encodeAgentHostCatalogPayload({ modifiedTime: 1, isRead: true, isArchived: true, workingDirectories: directories.map(directory => directory.toString()), chats: [] });
+		assert.ok(encoded.ok);
+		await database.upsertSessionV2({
+			session: SESSION.toString(), sessionGeneration: 'generation', sourceRevision: 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			payloadHash: encoded.value.payloadHash, verified: true, payload: encoded.value.payload,
+		}, undefined);
+	}
+
+	for (const { kind, payload, version, error } of [
+		{ kind: 'invalid', payload: '{}', version: AGENT_HOST_CATALOG_PAYLOAD_VERSION, error: 'Expected a non-negative safe integer payloadVersion.' },
+		{ kind: 'outdated', payload: JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION + 1 }), version: AGENT_HOST_CATALOG_PAYLOAD_VERSION + 1, error: `Expected payload version ${AGENT_HOST_CATALOG_PAYLOAD_VERSION}, but got ${AGENT_HOST_CATALOG_PAYLOAD_VERSION + 1}.` },
+	]) {
+		for (const hasRecovery of [true, false]) {
+			test(`${kind} catalog roots do not block cleanup ${hasRecovery ? 'with' : 'without'} recorded recovery`, async () => {
+				const log = new RecordingLogService();
+				const { database, cleanup, worktree } = create(undefined, log);
+				if (!hasRecovery) {
+					worktree.sessions.clear();
+				}
+				await useWorktree(database, SESSION, recorded('archived'), true);
+				await setCatalogWorkingDirectories(database, [recorded('unrecorded').worktree]);
+				const state = await database.readSessionState(SESSION.toString());
+				assert.ok(state);
+				await database.writeSessionState(SESSION.toString(), state.header.revision, { values: { [SESSION_WORKING_DIRECTORIES_KEY]: null }, folders: [], chats: [], markPayloadDirty: false });
+				await sql(database, 'UPDATE sessions_v2 SET payload = ?, payload_version = ? WHERE session_uri = ?', [payload, version, SESSION.toString()]);
+
+				const status = await cleanup.sessionWorktreeCleanup(SESSION, true);
+				const requests = await pending(database);
+				await cleanup.runPass();
+
+				assert.deepStrictEqual({ status, requests, calls: worktree.calls, recovery: [...worktree.sessions.keys()], warnings: log.messages.filter(message => message.startsWith('warn:')) }, {
+					status: { state: hasRecovery ? 'pending' : 'unknown' },
+					requests: hasRecovery ? ['session:commit:0'] : [],
+					calls: hasRecovery ? [`remove:${sessionId}:commit:agents/archived`] : [],
+					recovery: hasRecovery ? [SESSION.toString()] : [],
+					warnings: [`warn:[AgentHostWorktreeCleanup] Ignoring ${kind} catalog roots for session ${SESSION.toString()} (payload version ${version}): ${error}`],
+				});
+			});
+		}
+	}
+
+	test('an explicitly empty workspace does not adopt a stale catalog worktree', async () => {
 		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
 		worktree.sessions.clear();
 		await useWorktree(database, SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' }, true);
-		await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
-		const afterArchive = await pending(database);
-		const status = await cleanup.sessionWorktreeCleanup(SESSION, true);
-		const requests = (await database.listPendingWorktreeRemovals()).map(removal => ({
-			kind: removal.kind, ownerSession: removal.ownerSession, repository: removal.repositoryRoot, worktree: removal.worktreePath, branch: removal.branch, mode: removal.mode,
-		}));
-		await cleanup.runPass();
-		await cleanup.restoreSessionWorktree(SESSION);
-		assert.deepStrictEqual({ afterArchive, status, requests, recorded: worktree.sessions.get(SESSION.toString()), calls: worktree.calls, pending: await pending(database) }, {
-			afterArchive: [],
-			status: { state: 'pending' },
-			requests: [{
-				kind: 'detached', ownerSession: SESSION.toString(), repository: repository.toString(), worktree: managed.toString(), branch: 'agents/recovered', mode: 'commit',
-			}],
-			recorded: { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered', managedCleanup: true },
-			calls: [`remove:${managed.toString()}:commit:agents/recovered`, `recreate:${sessionId}`],
-			pending: [],
-		});
+		await setCatalogWorkingDirectories(database, [managed]);
+		const state = await database.readSessionState(SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(SESSION.toString(), state.header.revision, { values: { [SESSION_WORKING_DIRECTORIES_KEY]: '[]' }, folders: [], chats: [], markPayloadDirty: false });
+		await cleanup.prepareSessionWorktreeCleanup(SESSION);
+		assert.deepStrictEqual({ recorded: [...worktree.sessions], pending: await pending(database) }, { recorded: [], pending: [] });
 	});
 
 	test('restoring an adopted Branch-isolated session cancels its pending removal', async () => {

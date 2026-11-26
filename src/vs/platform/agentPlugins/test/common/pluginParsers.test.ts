@@ -396,11 +396,11 @@ suite('pluginParsers', () => {
 
 		test('publishes ordered model and reasoning preferences without reading agent files in the client', async () => {
 			const uri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/review.agent.md' });
-			await fileService.writeFile(uri, VSBuffer.fromString('---\nname: Review\nmodel: [missing, sonnet]\nmodel-policy: required\nreasoning-effort: low\n---\nReview.'));
+			await fileService.writeFile(uri, VSBuffer.fromString('---\nname: Review\nmodel: [missing, sonnet]\nmodel-policy: required\nreasoning-effort: low\nvscode:\n  welcome-message: |\n    Hello reviewer\n---\nReview.'));
 			const agents = await readAgentComponents([uri], fileService);
 			const customization = toParsedAgent(agents[0]).customization;
 			assert.deepStrictEqual({ model: customization.model, meta: customization._meta }, {
-				model: 'missing', meta: { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required' },
+				model: 'missing', meta: { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required', 'vscode.welcomeMessage': 'Hello reviewer\n' },
 			});
 		});
 
@@ -646,7 +646,8 @@ suite('pluginParsers', () => {
 					},
 				}));
 				await write('/plugins/example/com.github.copilot/agents/helper.agent.md', '---\nname: helper\ndescription: Helps\n---');
-				await write('/plugins/example/com.github.copilot/rules/project.instructions.md', '---\nname: project-rule\n---');
+				await write('/plugins/example/com.github.copilot/rules/project.instructions.md', '---\nname: project-rule\ndescription: Project conventions\napplyTo: "**/*.ts"\nalwaysApply: false\n---');
+				await write('/plugins/example/com.github.copilot/commands/review.prompt.md', 'Review the changes.');
 				await write('/plugins/example/com.github.copilot/hooks/hooks.json', JSON.stringify({
 					hooks: {
 						PostToolUse: [{ hooks: [{ type: 'command', command: 'echo ${PLUGIN_ROOT}' }] }],
@@ -658,7 +659,8 @@ suite('pluginParsers', () => {
 				const plugin = await parse();
 				assert.deepStrictEqual({
 					agents: plugin.agents.map(agent => agent.name),
-					instructions: plugin.instructions.map(instruction => instruction.name),
+					instructions: plugin.instructions.map(({ customization: { name, description, globs, alwaysApply } }) => ({ name, description, globs, alwaysApply })),
+					prompts: plugin.prompts?.map(({ name, type }) => ({ name, type })),
 					hooks: plugin.hooks.map(hook => ({
 						type: hook.type,
 						commands: hook.commands.map(command => ({
@@ -668,7 +670,8 @@ suite('pluginParsers', () => {
 					})),
 				}, {
 					agents: ['helper'],
-					instructions: ['project'],
+					instructions: [{ name: 'project-rule', description: 'Project conventions', globs: ['**/*.ts'], alwaysApply: false }],
+					prompts: [{ name: 'review', type: CustomizationType.Prompt }],
 					hooks: [{
 						type: 'PostToolUse',
 						commands: [{

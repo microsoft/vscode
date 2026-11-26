@@ -6,7 +6,9 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
@@ -32,8 +34,21 @@ import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEdit
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { Position } from '../../../../editor/common/core/position.js';
+import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 let INMEM_MODEL_ID = 0;
+
+/** How long an action of the comment form runs before its progress is shown, so that quick actions don't flash it. */
+const FORM_ACTION_PROGRESS_DELAY = 200;
+
+function isCommentThreadReplyContext(context: unknown): context is { thread: languages.CommentThread; text: string } {
+	return typeof context === 'object'
+		&& context !== null
+		&& 'thread' in context
+		&& 'text' in context
+		&& typeof context.text === 'string';
+}
+
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
 export class CommentReply<T extends IRange | ICellRange> extends Disposable {
@@ -50,6 +65,13 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditorActions!: CommentFormActions;
 	private _reviewThreadReplyButton!: HTMLElement;
 	private _editorHeight = MIN_EDITOR_HEIGHT;
+	/** Shows that an action of the form is running, below the comment editor. */
+	private readonly _progressBar: ProgressBar;
+	private _isRunningFormAction = false;
+	/** Resolves once the reply's editor has its model and the reply has its final content, such as its reply button. */
+	readonly whenInitialized: Promise<void>;
+	/** Whether the comment editor was to be focused while the reply wasn't in the document, where it can't take focus. */
+	private _isFocusPending = false;
 
 	constructor(
 		readonly owner: string,
@@ -75,10 +97,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._container = dom.append(container, dom.$('.comment-form-container'));
 		this._form = dom.append(this._container, dom.$('.comment-form'));
 		this.commentEditor = this._register(this._scopedInstatiationService.createInstance(SimpleCommentEditor, this._form, SimpleCommentEditor.getEditorOptions(configurationService), _contextKeyService, this._parentThread));
+		this._progressBar = this._register(new ProgressBar(dom.append(this._container, dom.$('.comment-form-progress')), defaultProgressBarStyles));
+		this._progressBar.hide();
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 
-		this.initialize(focus);
+		this.whenInitialized = this.initialize(focus).catch(onUnexpectedError);
 	}
 
 	private async initialize(focus: boolean) {
@@ -185,7 +209,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	public layout(widthInPixel: number) {
-		this.commentEditor.layout({ height: this._editorHeight, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ - this.getAvatarWidth() });
+		const width = this.getCommentEditorWidthInForm() ?? widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ - this.getAvatarWidth();
+		this.commentEditor.layout({ height: this._editorHeight, width });
+		// The comment wraps at the editor's width, so the height that fits it can change with the width.
+		if (this.calculateEditorHeight()) {
+			this.commentEditor.layout({ height: this._editorHeight, width });
+		}
 	}
 
 	/**
@@ -196,18 +225,29 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	/**
-	 * Sizes the comment editor to the space that the author's avatar leaves in the comment form.
+	 * The width of the space that the author's avatar leaves for the comment editor in the comment form, or `undefined`
+	 * when the form isn't rendered, so there is nothing to measure.
 	 */
-	private layoutCommentEditorInForm(): void {
+	private getCommentEditorWidthInForm(): number | undefined {
 		const editorNode = this.commentEditor.getDomNode();
 		const formWidth = dom.getContentWidth(this._form);
 		if (!editorNode || formWidth <= 0) {
-			// The form isn't rendered, so there is nothing to measure.
+			return undefined;
+		}
+		const editorFrameWidth = dom.getTotalWidth(editorNode) - dom.getContentWidth(editorNode);
+		return formWidth - this.getAvatarWidth() - editorFrameWidth;
+	}
+
+	/**
+	 * Sizes the comment editor to the space that the author's avatar leaves in the comment form.
+	 */
+	private layoutCommentEditorInForm(): void {
+		const width = this.getCommentEditorWidthInForm();
+		if (width === undefined) {
 			this.commentEditor.layout();
 			return;
 		}
-		const editorFrameWidth = dom.getTotalWidth(editorNode) - dom.getContentWidth(editorNode);
-		this.commentEditor.layout({ height: this._editorHeight, width: formWidth - this.getAvatarWidth() - editorFrameWidth });
+		this.commentEditor.layout({ height: this._editorHeight, width });
 	}
 
 	public focusIfNeeded() {
@@ -234,7 +274,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	private updateAuthorInfo() {
 		this.avatar.textContent = '';
 		if (typeof this._commentThread.canReply !== 'boolean' && this._commentThread.canReply.iconPath) {
-			this.avatar.style.display = 'block';
+			// The avatar's styles decide whether it's shown, such as in a floating widget, which doesn't show it.
+			this.avatar.style.display = '';
 			const img = dom.append(this.avatar, dom.$('img.avatar')) as HTMLImageElement;
 			img.src = FileAccess.uriToBrowserUri(URI.revive(this._commentThread.canReply.iconPath)).toString(true);
 		} else {
@@ -320,26 +361,52 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	 */
 	private createCommentWidgetFormActions(container: HTMLElement, model: ITextModel) {
 		const menu = this._commentMenus.getCommentThreadActions(this._contextKeyService);
+		const controller = this.commentService.getCommentController(this.owner);
+		const submitLabel = controller?.submitCommentThread ? controller.getSubmitCommentThreadLabel?.(this._commentThread) : undefined;
+		const submitAction = controller?.submitCommentThread && submitLabel
+			? this._register(new Action(
+				`${controller.id}.submitCommentThread`,
+				submitLabel,
+				undefined,
+				model.getValueLength() > 0,
+				context => isCommentThreadReplyContext(context)
+					? controller.submitCommentThread!(context.thread, context.text)
+					: undefined,
+			))
+			: undefined;
+		const setActions = () => this._commentFormActions.setActions(menu, false, submitAction ? [submitAction] : []);
 
 		this._register(menu);
-		this._register(menu.onDidChange(() => {
-			this._commentFormActions.setActions(menu);
-		}));
+		this._register(menu.onDidChange(setActions));
 
 		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, async (action: IAction) => {
-			await this._actionRunDelegate?.();
+			if (this._isRunningFormAction) {
+				return;
+			}
+			this.setFormBusy(true);
+			try {
+				await this._actionRunDelegate?.();
 
-			await action.run({
-				thread: this._commentThread,
-				text: this.commentEditor.getValue(),
-				$mid: MarshalledId.CommentThreadReply
-			});
+				await action.run({
+					thread: this._commentThread,
+					text: this.commentEditor.getValue(),
+					$mid: MarshalledId.CommentThreadReply
+				});
 
-			this.hideReplyArea();
+				this.hideReplyArea();
+			} finally {
+				this.setFormBusy(false);
+			}
 		});
 
 		this._register(this._commentFormActions);
-		this._commentFormActions.setActions(menu);
+		setActions();
+		if (submitAction) {
+			this._register(model.onDidChangeContent(() => {
+				submitAction.enabled = model.getValueLength() > 0;
+				this._commentFormActions.updateAction(submitAction);
+			}));
+		}
 	}
 
 	private createCommentWidgetEditorActions(container: HTMLElement, model: ITextModel) {
@@ -413,9 +480,25 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		if (!this.isReplyExpanded) {
 			this._container.classList.add('expand');
 			if (focus) {
-				this.commentEditor.focus();
+				if (this._container.isConnected) {
+					this.commentEditor.focus();
+				} else {
+					// Focus can't move into an element that isn't in the document.
+					this._isFocusPending = true;
+				}
 			}
 			this.layoutCommentEditorInForm();
+		}
+	}
+
+	/**
+	 * Focuses the comment editor if it was to be focused while the reply wasn't in the document yet, such as when the
+	 * reply is initialized before its thread is shown.
+	 */
+	focusIfPending(): void {
+		if (this._isFocusPending && this._container.isConnected) {
+			this._isFocusPending = false;
+			this.commentEditor.focus();
 		}
 	}
 
@@ -436,6 +519,26 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._container.classList.remove('expand');
 		this._error.textContent = '';
 		this._error.classList.add('hidden');
+	}
+
+	/**
+	 * While an action of the form runs, such as one that posts the comment, the form shows its progress and takes no
+	 * other input, so that the action isn't run again and the comment it acts on isn't changed.
+	 */
+	private setFormBusy(isBusy: boolean): void {
+		// An action can remove its thread, which disposes the reply.
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._isRunningFormAction = isBusy;
+		this._commentFormActions.setEnabled(!isBusy);
+		this._commentEditorActions.setEnabled(!isBusy);
+		this.commentEditor.updateOptions({ readOnly: isBusy });
+		if (isBusy) {
+			this._progressBar.infinite().show(FORM_ACTION_PROGRESS_DELAY);
+		} else {
+			this._progressBar.stop().hide();
+		}
 	}
 
 	private createReplyButton(commentEditor: ICodeEditor, commentForm: HTMLElement) {

@@ -13,12 +13,13 @@ import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	AgentHostAgentOrchestrationLimitsSettingId,
+	AgentHostSessionModelOptionsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
+	AgentHostGitCoalesceReadsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	CanvasesEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostBrowserUseEnabledSettingId,
-	AgentHostComputerUseEnabledSettingId,
 	AgentHostMcpToolRoutingEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
@@ -45,18 +46,22 @@ import {
 import {
 	AgentHostAhpJsonlLoggingEnabledConfigKey,
 	AgentHostAgentOrchestrationLimitsConfigKey,
+	AgentHostSessionModelOptionsConfigKey,
+	agentHostSessionModelOptionsValues,
 	AgentHostAutoAttachPullRequestsConfigKey,
+	AgentHostGitCoalesceReadsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostByokModelsEnabledDefault,
 	AgentHostCanvasesEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostBrowserUseEnabledConfigKey,
-	AgentHostComputerUseEnabledConfigKey,
 	AgentHostMcpToolRoutingEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostOverlapProviderPreparationConfigKey,
 	AgentHostPrewarmSessionsConfigKey,
+	AgentHostKeepAwakeConfigKey,
+	agentHostKeepAwakeConfiguration,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
 	AgentHostMcpSkillsEnabledConfigKey,
@@ -64,6 +69,7 @@ import {
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from './agentHostChatProviders.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
+import { computerUseConfigurationProperties } from './computerUseConfiguration.js';
 import { chatMoveConfigurationProperties } from './chatMoveConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
@@ -234,10 +240,17 @@ configurationRegistry.registerConfiguration({
 		},
 		...chatMoveConfigurationProperties,
 		...titleGenerationConfigurationProperties,
+		'sessions.keepAwakeWhileWorking': {
+			...agentHostKeepAwakeConfiguration,
+			tags: ['preview'],
+			scope: ConfigurationScope.MACHINE,
+			description: nls.localize('sessions.keepAwakeWhileWorking', "Controls when each connected Agent Host keeps its machine from idle-sleeping while a chat is working, where supported. The hold is released shortly after work ends and does not require an open window. The display can turn off and explicit sleep is not inhibited."),
+			agentHost: { key: AgentHostKeepAwakeConfigKey },
+		},
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.canvases.enabled', "Controls whether Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Sessions on remote agent hosts also require `#{0}#`, so canvas pages load through the agent host's network. Newly created sessions pick up changes to this setting.", 'workbench.browser.enableRemoteProxy'),
+			markdownDescription: nls.localize('chat.canvases.enabled', "Controls whether Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Sessions on remote agent hosts also require `#{0}#`, so canvas pages load through the agent host's network. Running sessions pick up changes to this setting when they next send a request or open a canvas.", 'workbench.browser.enableRemoteProxy'),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
@@ -265,6 +278,15 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostAutoAttachPullRequestsConfigKey },
 		},
+		[AgentHostGitCoalesceReadsSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.git.coalesceReads', "Controls whether the Agent Host shares one process between identical read-only git commands that run at the same time, and limits how many read-only git commands run at once. This reduces git process pile-ups and timeouts when many sessions refresh together."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostGitCoalesceReadsConfigKey },
+		},
 		[AgentHostMarkdownPlanRichLinksEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.markdownPlanRichLinks', "When enabled, agents receive guidance for using rich links to issues, pull requests, commits, sessions, and chats, plus running task markers, when creating or editing Markdown plan documents."),
@@ -280,7 +302,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview', 'advanced', 'experimental'],
-			included: false,
 			agentHost: { key: ModelRouterEnabledConfigKey },
 		},
 		[AgentHostOverlapProviderPreparationSettingId]: {
@@ -295,7 +316,7 @@ configurationRegistry.registerConfiguration({
 		[AgentHostPrewarmSessionsSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.prewarmSessions', "When enabled, new Agent Host Copilot chats start their runtime and MCP servers before the first message is sent, so connectors are ready sooner. Changes apply to new chats."),
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
@@ -325,11 +346,26 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentHost.agentOrchestrationLimits.on', "Enforce the limits."),
 				nls.localize('chat.agentHost.agentOrchestrationLimits.off', "Do not enforce the limits."),
 			],
-			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls per-session limits, over a sliding one-hour window, on sessions and chats created and messages sent, and the depth of recursive session spawning, by Agent Host session tools. Confirmation requirements and input validation are unchanged."),
+			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls per-session limits, over a sliding one-hour window, on sessions and chats created and messages sent, and the depth of recursive session spawning, by Agent Host session tools. Remote session messages have the same limit, counted separately in each Agents window. Confirmation requirements and input validation are unchanged."),
 			default: 'on',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 			agentHost: { key: AgentHostAgentOrchestrationLimitsConfigKey },
+		},
+		[AgentHostSessionModelOptionsSettingId]: {
+			type: 'string',
+			enum: [...agentHostSessionModelOptionsValues],
+			enumDescriptions: [
+				nls.localize('chat.agentHost.sessionModelOptions.off', "Agents choose only the model."),
+				nls.localize('chat.agentHost.sessionModelOptions.inline', "Agents can also choose the reasoning effort and context size. The session creation tool lists the available models and their options when an agent loads it through tool search."),
+				nls.localize('chat.agentHost.sessionModelOptions.tool', "Agents can also choose the reasoning effort and context size, and list the available models and their options with a separate tool."),
+			],
+			description: nls.localize('chat.agentHost.sessionModelOptions', "Controls whether Agent Host agents can choose the reasoning effort and context size of the model when they create a session or chat, and how they find the available models and options."),
+			default: 'off',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostSessionModelOptionsConfigKey },
 		},
 		[AgentHostSystemProxyEnabledSettingId]: {
 			type: 'boolean',
@@ -347,19 +383,12 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostGitHubMcpServerEnabledConfigKey },
 		},
-		[AgentHostComputerUseEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.computerUse.enabled', "When enabled, local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin, which can operate desktop applications. The plugin is downloaded on first use. Turn it on with `/computer on` in a Copilot chat, or when the agent asks. Each application still requires your approval. Changes take effect after a restart."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'startup' },
-			agentHost: { key: AgentHostComputerUseEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
-		},
+		...computerUseConfigurationProperties,
 		[AgentHostBrowserUseEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.browserUse.enabled', "When enabled, local Copilot agent sessions offer GitHub's Browser Use plugin, which can operate pages in Google Chrome or Microsoft Edge through the [GitHub Copilot browser extension](https://chromewebstore.google.com/detail/github-copilot/hblomdgalaelcilcdepgohfcogjiijhe). Turn it on with `/plugin enable browser-use` in a Copilot chat, then run `/browser-use:doctor` to check your setup. Requires Node.js 22 or later on your `PATH`. Changes take effect after a restart."),
 			default: false,
-			tags: ['experimental', 'advanced'],
+			tags: ['preview', 'advanced'],
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostBrowserUseEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 		},

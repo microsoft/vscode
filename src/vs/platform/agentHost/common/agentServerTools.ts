@@ -23,6 +23,12 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	 * sessions defer the tool and other providers keep their SDK defaults.
 	 */
 	readonly deferLoading?: boolean;
+	/**
+	 * The input schema to advertise instead of `inputSchema` while the tool is deferred behind tool search, for text
+	 * that only helps once the agent has loaded the tool, such as a model catalog. A provider that loads the tool on
+	 * every request uses `inputSchema`. Never published to clients.
+	 */
+	readonly deferredInputSchema?: ToolDefinition['inputSchema'];
 }
 
 /**

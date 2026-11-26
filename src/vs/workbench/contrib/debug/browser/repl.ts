@@ -30,7 +30,6 @@ import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/c
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { Position } from '../../../../editor/common/core/position.js';
-import { Range } from '../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../editor/common/editorCommon.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemKinds, CompletionItemLabel, CompletionList } from '../../../../editor/common/languages.js';
@@ -57,11 +56,12 @@ import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listSe
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { editorForeground, resolveColorValue } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, editorForeground, resolveColorValue } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { FilterViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../common/views.js';
+import { SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -70,6 +70,7 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from '../../
 import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, IDebugConfiguration, IDebugService, IDebugSession, IReplConfiguration, IReplElement, IReplOptions, REPL_VIEW_ID, State, getStateLabel } from '../common/debug.js';
 import { Variable } from '../common/debugModel.js';
 import { resolveChildSession } from '../common/debugUtils.js';
+import { getReplCompletionRange, getReplHistoryCompletion } from '../common/replCompletions.js';
 import { ReplEvaluationResult, ReplGroup } from '../common/replModel.js';
 import { FocusSessionActionViewItem } from './debugActionViewItems.js';
 import { DEBUG_COMMAND_CATEGORY, FOCUS_REPL_ID } from './debugCommands.js';
@@ -279,10 +280,14 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 							const response = await session.completions(frameId, focusedStackFrame?.thread.threadId || 0, text, position, token);
 
 							const suggestions: CompletionItem[] = [];
-							const computeRange = (length: number) => Range.fromPositions(position.delta(0, -length), position);
 							if (response && response.body && response.body.targets) {
 								response.body.targets.forEach(item => {
 									if (item && item.label) {
+										const range = getReplCompletionRange(model, position, item);
+										if (!range) {
+											return;
+										}
+
 										let insertTextRules: CompletionItemInsertTextRule | undefined = undefined;
 										let insertText = item.text || item.label;
 										if (typeof item.selectionStart === 'number') {
@@ -301,7 +306,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 											insertText,
 											kind: CompletionItemKinds.fromString(item.type || 'property'),
 											filterText: (item.start && item.length) ? text.substring(item.start, item.start + item.length).concat(item.label) : undefined,
-											range: computeRange(item.length || 0),
+											range,
 											sortText: item.sortText,
 											insertTextRules
 										});
@@ -312,13 +317,22 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 							if (this.configurationService.getValue<IDebugConfiguration>('debug').console.historySuggestions) {
 								const history = this.history.getHistory();
 								const idxLength = String(history.length).length;
-								history.forEach((h, i) => suggestions.push({
-									label: h,
-									insertText: h,
-									kind: CompletionItemKind.Text,
-									range: computeRange(h.length),
-									sortText: 'ZZZ' + String(history.length - i).padStart(idxLength, '0')
-								}));
+								history.forEach((h, i) => {
+									const completion = getReplHistoryCompletion(model, position, h);
+									if (!completion) {
+										return;
+									}
+
+									const { insertText, range } = completion;
+									suggestions.push({
+										label: h,
+										insertText,
+										filterText: insertText,
+										kind: CompletionItemKind.Text,
+										range,
+										sortText: 'ZZZ' + String(history.length - i).padStart(idxLength, '0')
+									});
+								});
 							}
 
 							return { suggestions };
@@ -399,6 +413,9 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			});
 
 			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
+			// Side bar colors can be rescoped by Modern UI, so follow the variable there.
+			const locationBackground = this.getLocationBasedColors().background;
+			const replInputBackground = locationBackground === SIDE_BAR_BACKGROUND ? asCssVariable(locationBackground) : this.replOptions.replConfiguration.backgroundColor;
 
 			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
 			this.styleElement.textContent = `
@@ -407,7 +424,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				}
 
 				.repl .repl-input-wrapper .monaco-editor .lines-content {
-					background-color: ${this.replOptions.replConfiguration.backgroundColor};
+					background-color: ${replInputBackground};
 				}
 			`;
 			const cssFontFamily = this.replOptions.replConfiguration.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : this.replOptions.replConfiguration.fontFamily;

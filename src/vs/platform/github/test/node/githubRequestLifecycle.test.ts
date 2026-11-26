@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubRequestError } from '../../common/githubTypes.js';
 import { AccountHandle, RequestOptions } from '../../common/types.js';
-import { GitHubTransport } from '../../common/githubTransport.js';
 import { FakeScheduler } from './fakeScheduler.js';
+
 
 const account: AccountHandle = { host: 'github.example.test', accountId: '1' };
 const url = 'https://github.example.test/repos/owner/repo';
 
-function request(transport: GitHubTransport, kind: 'rest' | 'graphql', options: RequestOptions = {}, signal = new AbortController().signal) {
+function request(transport: GitHubTransport, kind: 'rest' | 'graphql', options: RequestOptions = {}, cancellationToken = CancellationToken.None) {
 	return kind === 'rest'
-		? transport.rest<{ value: string }>(account, 'token', { method: 'GET', url, ...options }, signal)
-		: transport.graphql<{ value: string }>(account, 'token', 'https://github.example.test/graphql', 'query { viewer { login } }', {}, signal, 'interactive', options);
+		? transport.rest<{ value: string }>(account, 'token', { method: 'GET', url, ...options }, cancellationToken)
+		: transport.graphql<{ value: string }>(account, 'token', 'https://github.example.test/graphql', 'query { viewer { login } }', {}, cancellationToken, 'interactive', options);
 }
 
 suite('GitHub request lifecycle', () => {
@@ -43,9 +46,9 @@ suite('GitHub request lifecycle', () => {
 		}, scheduler, false, undefined, {
 			queue: { maximumConcurrency: 1, maximumHostConcurrency: 1, maximumCallerConcurrency: 1 },
 		}));
-		const read = (path: string, priority: 'background' | 'visible', signal = new AbortController().signal) => kind === 'rest'
-			? transport.rest(account, 'token', { method: 'GET', url: `https://github.example.test/${path}`, priority }, signal)
-			: transport.graphql(account, 'token', 'https://github.example.test/graphql', 'query Read($path: String!) { value }', { path }, signal, priority);
+		const read = (path: string, priority: 'background' | 'visible', cancellationToken = CancellationToken.None) => kind === 'rest'
+			? transport.rest(account, 'token', { method: 'GET', url: `https://github.example.test/${path}`, priority }, cancellationToken)
+			: transport.graphql(account, 'token', 'https://github.example.test/graphql', 'query Read($path: String!) { value }', { path }, cancellationToken, priority);
 		return { transport, scheduler, release, started, targetStarted, paths, read };
 	}
 
@@ -55,14 +58,13 @@ suite('GitHub request lifecycle', () => {
 			const busy = read('busy', 'background');
 			await started.p;
 			const peer = read('target', 'background');
-			const controller = new AbortController();
-			const detached = read('target', 'background', controller.signal);
-			const reason = new Error('detached');
-			const rejected = assert.rejects(detached, error => error === reason);
+			const controller = store.add(new CancellationTokenSource());
+			const detached = read('target', 'background', controller.token);
+			const rejected = assert.rejects(detached, isCancellationError);
 			const visible = read('visible', 'visible');
-			controller.abort(reason);
+			controller.cancel();
 			await rejected;
-			transport.promote(controller.signal, 'interactive');
+			transport.promote(controller.token, 'interactive');
 			release.complete(new Response('{"data":{}}'));
 			await Promise.all([busy, peer, visible]);
 			assert.deepStrictEqual({ paths, timers: scheduler.pendingCount }, {
@@ -72,15 +74,15 @@ suite('GitHub request lifecycle', () => {
 
 		test(`${kind}: promotes an existing caller's queued request without restarting it`, async () => {
 			const { transport, scheduler, release, started, targetStarted, paths, read } = createQueuedTransport(kind);
-			const target = new AbortController();
+			const target = store.add(new CancellationTokenSource());
 			const busy = read('busy', 'background');
 			await started.p;
 			const visible = read('visible', 'visible');
-			const pending = read('target', 'background', target.signal);
-			transport.promote(target.signal, 'interactive');
+			const pending = read('target', 'background', target.token);
+			transport.promote(target.token, 'interactive');
 			release.complete(new Response('{"data":{}}'));
 			await targetStarted.p;
-			transport.promote(target.signal, 'interactive');
+			transport.promote(target.token, 'interactive');
 			await Promise.all([busy, visible, pending]);
 			assert.deepStrictEqual({ paths, timers: scheduler.pendingCount }, {
 				paths: ['busy', 'target', 'visible'], timers: 0,
@@ -103,10 +105,10 @@ suite('GitHub request lifecycle', () => {
 						return {};
 					},
 				};
-				const signal = new AbortController().signal;
+				const cancellationToken = CancellationToken.None;
 				const pending = kind === 'rest'
-					? transport.rest(account, 'token', { method: 'POST', url, body }, signal)
-					: transport.graphql(account, 'token', url, 'mutation Write { write { id } }', body, signal);
+					? transport.rest(account, 'token', { method: 'POST', url, body }, cancellationToken)
+					: transport.graphql(account, 'token', url, 'mutation Write { write { id } }', body, cancellationToken);
 				const rejected = assert.rejects(pending, { kind: 'timeout', requestDispatched: false });
 				if (boundary === 'task') {
 					scheduler.advanceWallClockBy(60);
@@ -133,23 +135,23 @@ suite('GitHub request lifecycle', () => {
 
 		test(`${kind}: rejects an expired shared waiter when completion beats its overdue timer`, async () => {
 			const scheduler = store.add(new FakeScheduler());
-			const started = new DeferredPromise<AbortSignal>();
+			const started = new DeferredPromise<CancellationToken>();
 			const response = new DeferredPromise<Response>();
 			let calls = 0;
-			const transport = store.add(new GitHubTransport(async (_input, options) => {
+			const transport = store.add(new GitHubTransport(async (_input, options, fetchToken) => {
 				calls++;
-				assert.ok(options?.signal);
-				await started.complete(options.signal);
+				assert.ok(fetchToken);
+				await started.complete(fetchToken);
 				return response.p;
 			}, scheduler));
 			const rejected = assert.rejects(request(transport, kind, { deadline: 50 }), { kind: 'timeout' });
 			const peer = request(transport, kind, { deadline: 2_000 });
-			const signal = await started.p;
+			const cancellationToken = await started.p;
 			scheduler.advanceWallClockBy(75);
 			await response.complete(new Response(JSON.stringify(kind === 'rest' ? { value: 'shared' } : { data: { value: 'shared' } })));
 			await rejected;
 			const result = await peer;
-			assert.deepStrictEqual({ calls, data: result.data, aborted: signal.aborted, timers: scheduler.pendingCount }, {
+			assert.deepStrictEqual({ calls, data: result.data, aborted: cancellationToken.isCancellationRequested, timers: scheduler.pendingCount }, {
 				calls: 1, data: { value: 'shared' }, aborted: false, timers: 0,
 			});
 		});
@@ -160,8 +162,8 @@ suite('GitHub request lifecycle', () => {
 				queue: { maximumRequests: 4, maximumAccountRequests: 4, maximumCallerRequests: 4, reservedInteractiveRequests: 0 },
 			}));
 			const read = (index: number) => (kind === 'rest'
-				? transport.rest(account, 'token', { method: 'GET', url: `${url}?page=${index}` }, new AbortController().signal)
-				: transport.graphql(account, 'token', url, 'query Read($page: Int!) { value }', { page: index }, new AbortController().signal)
+				? transport.rest(account, 'token', { method: 'GET', url: `${url}?page=${index}` }, CancellationToken.None)
+				: transport.graphql(account, 'token', url, 'query Read($page: Int!) { value }', { page: index }, CancellationToken.None)
 			).then(() => 'completed', error => error instanceof GitHubRequestError ? error.kind : 'unexpected');
 			const requests = Array.from({ length: 100 }, (_, index) => read(index));
 			const burstTimers = scheduler.pendingCount;
@@ -189,13 +191,12 @@ suite('GitHub request lifecycle', () => {
 				calls++;
 				return response.p;
 			}, scheduler, false, undefined, { maximumSharedWaiters: 2 }));
-			const peer = new AbortController();
-			const pending = request(transport, kind, {}, peer.signal);
+			const peer = store.add(new CancellationTokenSource());
+			const pending = request(transport, kind, {}, peer.token);
 			for (let i = 0; i < 100; i++) {
-				const controller = new AbortController();
-				const reason = new Error('cancelled waiter');
-				const rejected = assert.rejects(request(transport, kind, {}, controller.signal), error => error === reason);
-				controller.abort(reason);
+				const controller = store.add(new CancellationTokenSource());
+				const rejected = assert.rejects(request(transport, kind, {}, controller.token), isCancellationError);
+				controller.cancel();
 				await rejected;
 			}
 			const waitingTimers = scheduler.pendingCount;
@@ -215,10 +216,10 @@ suite('GitHub request lifecycle', () => {
 					await started.complete();
 					return phase === 'headers' ? new Promise<Response>(() => { }) : new Response(new ReadableStream<Uint8Array>());
 				}, scheduler, false, undefined, { requestTimeout: 10 }));
-				const signal = new AbortController().signal;
+				const cancellationToken = CancellationToken.None;
 				const pending = kind === 'rest'
-					? transport.rest(account, 'token', { method: 'POST', url, body: {} }, signal)
-					: transport.graphql(account, 'token', url, 'mutation Write { write { id } }', {}, signal);
+					? transport.rest(account, 'token', { method: 'POST', url, body: {} }, cancellationToken)
+					: transport.graphql(account, 'token', url, 'mutation Write { write { id } }', {}, cancellationToken);
 				const rejected = assert.rejects(pending, { kind: 'timeout', requestDispatched: phase !== 'queued' });
 				if (phase !== 'queued') {
 					await started.p;
@@ -259,25 +260,25 @@ suite('GitHub request lifecycle', () => {
 
 		test(`${kind}: a waiter's deadline does not cancel another coalesced reader`, async () => {
 			const scheduler = store.add(new FakeScheduler());
-			const started = new DeferredPromise<AbortSignal>();
+			const started = new DeferredPromise<CancellationToken>();
 			const response = new DeferredPromise<Response>();
 			let calls = 0;
-			const transport = store.add(new GitHubTransport(async (_input, options) => {
+			const transport = store.add(new GitHubTransport(async (_input, options, fetchToken) => {
 				calls++;
-				assert.ok(options?.signal);
-				await started.complete(options.signal);
+				assert.ok(fetchToken);
+				await started.complete(fetchToken);
 				return response.p;
 			}, scheduler));
 			const first = request(transport, kind, { caller: 'first', deadline: 10 });
 			const rejected = assert.rejects(first, { kind: 'timeout' });
 			const second = request(transport, kind, { caller: 'second', deadline: 20 });
-			const signal = await started.p;
+			const cancellationToken = await started.p;
 			scheduler.advanceBy(10);
 			await rejected;
 			const body = kind === 'rest' ? { value: 'shared' } : { data: { value: 'shared' } };
 			await response.complete(new Response(JSON.stringify(body)));
 			const result = await second;
-			assert.deepStrictEqual({ calls, aborted: signal.aborted, data: result.data, timers: scheduler.pendingCount }, {
+			assert.deepStrictEqual({ calls, aborted: cancellationToken.isCancellationRequested, data: result.data, timers: scheduler.pendingCount }, {
 				calls: 1, aborted: false, data: { value: 'shared' }, timers: 0,
 			});
 		});
@@ -298,7 +299,7 @@ suite('GitHub request lifecycle', () => {
 			}, scheduler, false, undefined, { requestTimeout: 100 }));
 			const busy = transport.rest(account, 'token', {
 				method: 'GET', url: 'https://github.example.test/busy',
-			}, new AbortController().signal);
+			}, CancellationToken.None);
 			const rejectedBusy = assert.rejects(busy, { kind: 'timeout' });
 			await started.p;
 			const expired = request(transport, kind);
@@ -326,10 +327,10 @@ suite('GitHub request lifecycle', () => {
 				}
 				return new Response('{}');
 			}, scheduler, false, undefined, { requestTimeout: 20 }));
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 			const pending = kind === 'rest'
-				? transport.rest(account, 'token', { method: 'GET', url }, signal)
-				: transport.download(account, 'token', { url, maximumBytes: 100, timeout: 20 }, signal);
+				? transport.rest(account, 'token', { method: 'GET', url }, cancellationToken)
+				: transport.download(account, 'token', { url, maximumBytes: 100, timeout: 20 }, cancellationToken);
 			await assert.rejects(pending, { kind: 'timeout', requestDispatched: true });
 			assert.deepStrictEqual({ calls, timers: scheduler.pendingCount }, { calls: 1, timers: 0 });
 		});
@@ -338,21 +339,21 @@ suite('GitHub request lifecycle', () => {
 	test('expires stalled headers and discards a late response', async () => {
 		const scheduler = store.add(new FakeScheduler());
 		const response = new DeferredPromise<Response>();
-		const started = new DeferredPromise<AbortSignal>();
+		const started = new DeferredPromise<CancellationToken>();
 		const cancelled = new DeferredPromise<void>();
-		const transport = store.add(new GitHubTransport(async (_input, options) => {
-			assert.ok(options?.signal);
-			await started.complete(options.signal);
+		const transport = store.add(new GitHubTransport(async (_input, options, fetchToken) => {
+			assert.ok(fetchToken);
+			await started.complete(fetchToken);
 			return response.p;
 		}, scheduler));
 		const rejected = assert.rejects(request(transport, 'rest', { deadline: 10 }), { kind: 'timeout' });
-		const signal = await started.p;
+		const cancellationToken = await started.p;
 		scheduler.advanceBy(10);
 		await rejected;
 		const body = new ReadableStream<Uint8Array>({ cancel() { void cancelled.complete(); } }, { highWaterMark: 0 });
 		await response.complete(new Response(body));
 		await cancelled.p;
-		assert.deepStrictEqual({ aborted: signal.aborted, timers: scheduler.pendingCount }, { aborted: true, timers: 0 });
+		assert.deepStrictEqual({ aborted: cancellationToken.isCancellationRequested, timers: scheduler.pendingCount }, { aborted: true, timers: 0 });
 	});
 
 	test('bounds coalesced consumers without issuing extra requests', async () => {
@@ -386,7 +387,7 @@ suite('GitHub request lifecycle', () => {
 		}, scheduler, false, undefined, { queue: { maximumAccountConcurrency: 1 } }));
 		const fetch = (path: string, priority: 'background' | 'interactive') => transport.rest(account, 'token', {
 			method: 'GET', url: `https://github.example.test/${path}`, priority,
-		}, new AbortController().signal);
+		}, CancellationToken.None);
 		const busy = fetch('busy', 'background');
 		await started.p;
 		const older = fetch('older', 'background');
@@ -404,7 +405,7 @@ suite('GitHub request lifecycle', () => {
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => { calls++; return new Response('log'); }, scheduler));
 		transport.rateLimits.updateFromResponse(account, new Response('', { status: 429, headers: { 'Retry-After': '30' } }));
-		const pending = transport.download(account, 'token', { url, timeout: 10, maximumBytes: 100 }, new AbortController().signal);
+		const pending = transport.download(account, 'token', { url, timeout: 10, maximumBytes: 100 }, CancellationToken.None);
 		const rejected = assert.rejects(pending, { kind: 'timeout' });
 		scheduler.advanceBy(10);
 		await rejected;
@@ -427,7 +428,7 @@ suite('GitHub request lifecycle', () => {
 			}, scheduler));
 			await assert.rejects(transport.download(account, 'private-token', {
 				url, timeout: 1_000, maximumBytes: 1,
-			}, new AbortController().signal), {
+			}, CancellationToken.None), {
 				name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 403,
 				message: 'GitHub download failed - HTTP 403', responseBody: undefined,
 			});
@@ -462,7 +463,7 @@ suite('GitHub request lifecycle', () => {
 		}, scheduler));
 		const download = () => transport.download(account, 'token', {
 			url, timeout: 180_000, maximumBytes: 100,
-		}, new AbortController().signal);
+		}, CancellationToken.None);
 		await assert.rejects(download(), { kind: 'rateLimit' });
 		const pending = download();
 		scheduler.advanceBy(119_999);
@@ -487,7 +488,7 @@ suite('GitHub request lifecycle', () => {
 			cancel() { cancelled = true; },
 		}, { highWaterMark: 0 });
 		const transport = store.add(new GitHubTransport(async () => new Response(body, { status: 403 }), scheduler));
-		await assert.rejects(transport.download(account, 'private-token', { url, timeout: 1_000, maximumBytes: 1 }, new AbortController().signal), {
+		await assert.rejects(transport.download(account, 'private-token', { url, timeout: 1_000, maximumBytes: 1 }, CancellationToken.None), {
 			kind: 'rateLimit', message: 'GitHub download failed - HTTP 403', responseBody: undefined,
 		});
 		assert.deepStrictEqual({
@@ -511,7 +512,7 @@ suite('GitHub request lifecycle', () => {
 					? new Response('{"message":"secondary rate limit"}', { status: 403, headers: { 'Retry-After': '120' } })
 					: new Response('{"message":"Resource not accessible by integration"}', { status: 403 });
 			}, scheduler));
-			await assert.rejects(transport.download(account, 'token', { url, timeout: 1_000, maximumBytes: 100 }, new AbortController().signal), {
+			await assert.rejects(transport.download(account, 'token', { url, timeout: 1_000, maximumBytes: 100 }, CancellationToken.None), {
 				kind: 'authorization', responseBody: undefined,
 			});
 			outcomes.push({
@@ -535,7 +536,7 @@ suite('GitHub request lifecycle', () => {
 			cancel() { void cancelled.complete(); return new Promise<void>(() => { }); },
 		}, { highWaterMark: 0 });
 		const transport = store.add(new GitHubTransport(async () => new Response(body, { status: 403 }), scheduler));
-		const rejected = assert.rejects(transport.download(account, 'token', { url, timeout: 10, maximumBytes: 1 }, new AbortController().signal), { kind: 'timeout' });
+		const rejected = assert.rejects(transport.download(account, 'token', { url, timeout: 10, maximumBytes: 1 }, CancellationToken.None), { kind: 'timeout' });
 		await started.p;
 		scheduler.advanceBy(10);
 		await rejected;
@@ -607,7 +608,7 @@ suite('GitHub request lifecycle', () => {
 		transport.rateLimits.updateFromResponse(inactive, new Response(null, { status: 429, headers: { 'retry-after': '1' } }));
 		transport.invalidateAccount(inactive);
 		const occupying = request(transport, 'rest');
-		await assert.rejects(transport.rest(inactive, 'token', { method: 'GET', url }, new AbortController().signal), { kind: 'overloaded' });
+		await assert.rejects(transport.rest(inactive, 'token', { method: 'GET', url }, CancellationToken.None), { kind: 'overloaded' });
 		const retainedBeforeExpiry = transport.rateLimits.getState(inactive, 'core') !== undefined;
 		scheduler.advanceBy(1_000);
 		await release.complete(new Response('{}'));
@@ -627,7 +628,7 @@ suite('GitHub request lifecycle', () => {
 			return new Response('{}', { status: 503 });
 		}));
 		const comment = `#${'#'.repeat(100_000)} query NotAnOperation`;
-		await assert.rejects(transport.graphql(account, 'token', url, `${comment}\r\n, # { ignored }\nmutation Write { write { id } }`, {}, new AbortController().signal), { kind: 'server' });
+		await assert.rejects(transport.graphql(account, 'token', url, `${comment}\r\n, # { ignored }\nmutation Write { write { id } }`, {}, CancellationToken.None), { kind: 'server' });
 		assert.strictEqual(calls, 1);
 	});
 
@@ -637,7 +638,7 @@ suite('GitHub request lifecycle', () => {
 			calls++;
 			return new Response('{}', { status: 503 });
 		}));
-		await assert.rejects(transport.graphql(account, 'token', url, '# query NotAnOperation\nmutation Write { write { id } }', {}, new AbortController().signal), { kind: 'server' });
+		await assert.rejects(transport.graphql(account, 'token', url, '# query NotAnOperation\nmutation Write { write { id } }', {}, CancellationToken.None), { kind: 'server' });
 		assert.strictEqual(calls, 1);
 	});
 
@@ -645,11 +646,10 @@ suite('GitHub request lifecycle', () => {
 		const scheduler = store.add(new FakeScheduler());
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => { calls++; return new Response('{}'); }, scheduler));
-		const controller = new AbortController();
-		const reason = new Error('cancelled');
-		controller.abort(reason);
+		const controller = store.add(new CancellationTokenSource());
+		controller.cancel();
 		await assert.rejects(request(transport, 'rest', { deadline: 0 }), { kind: 'timeout' });
-		await assert.rejects(request(transport, 'graphql', {}, controller.signal), error => error === reason);
+		await assert.rejects(request(transport, 'graphql', {}, controller.token), isCancellationError);
 		assert.deepStrictEqual({ calls, timers: scheduler.pendingCount }, { calls: 0, timers: 0 });
 	});
 
@@ -663,7 +663,7 @@ suite('GitHub request lifecycle', () => {
 		transport.rateLimits.updateFromResponse(account, new Response('', {
 			status: 429, headers: { 'x-ratelimit-resource': 'search', 'Retry-After': '1' },
 		}));
-		const search = transport.rest(account, 'token', { method: 'GET', url: 'https://github.example.test/search/issues' }, new AbortController().signal);
+		const search = transport.rest(account, 'token', { method: 'GET', url: 'https://github.example.test/search/issues' }, CancellationToken.None);
 		await request(transport, 'rest');
 		const beforeReset = requests.length;
 		scheduler.advanceBy(1_000);
@@ -725,8 +725,8 @@ suite('GitHub request lifecycle', () => {
 
 		let writes = 0;
 		const mutations = store.add(new GitHubTransport(async () => { writes++; return new Response('{}', { status: 503 }); }, scheduler));
-		await assert.rejects(mutations.rest(account, 'token', { method: 'POST', url, body: {} }, new AbortController().signal), { kind: 'server' });
-		await assert.rejects(mutations.graphql(account, 'token', url, '# comment\nmutation Update { updatePullRequest { id } }', {}, new AbortController().signal), { kind: 'server' });
+		await assert.rejects(mutations.rest(account, 'token', { method: 'POST', url, body: {} }, CancellationToken.None), { kind: 'server' });
+		await assert.rejects(mutations.graphql(account, 'token', url, '# comment\nmutation Update { updatePullRequest { id } }', {}, CancellationToken.None), { kind: 'server' });
 		assert.deepStrictEqual({ reads, writes, timers: scheduler.pendingCount }, { reads: 2, writes: 2, timers: 0 });
 	});
 

@@ -29,7 +29,7 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlEnvironment, type IMissionControlEnvironmentHost, type IMissionControlRelayDiagnostic } from '../../node/missionControl/missionControlEnvironment.js';
-import { getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification, type MissionControlPublishSummaryClassification } from '../../node/missionControl/missionControlHost.js';
+import { formatMissionControlEnvironmentName, getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification, type MissionControlPublishSummaryClassification } from '../../node/missionControl/missionControlHost.js';
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
 import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
@@ -88,6 +88,13 @@ suite('Mission Control host integration', () => {
 		assert.strictEqual(getMissionControlEnvironmentName(product), `${hostname().replace(/\.local$/i, '')} (VS Code Insiders)`);
 	});
 
+	test('keeps a client-supplied name as given', () => {
+		const product = new class extends mock<IProductService>() {
+			override readonly quality = 'insider';
+		}();
+		assert.strictEqual(formatMissionControlEnvironmentName(product, 'build.local'), 'build.local (VS Code Insiders)');
+	});
+
 	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService, agentService?: IAgentService, quality: IProductService['quality'] = 'stable', sessionDataService?: ISessionDataService) {
 		const counts = { requests: 0, handlers: 0 };
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
@@ -95,6 +102,10 @@ suite('Mission Control host integration', () => {
 		const rootValues: Record<string, unknown> = {};
 		instantiation.stub(IAgentConfigurationService, new class extends mock<IAgentConfigurationService>() {
 			override readonly onDidRootConfigChange = rootConfigChanged.event;
+			override publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {
+				Object.assign(rootValues, patch);
+				rootConfigChanged.fire();
+			}
 			override getRootValue<D extends SchemaDefinition, K extends keyof D & string>(
 				schema: ISchema<D>, key: K,
 			): SchemaValue<D[K]> | undefined {
@@ -583,8 +594,7 @@ suite('Mission Control host integration', () => {
 			instantiation.stubInstance(ProtocolServerHandler, new class extends mock<ProtocolServerHandler>() {
 				override dispose(): void { }
 			}());
-			const { authentication, credentialValidations, rootValues } = createHost(instantiation);
-			rootValues[MissionControlUseLocalCredentialsConfigKey] = useLocalCredentials;
+			const { authentication, credentialValidations } = createHost(instantiation);
 			const resource = 'https://api.github.com';
 			const repository = `${resource}/repos`;
 			const mcp = 'https://mcp.example.test';
@@ -595,7 +605,9 @@ suite('Mission Control host integration', () => {
 			await authentication.authenticate({ resource, token: 'desktop-token', scopes: ['read:user'] }, [provider]);
 			await authentication.authenticate({ resource: repository, token: 'desktop-repository-token', scopes: ['repo'] }, [provider]);
 			const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
-			store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { }(), [], () => [], () => [], undefined, useLocalCredentials));
+			assert.ok(environment.configureExecutionAuthentication);
+			environment.configureExecutionAuthentication(useLocalCredentials);
+			store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { }(), [], () => [], () => []));
 			const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
 			const principal = { apiOrigin: resource, userId: '123' };
 			const resolveCredentials = config.resolveRelayCredentials;

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { JsonObject, PageOptions, RepositoryRef } from '../client/types.js';
 import { Account, ChangedFile, Connection, CursorOptions, RepositoryIdentity } from './core.js';
@@ -309,56 +310,56 @@ export interface RepositoryCommitAuthor {
 export interface IRepositoriesClient {
 
 	/** GET /repos/{owner}/{repo}: read repository metadata. */
-	get(respository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository>;
+	get(respository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Repository>;
 
 	/** GET /repositories/{id}: resolve a stable numeric repository ID. */
-	getById(repositoryId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository>;
+	getById(repositoryId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Repository>;
 
 	/** GraphQL: read the default branch and the viewer's repository permission. */
-	getViewerInfo(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<RepositoryViewerInfo | null>;
+	getViewerInfo(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<RepositoryViewerInfo | null>;
 
 	/** GraphQL: list rulesets with inherited conditions and pull-request rule counts. */
-	listRulesetConnection(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<RepositoryRulesetNode> | null>;
+	listRulesetConnection(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<RepositoryRulesetNode> | null>;
 
 	/** GraphQL: list users assignable to the repository, including their public email and avatar. */
-	listAssignableUsers(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<RepositoryAssignableUser> | null>;
+	listAssignableUsers(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<RepositoryAssignableUser> | null>;
 
 	/** GraphQL: read the Git author and linked GitHub user for a commit expression. */
-	getCommitAuthor(repository: RepositoryRef, ref: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<RepositoryCommitAuthor | null>;
+	getCommitAuthor(repository: RepositoryRef, ref: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<RepositoryCommitAuthor | null>;
 
 	/** GET /user/repos: list one page of repositories accessible to the authenticated user. */
-	listForAuthenticatedUser(signal: AbortSignal, options?: ListRepositoriesOptions): Promise<readonly Repository[]>;
+	listForAuthenticatedUser(cancellationToken: CancellationToken, options?: ListRepositoriesOptions): Promise<readonly Repository[]>;
 
 	/** GET /users/{username}/repos: list one page of public repositories for a user. */
-	listForUser(username: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly RepositoryIdentity[]>;
+	listForUser(username: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly RepositoryIdentity[]>;
 
 	/** GET /orgs/{org}/repos: list one page visible to the current authorization context. */
-	listForOrganization(org: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly RepositoryIdentity[]>;
+	listForOrganization(org: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly RepositoryIdentity[]>;
 
 	/** POST /user/repos: create a repository for the authenticated user. */
-	create(request: CreateRepositoryRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository>;
+	create(request: CreateRepositoryRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Repository>;
 
 	/** POST /repos/{owner}/{repo}/forks: request fork creation; HTTP 202 acknowledges acceptance, not completion. */
-	fork(repository: RepositoryRef, request: ForkRepositoryRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository>;
+	fork(repository: RepositoryRef, request: ForkRepositoryRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Repository>;
 
 	/** GET /repos/{owner}/{repo}/branches: list one page of branches. */
-	listBranches(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Branch[]>;
+	listBranches(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Branch[]>;
 
 	/** GET /repos/{owner}/{repo}/branches/{branch}: read a branch tip. */
-	getBranch(repository: RepositoryRef, branch: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Branch>;
+	getBranch(repository: RepositoryRef, branch: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Branch>;
 
 	/** GET /repos/{owner}/{repo}/branches/{branch}/protection: read legacy protection settings. */
-	getBranchProtection(repository: RepositoryRef, branch: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<BranchProtection>;
+	getBranchProtection(repository: RepositoryRef, branch: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<BranchProtection>;
 
 	/** GET /repos/{owner}/{repo}/rulesets: list one page, including inherited rulesets when requested. */
-	listRulesets(repository: RepositoryRef, signal: AbortSignal, options?: ListRulesetsOptions): Promise<readonly RepositoryRuleset[]>;
+	listRulesets(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListRulesetsOptions): Promise<readonly RepositoryRuleset[]>;
 
 	/** GET /repos/{owner}/{repo}/rulesets/{id}: read ruleset details. */
-	getRuleset(repository: RepositoryRef, rulesetId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<RepositoryRuleset>;
+	getRuleset(repository: RepositoryRef, rulesetId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<RepositoryRuleset>;
 
 	/** GET /repos/{owner}/{repo}/commits/{ref}: read commit metadata and one page of changed files. */
-	getCommit(repository: RepositoryRef, ref: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<Commit>;
+	getCommit(repository: RepositoryRef, ref: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<Commit>;
 
 	/** GET /repos/{owner}/{repo}/compare/{base}...{head}: compare two refs and return one page of commits. */
-	compare(repository: RepositoryRef, base: string, head: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<Comparison>;
+	compare(repository: RepositoryRef, base: string, head: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<Comparison>;
 }

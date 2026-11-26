@@ -8,9 +8,16 @@ import { observableValue, derived, autorun } from '../../../common/observable.js
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../utils.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { debugGetObservableGraph } from '../../../common/observableInternal/logging/debugGetDependencyGraph.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { formatValue } from '../../../common/observableInternal/logging/consoleObservableLogger.js';
 
 suite('debug', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('formatValue tolerates objects that throw when inspected', () => {
+		const inaccessible = new Proxy({}, { get: () => { throw new Error('cross-origin'); } });
+		assert.strictEqual(formatValue({ layout: { window: inaccessible } }, 100), '{ layout: { window: [[Inaccessible Object]] } }');
+	});
 
 	test('debugGetDependencyGraph', () => {
 		const myObservable1 = observableValue('myObservable1', 0);

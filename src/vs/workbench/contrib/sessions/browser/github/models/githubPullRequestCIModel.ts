@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
-import { cancelOnDispose } from '../../../../../../base/common/cancellation.js';
+import { CancellationTokenSource, cancelOnDispose } from '../../../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -19,6 +19,7 @@ import { GitHubCIOverallStatus, IGitHubCICheck } from '../../../common/github/ty
 import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { GitHubPRCIFetcher } from '../fetchers/githubPRCIFetcher.js';
 import { IPullRequestChecksSource, IPullRequestChecksSubscription } from '../fetchers/githubPRChecksSource.js';
+import { getStaggeredPollDelay } from './pollDelay.js';
 
 const LOG_PREFIX = '[GitHubPullRequestCIModel]';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
@@ -247,10 +248,10 @@ export class GitHubPullRequestCIModel extends Disposable {
 		this._requiredChecksSubscription.value = store;
 		this._requiredChecksHandle = undefined;
 		this._pullRequestChecks.set(undefined, undefined);
-		const controller = new AbortController();
-		store.add(toDisposable(() => controller.abort()));
-		this._checksSource.subscribe(this.owner, this.repo, this.prNumber, this.headSha, controller.signal).then(subscription => {
-			if (controller.signal.aborted) {
+		const controller = new CancellationTokenSource();
+		store.add(toDisposable(() => controller.dispose(true)));
+		this._checksSource.subscribe(this.owner, this.repo, this.prNumber, this.headSha, controller.token).then(subscription => {
+			if (controller.token.isCancellationRequested) {
 				subscription.dispose();
 				return;
 			}
@@ -265,7 +266,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 			this._pullRequestChecks.set(subscription.checks, undefined);
 			void subscription.refresh(false, this._token).catch(error => this._logRequiredChecksError(error));
 		}, error => {
-			if (controller.signal.aborted) {
+			if (controller.token.isCancellationRequested) {
 				return;
 			}
 			this._logRequiredChecksError(error);
@@ -300,7 +301,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
 		if (this._pollingClientCount++ === 0) {
 			this._logService.trace(`${TRACE_PREFIX} [CIModel] Start polling ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha} every ${intervalMs}ms`);
-			this._pollScheduler.schedule(intervalMs);
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}`, intervalMs));
 		}
 
 		return toDisposable(() => {
@@ -319,7 +320,8 @@ export class GitHubPullRequestCIModel extends Disposable {
 		await this.refresh(false, { priority: 'background' });
 		// Re-schedule if not disposed (RunOnceScheduler is one-shot)
 		if (!this._store.isDisposed && this._pollingClientCount > 0) {
-			this._pollScheduler.schedule();
+			// Keep the offset after every poll: timers that fire together (e.g. after sleep) spread out again.
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}`, DEFAULT_POLL_INTERVAL_MS));
 		}
 	}
 

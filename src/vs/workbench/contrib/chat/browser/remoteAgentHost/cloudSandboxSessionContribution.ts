@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
@@ -24,7 +24,6 @@ import {
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxRequestError,
 	cloudSandboxAddress,
-	type CloudSandboxDiscoveryTrigger,
 	type CloudSandboxTaskCreationPath,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxApiService,
@@ -37,8 +36,6 @@ import {
 	type ICloudSandboxCreateSessionRequest,
 	type ICloudSandboxPreparedReservation,
 	type ICloudSandboxDiscoveryResult,
-	type ICloudSandboxDiscoveryOptions,
-	type ICloudSandboxDiscoveryDiagnostics,
 	type ICloudSandboxDiscoveredSession,
 	type ICloudSandboxTask,
 	CLOUD_SANDBOX_TASK_SCHEME,
@@ -55,7 +52,7 @@ import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ChatSessionArchiveDiscoveryState, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { CloudSandboxSessionHandler } from './cloudSandboxSessionHandler.js';
@@ -67,20 +64,14 @@ import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { getAgentHostSessionResource } from '../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getCloudSandboxTaskCreationPath } from './cloudSandboxTelemetry.js';
-import { CloudSandboxSessionFeed, type CloudSandboxSessionFeedRefresh } from './cloudSandboxSessionFeed.js';
+import { CloudSandboxSessionFeed } from './cloudSandboxSessionFeed.js';
+import { CloudSandboxDiscoveryController, ICloudSandboxDiscoveryContext, ICloudSandboxDiscoveryRequest } from '../../../../../platform/agentHost/common/cloudSandboxDiscoveryController.js';
+import { CloudSandboxSessionFeedRefresh } from '../../../../../platform/agentHost/common/cloudSandboxSessionFeed.js';
 import { CloudSandboxStartupError } from './cloudSandboxStartupError.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
-const DISCOVERY_POLL_INTERVAL_MS = 5 * 60_000;
 const DISCOVERY_POLL_JITTER_MS = 60_000;
-const FULL_DISCOVERY_INTERVAL_MS = 15 * 60_000;
-const MAX_DISCOVERY_RETRY_INTERVAL_MS = 15 * 60_000;
-const SESSION_FEED_INACTIVITY_GRACE_MS = 60_000;
 const INVENTORY_STORAGE_PREFIX = 'sessions.cloudSandbox.inventory.';
-
-interface ICloudSandboxDiscoveryRequest extends ICloudSandboxDiscoveryOptions {
-	readonly retry?: boolean;
-}
 
 /** A discovered sandbox environment we can create a provider for. */
 export interface ICloudSandboxSessionEnvironment {
@@ -201,38 +192,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	 * discovery and connects abort instead of committing state after teardown has run.
 	 */
 	protected _enabledCts = new CancellationTokenSource();
-	/** Serializes discovery so overlapping triggers can't interleave reconciliation. */
-	private _discoveryInFlight: Promise<void> | undefined;
-	private _discoveryQueued: Promise<void> | undefined;
-	private _discoveryDiagnostics: { coalescedRequestCount: number; coalescedTrigger?: CloudSandboxDiscoveryTrigger | 'multiple' } | undefined;
-	private _queuedDiscoveryRequest: ICloudSandboxDiscoveryRequest | undefined;
-	private _taskRefreshInFlight: Promise<void> | undefined;
-	private _taskRefreshQueued: Promise<void> | undefined;
-	private readonly _pendingTaskIds = new Set<string>();
-	private _discoveryToken: CancellationToken | undefined;
-	private _discoveryTrigger: CloudSandboxDiscoveryTrigger | undefined;
-	private _lastDiscoveryFailed = false;
-	private _discoveryDeferred = false;
-	private _inactiveSince: number | undefined;
-	private _discoveryIncremental = false;
-	private _lastDiscoveryAttempt: number | undefined;
-	private _lastFullDiscovery: number | undefined;
-	private _discoveryRetryInterval = DISCOVERY_POLL_INTERVAL_MS;
+	private readonly _discoveryController: CloudSandboxDiscoveryController;
 	private _accountKey: string | undefined;
 	protected get accountKey(): string | undefined { return this._accountKey; }
 	private readonly _deletedTaskIds = new Set<string>();
-	private readonly _sessionFeed = this._register(new MutableDisposable<CloudSandboxSessionFeed>());
 	private readonly _archiveRegistration = this._register(new MutableDisposable());
-	private readonly _archiveState = observableValue<ChatSessionArchiveDiscoveryState>(this, 'idle');
-	private _archivesRequested = false;
-	private _archivesLoaded = false;
-	private _discoveryIncludesArchived = false;
-	private _sessionMutationVersion = 0;
-	private readonly _discoveryPoll = this._register(new RunOnceScheduler(() => {
-		this._pruneStaleQueuedTasks();
-		void this._refreshIfStale();
-		this._discoveryPoll.schedule(this._nextPollDelay());
-	}, DISCOVERY_POLL_INTERVAL_MS));
 
 	constructor(
 		@ICloudSandboxAgentHostService private readonly _cloudSandboxService: ICloudSandboxAgentHostService,
@@ -250,7 +214,24 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
-		this._inactiveSince = this._hostService.hasFocus ? undefined : Date.now();
+		const contribution = this;
+		const context: ICloudSandboxDiscoveryContext = {
+			get token() { return contribution._enabledCts.token; },
+			get enabled() { return contribution._isEnabled(); },
+			get discoveryEnabled() { return contribution.discoveryEnabled; },
+			get active() { return contribution.discoveryActive; },
+			get focused() { return contribution._hostService.hasFocus; },
+			get feedEnabled() { return contribution._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true; },
+			get hasTasks() { return contribution._tasks.size > 0; },
+			getAccountKey: () => this._apiService.getAccountKey(),
+			listSessions: (token, options) => this._apiService.listSessions(token, options),
+			restoreAccount: accountKey => this._restoreAccount(accountKey),
+			acceptResult: result => this._batchProviderChanges(() => this._reconcileDiscoveredSessions(result)),
+			pruneTasks: () => this._pruneStaleQueuedTasks(),
+			pollJitter: () => this._pollJitter(),
+			createFeed: (onInvalidate, canConnect) => this._instantiationService.createInstance(CloudSandboxSessionFeed, onInvalidate, undefined, undefined, canConnect),
+		};
+		this._discoveryController = this._register(new CloudSandboxDiscoveryController(context, this._logService));
 		this._updateArchiveRegistration();
 
 		// Supply the generic remote-agent-host contribution with the sandbox host's per-connection
@@ -289,12 +270,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				this._updateEnablement();
 			}
 			if (e.affectsConfiguration(CloudSandboxSessionFeedEnabledSettingId)) {
-				for (const taskId of this._sessionFeed.value?.takePendingTaskIds() ?? []) {
-					this._pendingTaskIds.add(taskId);
-				}
-				this._sessionFeed.clear();
-				void this._refreshPendingTasks();
-				void this._discoverAndSeed({ incremental: true, trigger: 'configurationChange', retry: true });
+				this._discoveryController.resetFeed();
 			}
 		}));
 
@@ -338,49 +314,20 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}));
 	}
 
-	protected async _refreshIfStale(trigger: 'poll' | 'focus' | 'selection' | 'automatic' = 'poll'): Promise<void> {
-		if (!this.discoveryEnabled || !this.discoveryActive) {
-			return;
-		}
-		if (this._discoveryInFlight) {
-			await (this._discoveryQueued ?? this._discoveryInFlight);
-			if (this._discoveryDeferred || this._sessionFeed.value?.deferred || this._pendingTaskIds.size) {
-				await this._refreshIfStale(trigger);
-			}
-			return;
-		}
-		if (this._discoveryDeferred || this._sessionFeed.value?.deferred) {
-			await this._discoverAndSeed({ incremental: true, trigger });
-			if (this._pendingTaskIds.size) {
-				await this._refreshPendingTasks();
-			}
-			return;
-		}
-		if (this._pendingTaskIds.size) {
-			await this._refreshPendingTasks();
-		}
-		// A connected feed supplies updates; explicit refreshes and feed catch-up use discovery directly.
-		if (this._sessionFeed.value?.connected) {
-			return;
-		}
-		if (!this._hostService.hasFocus || (this._lastDiscoveryAttempt !== undefined && Date.now() - this._lastDiscoveryAttempt < this._pollInterval())) {
-			return;
-		}
-		await this._discoverAndSeed({ incremental: true, trigger });
+	protected _refreshIfStale(trigger: 'poll' | 'focus' | 'selection' | 'automatic' = 'poll'): Promise<void> {
+		return this._discoveryController.refreshIfStale(trigger);
 	}
 
-	/** An account without any known sandbox only needs the periodic full reconciliation. */
-	private _pollInterval(): number {
-		return this._tasks.size === 0 && this._lastFullDiscovery !== undefined
-			? Math.max(this._discoveryRetryInterval, FULL_DISCOVERY_INTERVAL_MS)
-			: this._discoveryRetryInterval;
+	protected _discoverAndSeed(request: ICloudSandboxDiscoveryRequest = {}): Promise<void> {
+		return this._discoveryController.refresh(request);
 	}
 
-	/** Time until the current interval elapses since the latest inventory pass, spread so windows do not poll in lockstep. */
-	private _nextPollDelay(): number {
-		const interval = this._pollInterval();
-		const due = this._lastDiscoveryAttempt === undefined ? 0 : this._lastDiscoveryAttempt + interval - Date.now();
-		return (due > 0 ? due : interval) + this._pollJitter();
+	protected _refreshFromFeed(refresh: CloudSandboxSessionFeedRefresh): Promise<void> {
+		return this._discoveryController.refreshFromFeed(refresh);
+	}
+
+	protected _updateDiscoveryActivity(): void {
+		this._discoveryController.updateActivity();
 	}
 
 	protected _pollJitter(): number {
@@ -392,267 +339,6 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	/** Automatic monitoring pauses in background windows; adapters may additionally require their chat surface. */
 	protected get discoveryActive(): boolean { return this._hostService.hasFocus; }
-
-	protected _updateDiscoveryActivity(): void {
-		this._inactiveSince = this.discoveryActive ? undefined : this._inactiveSince ?? Date.now();
-	}
-
-	/** Inventory scans are serialized; feed task reads use an independent coalescing lane. */
-	protected _discoverAndSeed(request: ICloudSandboxDiscoveryRequest = {}): Promise<void> {
-		const { incremental = false, retry = false, taskIds, trigger = 'manual' } = request;
-		if (!this._isEnabled() || this._store.isDisposed) {
-			return Promise.resolve();
-		}
-		if (taskIds) {
-			return this._refreshTasks(taskIds);
-		}
-		if (this._discoveryInFlight) {
-			if (!retry && this._discoveryToken === this._enabledCts.token && (incremental || !this._discoveryIncremental)
-				&& (!this._archivesRequested || this._discoveryIncludesArchived)) {
-				if (this._discoveryDiagnostics) {
-					this._discoveryDiagnostics.coalescedRequestCount++;
-					const previous = this._discoveryDiagnostics.coalescedTrigger;
-					this._discoveryDiagnostics.coalescedTrigger = previous === undefined || previous === trigger ? trigger : 'multiple';
-				}
-				const pending = this._discoveryQueued ?? this._discoveryInFlight;
-				return trigger === 'manual' && this._discoveryTrigger !== 'manual'
-					? pending.then(() => this._lastDiscoveryFailed || this._discoveryDeferred ? this._discoverAndSeed(request) : undefined)
-					: pending;
-			}
-			const coalescedRequestCount = this._queuedDiscoveryRequest ? (this._queuedDiscoveryRequest.diagnostics?.coalescedRequestCount ?? 0) + 1 : 0;
-			const previousTrigger = this._queuedDiscoveryRequest?.diagnostics?.coalescedTrigger;
-			const mergedTrigger = this._queuedDiscoveryRequest ? incremental ? trigger : this._queuedDiscoveryRequest.trigger ?? 'manual' : undefined;
-			const coalescedTrigger = previousTrigger === undefined || previousTrigger === mergedTrigger ? mergedTrigger : 'multiple';
-			if (!this._queuedDiscoveryRequest || !incremental) {
-				this._queuedDiscoveryRequest = request;
-			}
-			this._queuedDiscoveryRequest = {
-				...this._queuedDiscoveryRequest,
-				diagnostics: { queued: true, coalescedRequestCount, coalescedTrigger },
-			};
-			this._discoveryQueued ??= this._discoveryInFlight.then(() => {
-				const queued = this._queuedDiscoveryRequest;
-				this._discoveryQueued = undefined;
-				this._queuedDiscoveryRequest = undefined;
-				return this._discoverAndSeed(queued);
-			});
-			return this._discoveryQueued;
-		}
-		const now = Date.now();
-		const previousInventoryAgeMs = this._lastDiscoveryAttempt === undefined ? undefined : Math.max(0, now - this._lastDiscoveryAttempt);
-		const lastFullAgeMs = this._lastFullDiscovery === undefined ? undefined : Math.max(0, now - this._lastFullDiscovery);
-		if (this.discoveryEnabled && (this.discoveryActive || trigger === 'manual')) {
-			this._lastDiscoveryAttempt = now;
-		}
-		this._discoveryIncremental = incremental && this._lastFullDiscovery !== undefined
-			&& now - this._lastFullDiscovery < FULL_DISCOVERY_INTERVAL_MS;
-		this._discoveryToken = this._enabledCts.token;
-		this._discoveryTrigger = trigger;
-		this._lastDiscoveryFailed = false;
-		this._discoveryIncludesArchived = this._archivesRequested;
-		const diagnostics = {
-			intentMode: incremental ? 'incremental' : 'full',
-			fullScanReason: this._discoveryIncremental ? 'notFull'
-				: incremental ? this._lastFullDiscovery === undefined ? 'initial' : 'reconciliationDue'
-					: trigger === 'startup' ? 'initial' : trigger === 'feedReconnect' ? 'reconnectPolicy'
-						: trigger === 'accountChange' || trigger === 'configurationChange' ? trigger : 'requestedFull',
-			previousInventoryAgeMs, lastFullAgeMs,
-			queued: request.diagnostics?.queued ?? false,
-			coalescedRequestCount: request.diagnostics?.coalescedRequestCount ?? 0,
-			coalescedTrigger: request.diagnostics?.coalescedTrigger,
-		} satisfies ICloudSandboxDiscoveryDiagnostics;
-		this._discoveryDiagnostics = diagnostics;
-		this._discoveryInFlight = this._doDiscoverAndSeed(this._discoveryToken, this._discoveryIncremental, trigger, taskIds, diagnostics).finally(() => {
-			this._discoveryInFlight = undefined;
-			this._discoveryDiagnostics = undefined;
-			this._discoveryToken = undefined;
-			this._discoveryTrigger = undefined;
-			this._rearmDiscoveryPoll();
-		});
-		return this._discoveryInFlight;
-	}
-
-	/** Reschedules an armed poll from the current interval, which a finished pass or a first sandbox may have changed. */
-	private _rearmDiscoveryPoll(): void {
-		if (this._discoveryPoll.isScheduled()) {
-			this._discoveryPoll.schedule(this._nextPollDelay());
-		}
-	}
-
-	protected _refreshFromFeed(refresh: CloudSandboxSessionFeedRefresh): Promise<void> {
-		if (this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) !== true) {
-			return Promise.resolve();
-		}
-		if (refresh.reason === 'change') {
-			return this._refreshTasks(refresh.taskIds);
-		}
-		return this._discoverAndSeed({
-			incremental: true,
-			retry: true,
-			trigger: refresh.reason === 'renewal' ? 'feedRenewal' : 'feedReconnect',
-		});
-	}
-
-	private _refreshTasks(taskIds: readonly string[]): Promise<void> {
-		if (!this.discoveryEnabled || !this._isEnabled() || this._store.isDisposed || this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) !== true) {
-			return Promise.resolve();
-		}
-		for (const id of taskIds) {
-			this._pendingTaskIds.add(id);
-		}
-		return this._refreshPendingTasks();
-	}
-
-	/** Accepted task hints retain their access checks after the subscription stops. */
-	private _refreshPendingTasks(): Promise<void> {
-		if (!this.discoveryEnabled || !this.discoveryActive || !this._isEnabled() || this._store.isDisposed) {
-			return Promise.resolve();
-		}
-		if (this._taskRefreshInFlight) {
-			this._taskRefreshQueued ??= this._taskRefreshInFlight.then(() => {
-				this._taskRefreshQueued = undefined;
-				return this._refreshPendingTasks();
-			});
-			return this._taskRefreshQueued;
-		}
-		if (!this._pendingTaskIds.size) {
-			return Promise.resolve();
-		}
-		const token = this._enabledCts.token;
-		this._taskRefreshInFlight = Promise.resolve().then(() => {
-			if (token.isCancellationRequested || !this.discoveryActive) {
-				return;
-			}
-			const pending = [...this._pendingTaskIds];
-			this._pendingTaskIds.clear();
-			return pending.length ? this._doDiscoverAndSeed(token, true, 'feedChange', pending) : undefined;
-		}).finally(() => {
-			this._taskRefreshInFlight = undefined;
-		});
-		return this._taskRefreshInFlight;
-	}
-
-	private async _doDiscoverAndSeed(token: CancellationToken, incremental: boolean, trigger: CloudSandboxDiscoveryTrigger, taskIds?: readonly string[], diagnostics?: ICloudSandboxDiscoveryDiagnostics): Promise<void> {
-		let result: ICloudSandboxDiscoveryResult;
-		// Keep the scope fixed across authentication so it matches the in-flight coalescing flag.
-		const includeArchived = this._archivesRequested;
-		try {
-			const accountKey = await this._apiService.getAccountKey();
-			if (token.isCancellationRequested || !this._isEnabled()) {
-				return;
-			}
-			if (this._restoreAccount(accountKey)) {
-				if (taskIds) {
-					void this._discoverAndSeed({ trigger: 'accountChange', retry: true });
-					return;
-				}
-				token = this._enabledCts.token;
-				this._discoveryToken = token;
-				this._discoveryIncremental = incremental = false;
-				if (diagnostics && trigger !== 'startup') {
-					Object.assign(diagnostics, { fullScanReason: 'accountChange' });
-				}
-				taskIds = undefined;
-			}
-			if (!this.discoveryEnabled || !this.discoveryActive && trigger !== 'manual') {
-				// First use must not coalesce into this completed local-only pass.
-				this._discoveryToken = undefined;
-				this._deferDiscovery(taskIds);
-				return;
-			}
-			if (!taskIds) {
-				this._discoveryDeferred = !this.discoveryActive;
-			}
-			if (!taskIds && this._lastDiscoveryAttempt === undefined) {
-				this._lastDiscoveryAttempt = Date.now();
-			}
-			if (includeArchived && !taskIds && !this._archivesLoaded) {
-				this._archiveState.set('loading', undefined);
-			}
-			if (!accountKey) {
-				throw new CloudSandboxAuthenticationRequiredError();
-			}
-			while (!token.isCancellationRequested && this._isEnabled() && this.discoveryActive && this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
-				const feed = this._sessionFeed.value ??= this._instantiationService.createInstance(CloudSandboxSessionFeed,
-					refresh => void this._refreshFromFeed(refresh), undefined, undefined, () => this.discoveryEnabled && (
-						this.discoveryActive || this._inactiveSince !== undefined && Date.now() - this._inactiveSince < SESSION_FEED_INACTIVITY_GRACE_MS));
-				await feed.start();
-				if (this._sessionFeed.value === feed) {
-					break;
-				}
-			}
-			if (token.isCancellationRequested || !this._isEnabled()) {
-				return;
-			}
-			if (!this.discoveryActive && trigger !== 'manual') {
-				this._deferDiscovery(taskIds);
-				return;
-			}
-			if (!this._discoveryPoll.isScheduled()) {
-				this._discoveryPoll.schedule(this._nextPollDelay());
-			}
-			const mutationVersion = this._sessionMutationVersion;
-			result = await this._apiService.listSessions(token, { incremental, includeArchived, trigger, ...(taskIds ? { taskIds } : {}), ...(diagnostics ? { diagnostics } : {}) });
-			const retryTaskIds = taskIds && (result.kind === 'failed' ? taskIds : result.kind === 'partial' ? result.failedTaskIds : undefined);
-			if (retryTaskIds?.length && !token.isCancellationRequested && this._isEnabled() && !this.discoveryActive) {
-				this._deferDiscovery(retryTaskIds);
-			} else if (retryTaskIds?.length && !token.isCancellationRequested && this._isEnabled()) {
-				const retried = await this._apiService.listSessions(token, { incremental: true, trigger, taskIds: retryTaskIds });
-				if (result.kind === 'failed') {
-					result = retried;
-				} else if (result.kind === 'partial' && retried.kind !== 'failed') {
-					result = {
-						kind: retried.kind === 'partial' ? 'partial' : 'incremental',
-						sessions: [...result.sessions, ...retried.sessions],
-						removedTaskIds: [...result.removedTaskIds ?? [], ...retried.removedTaskIds ?? []],
-						...(retried.kind === 'partial' ? { failedTaskIds: retried.failedTaskIds } : {}),
-					};
-				}
-			}
-			if (mutationVersion !== this._sessionMutationVersion) {
-				result = { kind: 'failed', reason: 'Sandbox discovery was invalidated by a session mutation' };
-			}
-		} catch (error) {
-			if (token.isCancellationRequested || isCancellationError(error) || !this._isEnabled()) {
-				return;
-			}
-			result = { kind: 'failed', reason: error instanceof Error ? error.message : String(error) };
-		}
-		if (token.isCancellationRequested || !this._isEnabled()) {
-			return;
-		}
-		if (!taskIds) {
-			this._lastDiscoveryFailed = result.kind === 'failed';
-		}
-		if (includeArchived && !taskIds) {
-			const succeeded = result.kind === 'complete' || result.kind === 'incremental' || result.kind === 'partial' && result.inventoryComplete === true;
-			this._archivesLoaded ||= succeeded;
-			this._archiveState.set(this._archivesLoaded ? 'loaded' : 'error', undefined);
-		}
-		this._discoveryRetryInterval = result.kind === 'failed' || result.kind === 'partial'
-			? Math.min(this._discoveryRetryInterval * 2, MAX_DISCOVERY_RETRY_INTERVAL_MS)
-			: DISCOVERY_POLL_INTERVAL_MS;
-		if (result.kind === 'failed') {
-			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${result.reason}`);
-			return;
-		}
-		if (result.kind === 'complete' || result.kind === 'scoped'
-			|| result.kind === 'partial' && result.inventoryComplete && !incremental && !taskIds) {
-			this._lastFullDiscovery = Date.now();
-		}
-
-		this._batchProviderChanges(() => this._reconcileDiscoveredSessions(result));
-	}
-
-	private _deferDiscovery(taskIds: readonly string[] | undefined): void {
-		if (taskIds) {
-			for (const taskId of taskIds) {
-				this._pendingTaskIds.add(taskId);
-			}
-		} else {
-			this._discoveryDeferred = true;
-		}
-	}
 
 	private _reconcileDiscoveredSessions(result: Exclude<ICloudSandboxDiscoveryResult, { kind: 'failed' }>): void {
 		const hadTasks = this._tasks.size > 0;
@@ -703,7 +389,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return current ? [current] : [];
 		}), [...removedTaskIds]);
 		if (!hadTasks && this._tasks.size) {
-			this._rearmDiscoveryPoll();
+			this._discoveryController.rearmPoll();
 		}
 
 		const present = new Set<string>();
@@ -908,7 +594,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		const task = this._tasks.get(taskId);
 		if (task) {
-			this._sessionMutationVersion++;
+			this._discoveryController.invalidate();
 			const updated = { ...task, name: title };
 			this._storeTask(updated);
 			this._onTasksChanged([updated], []);
@@ -927,7 +613,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		const task = this._tasks.get(taskId);
 		if (task) {
-			this._sessionMutationVersion++;
+			this._discoveryController.invalidate();
 			const updated = { ...task, isArchived: archived };
 			this._storeTask(updated);
 			this._onTasksChanged([updated], []);
@@ -944,7 +630,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		this._sessionMutationVersion++;
+		this._discoveryController.invalidate();
 		this._deletedTaskIds.add(taskId);
 		this._forgetTask(taskId);
 		for (const [address, sessions] of this._sessionEnvironments) {
@@ -1147,7 +833,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
 			throw new CancellationError();
 		}
-		this._sessionMutationVersion++;
+		this._discoveryController.invalidate();
 		this._updateSandboxSession(address, { ...current, name: title });
 		this._persistInventory();
 	}
@@ -1175,7 +861,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
 			throw new CancellationError();
 		}
-		this._sessionMutationVersion++;
+		this._discoveryController.invalidate();
 		this._updateSandboxSession(address, { ...current, isArchived: archived });
 		this._persistInventory();
 	}
@@ -1205,7 +891,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				if (source.token.isCancellationRequested) {
 					throw new CancellationError();
 				}
-				this._sessionMutationVersion++;
+				this._discoveryController.invalidate();
 				this._deletedTaskIds.add(target.taskId);
 				this._forgetTask(target.taskId);
 				this._onTasksChanged([], [target.taskId]);
@@ -1277,20 +963,12 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._resetTaskCatalog();
 		this._tasks.clear();
 		this._taskIdsByEnvironment.clear();
-		this._sessionFeed.clear();
-		this._discoveryPoll.cancel();
-		this._pendingTaskIds.clear();
+		this._discoveryController.reset();
 		this._apiService.clearSessionHistory();
 		// Abort in-flight discovery/connects first so nothing commits state after this runs.
 		this._enabledCts.cancel();
 		this._enabledCts.dispose();
 		this._enabledCts = new CancellationTokenSource();
-		this._lastDiscoveryAttempt = undefined;
-		this._discoveryDeferred = false;
-		this._lastFullDiscovery = undefined;
-		this._archivesLoaded = false;
-		this._archiveState.set('idle', undefined);
-		this._discoveryRetryInterval = DISCOVERY_POLL_INTERVAL_MS;
 		this._accountKey = undefined;
 		this._deletedTaskIds.clear();
 		this._persistedInventory.clear();
@@ -1805,13 +1483,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._archiveRegistration.clear();
 		} else if (!this._archiveRegistration.value) {
 			this._archiveRegistration.value = this._chatSessionsService.registerChatSessionItemArchiveProvider({
-				state: this._archiveState,
-				setRequested: requested => {
-					this._archivesRequested = requested;
-					if (requested && (!this._archivesLoaded || this._archiveState.get() === 'error')) {
-						void this._discoverAndSeed();
-					}
-				},
+				state: this._discoveryController.archiveState,
+				setRequested: requested => this._discoveryController.setArchivedRequested(requested),
 			});
 		}
 	}
@@ -1851,7 +1524,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._environments.set(address, current);
 		}
 		if (!hadEnvironments && this._environments.size > 0) {
-			this._rearmDiscoveryPoll();
+			this._discoveryController.rearmPoll();
 		}
 		if (current.sessionId && current.taskId) {
 			let sessions = this._sessionEnvironments.get(address);

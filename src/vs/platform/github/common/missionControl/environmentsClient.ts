@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { ApiRequestOptions, ApiResponse } from '../client/request.js';
+import { VSBuffer, decodeBase64, encodeBase64 } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { parseGitHubRequestId } from '../client/headers.js';
+import { ApiRequestOptions, ApiResponse } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
-import { parse, SchemaError } from '../client/schema.js';
-import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectionOptions, EnvironmentConnectResult, EnvironmentIdentityToken, IEnvironmentsClient, ListEnvironmentsOptions, SEALED_ENVIRONMENT_TOKEN_PREFIX, SealedEnvironmentToken, SealEnvironmentTokenRequest, WakingResponse } from './environments.js';
+import { SchemaError, parse } from '../client/schema.js';
+import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectResult, EnvironmentConnectionOptions, EnvironmentIdentityToken, IEnvironmentsClient, ListEnvironmentsOptions, SEALED_ENVIRONMENT_TOKEN_PREFIX, SealEnvironmentTokenRequest, SealedEnvironmentToken, WakingResponse } from './environments.js';
 import { MissionControlClient, parseActivationContext, parseEnvironmentKind } from './missionControlClient.js';
 
 export class EnvironmentsClient implements IEnvironmentsClient {
 	constructor(private readonly _client: MissionControlClient) { }
 
-	mintIdentityToken(signal: AbortSignal, options?: ApiRequestOptions): Promise<EnvironmentIdentityToken> {
+	mintIdentityToken(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<EnvironmentIdentityToken> {
 		return this._client.request({
 			domain: 'environments',
 			method: 'POST',
@@ -23,10 +24,10 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 			expectedStatus: 200,
 			policy: { credential: true },
 			options,
-		}, signal, response => parseEnvironmentIdentityToken(response.data));
+		}, cancellationToken, response => parseEnvironmentIdentityToken(response.data));
 	}
 
-	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]> {
+	list(cancellationToken: CancellationToken, options?: ListEnvironmentsOptions): Promise<readonly Environment[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
 			domain: 'environments',
@@ -35,10 +36,10 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 			expectedStatus: 200,
 			policy: { sensitive: true },
 			options: requestOptions,
-		}, signal, response => parseEnvironmentList(response.data));
+		}, cancellationToken, response => parseEnvironmentList(response.data));
 	}
 
-	get(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Environment> {
+	get(environmentId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Environment> {
 		return this._client.request({
 			domain: 'environments',
 			method: 'GET',
@@ -46,7 +47,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 			expectedStatus: 200,
 			policy: { sensitive: true },
 			options,
-		}, signal, response => {
+		}, cancellationToken, response => {
 			const environment = parseEnvironment(response.data);
 			if (environment.id !== environmentId) {
 				throw new SchemaError('Environment response did not match the requested environment');
@@ -55,7 +56,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 		});
 	}
 
-	delete(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+	delete(environmentId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
 			domain: 'environments',
 			method: 'DELETE',
@@ -63,10 +64,10 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 			expectedStatus: 204,
 			responseBody: 'none',
 			options,
-		}, signal, () => { });
+		}, cancellationToken, () => { });
 	}
 
-	sealToken(environmentId: string, request: SealEnvironmentTokenRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<SealedEnvironmentToken> {
+	sealToken(environmentId: string, request: SealEnvironmentTokenRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<SealedEnvironmentToken> {
 		return this._client.request({
 			domain: 'environments',
 			method: 'POST',
@@ -75,10 +76,10 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 			expectedStatus: 200,
 			policy: { credential: true },
 			options,
-		}, signal, response => parseSealedEnvironmentToken(response.data));
+		}, cancellationToken, response => parseSealedEnvironmentToken(response.data));
 	}
 
-	connect(environmentId: string, signal: AbortSignal, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult> {
+	connect(environmentId: string, cancellationToken: CancellationToken, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
 			domain: 'environments',
@@ -87,10 +88,10 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 			expectedStatus: [200, 202],
 			policy: { credential: true },
 			options: requestOptions,
-		}, signal, parseConnection);
+		}, cancellationToken, parseConnection);
 	}
 
-	reconnect(environmentId: string, clientId: string, signal: AbortSignal, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult> {
+	reconnect(environmentId: string, clientId: string, cancellationToken: CancellationToken, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
 			domain: 'environments',
@@ -99,7 +100,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 			expectedStatus: [200, 202],
 			policy: { credential: true },
 			options: requestOptions,
-		}, signal, response => {
+		}, cancellationToken, response => {
 			const result = parseConnection(response);
 			if (result.status === 200 && result.data.client_id !== clientId) {
 				throw new SchemaError('Reconnect returned credentials for a different client');

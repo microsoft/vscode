@@ -48,6 +48,14 @@ export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 ];
 
 /**
+ * The runtime's client-side programmatic tool calling built-in. Deliberately not in
+ * {@link COPILOT_ENABLED_BUILTIN_TOOL_NAMES}: the launcher adds it to the default filter
+ * only while `chat.copilot.programmaticToolCalling.enabled` sends the runtime flag that
+ * registers it.
+ */
+export const PROGRAMMATIC_TOOL_CALLING_TOOL_NAME = 'run_program';
+
+/**
  * The default `availableTools` filter: the enabled built-ins plus every host,
  * client, extension and MCP tool. A per-model `availableTools` capability
  * override replaces this list.

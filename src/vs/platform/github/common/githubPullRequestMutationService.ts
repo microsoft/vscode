@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import {
 	GitHubFragmentError,
 	PullRequestInlineComment,
@@ -101,12 +102,12 @@ export interface PullRequestEnqueueResult {
 }
 
 export interface PullRequestMutationApi {
-	replyAndResolveThread(ref: PullRequestRef, options: PullRequestReplyAndResolveOptions, signal: AbortSignal): Promise<PullRequestReplyAndResolveResult>;
-	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, signal: AbortSignal): Promise<GitHubWorkflowLog>;
-	rerunWorkflow(ref: PullRequestRef, options: GitHubWorkflowRerunOptions, signal: AbortSignal): Promise<PullRequestMutationResult<GitHubWorkflowRun>>;
-	prepareMerge(ref: PullRequestRef, expectedHeadSha: string, signal: AbortSignal): Promise<PullRequestMergePreparation>;
+	replyAndResolveThread(ref: PullRequestRef, options: PullRequestReplyAndResolveOptions, cancellationToken: CancellationToken): Promise<PullRequestReplyAndResolveResult>;
+	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, cancellationToken: CancellationToken): Promise<GitHubWorkflowLog>;
+	rerunWorkflow(ref: PullRequestRef, options: GitHubWorkflowRerunOptions, cancellationToken: CancellationToken): Promise<PullRequestMutationResult<GitHubWorkflowRun>>;
+	prepareMerge(ref: PullRequestRef, expectedHeadSha: string, cancellationToken: CancellationToken): Promise<PullRequestMergePreparation>;
 	/** Rejects with the original failure when GitHub may have applied the merge, even if reconciliation cannot read the result. */
-	merge(preparation: PullRequestMergePreparation, options: PullRequestMergeOptions, signal: AbortSignal): Promise<PullRequestMergeResult>;
+	merge(preparation: PullRequestMergePreparation, options: PullRequestMergeOptions, cancellationToken: CancellationToken): Promise<PullRequestMergeResult>;
 	/** Rejects with the original failure when GitHub may have enqueued the pull request, even if reconciliation cannot read the result. */
-	enqueue(preparation: PullRequestMergePreparation, authorization: PullRequestMergeAuthorization, signal: AbortSignal): Promise<PullRequestEnqueueResult>;
+	enqueue(preparation: PullRequestMergePreparation, authorization: PullRequestMergeAuthorization, cancellationToken: CancellationToken): Promise<PullRequestEnqueueResult>;
 }

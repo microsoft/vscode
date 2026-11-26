@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../browser/dom.js';
-import { hideOverlaysIn, IOverlayAnchorHost, registerOverlayAnchor } from '../../browser/overlayLayoutElement.js';
+import { $, addDisposableListener, append, EventType } from '../../browser/dom.js';
+import { hideOverlaysIn, IOverlayAnchorHost, OverlayLayoutElement, registerOverlayAnchor } from '../../browser/overlayLayoutElement.js';
 import { mainWindow } from '../../browser/window.js';
 import { DisposableStore, toDisposable } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
@@ -58,6 +58,48 @@ suite('Overlay anchors', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual({ whileHidden, calls }, { whileHidden: [true], calls: [true, false] });
+	});
+
+	test('an overlay follows a later anchor without reloading its iframe', async () => {
+		const { container, anchors: [inlineAnchor] } = createAnchors(1);
+		const overlay = store.add(new OverlayLayoutElement());
+		append(container, overlay.root);
+		overlay.setAnchorElement(inlineAnchor);
+		const iframe = $<HTMLIFrameElement>('iframe', { srcdoc: '<!DOCTYPE html><body>Video player</body>' });
+		const loaded = new Promise<void>(resolve => store.add(addDisposableListener(iframe, EventType.LOAD, () => resolve())));
+		append(overlay.content, iframe);
+		await loaded;
+		const document = iframe.contentDocument!;
+		document.body.dataset.playback = 'playing';
+
+		const dialogAnchor = append(container, $('div'));
+		dialogAnchor.style.cssText = 'width: 240px; height: 180px; margin-left: 40px; margin-top: 20px;';
+		overlay.setAnchorElement(dialogAnchor);
+		const expanded = overlay.content.getBoundingClientRect();
+		const dialog = dialogAnchor.getBoundingClientRect();
+		const expandedBoundsMatch = expanded.x === dialog.x && expanded.y === dialog.y && expanded.width === dialog.width && expanded.height === dialog.height;
+		overlay.setAnchorElement(inlineAnchor);
+		const restored = overlay.content.getBoundingClientRect();
+		const inline = inlineAnchor.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			expandedBoundsMatch,
+			restoredBoundsMatch: restored.x === inline.x && restored.y === inline.y && restored.width === inline.width && restored.height === inline.height,
+			sameDocument: iframe.contentDocument === document,
+			playback: iframe.contentDocument?.body.dataset.playback,
+		}, { expandedBoundsMatch: true, restoredBoundsMatch: true, sameDocument: true, playback: 'playing' });
+	});
+
+	test('reanchoring does not require the state-preserving DOM move API', () => {
+		const { container, anchors: [inlineAnchor] } = createAnchors(1);
+		Object.defineProperty(container, 'moveBefore', { value: undefined });
+		const overlay = store.add(new OverlayLayoutElement());
+		append(container, overlay.root);
+		overlay.setAnchorElement(inlineAnchor);
+		const dialogAnchor = append(container, $('div'));
+
+		assert.doesNotThrow(() => overlay.setAnchorElement(dialogAnchor));
+		assert.strictEqual(overlay.root.parentElement, container);
 	});
 
 	test('disposed while hidden, it shows again, and what hid it no longer acts on it', () => {

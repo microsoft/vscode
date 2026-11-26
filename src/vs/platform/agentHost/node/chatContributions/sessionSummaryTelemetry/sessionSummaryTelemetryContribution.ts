@@ -10,10 +10,12 @@ import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDi
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import type { IAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { readForwardedChatErrorFetchType } from '../../../common/meta/errorMeta.js';
+import { readSessionArtifacts, SessionArtifactType } from '../../../common/sessionArtifacts.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, isSubagentSession, MessageKind, parseSubagentSessionUri, type ErrorInfo } from '../../../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, isSubagentSession, MessageKind, parseSubagentSessionUri, readSessionGitHubData, type ErrorInfo, type SessionSummaryMeta } from '../../../common/state/sessionState.js';
+import { getPullRequestUrlKey } from '../../../../github/common/githubUrls.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
-import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, isExpectedTurnHang, type AgentHostSessionSummaryReason, type IAgentHostSessionSummaryReport, type IAgentHostSessionSummaryTotals, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, isExpectedTurnHang, type AgentHostSessionSummaryReason, type IAgentHostSessionArtifactCounts, type IAgentHostSessionSummaryReport, type IAgentHostSessionSummaryTotals, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../agentHostTelemetryReporter.js';
 import { IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 
 /** How long a session must have no active turn before its summary is sent. */
@@ -147,7 +149,7 @@ class SessionActivityPeriod {
 		}
 	}
 
-	toReport(session: string, summaryReason: AgentHostSessionSummaryReason, summaryIndex: number, createdInHostProcess: boolean): IAgentHostSessionSummaryReport {
+	toReport(session: string, summaryReason: AgentHostSessionSummaryReason, summaryIndex: number, createdInHostProcess: boolean, artifacts: IAgentHostSessionArtifactCounts | undefined): IAgentHostSessionSummaryReport {
 		const totals = this._totals;
 		return {
 			clientContext: this._clientContext,
@@ -164,6 +166,7 @@ class SessionActivityPeriod {
 				durationMs: Math.round(Math.max(0, this._lastActivity - this._firstActivity)),
 				activeMs: Math.round(totals.activeMs),
 			},
+			artifacts,
 		};
 	}
 
@@ -322,6 +325,67 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 		}
 		this._periods.delete(session);
 		const state = this._getSession(session);
-		this._reporter.sessionSummary(period.toReport(session, reason, state.summaryCount++, state.createdInHostProcess));
+		const sessionState = this._stateManager.getSessionState(session);
+		this._reporter.sessionSummary(period.toReport(session, reason, state.summaryCount++, state.createdInHostProcess, sessionState && countSessionArtifacts(sessionState._meta)));
 	}
+}
+
+/**
+ * Counts what a session recorded across its chats, and compares it with the
+ * pull requests the host found for the session's own branches.
+ */
+function countSessionArtifacts(meta: SessionSummaryMeta | undefined): IAgentHostSessionArtifactCounts {
+	const counts: IAgentHostSessionArtifactCounts = {
+		artifactCount: 0,
+		referenceCount: 0,
+		pullRequestArtifactCount: 0,
+		pullRequestReferenceCount: 0,
+		issueArtifactCount: 0,
+		issueReferenceCount: 0,
+		ownPullRequestCount: 0,
+		ownPullRequestArtifactCount: 0,
+		ownPullRequestReferenceCount: 0,
+	};
+	/** Whether each recorded pull request, by URL key, has an artifact entry; chats can record the same one differently. */
+	const recordedPullRequests = new Map<string, boolean>();
+	for (const artifact of readSessionArtifacts(meta)) {
+		if (artifact.isArtifact) {
+			counts.artifactCount++;
+		} else {
+			counts.referenceCount++;
+		}
+		if (artifact.type === SessionArtifactType.PullRequest) {
+			if (artifact.isArtifact) {
+				counts.pullRequestArtifactCount++;
+			} else {
+				counts.pullRequestReferenceCount++;
+			}
+			if (artifact.link) {
+				const key = getPullRequestUrlKey(artifact.link);
+				recordedPullRequests.set(key, recordedPullRequests.get(key) === true || artifact.isArtifact);
+			}
+		} else if (artifact.type === SessionArtifactType.Issue) {
+			if (artifact.isArtifact) {
+				counts.issueArtifactCount++;
+			} else {
+				counts.issueReferenceCount++;
+			}
+		}
+	}
+	const ownPullRequests = new Set<string>();
+	for (const gitHubState of readSessionGitHubData(meta).values()) {
+		for (const url of getSessionRelatedPullRequestUrls(gitHubState)) {
+			ownPullRequests.add(getPullRequestUrlKey(url));
+		}
+	}
+	counts.ownPullRequestCount = ownPullRequests.size;
+	for (const key of ownPullRequests) {
+		const hasArtifact = recordedPullRequests.get(key);
+		if (hasArtifact === true) {
+			counts.ownPullRequestArtifactCount++;
+		} else if (hasArtifact === false) {
+			counts.ownPullRequestReferenceCount++;
+		}
+	}
+	return counts;
 }

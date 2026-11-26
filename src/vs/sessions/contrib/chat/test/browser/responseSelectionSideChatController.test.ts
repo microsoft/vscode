@@ -12,6 +12,7 @@ import { constObservable, derived, observableValue } from '../../../../../base/c
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -361,6 +362,7 @@ suite('ResponseSelectionSideChatController', () => {
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }));
+		instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
 		store.add(instantiationService.createInstance(SessionsSideChatProviderContribution));
 
 		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget, options?.responseSelectionSupported ?? true, {

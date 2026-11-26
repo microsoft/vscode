@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
+import type * as cp from 'child_process';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DEFAULT_TERMINAL_OSX, IExternalTerminalConfiguration } from '../../common/externalTerminal.js';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../node/externalTerminalService.js';
@@ -125,6 +126,18 @@ suite('ExternalTerminalService', () => {
 			testShell,
 			testCwd
 		);
+	});
+
+	test(`WinTerminalService - does not spawn detached, which would disable Ctrl+C in the terminal (#205417)`, () => {
+		const spawnOptions: cp.SpawnOptions[] = [];
+		const mockSpawner = {
+			spawn: (_command: string, _args: string[], opts: cp.SpawnOptions) => {
+				spawnOptions.push(opts);
+				return { on: () => { } };
+			}
+		} as unknown as typeof cp;
+		new WindowsExternalTerminalService().spawnTerminal(mockSpawner, mockConfig.terminal.external, 'cmd', 'c:/foo');
+		deepStrictEqual(spawnOptions.map(options => !!options.detached), [false]);
 	});
 
 	test(`MacTerminalService - uses terminal from configuration`, done => {

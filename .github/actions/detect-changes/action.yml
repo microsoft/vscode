@@ -10,6 +10,9 @@ outputs:
   cli:
     description: "'true' when the CLI checks in cli/ need to run."
     value: ${{ steps.detect.outputs.cli }}
+  dependencies:
+    description: "'true' when the Dependency Release Age check of the lockfiles needs to run."
+    value: ${{ steps.detect.outputs.dependencies }}
   copilot-shim:
     description: "'true' when the Copilot shim checks in copilot_shim/ need to run."
     value: ${{ steps.detect.outputs.copilot-shim }}

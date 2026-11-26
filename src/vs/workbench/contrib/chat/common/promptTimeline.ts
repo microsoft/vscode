@@ -6,7 +6,7 @@
 /** Id of the per-widget contribution that owns the prompt timeline surfaces. */
 export const PROMPT_TIMELINE_CONTRIB_ID = 'chat.promptTimeline';
 
-/** Setting that controls how the prompt timeline is displayed next to the chat transcript. Agents window only. */
+/** Setting that controls how the prompt timeline is displayed next to the chat transcript. */
 export const PROMPT_TIMELINE_DISPLAY_SETTING = 'sessions.chatTimeline.display';
 
 /** Setting that controls whether sticky scroll pins the current prompt while scrolling. */

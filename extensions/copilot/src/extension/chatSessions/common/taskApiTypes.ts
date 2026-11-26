@@ -23,7 +23,6 @@ export interface ListTasksOptions {
 	readonly page?: number;
 	readonly per_page?: number;
 	readonly state?: string;
-	readonly is_archived?: boolean;
 	readonly since?: string;
 	/**
 	 * Restrict the repo-scoped task list to tasks created by the given user id. Mirrors the
@@ -50,6 +49,4 @@ export interface ITaskApiClient {
 	getTaskEvents(taskId: string, options?: ListTaskEventsOptions): Promise<AgentTaskListEventsResponse>;
 	steerTask(taskId: string, request: AgentTaskSteerRequest): Promise<void>;
 	createPRForTask(owner: string, repo: string, taskId: string): Promise<AgentTaskCreatePullRequestResponse>;
-	archiveTask(owner: string, repo: string, taskId: string): Promise<AgentTask>;
-	unarchiveTask(owner: string, repo: string, taskId: string): Promise<AgentTask>;
 }

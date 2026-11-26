@@ -7,10 +7,11 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
-import { isMacintosh, isNative, isTahoeOrNewer, isWeb } from '../../../base/common/platform.js';
+import { isLinuxSnap, isMacintosh, isNative, isTahoeOrNewer, isWeb } from '../../../base/common/platform.js';
+import { env } from '../../../base/common/process.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../configuration/common/configuration.js';
 import { IEditorOptions } from '../../editor/common/editor.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { FileType } from '../../files/common/files.js';
@@ -226,8 +227,17 @@ export const enum AgentsWindowOpenSource {
 	Unknown = 'unknown',
 }
 
-/** The IPC channel on which the main process asks the Agents window to show the Agents Launcher. */
+/** The IPC channel on which the main process asks the Agents window to show the Agents Launcher, with its {@link IAgentsLauncherOptions}. */
 export const AGENTS_LAUNCHER_IPC_CHANNEL = 'vscode:showAgentsLauncher';
+
+/** How the Agents Launcher shows, as `workbench.action.agentsLauncher` takes it, such as from the `args` of a keybinding. */
+export interface IAgentsLauncherOptions {
+	/**
+	 * The workspace its composer starts in: `''` for a chat without a workspace, as picking Chat in its workspace picker does.
+	 * The workspace it has stays when undefined. Folder paths are not supported yet.
+	 */
+	readonly workspace?: string;
+}
 
 export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowOpenSource {
 	switch (value) {
@@ -436,15 +446,21 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	return TitlebarStyle.CUSTOM; // default to custom on all OS
 }
 
-export function getWindowControlsStyle(configurationService: IConfigurationService): WindowControlsStyle {
+export function getWindowControlsStyle(configurationService: IConfigurationService, snapEnvironment?: { isLinuxSnap: boolean; xdgSessionType: string | undefined }): WindowControlsStyle {
 	if (isWeb || isMacintosh || getTitleBarStyle(configurationService) === TitlebarStyle.NATIVE) {
 		return WindowControlsStyle.NATIVE; // only supported on Windows/Linux desktop with custom titlebar
 	}
 
-	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
-	const style = configuration?.controlsStyle;
-	if (style === WindowControlsStyle.CUSTOM || style === WindowControlsStyle.HIDDEN) {
-		return style;
+	const linuxSnap = snapEnvironment?.isLinuxSnap ?? isLinuxSnap;
+	const xdgSessionType = snapEnvironment ? snapEnvironment.xdgSessionType : env.XDG_SESSION_TYPE;
+	const controlsStyle = configurationService.inspect<WindowControlsStyle>('window.controlsStyle');
+	const isControlsStyleExplicitlyConfigured = isConfigured(controlsStyle) || controlsStyle.policyValue !== undefined || controlsStyle.memoryValue !== undefined;
+	if (linuxSnap && xdgSessionType === 'wayland' && !isControlsStyleExplicitlyConfigured) {
+		return WindowControlsStyle.CUSTOM;
+	}
+
+	if (controlsStyle.value === WindowControlsStyle.CUSTOM || controlsStyle.value === WindowControlsStyle.HIDDEN) {
+		return controlsStyle.value;
 	}
 
 	return WindowControlsStyle.NATIVE; // default to native on all OS

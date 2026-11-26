@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEventPayload } from '@github/copilot-sdk';
+import type { SessionEventPayload } from '@microsoft/copilot-sdk';
 import { getErrorCode } from '../../../../base/common/errors.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { packErrorForTelemetry } from '../../../telemetry/common/errorTelemetry.js';

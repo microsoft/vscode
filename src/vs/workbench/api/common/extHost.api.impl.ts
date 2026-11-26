@@ -90,6 +90,7 @@ import { IExtHostOutputService } from './extHostOutput.js';
 import { ExtHostProfileContentHandlers } from './extHostProfileContentHandler.js';
 import { IExtHostProgress } from './extHostProgress.js';
 import { ExtHostQuickDiff } from './extHostQuickDiff.js';
+import { ExtHostRemoteAgentHosts } from './extHostRemoteAgentHosts.js';
 import { ExtHostAgentEditorComments } from './extHostAgentEditorComments.js';
 import { createExtHostQuickOpen } from './extHostQuickOpen.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -260,6 +261,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostDocumentsAndEditors, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools, extHostChatSessions));
 	const extHostChatContext = rpcProtocol.set(ExtHostContext.ExtHostChatContext, new ExtHostChatContext(rpcProtocol, extHostCommands, extHostEditorTabs));
 	const extHostChatDebug = rpcProtocol.set(ExtHostContext.ExtHostChatDebug, new ExtHostChatDebug(rpcProtocol));
+	const extHostRemoteAgentHosts = new ExtHostRemoteAgentHosts(rpcProtocol);
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostAiSettingsSearch = rpcProtocol.set(ExtHostContext.ExtHostAiSettingsSearch, new ExtHostAiSettingsSearch(rpcProtocol));
@@ -1071,9 +1073,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'quickDiffProvider');
 				return extHostQuickDiff.registerQuickDiffProvider(extension, checkSelector(selector), quickDiffProvider, id, label, rootUri);
 			},
-			createSourceControlDiffInformation(uri: vscode.Uri): vscode.SourceControlDiffInformationProvider {
+			createSourceControlDiffInformation(uri: vscode.Uri, options?: vscode.SourceControlDiffInformationOptions): vscode.SourceControlDiffInformationProvider {
 				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
-				return extHostQuickDiff.createSourceControlDiffInformation(uri);
+				return extHostQuickDiff.createSourceControlDiffInformation(uri, options);
 			},
 			get linkPresentationRules(): readonly vscode.LinkPresentationRule[] {
 				checkProposedApiEnabled(extension, 'linkPresentation');
@@ -1182,11 +1184,23 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'agentSessionsWorkspace');
 				return !!initData.environment.isSessionsWindow;
 			},
+			get mode() {
+				checkProposedApiEnabled(extension, 'workbenchMode');
+				return typeConverters.WorkbenchMode.to(extHostWorkspace.workbenchMode);
+			},
+			onDidChangeMode: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'workbenchMode');
+				return _asExtensionEvent(Event.map(extHostWorkspace.onDidChangeWorkbenchMode, mode => typeConverters.WorkbenchMode.to(mode)))(listener, thisArgs, disposables);
+			},
 			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
 				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
 			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return _asExtensionEvent(extHostWorkspace.onDidChangeWorkspace)(listener, thisArgs, disposables);
+			},
+			onDidChangeWorkspaceFolderLocations: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'workspaceFolderLocations');
+				return _asExtensionEvent(extHostWorkspace.onDidChangeWorkspaceFolderLocations)(listener, thisArgs, disposables);
 			},
 			asRelativePath: (pathOrUri, includeWorkspace?) => {
 				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
@@ -1538,11 +1552,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
-			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, iconPath?: vscode.IconPath, isHidden?: boolean, parent?: vscode.SourceControl): vscode.SourceControl {
-				if (iconPath || isHidden || parent) {
+			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, iconPath?: vscode.IconPath, parent?: vscode.SourceControl): vscode.SourceControl {
+				if (iconPath || parent) {
 					checkProposedApiEnabled(extension, 'scmProviderOptions');
 				}
-				return extHostSCM.createSourceControl(extension, id, label, rootUri, iconPath, isHidden, parent);
+				return extHostSCM.createSourceControl(extension, id, label, rootUri, iconPath, parent);
 			}
 		};
 
@@ -1792,6 +1806,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerChatOutputRenderer: (viewType: string, renderer: vscode.ChatOutputRenderer) => {
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');
 				return extHostChatOutputRenderer.registerChatOutputRenderer(extension, viewType, renderer);
+			},
+			registerRemoteAgentHost(host: vscode.RemoteAgentHost): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'remoteAgentHost');
+				return extHostRemoteAgentHosts.registerRemoteAgentHost(extension, host);
 			},
 			registerChatWorkspaceContextProvider(id: string, provider: vscode.ChatWorkspaceContextProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatContextProvider');
@@ -2086,6 +2104,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineCompletionsDisposeReasonKind: extHostTypes.InlineCompletionsDisposeReasonKind,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
+			WorkbenchMode: extHostTypes.WorkbenchMode,
 			ExtensionMode: extHostTypes.ExtensionMode,
 			ExternalUriOpenerPriority: extHostTypes.ExternalUriOpenerPriority,
 			FileChangeType: extHostTypes.FileChangeType,

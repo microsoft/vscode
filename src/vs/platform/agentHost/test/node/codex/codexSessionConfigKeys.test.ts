@@ -17,6 +17,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../../node/agentHostFileEditCoordinator.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -39,6 +40,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	const instantiationService = new TestInstantiationService();
 	const logService = new NullLogService();
 	instantiationService.stub(ISessionDataService, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, {

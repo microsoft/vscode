@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient, approveAll, type CopilotSession, type SessionEvent } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient, approveAll, type CopilotSession, type SessionEvent } from '@microsoft/copilot-sdk';
 import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { MessageKind, ResponsePartKind, TurnState, type ResponsePart, type Turn } from '../../common/state/sessionState.js';
@@ -28,10 +28,16 @@ suite('Copilot SDK - imported sessions', function () {
 		await mkdir(workDirectory);
 		client = new CopilotClient({
 			mode: 'empty',
-			baseDirectory: root,
-			useLoggedInUser: false,
-			logLevel: 'error',
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(root)),
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: root,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(root)),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
+			observability: {
+				logLevel: 'error',
+			},
 		});
 		await client.start();
 	});
@@ -61,8 +67,12 @@ suite('Copilot SDK - imported sessions', function () {
 		let session: CopilotSession | undefined;
 		try {
 			session = await client.resumeSession(sessionId, {
-				availableTools: [],
-				onPermissionRequest: approveAll,
+				tools: {
+					availableTools: [],
+				},
+				permissions: {
+					onRequest: approveAll,
+				},
 				workingDirectory: workDirectory,
 			});
 			const events: SessionEvent[] = await session.getEvents();

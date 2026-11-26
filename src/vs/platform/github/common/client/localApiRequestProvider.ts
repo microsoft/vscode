@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IGitHubCredentials, withGitHubCredentialDeadline } from '../githubCredentialService.js';
 import { normalizeReadApiBaseUri, resolveRawContentUrl, resolveReadApiUrl } from '../githubEndpoints.js';
 import { GitHubRestTextRequest, IGitHubTransport } from '../githubTransport.js';
@@ -20,13 +23,14 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 		private readonly transport: IGitHubTransport,
 		private readonly credentials?: IGitHubCredentials,
 		private readonly target: 'rest' | 'graphql' | 'rawContent' = 'rest',
-		clientSignal?: AbortSignal,
+		clientToken?: CancellationToken,
+		clientError?: () => Error | undefined,
 	) {
-		super(clientSignal);
+		super(clientToken, clientError);
 		this.apiBaseUri = normalizeReadApiBaseUri(apiBaseUri);
 	}
 
-	protected async execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal, bodyText?: string): Promise<ApiResponse<string | undefined>> {
+	protected async execute(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken, bodyText?: string): Promise<ApiResponse<string | undefined>> {
 		const metadata = parseRequest(request);
 		const read = metadata.method === 'GET' || metadata.method === 'HEAD';
 		if (bodyText !== undefined && (read || typeof bodyText !== 'string')) {
@@ -46,7 +50,7 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 				deadline: metadata.options?.deadline,
 				priority: metadata.options?.priority,
 				domain: metadata.domain,
-			}, signal);
+			}, cancellationToken);
 			if (response.truncated) {
 				throw new GitHubRequestError('GitHub repository file exceeded its byte limit.', 'responseTooLarge');
 			}
@@ -87,9 +91,9 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 			}
 			const response = await this.transport.anonymousRestText(
 				{ kind: 'anonymous', host: url.host, origin: url.origin }, apiBasePath,
-				{ ...operation, method: metadata.method }, signal,
+				{ ...operation, method: metadata.method }, cancellationToken,
 			);
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const nextPath = getNextPagePath(this.apiBaseUri, response.finalUrl, response.link);
 			return {
 				data: metadata.redirect === 'manual' ? response.redirectUrl : response.data,
@@ -97,27 +101,32 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 				...(nextPath === undefined ? {} : { metadata: { nextPath } }),
 			};
 		}
-		const { credential, deadline } = await withGitHubCredentialDeadline(signal, async (signal, deadline) => ({
-			credential: await credentials.getCredential(signal), deadline,
+		const { credential, deadline } = await withGitHubCredentialDeadline(cancellationToken, async (cancellationToken, deadline) => ({
+			credential: await credentials.getCredential(cancellationToken), deadline,
 		}), undefined, metadata.options?.deadline);
-		const operationSignal = AbortSignal.any([signal, credential.signal]);
-		operationSignal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
+		if (credential.cancellationToken.isCancellationRequested) {
+			throw credential.cancellationError ?? new CancellationError();
+		}
 		if (credential.account.host.toLowerCase() !== url.host.toLowerCase()) {
 			throw new GitHubRequestError('GitHub credential does not match the API endpoint', 'authorization');
 		}
+		const lifetime = new DisposableStore();
 		try {
+			const operationToken = CancellationToken.any([cancellationToken, credential.cancellationToken], lifetime);
+			CancellationToken.throwIfCanceled(operationToken);
 			if (graphQLBody !== undefined) {
-				const response = await this.transport.graphqlText(credential.account, credential.token, url.href, graphQLBody, operationSignal, metadata.options?.priority, {
+				const response = await this.transport.graphqlText(credential.account, credential.token, url.href, graphQLBody, operationToken, metadata.options?.priority, {
 					caller: metadata.options?.caller, domain: metadata.domain, deadline,
 				});
-				operationSignal.throwIfAborted();
+				CancellationToken.throwIfCanceled(operationToken);
 				throwGraphQLErrors(response.errors, response.statusCode, response.data, {
 					serverDate: response.serverDate, requestId: response.requestId, retryAfterSeconds: response.retryAfterSeconds,
 				});
 				return { data: response.data, status: response.statusCode };
 			}
-			const response = await this.transport.restText(credential.account, credential.token, { ...operation, deadline }, operationSignal);
-			operationSignal.throwIfAborted();
+			const response = await this.transport.restText(credential.account, credential.token, { ...operation, deadline }, operationToken);
+			CancellationToken.throwIfCanceled(operationToken);
 			const nextPath = getNextPagePath(this.apiBaseUri, response.finalUrl, response.link);
 			return {
 				data: metadata.redirect === 'manual' ? response.redirectUrl : response.data,
@@ -126,7 +135,9 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 			};
 		} catch (error) {
 			credentials.handleRequestError(credential, error);
-			throw error;
+			throw !cancellationToken.isCancellationRequested && isCancellationError(error) ? credential.cancellationError ?? error : error;
+		} finally {
+			lifetime.dispose();
 		}
 	}
 }

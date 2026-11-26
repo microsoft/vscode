@@ -85,6 +85,8 @@ export interface IChatQuestionCarouselOptions {
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	/** Session the answers belong to, for hosts whose render context has no response element. */
 	sessionResource?: URI;
+	/** Whether the list should render the carousel again, such as as it is settled elsewhere, or another widget docks it. */
+	isStale?: () => boolean;
 }
 
 class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
@@ -935,7 +937,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (this.carousel.message && this._currentIndex === 0) {
 			const messageMd = isMarkdownString(this.carousel.message) ? MarkdownString.lift(this.carousel.message) : new MarkdownString(this.carousel.message);
 			const carouselMessage = dom.$('.chat-question-carousel-message');
-			const renderedMessage = questionRenderStore.add(this._markdownRenderer.render(messageMd));
+			const renderedMessage = questionRenderStore.add(this._markdownRenderer.render(messageMd, { markedOptions: { gfm: true, breaks: true } }));
 			carouselMessage.appendChild(renderedMessage.element);
 			bodyContent.appendChild(carouselMessage);
 		}
@@ -985,7 +987,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				shownTexts.push(messageValue.trim());
 				const messageMd = isMarkdownString(question.message) ? MarkdownString.lift(question.message) : new MarkdownString(question.message);
 				const messageEl = dom.$('.chat-question-message');
-				const renderedMessage = questionRenderStore.add(this._markdownRenderer.render(messageMd));
+				const renderedMessage = questionRenderStore.add(this._markdownRenderer.render(messageMd, { markedOptions: { gfm: true, breaks: true } }));
 				messageEl.appendChild(renderedMessage.element);
 				bodyContent.appendChild(messageEl);
 			}
@@ -1012,7 +1014,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				? MarkdownString.lift(question.detailedMessage)
 				: new MarkdownString(question.detailedMessage);
 			const detailedMessageEl = dom.$('.chat-question-detailed-message');
-			const renderedDetailedMessage = questionRenderStore.add(this._markdownRenderer.render(detailedMd));
+			const renderedDetailedMessage = questionRenderStore.add(this._markdownRenderer.render(detailedMd, { markedOptions: { gfm: true, breaks: true } }));
 			detailedMessageEl.appendChild(renderedDetailedMessage.element);
 			bodyContent.appendChild(detailedMessageEl);
 		}
@@ -2268,6 +2270,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (!this._isSkipped && !this.carousel.isUsed && isResponseVM(element) && element.isComplete) {
 			return false;
 		}
+		if (this._options.isStale?.()) {
+			return false;
+		}
 		return other.kind === 'questionCarousel' && other === this.carousel;
 	}
 
@@ -2276,7 +2281,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	override dispose(): void {
-		if (!this._isSkipped && !this.carousel.isUsed) {
+		// Edits are saved as they happen. A part replaced as it went stale, such as as another widget docks the carousel, keeps
+		// what it has from overwriting what the user typed since in another widget that renders it
+		if (!this._isSkipped && !this.carousel.isUsed && !this._options.isStale?.()) {
 			this.saveCurrentAnswer();
 		}
 

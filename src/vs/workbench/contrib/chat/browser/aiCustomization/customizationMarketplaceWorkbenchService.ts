@@ -6,6 +6,7 @@
 import { equals } from '../../../../../base/common/arrays.js';
 import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { asGitHubAccount } from '../../../../../base/common/defaultAccount.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
@@ -30,15 +31,17 @@ import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomiza
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { CopilotConnectorsMarketplaceProvider, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { isAgentFinderPublicFeedAvailable } from './customizationMarketplaceConfiguration.js';
+import { isTeamProvidedVisible } from './customizationTeamProvenance.js';
 import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizationMarketplaceSourceInfos, getPluginCustomizationMarketplaceSourceInfos, isPluginMarketplaceAvailableInDiscover } from './pluginCustomizationMarketplaceProvider.js';
 
 export function getProviderMarketplaceSourceId(name: string): string {
 	return `providerPluginMarketplace.${encodeURIComponent(name)}`;
 }
 
-/** Compares the fields that determine a provider marketplace's source identity, availability, and queries. */
+/** Compares the fields that determine a provider marketplace's source identity, availability, provenance label, and queries. */
 function providerMarketplacesEqual(a: ICustomizationMarketplaceInfo, b: ICustomizationMarketplaceInfo): boolean {
-	return a.name === b.name && a.source === b.source && a.available === b.available;
+	return a.name === b.name && a.source === b.source && a.available === b.available
+		&& isTeamProvidedVisible(a.team, a.managed) === isTeamProvidedVisible(b.team, b.managed);
 }
 
 interface IAgentFinderBrowseFeed {
@@ -252,7 +255,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			Event.map(Event.fromObservableLight(this.harnessService.activeSessionResource), () => ({ sourceIds: this.getSessionBoundSourceIds() })),
 			Event.map(defaultAccountService.onDidChangeDefaultAccount, anySource),
 			Event.map(Event.filter(authenticationService.onDidChangeSessions, event => {
-				const account = defaultAccountService.currentDefaultAccount;
+				const account = asGitHubAccount(defaultAccountService.currentDefaultAccount);
 				return !!account && event.providerId === account.authenticationProvider.id &&
 					[...event.event.added ?? [], ...event.event.removed ?? []].some(session => session.id === account.sessionId);
 			}), anySource),
@@ -285,6 +288,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 				id: getProviderMarketplaceSourceId(marketplace.name),
 				displayName: marketplace.name,
 				enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+				...(isTeamProvidedVisible(marketplace.team, marketplace.managed) ? { teamProvided: true } : {}),
 				configurationDependencies: [ChatConfiguration.PluginsEnabled, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled],
 			}));
 	}

@@ -65,7 +65,8 @@ export const enum SessionOriginKind {
 }
 
 /**
- * Provenance recorded on a session created for an automation run.
+ * Provenance recorded on a session created for an automation run. Runs that
+ * later continue the session don't change it.
  *
  * The links let clients navigate from an ordinary session to the task-level
  * run and its durable definition. The session channel remains authoritative

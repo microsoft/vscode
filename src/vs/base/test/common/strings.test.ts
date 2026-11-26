@@ -512,6 +512,10 @@ suite('Strings', () => {
 	test('truncate', () => {
 		assert.strictEqual('hello world', strings.truncate('hello world', 100));
 		assert.strictEqual('hello…', strings.truncate('hello world', 5));
+		assert.strictEqual('…', strings.truncate('😀'.repeat(10), 1));
+		assert.strictEqual('😀…', strings.truncate('😀'.repeat(10), 2));
+		assert.strictEqual('😀…', strings.truncate('😀'.repeat(10), 3));
+		assert.strictEqual('a…', strings.truncate('a😀b', 2));
 	});
 
 	test('truncateMiddle', () => {
@@ -519,6 +523,31 @@ suite('Strings', () => {
 		assert.strictEqual('he…ld', strings.truncateMiddle('hello world', 5));
 		assert.strictEqual('a…de', strings.truncateMiddle('a😀bcde', 5));
 		assert.strictEqual('ab…f', strings.truncateMiddle('abcde😀f', 5));
+	});
+
+	test('truncateLongLines', () => {
+		const long = 'x'.repeat(20);
+		assert.deepStrictEqual([
+			strings.truncateLongLines('short', 10),
+			strings.truncateLongLines(long, 10),
+			strings.truncateLongLines(`ab\n${long}\ncd`, 10),
+			strings.truncateLongLines(`${long}\n${long}`, 10),
+			strings.truncateLongLines('aaaaa\nbbbbb\nccccc', 10),
+			strings.truncateLongLines(`${'x'.repeat(10)}\r\n${'y'.repeat(10)}`, 10),
+			strings.truncateLongLines(`${long}\r\ncd`, 10),
+			strings.truncateLongLines('ab😀cd\nef', 3),
+			strings.truncateLongLines(long, 5, '...'),
+		], [
+			'short',
+			'xxxxxxxxxx\u2026',
+			'ab\nxxxxxxxxxx\u2026\ncd',
+			'xxxxxxxxxx\u2026\nxxxxxxxxxx\u2026',
+			'aaaaa\nbbbbb\nccccc',
+			'xxxxxxxxxx\r\nyyyyyyyyyy',
+			'xxxxxxxxxx\u2026\r\ncd',
+			'ab\u2026\nef',
+			'xxxxx...',
+		]);
 	});
 
 	test('replaceAsync', async () => {

@@ -14,6 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatResourceViewContext, isIChatViewViewContext } from '../../chat/browser/chat.js';
 import { ChatEditor } from '../../chat/browser/widgetHosts/editor/chatEditor.js';
@@ -43,6 +44,7 @@ export class EditorCanvasContextService extends Disposable implements ICanvasCon
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		const widgets = observableFromEvent(this, Event.any(widgetService.onDidAddWidget, widgetService.onDidRemoveWidget), () => widgetService.getAllWidgets().slice());
@@ -123,6 +125,12 @@ export class EditorCanvasContextService extends Disposable implements ICanvasCon
 		return this.visibleOwners.read(reader).some(candidate => isCanvasOwner(candidate.context.owner, owner));
 	}
 
+	resolveOwner(owner: ICanvasOwner): ICanvasOwner | undefined {
+		const owners = this.visibleOwners.get();
+		return owners.find(candidate => isCanvasOwner(candidate.context.owner, owner))?.context.owner
+			?? owners.find(candidate => candidate.widget.viewModel && isEqual(candidate.widget.viewModel.sessionResource, owner.chat))?.context.owner;
+	}
+
 	getContext(owner: ICanvasOwner, reader?: IReader): ICanvasContext | undefined {
 		return this.contexts.read(reader).find(context => isCanvasOwner(context.owner, owner));
 	}
@@ -168,21 +176,35 @@ export class EditorCanvasContextService extends Disposable implements ICanvasCon
 	}
 
 	private isSupportedWidget(widget: IChatWidget): boolean {
-		if (!widget.visible || widget.location !== ChatAgentLocation.Chat || getWindow(widget.domNode).vscodeWindowId !== this.editorGroupsService.mainPart.windowId) {
-			return false;
+		const reason = this.getUnsupportedWidgetReason(widget);
+		if (reason) {
+			this.logService.trace(`[Canvas] Chat widget for ${widget.viewModel?.sessionResource.toString() ?? 'no session'} does not present canvases: ${reason}`);
+		}
+		return reason === undefined;
+	}
+
+	private getUnsupportedWidgetReason(widget: IChatWidget): string | undefined {
+		if (!widget.visible) {
+			return 'not visible';
+		}
+		if (widget.location !== ChatAgentLocation.Chat) {
+			return `location ${widget.location}`;
+		}
+		if (getWindow(widget.domNode).vscodeWindowId !== this.editorGroupsService.mainPart.windowId) {
+			return 'not in the main window';
 		}
 		if (isIChatViewViewContext(widget.viewContext)) {
-			return widget.viewContext.viewId === ChatViewId;
+			return widget.viewContext.viewId === ChatViewId ? undefined : `view ${widget.viewContext.viewId}`;
 		}
 		// The chat part beside the editor area, where a feature has one, shows chats as the Chat view does: in editors of a
 		// part of its own, not the editor area its canvases open in
 		if (this.layoutService.getContainer(mainWindow, Parts.CHAT_PART)?.contains(widget.domNode)) {
-			return true;
+			return undefined;
 		}
-		return isIChatResourceViewContext(widget.viewContext)
-			&& !widget.viewContext.isQuickChat
-			&& !widget.viewContext.isInlineChat
-			&& this.getChatEditorGroup(widget) !== undefined;
+		if (!isIChatResourceViewContext(widget.viewContext) || widget.viewContext.isQuickChat || widget.viewContext.isInlineChat) {
+			return 'quick or inline chat, or no resource view context';
+		}
+		return this.getChatEditorGroup(widget) ? undefined : 'not in an editor of the main editor part or the chat part';
 	}
 
 	private getChatEditorGroup(widget: IChatWidget): IEditorGroup | undefined {

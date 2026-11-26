@@ -102,14 +102,3 @@ export interface IScenarioLocation {
 	endLine: number;
 	endCharacter: number;
 }
-
-export const enum EditTestStrategy {
-	/**
-	 * Tests Edits in non-agent mode (with codeblock strategy)
-	 */
-	Edits,
-	/**
-	 * Test Edits in agent mode
-	 */
-	Agent
-}

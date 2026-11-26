@@ -6,8 +6,11 @@
 import assert from 'assert';
 import { DataTransfers } from '../../../../../../base/browser/dnd.js';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastDeepPartial, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -15,7 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { clearChatReferenceDragData } from '../../../../../../platform/dnd/browser/dnd.js';
+import { clearChatReferenceDragData, LocalSelectionTransfer } from '../../../../../../platform/dnd/browser/dnd.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
@@ -28,11 +31,12 @@ import { isInputDropTarget } from '../../../../../browser/dnd.js';
 import { IEditorGroupsView, IEditorGroupView } from '../../../../../browser/parts/editor/editor.js';
 import { EditorDropTarget } from '../../../../../browser/parts/editor/editorDropTarget.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatGroupDropTarget } from '../../../browser/parts/chatGroupDropTarget.js';
 import { SessionDropTarget } from '../../../browser/parts/sessionDropTarget.js';
-import { fillChatReferenceDragData, fillSessionChatDragData, getSessionChatDragData, isSessionChatDrag } from '../../../browser/dnd.js';
-import { ISessionsService } from '../../../browser/sessionsService.js';
+import { DraggedSessionIdentifier, fillChatReferenceDragData, fillSessionChatDragData, getSessionChatDragData, isSessionChatDrag } from '../../../browser/dnd.js';
+import { ISessionsService, SessionGridDirection } from '../../../browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import '../../../../chat/browser/widget/media/chat.css';
 
@@ -59,11 +63,12 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			resolveSessionResourceIdentity: resource => ({ connectionAuthority: isEqual(resource, otherHostResource) ? 'remote' : 'local', backendSession: URI.parse('opaque-session:/session') }),
 		}));
 		const container = $('.session-view');
-		container.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;';
+		// The size of the body type, which the window sets, and a chat type size, which the chat sets from `chat.fontSize`, that differ
+		container.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;--vscode-fontSize-body1:13px;';
 		const group = $('.chat-group-view');
 		group.style.cssText = 'position:relative;width:100%;height:100%;';
 		const widget = $('.interactive-session');
-		widget.style.cssText = 'position:relative;width:100%;height:100%;';
+		widget.style.cssText = 'position:relative;width:100%;height:100%;font-size:20px;';
 		const transcript = $('.test-transcript', undefined, 'Transcript');
 		transcript.style.height = '180px';
 		const input = $('.test-chat-input');
@@ -107,7 +112,7 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			fillChatReferenceDragData(event, backendResource, clientResource, 'Source Chat');
 			return event.dataTransfer!;
 		};
-		const dispatch = (element: HTMLElement, type: string, dataTransfer: DataTransfer, point = inputPoint) => element.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, ...point }));
+		const dispatch = (element: HTMLElement, type: string, dataTransfer: DataTransfer, init: DragEventInit = inputPoint) => element.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, ...init }));
 		return { container, widget, transcript, input, inputContent, inputDnd, attachments, moves, overlayId, inputPoint, transcriptPoint, drag, dispatch };
 	}
 
@@ -120,7 +125,8 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			assert.ok(gridOverlay);
 			const coveringHit = document.elementFromPoint(inputPoint.clientX, inputPoint.clientY);
 			const gridCoversInput = !!coveringHit && gridOverlay.contains(coveringHit);
-			const inputHints = [...gridOverlay.querySelectorAll<HTMLElement>('.input-drop-target-hint')].map(hint => ({ text: hint.textContent, top: hint.style.top, height: hint.style.height, borderRadius: hint.style.borderRadius }));
+			const labelFontSize = (element: HTMLElement) => mainWindow.getComputedStyle(element.querySelector<HTMLElement>('.drop-overlay-label')!).fontSize;
+			const inputHints = [...gridOverlay.querySelectorAll<HTMLElement>('.input-drop-target-hint')].map(hint => ({ text: hint.textContent, fontSize: labelFontSize(hint), top: hint.style.top, height: hint.style.height, borderRadius: hint.style.borderRadius }));
 			dispatch(gridOverlay, 'dragover', dataTransfer);
 			const removedGridOverlay = !container.querySelector(overlayId);
 			const hit = document.elementFromPoint(inputPoint.clientX, inputPoint.clientY);
@@ -129,7 +135,7 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			const gridOverlayReturned = !!container.querySelector(overlayId);
 			dispatch(inputContent, 'dragover', dataTransfer);
 			const inputOverlay = widget.querySelector<HTMLElement>('.chat-dnd-overlay')!;
-			const inputFeedback = { visible: inputOverlay.classList.contains('visible'), top: inputOverlay.style.top, height: inputOverlay.style.height, borderRadius: inputOverlay.style.borderRadius };
+			const inputFeedback = { visible: inputOverlay.classList.contains('visible'), text: inputOverlay.textContent, fontSize: labelFontSize(inputOverlay), top: inputOverlay.style.top, height: inputOverlay.style.height, borderRadius: inputOverlay.style.borderRadius };
 			const registered = isInputDropTarget(inputContent, new DragEvent('dragover', { dataTransfer }));
 			dispatch(inputContent, 'drop', dataTransfer);
 			await timeout(0);
@@ -149,11 +155,13 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 				attachments: attachments.map(entry => ({ kind: entry.kind, name: entry.name, value: entry.value?.toString() })),
 				registered, removed: !isInputDropTarget(inputContent, new DragEvent('dragover', { dataTransfer })),
 			}, {
-				// The placement covers the input, and shows where it is, until the drag moves over the input, which then takes it.
-				gridCoversInput: true, inputHints: [{ text: 'Drag here to attach to chat', top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' }],
+				// The placement covers the input, and shows where it is, until the drag moves over the input, which then takes it;
+				// the drag is over the chat, which the key held lets it through to.
+				gridCoversInput: true, inputHints: [{ text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, fontSize: '13px', top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' }],
 				removedGridOverlay: true, inputReceivesPointer: true, gridOverlayReturned: false,
-				// The feedback covers the input, shaped as it is, which takes the drop, not the transcript, whose drop the placement takes.
-				inputFeedback: { visible: true, top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' },
+				// The feedback covers the input, shaped as it is, which takes the drop, not the transcript, whose drop the placement takes;
+				// it says what the hint over the input said, at its size, though the chat's type is larger.
+				inputFeedback: { visible: true, text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, fontSize: '13px', top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' },
 				inputMoves: [], placementReceivesPointer: true, moves: [scope], transcriptIsInput: false,
 				attachments: [{ kind: 'chatReference', name: 'Source Chat', value: backendResource.toString() }],
 				registered: true, removed: true,
@@ -171,6 +179,55 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			dispatch(placementOverlay, 'drop', dataTransfer);
 			await timeout(0);
 			assert.deepStrictEqual({ inputHints, moves, attachments }, { inputHints: 0, moves: [scope], attachments: [] });
+		});
+
+		test(`${scope} placement lets the drag through to the chat while the key is held over it, whose input attaches it, as in a chat editor`, async () => {
+			const { container, widget, transcript, attachments, moves, overlayId, transcriptPoint, drag, dispatch } = setup(scope);
+			const dataTransfer = drag(sourceResource);
+			const held = { ...transcriptPoint, shiftKey: true };
+			dispatch(transcript, 'dragenter', dataTransfer, transcriptPoint);
+			const placementOverlay = container.querySelector<HTMLElement>(overlayId)!;
+			const inputHints = [...placementOverlay.querySelectorAll<HTMLElement>('.input-drop-target-hint')].map(hint => hint.textContent);
+			dispatch(placementOverlay, 'dragover', dataTransfer, held);
+			const overlayWhileHeld = !!container.querySelector(overlayId);
+			dispatch(transcript, 'dragenter', dataTransfer, held);
+			const overlayOnEnterWhileHeld = !!container.querySelector(overlayId);
+			dispatch(transcript, 'dragover', dataTransfer, held);
+			const inputOverlay = widget.querySelector<HTMLElement>('.chat-dnd-overlay')!;
+			const inputFeedback = { visible: inputOverlay.classList.contains('visible'), text: inputOverlay.textContent, top: inputOverlay.style.top, height: inputOverlay.style.height };
+			dispatch(transcript, 'drop', dataTransfer, held);
+			await timeout(0);
+			assert.deepStrictEqual({
+				inputHints, overlayWhileHeld, overlayOnEnterWhileHeld, inputFeedback, moves,
+				attachments: attachments.map(entry => ({ kind: entry.kind, value: entry.value?.toString() })),
+			}, {
+				inputHints: [`Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`],
+				overlayWhileHeld: false, overlayOnEnterWhileHeld: false,
+				// The chat fits its feedback to the input, which takes the drop, as the drag is let through to it, and says what the hint said
+				inputFeedback: { visible: true, text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, top: '200px', height: '80px' },
+				moves: [], attachments: [{ kind: 'chatReference', value: backendResource.toString() }],
+			});
+		});
+
+		test(`${scope} placement takes the drag once the input moves away under it, rather than the chat covering itself`, () => {
+			const { container, widget, input, inputContent, overlayId, inputPoint, drag, dispatch } = setup(scope);
+			const dataTransfer = drag(sourceResource);
+			dispatch(inputContent, 'dragenter', dataTransfer);
+			dispatch(inputContent, 'dragover', dataTransfer);
+			const inputOverlay = widget.querySelector<HTMLElement>('.chat-dnd-overlay')!;
+			const feedback = () => ({ visible: inputOverlay.classList.contains('visible'), outlined: inputOverlay.classList.contains('input-drop-target-outline'), height: inputOverlay.style.height });
+			const overInput = feedback();
+			// The input moves up, as when what is docked on it changes, while the drag rests on the feedback where the input was
+			input.style.bottom = '120px';
+			dispatch(inputOverlay, 'dragover', dataTransfer);
+			const inputMovedAway = feedback();
+			// The drag is over what the feedback covered then
+			dispatch(widget, 'dragenter', dataTransfer);
+			assert.deepStrictEqual({ overInput, inputMovedAway, dragOffInput: inputPoint.clientY > input.getBoundingClientRect().bottom, placement: !!container.querySelector(overlayId) }, {
+				overInput: { visible: true, outlined: true, height: '80px' },
+				inputMovedAway: { visible: false, outlined: false, height: '' },
+				dragOffInput: true, placement: true,
+			});
 		});
 	}
 });
@@ -315,6 +372,63 @@ suite('Chat Editor Drop Feedback', () => {
 			notLetThrough: overChat,
 			// The input takes the drag let through, also once the key is released, until the drag leaves
 			held: overInput, released: overInput, nextDrag: overChat,
+		});
+	});
+});
+
+suite('Sessions - Session Drop Zones', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Drags the sessions `dragged` over a 400x300 view of the session `target`, and drops them at `x`, `y`. */
+	function dropAt(dragged: readonly string[], x: number, y: number) {
+		const services = workbenchInstantiationService(undefined, store);
+		const opened: string[] = [];
+		services.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly slotPanes: ISessionsService['slotPanes'] = constObservable([]);
+			override async openSessionInSlot(session: ISession, targetSessionId: string | undefined): Promise<void> {
+				opened.push(`${session.sessionId} in ${targetSessionId}`);
+			}
+			override async openSessionsAt(sessions: readonly ISession[], referenceSessionId: string | undefined, direction: SessionGridDirection): Promise<void> {
+				opened.push(`${sessions.map(session => session.sessionId).join(',')} ${direction} of ${referenceSessionId}`);
+			}
+		}());
+		services.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override getSession(resource: URI): ISession {
+				return upcastPartial<ISession>({ sessionId: resource.path.slice(1), resource });
+			}
+		}());
+		const container = $('.session-view');
+		container.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;';
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		store.add(services.createInstance(SessionDropTarget, container, {
+			findTargetView: () => ({ sessionId: 'target', gridSlotId: 'target-slot', element: container }),
+		}));
+		const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+		transfer.setData(dragged.map(id => new DraggedSessionIdentifier(id, URI.parse(`test-session:/${id}`))), DraggedSessionIdentifier.prototype);
+		store.add(toDisposable(() => transfer.clearData(DraggedSessionIdentifier.prototype)));
+
+		const init: DragEventInit = { bubbles: true, cancelable: true, dataTransfer: new DataTransfer(), clientX: x, clientY: y };
+		container.dispatchEvent(new DragEvent('dragenter', init));
+		const overlay = container.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay')!;
+		overlay.dispatchEvent(new DragEvent('dragover', init));
+		const indicator = overlay.querySelector<HTMLElement>('.session-drop-overlay-indicator')!;
+		const shown = { left: indicator.style.left, top: indicator.style.top, width: indicator.style.width, height: indicator.style.height };
+		overlay.dispatchEvent(new DragEvent('drop', init));
+		return { shown, opened };
+	}
+
+	test('one session dropped in the middle of a view opens in it, in place of what it shows, and near an edge beside it; several only open beside it', () => {
+		const whole = { left: '0px', top: '0px', width: '100%', height: '100%' };
+		const leftHalf = { left: '0px', top: '0px', width: '50%', height: '100%' };
+		assert.deepStrictEqual({
+			middle: dropAt(['dragged'], 200, 150),
+			nearEdge: dropAt(['dragged'], 60, 150),
+			several: dropAt(['a', 'b'], 200, 150),
+		}, {
+			middle: { shown: whole, opened: ['dragged in target'] },
+			nearEdge: { shown: leftHalf, opened: ['dragged left of target'] },
+			several: { shown: leftHalf, opened: ['a,b left of target'] },
 		});
 	});
 });

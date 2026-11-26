@@ -432,6 +432,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	readonly isToolChain: boolean;
 	private readonly isVerboseToolChain: boolean;
 	private readonly isPersistentReasoning: boolean;
+	/** A reasoning section of the Verbose progress layout, which stays open until the user collapses it. */
+	private readonly isVerboseReasoning: boolean;
 	/** Reasoning and tool calls share this collapsed section in the Conversation progress layout. */
 	private readonly isConversation: boolean;
 	/** The latest reasoning or tool call in a conversation section, which its collapsed title names. */
@@ -580,9 +582,11 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		super(initialTitle, context, undefined, hoverService, configurationService, telemetryService);
 
 		this.isToolChain = !!context.suppressProgressShimmer && !!context.isToolChain;
-		this.isVerboseToolChain = this.isToolChain && configurationService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) === ChatProgressVerbosity.Verbose;
+		const isVerbose = configurationService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) === ChatProgressVerbosity.Verbose;
+		this.isVerboseToolChain = this.isToolChain && isVerbose;
 		this.isConversation = !!context.suppressProgressShimmer && !!context.isConversation && !this.isToolChain;
 		this.isPersistentReasoning = !!context.suppressProgressShimmer && !this.isToolChain && !this.isConversation;
+		this.isVerboseReasoning = this.isPersistentReasoning && isVerbose;
 		this.conversationTitleTransition = this.isConversation ? this._register(this.instantiationService.createInstance(ChatActivityLabelTransition, {
 			getElement: () => this.getConversationTitleElement(),
 			shouldAnimate: () => {
@@ -625,7 +629,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			alert(localize('chat.thinking.started', 'Thinking'));
 		}
 
-		if (this.isVerboseToolChain) {
+		if (this.isVerboseToolChain || this.isVerboseReasoning) {
 			this.setExpanded(true);
 		} else if (configuredMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
@@ -1767,10 +1771,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	/**
 	 * Collapses the content once keyboard focus leaves it, so an auto-collapse never makes the
-	 * element a user is interacting with inert.
+	 * element a user is interacting with inert. Verbose progress never collapses on its own.
 	 */
 	public collapseContentWhenUnfocused(): void {
-		if (this.isVerboseToolChain || this._store.isDisposed) {
+		if (this.isVerboseToolChain || this.isVerboseReasoning || this._store.isDisposed) {
 			return;
 		}
 		if (!isAncestorOfActiveElement(this.domNode)) {

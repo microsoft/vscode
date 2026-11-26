@@ -7,13 +7,18 @@ import assert from 'assert';
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { newWriteableBufferStream, VSBuffer } from '../../../../base/common/buffer.js';
+import type { IRequestContext } from '../../../../base/parts/request/common/request.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
+import type { IRequestService } from '../../../request/common/request.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import type { IWSLConnectProgress, IWSLConnectResult } from '../../common/wslRemoteAgentHost.js';
 import { WSLRemoteAgentHostMainService } from '../../node/wslRemoteAgentHostService.js';
+import type { IRunWslCommandResult, IWSLDistroProbe } from '../../node/wslRemoteAgentHostHelpers.js';
 import type WebSocket from 'ws';
 
 class MockWSLChild extends EventEmitter {
@@ -48,19 +53,30 @@ class MockWebSocket extends EventEmitter {
 }
 
 /**
- * In-process WSL service double that controls platform detection, process
- * output, and WebSocket creation without spawning WSL or loading `ws`.
+ * In-process WSL service double that controls the distro probe, CLI
+ * download and install, process output, and WebSocket creation without
+ * spawning WSL, using the network, or loading `ws`.
  */
 class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainService {
 	readonly children: MockWSLChild[] = [];
 	readonly webSockets: MockWebSocket[] = [];
 	readonly webSocketUrls: string[] = [];
+	readonly cliDownloads: string[] = [];
+	readonly cliInstalls: { distro: string; archive: string }[] = [];
 	private nextWebSocket: DeferredPromise<MockWebSocket> | undefined;
 
-	private readonly _platform = new DeferredPromise<{ os: string; arch: string }>();
+	private readonly _probe = new DeferredPromise<IWSLDistroProbe>();
+	readonly terminations: string[] = [];
+	readonly terminationResult = new DeferredPromise<IRunWslCommandResult>();
 
-	resolvePlatform(): void {
-		this._platform.complete({ os: 'linux', arch: 'x64' });
+	protected override _runWslTerminate(distro: string): Promise<IRunWslCommandResult> {
+		this.terminations.push(distro);
+		return this.terminationResult.p;
+	}
+
+	/** Completes the distro probe; by default the installed CLI runs on glibc x64. */
+	resolvePlatform(probe: Partial<IWSLDistroProbe> = {}): void {
+		this._probe.complete({ unameS: 'Linux', unameM: 'x86_64', libc: '', cliRunnable: true, missingLibraries: [], hasApk: false, ...probe });
 	}
 
 	deferNextWebSocket(): DeferredPromise<MockWebSocket> {
@@ -75,8 +91,22 @@ class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainServic
 		return child as unknown as cp.ChildProcess;
 	}
 
-	protected override _resolvePlatform(_distro: string): Promise<{ os: string; arch: string }> {
-		return this._platform.p;
+	protected override _probeDistro(_distro: string, _cliBin: string): Promise<IWSLDistroProbe> {
+		return this._probe.p;
+	}
+
+	protected override async _downloadCLI(url: string): Promise<VSBuffer> {
+		this.cliDownloads.push(url);
+		return VSBuffer.fromString(`archive from ${url}`);
+	}
+
+	/** Downloads through the request service instead of the stub above. */
+	downloadCLIWithRequestService(url: string): Promise<VSBuffer> {
+		return super._downloadCLI(url);
+	}
+
+	protected override async _installCLI(distro: string, archive: VSBuffer): Promise<void> {
+		this.cliInstalls.push({ distro, archive: archive.toString() });
 	}
 
 	protected override async _openWebSocket(url: string): Promise<WebSocket> {
@@ -89,7 +119,7 @@ class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainServic
 	}
 }
 
-function createService(): TestableWSLRemoteAgentHostMainService {
+function createService(requestService: IRequestService = new class extends mock<IRequestService>() { }()): TestableWSLRemoteAgentHostMainService {
 	const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'serverDataFolderName' | 'commit'> = {
 		_serviceBrand: undefined,
 		quality: 'insider',
@@ -100,11 +130,38 @@ function createService(): TestableWSLRemoteAgentHostMainService {
 		new NullLogService(),
 		productService as IProductService,
 		NullTelemetryService,
+		requestService,
 	);
 }
 
 suite('WSL Remote Agent Host Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('termination lets a pending connect start its host, then stops it, and connects during termination start a new host afterwards', async () => {
+		const service = disposables.add(createService());
+		const pending = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		const termination = service.terminateDistro('Ubuntu');
+		service.resolvePlatform();
+		await Promise.resolve();
+		service.children[0].emitStdout('ws://127.0.0.1:3000?tkn=first\n');
+		await assert.rejects(pending, /closed while acquiring a relay/);
+		await timeout(0);
+		const stopped = { terminations: [...service.terminations], killed: service.children[0].killCalls };
+		const duringTermination = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		await timeout(0);
+		const spawnedDuringTermination = service.children.length;
+		service.terminationResult.complete({ exitCode: 0, stdout: '', stderr: '' });
+		await termination;
+		await timeout(0);
+		service.children[1].emitStdout('ws://127.0.0.1:3001?tkn=second\n');
+		const restarted = await duringTermination;
+		assert.deepStrictEqual({ stopped, spawnedDuringTermination, spawned: service.children.length, token: restarted.connectionToken }, {
+			stopped: { terminations: ['Ubuntu'], killed: 1 },
+			spawnedDuringTermination: 1,
+			spawned: 2,
+			token: 'second',
+		});
+	});
 
 	test('shares one bootstrap while allocating separate relay leases', async () => {
 		const service = disposables.add(createService());
@@ -159,6 +216,56 @@ suite('WSL Remote Agent Host Service', () => {
 			{ afterFirstRelease: 0, afterFinalRelease: 1 },
 		);
 	});
+
+	test('downloads the CLI for the distro\'s platform on this computer only when the installed one does not run', async () => {
+		const connect = async (probe: Partial<IWSLDistroProbe>) => {
+			const service = disposables.add(createService());
+			const result = service.connect({ distro: 'Alpine', name: 'Alpine' });
+			service.resolvePlatform(probe);
+			await timeout(0);
+			service.children[0].emitStdout('ws://127.0.0.1:3000?tkn=token\n');
+			await result;
+			return { downloads: service.cliDownloads, installs: service.cliInstalls };
+		};
+		const url = (artifact: string) => `https://update.code.visualstudio.com/commit:${'a'.repeat(40)}/${artifact}/insider`;
+		assert.deepStrictEqual({
+			runs: await connect({ libc: 'musl' }),
+			musl: await connect({ libc: 'musl', cliRunnable: false }),
+			glibcArm64: await connect({ unameM: 'aarch64', cliRunnable: false }),
+		}, {
+			runs: { downloads: [], installs: [] },
+			musl: { downloads: [url('cli-alpine-x64')], installs: [{ distro: 'Alpine', archive: `archive from ${url('cli-alpine-x64')}` }] },
+			glibcArm64: { downloads: [url('cli-linux-arm64')], installs: [{ distro: 'Alpine', archive: `archive from ${url('cli-linux-arm64')}` }] },
+		});
+	});
+
+	test('reports missing musl libraries before downloading or launching anything, with the apk command only where apk exists', async () => {
+		const connect = async (hasApk: boolean) => {
+			const service = disposables.add(createService());
+			const result = service.connect({ distro: 'Alpine', name: 'Alpine' });
+			service.resolvePlatform({ libc: 'musl', cliRunnable: false, missingLibraries: ['libstdc++.so.6', 'libgcc_s.so.1'], hasApk });
+			const message = await result.then(() => '', (error: Error) => error.message);
+			return { names: message.includes('without libstdc++.so.6, libgcc_s.so.1'), apkCommand: message.includes('apk add --update-cache libstdc++'), downloads: service.cliDownloads.length, spawned: service.children.length };
+		};
+		assert.deepStrictEqual({ apk: await connect(true), noApk: await connect(false) }, {
+			apk: { names: true, apkCommand: true, downloads: 0, spawned: 0 },
+			noApk: { names: true, apkCommand: false, downloads: 0, spawned: 0 },
+		});
+	});
+
+	test('closes the CLI download response when its body stalls after the headers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let responseDestroyed = false;
+		const response = { statusCode: 200, headers: {}, destroy: () => { responseDestroyed = true; } };
+		const service = disposables.add(createService(new class extends mock<IRequestService>() {
+			override async request(): Promise<IRequestContext> {
+				return { res: response, stream: newWriteableBufferStream() };
+			}
+		}()));
+		const rejected = assert.rejects(service.downloadCLIWithRequestService('https://update.code.visualstudio.com/latest/cli-alpine-x64/insider'), /timed out after 300s/);
+		await timeout(5 * 60_000);
+		await rejected;
+		assert.strictEqual(responseDestroyed, true);
+	}));
 
 	for (const exitTiming of ['before session creation', 'during relay acquisition', 'after relay acquisition'] as const) {
 		test(`keeps the detached host session when the launcher exits successfully ${exitTiming}`, async () => {

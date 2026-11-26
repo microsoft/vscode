@@ -15,6 +15,8 @@ export interface ICanvas {
 	readonly extensionId?: string;
 	/** Provider-local canvas type identifier, when the host reports it. */
 	readonly canvasId?: string;
+	/** The canvas's icon, a PNG data URI, when the host sends one. */
+	readonly icon?: URI;
 }
 
 export interface ICanvasOwner {

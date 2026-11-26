@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
@@ -47,15 +48,21 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 
 	override readonly id: string;
 	override readonly remoteAddress: string;
-	override get label(): string { return this.name; }
+	private _stubLabel: string;
+	override get label(): string { return this._stubLabel; }
 
 	private readonly _status = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connecting);
 	override readonly connectionStatus = this._status;
 
-	constructor(address: string, private readonly name: string) {
+	constructor(address: string, name: string) {
 		super();
 		this.id = `agenthost-${address}`;
 		this.remoteAddress = address;
+		this._stubLabel = name;
+	}
+
+	override setLabel(name: string): void {
+		this._stubLabel = name;
 	}
 
 	override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
@@ -111,6 +118,10 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> { this.removeCachedTunnel(tunnel.tunnelId); }
 	cacheTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): void {
 		this._cached = [{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name, authProvider }, ...this._cached.filter(cached => cached.tunnelId !== tunnel.tunnelId)];
+		this._onDidChangeTunnels.fire();
+	}
+	updateCachedTunnel(tunnel: ITunnelInfo): void {
+		this._cached = this._cached.map(cached => cached.tunnelId === tunnel.tunnelId ? { ...cached, clusterId: tunnel.clusterId, name: tunnel.name, protocolVersion: tunnel.protocolVersion } : cached);
 		this._onDidChangeTunnels.fire();
 	}
 	removeCachedTunnel(tunnelId: string): void {
@@ -464,6 +475,102 @@ suite('TunnelAgentHostContribution', () => {
 			});
 		});
 	}
+
+	test('discovery refreshes a renamed cached tunnel and its provider label', async () => {
+		const tunnelService = store.add(new StubTunnelService());
+		const instantiationService = createInstantiationService();
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
+		instantiationService.stub(IRemoteAgentHostService, store.add(new StubRemoteAgentHostService()) as unknown as IRemoteAgentHostService);
+		instantiationService.stub(ISessionsProvidersService, store.add(new StubSessionsProvidersService()) as unknown as ISessionsProvidersService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+		instantiationService.stub(IHostService, new StubHostService());
+		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
+		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+		const renamed: ITunnelInfo = { tunnelId: 'tunnel-renamed', clusterId: 'use', name: 'New Name', tags: [], protocolVersion: 6, hostConnectionCount: 1 };
+		const other: ITunnelInfo = { tunnelId: 'tunnel-other', clusterId: 'use', name: 'Other', tags: [], protocolVersion: 6, hostConnectionCount: 1 };
+		const address = `${TUNNEL_ADDRESS_PREFIX}${renamed.tunnelId}`;
+		tunnelService.setCached([
+			{ tunnelId: other.tunnelId, clusterId: other.clusterId, name: other.name, protocolVersion: 6, authProvider: 'github' },
+			{ tunnelId: renamed.tunnelId, clusterId: renamed.clusterId, name: 'Old Name', authProvider: 'microsoft' },
+		]);
+		const provider = contribution.stubProviders.get(address)!;
+		const before = provider.label;
+		tunnelService.setListed([other, renamed]);
+		const testable = contribution as unknown as {
+			_silentStatusCheck(): Promise<void>;
+			_connectTunnel(address: string, options: { readonly userInitiated: boolean }): Promise<void>;
+		};
+
+		await testable._silentStatusCheck();
+		await testable._connectTunnel(address, { userInitiated: false });
+
+		assert.deepStrictEqual({
+			before,
+			after: provider.label,
+			sameProvider: contribution.stubProviders.get(address) === provider,
+			cached: tunnelService.getCachedTunnels(),
+			connected: tunnelService.connectCalls.map(call => ({ name: call.tunnel.name, authProvider: call.authProvider })),
+		}, {
+			before: 'Old Name',
+			after: 'New Name',
+			sameProvider: true,
+			cached: [
+				{ tunnelId: other.tunnelId, clusterId: other.clusterId, name: other.name, protocolVersion: 6, authProvider: 'github' },
+				{ tunnelId: renamed.tunnelId, clusterId: renamed.clusterId, name: 'New Name', protocolVersion: 6, authProvider: 'microsoft' },
+			],
+			connected: [{ name: 'New Name', authProvider: 'microsoft' }],
+		});
+	});
+
+	test('an older discovery that completes last does not undo a newer rename', async () => {
+		const pendingDiscoveries: DeferredPromise<ITunnelInfo[]>[] = [];
+		const tunnelService = store.add(new class extends StubTunnelService {
+			override listTunnels(): Promise<ITunnelInfo[]> {
+				const discovery = new DeferredPromise<ITunnelInfo[]>();
+				pendingDiscoveries.push(discovery);
+				return discovery.p;
+			}
+		}());
+		const instantiationService = createInstantiationService();
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
+		instantiationService.stub(IRemoteAgentHostService, store.add(new StubRemoteAgentHostService()) as unknown as IRemoteAgentHostService);
+		instantiationService.stub(ISessionsProvidersService, store.add(new StubSessionsProvidersService()) as unknown as ISessionsProvidersService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+		instantiationService.stub(IHostService, new StubHostService());
+		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
+		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+		const tunnel: ITunnelInfo = { tunnelId: 'tunnel-renamed', clusterId: 'use', name: 'New Name', tags: [], protocolVersion: 6, hostConnectionCount: 1 };
+		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+		tunnelService.setCached([{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: 'Old Name', protocolVersion: 6, authProvider: 'github' }]);
+		const testable = contribution as unknown as { _silentStatusCheck(): Promise<void> };
+
+		const older = testable._silentStatusCheck();
+		const newer = testable._silentStatusCheck();
+		pendingDiscoveries[1].complete([tunnel]);
+		await newer;
+		pendingDiscoveries[0].complete([{ ...tunnel, name: 'Old Name' }]);
+		await older;
+
+		assert.deepStrictEqual({
+			discoveries: pendingDiscoveries.length,
+			label: contribution.stubProviders.get(address)!.label,
+			cached: tunnelService.getCachedTunnels().map(cached => cached.name),
+		}, {
+			discoveries: 2,
+			label: 'New Name',
+			cached: ['New Name'],
+		});
+	});
 
 	test('failed discovery preserves cached tunnels and providers', async () => {
 		const tunnelService = store.add(new StubTunnelService());

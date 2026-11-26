@@ -5,17 +5,27 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { buildAgentMergePrompt } from '../../../../../../platform/agentHost/common/agentMergePrompt.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatTreeItem, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { PromptTimelineModel } from '../../../browser/promptTimeline/promptTimelineModel.js';
+import { PromptTimelineWidgetContrib } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel, IChatRequestViewModel, IChatViewModelChangeEvent } from '../../../common/model/chatViewModel.js';
+import { PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
 
 suite('PromptTimelineModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,19 +41,24 @@ suite('PromptTimelineModel', () => {
 		} as IChatRequestViewModel;
 	}
 
-	function createModel(positionedRequests: readonly { readonly item: IChatRequestViewModel; readonly top: number }[], viewportHeight = 300, scrollHeight = 1200, fileChangesService?: IChatResponseFileChangesService) {
+	type PositionedRequest = { readonly item: IChatRequestViewModel; readonly top: number };
+
+	function createWidget(positionedRequests: readonly PositionedRequest[], viewportHeight: number, scrollHeight: number, overrides?: Partial<ChatWidget>) {
 		const items: ChatTreeItem[] = positionedRequests.map(({ item }) => item);
 		const tops = new Map<ChatTreeItem, number>(positionedRequests.map(({ item, top }) => [item, top]));
 		const onDidScroll = store.add(new Emitter<void>());
 		const onDidChange = store.add(new Emitter<IChatViewModelChangeEvent>());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		let scrollTop = 0;
+		const olderHistoryUnavailable = observableValue('olderHistoryUnavailable', false);
 		let viewModel = upcastPartial<ChatViewModel>({
+			model: upcastPartial<IChatModel>({ olderHistoryUnavailable }),
 			sessionResource: URI.parse('test:/first'),
 			onDidChange: onDidChange.event,
 			getItems: () => items,
 		});
 		const widget = upcastPartial<ChatWidget>({
+			...overrides,
 			get viewModel() { return viewModel; },
 			onDidChangeViewModel: onDidChangeViewModel.event,
 			onDidScroll: onDidScroll.event,
@@ -53,23 +68,20 @@ suite('PromptTimelineModel', () => {
 			scrollHeight,
 			getElementTop: item => tops.get(item),
 		});
-		const model = store.add(new PromptTimelineModel(widget,
-			upcastPartial<IChatEditingService>({
-				editingSessionsObs: observableValue('editingSessions', []),
-				getEditingSession: () => undefined,
-			}),
-			fileChangesService ?? upcastPartial<IChatResponseFileChangesService>({ getChangesForRequest: () => undefined }),
-			undefined!, undefined!, undefined!));
-
 		return {
-			model,
+			widget,
+			olderHistoryUnavailable,
 			setRequests(requests: readonly IChatRequestViewModel[]): void {
 				items.splice(0, items.length, ...requests);
 				onDidChange.fire(null);
 			},
-			setSessionResource(resource: URI): void {
+			setSessionResource(resource: URI, requests?: readonly IChatRequestViewModel[]): void {
 				const previousSessionResource = viewModel.sessionResource;
+				if (requests) {
+					items.splice(0, items.length, ...requests);
+				}
 				viewModel = upcastPartial<ChatViewModel>({
+					model: upcastPartial<IChatModel>({ olderHistoryUnavailable }),
 					sessionResource: resource,
 					onDidChange: onDidChange.event,
 					getItems: () => items,
@@ -83,6 +95,18 @@ suite('PromptTimelineModel', () => {
 		};
 	}
 
+	function createModel(positionedRequests: readonly PositionedRequest[], viewportHeight = 300, scrollHeight = 1200, fileChangesService?: IChatResponseFileChangesService) {
+		const fixture = createWidget(positionedRequests, viewportHeight, scrollHeight);
+		const model = store.add(new PromptTimelineModel(fixture.widget,
+			upcastPartial<IChatEditingService>({
+				editingSessionsObs: observableValue('editingSessions', []),
+				getEditingSession: () => undefined,
+			}),
+			fileChangesService ?? upcastPartial<IChatResponseFileChangesService>({ getChangesForRequest: () => undefined }),
+			undefined!, undefined!, undefined!));
+		return { ...fixture, model };
+	}
+
 	function state(model: PromptTimelineModel) {
 		return {
 			active: model.activePrompt.get(),
@@ -90,58 +114,103 @@ suite('PromptTimelineModel', () => {
 		};
 	}
 
-	for (const ticksProperty of ['promptTicks', 'ticks'] as const) {
-		test(`${ticksProperty} only recomputes the changed prompt and suppresses equal diff stats`, () => {
-			const now = Date.now();
-			const requests = [request('first', 'First', now), request('last', 'Last', now + 1)];
-			const diff: IEditSessionEntryDiff = {
-				originalURI: URI.file('/before.txt'),
-				modifiedURI: URI.file('/after.txt'),
-				added: 3,
-				removed: 1,
-				identical: false,
-				quitEarly: false,
-				isFinal: true,
-				isBusy: false,
-			};
-			const changes = new Map(requests.map(item => [item.id, observableValue<readonly IEditSessionEntryDiff[]>(item.id, [diff])]));
-			const lookups: string[] = [];
-			const { model } = createModel(requests.map((item, index) => ({ item, top: index * 400 })), 300, 1200,
-				upcastPartial<IChatResponseFileChangesService>({
-					getChangesForRequest: (_resource, requestId) => {
-						lookups.push(requestId);
-						return changes.get(requestId);
-					},
-				}));
-			let emissions = 0;
-			store.add(autorun(reader => { model[ticksProperty].read(reader); emissions++; }));
-			const firstTick = model[ticksProperty].get()[0];
-			lookups.length = 0;
+	test('does not present a cached tail as the entire prompt list while the host is unavailable', () => {
+		const { model, olderHistoryUnavailable } = createModel([{ item: request('last', 'Last', 1), top: 0 }]);
+		olderHistoryUnavailable.set(true, undefined);
+		const offline = model.activePrompt.get();
+		olderHistoryUnavailable.set(false, undefined);
+		assert.deepStrictEqual([offline?.text, offline?.total, model.activePrompt.get()?.total], ['Last', undefined, 1]);
+	});
 
-			changes.get('last')!.set([{ ...diff }], undefined);
-			const unchanged = { lookups: [...lookups], emissions };
-			lookups.length = 0;
-			changes.get('last')!.set([{ ...diff, added: 7 }], undefined);
-			const changed = {
-				lookups: [...lookups],
-				emissions,
-				firstTickPreserved: model[ticksProperty].get()[0] === firstTick,
-				stats: model[ticksProperty].get().map(tick => tick.stat),
-			};
-			changes.get('last')!.set([], undefined);
-
-			assert.deepStrictEqual({ unchanged, changed, removed: model[ticksProperty].get()[1].stat }, {
-				unchanged: { lookups: ['last'], emissions: 1 },
-				changed: {
-					lookups: ['last'],
-					emissions: 2,
-					firstTickPreserved: true,
-					stats: [{ added: 3, removed: 1, fileCount: 1 }, { added: 7, removed: 1, fileCount: 1 }],
-				},
-				removed: undefined,
-			});
+	test('opening, expanding and returning to a 1000-prompt gutter never requests turn changes', () => {
+		const host = document.body.appendChild(document.createElement('div'));
+		store.add(toDisposable(() => host.remove()));
+		const requests = Array.from({ length: 1000 }, (_, i) => request(`id-${i}`, `Prompt ${i}`, i + 1));
+		const revealed: string[] = [];
+		const { widget, setSessionResource } = createWidget(requests.map((item, i) => ({ item, top: i * 40 })), 300, 40000, {
+			location: ChatAgentLocation.Chat,
+			domNode: host,
+			onDidLayout: Event.None,
+			inputPart: upcastPartial<ChatWidget['inputPart']>({ height: observableValue('inputHeight', 0) }),
+			reveal: item => revealed.push(item.id),
 		});
-	}
+		const services = store.add(new TestInstantiationService());
+		let lookups = 0;
+		const changes = observableValue<readonly IEditSessionEntryDiff[]>('changes', []);
+		services.stub(IChatResponseFileChangesService, { getChangesForRequest: () => { lookups++; return changes; } });
+		services.stub(IChatEditingService, {});
+		services.stub(IEditorService, {});
+		services.stub(IFileService, {});
+		store.add(new PromptTimelineWidgetContrib(widget, services, new TestConfigurationService({
+			[PROMPT_TIMELINE_DISPLAY_SETTING]: 'gutter',
+			[PROMPT_TIMELINE_STICKY_SCROLL_SETTING]: false,
+		}), upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true })));
+
+		const handle = host.querySelector<HTMLButtonElement>('.prompt-timeline-gutter-rest')!;
+		const titles = () => host.querySelectorAll<HTMLButtonElement>('.prompt-timeline-gutter-row-jump');
+		handle.click();
+		const expanded = handle.ariaExpanded;
+		titles()[999].click();
+		setSessionResource(URI.parse('test:/second'), [request('other', 'Other chat', 1)]);
+		const otherTitle = titles()[0].textContent;
+		setSessionResource(URI.parse('test:/first'), requests);
+		handle.click();
+		const restored = titles();
+		restored[500].click();
+		assert.deepStrictEqual({ expanded, otherTitle, count: restored.length, title: restored[500].textContent, revealed, lookups },
+			{ expanded: 'true', otherTitle: 'Other chat', count: 1000, title: 'Prompt 500', revealed: ['id-999', 'id-500'], lookups: 0 });
+	});
+
+	test('the ruler only recomputes the changed prompt and suppresses equal diff stats', () => {
+		const now = Date.now();
+		const requests = [request('first', 'First', now), request('last', 'Last', now + 1)];
+		const diff: IEditSessionEntryDiff = {
+			originalURI: URI.file('/before.txt'),
+			modifiedURI: URI.file('/after.txt'),
+			added: 3,
+			removed: 1,
+			identical: false,
+			quitEarly: false,
+			isFinal: true,
+			isBusy: false,
+		};
+		const changes = new Map(requests.map(item => [item.id, observableValue<readonly IEditSessionEntryDiff[]>(item.id, [diff])]));
+		const lookups: string[] = [];
+		const { model } = createModel(requests.map((item, index) => ({ item, top: index * 400 })), 300, 1200,
+			upcastPartial<IChatResponseFileChangesService>({
+				getChangesForRequest: (_resource, requestId) => {
+					lookups.push(requestId);
+					return changes.get(requestId);
+				},
+			}));
+		let emissions = 0;
+		store.add(autorun(reader => { model.ticks.read(reader); emissions++; }));
+		const firstTick = model.ticks.get()[0];
+		lookups.length = 0;
+
+		changes.get('last')!.set([{ ...diff }], undefined);
+		const unchanged = { lookups: [...lookups], emissions };
+		lookups.length = 0;
+		changes.get('last')!.set([{ ...diff, added: 7 }], undefined);
+		const changed = {
+			lookups: [...lookups],
+			emissions,
+			firstTickPreserved: model.ticks.get()[0] === firstTick,
+			stats: model.ticks.get().map(tick => tick.stat),
+		};
+		changes.get('last')!.set([], undefined);
+
+		assert.deepStrictEqual({ unchanged, changed, removed: model.ticks.get()[1].stat }, {
+			unchanged: { lookups: ['last'], emissions: 1 },
+			changed: {
+				lookups: ['last'],
+				emissions: 2,
+				firstTickPreserved: true,
+				stats: [{ added: 3, removed: 1, fileCount: 1 }, { added: 7, removed: 1, fileCount: 1 }],
+			},
+			removed: undefined,
+		});
+	});
 
 	test('keeps diff stats with their prompts when requests are renamed and reordered', () => {
 		const now = Date.now();
@@ -158,41 +227,41 @@ suite('PromptTimelineModel', () => {
 			upcastPartial<IChatResponseFileChangesService>({
 				getChangesForRequest: (_resource, requestId) => changes.get(requestId),
 			}));
-		store.add(autorun(reader => model.promptTicks.read(reader)));
+		store.add(autorun(reader => model.ticks.read(reader)));
 		setRequests([{ ...last, messageText: 'Renamed', timestamp: now + 2 }, first]);
 
-		assert.deepStrictEqual(model.promptTicks.get().map(tick => ({ id: tick.requestId, text: tick.text, timestamp: tick.timestamp, added: tick.stat?.added })), [
+		assert.deepStrictEqual(model.ticks.get().map(tick => ({ id: tick.requestId, text: tick.text, timestamp: tick.timestamp, added: tick.stat?.added })), [
 			{ id: 'last', text: 'Renamed', timestamp: now + 2, added: 5 },
 			{ id: 'first', text: 'First', timestamp: now, added: 3 },
 		]);
 	});
 
-	for (const ticksProperty of ['promptTicks', 'ticks'] as const) {
-		test(`${ticksProperty} rebinds reused request ids to the new session immediately and stops observing the old one`, () => {
-			const diff: IEditSessionEntryDiff = {
-				originalURI: URI.file('/before.txt'), modifiedURI: URI.file('/after.txt'), added: 3, removed: 1, identical: false, quitEarly: false, isFinal: true, isBusy: false,
-			};
-			const onDidChangeOldSession = store.add(new Emitter<void>());
-			let oldSessionAdded = 3;
-			const oldSession = observableFromEvent(onDidChangeOldSession.event, (): readonly IEditSessionEntryDiff[] => [{ ...diff, added: oldSessionAdded }]);
-			const newSession = observableValue<readonly IEditSessionEntryDiff[]>('newSession', [{ ...diff, added: 7 }]);
-			const { model, setSessionResource } = createModel([{ item: request('first', 'First', 1), top: 0 }], 300, 1200,
-				upcastPartial<IChatResponseFileChangesService>({
-					getChangesForRequest: resource => resource.path === '/first' ? oldSession : newSession,
-				}));
-			const seen: (number | undefined)[] = [];
-			store.add(autorun(reader => seen.push(...model[ticksProperty].read(reader).map(tick => tick.stat?.added))));
-			setSessionResource(URI.parse('test:/second'));
-			const afterSwitch = { seen: [...seen], oldSessionObserved: onDidChangeOldSession.hasListeners() };
-			oldSessionAdded = 99;
-			onDidChangeOldSession.fire();
+	test('the ruler rebinds reused request ids to the new session immediately and stops observing the old one', () => {
+		const diff: IEditSessionEntryDiff = {
+			originalURI: URI.file('/before.txt'), modifiedURI: URI.file('/after.txt'), added: 3, removed: 1, identical: false, quitEarly: false, isFinal: true, isBusy: false,
+		};
+		const onDidChangeOldSession = store.add(new Emitter<void>());
+		let oldSessionAdded = 3;
+		const oldSession = observableFromEvent(onDidChangeOldSession.event, (): readonly IEditSessionEntryDiff[] => [{ ...diff, added: oldSessionAdded }]);
+		const newSession = observableValue<readonly IEditSessionEntryDiff[]>('newSession', [{ ...diff, added: 7 }]);
+		const { model, setSessionResource } = createModel([{ item: request('first', 'First', 1), top: 0 }], 300, 1200,
+			upcastPartial<IChatResponseFileChangesService>({
+				getChangesForRequest: resource => resource.path === '/first' ? oldSession : newSession,
+			}));
+		const seen: (number | undefined)[] = [];
+		store.add(autorun(reader => seen.push(...model.ticks.read(reader).map(tick => tick.stat?.added))));
+		setSessionResource(URI.parse('test:/second'));
+		const afterSwitch = { seen: [...seen], oldSessionObserved: onDidChangeOldSession.hasListeners() };
+		oldSessionAdded = 99;
+		onDidChangeOldSession.fire();
 
-			assert.deepStrictEqual({ afterSwitch, afterOldSessionChange: seen }, {
-				afterSwitch: { seen: [3, 7], oldSessionObserved: false },
-				afterOldSessionChange: [3, 7],
-			});
+		assert.deepStrictEqual({ afterSwitch, afterOldSessionChange: seen }, {
+			afterSwitch: { seen: [3, 7], oldSessionObserved: false },
+			afterOldSessionChange: [3, 7],
 		});
+	});
 
+	for (const ticksProperty of ['promptTicks', 'ticks'] as const) {
 		for (const changed of ['text', 'timestamp'] as const) {
 			test(`${ticksProperty} observes an independent ${changed} update without changing request position`, () => {
 				const now = Date.now();
@@ -246,7 +315,7 @@ suite('PromptTimelineModel', () => {
 					return requestId === 'first' ? firstChanges : lastChanges;
 				},
 			}));
-		const subscription = store.add(autorun(reader => model.promptTicks.read(reader)));
+		const subscription = store.add(autorun(reader => model.ticks.read(reader)));
 		setRequests([first]);
 		lookups.length = 0;
 		lastChanges.set([], undefined);
@@ -254,9 +323,9 @@ suite('PromptTimelineModel', () => {
 		subscription.dispose();
 		firstChanges.set([{ ...diff, added: 9 }], undefined);
 		const unobservedLookups = [...lookups];
-		store.add(autorun(reader => model.promptTicks.read(reader)));
+		store.add(autorun(reader => model.ticks.read(reader)));
 
-		assert.deepStrictEqual({ removedLookups, unobservedLookups, stat: model.promptTicks.get()[0].stat }, {
+		assert.deepStrictEqual({ removedLookups, unobservedLookups, stat: model.ticks.get()[0].stat }, {
 			removedLookups: [],
 			unobservedLookups: [],
 			stat: { added: 9, removed: 1, fileCount: 1 },

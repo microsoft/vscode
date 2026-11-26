@@ -17,6 +17,11 @@ export const connectionCloseReasons = [
 ] as const;
 export type ConnectionCloseReason = typeof connectionCloseReasons[number];
 
+export const connectionHandshakeMethods = ['initialize', 'reconnect'] as const;
+export type ConnectionHandshakeMethod = typeof connectionHandshakeMethods[number];
+export const connectionHandshakeStates = ['waiting', 'chunksReceived', 'otherMessagesReceived', 'responseReceived'] as const;
+export type ConnectionHandshakeState = typeof connectionHandshakeStates[number];
+
 export interface IConnectionDiagnosticState {
 	readonly connectionState?: 'connecting' | 'connected' | 'reconnecting' | 'incompatible' | 'closed';
 	readonly authenticationRestorePending?: boolean;
@@ -39,6 +44,8 @@ export interface IConnectionDiagnosticEvent extends IConnectionDiagnosticState {
 	readonly connectionOperation?: 'connect' | 'recover';
 	/** Source-owned initiating close boundary, never inferred from error text. */
 	readonly closeReason?: ConnectionCloseReason;
+	readonly handshakeMethod?: ConnectionHandshakeMethod;
+	readonly handshakeState?: ConnectionHandshakeState;
 	readonly sessionResource?: string;
 	readonly chatResource?: string;
 	readonly turnId?: string;
@@ -74,6 +81,7 @@ export function sanitizeConnectionDiagnosticText(value: string, limit = 1024): s
 		.replace(/((?:https?|wss?):\/\/)[^\s/@]+(?::[^\s/@]*)?@/gi, '$1[redacted]@')
 		.replace(/((?:https?|wss?):\/\/[^\s?#]+)[?#][^\s]*/gi, '$1?[redacted]')
 		.replace(/((?:access[_-]?token|refresh[_-]?token|token|tkn|password|secret|authorization|cookie)\s*["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1[redacted]')
+		.replace(/(--[\w-]*(?:token|secret|password)[\w-]*(?:=|\s+))(?!-)("[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1[redacted]')
 		.replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g, '[redacted token]')
 		.replace(/[\r\n\t]+/g, ' ')
 		.slice(0, limit);

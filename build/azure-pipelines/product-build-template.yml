@@ -82,10 +82,6 @@ parameters:
     displayName: "Release build if successful (ONLY FOR INSIDER)"
     type: boolean
     default: false
-  - name: VSCODE_STEP_ON_IT
-    displayName: "Skip tests"
-    type: boolean
-    default: false
   - name: VSCODE_USE_LEGACY_OSS_NOTICE
     displayName: "Use legacy OSS Notice"
     type: boolean
@@ -190,73 +186,72 @@ stages:
                   VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_RUN_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_RUN_TESTS: true
               # Same test jobs as the Windows CI jobs above
-              - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
-                - template: win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: UnitElectron
-                    VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
-                    VSCODE_TEST_IDS:
-                      - unit-electron
-                - template: win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Unit
-                    VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
-                    VSCODE_TEST_IDS:
-                      - unit-node
-                      - unit-browser-chromium
-                - template: win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: BrowserRemote
-                    VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
-                    VSCODE_TEST_IDS:
-                      - integration-browser-firefox
-                      - integration-remote
-                      - smoke-browser-chromium
-                      - smoke-remote
-                - template: win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Integration
-                    VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
-                    VSCODE_TEST_IDS:
-                      - integration-electron
-                - template: win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: AgentHostE2E
-                    VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
-                    VSCODE_TEST_IDS:
-                      - integration-agent-host-e2e
-                - template: win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Smoke
-                    VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
-                    VSCODE_TEST_IDS:
-                      - smoke-electron
-                      - smoke-wsl-kerberos-proxy
-                      - smoke-wsl-basic-proxy
-                      - smoke-wsl-basic-pac-proxy
-                    VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}
-                - template: win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Copilot
-                    VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                    VSCODE_TEST_IDS:
-                      - copilot
+              - template: win32/product-build-win32-test.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: UnitElectron
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - unit-electron
+              - template: win32/product-build-win32-test.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
+                  VSCODE_TEST_IDS:
+                    - unit-node
+                    - unit-browser-chromium
+              - template: win32/product-build-win32-test.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: BrowserRemote
+                  VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                  VSCODE_TEST_IDS:
+                    - integration-browser-firefox
+                    - integration-remote
+                    - smoke-browser-chromium
+                    - smoke-remote
+              - template: win32/product-build-win32-test.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: Integration
+                  VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-electron
+              - template: win32/product-build-win32-test.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
+              - template: win32/product-build-win32-test.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: Smoke
+                  VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - smoke-electron
+                    - smoke-wsl-kerberos-proxy
+                    - smoke-wsl-basic-proxy
+                    - smoke-wsl-basic-pac-proxy
+                  VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}
+              - template: win32/product-build-win32-test.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: Copilot
+                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                  VSCODE_TEST_IDS:
+                    - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
         - stage: WindowsARM64
@@ -294,71 +289,70 @@ stages:
                 NPM_ARCH: x64
                 VSCODE_ARCH: x64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_RUN_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_TESTS: true
                 VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
 
             # Same test jobs as the Linux CI jobs
-            - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
-              - template: linux/product-build-linux-test.yml@self
-                parameters:
-                  NPM_ARCH: x64
-                  VSCODE_ARCH: x64
-                  VSCODE_JOB_NAME: UnitElectron
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - unit-electron
-              - template: linux/product-build-linux-test.yml@self
-                parameters:
-                  NPM_ARCH: x64
-                  VSCODE_ARCH: x64
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
-                  VSCODE_TEST_IDS:
-                    - unit-node
-                    - unit-browser-chromium
-              - template: linux/product-build-linux-test.yml@self
-                parameters:
-                  NPM_ARCH: x64
-                  VSCODE_ARCH: x64
-                  VSCODE_JOB_NAME: BrowserRemote
-                  VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
-                  VSCODE_TEST_IDS:
-                    - integration-browser-chromium
-                    - integration-remote
-                    - smoke-browser-chromium
-                    - smoke-remote
-              - template: linux/product-build-linux-test.yml@self
-                parameters:
-                  NPM_ARCH: x64
-                  VSCODE_ARCH: x64
-                  VSCODE_JOB_NAME: Integration
-                  VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - integration-electron
-              - template: linux/product-build-linux-test.yml@self
-                parameters:
-                  NPM_ARCH: x64
-                  VSCODE_ARCH: x64
-                  VSCODE_JOB_NAME: AgentHostE2E
-                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - integration-agent-host-e2e
-              - template: linux/product-build-linux-test.yml@self
-                parameters:
-                  NPM_ARCH: x64
-                  VSCODE_ARCH: x64
-                  VSCODE_JOB_NAME: Smoke
-                  VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - smoke-electron
-              - template: linux/product-build-linux-test.yml@self
-                parameters:
-                  NPM_ARCH: x64
-                  VSCODE_ARCH: x64
-                  VSCODE_JOB_NAME: Copilot
-                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                  VSCODE_TEST_IDS:
-                    - copilot
+            - template: linux/product-build-linux-test.yml@self
+              parameters:
+                NPM_ARCH: x64
+                VSCODE_ARCH: x64
+                VSCODE_JOB_NAME: UnitElectron
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - unit-electron
+            - template: linux/product-build-linux-test.yml@self
+              parameters:
+                NPM_ARCH: x64
+                VSCODE_ARCH: x64
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
+                VSCODE_TEST_IDS:
+                  - unit-node
+                  - unit-browser-chromium
+            - template: linux/product-build-linux-test.yml@self
+              parameters:
+                NPM_ARCH: x64
+                VSCODE_ARCH: x64
+                VSCODE_JOB_NAME: BrowserRemote
+                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                VSCODE_TEST_IDS:
+                  - integration-browser-chromium
+                  - integration-remote
+                  - smoke-browser-chromium
+                  - smoke-remote
+            - template: linux/product-build-linux-test.yml@self
+              parameters:
+                NPM_ARCH: x64
+                VSCODE_ARCH: x64
+                VSCODE_JOB_NAME: Integration
+                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-electron
+            - template: linux/product-build-linux-test.yml@self
+              parameters:
+                NPM_ARCH: x64
+                VSCODE_ARCH: x64
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
+            - template: linux/product-build-linux-test.yml@self
+              parameters:
+                NPM_ARCH: x64
+                VSCODE_ARCH: x64
+                VSCODE_JOB_NAME: Smoke
+                VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - smoke-electron
+            - template: linux/product-build-linux-test.yml@self
+              parameters:
+                NPM_ARCH: x64
+                VSCODE_ARCH: x64
+                VSCODE_JOB_NAME: Copilot
+                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                VSCODE_TEST_IDS:
+                  - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARM64'], true) }}:
         - stage: LinuxARM64
@@ -608,65 +602,64 @@ stages:
               parameters:
                 VSCODE_ARCH: arm64
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_RUN_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_TESTS: true
 
             # Same test jobs as the macOS CI jobs
-            - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
-              - template: darwin/product-build-darwin-test.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_JOB_NAME: UnitElectron
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - unit-electron
-              - template: darwin/product-build-darwin-test.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
-                  VSCODE_TEST_IDS:
-                    - unit-node
-                    - unit-browser-webkit
-              - template: darwin/product-build-darwin-test.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_JOB_NAME: BrowserRemote
-                  VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
-                  VSCODE_TEST_IDS:
-                    - integration-browser-webkit
-                    - integration-remote
-                    - smoke-browser-chromium
-                    - smoke-remote
-              - template: darwin/product-build-darwin-test.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_JOB_NAME: Integration
-                  VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - integration-electron
-              - template: darwin/product-build-darwin-test.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_JOB_NAME: AgentHostE2E
-                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - integration-agent-host-e2e
-              - template: darwin/product-build-darwin-test.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_JOB_NAME: Smoke
-                  VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - smoke-electron
-                    - smoke-agents-pac-proxy
-                    - smoke-agents-kerberos-pac-proxy
-                    - smoke-agents-basic-proxy
+            - template: darwin/product-build-darwin-test.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: UnitElectron
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - unit-electron
+            - template: darwin/product-build-darwin-test.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
+                VSCODE_TEST_IDS:
+                  - unit-node
+                  - unit-browser-webkit
+            - template: darwin/product-build-darwin-test.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: BrowserRemote
+                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                VSCODE_TEST_IDS:
+                  - integration-browser-webkit
+                  - integration-remote
+                  - smoke-browser-chromium
+                  - smoke-remote
+            - template: darwin/product-build-darwin-test.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: Integration
+                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-electron
+            - template: darwin/product-build-darwin-test.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
+            - template: darwin/product-build-darwin-test.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: Smoke
+                VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - smoke-electron
+                  - smoke-agents-pac-proxy
+                  - smoke-agents-kerberos-pac-proxy
+                  - smoke-agents-basic-proxy
 
       # The universal job waits for the unsigned x64 and arm64 client artifacts
       # instead of depending on their stages, so that it runs in parallel.
@@ -709,7 +702,7 @@ stages:
                 VSCODE_BUILD_WEB_MOBILE: ${{ parameters.VSCODE_BUILD_WEB_MOBILE }}
 
       # Azure rejects empty stages; Web and Mobile have no jobs in this native test matrix.
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), or(parameters.VSCODE_BUILD_MACOS, parameters.VSCODE_BUILD_MACOS_ARM64, parameters.VSCODE_BUILD_WIN32, parameters.VSCODE_BUILD_WIN32_ARM64, parameters.VSCODE_BUILD_ALPINE, parameters.VSCODE_BUILD_ALPINE_ARM64, parameters.VSCODE_BUILD_LINUX, parameters.VSCODE_BUILD_LINUX_ARM64, parameters.VSCODE_BUILD_LINUX_ARMHF)) }}:
+      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), or(parameters.VSCODE_BUILD_MACOS, parameters.VSCODE_BUILD_MACOS_ARM64, parameters.VSCODE_BUILD_WIN32, parameters.VSCODE_BUILD_WIN32_ARM64, parameters.VSCODE_BUILD_ALPINE, parameters.VSCODE_BUILD_ALPINE_ARM64, parameters.VSCODE_BUILD_LINUX, parameters.VSCODE_BUILD_LINUX_ARM64, parameters.VSCODE_BUILD_LINUX_ARMHF)) }}:
         - stage: SanityTests
           displayName: Sanity Tests
           dependsOn:

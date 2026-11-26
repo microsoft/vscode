@@ -7,7 +7,6 @@ import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import type { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { extractToolUseId } from './clientTools/claudeClientToolMcpServer.js';
-import { jsonSchemaToZodRawShape } from './clientTools/claudeJsonSchemaToZod.js';
 
 /**
  * Name of the single in-process MCP server that surfaces the agent host's
@@ -61,10 +60,11 @@ export async function buildServerToolMcpServer(
 	sdk: IClaudeAgentSdkService,
 	definitions: readonly IAgentServerToolDefinition[] = host.definitions,
 ): Promise<McpSdkServerConfigWithInstance> {
+	const { jsonSchemaToZodRawShape } = await import('./clientTools/claudeJsonSchemaToZod.js');
 	const tools = await Promise.all(definitions.map(def => sdk.tool(
 		def.name,
 		def.description ?? '',
-		jsonSchemaToZodRawShape(def.inputSchema),
+		jsonSchemaToZodRawShape(def.deferLoading === true ? def.deferredInputSchema ?? def.inputSchema : def.inputSchema),
 		async (args, extra) => {
 			try {
 				const text = await host.executeTool(chatUri, def.name, args, extractToolUseId(extra));

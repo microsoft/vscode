@@ -11,7 +11,7 @@ import { IExtensionManagementService } from '../../../../platform/extensionManag
 import { ExtensionType, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { getGitHubAuthorization, normalizeGitHubUrl } from '../common/issueReporterUtil.js';
+import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -24,6 +24,7 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
 import { IIntegrityService } from '../../../services/integrity/common/integrity.js';
 
 
@@ -81,7 +82,7 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 					? session.scopes.includes('repo')
 					: session.accessToken === options.githubAccessToken);
 				githubAccessToken = session?.accessToken ?? '';
-				githubAuthorization = session && getGitHubAuthorization(session);
+				githubAuthorization = session && toGitHubAuthorizationContext('github', session);
 			} catch (e) {
 				// Ignore
 			}

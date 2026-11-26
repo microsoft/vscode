@@ -15,10 +15,16 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
-export function isPendingLegacyAutoModel(model: ILanguageModelChatMetadataAndIdentifier | undefined, languageModelsService: ILanguageModelsService): boolean {
+/** Whether the model is a model router, which picks the chat's model from the routes in its file. */
+export function isModelRouter(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return model.metadata.modelRouterRoutes !== undefined;
+}
+
+export function isPendingLegacyAutoModel(model: ILanguageModelChatMetadataAndIdentifier | undefined, languageModelsService: ILanguageModelsService, liveCatalog?: readonly ILanguageModelChatMetadataAndIdentifier[]): boolean {
 	return !!model && isAutoModel(model) && !model.metadata.autoModelFusion
 		&& !isUserProvidedModel(model, languageModelsService)
-		&& !languageModelsService.getLanguageModelIds().includes(model.identifier);
+		&& !languageModelsService.getLanguageModelIds().includes(model.identifier)
+		&& !liveCatalog?.some(candidate => candidate.identifier === model.identifier);
 }
 
 /**

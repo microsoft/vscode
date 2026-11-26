@@ -63,13 +63,6 @@ interface IGitHubRepositoryPick extends IQuickPickItem {
 	readonly folderUri?: URI;
 }
 
-/**
- * Command ID that extensions can call to enable debug tools for the current
- * chat session. Sets the context key and immediately flushes tool updates so
- * that newly-enabled tools are visible on the next `vscode.lm.tools` read.
- */
-export const EnableChatDebugToolsCommandId = 'chat.enableDebugTools';
-
 export function shouldShowOpenEditorsContext(widget: Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>, hasEligibleOpenEditors: boolean): boolean {
 	if (!hasEligibleOpenEditors) {
 		return false;
@@ -107,7 +100,6 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ToolsContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(new AgentContextValuePick()));
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(FileContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));

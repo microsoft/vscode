@@ -69,11 +69,14 @@ export class ClosedItemHistory extends Disposable {
 		this._register(autorun(reader => hasClosedItem.set(this._item.read(reader) !== undefined)));
 
 		// A deleted session has nothing left to reopen.
-		this._register(this._sessionsManagementService.onDidDeleteSession(session => {
-			if (this._item.get()?.session.sessionId === session.sessionId) {
-				this._item.set(undefined, undefined);
-			}
-		}));
+		this._register(this._sessionsManagementService.onDidDeleteSession(session => this.forgetSession(session)));
+	}
+
+	/** Forget the remembered item when it is `session` or a chat of it. */
+	forgetSession(session: ISession): void {
+		if (this._item.get()?.session.sessionId === session.sessionId) {
+			this._item.set(undefined, undefined);
+		}
 	}
 
 	/** Remember a chat that was hidden from its session's tab strip. */
@@ -118,7 +121,9 @@ export class ClosedItemHistory extends Disposable {
 		// The recorded session may be a stale incarnation that left the grid with
 		// its slot, and a provider can drop it from its catalog without ever
 		// firing `onDidDeleteSession`.
-		const session = this._sessionsManagementService.getSessions().find(s => s.sessionId === item.session.sessionId);
+		// Also a session outside a provider's listing scope, such as of another folder in an editor window
+		const found = this._sessionsManagementService.getSession(item.session.resource);
+		const session = found?.sessionId === item.session.sessionId ? found : undefined;
 		if (!session) {
 			return;
 		}

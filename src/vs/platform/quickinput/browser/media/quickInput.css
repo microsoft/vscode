@@ -372,7 +372,8 @@
 }
 
 /* preserve list-like styling instead of tree-like styling */
-.quick-input-list .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
+.quick-input-list .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight,
+.quick-input-tree .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
 	color: var(--vscode-quickInputList-focusHighlightForeground) !important;
 }
 
@@ -441,6 +442,12 @@
 }
 
 /* focused items in quick pick */
+.quick-input-list .monaco-list-row.focused .quick-input-list-icon,
+.quick-input-tree .monaco-list-row.focused .quick-input-tree-icon {
+	/* Focus colors take precedence over an item's inline icon color. */
+	color: var(--vscode-quickInputList-focusIconForeground, inherit) !important;
+}
+
 .quick-input-list .monaco-list-row.focused .monaco-keybinding-key,
 .quick-input-list .monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator {
 	color: inherit

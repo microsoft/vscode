@@ -7,12 +7,32 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FileEditKind } from '../../common/state/sessionState.js';
 import { AgentHostFileEditCoordinator, describeDiscardedFileEdits, FileEditsInProgressError } from '../../node/agentHostFileEditCoordinator.js';
+import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 suite('AgentHostFileEditCoordinator', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const file = URI.file('/repo/src/file.ts');
+
+	test('a failed snapshot write does not invalidate changesets', async () => {
+		const coordinator = disposables.add(new AgentHostFileEditCoordinator());
+		const failure = new Error('Edit could not be stored');
+		const db = disposables.add(new class extends TestSessionDatabase {
+			override async storeFileEdit(): Promise<void> {
+				throw failure;
+			}
+		});
+		const notified: string[] = [];
+		disposables.add(coordinator.onDidStoreFileEdit(({ turnId }) => notified.push(turnId)));
+
+		await assert.rejects(coordinator.storeFileEdit(URI.parse('ahp-chat:/conversation'), db, {
+			turnId: 'turn', toolCallId: 'edit', filePath: file.path, kind: FileEditKind.Edit,
+			addedLines: 1, removedLines: 1,
+		}), failure);
+		assert.deepStrictEqual(notified, []);
+	});
 
 	test('runs a change of a file between its edit tool calls: after the running ones, before those that start later', async () => {
 		const coordinator = disposables.add(new AgentHostFileEditCoordinator());

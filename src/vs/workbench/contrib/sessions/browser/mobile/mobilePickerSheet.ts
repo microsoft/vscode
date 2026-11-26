@@ -15,8 +15,16 @@ import { localize } from '../../../../../nls.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { trackMobileSheetNavigation } from './mobileSheetNavigation.js';
 
 const $ = DOM.$;
+
+interface IMobileSheetStackEntry {
+	readonly sheet: HTMLElement;
+	previousFocus: HTMLElement | undefined;
+}
+
+const sheetStacks = new WeakMap<Window, IMobileSheetStackEntry[]>();
 
 /** Returns whether the target belongs to a mobile picker sheet mounted at the workbench root. */
 export function isMobilePickerSheetTarget(target: HTMLElement): boolean {
@@ -795,6 +803,7 @@ function buildMobileSheetShell(
 	options: IMobileSheetShellOptions,
 ): IMobileSheetShell {
 	const disposables = new DisposableStore();
+	const win = DOM.getWindow(workbenchContainer);
 	let closed = false;
 	const headerFocusTargets: HTMLButtonElement[] = [];
 	let bodyFocusTargets: readonly HTMLElement[] = [];
@@ -808,6 +817,32 @@ function buildMobileSheetShell(
 	sheet.setAttribute('aria-modal', 'true');
 	sheet.setAttribute('aria-label', title);
 	sheet.classList.toggle('compact-header', !!options.iconClose);
+
+	const activeElement = DOM.getActiveElement();
+	const entry: IMobileSheetStackEntry = {
+		sheet,
+		previousFocus: DOM.isHTMLElement(activeElement) && activeElement.ownerDocument === workbenchContainer.ownerDocument ? activeElement : undefined,
+	};
+	const sheets = sheetStacks.get(win) ?? [];
+	sheetStacks.set(win, sheets);
+	sheets.push(entry);
+	disposables.add(toDisposable(() => {
+		const focused = DOM.getActiveElement();
+		const restoreFocus = sheets.at(-1) === entry && (overlay.contains(focused) || focused === win.document.body);
+		sheets.splice(sheets.indexOf(entry), 1);
+		for (const remaining of sheets) {
+			if (remaining.previousFocus && sheet.contains(remaining.previousFocus)) {
+				remaining.previousFocus = entry.previousFocus;
+			}
+		}
+		if (sheets.length === 0) {
+			sheetStacks.delete(win);
+		}
+		if (restoreFocus && entry.previousFocus?.isConnected) {
+			entry.previousFocus.focus();
+		}
+	}));
+	disposables.add(trackMobileSheetNavigation(workbenchContainer, options.onDismiss));
 
 	// -- Header (drag handle + title row + caption) ----------------
 	DOM.append(sheet, $('div.mobile-picker-sheet-handle'));
@@ -911,10 +946,10 @@ function buildMobileSheetShell(
 	const backdropTap = DOM.addDisposableListener(backdrop, TouchEventType.Tap, () => options.onDismiss());
 	disposables.add(backdropTap);
 
-	const keyHandler = DOM.addDisposableListener(DOM.getWindow(workbenchContainer), DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-		if (e.key === 'Escape') {
+	const keyHandler = DOM.addDisposableListener(win, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		if (e.key === 'Escape' && !e.defaultPrevented && sheets.at(-1) === entry) {
 			e.preventDefault();
-			e.stopPropagation();
+			e.stopImmediatePropagation();
 			options.onDismiss();
 		}
 	}, true);
@@ -950,7 +985,6 @@ function buildMobileSheetShell(
 	// listen for `resize` and `scroll` events on it and translate
 	// the sheet upward by the keyboard height so the focused input
 	// remains visible.
-	const win = DOM.getWindow(workbenchContainer);
 	const vv = win.visualViewport;
 	if (vv) {
 		const adjustForKeyboard = () => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, resetCaches, type Log as ProxyLog, type LookupProxyAuthorization, type ResolvedProxyInfo } from '@vscode/proxy-agent';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, ProxySupportSetting, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, resetCaches, type Log as ProxyLog, type LookupProxyAuthorization, type ResolvedProxyInfo } from '@vscode/proxy-agent';
 import { AsyncLocalStorage } from 'async_hooks';
 import { getCACertificates } from 'tls';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -31,14 +31,18 @@ interface IClientCertificateProvider extends IDisposable {
 	promise?: Promise<void>;
 }
 
-/** Load system and process-supplied CA certificates for Agent Host networking. */
+/**
+ * Load system and process-supplied CA certificates for Agent Host networking. `loadFromNode` selects Node.js' built-in
+ * loader for the system certificates, as `http.systemCertificatesNode` does.
+ */
 export async function loadAgentHostCertificates(
 	logService: ILogService,
 	extraCertificates: readonly string[] = getCACertificates('extra'),
 	systemCertificateLoader: typeof loadSystemCertificates = loadSystemCertificates,
+	loadFromNode = systemCertificatesNodeDefault,
 ): Promise<string[]> {
 	const systemCertificates = await systemCertificateLoader({
-		loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
+		loadSystemCertificatesFromNode: () => loadFromNode,
 		log: logService,
 	});
 	return [...systemCertificates, ...extraCertificates];
@@ -166,13 +170,14 @@ export interface IAgentHostProxyResolver {
 	 * for a direct connection. Reuses `@vscode/proxy-agent`'s `resolveProxyURL`
 	 * so the same precedence as the rest of VS Code applies: `http.noProxy` →
 	 * `http.proxy` setting → `HTTP(S)_PROXY` env vars → the host proxy resolution
-	 * that runs in VS Code (Electron session) via the reverse channel.
+	 * that runs in VS Code (Electron session) via the reverse channel. Always
+	 * `undefined` when `http.proxySupport` is `off`.
 	 */
 	resolveProxy(url: string): Promise<string | undefined>;
 
 	/**
 	 * Like {@link resolveProxy}, with the type of the result and the configuration that determined it, such as `remote`
-	 * when no client was connected to resolve the system proxy with.
+	 * when no client was connected to resolve the system proxy with. Disregards `http.proxySupport`.
 	 */
 	resolveProxyByURL(url: string): Promise<ResolvedProxyInfo>;
 
@@ -220,7 +225,12 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		this._configurationListener.value = this._configurationService.onDidRootConfigChange(() => {
 			const values = this._readConfigurationValues();
 			if (!equals(this._configurationValues, values)) {
+				const certificatesChanged = values[AgentHostProxyConfigKey.SystemCertificatesNode] !== this._configurationValues[AgentHostProxyConfigKey.SystemCertificatesNode];
 				this._configurationValues = values;
+				if (certificatesChanged) {
+					this._nativeCertificates = undefined;
+					this._resetNetworking();
+				}
 				this._onDidChangeConfiguration.fire();
 			}
 		});
@@ -301,7 +311,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 
 	async loadCertificates(): Promise<string[]> {
 		if (!this._nativeCertificates) {
-			const nativeCertificates = this._nativeCertificates = this._loadNativeCertificates();
+			const nativeCertificates = this._nativeCertificates = this._loadNativeCertificates(this._isSystemCertificatesNodeEnabled());
 			nativeCertificates.catch(() => {
 				if (this._nativeCertificates === nativeCertificates) {
 					this._nativeCertificates = undefined;
@@ -315,8 +325,22 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		return [...nativeCertificates, ...clientCertificates];
 	}
 
-	protected _loadNativeCertificates(): Promise<string[]> {
-		return loadAgentHostCertificates(this._logService);
+	/** Load the system and process-supplied CA certificates, with Node.js' built-in loader if `loadFromNode`. */
+	protected _loadNativeCertificates(loadFromNode: boolean): Promise<string[]> {
+		return loadAgentHostCertificates(this._logService, undefined, undefined, loadFromNode);
+	}
+
+	/** `http.proxySupport`, defaulting to `override` for clients that do not mirror it. */
+	private _getProxySupport(): ProxySupportSetting {
+		return this.getConfigurationValue<ProxySupportSetting>(AgentHostProxyConfigKey.ProxySupport) || 'override';
+	}
+
+	private _isSystemCertificatesEnabled(): boolean {
+		return this.getConfigurationValue<boolean>(AgentHostProxyConfigKey.SystemCertificates) !== false;
+	}
+
+	private _isSystemCertificatesNodeEnabled(): boolean {
+		return this.getConfigurationValue<boolean>(AgentHostProxyConfigKey.SystemCertificatesNode) ?? systemCertificatesNodeDefault;
 	}
 
 	private _readConfigurationValues(): Record<string, unknown> {
@@ -395,6 +419,9 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	}
 
 	resolveProxy(url: string): Promise<string | undefined> {
+		if (this._getProxySupport() === 'off') {
+			return Promise.resolve(undefined);
+		}
 		return this._getProxyResolver().resolver.resolveProxyURL(url);
 	}
 
@@ -430,13 +457,14 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				resolveProxy: (url) => this._hostResolveProxy(url),
 				lookupProxyAuthorization: this._createProxyAuthorizationLookup(proxyLog),
 				getProxyURL: () => this.getConfigurationValue<string>(AgentHostProxyConfigKey.Proxy),
-				getProxySupport: () => 'override',
+				getProxySupport: () => this._getProxySupport(),
 				getNoProxyConfig: () => this.getConfigurationValue<string[]>(AgentHostProxyConfigKey.NoProxy) || [],
 				isAdditionalFetchSupportEnabled: () => true,
 				isWebSocketPatchEnabled: () => true,
-				addCertificatesV1: () => true,
+				// The fetch and WebSocket patches have no V2 and check either flag, so `http.experimental.systemCertificatesV2` does not apply.
+				addCertificatesV1: () => this._isSystemCertificatesEnabled(),
 				addCertificatesV2: () => false,
-				loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
+				loadSystemCertificatesFromNode: () => this._isSystemCertificatesNodeEnabled(),
 				loadAdditionalCertificates: () => this.loadCertificates(),
 				log: proxyLog,
 				getLogLevel: () => {

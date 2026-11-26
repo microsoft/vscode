@@ -43,6 +43,7 @@ import { IChatRequestVariableEntry } from '../../common/attachments/chatVariable
 import { ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { isAutoLanguageModel } from '../../common/languageModels.js';
 import { AppWindowScreenshotHint } from './chatAppWindowScreenshotHint.js';
+import { AppWindowScreenshotKeybindingTip } from './chatAppWindowScreenshotKeybindingTip.js';
 import { AppWindowScreenshotSetupDialog } from './chatAppWindowScreenshotSetup.js';
 
 const ATTACH_APP_WINDOW_SCREENSHOT_TITLE = localize2('chat.attachAppWindowScreenshot', "Attach Screenshot of App Window");
@@ -63,7 +64,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: product.quality !== 'stable',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			markdownDescription: localize('chat.appWindowScreenshots.enabled', "Controls whether chat can attach a screenshot of the window of another app, such as the browser or simulator that runs the app that you are building. **Attach Screenshot of App Window** captures the window that you are using or just left, and you can mark up the screenshot before you send it. Its keybinding also works while the other app is in front."),
+			markdownDescription: localize('chat.appWindowScreenshots.enabled', "Controls whether chat can attach a screenshot of the window of another app, such as the browser or simulator that runs the app that you are building. **Attach Screenshot of App Window** captures the window that you are using or just left, and you can mark up the screenshot before you send it. After you use it, a chat tip offers to enable its keybinding in all apps."),
 		},
 	},
 });
@@ -317,8 +318,6 @@ class AttachAppWindowScreenshotAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyS,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyS },
-				// Captures the window of the app that is in front, which is the point of the keybinding.
-				systemWide: true,
 			},
 		});
 	}
@@ -370,7 +369,7 @@ class AppWindowScreenshotContextValuePick implements IChatContextValueItem {
 	}
 }
 
-/** Offers the Add Context item while the feature is on. */
+/** Offers the Add Context item, and the tip that enables the keybinding in all apps, while the feature is on. */
 class AppWindowScreenshotContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chat.appWindowScreenshot';
@@ -385,6 +384,7 @@ class AppWindowScreenshotContribution extends Disposable implements IWorkbenchCo
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
 				reader.store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(AppWindowScreenshotContextValuePick)));
+				reader.store.add(instantiationService.createInstance(AppWindowScreenshotKeybindingTip));
 			}
 		}));
 	}

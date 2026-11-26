@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, latestUserInputCarriesTag, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, latestUserInputCarriesTag, MockLlmServer, openLocalChatInChatView, preseedChatExtensionEnablement } from '../../utils';
 
 const WARMUP_SCENARIO_ID = 'smoke-chat-sandbox-warmup';
 const WARMUP_REPLY = 'MOCKED_CHAT_SANDBOX_WARMUP';
@@ -212,9 +212,7 @@ export function setup(logger: Logger): void {
 
 		before(async function () {
 			const app = this.app as Application;
-			const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
-			await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
-			await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
+			await openLocalChatInChatView(app);
 			await warmUpChat(app.workbench.chat, mockServer, logger);
 		});
 

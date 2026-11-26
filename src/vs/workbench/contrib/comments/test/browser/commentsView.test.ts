@@ -22,6 +22,8 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -183,5 +185,48 @@ suite('Comments View', function () {
 		assert.strictEqual(view.getFilterStats().total, 2);
 		assert.strictEqual(view.getFilterStats().filtered, 2);
 		view.dispose();
+	});
+
+	test('resource commenting ranges event fires once per resource', async function () {
+		const resource = URI.parse('file:///test.ts');
+		commentService.unregisterCommentController('test');
+		commentService.registerCommentController('test', new class extends TestCommentController {
+			override getDocumentComments(): Promise<ICommentInfo> {
+				return Promise.resolve({
+					uniqueOwner: 'test',
+					threads: [new TestCommentThread(1, 1, '1', resource.toString(), new Range(1, 1, 1, 1), [])],
+					commentingRanges: {
+						resource,
+						ranges: [],
+						fileComments: false,
+					},
+				});
+			}
+		}());
+		let eventCount = 0;
+		disposables.add(commentService.onResourceHasCommentingRanges(() => eventCount++));
+
+		await commentService.getDocumentComments(resource);
+		await commentService.getDocumentComments(resource);
+
+		assert.strictEqual(eventCount, 1);
+	});
+
+	test('does not query providers for comment input models', function () {
+		let requestCount = 0;
+		commentService.unregisterCommentController('test');
+		commentService.registerCommentController('test', new class extends TestCommentController {
+			override getDocumentComments(): Promise<ICommentInfo> {
+				requestCount++;
+				return Promise.reject(new Error('Comment input models must not reach comment providers'));
+			}
+		}());
+
+		disposables.add(instantiationService.get(IModelService).createModel('', null, URI.from({
+			scheme: Schemas.commentsInput,
+			path: '/test/comment.md',
+		})));
+
+		assert.strictEqual(requestCount, 0);
 	});
 });

@@ -41,6 +41,8 @@ export const AGENT_HOST_SCHEME = 'vscode-agent-host';
  * Maps resource URIs between the Agent Host and its client.
  */
 export interface IAgentHostResourceUriMapper {
+	/** Authority used for wrapped client resources, absent for identity mappings. */
+	readonly connectionAuthority?: string;
 	fromAgentHost(resource: URI): URI;
 	toAgentHost(resource: URI): URI;
 }
@@ -212,6 +214,7 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 
 export function createAgentHostResourceUriMapper(connectionAuthority: string): IAgentHostResourceUriMapper {
 	return {
+		connectionAuthority,
 		fromAgentHost: resource => toAgentHostUri(resource, connectionAuthority),
 		toAgentHost: resource => unwrapOwnAgentHostUri(resource, connectionAuthority),
 	};
@@ -228,6 +231,7 @@ function unwrapOwnAgentHostUri(resource: URI, connectionAuthority: string): URI 
 export function createEditorRemoteAgentHostResourceUriMapper(remoteAuthority: string, connectionAuthority: string): IAgentHostResourceUriMapper {
 	const transformer = createURITransformer(remoteAuthority);
 	return {
+		connectionAuthority,
 		toAgentHost: resource => resource.scheme === Schemas.vscodeRemote && isEqualAuthority(resource.authority, remoteAuthority)
 			? URI.revive(transformer.transformIncoming(resource))
 			: unwrapOwnAgentHostUri(resource, connectionAuthority),

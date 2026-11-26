@@ -60,7 +60,7 @@ import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY } from '../../../../../workbench/cont
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
-import { SessionChangesetOperationsContext } from '../../../changes/browser/changesActions.js';
+import { SessionChangesetOperationsContext } from '../../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';

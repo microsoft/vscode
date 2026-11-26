@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { gulp, filter } from './lib/gulp/facade.ts';
-import es from 'event-stream';
+import { through } from './lib/streams.ts';
+import { Readable } from 'stream';
 import minimist from 'minimist';
 import path from 'path';
 import fs from 'fs';
@@ -45,7 +46,7 @@ function checkPackageJSON(this: NodeJS.ReadWriteStream, actualPath: string, allo
 
 const checkPackageJSONTask = task.define('check-package-json', () => {
 	return gulp.src('package.json').pipe(
-		es.through(function () {
+		through(function () {
 			checkPackageJSON.call(this, 'remote/package.json');
 			checkPackageJSON.call(this, 'remote/web/package.json');
 			// The build scripts use glob 7 (and its types); the root's test runners still use glob 5.
@@ -86,7 +87,7 @@ function runHygiene(): NodeJS.ReadWriteStream {
 	// Pass a stream rather than paths, so that changing only files that no check covers, such as images, passes.
 	const files = scope.files.length > 0
 		? vfs.src(Array.from(scope.files), { base: '.', follow: true, allowEmpty: true }).pipe(filter(Array.from(all)))
-		: es.readArray([]);
+		: Readable.from([]);
 	return hygiene(files, false);
 }
 

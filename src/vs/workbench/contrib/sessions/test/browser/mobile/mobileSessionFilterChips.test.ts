@@ -7,13 +7,15 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { MobileSessionFilterChips } from '../../../browser/mobile/mobileSessionFilterChips.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('MobileSessionFilterChips', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('exposes only keyboard-operable Sort and Find actions', () => {
 		const container = dom.$('div');
-		const chips = store.add(new MobileSessionFilterChips(container));
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const chips = store.add(instantiationService.createInstance(MobileSessionFilterChips, container));
 		const requests: string[] = [];
 		store.add(chips.onDidRequestSortGroup(() => requests.push('sort')));
 		store.add(chips.onDidRequestFind(() => requests.push('find')));

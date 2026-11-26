@@ -12,6 +12,7 @@ import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/
 import { INotificationService, INotificationSource, NotificationPriority } from '../../../platform/notification/common/notification.js';
 import { Event } from '../../../base/common/event.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { MANAGE_EXTENSION_COMMAND_ID } from '../../../platform/extensions/common/extensions.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
@@ -87,7 +88,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 					id: options.source.identifier.value,
 					label: nls.localize('manageExtension', "Manage Extension"),
 					run: () => {
-						return this._commandService.executeCommand('_extensions.manage', options.source!.identifier.value);
+						return this._commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, options.source!.identifier.value);
 					}
 				}), NotificationActionTelemetryId.ManageExtension));
 			}

@@ -54,25 +54,100 @@ const AGENT_HOST_MODEL = 'gpt-5.3-codex';
 const AGENT_HOST_REPLACEMENT_SCENARIO_ID = 'smoke-agent-host-session-replacement';
 const AGENT_HOST_REPLACEMENT_REPLY = 'MOCKED_AGENT_HOST_REPLACEMENT_RESPONSE';
 const DEV_CONTAINER_SCENARIO_ID = 'smoke-dev-container-agent-host';
+const DEV_CONTAINER_HANDOFF_SCENARIO_ID = 'smoke-dev-container-handoff';
+const DEV_CONTAINER_HANDOFF_REPLY = 'MOCKED_DEV_CONTAINER_HANDOFF_RESPONSE';
+const DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID = 'smoke-dev-container-handoff-child';
+/** Docker label of the volumes of Dev Container environments, see `devContainerEnvironmentLabel`. */
+const DEV_CONTAINER_ENVIRONMENT_LABEL = 'vscode.agents.environment';
+
+/** Points the Agent Host in a container at the mock server, which the container reaches through `vscode-smoke.test`. */
+function devContainerMockEnvironment(port: number): Record<string, string> {
+	const mockServerUrl = `http://vscode-smoke.test:${port}`;
+	return {
+		COPILOT_API_URL: mockServerUrl,
+		COPILOT_DEBUG_GITHUB_API_URL: mockServerUrl,
+		GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
+		VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
+		VSCODE_SMOKE_TEST_PROXY_HEADER: process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ?? 'dev-container',
+	};
+}
 
 function prepareDevContainerWorkspace(workspacePath: string, port: number, options: ApplicationOptions): void {
 	const configDirectory = path.join(workspacePath, '.devcontainer');
-	const mockServerUrl = `http://vscode-smoke.test:${port}`;
 	fs.mkdirSync(configDirectory, { recursive: true });
 	fs.writeFileSync(path.join(configDirectory, 'devcontainer.json'), JSON.stringify({
 		name: 'Agents Window Smoke',
 		image: 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04',
 		remoteUser: 'vscode',
 		runArgs: ['--add-host=vscode-smoke.test:host-gateway'],
-		containerEnv: {
-			COPILOT_API_URL: mockServerUrl,
-			COPILOT_DEBUG_GITHUB_API_URL: mockServerUrl,
-			GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
-			VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
-			VSCODE_SMOKE_TEST_PROXY_HEADER: process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ?? 'dev-container',
-		},
+		containerEnv: devContainerMockEnvironment(port),
 		postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
 	}, null, 2));
+}
+
+/**
+ * Scripts an agent that creates a Dev Container with `create_dev_container`, then starts a session in it with
+ * `create_remote_session`, passing the host and workspace from the first tool's result.
+ */
+function devContainerHandoffScenario(): unknown {
+	return {
+		type: 'multi-turn',
+		turns: [
+			{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^create_dev_container$/, arguments: {} }] },
+			{
+				kind: 'tool-calls',
+				toolCalls: [{
+					toolNamePattern: /^create_remote_session$/,
+					arguments: (request: readonly unknown[]) => {
+						const created = readCreatedDevContainer(request);
+						return {
+							prompt: `continue the task in the container [scenario:${DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID}]`,
+							title: 'Continue in Dev Container',
+							hostId: created.hostId,
+							workspace: { uri: created.workspace, isolation: 'folder' },
+						};
+					},
+				}],
+			},
+			{ kind: 'content', chunks: [{ content: DEV_CONTAINER_HANDOFF_REPLY, delayMs: 0 }] },
+		],
+	};
+}
+
+/** Reads `hostId` and `workspace` of the latest `create_dev_container` result, which can be nested in escaped JSON. */
+function readCreatedDevContainer(request: readonly unknown[]): { readonly hostId: string; readonly workspace: string } {
+	const text = JSON.stringify(request);
+	const read = (key: string) => [...text.matchAll(new RegExp(`\\\\*"${key}\\\\*"\\s*:\\s*\\\\*"([^"\\\\]+)`, 'g'))].at(-1)?.[1];
+	const hostId = read('hostId');
+	const workspace = read('workspace');
+	if (!hostId || !workspace) {
+		throw new Error('The request has no create_dev_container result');
+	}
+	return { hostId, workspace };
+}
+
+function listLabeledContainers(label: string): string[] {
+	return cp.execFileSync('docker', ['ps', '-aq', '--filter', `label=${label}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Removes the Dev Container environments whose containers have the label, with all volumes labeled with their
+ * environment, so environments that others create on the same Docker host in the meantime are kept.
+ */
+function removeLabeledDevContainerEnvironments(label: string): void {
+	const containerIds = listLabeledContainers(label);
+	if (!containerIds.length) {
+		return;
+	}
+	const volumes = containerIds.map(id => cp.execFileSync('docker', ['inspect', '--format', '{{index .Config.Labels "vsc.devcontainer.volume.name"}}', id], { encoding: 'utf8' }).trim()).filter(Boolean);
+	const environmentIds = volumes.map(volume => cp.execFileSync('docker', ['volume', 'inspect', '--format', `{{index .Labels "${DEV_CONTAINER_ENVIRONMENT_LABEL}"}}`, volume], { encoding: 'utf8' }).trim()).filter(Boolean);
+	cp.execFileSync('docker', ['rm', '--force', ...containerIds], { stdio: 'pipe' });
+	for (const environmentId of environmentIds) {
+		const environmentVolumes = cp.execFileSync('docker', ['volume', 'ls', '-q', '--filter', `label=${DEV_CONTAINER_ENVIRONMENT_LABEL}=${environmentId}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+		if (environmentVolumes.length) {
+			cp.execFileSync('docker', ['volume', 'rm', '--force', ...environmentVolumes], { stdio: 'pipe' });
+		}
+	}
 }
 
 function removeDevContainerConfiguration(workspacePath: string): void {
@@ -323,6 +398,72 @@ export function setup(logger: Logger, quality: Quality) {
 		});
 	});
 
+	(runDevContainerSuite ? describe : describe.skip)('Agents Window (Dev Container handoff)', () => {
+		installDockerPrerequisite(logger, process.platform === 'linux');
+
+		// Identifies the containers of this run, so cleanup leaves environments that others create on the same Docker host.
+		const runLabel = `vscode.smoke.devContainerHandoff=${randomUUID()}`;
+		const handoff = setupAgentHostSuite(logger, {
+			serverLabel: 'Dev Container handoff AgentHost',
+			mockServerHost: '0.0.0.0',
+			captureRequests: true,
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(DEV_CONTAINER_HANDOFF_SCENARIO_ID, devContainerHandoffScenario());
+				registerScenario(DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID, new ScenarioBuilder().emit('OK').build());
+			},
+			settings: {
+				'chat.agentHost.devContainer.enabled': true,
+				'chat.agentHost.devContainer.environments.enabled': true,
+				'chat.agentHost.devContainer.handoff.enabled': true,
+				'chat.remoteAgentHostsEnabled': true,
+				// The Agent Host in the container resolves proxies through this client. The mock CAPI host only
+				// resolves inside the container, so a proxy configured on the CI machine cannot reach it.
+				'http.useLocalProxyConfiguration': false,
+			},
+			// Environment containers have no devcontainer.json of the workspace to point them at the mock server, or to
+			// install a CLI when the update server has none for the commit of the build under test.
+			extraEnv: options => ({
+				VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({
+					containerEnv: devContainerMockEnvironment(handoff.mockServer.port),
+					runArgs: ['--add-host=vscode-smoke.test:host-gateway', `--label=${runLabel}`],
+					postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
+				}),
+			}),
+			// Runs once the app exited, and before the mock server closes, which waits for the containers' connections.
+			cleanupWorkspace: () => removeLabeledDevContainerEnvironments(runLabel),
+		});
+
+		it('Continues a task in a new Dev Container session', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+
+			try {
+				const requestsBefore = handoff.mockServer.getRequests().length;
+				await warmUpAgentHostModel(app, logger, 'Agents Window (Dev Container handoff)');
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`continue in a Dev Container [scenario:${DEV_CONTAINER_HANDOFF_SCENARIO_ID}]`);
+				await app.workbench.agentsWindow.waitForActiveSessionView();
+				// The tool's progress message opens the log of the container it creates.
+				await app.workbench.agentsWindow.showDevContainerLogFromLink('sessions.devContainer.showEnvironmentLog');
+				// Approves creating the container and then the session, which the scripted agent requests.
+				await app.workbench.agentsWindow.waitForAssistantText(DEV_CONTAINER_HANDOFF_REPLY, 8 * 60 * 1000, { acceptToolConfirmations: true });
+				// Only the Agent Host in the container reaches the mock server through vscode-smoke.test.
+				await waitForPromptRequest(handoff.mockServer, requestsBefore, `[scenario:${DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID}]`, 2 * 60 * 1000);
+				const created = listLabeledContainers(runLabel);
+				assert.strictEqual(created.length, 1, `Expected one new Dev Container environment container, found: ${created.join(', ')}`);
+				const rendererLogs = await waitForLogContent(
+					() => readRendererLogs(handoff.logsPath),
+					/\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/,
+					30_000,
+				);
+				assert.match(rendererLogs, /\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/);
+			} catch (error) {
+				logger.log(`Agents Window (Dev Container handoff) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (Dev Container handoff)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
+
 	for (const transport of ['ssh', 'tunnel', 'wsl'] as const) {
 		const label = transport === 'ssh' ? 'SSH' : transport === 'wsl' ? 'WSL' : 'Tunnel';
 		const isCI = !!process.env.CI || !!process.env.TF_BUILD;
@@ -485,7 +626,7 @@ export function setup(logger: Logger, quality: Quality) {
 				this.skip();
 			}
 			try {
-				await app.workbench.agentsWindow.waitForRemoteAction(fixture.name, `Share ${fixture.name} as GitHub Environment`, 2 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForRemoteAction(fixture.name, 'Share as GitHub Environment', 2 * 60 * 1000);
 			} catch (error) {
 				logger.log(`Agents Window (WSL GitHub Environment) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL GitHub Environment)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
@@ -1030,6 +1171,10 @@ function setupAgentHostSuite(logger: Logger, config: {
 	readonly wslClientProxy?: 'agentHost' | 'server';
 	readonly prepareWorkspace?: (workspacePath: string, options: ApplicationOptions) => Promise<void> | void;
 	readonly cleanupWorkspace?: (workspacePath: string) => Promise<void> | void;
+	/** Records the mock server's requests, so a test can wait for a prompt with `waitForPromptRequest`. */
+	readonly captureRequests?: boolean;
+	/** More environment variables of the app, computed once the mock server has started. */
+	readonly extraEnv?: (options: ApplicationOptions) => Record<string, string | undefined>;
 	/**
 	 * Credentials to fill the proxy login dialogs with from the start of the app: requests of the app itself can open
 	 * one before the first window is ready, which keyboard input to it would otherwise cancel.
@@ -1053,7 +1198,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		config.registerScenarios({ ScenarioBuilder, registerScenario });
 
 		mockServer = await startServer(0, {
-			...mockServerStartOptions((msg: string) => logger.log(msg), !!process.env.VSCODE_SMOKE_TEST_PROXY_HEADER),
+			...mockServerStartOptions((msg: string) => logger.log(msg), config.captureRequests || !!process.env.VSCODE_SMOKE_TEST_PROXY_HEADER),
 			host: config.mockServerHost,
 		});
 		logger.log(`Mock LLM server (${config.serverLabel}) started at ${getMockLlmServerUrl(mockServer)}`);
@@ -1117,6 +1262,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// instead of api.github.com, which would 401 with the fake token.
 				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: getMockLlmServerUrl(mockServer),
 				VSCODE_SMOKE_TEST_TUNNEL_TOKEN: undefined,
+				...config.extraEnv?.(opts),
 				...remoteFixture?.extraEnv,
 			},
 		}));
@@ -1286,8 +1432,8 @@ async function openAgentHostChatEditor(app: Application, timeoutMs: number): Pro
 	}
 }
 
-async function waitForPromptRequest(mockServer: MockLlmServer, requestsBefore: number, requestTag: string): Promise<void> {
-	const deadline = Date.now() + 30_000;
+async function waitForPromptRequest(mockServer: MockLlmServer, requestsBefore: number, requestTag: string, timeoutMs = 30_000): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		if (mockServer.getRequests().slice(requestsBefore).some(request =>
 			request.path === '/responses' &&

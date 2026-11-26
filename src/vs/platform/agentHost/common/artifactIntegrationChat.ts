@@ -198,7 +198,7 @@ export class ArtifactProtocolChatAccess extends Disposable implements IArtifactC
 				} else if (this.cancelled.get().has(JSON.stringify([request.chat, request.requestId]))) {
 					accept({ kind: 'cancelled', reason: localize('artifactQueuedPromptCancelled', "The queued artifact prompt was cancelled.") });
 				} else if (found?.kind === 'queued') {
-					accept({ kind: 'submitted' });
+					accept({ kind: 'queued' });
 				} else {
 					accept({ kind: 'indeterminate', reason: localize('artifactPromptMissing', "This artifact prompt is no longer pending, but its turn could not be found.") });
 				}

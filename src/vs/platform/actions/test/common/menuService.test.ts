@@ -9,8 +9,8 @@ import { Event } from '../../../../base/common/event.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getMenuActionGroupTitle, IMenuItem, isIMenuItem, MenuId, MenuRegistry, SubmenuItemAction } from '../../common/actions.js';
-import { MenuService } from '../../common/menuService.js';
+import { getMenuActionGroupTitle, IMenuItem, isIMenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../common/actions.js';
+import { getEnabledMenuItems, MenuService } from '../../common/menuService.js';
 import { NullCommandService } from '../../../commands/test/common/nullCommandService.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../contextkey/common/contextkey.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
@@ -359,6 +359,40 @@ suite('MenuService', function () {
 		assert.deepStrictEqual(snapshots, [['Explicit', 'Second'], ['Explicit', 'First']]);
 	});
 
+	test('getEnabledMenuItems lists the commands of the enabled menu actions in their order', () => {
+		const context = disposables.add(new TestContextKeyService());
+		const visible = context.createKey<boolean>('visible', true);
+		const enabled = context.createKey<boolean>('enabled', true);
+		const item: IMenuItem = { command: { id: 'dynamic', title: 'B', precondition: ContextKeyExpr.has('enabled') }, group: '2_second', when: ContextKeyExpr.has('visible') };
+		const submenu = new MenuId(`testo/${generateUuid()}`);
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, item));
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command: { id: 'fixed', title: 'A' }, group: '1_first' }));
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command: { id: 'last', title: 'C' } }));
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { submenu, title: 'Submenu', group: '1_first' }));
+		disposables.add(MenuRegistry.appendMenuItem(submenu, { command: { id: 'child', title: 'Child' } }));
+		const snapshot = () => ({
+			items: getEnabledMenuItems(testMenuId, context).map(item => item.command.id),
+			actions: menuService.getMenuActions(testMenuId, context).flatMap(([, actions]) => actions)
+				.filter(action => action instanceof MenuItemAction && action.enabled).map(action => action.id),
+		});
+
+		const snapshots = [snapshot()];
+		item.group = '0_zeroth';
+		snapshots.push(snapshot());
+		enabled.set(false);
+		snapshots.push(snapshot());
+		enabled.set(true);
+		visible.set(false);
+		snapshots.push(snapshot());
+
+		assert.deepStrictEqual(snapshots, [
+			{ items: ['fixed', 'dynamic', 'last'], actions: ['fixed', 'dynamic', 'last'] },
+			{ items: ['dynamic', 'fixed', 'last'], actions: ['dynamic', 'fixed', 'last'] },
+			{ items: ['fixed', 'last'], actions: ['fixed', 'last'] },
+			{ items: ['fixed', 'last'], actions: ['fixed', 'last'] },
+		]);
+	});
+
 	test('createMenu still emits changes for nested submenu registrations', async () => {
 		const submenuId = new MenuId(`testo/${generateUuid()}`);
 		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { title: 'Submenu', submenu: submenuId }));
@@ -444,6 +478,119 @@ suite('MenuService', function () {
 			hidden: [true, false, true],
 			calls: [['command', 'first', 'forwarded'], ['command', 'second']],
 		});
+	});
+
+	test('hide actions keep the hidden state of their build and toggle the current one', async () => {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command: { id: 'command', title: 'Command' } }));
+		const getHideActions = () => menuService.getMenuActions(testMenuId, contextKeyService)[0][1][0].hideActions!;
+		const hideActions = getHideActions();
+
+		// hidden through another build before this build's actions are first read
+		await getHideActions().hide.run();
+		const toggle = hideActions.toggle;
+		const built = { isHidden: hideActions.isHidden, checked: toggle.checked, sameActions: toggle === hideActions.toggle && hideActions.hide === hideActions.hide };
+
+		await toggle.run();
+
+		assert.deepStrictEqual({ built, hiddenAfterToggle: getHideActions().isHidden }, {
+			built: { isHidden: false, checked: true, sameActions: true },
+			hiddenAfterToggle: false,
+		});
+	});
+
+	test('getMenuActions updates hidden defaults while preserving user overrides', async () => {
+		const item = {
+			command: { id: 'changingDefault', title: 'Changing Default' },
+			isHiddenByDefault: true,
+		};
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, item));
+		const getAction = () => menuService.getMenuActions(testMenuId, contextKeyService)[0][1][0];
+		const getState = () => {
+			const hide = getAction().hideActions;
+			return { hidden: hide?.isHidden, modified: hide?.isModifiedFromDefault };
+		};
+
+		const initial = getState();
+		item.isHiddenByDefault = false;
+		const visibleByDefault = getState();
+		await getAction().hideActions?.toggle.run();
+		const overridden = getState();
+		item.isHiddenByDefault = true;
+		const changedDefault = getState();
+		menuService.resetHiddenStates([testMenuId]);
+		const reset = getState();
+		item.isHiddenByDefault = false;
+
+		assert.deepStrictEqual({ initial, visibleByDefault, overridden, changedDefault, reset, visibleAgain: getState() }, {
+			initial: { hidden: true, modified: false },
+			visibleByDefault: { hidden: false, modified: false },
+			overridden: { hidden: true, modified: true },
+			changedDefault: { hidden: false, modified: true },
+			reset: { hidden: true, modified: false },
+			visibleAgain: { hidden: false, modified: false },
+		});
+	});
+
+	test('getMenuActions does not retain visible defaults from disposed registrations', async () => {
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect retained keys without exposing a test-only API.
+		const defaults = menuService['_hiddenStates']['_hiddenByDefaultCache'];
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+			command: { id: 'defaultHidden', title: 'Default Hidden' },
+			isHiddenByDefault: true,
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+			command: { id: 'userHidden', title: 'User Hidden' },
+		}));
+		const getActions = () => menuService.getMenuActions(testMenuId, contextKeyService).flatMap(([, actions]) => actions);
+		const userHidden = getActions().find(action => action.id === 'userHidden');
+		assert.ok(userHidden?.hideActions);
+		await userHidden.hideActions.toggle.run();
+		const expectedDefaults = [[`${testMenuId.id}/defaultHidden`, true]];
+
+		for (let i = 0; i < 5; i++) {
+			const id = `dynamic${i}`;
+			const registration = disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+				command: { id, title: id },
+				isHiddenByDefault: i % 2 === 0 ? false : undefined,
+			}));
+			const actions = getActions();
+			const dynamic = actions.find(action => action.id === id);
+			assert.ok(dynamic?.hideActions);
+			assert.deepStrictEqual({
+				count: actions.length,
+				hidden: dynamic.hideActions.isHidden,
+				defaults: [...defaults],
+			}, { count: 3, hidden: false, defaults: expectedDefaults });
+			registration.dispose();
+			assert.deepStrictEqual({
+				ids: getActions().map(action => action.id).sort(),
+				defaults: [...defaults],
+			}, { ids: ['defaultHidden', 'userHidden'], defaults: expectedDefaults });
+		}
+
+		assert.deepStrictEqual(getActions().map(action => ({
+			id: action.id, hidden: action.hideActions?.isHidden, modified: action.hideActions?.isModifiedFromDefault,
+		})).sort((a, b) => a.id.localeCompare(b.id)), [
+			{ id: 'defaultHidden', hidden: true, modified: false },
+			{ id: 'userHidden', hidden: true, modified: true },
+		]);
+	});
+
+	test('getMenuActions removes a cached true default when a registration is replaced', () => {
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect retained keys without exposing a test-only API.
+		const defaults = menuService['_hiddenStates']['_hiddenByDefaultCache'];
+		const command = { id: 'replacement', title: 'Replacement' };
+		const registration = disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command, isHiddenByDefault: true }));
+		const getState = () => {
+			const actions = menuService.getMenuActions(testMenuId, contextKeyService).flatMap(([, actions]) => actions);
+			return { ids: actions.map(action => action.id), hidden: actions[0]?.hideActions?.isHidden, defaults: [...defaults] };
+		};
+		assert.deepStrictEqual(getState(), {
+			ids: [command.id], hidden: true, defaults: [[`${testMenuId.id}/${command.id}`, true]],
+		});
+		registration.dispose();
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command, isHiddenByDefault: false }));
+		assert.deepStrictEqual(getState(), { ids: [command.id], hidden: false, defaults: [] });
 	});
 
 	test('isModifiedFromDefault reflects divergence from the default state', async () => {

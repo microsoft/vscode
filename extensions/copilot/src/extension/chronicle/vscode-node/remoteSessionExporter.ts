@@ -977,36 +977,6 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		}
 	}
 
-	/**
-	 * Called when the storage level setting changes.
-	 * Creates cloud sessions for any pending sessions if cloud sync is now enabled.
-	 */
-	async notifyConsent(level: SessionIndexingLevel): Promise<void> {
-		if (level === 'local') {
-			for (const sessionId of this._translationStates.keys()) {
-				if (!this._cloudSessions.has(sessionId)) {
-					this._disabledSessions.add(sessionId);
-				}
-			}
-			return;
-		}
-
-		const repo = this._repository;
-		if (!repo) {
-			return;
-		}
-
-		for (const sessionId of this._translationStates.keys()) {
-			if (!this._cloudSessions.has(sessionId) && !this._disabledSessions.has(sessionId)) {
-				if (this._isOwnerPolicyBlocked(repo.repoIds.ownerId)) {
-					this._disabledSessions.add(sessionId);
-					continue;
-				}
-				await this._createCloudSession(sessionId, repo, level);
-			}
-		}
-	}
-
 	private async _createCloudSession(
 		sessionId: string,
 		repo: GitHubRepository,

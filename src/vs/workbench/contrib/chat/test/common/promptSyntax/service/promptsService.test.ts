@@ -14,7 +14,7 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { basename, isEqual, relativePath } from '../../../../../../../base/common/resources.js';
+import { basename, isEqual, isEqualOrParent, relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
@@ -47,6 +47,10 @@ import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js'
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ChatExtensionCustomizationsService } from '../../../../common/promptSyntax/service/chatExtensionCustomizationsServiceImpl.js';
+import { IChatExtensionCustomizationsService } from '../../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { IAgenticSkillsService, NullAgenticSkillsService } from '../../../../common/promptSyntax/service/agenticSkillsService.js';
+import { readDisabledPromptFiles, storeDisabledPromptFiles } from '../../../../common/promptSyntax/service/disabledPromptFilesStorage.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -103,6 +107,7 @@ suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let service: IPromptsService;
+	let extensionCustomizations: ChatExtensionCustomizationsService;
 	let instaService: TestInstantiationService;
 	let workspaceContextService: TestContextService;
 	let testConfigService: TestConfigurationService;
@@ -226,9 +231,20 @@ suite('PromptsService', () => {
 			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, readProfileEnabled: () => true, setEnabled: () => { }, remove: () => { } },
 		});
 
-		service = disposables.add(instaService.createInstance(PromptsService));
+		instaService.stub(IAgenticSkillsService, new NullAgenticSkillsService());
+		service = createPromptsService();
 		instaService.stub(IPromptsService, service);
 	});
+
+	/**
+	 * Creates the prompts service together with the extension customizations service it reads from, so that both
+	 * use the services currently stubbed in the test.
+	 */
+	function createPromptsService(): PromptsService {
+		extensionCustomizations = disposables.add(instaService.createInstance(ChatExtensionCustomizationsService));
+		instaService.stub(IChatExtensionCustomizationsService, extensionCustomizations);
+		return disposables.add(instaService.createInstance(PromptsService));
+	}
 
 	test('lists local prompt files relative to an explicit root and its parent repository', async () => {
 		const parentRoot = URI.file('/parent-repo');
@@ -960,6 +976,7 @@ suite('PromptsService', () => {
 
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
+				discovery: 'configured',
 				format,
 				label: 'test-plugin',
 				enablement: observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
@@ -1026,7 +1043,7 @@ suite('PromptsService', () => {
 
 			const firstPass = service.getCustomAgents(CancellationToken.None);
 			const contributedAgent = URI.joinPath(rootFolderUri, '.github/agents/agent0.agent.md');
-			const registered = service.registerContributedFile(
+			const registered = extensionCustomizations.registerContributedFile(
 				PromptsType.agent,
 				contributedAgent,
 				{ identifier: new ExtensionIdentifier('test.extension'), name: 'test' } as IExtensionDescription,
@@ -1099,7 +1116,7 @@ suite('PromptsService', () => {
 			});
 			instaService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 			service.dispose();
-			service = disposables.add(instaService.createInstance(PromptsService));
+			service = createPromptsService();
 			await mockFiles(fileService, [
 				{ path: URI.joinPath(profile.promptsHome, 'user-agent.agent.md').path, contents: ['---', 'description: User agent', '---'] },
 				{ path: URI.joinPath(profile.promptsHome, 'hidden-agent.agent.md').path, contents: ['---', 'description: Subagent only', 'user-invocable: false', '---'] },
@@ -1211,7 +1228,7 @@ suite('PromptsService', () => {
 					currentProfile: toUserDataProfile(name, name, URI.file(`/${name}-profile`), URI.file('/cache')),
 					onDidChangeCurrentProfile: Event.None,
 				});
-				service = disposables.add(instaService.createInstance(PromptsService));
+				service = createPromptsService();
 				results.push((await service.getCustomAgents(CancellationToken.None)).map(agent => agent.name).sort());
 			}
 			assert.deepStrictEqual(results, [['first', 'workspace'], ['second', 'workspace']]);
@@ -2046,7 +2063,7 @@ suite('PromptsService', () => {
 
 			// Recreate the service with the new stub (dispose existing to avoid duplicate filesystem registration)
 			service.dispose();
-			const testService = disposables.add(instaService.createInstance(PromptsService));
+			const testService = createPromptsService();
 
 			// Create agent files in both workspace and user data folder
 			await mockFiles(fileService, [
@@ -2113,7 +2130,7 @@ suite('PromptsService', () => {
 			// Use a real InMemoryStorageService instance so disabled state actually persists
 			instaService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 			service.dispose();
-			const testService = disposables.add(instaService.createInstance(PromptsService));
+			const testService = createPromptsService();
 
 			await mockFiles(fileService, [
 				{
@@ -2187,7 +2204,7 @@ suite('PromptsService', () => {
 			// Use a real InMemoryStorageService instance so disabled state actually persists
 			instaService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 			service.dispose();
-			const testService = disposables.add(instaService.createInstance(PromptsService));
+			const testService = createPromptsService();
 
 			await mockFiles(fileService, [
 				{
@@ -2273,7 +2290,7 @@ suite('PromptsService', () => {
 
 			// Recreate the service with the new stub (dispose existing to avoid duplicate filesystem registration)
 			service.dispose();
-			const testService = disposables.add(instaService.createInstance(PromptsService));
+			const testService = createPromptsService();
 
 			// Create prompt files in workspace, User Data, and a configured personal folder.
 			await mockFiles(fileService, [
@@ -2423,7 +2440,7 @@ suite('PromptsService', () => {
 
 			// Recreate the service with the new stub (dispose existing to avoid duplicate filesystem registration)
 			service.dispose();
-			const testService = disposables.add(instaService.createInstance(PromptsService));
+			const testService = createPromptsService();
 
 			// Create instructions files in both workspace and user data folder
 			await mockFiles(fileService, [
@@ -2782,7 +2799,7 @@ suite('PromptsService', () => {
 		test('Contributed prompt file', async () => {
 			const uri = URI.parse('file://extensions/my-extension/textMate.instructions.md');
 			const extension = {} as IExtensionDescription;
-			const registered = service.registerContributedFile(PromptsType.instructions,
+			const registered = extensionCustomizations.registerContributedFile(PromptsType.instructions,
 				uri,
 				extension,
 				'TextMate Instructions',
@@ -2816,7 +2833,7 @@ suite('PromptsService', () => {
 				]
 			}]);
 
-			const registered = service.registerContributedFile(
+			const registered = extensionCustomizations.registerContributedFile(
 				PromptsType.instructions,
 				uri,
 				extension,
@@ -2870,7 +2887,7 @@ suite('PromptsService', () => {
 				}
 			};
 
-			const registered = service.registerPromptFileProvider(extension, PromptsType.agent, provider);
+			const registered = extensionCustomizations.registerPromptFileProvider(extension, PromptsType.agent, provider);
 
 			const actual = await service.getCustomAgents(CancellationToken.None);
 			assert.strictEqual(actual.length, 1);
@@ -2892,7 +2909,7 @@ suite('PromptsService', () => {
 				enabledApiProposals: ['chatParticipantPrivate']
 			} as unknown as IExtensionDescription;
 			const logErrorSpy = sinon.spy(logService, 'error');
-			disposables.add(service.registerPromptFileProvider(extension, PromptsType.instructions, {
+			disposables.add(extensionCustomizations.registerPromptFileProvider(extension, PromptsType.instructions, {
 				providePromptFiles: async () => { throw new CancellationError(); }
 			}));
 
@@ -2907,7 +2924,7 @@ suite('PromptsService', () => {
 				enabledApiProposals: ['chatParticipantPrivate']
 			} as unknown as IExtensionDescription;
 			const logErrorSpy = sinon.spy(logService, 'error');
-			disposables.add(service.registerPromptFileProvider(extension, PromptsType.instructions, {
+			disposables.add(extensionCustomizations.registerPromptFileProvider(extension, PromptsType.instructions, {
 				providePromptFiles: async () => { throw new Error('provider failed'); }
 			}));
 
@@ -2923,13 +2940,13 @@ suite('PromptsService', () => {
 			} as unknown as IExtensionDescription;
 			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
 			let secondProviderCalled = false;
-			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+			disposables.add(extensionCustomizations.registerPromptFileProvider(extension, PromptsType.agent, {
 				providePromptFiles: async () => {
 					cancellationTokenSource.cancel();
 					throw new CancellationError();
 				}
 			}));
-			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+			disposables.add(extensionCustomizations.registerPromptFileProvider(extension, PromptsType.agent, {
 				providePromptFiles: async () => {
 					secondProviderCalled = true;
 					return [];
@@ -2966,7 +2983,7 @@ suite('PromptsService', () => {
 			const agentUri = URI.parse('file://extensions/my-extension/provided.agent.md');
 			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
 			let providerCalls = 0;
-			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+			disposables.add(extensionCustomizations.registerPromptFileProvider(extension, PromptsType.agent, {
 				providePromptFiles: async () => {
 					providerCalls++;
 					if (providerCalls === 1) {
@@ -3010,7 +3027,7 @@ suite('PromptsService', () => {
 			]);
 
 			// Register both agents (one exists, one doesn't)
-			const registered1 = service.registerContributedFile(
+			const registered1 = extensionCustomizations.registerContributedFile(
 				PromptsType.agent,
 				nonExistentUri,
 				extension,
@@ -3018,7 +3035,7 @@ suite('PromptsService', () => {
 				'An agent that does not exist',
 			);
 
-			const registered2 = service.registerContributedFile(
+			const registered2 = extensionCustomizations.registerContributedFile(
 				PromptsType.agent,
 				existingUri,
 				extension,
@@ -3045,7 +3062,7 @@ suite('PromptsService', () => {
 			const contextKeyService = instaService.get(IContextKeyService) as MockContextKeyService;
 			const contextMatchesRulesStub = sinon.stub(contextKeyService, 'contextMatchesRules').returns(false);
 
-			const registered = service.registerContributedFile(
+			const registered = extensionCustomizations.registerContributedFile(
 				PromptsType.instructions, uri, extension,
 				'Conditional Instructions', 'Only when enabled', 'myFeature.enabled',
 			);
@@ -3057,7 +3074,7 @@ suite('PromptsService', () => {
 			contextMatchesRulesStub.restore();
 
 			const enabledContextMatchesRulesStub = sinon.stub(contextKeyService, 'contextMatchesRules').returns(true);
-			const enabledRegistration = service.registerContributedFile(
+			const enabledRegistration = extensionCustomizations.registerContributedFile(
 				PromptsType.instructions, uri, extension,
 				'Conditional Instructions', 'Only when enabled', 'myFeature.enabled',
 			);
@@ -3078,7 +3095,7 @@ suite('PromptsService', () => {
 			} as unknown as IExtensionDescription;
 			const contextKeyService = instaService.get(IContextKeyService) as MockContextKeyService;
 
-			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+			const registered = extensionCustomizations.registerPromptFileProvider(extension, PromptsType.instructions, {
 				providePromptFiles: async () => [{ uri, when: 'chatSessionType == local' }]
 			});
 
@@ -3099,7 +3116,7 @@ suite('PromptsService', () => {
 		test('Provider when keys invalidate cached results when context changes', async () => {
 			const contextKeyService = disposables.add(new TestPromptContextKeyService());
 			instaService.stub(IContextKeyService, contextKeyService);
-			const promptsService = disposables.add(instaService.createInstance(PromptsService));
+			const promptsService = createPromptsService();
 			instaService.stub(IPromptsService, promptsService);
 
 			const uri = URI.parse('file://extensions/test/conditional.instructions.md');
@@ -3118,7 +3135,7 @@ suite('PromptsService', () => {
 				enabledApiProposals: ['chatParticipantPrivate']
 			} as unknown as IExtensionDescription;
 
-			const registered = promptsService.registerPromptFileProvider(extension, PromptsType.instructions, {
+			const registered = extensionCustomizations.registerPromptFileProvider(extension, PromptsType.instructions, {
 				providePromptFiles: async () => [{ uri, when: 'myFeature.enabled' }]
 			});
 
@@ -3191,10 +3208,10 @@ suite('PromptsService', () => {
 			]);
 
 			const registrations = [
-				service.registerContributedFile(PromptsType.agent, agentUri, extension, undefined, undefined, undefined, sessionTypes),
-				service.registerContributedFile(PromptsType.instructions, instructionUri, extension, undefined, undefined, undefined, sessionTypes),
-				service.registerContributedFile(PromptsType.prompt, promptUri, extension, undefined, undefined, undefined, sessionTypes),
-				service.registerContributedFile(PromptsType.skill, skillUri, extension, undefined, undefined, undefined, sessionTypes),
+				extensionCustomizations.registerContributedFile(PromptsType.agent, agentUri, extension, undefined, undefined, undefined, sessionTypes),
+				extensionCustomizations.registerContributedFile(PromptsType.instructions, instructionUri, extension, undefined, undefined, undefined, sessionTypes),
+				extensionCustomizations.registerContributedFile(PromptsType.prompt, promptUri, extension, undefined, undefined, undefined, sessionTypes),
+				extensionCustomizations.registerContributedFile(PromptsType.skill, skillUri, extension, undefined, undefined, undefined, sessionTypes),
 			];
 
 			disposables.add(toDisposable(() => {
@@ -3211,6 +3228,46 @@ suite('PromptsService', () => {
 			assert.deepStrictEqual(instruction?.sessionTypes, sessionTypes);
 			assert.deepStrictEqual(prompt?.sessionTypes, sessionTypes);
 			assert.deepStrictEqual(skill?.sessionTypes, sessionTypes);
+		});
+	});
+
+	suite('disabled built-in skills', () => {
+		const builtinRoot = URI.file('/builtin-skills');
+
+		class TestAgenticSkillsService extends NullAgenticSkillsService {
+			disabled = new ResourceSet();
+			override isBuiltinSkill(uri: URI): boolean { return isEqualOrParent(uri, builtinRoot); }
+			override getDisabledSkills(): ResourceSet { return new ResourceSet([...this.disabled]); }
+			override setDisabledSkills(uris: ResourceSet): void { this.disabled = new ResourceSet([...uris]); }
+		}
+
+		function setup(legacyDisabledSkills: URI[]) {
+			const storage = disposables.add(new InMemoryStorageService());
+			instaService.stub(IStorageService, storage);
+			storeDisabledPromptFiles(storage, `chat.disabledPromptFiles.${PromptsType.skill}`, legacyDisabledSkills);
+			const agenticSkills = new TestAgenticSkillsService();
+			instaService.stub(IAgenticSkillsService, agenticSkills);
+			service.dispose();
+			const promptsService = createPromptsService();
+			const snapshot = () => ({
+				all: [...promptsService.getDisabledPromptFiles(PromptsType.skill)].map(uri => uri.path).sort(),
+				own: [...readDisabledPromptFiles(storage, `chat.disabledPromptFiles.${PromptsType.skill}`)].map(uri => uri.path),
+				builtin: [...agenticSkills.disabled].map(uri => uri.path),
+			});
+			return { promptsService, snapshot };
+		}
+
+		test('routes disabled built-in skills to the agentic skills service and reports both sets', () => {
+			const builtinSkill = URI.joinPath(builtinRoot, 'create-pr/SKILL.md');
+			const localSkill = URI.file('/workspace/.github/skills/local/SKILL.md');
+			const { promptsService, snapshot } = setup([]);
+			promptsService.setDisabledPromptFiles(PromptsType.skill, new ResourceSet([builtinSkill, localSkill]));
+			const disabled = snapshot();
+			promptsService.setDisabledPromptFiles(PromptsType.skill, new ResourceSet([builtinSkill]));
+			assert.deepStrictEqual({ disabled, reenabledLocal: snapshot() }, {
+				disabled: { all: [localSkill.path, builtinSkill.path].sort(), own: [localSkill.path], builtin: [builtinSkill.path] },
+				reenabledLocal: { all: [builtinSkill.path], own: [], builtin: [builtinSkill.path] },
+			});
 		});
 	});
 
@@ -3299,7 +3356,7 @@ suite('PromptsService', () => {
 				for (const filePath of [path, removedPath, changedPath, addedPath]) {
 					await writeContribution(description, filePath);
 				}
-				const register = sinon.spy(service, 'registerContributedFile');
+				const register = sinon.spy(extensionCustomizations, 'registerContributedFile');
 				disposables.add(toDisposable(() => register.restore()));
 				acceptContributions(name, description, [
 					{ path },
@@ -3399,7 +3456,7 @@ suite('PromptsService', () => {
 			await writeContribution(description, path);
 			acceptContribution('chatSkills', description, path);
 			await service.findAgentSkills(CancellationToken.None);
-			const register = sinon.spy(service, 'registerContributedFile');
+			const register = sinon.spy(extensionCustomizations, 'registerContributedFile');
 			disposables.add(toDisposable(() => register.restore()));
 			acceptContribution('chatSkills', {
 				...description,
@@ -3596,7 +3653,7 @@ suite('PromptsService', () => {
 			}
 		};
 
-		const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, provider);
+		const registered = extensionCustomizations.registerPromptFileProvider(extension, PromptsType.instructions, provider);
 
 		const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 		const providerInstruction = actual.find(i => i.uri.toString() === instructionUri.toString());
@@ -3673,16 +3730,16 @@ suite('PromptsService', () => {
 		]);
 
 		const registrations = [
-			service.registerPromptFileProvider(extension, PromptsType.agent, {
+			extensionCustomizations.registerPromptFileProvider(extension, PromptsType.agent, {
 				providePromptFiles: async () => [{ uri: agentUri, sessionTypes }]
 			}),
-			service.registerPromptFileProvider(extension, PromptsType.instructions, {
+			extensionCustomizations.registerPromptFileProvider(extension, PromptsType.instructions, {
 				providePromptFiles: async () => [{ uri: instructionUri, sessionTypes }]
 			}),
-			service.registerPromptFileProvider(extension, PromptsType.prompt, {
+			extensionCustomizations.registerPromptFileProvider(extension, PromptsType.prompt, {
 				providePromptFiles: async () => [{ uri: promptUri, sessionTypes }]
 			}),
-			service.registerPromptFileProvider(extension, PromptsType.skill, {
+			extensionCustomizations.registerPromptFileProvider(extension, PromptsType.skill, {
 				providePromptFiles: async () => [{ uri: skillUri, sessionTypes }]
 			}),
 		];
@@ -3730,7 +3787,7 @@ suite('PromptsService', () => {
 			}
 		};
 
-		const registered = service.registerPromptFileProvider(extension, PromptsType.prompt, provider);
+		const registered = extensionCustomizations.registerPromptFileProvider(extension, PromptsType.prompt, provider);
 
 		const actual = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 		const providerPrompt = actual.find(i => i.uri.toString() === promptUri.toString());
@@ -3779,7 +3836,7 @@ suite('PromptsService', () => {
 			}
 		};
 
-		const registered = service.registerPromptFileProvider(extension, PromptsType.skill, provider);
+		const registered = extensionCustomizations.registerPromptFileProvider(extension, PromptsType.skill, provider);
 
 		const actual = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
 		const providerSkill = actual.find(i => i.uri.toString() === skillUri.toString());
@@ -4347,7 +4404,7 @@ suite('PromptsService', () => {
 				}
 			};
 
-			const registered = service.registerPromptFileProvider(extension, PromptsType.skill, provider);
+			const registered = extensionCustomizations.registerPromptFileProvider(extension, PromptsType.skill, provider);
 
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
@@ -4404,7 +4461,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const registered = service.registerContributedFile(
+			const registered = extensionCustomizations.registerContributedFile(
 				PromptsType.skill,
 				contributedSkillUri,
 				extension,
@@ -4457,7 +4514,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const registered = service.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
+			const registered = extensionCustomizations.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.ok(result, 'Should return results');
@@ -4492,7 +4549,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const registered = service.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
+			const registered = extensionCustomizations.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.ok(result, 'Should return results');
@@ -4528,7 +4585,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const registered = service.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
+			const registered = extensionCustomizations.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.ok(result, 'Should return results');
@@ -4800,7 +4857,7 @@ suite('PromptsService', () => {
 				}
 			};
 
-			const registered = service.registerPromptFileProvider(extension, PromptsType.skill, provider);
+			const registered = extensionCustomizations.registerPromptFileProvider(extension, PromptsType.skill, provider);
 
 			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
 
@@ -4848,7 +4905,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const registered = service.registerContributedFile(
+			const registered = extensionCustomizations.registerContributedFile(
 				PromptsType.skill,
 				contributedSkillUri,
 				extension,
@@ -4959,7 +5016,7 @@ suite('PromptsService', () => {
 			};
 
 			// Register provider should trigger change
-			const registered = service.registerPromptFileProvider(extension, PromptsType.skill, provider);
+			const registered = extensionCustomizations.registerPromptFileProvider(extension, PromptsType.skill, provider);
 			await new Promise(resolve => setTimeout(resolve, 100));
 
 			const commandsWithProvider = await service.getPromptSlashCommands(CancellationToken.None);
@@ -5436,6 +5493,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/my-plugin'),
+				discovery: 'configured',
 				format: PluginFormat.Copilot,
 				label: 'my-plugin',
 				enablement,
@@ -5483,6 +5541,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/devtools'),
+				discovery: 'configured',
 				format: PluginFormat.Copilot,
 				label: 'devtools',
 				enablement,
@@ -5537,6 +5596,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
+				discovery: 'configured',
 				format: PluginFormat.Copilot,
 				label: 'datadog',
 				enablement,
@@ -5619,6 +5679,7 @@ suite('PromptsService', () => {
 
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/managed'),
+				discovery: 'configured',
 				format: PluginFormat.Copilot,
 				label: 'managed',
 				enablement: observableValue('lockdownPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
@@ -5655,6 +5716,7 @@ suite('PromptsService', () => {
 
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
+				discovery: 'configured',
 				format: PluginFormat.Copilot,
 				label: 'managed',
 				enablement: observableValue('lockdownInstructionPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
@@ -5744,6 +5806,7 @@ suite('PromptsService', () => {
 
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
+				discovery: 'configured',
 				format: PluginFormat.Copilot,
 				label: 'managed-plugin',
 				enablement: observableValue('managedPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
@@ -5778,6 +5841,7 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
+					discovery: 'configured',
 					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
@@ -6085,6 +6149,7 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
+					discovery: 'configured',
 					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,

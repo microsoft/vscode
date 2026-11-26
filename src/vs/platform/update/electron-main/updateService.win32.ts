@@ -34,7 +34,7 @@ import { asJson, IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification, UpdateErrorEvent } from './abstractUpdateService.js';
 import { getRelaunchArguments } from './updateRelaunchArguments.js';
 import { getWin32UpdateType } from './win32UpdateType.js';
 
@@ -338,7 +338,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return;
 				}
 
-				this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
+				this.telemetryService.publicLog2<UpdateErrorEvent, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
 				this.logService.error(err);
 
 				// only show message when explicitly checking for updates

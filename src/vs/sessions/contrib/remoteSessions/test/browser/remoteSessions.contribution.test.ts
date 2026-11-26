@@ -19,6 +19,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { areRemoteSessionToolsEnabled, RemoteSessionToolsEnabledSettingId, remoteSessionToolsWhen } from '../../common/remoteSessions.js';
 import '../../browser/remoteSessions.contribution.js';
 
@@ -52,7 +53,7 @@ suite('Remote Sessions Contribution', () => {
 		});
 	});
 
-	test('runtime and global tool visibility follow live experiment defaults while respecting explicit user settings', async () => {
+	test('runtime and global tool visibility follow live experiment defaults while respecting explicit user settings, and the Dev Container handoff setting enables them too', async () => {
 		const logService = new NullLogService();
 		const fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
@@ -68,13 +69,15 @@ suite('Remote Sessions Contribution', () => {
 				configurationRegistry.deregisterDefaultConfigurations([experimentDefault]);
 			}
 		}));
-		const scenarios = [
+		const scenarios: { experiment: boolean | undefined; user: boolean | undefined; handoff?: boolean; enabled: boolean }[] = [
 			{ experiment: undefined, user: undefined, enabled: false },
 			{ experiment: true, user: undefined, enabled: true },
 			{ experiment: true, user: false, enabled: false },
 			{ experiment: false, user: true, enabled: true },
 			{ experiment: false, user: undefined, enabled: false },
 			{ experiment: undefined, user: true, enabled: true },
+			{ experiment: undefined, user: undefined, handoff: true, enabled: true },
+			{ experiment: false, user: false, handoff: true, enabled: true },
 			{ experiment: undefined, user: undefined, enabled: false },
 		];
 		const availability: { runtime: boolean; visible: boolean }[] = [];
@@ -91,6 +94,7 @@ suite('Remote Sessions Contribution', () => {
 			await fileService.writeFile(settings, VSBuffer.fromString(JSON.stringify({
 				[RemoteAgentHostsEnabledSettingId]: true,
 				[RemoteSessionToolsEnabledSettingId]: scenario.user,
+				[DevContainerHandoffEnabledSettingId]: scenario.handoff,
 			})));
 			await configuration.reloadConfiguration();
 			availability.push({

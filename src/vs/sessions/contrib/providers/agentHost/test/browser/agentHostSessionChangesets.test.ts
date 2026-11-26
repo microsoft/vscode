@@ -24,6 +24,7 @@ import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platfo
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type AgentHostUriMapper, createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { createBaseBranchCandidatesResult, createSetBaseBranchMeta, LIST_BASE_BRANCHES_OPERATION_ID, SET_BASE_BRANCH_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentBaseBranchOperationMeta.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -1677,6 +1678,83 @@ suite('AgentHostSessionChangesets', () => {
 				]);
 			});
 		}
+	});
+
+	suite('base branch selection', () => {
+		const channel = 'changeset:/session-1/branch';
+		const toOperation = (id: string, status = ChangesetOperationStatus.Idle) => ({ id, label: id, scopes: [ChangesetOperationScope.Changeset], status });
+
+		function createBranchChangeset(operations: ChangesetState['operations'], invoke: (params: InvokeChangesetOperationParams) => Promise<InvokeChangesetOperationResult>) {
+			const changesetState: ChangesetState = { status: ChangesetStatus.Ready, files: [], operations };
+			const subscription = createMutableSubscription(changesetState);
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+					return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+				}
+				override invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+					return invoke(params);
+				}
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
+				icon: Codicon.copilot,
+				environment: 'local',
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => connection,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: session => buildDefaultChatUri(session),
+			}, constObservable(true), [{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: channel }])[0];
+			return {
+				changeset,
+				setOperations: (operations: ChangesetState['operations']) => subscription.set({ ...changesetState, operations }),
+			};
+		}
+
+		test('hides the base branch operations from buttons and offers the selection only while the host can set the base', () => {
+			const { changeset, setOperations } = createBranchChangeset([toOperation('commit'), toOperation(LIST_BASE_BRANCHES_OPERATION_ID), toOperation(SET_BASE_BRANCH_OPERATION_ID)], async () => ({}));
+			const snapshots: { operations: string[]; selectable: boolean }[] = [];
+			disposables.add(autorun(reader => {
+				snapshots.push({
+					operations: changeset.operations.read(reader).map(operation => operation.id),
+					selectable: changeset.baseBranchSelection?.read(reader) !== undefined,
+				});
+			}));
+			setOperations([toOperation('commit'), toOperation(LIST_BASE_BRANCHES_OPERATION_ID), toOperation(SET_BASE_BRANCH_OPERATION_ID, ChangesetOperationStatus.Disabled)]);
+			setOperations([toOperation('commit'), toOperation(SET_BASE_BRANCH_OPERATION_ID)]);
+			setOperations([toOperation('commit'), toOperation(LIST_BASE_BRANCHES_OPERATION_ID), toOperation(SET_BASE_BRANCH_OPERATION_ID)]);
+
+			assert.deepStrictEqual(snapshots, [
+				{ operations: ['commit'], selectable: true },
+				{ operations: ['commit'], selectable: false },
+				{ operations: ['commit'], selectable: true },
+			]);
+		});
+
+		test('lists the candidates without changing anything and sets the exact ref', async () => {
+			const invocations: InvokeChangesetOperationParams[] = [];
+			const { changeset } = createBranchChangeset([toOperation(LIST_BASE_BRANCHES_OPERATION_ID), toOperation(SET_BASE_BRANCH_OPERATION_ID)], async params => {
+				invocations.push(params);
+				return params.operationId === LIST_BASE_BRANCHES_OPERATION_ID
+					? createBaseBranchCandidatesResult({ refs: ['refs/remotes/origin/main', 'refs/heads/main', 'refs/remotes/origin/release/1.108'], defaultRef: 'refs/remotes/origin/main' })
+					: {};
+			});
+			const selection = changeset.baseBranchSelection?.get();
+			assert.ok(selection);
+			const candidates = await selection.getCandidates(CancellationToken.None);
+			await selection.setBaseBranch('refs/heads/main');
+
+			assert.deepStrictEqual({ candidates, invocations }, {
+				candidates: { refs: ['refs/remotes/origin/main', 'refs/heads/main', 'refs/remotes/origin/release/1.108'], defaultRef: 'refs/remotes/origin/main' },
+				invocations: [
+					{ channel, operationId: LIST_BASE_BRANCHES_OPERATION_ID },
+					{ channel, operationId: SET_BASE_BRANCH_OPERATION_ID, target: undefined, _meta: createSetBaseBranchMeta('refs/heads/main') },
+				],
+			});
+		});
 	});
 
 	for (const outcome of ['success', 'error'] as const) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type tt from 'typescript/lib/tsserverlibrary';
 import { computeContext, nesRename, prepareNesRename } from '../common/api';
-import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, RequestContext, TokenBudgetExhaustedError, type Logger } from '../common/contextProvider';
+import { CharacterBudget, ComputeContextSession, ContextResult, RequestContext } from '../common/contextProvider';
 import { ErrorCode, RenameKind, type CachedContextRunnableResult, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RegionContextRequest, type RegionContextResponse, type RenameGroup, type StructuralDiffRequest, type StructuralDiffResponse } from '../common/protocol';
 import { RegionContextProvider } from '../common/regionContextProvider';
 import { computeStructuralDiff } from '../common/structuralDiff';
@@ -19,17 +19,9 @@ import { NodeHost } from './host';
 export class LanguageServerSession extends ComputeContextSession {
 	private readonly session: tt.server.Session;
 
-	public readonly logger: Logger;
-
 	constructor(session: tt.server.Session, languageServiceHost: tt.LanguageServiceHost, host: Host) {
 		super(languageServiceHost, host, true);
 		this.session = session;
-		const projectService = Sessions.getProjectService(this.session);
-		this.logger = projectService?.logger ?? new NullLogger();
-	}
-
-	public logError(error: Error, cmd: string): void {
-		this.session.logError(error, cmd);
 	}
 
 	public getFileAndProject(args: tt.server.protocol.FileRequestArgs): Sessions.FileAndProject | undefined {
@@ -198,7 +190,7 @@ const computeContextHandler = (request: ComputeContextRequest): ComputeContextHa
 	try {
 		computeContext(result, languageServerSession!, languageService, file, pos, cancellationToken);
 	} catch (error) {
-		if (!(error instanceof ts.OperationCanceledException) && !(error instanceof TokenBudgetExhaustedError)) {
+		if (!(error instanceof ts.OperationCanceledException)) {
 			if (error instanceof Error) {
 				return { response: { error: ErrorCode.exception, message: error.message, stack: error.stack }, responseRequired: true };
 			} else {

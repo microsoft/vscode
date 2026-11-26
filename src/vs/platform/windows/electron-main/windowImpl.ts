@@ -857,6 +857,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			const webPreferences: electron.WebPreferences = {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
+				disableHtmlFullscreenWindowResize: true, // media previews expand in a dialog, not the native window
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none'
 			};
 			if (config.isSessionsWindow) {

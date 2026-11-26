@@ -14,7 +14,7 @@ import { getGlobalConfigurationValue } from '../../../../../platform/agentHost/c
 import { ConfigurationDefaultOverridesContribution, WorkspaceService } from '../../browser/configurationService.js';
 import { ConfigurationEditingErrorCode } from '../../common/configurationEditing.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { workbenchInstantiationService, RemoteFileSystemProvider, TestEnvironmentService, TestTextFileService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -1263,6 +1263,16 @@ suite('WorkspaceContextService - Folder', () => {
 			{ opened: { uri: folder, folder: folder.toString() }, restored: { uri: folder, folder: alternate.toString(), isCurrent: true } });
 	});
 
+	test('setFolderLocation() marks the workspace folders change as a folder location change', async () => {
+		const alternate = joinPath(ROOT, 'Alternate');
+		const events: { removed: string[]; added: string[]; isFolderLocationChange: boolean | undefined }[] = [];
+		disposables.add(testObject.onDidChangeWorkspaceFolders(e => events.push({ removed: e.removed.map(f => f.uri.toString()), added: e.added.map(f => f.uri.toString()), isFolderLocationChange: e.isFolderLocationChange })));
+
+		await testObject.setFolderLocation(alternate);
+
+		assert.deepStrictEqual(events, [{ removed: [folder.toString()], added: [alternate.toString()], isFolderLocationChange: true }]);
+	});
+
 	test('setFolderLocation() loads the destination with its own trust, never applying restricted settings of an untrusted destination', async () => {
 		const settingKey = 'configurationService.folder.restrictedSetting';
 		const alternate = joinPath(ROOT, 'Alternate');
@@ -1700,6 +1710,23 @@ suite('WorkspaceService - Initialization', () => {
 		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		testObject.acquireInstantiationService(instantiationService);
 	});
+
+	test('a plain empty window has no scope and is in the Editor mode, and the scope event fires only when the scope changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const empty = { scope: testObject.getWorkbenchScope(), mode: testObject.getWorkbenchMode() };
+		const scopes: (string | undefined)[] = [];
+		disposables.add(testObject.onDidChangeWorkbenchScope(scope => scopes.push(scope?.toString())));
+
+		const folder = joinPath(ROOT, 'a');
+		await testObject.initialize(convertToWorkspacePayload(folder));
+		await testObject.initialize(convertToWorkspacePayload(folder));
+		await testObject.initialize(getWorkspaceIdentifier(configResource));
+
+		assert.deepStrictEqual({ empty, scopes, mode: testObject.getWorkbenchMode() }, {
+			empty: { scope: undefined, mode: WorkbenchMode.Editor },
+			scopes: [folder.toString(), configResource.toString()],
+			mode: WorkbenchMode.Editor,
+		});
+	}));
 
 	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with no configuration changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 

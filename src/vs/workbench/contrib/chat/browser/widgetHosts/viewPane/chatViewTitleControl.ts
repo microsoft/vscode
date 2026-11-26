@@ -11,6 +11,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -23,7 +24,9 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { ChatResponseStats } from '../../../common/constants.js';
 import { getAgentSessionProvider, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
+import { ChatLiveResponseStats } from '../../widget/chatLiveResponseStats.js';
 
 export interface IChatViewTitleDelegate {
 	focusChat(): void;
@@ -44,7 +47,7 @@ export class ChatViewTitleControl extends Disposable {
 	private titleContainer: HTMLElement | undefined;
 	private titleLabel = this._register(new MutableDisposable<ChatViewTitleLabel>());
 
-	private model: IChatModel | undefined;
+	private readonly model = observableValue<IChatModel | undefined>(this, undefined);
 	private modelDisposables = this._register(new MutableDisposable());
 
 	private navigationToolbar?: MenuWorkbenchToolBar;
@@ -135,6 +138,11 @@ export class ChatViewTitleControl extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide
 		}));
 
+		// The running response's stats, right after the title
+		const lastResponse = derived(this, reader => this.model.read(reader)?.lastRequestObs.read(reader)?.response);
+		const liveResponseStats = this._register(this.instantiationService.createInstance(ChatLiveResponseStats, ChatResponseStats.Title, lastResponse));
+		elements.actionsToolbar.before(liveResponseStats.element);
+
 		// Title controls
 		this.titleContainer = elements.root;
 		this._register(Gesture.addTarget(this.titleContainer));
@@ -148,7 +156,7 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	update(model: IChatModel | undefined): void {
-		this.model = model;
+		this.model.set(model, undefined);
 
 		this.modelDisposables.value = model?.onDidChange(e => {
 			if (e.kind === 'setCustomTitle' || e.kind === 'addRequest') {
@@ -160,15 +168,16 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private doUpdate(): void {
-		const markdownTitle = new MarkdownString(this.model?.title ?? '');
+		const model = this.model.get();
+		const markdownTitle = new MarkdownString(model?.title ?? '');
 		this.title = renderAsPlaintext(markdownTitle);
 		this.harnessLabel = this.getHarnessLabel();
 
 		this.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE, this.harnessLabel);
 
-		const context = this.model && {
+		const context = model && {
 			$mid: MarshalledId.ChatViewContext,
-			sessionResource: this.model.sessionResource,
+			sessionResource: model.sessionResource,
 			inputUri: this.delegate.getInputUri(),
 		} satisfies IChatViewTitleActionContext;
 
@@ -182,11 +191,12 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private getHarnessLabel(): string | undefined {
-		if (!this.model) {
+		const model = this.model.get();
+		if (!model) {
 			return undefined;
 		}
 
-		const sessionType = getChatSessionType(this.model.sessionResource);
+		const sessionType = getChatSessionType(model.sessionResource);
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
 			return contribution.displayName;
@@ -206,7 +216,7 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private shouldRender(): boolean {
-		return !!this.model?.title; // we need a chat showing and not being empty
+		return !!this.model.get()?.title; // we need a chat showing and not being empty
 	}
 
 	getHeight(): number {

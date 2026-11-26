@@ -9,7 +9,6 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-// eslint-disable-next-line local/code-translation-remind -- Experimental entry is excluded from production translation resources.
 import { localize } from '../../../../nls.js';
 import { ContextMenuMenuDelegate } from '../../../../platform/contextview/browser/contextMenuService.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';

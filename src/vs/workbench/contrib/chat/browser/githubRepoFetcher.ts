@@ -5,7 +5,7 @@
 
 import { Limiter } from '../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -44,9 +44,9 @@ export async function fetchAndExtractGitHubRepo(
 	repo: RepositoryRef,
 	sha: string,
 	targetDir: URI,
-	signal: AbortSignal,
+	cancellationToken: CancellationToken,
 ): Promise<void> {
-	const tree = await content.getTree(repo, sha, signal, { caller: 'pluginGit.tree', noCache: true, query: { recursive: true } });
+	const tree = await content.getTree(repo, sha, cancellationToken, { caller: 'pluginGit.tree', noCache: true, query: { recursive: true } });
 	if (tree.truncated) {
 		logService.warn(`[GitHubRepoFetcher] Tree for ${repo.owner}/${repo.repo}@${sha} is truncated; some files will be missing from the install`);
 	}
@@ -54,16 +54,16 @@ export async function fetchAndExtractGitHubRepo(
 	const stagingDir = joinPath(dirname(targetDir), `.staging-${generateUuid()}`);
 	const resources = new DisposableStore();
 	const limiter = resources.add(new Limiter<void>(MAX_PARALLEL_BLOB_FETCHES));
-	const controller = new AbortController();
-	const operationSignal = AbortSignal.any([signal, controller.signal]);
+	const controller = resources.add(new CancellationTokenSource());
+	const operationToken = CancellationToken.any([cancellationToken, controller.token], resources);
 	try {
-		operationSignal.throwIfAborted();
+		CancellationToken.throwIfCanceled(operationToken);
 		await fileService.createFolder(stagingDir);
 		const blobsToFetch: { entry: GitTreeEntry; dest: URI }[] = [];
 		const createdDirs = new Set<string>([stagingDir.toString()]);
 
 		for (const entry of tree.tree) {
-			operationSignal.throwIfAborted();
+			CancellationToken.throwIfCanceled(operationToken);
 			if (entry.type === 'commit') {
 				logService.trace(`[GitHubRepoFetcher] Skipping submodule entry ${entry.path}`);
 				continue;
@@ -93,16 +93,16 @@ export async function fetchAndExtractGitHubRepo(
 		}
 
 		await Promise.all(blobsToFetch.map(({ entry, dest }) => limiter.queue(async () => {
-			operationSignal.throwIfAborted();
-			const blob = await content.getBlob(repo, entry.sha, operationSignal, { caller: 'pluginGit.blob', noCache: true });
-			operationSignal.throwIfAborted();
+			CancellationToken.throwIfCanceled(operationToken);
+			const blob = await content.getBlob(repo, entry.sha, operationToken, { caller: 'pluginGit.blob', noCache: true });
+			CancellationToken.throwIfCanceled(operationToken);
 			await fileService.writeFile(dest, decodeBase64(blob.content.replace(/\s+/g, '')));
 		})));
 
-		operationSignal.throwIfAborted();
+		CancellationToken.throwIfCanceled(operationToken);
 		await fileService.move(stagingDir, targetDir, true);
 	} catch (error) {
-		controller.abort(new CancellationError());
+		controller.cancel();
 		// A late write must settle before cleanup or an authentication retry starts.
 		await limiter.whenIdle();
 		try {

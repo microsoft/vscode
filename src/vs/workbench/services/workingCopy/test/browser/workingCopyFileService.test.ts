@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { FileOperation } from '../../../../../platform/files/common/files.js';
 import { TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { ICopyOperation } from '../../common/workingCopyFileService.js';
+import { ICopyOperation, WorkingCopyFileOperationCancellationError } from '../../common/workingCopyFileService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -259,19 +259,19 @@ suite('WorkingCopyFileService', () => {
 		assert.strictEqual(canceled, true);
 		canceled = false;
 
-		// Move
+		// Move: the operation is skipped when cancelled before it starts
 		cts = new CancellationTokenSource();
 		promise = accessor.workingCopyFileService.move([{ file: { source: resource, target: resource } }], cts.token);
 		cts.cancel();
-		await promise;
+		await assert.rejects(promise, WorkingCopyFileOperationCancellationError);
 		assert.strictEqual(canceled, true);
 		canceled = false;
 
-		// Copy
+		// Copy: the operation is skipped when cancelled before it starts
 		cts = new CancellationTokenSource();
 		promise = accessor.workingCopyFileService.copy([{ file: { source: resource, target: resource } }], cts.token);
 		cts.cancel();
-		await promise;
+		await assert.rejects(promise, WorkingCopyFileOperationCancellationError);
 		assert.strictEqual(canceled, true);
 		canceled = false;
 

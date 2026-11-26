@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -51,6 +51,7 @@ import { ChatClosedPromoNotification, ChatConfiguration } from '../../common/con
 import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
 
 class PromoTelemetry extends NullTelemetryServiceShape {
 	readonly events: string[] = [];
@@ -98,6 +99,7 @@ suite('ChatStatusPromo', () => {
 		instantiation.stub(IAgentHostEnablementService, {
 			enabled: constObservable(options.hostEnabled ?? false), managedSandboxEnforced: constObservable(false),
 		});
+		instantiation.stub(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		instantiation.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
 			override getManagedSettingValue(key: string) { return options.managed && key === 'permissions.deny' ? '["Shell"]' : undefined; }
 		}());

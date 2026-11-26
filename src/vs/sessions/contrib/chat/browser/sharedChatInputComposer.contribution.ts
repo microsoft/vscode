@@ -23,7 +23,7 @@ import { SharedChatInputComposer } from '../../../../workbench/contrib/sessions/
 import { ChatInputCanScheduleContext, ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsViewGroupingContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SessionsGrouping } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsGrouping } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IScheduledChatsService } from '../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { SharedChatInputComposerContribution, registerSharedChatInputComposerToolbar } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposerToolbar.js';
@@ -75,12 +75,12 @@ export class SendLaterAction extends Action2 {
 			category: CHAT_CATEGORY,
 			icon: Codicon.clock,
 			f1: true,
-			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ChatInputCanScheduleContext, ChatContextKeys.inputHasSendableContent, ChatContextKeys.inputBlocked.negate()),
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ChatInputCanScheduleContext, ChatContextKeys.inputHasSendableContent, ChatContextKeys.inputBlocked.negate(), ChatContextKeys.currentlyEditing.negate(), ChatContextKeys.currentlyEditingInput.negate()),
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'navigation',
 				order: 99,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true), ChatInputCanScheduleContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true), ChatInputCanScheduleContext, ChatContextKeys.currentlyEditing.negate(), ChatContextKeys.currentlyEditingInput.negate()),
 			},
 		});
 	}

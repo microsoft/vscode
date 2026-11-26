@@ -247,9 +247,11 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 		const publisher = templateDisposables.add(this.instantiationService.createInstance(PublisherWidget, DOM.append(nameRow, $('span.agents-window-extension-publisher', { 'aria-hidden': 'true' })), true));
 		const installCount = templateDisposables.add(this.instantiationService.createInstance(InstallCountWidget, DOM.append(nameRow, $('span.agents-window-extension-install-count', { 'aria-hidden': 'true' })), true));
 		const ratings = templateDisposables.add(this.instantiationService.createInstance(RatingsWidget, DOM.append(nameRow, $('span.agents-window-extension-rating', { 'aria-hidden': 'true' })), true));
-		const warning = DOM.append(nameRow, $('span.agents-window-extension-warning', { 'aria-hidden': 'true' }));
-		warning.classList.add(...ThemeIcon.asClassNameArray(Codicon.warningCompact));
 		const description = DOM.append(details, $('span.agents-window-extension-description'));
+
+		// Next to the Install button, like the warning of installed extensions is next to their switch.
+		const warning = DOM.append(container, $('span.agents-window-extension-warning', { 'aria-hidden': 'true' }));
+		warning.classList.add(...ThemeIcon.asClassNameArray(Codicon.warningCompact));
 
 		const actionsContainer = DOM.append(container, $('.agents-window-extension-marketplace-actions'));
 		const actionRunner = templateDisposables.add(new MarketplaceInstallActionRunner(this.onDidInstall));

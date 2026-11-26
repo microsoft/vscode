@@ -143,6 +143,7 @@ export interface IByokLmChatResult {
 	readonly responseId?: string;
 	readonly usage?: {
 		readonly inputTokens?: number;
+		readonly cachedTokens?: number;
 		readonly outputTokens?: number;
 		readonly reasoningTokens?: number;
 	};
@@ -248,6 +249,14 @@ export function getByokLmAgentModelId(model: IByokLmModelInfo): string {
  */
 export function isByokLmAgentModelId(modelId: string): boolean {
 	return modelId.includes('/');
+}
+
+/**
+ * Returns the model id a Copilot turn's reported model id names. The Copilot runtime reports a BYOK
+ * model without its provider, which in a turn that selected a BYOK model is that selection.
+ */
+export function resolveByokLmReportedModelId(reportedModelId: string | undefined, selectedModelId: string | undefined): string | undefined {
+	return reportedModelId && selectedModelId?.endsWith(`/${reportedModelId}`) ? selectedModelId : reportedModelId;
 }
 
 /** Resolves BYOK enablement and trace context from synchronized root configuration. */

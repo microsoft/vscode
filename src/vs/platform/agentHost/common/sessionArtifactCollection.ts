@@ -20,11 +20,19 @@ export interface ISessionArtifactInput {
 	readonly mode?: SessionArtifactMode;
 }
 
+/**
+ * What adding an entry did: `added` a new entry, `promoted` an existing
+ * reference to an artifact, `modeUpdated` an existing entry's request for how
+ * the chat shows it, or nothing because it was `alreadyRecorded`.
+ */
+export type SessionArtifactAddOutcome = 'added' | 'promoted' | 'modeUpdated' | 'alreadyRecorded';
+
 export interface IAddSessionArtifactResult {
 	readonly artifacts: readonly ISessionArtifact[];
 	readonly artifact: ISessionArtifact;
 	/** `false` when an entry with the same value already existed. */
 	readonly added: boolean;
+	readonly outcome: SessionArtifactAddOutcome;
 }
 
 export interface IRemoveSessionArtifactResult {
@@ -166,12 +174,12 @@ export class SessionArtifactCollection {
 		if (existing && input.mode !== undefined && existing.mode !== input.mode) {
 			// Recording an entry again with another mode asks again; the revision tells clients that it is a new request.
 			const updated = { ...existing, mode: input.mode, ...(existing.mode !== undefined ? { modeRevision: (existing.modeRevision ?? 0) + 1 } : {}) };
-			return { artifacts: this._artifacts.map(candidate => candidate === existing ? updated : candidate), artifact: updated, added: false };
+			return { artifacts: this._artifacts.map(candidate => candidate === existing ? updated : candidate), artifact: updated, added: false, outcome: 'modeUpdated' };
 		}
 		if (existing) {
-			return { artifacts: this._artifacts, artifact: existing, added: false };
+			return { artifacts: this._artifacts, artifact: existing, added: false, outcome: 'alreadyRecorded' };
 		}
-		return { artifacts: [...this._artifacts, artifact], artifact, added: true };
+		return { artifacts: [...this._artifacts, artifact], artifact, added: true, outcome: 'added' };
 	}
 
 	/** Adds an entry, or promotes an existing reference with the same value when the input is an artifact. */
@@ -188,6 +196,7 @@ export class SessionArtifactCollection {
 			artifacts: result.artifacts.map(candidate => candidate === result.artifact ? artifact : candidate),
 			artifact,
 			added: false,
+			outcome: 'promoted',
 		};
 	}
 

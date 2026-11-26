@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
+import { CopilotServiceKind, ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IManagedSettingsFreshness, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../policy/common/managedSettingsFreshness.js';
@@ -71,6 +71,19 @@ export interface IDefaultAccountProvider {
 	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
+
+	/**
+	 * Remembers a Microsoft account as the default account. The choice is stored for the application: this window's
+	 * default account is updated before the returned promise resolves, and other open windows update when they see
+	 * the stored choice change. Does nothing when the Microsoft default account is not enabled.
+	 */
+	rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }, service: CopilotServiceKind): Promise<void>;
+
+	/**
+	 * Forgets the remembered Microsoft account. The choice is stored for the application: this window's default account
+	 * is updated before the returned promise resolves, and other open windows update when they see the stored choice change.
+	 */
+	forgetMicrosoftAccount(): Promise<void>;
 }
 
 export const IDefaultAccountService = createDecorator<IDefaultAccountService>('defaultAccountService');
@@ -98,6 +111,19 @@ export interface IDefaultAccountService {
 	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
+
+	/**
+	 * Remembers a Microsoft account as the default account. The choice is stored for the application: this window's
+	 * default account is updated before the returned promise resolves, and other open windows update when they see
+	 * the stored choice change. Does nothing when the Microsoft default account is not enabled.
+	 */
+	rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }, service: CopilotServiceKind): Promise<void>;
+
+	/**
+	 * Forgets the remembered Microsoft account. The choice is stored for the application: this window's default account
+	 * is updated before the returned promise resolves, and other open windows update when they see the stored choice change.
+	 */
+	forgetMicrosoftAccount(): Promise<void>;
 
 	/**
 	 * Resolves a GitHub path against the selected session's enterprise server, or `https://github.com` for a non-enterprise provider.

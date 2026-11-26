@@ -9,7 +9,7 @@
 import { ActionType } from '../common/actions.js';
 import type { Message } from '../channels-chat/state.js';
 import type { URI } from '../common/state.js';
-import type { AutomationDefinition, AutomationDisableCondition, AutomationEntry, AutomationOperation, AutomationSessionTemplate, AutomationState, AutomationTrigger } from './state.js';
+import type { AutomationDefinition, AutomationDisableCondition, AutomationEntry, AutomationOperation, AutomationSessionTemplate, AutomationState, AutomationTarget, AutomationTrigger } from './state.js';
 
 /**
  * Partial replacement of editable {@link AutomationDefinition} fields.
@@ -52,6 +52,8 @@ export interface AutomationDefinitionPatch {
 	disableConditions?: AutomationDisableCondition[];
 	/** Complete replacement {@link AutomationDefinition._meta}. */
 	_meta?: Record<string, unknown>;
+	/** Replacement {@link AutomationDefinition.target}. */
+	target?: AutomationTarget;
 }
 
 /**

@@ -41,6 +41,7 @@ import { CodexSessionConfigKey, type CodexPermissionsPreset } from '../../../com
 import { CODEX_COPILOT_MODEL_PROVIDER } from '../../../common/codexModelSelection.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../../node/agentHostFileEditCoordinator.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../../common/serverToolNames.js';
@@ -257,6 +258,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
 	});
 	instantiationService.stub(ISessionDataService, options.sessionStore?.service ?? createTestSessionStore().service);
+	instantiationService.stub(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);

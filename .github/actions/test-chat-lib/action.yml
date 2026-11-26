@@ -28,13 +28,10 @@ runs:
 
     # The rebuild below compiles `kerberos` (an optional peer of the proxy agents that
     # @vscode/test-web uses) whenever the lockfile resolves it for copilot-chat, and on Linux that
-    # needs the Kerberos headers.
-    - name: Install Kerberos headers
+    # needs the Kerberos headers (libkrb5-dev, one of the cached apt packages).
+    - name: Install system packages
       if: runner.os == 'Linux'
-      shell: bash
-      run: |
-        ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
-        ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y libkrb5-dev
+      uses: ./.github/actions/install-linux-packages
 
     # Copilot and chat-lib are members of the root pnpm workspace. pnpm runs the root install
     # scripts, which install the whole repository, on every install that runs scripts, filtered or

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, EntraAuthOptions, EntraTokenProvider, EntraTokenProviderArgs, EntraTokenProviderResult } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, EntraAuthOptions, EntraTokenProvider, EntraTokenProviderArgs, EntraTokenProviderResult } from '@microsoft/copilot-sdk';
 import { raceCancellation, raceCancellationError, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
@@ -56,7 +56,7 @@ export interface ICopilotAccountService {
 	authenticate(client: Promise<AccountClient>, params: AuthenticateParams): Promise<void>;
 	requireReady(): ReadyAccountContext;
 	getSession(context: ReadyAccountContext, client: Promise<AccountClient>): Promise<CopilotSession>;
-	/** Signs a newly created conversation in to the context's service; a resumed conversation keeps the sign-in the runtime saved with it. */
+	/** Signs a newly created or reopened conversation in to the context's service; the runtime keeps the sign-in only while the conversation stays open. */
 	authenticateSession(session: CopilotSession, client: AccountClient, context: ReadyAccountContext, token: CancellationToken): Promise<void>;
 	isAuthenticationSession(sessionId: string): boolean;
 	reset(): Promise<void>;
@@ -195,8 +195,10 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		try {
 			const { session, outcome } = await this.login(attempt);
 			this.assertCurrent(attempt);
-			const choice = outcome.kind === 'ready' ? outcome.choice : outcome.choices.find(offered => sameServiceAccount(offered, context.choice));
-			if (!choice || !sameServiceAccount(choice, context.choice)) {
+			// TODO: Compare the account name again once github/copilot-agent-runtime#35781 gives a Microsoft 365 account a stable one. The runtime names it per sign-in, so only its service can match; the attempt already pins the Entra account by ID.
+			const isSelected = (offered: ICopilotServiceChoice) => context.choice.service === 'm365' ? sameService(offered, context.choice) : sameServiceAccount(offered, context.choice);
+			const choice = outcome.kind === 'ready' ? outcome.choice : outcome.choices.find(isSelected);
+			if (!choice || !isSelected(choice)) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The selected Copilot service is no longer available.');
 			}
 			if (outcome.kind === 'choiceRequired') {
@@ -253,7 +255,7 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 			}
 			let selected: ICopilotServiceChoice | undefined;
 			if (step.kind === 'completed' && step.result.status === 'needs-account-selection') {
-				const choices = (step.result.accounts ?? []).filter(account => account.kind === (expected.service === 'm365' ? 'loki' : 'entraEmu'));
+				const choices = (step.result.accounts ?? []).filter(account => account.kind === (expected.service === 'm365' ? 'microsoft365Copilot' : 'entraEmu'));
 				if (choices.length !== 1 || !sameService(toServiceChoice(choices[0]), expected)) {
 					throw new ProtocolError(AhpErrorCodes.AuthRequired, localize('copilot.conversationServiceUnavailable', "The selected Copilot service is unavailable for this conversation."));
 				}
@@ -359,11 +361,33 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		const runtime = await raceCancellationError(attempt.client, attempt.cancellation.token);
 		this.assertCurrent(attempt);
 		const session = await runtime.createSession({
-			clientName: AGENT_HOST_COPILOT_CLIENT_NAME, configDirectory: this._home.home.fsPath,
-			enableConfigDiscovery: false, enableSessionStore: false, enableManagedSettings: true,
-			availableTools: [], disabledMcpServers: ['github-mcp-server'],
-			requestExtensions: false, requestCanvasRenderer: false, enableSessionTelemetry: false, enableHostGitOperations: false,
-			infiniteSessions: { enabled: false }, memory: { enabled: false },
+			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			configDirectory: this._home.home.fsPath,
+			enableConfigDiscovery: false,
+			state: {
+				enableCrossSessionStore: false,
+				infiniteSessions: { enabled: false },
+				memory: { enabled: false },
+			},
+			github: {
+				fetchManagedSettings: true,
+				telemetryEnabled: false,
+			},
+			tools: {
+				availableTools: [],
+			},
+			mcp: {
+				disabledServers: ['github-mcp-server'],
+			},
+			extensions: {
+				enabled: false,
+			},
+			canvases: {
+				requestRenderer: false,
+			},
+			git: {
+				enableHostGitOperations: false,
+			},
 		});
 		attempt.session = session;
 		this.assertCurrent(attempt);
@@ -424,7 +448,7 @@ async function readLoginOutcome(session: CopilotSession, result: CompletedLogin)
 }
 
 function toServiceChoice(account: LoginAccount): ICopilotServiceChoice {
-	const service = account.kind === 'entraEmu' ? 'github' : account.kind === 'loki' ? 'm365' : undefined;
+	const service = account.kind === 'entraEmu' ? 'github' : account.kind === 'microsoft365Copilot' ? 'm365' : undefined;
 	const resource = service && copilotEntraResources.get(service === 'github' ? copilotEntraEmuAudience : copilotEntraM365Audience);
 	if (!service || !resource || !account.selectionId || !account.host || !account.login) {
 		throw new Error('The runtime returned an unsupported Microsoft service choice.');
@@ -438,9 +462,9 @@ function resourceForChoice(choice: ICopilotServiceChoice): ProtectedResourceMeta
 }
 
 async function readActiveAccount(session: CopilotSession): Promise<ICopilotServiceChoice> {
-	const result = await session.rpc.accounts.get({ query: { kind: 'activeAccount' } });
-	const account = result.kind === 'activeAccount' ? result.account : undefined;
-	const authSelectionId = result.kind === 'activeAccount' ? result.authSelectionId : undefined;
+	const result = await session.rpc.accounts.getActive();
+	const account = result.account ?? undefined;
+	const authSelectionId = result.authSelectionId;
 	const selectionId = authSelectionId ?? account?.selectionId;
 	if (!account?.active || !selectionId || !account.derivedFrom
 		|| authSelectionId && account.selectionId && authSelectionId !== account.selectionId) {

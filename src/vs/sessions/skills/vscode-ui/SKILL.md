@@ -34,7 +34,7 @@ The incremental build is considerably faster.
 Most of the improvement comes from caching.
 ````
 
-The `chat.nativeComponents.enabled` setting controls rendering in the Agents window and is off by default. While it is off, the block is shown as source code. Do not change the user's setting unless asked.
+The `chat.nativeComponents.enabled` setting controls rendering in the Agents window and is on by default. While it is off, the block is shown as source code. Do not change the user's setting unless asked.
 
 ## Components
 

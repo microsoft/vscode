@@ -99,7 +99,7 @@ export class ExtHostChatArtifactIntegrations extends Disposable implements ExtHo
 			if (typeof result.reason !== 'string' || !result.reason.trim()) {
 				throw new Error('Artifact authentication requirement must include a reason');
 			}
-			return { kind: 'authenticationRequired', reason: result.reason, main: convertPresentation(result.main) };
+			return { kind: 'authenticationRequired', reason: result.reason, main: convertMainPresentation(result.main) };
 		}
 		if (result.kind !== 'matched' || !(result.resource instanceof URI) || typeof result.key !== 'string' || !result.key.trim()
 			|| typeof result.credentialScope !== 'string' || !result.credentialScope.trim()) {
@@ -512,6 +512,14 @@ function convertPresentation(value: vscode.ChatArtifactPresentation) {
 	return result;
 }
 
+function convertMainPresentation(value: vscode.ChatArtifactMainPresentation) {
+	const pillLabel = value?.pillLabel;
+	if (pillLabel !== undefined && (typeof pillLabel !== 'string' || !pillLabel.trim())) {
+		throw new Error('Invalid artifact pill label');
+	}
+	return { ...convertPresentation(value), ...(pillLabel === undefined ? {} : { pillLabel }) };
+}
+
 function convertDetails(
 	model: vscode.ChatArtifactDetailsModel,
 	actions: ReadonlyMap<string, vscode.ChatArtifactAction>,
@@ -550,7 +558,7 @@ function convertState(state: vscode.ChatArtifactIntegrationState, actions: Reado
 	const part = (value: vscode.ChatArtifactPresentation) => convertPresentation(value);
 	const view = {
 		availability: state.availability ?? { kind: 'available' as const },
-		main: state.main ? part(state.main) : undefined,
+		main: state.main ? convertMainPresentation(state.main) : undefined,
 		...(state.groupId !== undefined ? { groupId: state.groupId } : {}),
 		...(state.group ? { group: { icon: convertIcon(state.group.icon), priority: state.group.priority } } : {}),
 		sections: (state.sections ?? []).map(section => ({ ...part(section), id: section.id })),

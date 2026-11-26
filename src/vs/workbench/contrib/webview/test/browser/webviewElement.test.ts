@@ -57,6 +57,15 @@ suite('WebviewElement', () => {
 
 	teardown(() => sinon.restore());
 
+	test('enables native fullscreen requests only for a host that delegates them', async () => {
+		const standard = await createWebview();
+		const delegated = await createWebview(undefined, 'electron', true, mainWindow, undefined, { allowFullscreen: true });
+		assert.deepStrictEqual({
+			standard: standard.frame.allow.includes('fullscreen'),
+			delegated: delegated.frame.allow.includes('fullscreen'),
+		}, { standard: false, delegated: true });
+	});
+
 	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow, hashParentOrigin?: (parentOrigin: string, defaultHash: () => Promise<string>) => Promise<string>, options: WebviewOptions = {}) {
 		let initialized = new DeferredPromise<string>();
 		class TestWebviewElement extends WebviewElement {
@@ -204,6 +213,13 @@ suite('WebviewElement', () => {
 			parent: true,
 			sandbox: ['allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads'],
 		});
+	});
+
+	test('a remount before the previous remount attaches the iframe still attaches it to its container', async () => {
+		const { webview, frame, container, remount, activeMountListeners } = await createWebview();
+		webview.reinitializeAfterDismount();
+		await remount();
+		assert.deepStrictEqual({ parent: frame.parentElement === container, listeners: activeMountListeners() }, { parent: true, listeners: 4 });
 	});
 
 	test('repeated remounts replace their DOM listeners and disposal releases them', async () => {

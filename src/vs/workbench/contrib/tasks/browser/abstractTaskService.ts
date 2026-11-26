@@ -72,6 +72,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWillRemoveFoldersEvent, IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -298,9 +299,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@IWorkspaceEditingService workspaceEditingService: IWorkspaceEditingService
 	) {
 		super();
+		this._register(workspaceEditingService.onWillRemoveFolders(evt => this._vetoRemoveFolders(evt)));
 		this._whenTaskSystemReady = Event.toPromise(Event.filter(this.onDidChangeTaskSystemInfo, () => this.hasTaskSystemInfo), this._store);
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
@@ -1090,6 +1093,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve(false);
 		}
 		return this._taskSystem.isActive();
+	}
+
+	private _vetoRemoveFolders(evt: IWillRemoveFoldersEvent): void {
+		const runningInFolders = async () => (await this.getActiveTasks()).filter(task => {
+			const folder = task.getWorkspaceFolder();
+			return folder && evt.folders.some(removed => resources.isEqual(removed, folder.uri));
+		});
+		evt.veto(
+			runningInFolders().then(tasks => tasks.map(task => nls.localize('taskRunningRemovingFolder', "The task '{0}' is running.", task._label))),
+			async () => {
+				const results = await Promise.all((await runningInFolders()).map(task => this.terminate(task)));
+				if (results.some(result => !result.success)) {
+					throw new Error(nls.localize('taskNotTerminated', "A running task could not be terminated."));
+				}
+			});
 	}
 
 	public async getActiveTasks(): Promise<Task[]> {

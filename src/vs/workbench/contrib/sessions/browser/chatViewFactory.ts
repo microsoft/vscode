@@ -25,6 +25,9 @@ export interface IChatViewFactory {
 	/** Optional input features, also supplied to configuration pickers outside the chat view. */
 	readonly newSessionInput?: IChatViewOptions['newSessionInput'];
 
+	/** Entry-owned welcome composition and its accessibility guidance. */
+	readonly newSessionPresentation?: IChatViewOptions['newSessionPresentation'];
+
 	/** Paints the optional background behind a session grid. The grid owns the returned presentation. */
 	createChatBackground?(container: HTMLElement, instantiationService: IInstantiationService): IDisposable;
 

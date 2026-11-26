@@ -225,20 +225,6 @@ export abstract class BaseSuggestionsPanel<TPanelCompletion extends BasePanelCom
 		}
 	}
 
-	clearSolutions() {
-		// Cancel any ongoing operations
-		this.#cts.cancel();
-		// Create a new cancellation token source for the next operation
-		this.#cts = new CancellationTokenSource();
-
-		// Clear all solutions and reset state
-		this.#items = [];
-		this.#batchItems = [];
-		this._focusedSolution = undefined;
-		this.#percentage = 0;
-		void this.render();
-	}
-
 	onFinished() {
 		this.#percentage = 100;
 

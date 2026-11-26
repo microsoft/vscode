@@ -10,21 +10,14 @@ import { ModuleKind, SignatureKind, SymbolFlags, type Project, type Symbol as Na
 import {
 	ScriptTarget,
 	SyntaxKind,
-	isArrowFunction,
 	isBlock,
 	isCallExpression,
 	isElementAccessExpression,
-	isFunctionDeclaration,
-	isFunctionExpression,
 	isIdentifier,
 	isImportDeclaration,
-	isIntersectionTypeNode,
 	isNamedImports,
 	isNamespaceImport,
 	isPropertyAccessExpression,
-	isTypeLiteralNode,
-	isTypeReferenceNode,
-	isUnionTypeNode,
 	type FunctionLikeDeclaration,
 	type ImportDeclaration,
 	type Node,
@@ -512,12 +505,4 @@ export abstract class FunctionLikeContextProvider extends ContextProvider {
 	}
 
 	protected abstract getTypeExcludes(project: Project, context: RequestContext): Promise<Set<NativeSymbol>>;
-}
-
-export function isFunctionContextNode(node: Node): node is FunctionLikeDeclaration {
-	return isFunctionDeclaration(node) || isFunctionExpression(node) || isArrowFunction(node);
-}
-
-export function isCompositeTypeNode(node: TypeNode): boolean {
-	return isTypeReferenceNode(node) || isTypeLiteralNode(node) || isUnionTypeNode(node) || isIntersectionTypeNode(node);
 }

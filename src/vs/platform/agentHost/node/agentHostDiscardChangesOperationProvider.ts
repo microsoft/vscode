@@ -15,8 +15,6 @@ import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateM
 
 export class AgentHostDiscardChangesOperationContribution extends Disposable implements IChangesetOperationContribution {
 
-	private _registry: IChangesetOperationRegistry | undefined;
-
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -25,13 +23,11 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 	}
 
 	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
-		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
 		const fileEditRevert = this._instantiationService.createInstance(AgentHostFileEditRevert);
-		const handler = this._instantiationService.createInstance(AgentHostDiscardChangesOperationHandler, getSessionState, (sessionKey: string) => this._onDiscarded(sessionKey), fileEditRevert);
+		const handler = this._instantiationService.createInstance(AgentHostDiscardChangesOperationHandler, getSessionState, fileEditRevert);
 		store.add(registry.registerChangesetOperationHandler(AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES, handler));
-		store.add({ dispose: () => { this._registry = undefined; } });
 
 		return store;
 	}
@@ -49,7 +45,7 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 				// Also offered while the turn is running, so the action is shown;
 				// the operation service disables it until the turn completes.
 				const parsed = parseChangesetUri(changesetUri);
-				return parsed?.turnId !== undefined && getLastTurn(this._stateManager, parsed.ownerUri)?.id === parsed.turnId
+				return parsed?.kind === ChangesetKind.Turn && getLastTurn(this._stateManager, parsed.ownerUri)?.id === parsed.turnId
 					? [this._createOperation(localize('agentHost.changeset.discardTurnChanges.confirmation', "Are you sure you want to discard the last turn's changes to \'{0}\'? Changes made outside of the last turn will be kept, except in a file the last turn created, which is deleted along with any later changes to it. This action cannot be undone."))]
 					: [];
 			}
@@ -79,10 +75,5 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 			scopes,
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation;
-	}
-
-	private async _onDiscarded(sessionKey: string): Promise<void> {
-		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey);
 	}
 }

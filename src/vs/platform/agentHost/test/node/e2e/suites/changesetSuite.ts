@@ -1686,7 +1686,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const sessionUri = await createWorktreeSessionIn(workspace, 'turn-changeset-add');
 		await runBangTurn(sessionUri, 'turn-add', writeFileCommand('turn-added.txt', 'ADDED'), 1);
 
-		const state = await changesetState(buildTurnChangesetUri(sessionUri, 'turn-add'));
+		const state = await changesetState(buildTurnChangesetUri(defaultChatChannel(sessionUri), 'turn-add'));
 		const file = state.files.find(file => fileUri(file).endsWith('/turn-added.txt'));
 
 		assert.deepStrictEqual({
@@ -1707,7 +1707,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const sessionUri = await createWorktreeSessionIn(workspace, 'turn-changeset-edit');
 		await runBangTurn(sessionUri, 'turn-edit', writeFileCommand('seed.txt', 'edited'), 1);
 
-		const state = await changesetState(buildTurnChangesetUri(sessionUri, 'turn-edit'));
+		const state = await changesetState(buildTurnChangesetUri(defaultChatChannel(sessionUri), 'turn-edit'));
 		const file = state.files.find(file => fileUri(file).endsWith('/seed.txt'));
 
 		assert.deepStrictEqual({
@@ -1726,7 +1726,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const sessionUri = await createWorktreeSessionIn(workspace, 'turn-changeset-delete');
 		await runBangTurn(sessionUri, 'turn-delete', '!node -e "require(\'fs\').unlinkSync(process.argv[1])" seed.txt', 1);
 
-		const state = await changesetState(buildTurnChangesetUri(sessionUri, 'turn-delete'));
+		const state = await changesetState(buildTurnChangesetUri(defaultChatChannel(sessionUri), 'turn-delete'));
 		const file = state.files.find(file => fileUri(file).endsWith('/seed.txt'));
 
 		assert.deepStrictEqual({
@@ -1745,7 +1745,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const sessionUri = await createWorktreeSessionIn(workspace, 'turn-changeset-noop');
 		await runBangTurn(sessionUri, 'turn-noop', '/rename No File Changes', 1);
 
-		const state = await changesetState(buildTurnChangesetUri(sessionUri, 'turn-noop'));
+		const state = await changesetState(buildTurnChangesetUri(defaultChatChannel(sessionUri), 'turn-noop'));
 		assert.deepStrictEqual({ status: state.status, files: state.files }, { status: 'ready', files: [] });
 	});
 
@@ -1754,7 +1754,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const sessionUri = await createWorktreeSessionIn(workspace, 'turn-changeset-missing');
 		await runBangTurn(sessionUri, 'turn-known', '/rename Known Turn', 1);
 
-		const state = await changesetState(buildTurnChangesetUri(sessionUri, 'missing-turn'));
+		const state = await changesetState(buildTurnChangesetUri(defaultChatChannel(sessionUri), 'missing-turn'));
 		assert.strictEqual(state.status, 'error');
 	}, false);
 

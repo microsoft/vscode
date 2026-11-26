@@ -28,10 +28,6 @@ export class ProjectedText {
 
 	public get isOriginal(): boolean { return this.edits.isEmpty() || this.edits.isNeutralOn(this.originalText); }
 
-	public project(originalOffset: number): number {
-		return this.edits.applyToOffset(originalOffset);
-	}
-
 	public projectOffsetRange(originalRange: OffsetRange): OffsetRange {
 		return this.edits.applyToOffsetRange(originalRange);
 	}
@@ -40,25 +36,6 @@ export class ProjectedText {
 		const offsetRange = this.originalPositionOffsetTransformer.toOffsetRange(originalRange);
 		const projectedRange = this.projectOffsetRange(offsetRange);
 		return this.positionOffsetTransformer.toRange(projectedRange);
-	}
-
-	public projectOffsetEdit(edit: StringEdit): StringEdit {
-		return edit.rebaseSkipConflicting(this.edits);
-	}
-
-	public tryRebase(originalEdit: StringEdit): { edit: StringEdit; text: ProjectedText } | undefined {
-		const edit = originalEdit.tryRebase(this.edits);
-		if (!edit) {
-			return undefined;
-		}
-		const newEdits = this.edits.tryRebase(originalEdit);
-		if (!newEdits) {
-			return undefined;
-		}
-		return {
-			edit,
-			text: new ProjectedText(originalEdit.apply(this.originalText), newEdits),
-		};
 	}
 
 	public projectBack(projectedOffset: number): number {

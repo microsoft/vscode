@@ -54,7 +54,7 @@ import { isPluginCustomizationItem } from '../../common/customizationHarnessServ
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../actions/chatPluginActions.js';
+import { AddPluginMarketplaceAction, MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../actions/chatPluginActions.js';
 import { getPluginManagedByOrganizationMessage, isPluginRequiredByPolicy } from '../agentPluginActions.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
@@ -63,6 +63,7 @@ import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery,
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
+import { getTeamProvidedMarketplaceName, getTeamProvidedMarketplaceTooltip, TeamProvidedTag } from './customizationTeamProvenance.js';
 import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { getPluginCustomizationMarketplaceSourceId } from './pluginCustomizationMarketplaceProvider.js';
@@ -218,6 +219,8 @@ interface IBrowseCatalogCache {
 
 interface ISourceBrowseSection extends ICustomizationMarketplaceBrowseSection {
 	readonly sourceId: string;
+	/** Set when the user's GitHub Team provides the section's source. */
+	readonly teamProvided?: boolean;
 }
 
 type BrowseSectionsLoadOutcome =
@@ -1229,9 +1232,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private updateSourceButton(): void {
 		const selectedSource = this.marketplaceSources.find(source => source.id === this.selectedSourceId);
-		const label = selectedSource ? selectedSource.displayName ?? selectedSource.id : localize('customizationDiscovery.allSources', "All Sources");
+		const label = selectedSource ? selectedSource.displayName ?? selectedSource.id : localize('customizationDiscovery.allMarketplaces', "All Marketplaces");
 		this.sourceButton.label = `${label} $(chevron-down)`;
-		this.sourceButton.setAriaLabel(localize('customizationDiscovery.sourceButtonAriaLabel', "Customization source: {0}", label));
+		this.sourceButton.setAriaLabel(localize('customizationDiscovery.marketplaceButtonAriaLabel', "Customization marketplace: {0}", label));
 		this.sourceButton.element.removeAttribute('title');
 		this.sourceHover.value = this.hoverService.setupDelayedHover(this.sourceButton.element, { content: label });
 	}
@@ -1240,16 +1243,17 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const disposables = new DisposableStore();
 		const allSources = disposables.add(new Action(
 			'customizationDiscovery.source.all',
-			localize('customizationDiscovery.allSources', "All Sources"),
+			localize('customizationDiscovery.allMarketplaces', "All Marketplaces"),
 			undefined,
 			true,
 			() => this.selectSource(undefined),
 		));
 		allSources.checked = this.selectedSourceId === undefined;
 		const sourceActions = this.marketplaceSources.map(source => {
+			const name = source.displayName ?? source.id;
 			const action = disposables.add(new Action(
 				`customizationDiscovery.source.${source.id}`,
-				source.displayName ?? source.id,
+				source.teamProvided ? getTeamProvidedMarketplaceName(name) : name,
 				undefined,
 				true,
 				() => this.selectSource(source.id),
@@ -1259,7 +1263,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		});
 		const configure = disposables.add(new Action(
 			'customizationDiscovery.source.configure',
-			localize('customizationDiscovery.configureMarketplaces', "Configure Marketplaces"),
+			localize('customizationDiscovery.manageMarketplaces', "Manage Marketplaces"),
 			ThemeIcon.asClassName(Codicon.settingsGear),
 			true,
 			() => this.commandService.executeCommand(MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID),
@@ -1317,6 +1321,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
 				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Plugins))));
 			}
+			actions.push(disposables.add(new Action('customizationDiscovery.addMarketplace', localize('customizationDiscovery.addMarketplace', "Add Marketplace"), undefined, true, () => this.commandService.executeCommand(AddPluginMarketplaceAction.ID))));
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => addButton.element,
 				getActions: () => actions,
@@ -1549,7 +1554,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					id: `installed:plugin:${plugin.uri.toString()}`,
 					name,
 					description: source?.description ?? localize('customizationDiscovery.installedPluginDescription', "Installed agent plugin"),
-					sourceLabel: source?.marketplace,
+					sourceLabel: source?.marketplace ? localize('customizationDiscovery.marketplaceLabel', "Marketplace: {0}", source.marketplace) : undefined,
 					type: 'plugin',
 					section: AICustomizationManagementSection.Plugins,
 					uri: plugin.uri,
@@ -1753,9 +1758,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private getMarketplaceResourceLabel(resource: ICustomizationMarketplaceResource): string {
 		const source = this.getMarketplaceSourceLabel(resource.sourceId);
-		return resource.originLabel && resource.originLabel !== source
+		const marketplace = resource.originLabel && resource.originLabel !== source
 			? localize('customizationDiscovery.marketplaceOrigin', "{0} · {1}", source, resource.originLabel)
 			: resource.originLabel ?? source;
+		return localize('customizationDiscovery.marketplaceLabel', "Marketplace: {0}", marketplace);
 	}
 
 	private cancelCatalogRequest(): void {
@@ -1876,6 +1882,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						sourceId: source.id,
 						title: source.displayName ?? source.id,
 						items,
+						...(source.teamProvided ? { teamProvided: true } : {}),
 					});
 					this.sourceSections = [...sections];
 					this.noteBrowseFirstContent();
@@ -2433,6 +2440,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						ariaLabel: localize('customizationDiscovery.viewAllSource', "View all customizations from {0}", section.title),
 						run: () => this.selectSource(section.sourceId),
 					},
+					section.teamProvided,
 				);
 			}
 		}
@@ -2494,11 +2502,15 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		type: CustomizationDiscoveryType | undefined,
 		elevated: boolean,
 		action?: { readonly label: string; readonly ariaLabel: string; readonly run: () => void },
+		teamProvided = false,
 	): void {
 		const section = DOM.append(this.browseSections, $('.customization-discovery-section'));
 		section.classList.toggle('featured', elevated);
 		const header = DOM.append(section, $('.customization-discovery-section-header'));
 		DOM.append(header, $('h3.customization-discovery-section-title')).textContent = label;
+		if (teamProvided) {
+			this.browseDisposables.add(new TeamProvidedTag(header, this.hoverService)).update(getTeamProvidedMarketplaceTooltip());
+		}
 		if (type || action) {
 			const showAll = DOM.append(header, $('button.customization-discovery-show-all')) as HTMLButtonElement;
 			showAll.type = 'button';
@@ -2598,7 +2610,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const metadata = DOM.append(heading, $('.customization-discovery-card-metadata'));
 		metadata.textContent = [
 			type ? getTypeLabel(type) : undefined,
-			this.getMarketplaceSourceLabel(item.sourceId),
+			this.getMarketplaceResourceLabel(item),
 		].filter(Boolean).join(' · ');
 		const description = DOM.append(body, $('.customization-discovery-card-description'));
 		description.textContent = item.description;
@@ -2944,7 +2956,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const type = getCatalogType(entry.resource);
 		const state = this.getInstallState(entry.resource);
 		const verified = isVerifiedCopilotConnector(entry.resource) ? localize('customizationDiscovery.verifiedAriaLabel', ", verified by GitHub") : '';
-		return localize('customizationDiscovery.availableAriaLabel', "{0}, {1}, source {2}{3}. {4}. {5}", entry.resource.displayName, type ? getTypeLabel(type) : entry.resource.mediaType, this.getMarketplaceResourceLabel(entry.resource), verified, entry.resource.description, state.kind);
+		return localize('customizationDiscovery.availableMarketplaceAriaLabel', "{0}, {1}, {2}{3}. {4}. {5}", entry.resource.displayName, type ? getTypeLabel(type) : entry.resource.mediaType, this.getMarketplaceResourceLabel(entry.resource), verified, entry.resource.description, state.kind);
 	}
 
 	private isAlternativeExpanded(resource: ICustomizationMarketplaceResource): boolean {
@@ -3090,9 +3102,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return this.matchesMarketplaceResource(resource) && !hasInstallationTarget(this.getInstallState(resource));
 		});
 		const sourceSectionIds = new Set(this.sourceSections.map(section => section.id));
+		const teamSectionIds = new Set(this.sourceSections.filter(section => section.teamProvided).map(section => section.id));
 		const marketplaceContent = browseSections?.length
 			? browseSections.map(section => [
-				section.title,
+				teamSectionIds.has(section.id) ? getTeamProvidedMarketplaceName(section.title) : section.title,
 				sourceSectionIds.has(section.id) ? localize('customizationDiscovery.viewAllSourceAccessible', "View all customizations from {0}.", section.title) : undefined,
 				...section.items.map(item => {
 					const state = this.getInstallState(item);
@@ -3106,7 +3119,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				}),
 			].filter(Boolean).join('\n\n'))
 			: [
-				...recorded.map(({ resource, state }) => `${resource.displayName}\n${[getTypeLabel(getCatalogType(resource) ?? 'plugin'), this.getMarketplaceSourceLabel(resource.sourceId), !this.query.isEmpty() && isVerifiedCopilotConnector(resource) ? localize('customizationDiscovery.verifiedByGitHub', "Verified by GitHub") : undefined, getInstallationStateLabel(state, isCopilotConnectorResource(resource))].filter(Boolean).join(' · ')}\n${resource.description}${state.kind === 'error' ? `\n${state.message}` : state.kind === 'missing' && state.repairUnavailableMessage ? `\n${state.repairUnavailableMessage}` : ''}`),
+				...recorded.map(({ resource, state }) => `${resource.displayName}\n${[getTypeLabel(getCatalogType(resource) ?? 'plugin'), this.getMarketplaceResourceLabel(resource), !this.query.isEmpty() && isVerifiedCopilotConnector(resource) ? localize('customizationDiscovery.verifiedByGitHub', "Verified by GitHub") : undefined, getInstallationStateLabel(state, isCopilotConnectorResource(resource))].filter(Boolean).join(' · ')}\n${resource.description}${state.kind === 'error' ? `\n${state.message}` : state.kind === 'missing' && state.repairUnavailableMessage ? `\n${state.repairUnavailableMessage}` : ''}`),
 				...available.map(({ resource }) => {
 					const state = this.getInstallState(resource);
 					const verifiedLabel = !this.query.isEmpty() && isVerifiedCopilotConnector(resource) ? localize('customizationDiscovery.verifiedByGitHub', "Verified by GitHub") : undefined;
@@ -3119,8 +3132,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				? localize('customizationDiscovery.accessibleBrowse', "Browse mode.")
 				: localize('customizationDiscovery.accessibleSearch', "Search: {0}", this.query.toString()),
 			this.selectedSourceId
-				? localize('customizationDiscovery.accessibleSource', "Source: {0}", this.getMarketplaceSourceLabel(this.selectedSourceId))
-				: localize('customizationDiscovery.accessibleAllSources', "Source: All Sources"),
+				? localize('customizationDiscovery.accessibleMarketplace', "Marketplace: {0}", this.getMarketplaceSourceLabel(this.selectedSourceId))
+				: localize('customizationDiscovery.accessibleAllMarketplaces', "Marketplace: All Marketplaces"),
 			this.isCatalogPending() ? localize('customizationDiscovery.accessibleLoading', "Loading customizations.") : undefined,
 			this.errorMessage,
 			this.sourceWarnings.getAccessibilityContent(),

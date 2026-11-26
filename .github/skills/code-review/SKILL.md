@@ -25,6 +25,7 @@ Trace the changed behavior through its callers, dependencies, and tests. Check f
 - Regressions in existing behavior, including platform-specific and lifecycle behavior.
 - Missing or incorrect error handling.
 - Unsafe assumptions about data, ordering, concurrency, or object lifetime.
+- New internal `AbortController`/`AbortSignal` plumbing, unnecessary token/signal conversions, or incorrect boundary-adapter lifetimes (see [cancellation guidance](../../copilot-instructions.md#cancellation)).
 - Tests that do not cover the changed behavior or that would pass without the fix.
 - Changes whose connection to the stated goal is unclear.
 

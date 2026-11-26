@@ -33,13 +33,6 @@ export abstract class AbstractDocument {
 		return new OffsetRange(this.getOffsetAtPosition(range.start), this.getOffsetAtPosition(range.end));
 	}
 
-	offsetRangeToRange(offsetRange: OffsetRange): Range {
-		return new Range(
-			this.getPositionAtOffset(offsetRange.start),
-			this.getPositionAtOffset(offsetRange.endExclusive),
-		);
-	}
-
 	abstract getPositionOffsetTransformer(): PositionOffsetTransformer;
 
 	get length() {

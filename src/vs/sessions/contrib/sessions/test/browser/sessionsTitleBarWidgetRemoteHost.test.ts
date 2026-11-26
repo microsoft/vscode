@@ -99,7 +99,7 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			upcastPartial<IWorkbenchLayoutService>({}),
 			upcastPartial<IInstantiationService>({}),
 			new MockContextKeyService(),
-			upcastPartial<IQuickInputService>({}),
+			upcastPartial<IQuickInputService>({ onShow: Event.None }),
 			hoverService,
 			upcastPartial<IBrowserWorkbenchEnvironmentService>({ sessionTitle }),
 			upcastPartial<IChatWindowService>({}),

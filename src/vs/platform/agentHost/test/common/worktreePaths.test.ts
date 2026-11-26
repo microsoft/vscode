@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getRepositoryRootFromWorktree, isAgentWorktreeBranch } from '../../common/worktreePaths.js';
+import { agentHostConnectionKinds } from './testAgentHostResourceUriMappers.js';
 
 suite('worktreePaths', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,6 +36,20 @@ suite('worktreePaths', () => {
 			isAgentWorktreeBranch('user/agents/task', worktree, repository.with({ authority: 'other' })),
 		], [true, false]);
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`recognizes prefixed worktree paths on Unix and Windows hosts (${kind.name})`, () => {
+			const supported = ['/src/repo', '/c:/src/repo'].map(path => {
+				const repository = kind.toClient(URI.parse(`file://${path}`));
+				const worktree = kind.toClient(URI.parse(`file://${path}.worktrees/task`));
+				return [
+					isAgentWorktreeBranch('team/agents/task', worktree, repository),
+					isAgentWorktreeBranch('team/agents/task', worktree, repository.with({ authority: 'other-host' })),
+				];
+			});
+			assert.deepStrictEqual(supported, [[true, false], [true, false]]);
+		});
+	}
 
 	test('derives the repository of a VS Code-created worktree from its path', () => {
 		const derive = (uri: URI) => getRepositoryRootFromWorktree(uri)?.toString();

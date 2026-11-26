@@ -9,7 +9,6 @@ import { FixedWindowSizeJaccardMatcher, computeScore } from '../snippetInclusion
 import { ScoredSnippetMarker, SortOptions, splitIntoWords } from '../snippetInclusion/selectRelevance';
 import {
 	SimilarFilesOptions,
-	conservativeFilesOptions,
 	defaultCppSimilarFilesOptions,
 	defaultSimilarFilesOptions,
 	getSimilarSnippets,
@@ -414,7 +413,13 @@ suite('Test getSimilarSnippets function', function () {
 	});
 
 	test('Returns correct snippet in conservative mode', async function () {
-		const options: SimilarFilesOptions = conservativeFilesOptions;
+		const options: SimilarFilesOptions = {
+			...defaultSimilarFilesOptions,
+			snippetLength: 10,
+			threshold: 0.3,
+			maxTopSnippets: 1,
+			maxSnippetsPerFile: 1,
+		};
 
 		const snippetLocations = (await getSimilarSnippets(doc, similarFiles, options)).map(snippet => [
 			snippet.startLine,

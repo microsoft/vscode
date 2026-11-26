@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { setFullscreen } from '../../../../../base/browser/browser.js';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -31,7 +32,7 @@ import { IActivityService } from '../../../../services/activity/common/activity.
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../../common/activity.js';
 import { IEditorGroupsContainer } from '../../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, isCompactMenuInTitlebar, IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, isCompactMenuInTitlebar, IWorkbenchLayoutService, Parts, shouldShowCustomTitleBar } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextMenuService, TestHostService, TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { TestActivityService } from '../../../common/workbenchTestServices.js';
 
@@ -57,6 +58,52 @@ function stubMenubarServices(instantiationService: TestInstantiationService): vo
 	disposables.add(instantiationService.createInstance(CustomMenubarControl));
 	disposables.dispose();
 }
+
+suite('TitlebarPart layout', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('spaces center-adjacent actions like navigation actions beside the command center', () => {
+		const measure = (inputClass: string) => {
+			const workbench = append(document.body, $('.monaco-workbench'));
+			workbench.style.setProperty('--vscode-spacing-size40', '4px');
+			workbench.style.setProperty('--vscode-spacing-size60', '6px');
+			store.add(toDisposable(() => workbench.remove()));
+			const titlebar = append(workbench, $('.part.titlebar'));
+			titlebar.style.height = '35px';
+			const container = append(titlebar, $('.titlebar-container.has-center'));
+			append(container, $('.titlebar-left'));
+			const center = append(container, $('.titlebar-center'));
+			const title = append(center, $('.window-title'));
+			const commandCenter = append(title, $('.command-center'));
+			const toolbar = append(commandCenter, $('.monaco-toolbar'));
+			const actionBar = append(toolbar, $('.monaco-action-bar'));
+			const actions = append(actionBar, $('ul.actions-container'));
+			const navigation = append(actions, $('li.action-item'));
+			navigation.style.width = '22px';
+			const input = append(actions, $(`li.action-item.${inputClass}`));
+			input.style.width = '300px';
+			const right = append(container, $('.titlebar-right'));
+			const adjacent = append(right, $('.center-adjacent-toolbar-container'));
+			adjacent.style.width = '24px';
+
+			return [1200, 800].map(width => {
+				workbench.style.width = `${width}px`;
+				return {
+					before: input.getBoundingClientRect().left - navigation.getBoundingClientRect().right,
+					after: adjacent.getBoundingClientRect().left - input.getBoundingClientRect().right,
+				};
+			});
+		};
+
+		assert.deepStrictEqual({
+			commandCenter: measure('command-center-center'),
+			agentStatus: measure('agent-status-container'),
+		}, {
+			commandCenter: [{ before: 10, after: 10 }, { before: 10, after: 10 }],
+			agentStatus: [{ before: 4, after: 4 }, { before: 4, after: 4 }],
+		});
+	});
+});
 
 suite('TitlebarPart colors', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -274,7 +321,7 @@ suite('Workbench - Titlebar Part', () => {
 		});
 	});
 
-	test('compact menu is owned by the titlebar only when the activity bar is at the top or bottom', () => {
+	test('compact menu is owned by the titlebar only when the activity bar is at the top, bottom or hidden', () => {
 		const config = (menuBarVisibility: string, location: string) => new TestConfigurationService({
 			window: { menuBarVisibility },
 			workbench: { activityBar: { location } }
@@ -290,21 +337,62 @@ suite('Workbench - Titlebar Part', () => {
 			compactHidden: owner('compact', ActivityBarPosition.HIDDEN),
 			classicTop: owner('classic', ActivityBarPosition.TOP),
 			classicBottom: owner('classic', ActivityBarPosition.BOTTOM),
+			classicHidden: owner('classic', ActivityBarPosition.HIDDEN),
 		}, {
 			compactTop: compactSupported,
 			compactDefault: false,
 			compactBottom: compactSupported,
-			compactHidden: false,
+			compactHidden: compactSupported,
 			classicTop: false,
 			classicBottom: false,
+			classicHidden: false,
 		});
 	});
 
-	function createHandoffConfiguration(): TestConfigurationService {
+	test('custom title bar stays visible in fullscreen to host the compact menu of a hidden activity bar', () => {
+		const config = (menuBarVisibility: string, location: string) => new TestConfigurationService({
+			window: { menuBarVisibility },
+			workbench: { activityBar: { location } }
+		});
+		const hidden = config('compact', ActivityBarPosition.HIDDEN);
+		const compactSupported = getMenuBarVisibility(hidden) === 'compact';
+		const auxiliaryWindow = new class extends mock<CodeWindow>() {
+			override vscodeWindowId = mainWindow.vscodeWindowId + 1000;
+		}();
+		const observe = () => ({
+			hidden: shouldShowCustomTitleBar(hidden, mainWindow),
+			default: shouldShowCustomTitleBar(config('compact', ActivityBarPosition.DEFAULT), mainWindow),
+			hiddenAuxiliary: shouldShowCustomTitleBar(hidden, auxiliaryWindow),
+			classicHidden: shouldShowCustomTitleBar(config('classic', ActivityBarPosition.HIDDEN), mainWindow),
+			toggleHidden: shouldShowCustomTitleBar(config('toggle', ActivityBarPosition.HIDDEN), mainWindow),
+		});
+
+		setFullscreen(true, mainWindow);
+		setFullscreen(true, auxiliaryWindow);
+		let result: ReturnType<typeof observe>;
+		try {
+			result = observe();
+		} finally {
+			setFullscreen(false, mainWindow);
+			setFullscreen(false, auxiliaryWindow);
+		}
+
+		// Only the compact menu needs the title bar: auxiliary windows never host the menu bar, and
+		// other menu bar visibilities keep their existing fullscreen behavior.
+		assert.deepStrictEqual(result, {
+			hidden: compactSupported,
+			default: false,
+			hiddenAuxiliary: false,
+			classicHidden: false,
+			toggleHidden: false,
+		});
+	});
+
+	function createHandoffConfiguration(location: ActivityBarPosition): TestConfigurationService {
 		// A native title bar with a custom menu keeps the compact menu bar while allowing the custom title bar to be hidden.
 		return new TestConfigurationService({
 			window: { titleBarStyle: 'native', menuStyle: 'custom', menuBarVisibility: 'compact', customTitleBarVisibility: 'auto' },
-			workbench: { activityBar: { location: ActivityBarPosition.TOP } }
+			workbench: { activityBar: { location } }
 		});
 	}
 
@@ -318,57 +406,59 @@ suite('Workbench - Titlebar Part', () => {
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (k: string) => k === key } as IConfigurationChangeEvent);
 	}
 
-	test('compact menu leaves the titlebar when the custom title bar is hidden and returns when it is shown', function () {
-		const configurationService = createHandoffConfiguration();
-		if (!isHandoffSupported(configurationService)) {
-			this.skip();
-		}
-		const { part, container } = createTitlebar(configurationService);
+	for (const location of [ActivityBarPosition.TOP, ActivityBarPosition.HIDDEN]) {
+		test(`compact menu leaves the titlebar when the custom title bar is hidden and returns when it is shown, with the activity bar ${location}`, function () {
+			const configurationService = createHandoffConfiguration(location);
+			if (!isHandoffSupported(configurationService)) {
+				this.skip();
+			}
+			const { part, container } = createTitlebar(configurationService);
 
-		const states: Record<string, { owner: boolean; count: number; compact: boolean }> = {};
-		const record = (name: string) => states[name] = { owner: isCompactMenuInTitlebar(configurationService), ...menubarState(container) };
-		try {
-			record('initial');
-			setSetting(configurationService, 'window.customTitleBarVisibility', 'never');
-			record('hidden');
-			setSetting(configurationService, 'window.customTitleBarVisibility', 'auto');
-			record('shown');
-			setSetting(configurationService, 'window.customTitleBarVisibility', 'never');
-			record('hiddenAgain');
-			setSetting(configurationService, 'window.customTitleBarVisibility', 'auto');
-			record('shownAgain');
+			const states: Record<string, { owner: boolean; count: number; compact: boolean }> = {};
+			const record = (name: string) => states[name] = { owner: isCompactMenuInTitlebar(configurationService), ...menubarState(container) };
+			try {
+				record('initial');
+				setSetting(configurationService, 'window.customTitleBarVisibility', 'never');
+				record('hidden');
+				setSetting(configurationService, 'window.customTitleBarVisibility', 'auto');
+				record('shown');
+				setSetting(configurationService, 'window.customTitleBarVisibility', 'never');
+				record('hiddenAgain');
+				setSetting(configurationService, 'window.customTitleBarVisibility', 'auto');
+				record('shownAgain');
 
-			// 'windowed' hides the custom title bar only while the window is fullscreen.
-			setSetting(configurationService, 'window.customTitleBarVisibility', 'windowed');
-			record('windowed');
-			setFullscreen(true, mainWindow);
-			record('fullscreen');
-			setFullscreen(false, mainWindow);
-			record('exitFullscreen');
-			setFullscreen(true, mainWindow);
-			record('fullscreenAgain');
-			setFullscreen(false, mainWindow);
-			record('exitFullscreenAgain');
-		} finally {
-			setFullscreen(false, mainWindow);
-			part.dispose();
-		}
+				// 'windowed' hides the custom title bar only while the window is fullscreen.
+				setSetting(configurationService, 'window.customTitleBarVisibility', 'windowed');
+				record('windowed');
+				setFullscreen(true, mainWindow);
+				record('fullscreen');
+				setFullscreen(false, mainWindow);
+				record('exitFullscreen');
+				setFullscreen(true, mainWindow);
+				record('fullscreenAgain');
+				setFullscreen(false, mainWindow);
+				record('exitFullscreenAgain');
+			} finally {
+				setFullscreen(false, mainWindow);
+				part.dispose();
+			}
 
-		const owned = { owner: true, count: 1, compact: true };
-		const released = { owner: false, count: 0, compact: false };
-		assert.deepStrictEqual(states, {
-			initial: owned,
-			hidden: released,
-			shown: owned,
-			hiddenAgain: released,
-			shownAgain: owned,
-			windowed: owned,
-			fullscreen: released,
-			exitFullscreen: owned,
-			fullscreenAgain: released,
-			exitFullscreenAgain: owned,
+			const owned = { owner: true, count: 1, compact: true };
+			const released = { owner: false, count: 0, compact: false };
+			assert.deepStrictEqual(states, {
+				initial: owned,
+				hidden: released,
+				shown: owned,
+				hiddenAgain: released,
+				shownAgain: owned,
+				windowed: owned,
+				fullscreen: released,
+				exitFullscreen: owned,
+				fullscreenAgain: released,
+				exitFullscreenAgain: owned,
+			});
 		});
-	});
+	}
 
 	function createTitlebar(configurationService: TestConfigurationService, partCtor: typeof BrowserTitlebarPart = BrowserTitlebarPart) {
 		const root = document.createElement('div');
@@ -434,6 +524,8 @@ suite('Workbench - Titlebar Part', () => {
 		states.compactTopThird = menubarState(container);
 		setConfiguration(configurationService, 'compact', ActivityBarPosition.BOTTOM);
 		states.compactBottom = menubarState(container);
+		setConfiguration(configurationService, 'compact', ActivityBarPosition.HIDDEN);
+		states.compactHidden = menubarState(container);
 		setConfiguration(configurationService, 'compact', ActivityBarPosition.DEFAULT);
 		states.compactDefaultAgain = menubarState(container);
 		part.dispose();
@@ -449,6 +541,7 @@ suite('Workbench - Titlebar Part', () => {
 			classicAgain: classic,
 			compactTopThird: titlebarCompact,
 			compactBottom: titlebarCompact,
+			compactHidden: titlebarCompact,
 			compactDefaultAgain: compactSupported ? none : classic,
 		});
 	});
@@ -474,8 +567,8 @@ suite('Workbench - Titlebar Part', () => {
 		});
 	});
 
-	for (const location of [ActivityBarPosition.TOP, ActivityBarPosition.BOTTOM]) {
-		test(`titlebar-owned compact menu opens rightward and downward with the activity bar at the ${location} and the sidebar on the right`, function () {
+	for (const location of [ActivityBarPosition.TOP, ActivityBarPosition.BOTTOM, ActivityBarPosition.HIDDEN]) {
+		test(`titlebar-owned compact menu opens rightward and downward with the activity bar location ${location} and the sidebar on the right`, function () {
 			const compactSupported = getMenuBarVisibility(new TestConfigurationService({ window: { menuBarVisibility: 'compact' } })) === 'compact';
 			const customSupported = !hasNativeMenu(new TestConfigurationService({ window: { menuBarVisibility: 'classic' } })) && (!isMacintosh || isWeb);
 			if (!compactSupported || !customSupported) {

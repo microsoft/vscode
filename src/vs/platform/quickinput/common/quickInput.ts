@@ -56,7 +56,7 @@ export interface IQuickItem {
 	 * directly.
 	 */
 	iconClass?: string;
-	/** Theme color applied to the quick item's icon. */
+	/** Theme color applied to the quick item's icon when the item is not focused. */
 	iconColor?: ThemeColor;
 	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];

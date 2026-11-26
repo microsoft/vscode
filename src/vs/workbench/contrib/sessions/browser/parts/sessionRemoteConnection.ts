@@ -15,7 +15,7 @@ import { SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, IS
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IRemoteHostUnavailableEmptyStateContent } from './remoteHostUnavailableEmptyState.js';
-import { ISessionReadOnlyBannerContent } from './sessionReadOnlyBanner.js';
+import { IChatReadOnlyBannerContent } from '../../../chat/browser/widget/chatReadOnlyBanner.js';
 
 /**
  * How long a host must stay unreachable before the banner appears.
@@ -146,7 +146,7 @@ export class SessionRemoteConnection extends Disposable {
 		return Math.ceil(remaining / 1_000);
 	});
 
-	readonly bannerContent: IObservable<ISessionReadOnlyBannerContent | undefined> = derived(this, reader => this._getRemoteConnectionBannerContent(reader));
+	readonly bannerContent: IObservable<IChatReadOnlyBannerContent | undefined> = derived(this, reader => this._getRemoteConnectionBannerContent(reader));
 	readonly recoveryContent: IObservable<IRemoteHostUnavailableEmptyStateContent | undefined> = derived(this, reader => this._getRemoteHostUnavailableContent(reader));
 	readonly isQuiet: IObservable<boolean> = derived(this, reader => {
 		if (!this._inputReceived.read(reader)) {
@@ -429,7 +429,7 @@ export class SessionRemoteConnection extends Disposable {
 		};
 	}
 
-	private _getRemoteConnectionBannerContent(reader: IReader): ISessionReadOnlyBannerContent | undefined {
+	private _getRemoteConnectionBannerContent(reader: IReader): IChatReadOnlyBannerContent | undefined {
 		const session = this._session.read(reader);
 		if (!session) {
 			return undefined;

@@ -68,7 +68,7 @@ const IGNORE_ALL_INPUT_NEEDED_COMMAND_ID = 'sessions.blockedSessions.ignoreAllIn
  */
 const HIDE_COMMAND_CENTER_SESSIONS_COMMAND_ID = 'sessions.commandCenter.hideSessions';
 
-const COMMAND_CENTER_DROPDOWN_SHOW_DELAY = 50;
+const COMMAND_CENTER_DROPDOWN_SHOW_DELAY = 500;
 const COMMAND_CENTER_DROPDOWN_HIDE_DELAY = 200;
 const COMMAND_CENTER_DROPDOWN_CLOSE_ANIMATION_DURATION = 100;
 const COMMAND_CENTER_DROPDOWN_CLOSING_CLASS = 'agent-sessions-command-center-list-closing';
@@ -291,6 +291,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._showDropdownScheduler.cancel();
 		}));
 		this._register(contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
+		this._register(this.quickInputService.onShow(() => {
+			this._showDropdownScheduler.cancel();
+			this._openContextView?.close();
+		}));
 
 		// Replay the attention blink when the model reports a genuinely new, not-yet-
 		// visible block. Invalidate the cached render state so the identical pill is
@@ -351,7 +355,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._pointerOverAnchor = true;
 			this._hideDropdownScheduler.cancel();
 			this._cancelDropdownCloseAnimation();
-			if (!this._openContextView && !this._contextMenuVisible) {
+			if (!this._openContextView && !this._contextMenuVisible && !this.quickInputService.currentQuickInput) {
 				this._showDropdownScheduler.schedule();
 			}
 		}));
@@ -742,7 +746,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 					this.contextViewService.layout();
 				}));
 
-				store.add(this.quickInputService.onShow(() => this._openContextView?.close()));
 				store.add(addDisposableListener(viewContainer, EventType.MOUSE_ENTER, () => {
 					this._pointerOverDropdown = true;
 					this._hideDropdownScheduler.cancel();

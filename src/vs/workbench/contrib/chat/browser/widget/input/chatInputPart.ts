@@ -18,6 +18,7 @@ import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDel
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -154,6 +155,7 @@ import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction, OpenAgentHostFolderPickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { AgentHostFolderPickerActionItem } from '../../agentSessions/agentHost/agentHostFolderPickerActionItem.js';
+import { createNewWorktreeCheckboxViewItem, ToggleAgentHostNewWorktreeAction } from '../../agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
@@ -215,6 +217,14 @@ const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 1
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 const CHAT_INPUT_COMPACT_PICKER_WIDTH = 22;
+/** After switching the session type, the new session renders the session target picker again in quick succession; after this much quiet it is done. */
+const SESSION_TARGET_PICKER_SETTLE_DELAY = 100;
+/**
+ * How long after switching the session type the session target picker that the
+ * switch opens stays open while the new session renders it again, and how long
+ * to wait for the first render before opening it anyway.
+ */
+const SESSION_TARGET_PICKER_RENDER_TIMEOUT = 2000;
 
 export function getChatInputEditorMetrics(options: IChatInputPartOptions['inputEditorOptions'], defaultFontSize: number): { fontSize: number; lineHeight: number } {
 	const fontSize = options?.fontSize ?? defaultFontSize;
@@ -382,6 +392,11 @@ export interface IChatInputPartOptions {
 	 */
 	isSessionsWindow?: boolean;
 	/**
+	 * Whether it shows its session's working set: as set, also while {@link isSessionsWindow} is set; unset, where it renders
+	 * the working set ({@link renderWorkingSet}) outside a sessions window's chat. Never in the Agents window.
+	 */
+	sessionWorkingSet?: boolean;
+	/**
 	 * Total horizontal gutter (in pixels) reserved outside the input box when
 	 * computing the editor width. Defaults account for the `.interactive-input-part`
 	 * margin used by the panel/sessions chat. Hosts that override that margin (e.g.
@@ -423,6 +438,13 @@ export interface IChatInputHostSubmit {
 	readonly hasContent?: IObservable<boolean>;
 	/** Label shown on the submit button, for sends that do more than send one request. */
 	readonly label?: IObservable<string | undefined>;
+	/**
+	 * Called as the input submits to the host, before it saves the dirty files it saves before sending and calls the
+	 * host's `submitHandler`; the returned disposable is disposed as that submit ends, also when it fails.
+	 */
+	beginSubmit?(): IDisposable;
+	/** Show the host label instead of the submit icon. */
+	readonly labelOnly?: IObservable<boolean>;
 }
 
 export interface IWorkingSetEntry {
@@ -496,6 +518,8 @@ interface ISessionFileChanges {
 	readonly undo: IObservable<IChatSessionWorkingSetUndo | undefined>;
 	/** Keeps changes in the session, or `undefined` to remember kept changes in the workbench. */
 	readonly keep: IObservable<IChatSessionWorkingSetKeep | undefined>;
+	/** Opens all the changes in the session's own Changes editor, resolving to whether it did. */
+	readonly openAll?: () => Promise<boolean>;
 }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -830,12 +854,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	// logging so we can detect writes that target a different session than the
 	// one the widget viewModel is currently showing (cyclic-ref window).
 	private _inputModelSessionResource: URI | undefined;
-	/**
-	 * Speaks for the intended model while no conversation is bound — the inline request-edit input
-	 * part never binds one. Keeping it off the conversation is what makes that editor
-	 * self-contained: picking a model there to resubmit one request leaves the chat's own model
-	 * alone.
-	 */
+	/** Tracks model intent while no conversation is bound, including while editing a request inline. */
 	private readonly _unboundIntent = new IntendedModelSlot();
 
 	/**
@@ -954,6 +973,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly agentHostPickers = new Map<string, AgentHostChatInputPicker>();
 	private readonly overflowPickerWidget = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
+	/**
+	 * Opens the session target picker after switching the session type, once the
+	 * toolbar stops rendering it again, which closes a picker that was open.
+	 */
+	private readonly sessionTargetPickerOpening = this._register(new MutableDisposable<RunOnceScheduler>());
+	private sessionTargetPickerOpeningUntil = 0;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
 	private readonly chatSessionPickerWidgets = this._register(new DisposableMap<string, ChatSessionPickerActionItem>());
 	private chatSessionPickerContainer: HTMLElement | undefined;
@@ -992,9 +1017,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * bucket. See issue #320393.
 	 */
 	private readonly _modelConfigStore: ChatModelConfigurationStore;
+	private _modelSelectionRevision = 0;
 
 	get currentLanguageModel() {
 		return this._currentLanguageModel.get()?.identifier;
+	}
+
+	/** Changes when this input makes an explicit model or model configuration choice. */
+	get modelSelectionRevision(): number {
+		return this._modelSelectionRevision;
+	}
+
+	get hasUserSelectedModel(): boolean {
+		const intended = this._intentHolder.intendedModel;
+		return intended?.reason === ModelSelectionReason.UserSelection && intended.modelId === this.currentLanguageModel;
 	}
 
 	get selectedLanguageModel(): IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> {
@@ -1216,6 +1252,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 	) {
 		super();
 		// Registered before anything else here, so every listener below reads the models after the change.
@@ -1358,6 +1395,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this._currentLanguageModel.get();
 			if (model?.identifier === modelId) {
 				this.setCurrentLanguageModel(model, true, false);
+			} else {
+				this._modelSelectionRevision++;
 			}
 		}));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
@@ -1619,10 +1658,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * The remembered profile preference is updated only when both
 	 * `isUserAction` and `storeSelection` are true.
 	 */
-	public switchModelByIdentifier(identifier: string, storeSelection: boolean = false, isUserAction: boolean = false): boolean {
+	public switchModelByIdentifier(identifier: string, storeSelection: boolean = false, isUserAction: boolean = false, configuration?: IStringDictionary<unknown>): boolean {
 		const models = this.getModels();
 		const model = models.find(m => m.identifier === identifier);
 		if (model) {
+			this.restoreModelConfiguration(identifier, configuration, false);
 			if (isUserAction) {
 				this.setCurrentLanguageModel(model, true, storeSelection);
 			} else {
@@ -1709,7 +1749,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		if (this.chatPhoneInputPresenter.enabled.get()) {
-			this._showCombinedPhonePickerSheet();
+			this._showCombinedPhonePickerSheet('model');
 			return;
 		}
 		this.modelWidget?.show();
@@ -1743,7 +1783,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public openModePicker(anchor?: HTMLElement): void {
 		if (this.chatPhoneInputPresenter.enabled.get()) {
-			this._showCombinedPhonePickerSheet();
+			this._showCombinedPhonePickerSheet('mode');
 			return;
 		}
 		if (this.modeWidget?.isConnected) {
@@ -1764,11 +1804,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private _showCombinedPhonePickerSheet(): void {
+	private _showCombinedPhonePickerSheet(initialSection: 'mode' | 'model'): void {
 		const target = this.inputActionsToolbar.getElement();
 		this.chatPhoneInputPresenter
 			.showCombinedModeAndModelSheet(target, {
 				kind: 'delegates',
+				initialSection,
 				modeDelegate: this._createModePickerDelegate(),
 				modelDelegate: this._createModelPickerDelegate(),
 			})
@@ -1911,6 +1952,44 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public openSessionTargetPicker(): void {
 		this.sessionTargetWidget?.show();
+	}
+
+	/**
+	 * Picks a session type in the session target picker, as if the user selected it.
+	 * @param options.openPicker Then opens the picker, so the user sees where session
+	 * types are picked. After a switch, it opens once the new session rendered it.
+	 * @returns `switched` when it started a session of that type, `selected` when
+	 * the type was already selected, or `undefined` when the picker does not offer it.
+	 */
+	public selectSessionTarget(type: AgentSessionTarget, options?: { readonly openPicker?: boolean }): 'switched' | 'selected' | undefined {
+		const result = this.sessionTargetWidget?.selectSessionType(type);
+		if (options?.openPicker) {
+			if (result === 'switched') {
+				this.sessionTargetPickerOpeningUntil = Date.now() + SESSION_TARGET_PICKER_RENDER_TIMEOUT;
+				const opening = this.sessionTargetPickerOpening.value = new RunOnceScheduler(() => this.openSessionTargetPicker(), SESSION_TARGET_PICKER_RENDER_TIMEOUT);
+				opening.schedule();
+			} else {
+				this.openSessionTargetPicker();
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * The toolbar rendered the session target picker again, which closes it. After
+	 * a switch, it opens once the toolbar settles, and opens again when the toolbar
+	 * closes it shortly after, unless the user closed it.
+	 */
+	private reopenSessionTargetPickerAfterRender(): void {
+		const opening = this.sessionTargetPickerOpening.value;
+		if (!opening) {
+			return;
+		}
+		if (Date.now() > this.sessionTargetPickerOpeningUntil) {
+			this.sessionTargetPickerOpening.clear();
+		} else if (opening.isScheduled() || this.actionWidgetService.isVisible) {
+			opening.schedule(SESSION_TARGET_PICKER_SETTLE_DELAY);
+		}
 	}
 
 	public openDelegationPicker(): void {
@@ -2231,13 +2310,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Sync current input state to the input model
 	 */
-	private _syncInputStateToModel(): void {
+	private _syncInputStateToModel(storeMode = false): void {
 		if (this._isSyncingToOrFromInputModel) {
 			return;
 		}
 
 		this._isSyncingToOrFromInputModel = true;
 		const state = this.getCurrentInputState();
+		const savedMode = this._getSavedAgentHostMode();
+		if (!storeMode && savedMode) {
+			state.mode = savedMode;
+		}
 		if (this._chatSessionIsEmpty) {
 			this._emptyInputState.set(state, undefined);
 		}
@@ -2278,6 +2361,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (isUserAction && policyError) {
 			this.logService.warn('[ChatInputPart] Rejected model selection outside the selected agent model list');
 			throw new Error(policyError);
+		}
+		if (isUserAction) {
+			this._modelSelectionRevision++;
 		}
 		const persistSelection = isUserAction && storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {
@@ -2349,7 +2435,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Log first so the upcoming _syncInputStateToModel write can be attributed
 			// to a mode change.
 			logChangesToStateModel(this._inputModel, `setChatMode2 -> _syncInputStateToModel (mode=${mode.id}, storeSelection=${storeSelection}, isUserInitiated=${isUserInitiated}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
-			this._syncInputStateToModel();
+			this._syncInputStateToModel(true);
 		}
 	}
 
@@ -2728,16 +2814,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			&& gateInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh;
 	}
 
+	/**
+	 * The same custom agent can change its ID, e.g. from a synced copy to its source file while an agent host session starts.
+	 * Agent names are not unique, so only a single custom agent with the removed agent's name counts as its replacement.
+	 */
+	private findReplacementCustomAgent(removed: IChatMode, modes: IChatModes): IChatMode | undefined {
+		if (removed.isBuiltin) {
+			return undefined;
+		}
+		const sameName = modes.custom.filter(mode => mode.name.get() === removed.name.get());
+		return sameName.length === 1 ? sameName[0] : undefined;
+	}
+
 	private validateCurrentChatMode() {
 		// The refresh gate blocks AI use; it must not replace the user's persisted agent selection.
 		if (this.isManagedSettingsRefreshBlocked) {
 			return;
 		}
 		const currentMode = this._currentModeObservable.get();
-		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
+		const modes = this._currentChatModesObservable.get();
+		const validMode = modes.findModeById(currentMode.id) ?? this.findReplacementCustomAgent(currentMode, modes);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
+		const storeFallback = !this._getSavedAgentHostMode();
 		if (!validMode) {
-			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
+			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask, storeFallback);
+			return;
+		}
+		if (validMode.id !== currentMode.id) {
+			// Store the new ID, so that syncing from the input model does not bring back the old one.
+			this.setChatMode(validMode.id);
 			return;
 		}
 		if (validMode.kind !== currentMode.kind) {
@@ -2745,15 +2850,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
-			this.setChatMode(ChatModeKind.Ask);
+			this.setChatMode(ChatModeKind.Ask, storeFallback);
 			return;
 		}
 		if (currentMode.id === ChatMode.Ask.id) {
 			const askMode = this._currentChatModesObservable.get().custom.find(mode => mode.kind === ChatModeKind.Ask);
 			if (askMode) {
-				this.setChatMode(askMode.id);
+				this.setChatMode(askMode.id, storeFallback);
 			}
 		}
+	}
+
+	/** The saved agent can outlive its entry in the composer catalog. */
+	private _getSavedAgentHostMode(): IChatModelInputState['mode'] | undefined {
+		const resource = this._inputModelSessionResource;
+		if (!resource || !isAgentHostTarget(resource.scheme) || isUntitledChatSession(resource)
+			|| !(this.environmentService.isSessionsWindow || this.options.isSessionsWindow)) {
+			return undefined;
+		}
+		const mode = this._inputModel?.state.get()?.mode;
+		return mode && ![ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(mode.id) ? mode : undefined;
 	}
 
 	/**
@@ -4025,7 +4141,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
 		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
-		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
+		const options: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(this.configurationService),
+			// Monaco measures the font during construction, before the live font-size binding runs.
+			...getChatInputEditorMetrics(this.options.inputEditorOptions, this.chatLayoutService.fontSize.get()),
+		};
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
 		options.pasteAs = EditorOptions.pasteAs.defaultValue;
 		options.readOnly = false;
@@ -4047,6 +4167,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			showStatusBar: false,
 			insertMode: 'insert',
 			fitWidthToDetails: true,
+			reopenOnDelete: true,
 		};
 		options.scrollbar = this.options.renderStyle === 'compact'
 			? { ...(options.scrollbar ?? {}), vertical: 'hidden' }
@@ -4063,7 +4184,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 		this._register(this.bindInputEditorFontSize());
 		this._register(bindChatInputInlineSuggestions(this._inputEditor, this.configurationService));
-		this._register(bindSandboxPlaceholder(this._inputEditor, () => (!this.inline && this.options.inputPlaceholder) || widget.viewModel?.inputPlaceholder, this.sandboxToggleChecked));
+		// Same precedence as the widget's placeholder: the host's, then the selected agent's hint, then the session's.
+		this._register(bindSandboxPlaceholder(this._inputEditor, () => (!this.inline && this.options.inputPlaceholder) || this.currentModeObs.get().argumentHint?.get() || widget.viewModel?.inputPlaceholder, this.sandboxToggleChecked));
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 
@@ -4386,6 +4508,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						this.delegationWidget = picker;
 					} else {
 						this.sessionTargetWidget = picker;
+						this.reopenSessionTargetPickerAfterRender();
 					}
 					return picker;
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
@@ -4455,6 +4578,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
 					const hasSecondaryActions = secondaryExecuteActions().length > 0;
 					const submitLabel = this.options.hostSubmit?.label;
+					const submitLabelOnly = this.options.hostSubmit?.labelOnly;
 					const createPrimaryAction = () => this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
 						override render(container: HTMLElement): void {
 							super.render(container);
@@ -4464,10 +4588,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								labelElement.setAttribute('aria-hidden', 'true');
 								this._register(autorun(reader => {
 									const label = submitLabel.read(reader);
+									const labelOnly = !!label && !!submitLabelOnly?.read(reader);
 									labelElement.textContent = label ?? '';
+									if (this.label) {
+										this.label.textContent = labelOnly ? label : '';
+									}
 									container.classList.toggle('labeled', !!label);
+									container.classList.toggle('label-only', labelOnly);
+									if (hasSecondaryActions) {
+										container.parentElement?.classList.toggle('chat-submit-button-label-only', labelOnly);
+									}
 									container.classList.toggle('chat-submit-button', !hasSecondaryActions || !!label);
 									this.updateAriaLabel();
+									this.updateTooltip();
 								}));
 							}
 						}
@@ -4478,6 +4611,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							if (label) {
 								this.label?.setAttribute('aria-label', label);
 							}
+						}
+
+						protected override getTooltip(): string {
+							return submitLabelOnly?.get() && submitLabel?.get() || super.getTooltip();
 						}
 					}, action, options);
 					return hasSecondaryActions
@@ -4585,6 +4722,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return Math.max(0, laneWidth - genericChipsContainer.getBoundingClientRect().width - gap);
 		};
 		const agentHostPermissions = this._register(new MutableDisposable<AgentHostChatInputPicker>());
+		let folderPicker: AgentHostFolderPickerActionItem | undefined;
 		if (this.options.renderSecondaryToolbar !== false) {
 			this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, responsivePickerContainer, MenuId.ChatInputSecondary, {
 				telemetrySource: this.options.menus.telemetrySource,
@@ -4596,7 +4734,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					kind: 'all',
 					minItems: 1,
 					actionMinWidth: 48,
-					getActionMinWidth: action => secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined),
+					// A folder chip that always shows its name needs its width, which it does not give up as compact pickers do
+					getActionMinWidth: action => (action.id === OpenAgentHostFolderPickerAction.ID ? folderPicker?.getMinimumWidth() : undefined)
+						?? secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined),
 					observedElement: responsivePickerContainer,
 					getAvailableWidth: getSecondaryToolbarAvailableWidth,
 					allowOverflow: () => this._secondaryPickerResponsiveLayout?.areAllItemsCompact() === true,
@@ -4632,6 +4772,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.delegationWidget = picker;
 						} else {
 							this.sessionTargetWidget = picker;
+							this.reopenSessionTargetPickerAfterRender();
 						}
 						return picker;
 					} else if (action.id === OpenPermissionPickerAction.ID && action instanceof MenuItemAction) {
@@ -4705,13 +4846,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								this.agentHostPickers.delete(agentHostPickerProperty);
 							}
 						}, retainPicker);
+					} else if (action.id === ToggleAgentHostNewWorktreeAction.ID) {
+						return createNewWorktreeCheckboxViewItem(action, options, this.instantiationService);
 					} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
 						if (this.options.isSessionsWindow) {
 							return new HiddenActionViewItem(action);
 						}
 						const createPicker = () => this.instantiationService.createInstance(AgentHostFolderPickerActionItem, action, widget, getSecondaryPickerOptions(action.id));
 						secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
-						return createPicker();
+						folderPicker = createPicker();
+						return folderPicker;
 					} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 						const createPicker = () => {
 							const widgets = this.createChatSessionPickerWidgets(action, getSecondaryPickerOptions(action.id));
@@ -5512,16 +5656,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Provides the session's file changes to the session working set, `undo`
 	 * when the session can undo its changes to single files, and `keep` when
-	 * the session keeps changes itself.
+	 * the session keeps changes itself, and `openAll` when the session opens all its changes in an editor of its own.
 	 */
-	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keep: IObservable<IChatSessionWorkingSetKeep | undefined> = constObservable(undefined)): IDisposable {
-		const source: ISessionFileChanges = { changes, undo, keep };
+	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keep: IObservable<IChatSessionWorkingSetKeep | undefined> = constObservable(undefined), openAll?: () => Promise<boolean>): IDisposable {
+		const source: ISessionFileChanges = { changes, undo, keep, openAll };
 		this._sessionFileChanges.set(source, undefined);
 		return toDisposable(() => {
 			if (this._sessionFileChanges.get() === source) {
 				this._sessionFileChanges.set(undefined, undefined);
 			}
 		});
+	}
+
+	/**
+	 * The files the session working set shows: the registered session file changes, without those the input kept itself,
+	 * such as for a host without Accept Changes. None while the working set doesn't show.
+	 */
+	get sessionWorkingSetDiffs(): IObservable<readonly IEditSessionEntryDiff[]> {
+		return this._sessionWorkingSetDiffs;
 	}
 
 	get hasSessionWorkingSet(): boolean {
@@ -5542,11 +5694,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Whether this input can show the session working set. Only the editor
-	 * window offers it; the Agents window doesn't, even in a chat editor.
+	 * Whether this input can show the session working set, as its
+	 * `sessionWorkingSet` option says, or by default where it renders the
+	 * working set outside a sessions window's chat. Only the editor window
+	 * offers it; the Agents window doesn't, even in a chat editor.
 	 */
 	get supportsSessionWorkingSet(): boolean {
-		return this.options.renderWorkingSet && !this.options.isSessionsWindow && !this.environmentService.isSessionsWindow;
+		return (this.options.sessionWorkingSet ?? (this.options.renderWorkingSet && !this.options.isSessionsWindow)) && !this.environmentService.isSessionsWindow;
 	}
 
 	renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
@@ -5679,6 +5833,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						},
 						keepEnabled: derived(r => sessionKeep.read(r)?.enabled.read(r) ?? true),
 						undo: derived(r => this._sessionFileChanges.read(r)?.undo.read(r)),
+						openAll: async () => !!await this._sessionFileChanges.read(undefined)?.openAll?.(),
 					}, () => this.focus()));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
 					this._sessionWorkingSet = workingSet;

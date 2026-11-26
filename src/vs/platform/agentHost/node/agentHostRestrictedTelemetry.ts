@@ -135,6 +135,11 @@ export async function multiplexProperties(properties: TelemetryProps): Promise<T
  * `ITelemetryService` restricted methods so agent-host code can emit the same GH/MSFT events.
  */
 export interface IAgentHostRestrictedTelemetry {
+	/**
+	 * When defined, indicates whether any restricted telemetry sink (enhanced GH or internal MSFT)
+	 * is currently active. Callers can skip payload preparation when this is `false`.
+	 */
+	readonly isRestrictedTelemetryActive?: boolean;
 	/** GH standard (non-restricted) telemetry -> `copilot_v0_copilot_event`. */
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** GH standard telemetry attributed and routed using the account of the credential that did the work. */

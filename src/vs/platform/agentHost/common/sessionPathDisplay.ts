@@ -8,17 +8,22 @@ import { isEqual, type IExtUri } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 
-/** A verified storage root and its current owning session, in the same URI space as the displayed resource. */
+/** A verified conversation storage root, with identities and relationships supplied by the host. */
 export interface ISessionPathRoot {
 	readonly root: URI;
 	readonly session: URI;
 	readonly title?: string;
+	readonly parentSession?: URI;
+	readonly parentTitle?: string;
 }
 
 export interface ISessionPathDisplay {
 	readonly label: string;
 	readonly fullPath: string;
 	readonly session?: URI;
+	readonly sessionTitle?: string;
+	readonly relationship?: 'parent' | 'child';
+	readonly parentSessionTitle?: string;
 	readonly isCurrentSession?: boolean;
 	readonly relativePath?: string;
 }
@@ -47,13 +52,30 @@ export function getSessionPathDisplay(fullPath: string, resource: URI, currentSe
 	}
 	// Use the validated prefix rather than case-sensitive POSIX relative-path math.
 	const relativePath = normalized.path.slice(extUri.normalizePath(match.root).path.length).replace(/^\//, '');
+	const current = roots.find(candidate => isEqual(candidate.session, currentSession));
+	const relationship = isCurrentSession ? undefined
+		: current?.parentSession && isEqual(current.parentSession, match.session) ? 'parent'
+			: match.parentSession ? 'child' : undefined;
+	const parentSessionTitle = relationship === 'child' && !isEqual(match.parentSession, currentSession) ? match.parentTitle : undefined;
+	if (relationship === 'child' && !isEqual(match.parentSession, currentSession) && !parentSessionTitle?.trim()) {
+		return fallback;
+	}
 	const sessionLabel = isCurrentSession
 		? localize('sessionPath.thisSession', "This session")
-		: localize('sessionPath.namedSession', "Session \"{0}\"", match.title);
+		: relationship === 'parent'
+			? localize('sessionPath.parentSession', "Parent session \"{0}\"", match.title)
+			: relationship === 'child'
+				? parentSessionTitle
+					? localize('sessionPath.otherChildSession', "Child session \"{0}\" of session \"{1}\"", match.title, parentSessionTitle)
+					: localize('sessionPath.childSession', "Child session \"{0}\"", match.title)
+				: localize('sessionPath.namedSession', "Session \"{0}\"", match.title);
 	return {
 		label: relativePath ? localize('sessionPath.relative', "{0} / {1}", sessionLabel, relativePath) : sessionLabel,
 		fullPath,
 		session: match.session,
+		...(!isCurrentSession ? { sessionTitle: match.title } : {}),
+		...(relationship ? { relationship } : {}),
+		...(parentSessionTitle ? { parentSessionTitle } : {}),
 		isCurrentSession,
 		relativePath,
 	};

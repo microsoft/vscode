@@ -289,9 +289,20 @@ impl crate::util::io::ReportCopyProgress for DownloadLogger<'_> {
 	}
 }
 
+fn format_timestamp(current: &Zoned) -> String {
+	format!(
+		"{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+		current.year(),
+		current.month(),
+		current.day(),
+		current.hour(),
+		current.minute(),
+		current.second(),
+	)
+}
+
 fn format(level: Level, prefix: &str, message: &str, use_colors: bool) -> String {
-	let current = Zoned::now();
-	let timestamp = current.strftime("%Y-%m-%d %H:%M:%S").to_string();
+	let timestamp = format_timestamp(&Zoned::now());
 
 	let name = level.name().unwrap();
 
@@ -406,3 +417,29 @@ macro_rules! warning {
          $logger.emit(log::Level::Warn, &format!($($fmt),+))
      };
  }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use jiff::civil::date;
+	use jiff::tz::{Offset, TimeZone};
+
+	#[test]
+	fn timestamp_format_matches_legacy() {
+		for year in [-9999, -2025, -999, -24, -1, 0, 1, 24, 999, 2024, 9999] {
+			for offset_seconds in [-43_200, -25_200, 0, 20_700, 50_400] {
+				let current = date(year, 7, 9)
+					.at(1, 2, 3, 456_789_123)
+					.to_zoned(TimeZone::fixed(
+						Offset::from_seconds(offset_seconds).unwrap(),
+					))
+					.unwrap();
+				assert_eq!(
+					format_timestamp(&current),
+					current.strftime("%Y-%m-%d %H:%M:%S").to_string(),
+					"year={year}, offset={offset_seconds}"
+				);
+			}
+		}
+	}
+}

@@ -68,6 +68,8 @@ export interface IChatPillEntry {
 	/** Short label used when this entry renders as the pill itself. */
 	readonly pillLabel?: string;
 	readonly icon?: ThemeIcon;
+	/** CSS classes that render an icon that is not a theme icon, such as an image, in place of {@link icon}. */
+	readonly iconClasses?: readonly string[];
 	/** Renders the entry with its resource's themed file icon. */
 	readonly resource?: URI;
 	/** Displays a thumbnail above the resource location in the entry's hover. */
@@ -471,6 +473,17 @@ export class ChatPillsRow extends Disposable {
 		this.element.classList.add('chat-pills-row');
 		const compactMode = options?.compact ?? false;
 		this.element.classList.toggle('compact', compactMode === true);
+
+		this._register(Gesture.addTarget(this.content));
+		this._register(addDisposableListener(this.content, TouchEventType.Change, event => {
+			EventHelper.stop(event, true);
+			const { scrollLeft } = this._scrollable.getScrollPosition();
+			this._scrollable.setScrollPosition({ scrollLeft: scrollLeft - event.translationX });
+		}));
+		this._register(addDisposableListener(this.content, TouchEventType.Contextmenu, event => {
+			EventHelper.stop(event, true);
+			this._onDidRequestContextMenu.fire(isHTMLElement(event.initialTarget) ? event.initialTarget : this.content);
+		}));
 
 		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, entries => {
 			if (entries.some(entry => entry.target !== this.content)) {

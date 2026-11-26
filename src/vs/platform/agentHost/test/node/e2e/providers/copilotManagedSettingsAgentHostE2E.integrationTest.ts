@@ -372,9 +372,9 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 		}));
 		await writeFile(join(extensionDirectory, 'extension.mjs'), `
 import { writeFileSync } from 'node:fs';
-import { joinSession } from '@github/copilot-sdk/extension';
+import { joinSession } from '@microsoft/copilot-sdk/extension';
 writeFileSync(new URL('./started', import.meta.url), 'started');
-await joinSession({ tools: [] });
+await joinSession({ tools: { definitions: [] } });
 `, 'utf8');
 		const toCustomization = (folder: string, name: string, meta?: Record<string, unknown>): ClientPluginCustomization => {
 			const uri = URI.file(folder).toString();

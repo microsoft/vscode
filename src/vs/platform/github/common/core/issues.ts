@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { JsonObject, PageOptions, RepositoryRef } from '../client/types.js';
 import { Account, Label, Milestone, Reaction, ReactionContent } from './core.js';
@@ -199,71 +200,71 @@ export type ReactionTarget =
 export interface IIssuesClient {
 
 	/** GET /repos/{owner}/{repo}/issues/{number}: read issue or PR conversation metadata. */
-	get(respository: RepositoryRef, issueNumber: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue>;
+	get(respository: RepositoryRef, issueNumber: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue>;
 
 	/** GET /repos/{owner}/{repo}/issues: return one page, including PRs. */
-	list(respository: RepositoryRef, signal: AbortSignal, options?: ListIssuesOptions): Promise<readonly Issue[]>;
+	list(respository: RepositoryRef, cancellationToken: CancellationToken, options?: ListIssuesOptions): Promise<readonly Issue[]>;
 
 	/** GraphQL: count closing PRs, including closed PRs, in batches. Unavailable issues or references map to null; an unavailable repository returns null. */
-	getClosingPullRequestCounts(repository: RepositoryRef, issueNumbers: readonly number[], signal: AbortSignal, options?: ApiRequestOptions): Promise<Readonly<Record<number, number | null>> | null>;
+	getClosingPullRequestCounts(repository: RepositoryRef, issueNumbers: readonly number[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Readonly<Record<number, number | null>> | null>;
 
 	/** POST /repos/{owner}/{repo}/issues: create an issue. */
-	create(repository: RepositoryRef, request: CreateIssueRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue>;
+	create(repository: RepositoryRef, request: CreateIssueRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue>;
 
 	/** PATCH /repos/{owner}/{repo}/issues/{number}: update only supplied fields. */
-	update(repository: RepositoryRef, issueNumber: number, request: UpdateIssueRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue>;
+	update(repository: RepositoryRef, issueNumber: number, request: UpdateIssueRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue>;
 
 	/** GET /repos/{owner}/{repo}/issues/{number}/comments: list one page of top-level comments. */
-	listComments(repository: RepositoryRef, issueNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly IssueComment[]>;
+	listComments(repository: RepositoryRef, issueNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly IssueComment[]>;
 
 	/** GET /repos/{owner}/{repo}/issues/comments/{id}: read one top-level comment. */
-	getComment(repository: RepositoryRef, commentId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<IssueComment>;
+	getComment(repository: RepositoryRef, commentId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<IssueComment>;
 
 	/** POST /repos/{owner}/{repo}/issues/{number}/comments: create a top-level comment. */
-	createComment(repository: RepositoryRef, issueNumber: number, body: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<IssueComment>;
+	createComment(repository: RepositoryRef, issueNumber: number, body: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<IssueComment>;
 
 	/** PATCH /repos/{owner}/{repo}/issues/comments/{id}: edit a top-level comment. */
-	updateComment(repository: RepositoryRef, commentId: number, body: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<IssueComment>;
+	updateComment(repository: RepositoryRef, commentId: number, body: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<IssueComment>;
 
 	/** DELETE /repos/{owner}/{repo}/issues/comments/{id}: delete a top-level comment. */
-	deleteComment(repository: RepositoryRef, commentId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	deleteComment(repository: RepositoryRef, commentId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 
 	/** GET /repos/{owner}/{repo}/issues/{number}/timeline: list one page of timeline events. */
-	listTimeline(repository: RepositoryRef, issueNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly TimelineEvent[]>;
+	listTimeline(repository: RepositoryRef, issueNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly TimelineEvent[]>;
 
 	/** GET /repos/{owner}/{repo}/labels: list one page of repository labels. */
-	listLabels(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Label[]>;
+	listLabels(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Label[]>;
 
 	/** POST /repos/{owner}/{repo}/labels: create a repository label. */
-	createLabel(repository: RepositoryRef, request: CreateLabelRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Label>;
+	createLabel(repository: RepositoryRef, request: CreateLabelRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Label>;
 
 	/** PUT /repos/{owner}/{repo}/issues/{number}/labels: replace all labels; an empty array clears them. */
-	setLabels(repository: RepositoryRef, issueNumber: number, labels: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly Label[]>;
+	setLabels(repository: RepositoryRef, issueNumber: number, labels: readonly string[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly Label[]>;
 
 	/** DELETE /repos/{owner}/{repo}/issues/{number}/labels/{name}: remove one label. */
-	removeLabel(repository: RepositoryRef, issueNumber: number, name: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly Label[]>;
+	removeLabel(repository: RepositoryRef, issueNumber: number, name: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly Label[]>;
 
 	/** GET /repos/{owner}/{repo}/milestones: list one page of milestones. */
-	listMilestones(repository: RepositoryRef, signal: AbortSignal, options?: ListMilestonesOptions): Promise<readonly Milestone[]>;
+	listMilestones(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListMilestonesOptions): Promise<readonly Milestone[]>;
 
 	/** POST /repos/{owner}/{repo}/milestones: create a milestone. */
-	createMilestone(repository: RepositoryRef, request: CreateMilestoneRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Milestone>;
+	createMilestone(repository: RepositoryRef, request: CreateMilestoneRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Milestone>;
 
 	/** GET /repos/{owner}/{repo}/assignees: list one page of eligible assignees. */
-	listAssignees(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Account[]>;
+	listAssignees(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Account[]>;
 
 	/** POST /repos/{owner}/{repo}/issues/{number}/assignees: add assignees without replacing existing ones. */
-	addAssignees(repository: RepositoryRef, issueNumber: number, assignees: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue>;
+	addAssignees(repository: RepositoryRef, issueNumber: number, assignees: readonly string[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue>;
 
 	/** DELETE /repos/{owner}/{repo}/issues/{number}/assignees: remove the specified assignees. */
-	removeAssignees(repository: RepositoryRef, issueNumber: number, assignees: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue>;
+	removeAssignees(repository: RepositoryRef, issueNumber: number, assignees: readonly string[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue>;
 
 	/** GET the target's reactions collection: return one page. */
-	listReactions(repository: RepositoryRef, target: ReactionTarget, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Reaction[]>;
+	listReactions(repository: RepositoryRef, target: ReactionTarget, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Reaction[]>;
 
 	/** POST the target's reactions collection: create a reaction or return the existing one. */
-	createReaction(repository: RepositoryRef, target: ReactionTarget, content: ReactionContent, signal: AbortSignal, options?: ApiRequestOptions): Promise<Reaction>;
+	createReaction(repository: RepositoryRef, target: ReactionTarget, content: ReactionContent, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Reaction>;
 
 	/** DELETE the target's reaction resource by its numeric ID. */
-	deleteReaction(repository: RepositoryRef, target: ReactionTarget, reactionId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	deleteReaction(repository: RepositoryRef, target: ReactionTarget, reactionId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 }

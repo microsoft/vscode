@@ -8,6 +8,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState } from '../../../../../services/policies/common/accountPolicyService.js';
 import { IReference, MutableDisposable, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -42,6 +43,7 @@ import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 import { MockChatModel } from '../../common/model/mockChatModel.js';
+import { ILocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
 
 suite('Chat move actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -91,6 +93,8 @@ suite('Chat move actions', () => {
 				return model;
 			},
 			focusInput() { },
+			shownSession: constObservable(undefined),
+			reportShown() { },
 		});
 		const viewsService = upcastPartial<IViewsService>({
 			openView: mockObject<IViewsService>()().openView.resolves(view),
@@ -117,6 +121,7 @@ suite('Chat move actions', () => {
 				upcastPartial<IProgressService>({}),
 				new NullManagedSettingsService(),
 				{ _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } },
+				upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 			));
 			sourceEditor.updateModel(model);
 			sourceRef.dispose();

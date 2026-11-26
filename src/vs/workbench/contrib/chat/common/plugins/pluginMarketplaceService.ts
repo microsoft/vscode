@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { runWhenGlobalIdle, ThrottledDelayer } from '../../../../../base/common/async.js';
 import { equals } from '../../../../../base/common/arrays.js';
+import { ThrottledDelayer, runWhenGlobalIdle } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -14,11 +14,12 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { LRUCache } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { readAgentPluginManifest } from '../../../../../platform/agentPlugins/common/agentPluginParser.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
@@ -31,22 +32,21 @@ import { IMeteredConnectionService } from '../../../../../platform/meteredConnec
 import { ObservableMemento, observableMemento } from '../../../../../platform/observable/common/observableMemento.js';
 import { COPILOT_STRICT_MARKETPLACES_KEY, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import type { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { AutoUpdateConfigurationKey, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { ChatConfiguration } from '../constants.js';
 import { customizationSearchMatchesAny } from '../aiCustomizationSearch.js';
+import { ChatConfiguration } from '../constants.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { IAgentPluginEnablementService } from './agentPluginService.js';
 import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
-import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
-import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { readAgentPluginManifest } from '../../../../../platform/agentPlugins/common/agentPluginParser.js';
-import { type IMarketplaceReference, deduplicateMarketplaceReferences, getGitUrlCacheSegments, gitRevisionCacheSuffix, MarketplaceReferenceKind, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
+import { type IMarketplaceReference, MarketplaceReferenceKind, deduplicateMarketplaceReferences, getGitUrlCacheSegments, gitRevisionCacheSuffix, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from './strictKnownMarketplaces.js';
+import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 
 // Re-export marketplace reference types for downstream consumers.
-export { deduplicateMarketplaceReferences, extraKnownMarketplacesToConfigDict, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
+export { MarketplaceReferenceKind, deduplicateMarketplaceReferences, extraKnownMarketplacesToConfigDict, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
 export type { IConfiguredMarketplaces, IMarketplaceReference } from './marketplaceReference.js';
 
 export const enum MarketplaceType {
@@ -747,19 +747,19 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		let plugins: IMarketplacePlugin[];
 		const lifetime = new DisposableStore();
-		const signal = CancellationToken.toAbortSignal(token, lifetime);
+		const cancellationToken = token;
 		try {
-			const client = lifetime.add(await this._gitHubService.acquireAnonymousApiClient(signal));
+			const client = lifetime.add(await this._gitHubService.acquireAnonymousApiClient(cancellationToken));
 			const repository = toRepositoryRef(repo);
-			const commit = await client.content.resolveRef(repository, reference.ref ?? 'main', signal, { caller: 'pluginMarketplaceService.resolveRef', noCache: options?.refresh, priority: options?.priority });
+			const commit = await client.content.resolveRef(repository, reference.ref ?? 'main', cancellationToken, { caller: 'pluginMarketplaceService.resolveRef', noCache: options?.refresh, priority: options?.priority });
 			plugins = await this._readPluginsFromDefinitions(reference, async defPath => {
-				signal.throwIfAborted();
+				CancellationToken.throwIfCanceled(cancellationToken);
 				try {
-					const text = await client.content.getRawFile(repository, commit, defPath, signal, { caller: 'pluginMarketplaceService.fetchPluginList', priority: options?.priority });
+					const text = await client.content.getRawFile(repository, commit, defPath, cancellationToken, { caller: 'pluginMarketplaceService.fetchPluginList', priority: options?.priority });
 					const json: IMarketplaceJson | null = JSON.parse(text);
 					return json ?? undefined;
 				} catch (error) {
-					if (signal.aborted || isCancellationError(error) || RequestError.isResponseTooLarge(error)) {
+					if (cancellationToken.isCancellationRequested || isCancellationError(error) || RequestError.isResponseTooLarge(error)) {
 						throw error;
 					}
 					recordReadError(error);
@@ -767,7 +767,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				}
 			});
 		} catch (error) {
-			if (signal.aborted || isCancellationError(error)) {
+			if (cancellationToken.isCancellationRequested || isCancellationError(error)) {
 				return [];
 			}
 			recordReadError(error);

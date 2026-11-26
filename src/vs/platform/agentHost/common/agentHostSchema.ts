@@ -572,6 +572,14 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 
 export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
 
+/**
+ * Root config key forwarded from the renderer's `chat.useHooks` setting. When
+ * `false`, Copilot sessions launch without the hooks VS Code controls:
+ * repository hooks, custom agent hooks, and the plugin hooks VS Code runs
+ * itself. VS Code's own SDK callbacks are unaffected.
+ */
+export const AgentHostHooksEnabledConfigKey = 'hooksEnabled';
+
 export interface IAgentHostWorkspaceTrust {
 	readonly enabled: boolean;
 	readonly trustedUris: readonly string[];
@@ -618,6 +626,9 @@ export const AgentHostProxyConfigKey = {
 	Proxy: 'http.proxy',
 	ProxyKerberosServicePrincipal: 'http.proxyKerberosServicePrincipal',
 	NoProxy: 'http.noProxy',
+	ProxySupport: 'http.proxySupport',
+	SystemCertificates: 'http.systemCertificates',
+	SystemCertificatesNode: 'http.systemCertificatesNode',
 } as const;
 
 const agentHostProxyConfigDefinition = {
@@ -637,6 +648,30 @@ const agentHostProxyConfigDefinition = {
 		description: localize('agentHost.config.httpNoProxy.description', "Domain names that bypass the configured HTTP proxy."),
 		items: { type: 'string', title: localize('agentHost.config.httpNoProxy.item.title', "Domain") },
 		default: [],
+	}),
+	[AgentHostProxyConfigKey.ProxySupport]: schemaProperty<'off' | 'on' | 'fallback' | 'override'>({
+		type: 'string',
+		title: localize('agentHost.config.httpProxySupport.title', "HTTP Proxy Support"),
+		description: localize('agentHost.config.httpProxySupport.description', "Controls whether network requests from the Agent Host use the resolved proxy."),
+		enum: ['off', 'on', 'fallback', 'override'],
+		enumDescriptions: [
+			localize('agentHost.config.httpProxySupport.off', "Disable proxy support."),
+			localize('agentHost.config.httpProxySupport.on', "Enable proxy support."),
+			localize('agentHost.config.httpProxySupport.fallback', "Enable proxy support, falling back to request options when no proxy is found."),
+			localize('agentHost.config.httpProxySupport.override', "Enable proxy support, overriding request options."),
+		],
+		default: 'override',
+	}),
+	[AgentHostProxyConfigKey.SystemCertificates]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.httpSystemCertificates.title', "HTTP System Certificates"),
+		description: localize('agentHost.config.httpSystemCertificates.description', "Whether network requests from the Agent Host trust CA certificates loaded from the OS."),
+		default: true,
+	}),
+	[AgentHostProxyConfigKey.SystemCertificatesNode]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.httpSystemCertificatesNode.title', "HTTP System Certificates Node"),
+		description: localize('agentHost.config.httpSystemCertificatesNode.description', "Whether the Agent Host loads system certificates using Node.js built-in support."),
 	}),
 };
 export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
@@ -671,6 +706,11 @@ export const AgentHostWorkspaceSnapshotEnabledConfigKey = 'workspaceSnapshotEnab
 export const AgentHostAgentOrchestrationLimitsConfigKey = 'agentOrchestrationLimits';
 export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 
+/** Root config key controlling whether agents can choose a model's reasoning effort and context size in `create_session`, and how they find the models and options. */
+export const AgentHostSessionModelOptionsConfigKey = 'sessionModelOptions';
+export const agentHostSessionModelOptionsValues = ['off', 'inline', 'tool'] as const;
+export type AgentHostSessionModelOptions = typeof agentHostSessionModelOptionsValues[number];
+
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 export const AgentHostChatResourcesConfigKey = 'chatResources';
@@ -684,6 +724,9 @@ export const AgentHostAhpJsonlLoggingEnabledConfigKey = 'ahpJsonlLoggingEnabled'
 
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
+
+/** Root config key controlling whether the host shares identical read-only git commands and caps how many run at once. */
+export const AgentHostGitCoalesceReadsConfigKey = 'gitCoalesceReads';
 
 /**
  * Root config key forwarded from the renderer's
@@ -699,6 +742,24 @@ export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPrep
  * Copilot draft starts its SDK session and MCP servers before the first send.
  */
 export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
+export const AgentHostKeepAwakeConfigKey = 'keepAwakeWhileWorking';
+
+export const enum AgentHostKeepAwakeMode {
+	Never = 'never',
+	Always = 'always',
+	WhenPluggedIn = 'whenPluggedIn',
+}
+
+export const agentHostKeepAwakeConfiguration = {
+	type: 'string' as const,
+	enum: [AgentHostKeepAwakeMode.Never, AgentHostKeepAwakeMode.Always, AgentHostKeepAwakeMode.WhenPluggedIn],
+	enumDescriptions: [
+		localize('agentHost.config.keepAwake.never', "Allow idle sleep while a chat is working."),
+		localize('agentHost.config.keepAwake.always', "Prevent idle sleep while a chat is working, even on battery power."),
+		localize('agentHost.config.keepAwake.whenPluggedIn', "Prevent idle sleep only while the host is plugged in. On Linux desktop, the power source is unavailable, so this option allows idle sleep."),
+	],
+	default: AgentHostKeepAwakeMode.WhenPluggedIn,
+};
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -937,6 +998,12 @@ export const platformRootSchema = createSchema({
 		required: ['enabled', 'trustedUris'],
 		readOnly: true,
 	}),
+	[AgentHostHooksEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.hooksEnabled.title', "Hooks"),
+		description: localize('agentHost.config.hooksEnabled.description', "Whether VS Code's `chat.useHooks` setting allows hooks. When `false`, Copilot sessions run no repository hooks, custom agent hooks, or plugin hooks that VS Code runs itself."),
+		default: true,
+	}),
 	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.autoReplyEnabled.title', "Auto Reply"),
@@ -958,7 +1025,7 @@ export const platformRootSchema = createSchema({
 	[AgentHostComputerUseEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.computerUseEnabled.title', "Computer Use"),
-		description: localize('agentHost.config.computerUseEnabled.description', "Whether local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin."),
+		description: localize('agentHost.config.computerUseEnabled.description', "Whether Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin to operate desktop applications on the machine running the agent host."),
 		default: false,
 	}),
 	[AgentHostBrowserUseEnabledConfigKey]: schemaProperty<boolean>({
@@ -1059,6 +1126,18 @@ export const platformRootSchema = createSchema({
 		],
 		default: 'on',
 	}),
+	[AgentHostSessionModelOptionsConfigKey]: schemaProperty<AgentHostSessionModelOptions>({
+		type: 'string',
+		title: localize('agentHost.config.sessionModelOptions.title', "Session Model Options"),
+		description: localize('agentHost.config.sessionModelOptions.description', "Controls whether agents can choose a model's reasoning effort and context size in `create_session`, and how they find the models and options."),
+		enum: [...agentHostSessionModelOptionsValues],
+		enumDescriptions: [
+			localize('agentHost.config.sessionModelOptions.off', "Agents choose only a model in `create_session`."),
+			localize('agentHost.config.sessionModelOptions.inline', "Agents can also choose a reasoning effort and context size, and `create_session` lists the models and their options when the agent loads it through tool search."),
+			localize('agentHost.config.sessionModelOptions.tool', "Agents can also choose a reasoning effort and context size, and list the models and their options with `list_models`."),
+		],
+		default: 'off',
+	}),
 	[AgentHostArtifactToolsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
@@ -1096,6 +1175,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
 		default: true,
 	}),
+	[AgentHostGitCoalesceReadsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.gitCoalesceReads.title', "Share Git Reads"),
+		description: localize('agentHost.config.gitCoalesceReads.description', "Whether the Agent Host shares one process between identical read-only git commands that run at the same time, and limits how many read-only git commands run at once."),
+		default: false,
+	}),
 	[ModelRouterEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.modelRouterEnabled.title', "Model Routers"),
@@ -1112,7 +1197,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
 		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
-		default: false,
+		default: true,
+	}),
+	[AgentHostKeepAwakeConfigKey]: schemaProperty<AgentHostKeepAwakeMode>({
+		...agentHostKeepAwakeConfiguration,
+		title: localize('agentHost.config.keepAwake.title', "Keep Awake While Working"),
+		description: localize('agentHost.config.keepAwake.description', "Controls when this Agent Host prevents idle sleep while a chat is working. The display can turn off and explicit sleep is not inhibited."),
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',
