@@ -553,6 +553,7 @@ export interface ISessionServerToolAccessor extends IAgentServiceSessionServerTo
 	/** The recorded default chat of a session, if any. */
 	readonly getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined;
 	readonly canAskUser: (chat: ProtocolURI) => boolean;
+	readonly turnOffOrchestrationLimits: () => void;
 }
 
 /** Resolves the chat a link's chat id addresses against the session's recorded chats. */
@@ -2492,7 +2493,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 	const sessionsLimit = { kind: OrchestrationLimitKind.Sessions, limiter: createdSessions, action: 'create more sessions' };
 	const chatsLimit = { kind: OrchestrationLimitKind.Chats, limiter: createdChats, action: 'create more chats' };
 	const messagesLimit = { kind: OrchestrationLimitKind.Messages, limiter: sentMessages, action: 'send more messages' };
-	const limitGate = new OrchestrationLimitGate(context => accessor?.canAskUser(context.chatUri) === true);
+	const limitGate = new OrchestrationLimitGate(context => accessor?.canAskUser(context.chatUri) === true, () => accessor?.turnOffOrchestrationLimits());
 	const group: IServerToolGroup = {
 		definitions: sessionServerToolDefinitions,
 		// Remove after 2026-10-26; self-mapped because its arguments differ from create_session.
