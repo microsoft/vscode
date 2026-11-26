@@ -70,14 +70,19 @@ suite('ModelRoutersWidget', () => {
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		const instantiationService = workbenchInstantiationService({ fileService: () => fileService }, store);
 		const onDidListModels = store.add(new Emitter<string>());
-		const listModels = () => {
+		const laterModels = new Map<string, ILanguageModelChatMetadata>();
+		/** The agent lists its models, with `another` that it did not have before. */
+		const listModels = (another?: ILanguageModelChatMetadata) => {
 			hasListedModels = true;
+			if (another) {
+				laterModels.set(another.id, another);
+			}
 			onDidListModels.fire(harnessId);
 		};
 		instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 			override readonly onDidChangeLanguageModels = onDidListModels.event;
-			override getLanguageModelIds() { return hasListedModels ? [...models.keys()] : []; }
-			override lookupLanguageModel(id: string) { return models.get(id); }
+			override getLanguageModelIds() { return hasListedModels ? [...models.keys(), ...laterModels.keys()] : []; }
+			override lookupLanguageModel(id: string) { return models.get(id) ?? laterModels.get(id); }
 		}());
 		instantiationService.stub(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return hasUnsavedChanges; }
@@ -272,7 +277,7 @@ suite('ModelRoutersWidget', () => {
 		});
 	});
 
-	test('a form opened before the agent lists its models gets them without taking the focus from the field being typed in', () => {
+	test('a form follows the agent\'s models as they are listed, without taking the focus from the field being typed in', () => {
 		const { container, button, type, listModels } = createWidget(false, false);
 		button('Add Router').click();
 		const name = () => container.querySelector<HTMLInputElement>('[aria-label="Route 1 name"]')!;
@@ -283,10 +288,13 @@ suite('ModelRoutersWidget', () => {
 		name().setSelectionRange(2, 4);
 		const before = offered();
 		listModels();
-		// The two routes start on different models, which routes without a name need.
-		assert.deepStrictEqual({ before, after: offered(), chosen: selects().map(select => select.selectedOptions[0]?.textContent), focused: mainWindow.document.activeElement === name(), value: name().value, selection: [name().selectionStart, name().selectionEnd] }, {
+		const first = offered();
+		// The two routes start on different models, which routes without a name need, and keep them when another is listed.
+		listModels(model('claude-sonnet', 'Sonnet'));
+		assert.deepStrictEqual({ before, first, later: offered(), chosen: selects().map(select => select.selectedOptions[0]?.textContent), focused: mainWindow.document.activeElement === name(), value: name().value, selection: [name().selectionStart, name().selectionEnd] }, {
 			before: [],
-			after: ['Opus', 'Haiku'],
+			first: ['Opus', 'Haiku'],
+			later: ['Opus', 'Haiku', 'Sonnet'],
 			chosen: ['Opus', 'Haiku'],
 			focused: true,
 			value: 'feature',

@@ -115,10 +115,12 @@ function renderRowTemplate(container: HTMLElement, className: string): IModelRou
 
 function renderRow(entry: ModelRouterTreeEntry, template: IModelRouterRowTemplate, hoverService: IHoverService): void {
 	template.elementDisposables.clear();
+	const label = getLabel(entry);
 	const detail = getDetail(entry);
-	template.label.textContent = getLabel(entry);
+	template.label.textContent = label;
 	template.detail.textContent = detail;
-	// The detail is cut to one line, so the rest is in its hover.
+	// Each is cut to one line, so the rest is in its hover.
+	template.elementDisposables.add(hoverService.setupDelayedHoverAtMouse(template.label, { content: label }));
 	template.elementDisposables.add(hoverService.setupDelayedHoverAtMouse(template.detail, { content: detail }));
 }
 

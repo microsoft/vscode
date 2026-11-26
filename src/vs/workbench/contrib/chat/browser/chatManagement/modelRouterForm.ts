@@ -15,6 +15,7 @@ import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -117,21 +118,20 @@ export class ModelRouterForm extends Disposable {
 			this.routeNameInputs.at(-1)?.focus();
 		}));
 		this.renderRoutes();
-		// The agent can list its models after the form opens, and a route has none to choose from until then.
+		// The agent can list its models after the form opens, and change them while it is open.
 		this._register(viewModel.onDidChange(() => {
-			if (this.models.length) {
+			const models = viewModel.getRoutableModels();
+			if (equals(models, this.models)) {
 				return;
 			}
-			this.models = viewModel.getRoutableModels();
-			if (this.models.length) {
-				// The first two routes start on different models, as they do in a form opened later.
-				this.routes.forEach((route, index) => {
-					if (!route.models.length) {
-						route.models = [(this.models[index === 1 ? 1 : 0] ?? this.models[0]).reference];
-					}
-				});
-				this.renderRoutesKeepingFocus();
-			}
+			this.models = models;
+			// A route drawn before there were models has none. The first two start on different models, as they do in a form opened later.
+			this.routes.forEach((route, index) => {
+				if (!route.models.length && models.length) {
+					route.models = [(models[index === 1 ? 1 : 0] ?? models[0]).reference];
+				}
+			});
+			this.renderRoutesKeepingFocus();
 		}));
 
 		this.errorElement = DOM.append(this.element, $('.mcp-config-form-error', { 'aria-live': 'polite' }));
