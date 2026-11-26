@@ -29,7 +29,7 @@ import { buildChatUri, ChatSummary, ComponentToState, readSessionSpawnDepth, Ses
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveModelIdentifierFromCatalog } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
@@ -121,7 +121,8 @@ suite('RemoteSessionService', () => {
 			beforeAcquire: async () => { },
 			transformSession: (session: ISession) => session,
 			sourceMetadata,
-			trusted: true,
+			isTrusted: (_uri: URI) => true,
+			requestTrust: async (_options: ResourceTrustRequestOptions): Promise<boolean | undefined> => assert.fail('Unexpected trust request'),
 			isDirectory: true,
 			inspectionError: undefined as Error | undefined,
 			sourceConnected: true,
@@ -224,11 +225,14 @@ suite('RemoteSessionService', () => {
 			}
 		}();
 		const trust = new class extends mock<IWorkspaceTrustManagementService>() {
-			override async getUriTrustInfo(uri: URI) { return { uri, trusted: state.trusted }; }
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: state.isTrusted(uri) }; }
+		}();
+		const trustRequests = new class extends mock<IWorkspaceTrustRequestService>() {
+			override requestResourcesTrust(options: ResourceTrustRequestOptions) { return state.requestTrust(options); }
 		}();
 		const service = new RemoteSessionService(
 			new class extends mock<ISessionsProvidersService>() { override getProviders() { return hosts; } }(),
-			management, connections, configuration, files, trust, new NullLogService(),
+			management, connections, configuration, files, trust, trustRequests, new NullLogService(),
 			new class extends mock<IRemoteSessionChatService>() {
 				override async acquire(resource: URI) {
 					await state.beforeAcquire();
@@ -244,7 +248,7 @@ suite('RemoteSessionService', () => {
 				override supportsAutoModelForSessionType(type: string) { return autoModelSessionTypes.has(type); }
 			}(),
 		);
-		const create = (input: object = {}, id = 'request') => service.createSession(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }), sourceChat.resource, id, CancellationToken.None);
+		const create = (input: object = {}, id = 'request', token = CancellationToken.None) => service.createSession(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }), sourceChat.resource, id, token);
 		return { service, create, calls, source, sourceChat, state, configuration, backgroundEvents, models, hiddenModels, autoModelSessionTypes };
 	}
 
@@ -633,11 +637,70 @@ suite('RemoteSessionService', () => {
 		}, { isolation: 'workspace', branch: undefined });
 	});
 
-	test('workspace trust and inspection failures prevent unattended creation', async () => {
-		const { create, calls, state } = setup([new RemoteProvider('host')]);
-		state.trusted = false;
-		await assert.rejects(create({ workspace: { uri: 'file:///repo' } }, 'untrusted'), /not trusted/);
-		state.trusted = true;
+	test('automatic placement prefers a trusted folder over a less busy host', async () => {
+		const trusted = new RemoteProvider('trusted', 3);
+		const { create, state } = setup([new RemoteProvider('idle'), trusted]);
+		state.isTrusted = uri => uri.authority === agentHostAuthority(trusted.remoteAddress);
+		assert.strictEqual((await create({ workspace: { uri: 'file:///repo' } })).host.id, trusted.id);
+	});
+
+	for (const approved of [true, false]) {
+		test(`requests trust only for the selected folder before creation: approved=${approved}`, async () => {
+			const idle = new RemoteProvider('idle');
+			const { create, calls, state, service } = setup([new RemoteProvider('busy', 2), idle]);
+			const requests: ResourceTrustRequestOptions[] = [];
+			const workspace = { uri: 'file:///repo' };
+			state.isTrusted = () => false;
+			state.requestTrust = async options => {
+				assert.strictEqual(calls.length, 0);
+				requests.push(options);
+				return approved;
+			};
+			const result = create({ workspace });
+			if (approved) {
+				await result;
+			} else {
+				await assert.rejects(result, /not trusted/);
+			}
+			const uri = idle.mapAgentHostResource(URI.parse(workspace.uri)).toString();
+			assert.deepStrictEqual({
+				requests: requests.map(r => [r.remoteHostLabel, r.uri.toString()]),
+				created: calls.map(call => call.workspace?.toString()), pending: service.listHosts().map(host => host.pendingCreations),
+			}, { requests: [[idle.label, uri]], created: approved ? [uri] : [], pending: [0, 0] });
+		});
+	}
+
+	test('cancellation while waiting for trust releases the reservation without creating a session', async () => {
+		const { create, calls, state, service } = setup([new RemoteProvider('host')]);
+		const cancellation = store.add(new CancellationTokenSource());
+		const prompted = new DeferredPromise<void>();
+		const decision = new DeferredPromise<boolean>();
+		state.isTrusted = () => false;
+		state.requestTrust = async () => { await prompted.complete(); return decision.p; };
+		const request = create({ workspace: { uri: 'file:///repo' } }, 'cancel', cancellation.token);
+		await prompted.p;
+		cancellation.cancel();
+		await assert.rejects(request, /Canceled/);
+		await decision.complete(true);
+		assert.deepStrictEqual([calls.length, service.listHosts()[0].pendingCreations], [0, 0]);
+	});
+
+	test('a host reconnect during the trust request does not dispatch or fail over', async () => {
+		const host = new RemoteProvider('idle');
+		const { create, calls, state } = setup([host, new RemoteProvider('other', 1)]);
+		state.isTrusted = () => false;
+		state.requestTrust = async () => { host.connection = new RemoteConnection(); return true; };
+		await assert.rejects(create({ workspace: { uri: 'file:///repo' } }), /connection changed/);
+		assert.deepStrictEqual(calls, []);
+	});
+
+	test('does not request trust when the directory cannot be inspected or identified by its visible path', async () => {
+		const host = new RemoteProvider('host');
+		const { create, calls, state } = setup([host]);
+		state.isTrusted = () => false;
+		const displayed = toAgentHostContentUri(URI.file('/repo'), agentHostAuthority(host.remoteAddress), URI.file('/other'));
+		await assert.rejects(create({ workspace: { uri: displayed.toString() } }, 'alias'), /unambiguously/);
+		await assert.rejects(create({ workspace: { uri: 'file://server/share/repo' } }, 'unc'), /unambiguously/);
 		state.inspectionError = new Error('Directory missing');
 		await assert.rejects(create({ workspace: { uri: 'file:///repo' } }, 'missing'), /Directory missing/);
 		assert.deepStrictEqual(calls, []);
