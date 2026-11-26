@@ -145,11 +145,20 @@ export class SuggestModel implements IDisposable {
 	private _currentSelection: Selection;
 
 	/**
-	 * Where automatic suggestions last closed because nothing matched what was typed: the line,
-	 * and the line content before that text. With `editor.suggest.reopenOnDelete`, Backspace
-	 * brings them back while the cursor stays in that text.
+	 * Where automatic suggestions that showed last closed because nothing matched what was typed
+	 * anymore: the line, and the line content before that text. With `editor.suggest.reopenOnDelete`,
+	 * Backspace requests them again while the cursor stays in that text.
 	 */
 	private _closedWithoutMatch: { readonly lineNumber: number; readonly prefix: string } | undefined;
+
+	/**
+	 * The providers that the current suggestions were requested from, `undefined` for all of them,
+	 * and whether they showed any items. Only a new request resets them, not requesting the
+	 * suggestions again (`retrigger`), so that Backspace can request closed suggestions again.
+	 * Typing another trigger character while suggestions show adds its providers.
+	 */
+	private _requestedProviders: Set<CompletionItemProvider> | undefined;
+	private _showedItems = false;
 
 	private _completionModel: CompletionModel | undefined;
 	private readonly _completionDisposables = new DisposableStore();
@@ -304,6 +313,9 @@ export class SuggestModel implements IDisposable {
 						providerItemsToReuse.set(provider, items);
 					}
 				}
+				if (this._requestedProviders) {
+					this._requestedProviders = new Set([...this._requestedProviders, ...supports]);
+				}
 			}
 
 			this.trigger({
@@ -410,8 +422,9 @@ export class SuggestModel implements IDisposable {
 	}
 
 	/**
-	 * Brings back automatic suggestions that closed because nothing matched what was typed,
-	 * when Backspace keeps the cursor in that text. It does what Backspace does while they show.
+	 * Brings back automatic suggestions that closed because nothing matched what was typed anymore,
+	 * when Backspace keeps the cursor in that text. It requests them again from the providers that
+	 * they were requested from.
 	 */
 	private _reopenAfterDelete(): void {
 		const closed = this._closedWithoutMatch;
@@ -430,7 +443,7 @@ export class SuggestModel implements IDisposable {
 		if (!ctx.leadingWord.word) {
 			this._reopenOnTriggerCharacter(ctx);
 		} else if (canShowQuickSuggest(this._editor, this._contextKeyService, this._configurationService)) {
-			this.trigger({ auto: true });
+			this.trigger({ auto: true, retrigger: true, completionOptions: { providerFilter: this._requestedProviders } });
 		}
 	}
 
@@ -602,6 +615,10 @@ export class SuggestModel implements IDisposable {
 
 		// Cancel previous requests, change state & update UI
 		this.cancel(options.retrigger);
+		if (!options.retrigger) {
+			this._requestedProviders = options.completionOptions?.providerFilter;
+			this._showedItems = false;
+		}
 		this._triggerState = options;
 		this._onDidTrigger.fire({ auto: options.auto, shy: options.shy ?? false, position: this._editor.getPosition() });
 
@@ -891,14 +908,17 @@ export class SuggestModel implements IDisposable {
 				} else {
 					// nothing left
 					this.cancel();
-					if (this._editor.getOption(EditorOption.suggest).reopenOnDelete) {
-						// remember the text that nothing matched, and whitespace typed after it, for Backspace
+					if (this._showedItems && this._editor.getOption(EditorOption.suggest).reopenOnDelete) {
+						// remember the text that nothing matched anymore, and whitespace typed after it, for Backspace
 						this._closedWithoutMatch = { lineNumber: ctx.lineNumber, prefix: ctx.leadingLineContent.slice(0, ctx.leadingLineContent.search(/\S*\s*$/)) };
 					}
 					return;
 				}
 			}
 
+			if (this._completionModel.items.length > 0) {
+				this._showedItems = true;
+			}
 			this._onDidSuggest.fire({
 				completionModel: this._completionModel,
 				triggerOptions: ctx.triggerOptions,
