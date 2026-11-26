@@ -392,6 +392,39 @@ suite('SyncedCustomizationBundler', () => {
 		})), false);
 	});
 
+	test('excludes files ignored by .gitignore files in skill directories', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/triage/SKILL.md', 'skill content');
+		await seedFile('/skills/triage/.gitignore', '# local data\ncache/\n*.pyc\n');
+		const cacheFile = await seedFile('/skills/triage/cache/data.ndjson', 'cached');
+		await seedFile('/skills/triage/scripts/run.py', 'script');
+		await seedFile('/skills/triage/scripts/run.pyc', 'bytecode');
+		await seedFile('/skills/triage/references/.gitignore', 'draft.md\n');
+		await seedFile('/skills/triage/references/draft.md', 'draft');
+		await seedFile('/skills/triage/references/guide.md', 'guide');
+
+		const result = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		await fileService.writeFile(cacheFile, VSBuffer.fromString('cached again'));
+		const updated = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		const synced = (path: string) => fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: `/test-agent/skills/triage/${path}` }));
+		assert.deepStrictEqual({
+			cache: await synced('cache/data.ndjson'),
+			bytecode: await synced('scripts/run.pyc'),
+			nestedIgnored: await synced('references/draft.md'),
+			script: await synced('scripts/run.py'),
+			reference: await synced('references/guide.md'),
+			nonceUnchanged: updated?.ref.nonce === result?.ref.nonce,
+		}, {
+			cache: false,
+			bytecode: false,
+			nestedIgnored: false,
+			script: true,
+			reference: true,
+			nonceUnchanged: true,
+		});
+	});
+
 	test('includes a symlinked SKILL.md entrypoint but excludes nested symlinks', async () => {
 		const bundler = createBundler();
 		const skill = await seedFile('/skills/symlinks/SKILL.md', 'skill content');
