@@ -2371,6 +2371,24 @@ suite('CodexAgent workspace conversion', () => {
 		});
 	});
 
+	test('chat isolation keeps the other folders the host passes after the new working directory', async () => {
+		const harness = await createWorkspaceHarness();
+		const { agent, peer, session, folder } = harness;
+		const target = await addIsolationPeer(harness, 'multi-folder-peer');
+		const other = URI.file(`${folder.fsPath}-other`);
+		const changing = agent.setChatWorkingDirectory(target.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: target.chat }, folder, { additionalDirectories: [other] });
+		const request = await readNextRequest(peer.outbound);
+		confirmIsolationUpdate(harness, request);
+		await changing;
+		assert.deepStrictEqual({
+			live: target.entry.workingDirectories?.map(directory => directory.fsPath),
+			persisted: (await agent['_metadataStore'].read(target.entry.sessionUri)).workingDirectories?.map(directory => directory.fsPath),
+		}, {
+			live: [folder.fsPath, other.fsPath],
+			persisted: [folder.fsPath, other.fsPath],
+		});
+	});
+
 	for (const disconnect of [false, true]) {
 		test(`chat isolation signals quarantine for ${disconnect ? 'disconnection' : 'timeout'} after an update request`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const harness = await createWorkspaceHarness();

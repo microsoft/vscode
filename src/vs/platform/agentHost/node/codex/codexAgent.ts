@@ -39,7 +39,7 @@ import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_REFRESH_REQUEST_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentSession, fixedChatOwnerRef, resolveSessionBackedStorage, type IAgentChatOwnerRef, AgentSignal, AgentWorkingDirectoryChangedError, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatHistoryChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentSession, fixedChatOwnerRef, resolveSessionBackedStorage, type IAgentChatOwnerRef, AgentSignal, AgentWorkingDirectoryChangedError, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatHistoryChange, IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChatWorkingDirectoryOptions, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexTurnEditsWaitMsEnvVar } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -4736,11 +4736,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._setWorkingDirectory(chat, context, workingDirectory, false);
 	}
 
-	async setChatWorkingDirectory(chat: URI, context: IAgentChatContext, workingDirectory: URI): Promise<void> {
-		return this._setWorkingDirectory(chat, context, workingDirectory, true);
+	async setChatWorkingDirectory(chat: URI, context: IAgentChatContext, workingDirectory: URI, options?: IAgentChatWorkingDirectoryOptions): Promise<void> {
+		return this._setWorkingDirectory(chat, context, workingDirectory, true, options?.additionalDirectories);
 	}
 
-	private async _setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI, chatOnly: boolean): Promise<void> {
+	private async _setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI, chatOnly: boolean, additionalDirectories: readonly URI[] = []): Promise<void> {
 		const session = this._resolveWorkingDirectoryChangeSession(chat, context, chatOnly);
 		if (this._workingDirectoryMutations.has(session)) {
 			throw new Error(`Cannot change the working directory for chat '${chat.toString()}' while another working-directory change is active`);
@@ -4786,7 +4786,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 			appliedDirectory = updatedDirectory;
 			session.workingDirectory = appliedDirectory;
-			session.workingDirectories = [appliedDirectory];
+			session.workingDirectories = [appliedDirectory, ...additionalDirectories];
 			await this._abandonManagedWorkingDirectory(session);
 			session.materializedMcpSig = undefined;
 			session.materializedCustomizationsSig = undefined;

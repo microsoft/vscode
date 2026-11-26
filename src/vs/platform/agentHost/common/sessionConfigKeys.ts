@@ -40,8 +40,8 @@ export const enum SessionConfigKey {
 	/**
 	 * `'worktreeFolders'` — host-owned folders that worktree isolation gives a worktree of their own: `'primary'`, the
 	 * session's first folder only (the default), or `'all'`, every folder in a Git repository that the session starts
-	 * with, each created on the first send (at most 8 checkouts besides the first folder's). Folders not in a Git repository stay in place; folders
-	 * added later, and checkouts past the limit, are shared checkouts the agent offers to isolate with `isolate_folder`.
+	 * with, each created on the first send. Folders not in a Git repository stay in place; folders added later are shared
+	 * checkouts the agent offers to isolate with `isolate_session`.
 	 */
 	WorktreeFolders = 'worktreeFolders',
 	/** `'pullRequestUrl'` — host-owned pull request the session is created from; implies worktree isolation. */

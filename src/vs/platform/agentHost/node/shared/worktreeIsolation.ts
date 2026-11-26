@@ -154,11 +154,6 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
 const WORKTREE_META_MANAGED_CLEANUP = 'copilot.worktree.managedCleanup';
 export const WORKTREE_META_PATH = 'copilot.worktree.path';
-/**
- * How many Git checkouts besides the main folder's the first send of a session that isolates all its folders
- * (`worktreeFolders: 'all'`) creates worktrees for; the others stay shared checkouts the agent asks about.
- */
-export const MAX_FIRST_SEND_FOLDER_WORKTREES = 8;
 
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
 const WORKTREE_META_SYMLINK_PATTERNS = 'copilot.worktree.symlinkPatterns';
@@ -1152,7 +1147,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				],
 				enumDescriptions: [
 					localize('agentHost.sessionConfig.worktreeFolders.primaryDescription', "Create a worktree for the main folder; the agent asks before changing another folder"),
-					localize('agentHost.sessionConfig.worktreeFolders.allDescription', "Create a worktree for the main folder and for up to {0} other Git repositories the session starts with; the agent asks before changing a Git folder without a worktree", MAX_FIRST_SEND_FOLDER_WORKTREES),
+					localize('agentHost.sessionConfig.worktreeFolders.allDescription', "Create a worktree for the main folder and for every other Git repository the session starts with; the agent asks before changing a Git folder without a worktree"),
 				],
 				default: 'primary',
 				sessionMutable: false,

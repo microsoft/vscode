@@ -5354,7 +5354,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	test('a worktree session for all folders creates worktrees for at most 8 other checkouts on its first send', async () => {
+	test('a worktree session for all folders creates a worktree for every other checkout on its first send', async () => {
 		const app = URI.file('/work/app');
 		const others = Array.from({ length: 9 }, (_, index) => URI.file(`/work/repo${index + 1}`));
 		const { worktreeOf, created, sends, sent, createSession, send } = createAllFoldersSession([app, ...others]);
@@ -5364,9 +5364,8 @@ suite('AgentService (node dispatcher)', () => {
 		await sent;
 
 		assert.deepStrictEqual({ created, sends }, {
-			created: others.slice(0, 8).map(folder => folder.toString()),
-			// The ninth stays a shared checkout
-			sends: [[worktreeOf(app), ...others.slice(0, 8).map(worktreeOf), others[8]].map(folder => folder.toString())],
+			created: others.map(folder => folder.toString()),
+			sends: [[worktreeOf(app), ...others.map(worktreeOf)].map(folder => folder.toString())],
 		});
 	});
 
@@ -11963,6 +11962,33 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('moves the primary folder of a chat of several folders, keeping its other folders, without replacing the session\'s folders', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot', { multipleWorkingDirectories: { immutablePrimary: true } }));
+			registerTestAgentProvider(svc, agent);
+			const original = URI.file('/workspace/original');
+			const lib = URI.file('/workspace/lib');
+			const worktree = URI.file('/workspace/original.worktrees/isolated');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [original, lib] });
+			const main = URI.parse(buildDefaultChatUri(session));
+			const state = getStateManager(svc);
+			// As the worktree prepared for the chat is in the session's folders
+			state.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: worktree.toString() });
+			await svc.setChatWorkingDirectory(session, main, worktree, false, undefined, [lib]);
+			const replacing = await Promise.allSettled([svc.setChatWorkingDirectory(session, main, original, true, undefined, [lib])]);
+			assert.deepStrictEqual({
+				chat: state.getSessionState(session.toString())?.chats.find(chat => chat.resource === main.toString())?.workingDirectories,
+				persisted: JSON.stringify((await getTestChatPersistenceService(svc).readNormalizedChat(session, main)).chat?.workingDirectories),
+				replacing: replacing.map(outcome => outcome.status),
+			}, {
+				chat: [worktree.toString(), lib.toString()],
+				persisted: JSON.stringify([worktree.toString(), lib.toString()]),
+				// Keeping its other folders never replaces the session's folders by the new one
+				replacing: ['rejected'],
+			});
+		});
+
 		for (const isolateMain of [false, true]) {
 			test(`persists and publishes only the ${isolateMain ? 'main' : 'peer'} chat's replacement workspace`, async () => {
 				class MultiChatAgent extends MockAgent {
@@ -12539,9 +12565,6 @@ suite('AgentService (node dispatcher)', () => {
 			const docs = await isolate(protocolDocs);
 			const release = await isolate(protocolRelease);
 			const rejected = await Promise.allSettled([isolate(primary), isolate(notes), isolate(URI.file('/work/other'))]);
-			const plainSession = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary, protocol] });
-			const withoutIsolation = await Promise.allSettled([svc.isolateChatFolder(plainSession, URI.parse(buildDefaultChatUri(plainSession)), protocol, undefined)]);
-			validation.push(validate(plainSession, protocol));
 			const records = await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session);
 			const expectedFolders = [primary, worktreeOf(protocol), joinPath(worktreeOf(protocol), 'docs'), worktreeOf(protocolRelease), notes].map(folder => folder.toString());
 
@@ -12549,7 +12572,6 @@ suite('AgentService (node dispatcher)', () => {
 				returned: [first, again, fromWorktree, docs, release].map(folder => folder.toString()),
 				created,
 				rejected: rejected.map(outcome => outcome.status === 'rejected' ? String(outcome.reason.message) : 'fulfilled'),
-				withoutIsolation: withoutIsolation.map(outcome => outcome.status === 'rejected' ? String(outcome.reason.message) : 'fulfilled'),
 				validation,
 				sessionFolders: stateManager.getSessionSummary(session.toString())?.workingDirectories,
 				chatFolders: stateManager.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat.toString())?.workingDirectories,
@@ -12559,16 +12581,14 @@ suite('AgentService (node dispatcher)', () => {
 				// A folder in an isolated checkout shares its worktree; another checkout of the repository gets its own.
 				created: [{ workingDirectory: protocol.toString(), branch: 'feature' }, { workingDirectory: protocolRelease.toString(), branch: 'release' }],
 				rejected: [
-					`${primary.fsPath} is the primary folder of this chat, which the session's own worktree already isolates.`,
+					`${primary.fsPath} is the primary folder of this chat, which moves only with the chat.`,
 					`${notes.fsPath} is not in a Git repository, so it cannot be isolated in a worktree.`,
 					`${URI.file('/work/other').fsPath} is not a folder of this chat.`,
 				],
-				withoutIsolation: ['This session doesn\'t use worktree isolation, so its folders are not isolated.'],
 				validation: [
-					`${primary.fsPath} is the primary folder of this chat, which the session's own worktree already isolates.`,
+					`${primary.fsPath} is the primary folder of this chat, which moves only with the chat.`,
 					'valid',
 					`${URI.file('/work/other').fsPath} is not a folder of this chat.`,
-					'This session doesn\'t use worktree isolation, so its folders are not isolated.',
 				],
 				// The worktrees take the folders' places, in the session and in the chat.
 				sessionFolders: expectedFolders,
@@ -12577,6 +12597,69 @@ suite('AgentService (node dispatcher)', () => {
 					{ workingDirectory: worktreeOf(protocol).toString(), repositoryRoot: protocol.toString(), chat: chat.toString(), source: protocol.toString() },
 					{ workingDirectory: worktreeOf(protocolRelease).toString(), repositoryRoot: protocol.toString(), chat: chat.toString(), source: protocolRelease.toString() },
 				],
+			});
+		});
+
+		test('lists as isolatable the folders of a chat that are local Git checkouts not in a worktree of the session', async () => {
+			const perSession = createPerSessionDataService();
+			const primary = URI.file('/work/app.worktrees/session');
+			const app = URI.file('/work/app');
+			const protocol = URI.file('/work/protocol');
+			const docs = URI.file('/work/docs');
+			const notes = URI.file('/work/notes');
+			const worktreeOf = (checkout: URI) => URI.file(`${checkout.fsPath}.worktrees/task`);
+			const checkouts = [app, protocol, docs, worktreeOf(protocol), primary];
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async directory => checkouts.find(checkout => isEqualOrParent(directory, checkout)),
+				getCurrentBranch: async () => 'feature',
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = disposables.add(new MockAgent('copilot', { multipleWorkingDirectories: { immutablePrimary: true } }));
+			registerTestAgentProvider(svc, agent);
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				supported: true,
+				createDetachedWorktree: async request => ({ handle: generateUuid(), worktree: worktreeOf(request.workingDirectory!) }),
+				claimDetachedWorktree: async () => { },
+			}));
+			const stateManager = getStateManager(svc);
+			const createWorktreeSession = async (folders: URI[]) => {
+				const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: folders });
+				stateManager.setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+				return session;
+			};
+			const list = async (session: URI, canMoveChat = true) => {
+				const { folders, primary } = await svc.getIsolatableChatFolders(session, URI.parse(buildDefaultChatUri(session)), canMoveChat);
+				return { folders: folders.map(folder => folder.fsPath), primary: primary?.fsPath };
+			};
+			// The chat of a worktree session cannot move: its primary folder is the session's worktree
+			const session = await createWorktreeSession([primary, protocol, docs, notes]);
+			const before = await list(session, false);
+			await svc.isolateChatFolder(session, URI.parse(buildDefaultChatUri(session)), protocol, undefined);
+			const afterIsolating = await list(session, false);
+			const plainSession = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [app, protocol] });
+			const oneFolder = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [app] });
+			const oneNonGitFolder = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [notes] });
+
+			assert.deepStrictEqual({
+				before,
+				afterIsolating,
+				withoutWorktreeIsolation: await list(plainSession),
+				withoutWorktreeIsolationChatThatCannotMove: await list(plainSession, false),
+				oneFolder: await list(oneFolder),
+				oneFolderThatCannotMove: await list(oneFolder, false),
+				oneNonGitFolder: await list(oneNonGitFolder),
+			}, {
+				// Not a folder not in Git
+				before: { folders: [protocol.fsPath, docs.fsPath], primary: undefined },
+				// Nor a folder already in a worktree of the session
+				afterIsolating: { folders: [docs.fsPath], primary: undefined },
+				// The main folder of a chat of several folders, which moves the chat
+				withoutWorktreeIsolation: { folders: [app.fsPath, protocol.fsPath], primary: app.fsPath },
+				withoutWorktreeIsolationChatThatCannotMove: { folders: [protocol.fsPath], primary: undefined },
+				oneFolder: { folders: [app.fsPath], primary: app.fsPath },
+				oneFolderThatCannotMove: { folders: [], primary: undefined },
+				oneNonGitFolder: { folders: [], primary: undefined },
 			});
 		});
 
@@ -13729,7 +13812,7 @@ suite('AgentService (node dispatcher)', () => {
 					handle,
 					workingDirectory: URI.file('/workspace/repository.worktrees/chat').toString(),
 					repositoryRoot: URI.file('/workspace/repository').toString(),
-					// As `isolate_folder` records the worktree that replaced a folder of a chat
+					// As `isolate_session` records the worktree that replaced a folder of a chat
 					...(owner === 'isolated chat folder' ? { chat: buildDefaultChatUri(session), source: URI.file('/workspace/repository').toString() } : {}),
 				}]);
 				const marked: { handle: string; archived: boolean }[] = [];

@@ -5376,7 +5376,7 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
-		test('a queued message of a chat whose folder isolate_folder moves waits until the folder moved, and then launches instead of the continuation', async () => {
+		test('a queued message of a chat whose folder isolate_session moves waits until the folder moved, and then launches instead of the continuation', async () => {
 			const moved = new DeferredPromise<URI>();
 			let folderIsolation: IFolderIsolationService | undefined;
 			sideEffects = createTestSideEffects(disposables, stateManager, {
@@ -5391,7 +5391,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			disposables.add(sideEffects.registerProgressListener(agent));
 			startTurn('turn-1');
-			folderIsolation!.request(sessionUri, URI.parse(defaultChatUri), 'turn-1', URI.file('/work/lib'), undefined);
+			folderIsolation!.request(sessionUri, URI.parse(defaultChatUri), 'turn-1', [URI.file('/work/lib')], undefined);
 			const setAction = {
 				type: ActionType.ChatPendingMessageSet as const,
 				kind: PendingMessageKind.Queued,

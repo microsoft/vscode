@@ -3036,15 +3036,15 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('isolate_folder confirmation hides its raw input, as its message names the folder', () => {
-			const toolSpecificData = ['isolate_folder', 'copilot_session__isolate_folder'].map(toolName => toolCallStateToInvocation({
+		test('isolate_session confirmation hides its raw input, as its message names the folders', () => {
+			const toolSpecificData = ['isolate_session', 'copilot_session__isolate_session'].map(toolName => toolCallStateToInvocation({
 				toolCallId: `tc-${toolName}`,
 				toolName,
 				displayName: toolName,
 				invocationMessage: 'Move /work/lib to a new worktree for this chat?',
 				status: ToolCallStatus.PendingConfirmation,
-				confirmationTitle: 'Move Folder to a Worktree?',
-				toolInput: '{"folder":"/work/lib"}',
+				confirmationTitle: 'Move to a New Worktree?',
+				toolInput: '{"folders":["/work/lib"]}',
 			}).toolSpecificData);
 
 			assert.deepStrictEqual(toolSpecificData, [undefined, undefined]);

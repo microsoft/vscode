@@ -130,7 +130,8 @@ import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate, type IAgentHostSessionsV2MigrationReport } from './agentHostSessionsV2MigrationService.js';
 
-import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, MAX_FIRST_SEND_FOLDER_WORKTREES, type IRecordedWorktree, type IWorktreeHandOver, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import type { IIsolatableFolders } from './shared/sessionIsolationTools.js';
+import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, type IRecordedWorktree, type IWorktreeHandOver, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { findMcpServerName } from './shared/mcpCustomizationController.js';
 import type { IAgentHostSessionLifecycleCandidate } from './agentHostSessionLifecycle.js';
@@ -2054,8 +2055,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * first send creates the session's worktree for its first folder (New Worktree for All Folders), and replaces it in
 	 * the session folders. Folders in the same checkout share one worktree. A folder that is not in a Git repository, or
 	 * whose worktree could not be created, stays in place: the working directories then list the latter as a shared
-	 * checkout, which the agent asks about before changing. So do the checkouts after the first
-	 * {@link MAX_FIRST_SEND_FOLDER_WORKTREES}, which bounds the time the first send waits. Isolates the folders after the
+	 * checkout, which the agent asks about before changing. Isolates the folders after the
 	 * first that `chat`, which shows the progress, works in once the change holds the folder locks, and returns them, with
 	 * each isolated one replaced, for the turn to launch in.
 	 */
@@ -2090,7 +2090,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const checkouts = new Map<string, URI>();
 			for (const root of checkoutRoots) {
 				const key = root && extUriBiasedIgnorePathCase.getComparisonKey(root);
-				if (root && key && !created.has(key) && checkouts.size < MAX_FIRST_SEND_FOLDER_WORKTREES) {
+				if (root && key && !created.has(key)) {
 					checkouts.set(key, root);
 				}
 			}
@@ -13618,12 +13618,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Whether a chat of `session` can move its additional folders into worktrees of their own with
-	 * {@link isolateChatFolder}: the session uses worktree isolation, whose worktree is only for its primary folder.
+	 * {@link isolateChatFolder}: worktrees are available, and its provider works in several folders.
 	 */
 	supportsChatFolderIsolation(session: URI): boolean {
 		const state = this._stateManager.getSessionState(session.toString());
 		return !!state && this._worktree.supported && !readSessionWorkspaceless(state._meta)
-			&& state.config?.values[SessionConfigKey.Isolation] === 'worktree'
 			&& !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories;
 	}
 
@@ -13640,7 +13639,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionKey = session.toString();
 		const chatKey = chat.toString();
 		if (!this.supportsChatFolderIsolation(session)) {
-			throw new Error(localize('agentHost.isolateFolder.noIsolation', "This session doesn't use worktree isolation, so its folders are not isolated."));
+			throw new Error(localize('agentHost.isolateFolder.noIsolation', "This session's folders cannot be moved into worktrees."));
 		}
 		const credentials = await this._resolveExecutionCredentials(sessionKey, sponsor);
 		// Taken now, so that a chat removed or replaced (by a new workspace) meanwhile is not changed.
@@ -13653,7 +13652,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const chatFolders = this._getChatFolders(session, chatKey);
 			const index = chatFolders.findIndex(candidate => extUriBiasedIgnorePathCase.isEqual(URI.parse(candidate), folder));
 			if (index === 0) {
-				throw new Error(localize('agentHost.isolateFolder.primary', "{0} is the primary folder of this chat, which the session's own worktree already isolates.", folder.fsPath));
+				throw new Error(localize('agentHost.isolateFolder.primary', "{0} is the primary folder of this chat, which moves only with the chat.", folder.fsPath));
 			}
 			const checkoutRoot = await this._gitService.getRepositoryRoot(folder, { refreshIfNone: true });
 			const worktrees = await this._getSessionWorktrees(session);
@@ -13694,17 +13693,51 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * The folders of `chat` that `isolate_session` can move into worktrees of their own: local Git checkouts that are
+	 * not in a worktree of the session yet. Its primary folder when `canMoveChat` (the chat can move to a new worktree,
+	 * keeping its other folders), and its additional folders when the session supports {@link isolateChatFolder}.
+	 */
+	async getIsolatableChatFolders(session: URI, chat: URI, canMoveChat: boolean): Promise<IIsolatableFolders> {
+		const folders = this._getChatFolders(session, chat.toString()).map(folder => URI.parse(folder));
+		const candidates = folders.filter((_folder, index) => index === 0 ? canMoveChat : this.supportsChatFolderIsolation(session));
+		if (!candidates.length) {
+			return { folders: [] };
+		}
+		// Read-only lookups run side by side
+		const probes = new Limiter<URI | undefined>(5);
+		const [checkoutRoots, worktrees] = await Promise.all([
+			Promise.all(candidates.map(folder => probes.queue(async () => {
+				if (folder.scheme !== Schemas.file || this._stateManager.isScratchFolder(folder.toString())) {
+					return undefined;
+				}
+				try {
+					return await this._gitService.getRepositoryRoot(folder, { refreshIfNone: true });
+				} catch (error) {
+					this._logService.warn(`[AgentService] Couldn't find the Git repository of ${folder.toString()} of chat ${chat.toString()}: ${toErrorMessage(error)}`);
+					return undefined;
+				}
+			}))),
+			this._getSessionWorktrees(session),
+		]).finally(() => probes.dispose());
+		const isolatable = candidates.filter((_folder, index) => {
+			const checkoutRoot = checkoutRoots[index];
+			return !!checkoutRoot && !worktrees.some(worktree => extUriBiasedIgnorePathCase.isEqual(worktree.root, checkoutRoot));
+		});
+		return { folders: isolatable, primary: isolatable[0] === folders[0] ? folders[0] : undefined };
+	}
+
+	/**
 	 * Throws when `chat` cannot move `folder` into a worktree with {@link isolateChatFolder}: the session does not use
 	 * worktree isolation, or the folder is not one of the chat's additional folders. What the tool checks before the
 	 * isolation is scheduled; whether the folder is in a Git repository is known only once it runs.
 	 */
 	validateFolderIsolation(session: URI, chat: URI, folder: URI): void {
 		if (!this.supportsChatFolderIsolation(session)) {
-			throw new Error(localize('agentHost.isolateFolder.noIsolation', "This session doesn't use worktree isolation, so its folders are not isolated."));
+			throw new Error(localize('agentHost.isolateFolder.noIsolation', "This session's folders cannot be moved into worktrees."));
 		}
 		const index = this._getChatFolders(session, chat.toString()).findIndex(candidate => extUriBiasedIgnorePathCase.isEqual(URI.parse(candidate), folder));
 		if (index === 0) {
-			throw new Error(localize('agentHost.isolateFolder.primary', "{0} is the primary folder of this chat, which the session's own worktree already isolates.", folder.fsPath));
+			throw new Error(localize('agentHost.isolateFolder.primary', "{0} is the primary folder of this chat, which moves only with the chat.", folder.fsPath));
 		}
 		if (index === -1) {
 			throw new Error(localize('agentHost.isolateFolder.notChatFolder', "{0} is not a folder of this chat.", folder.fsPath));
@@ -13854,7 +13887,8 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._chatCatalogMutationSequencer.queue(session.toString(), operation);
 	}
 
-	async setChatWorkingDirectory(session: URI, chat: URI, directory: URI, replaceSessionWorkspace = false, expectedSessionDirectories?: readonly string[]): Promise<void> {
+	/** Moves `chat` to `directory`, keeping `additionalDirectories` (its other folders) after it when given. */
+	async setChatWorkingDirectory(session: URI, chat: URI, directory: URI, replaceSessionWorkspace = false, expectedSessionDirectories?: readonly string[], additionalDirectories?: readonly URI[]): Promise<void> {
 		const isCurrentChat = this._stateManager.captureChatValidity(chat.toString());
 		const previousSessionDirectories = expectedSessionDirectories ?? this._stateManager.getSessionSummary(session.toString())?.workingDirectories;
 		const gitState = await this._gitService.getSessionGitState(directory);
@@ -13862,7 +13896,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (replaceSessionWorkspace && !equals(this._stateManager.getSessionSummary(session.toString())?.workingDirectories ?? [], previousSessionDirectories ?? [])) {
 				throw new Error('The session changed while preparing its replacement workspace.');
 			}
-			return this._setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, gitState, isCurrentChat);
+			return this._setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, gitState, isCurrentChat, additionalDirectories);
 		};
 		if (replaceSessionWorkspace) {
 			// Exclusive conversion already holds the catalog lock across provider mutation.
@@ -13875,20 +13909,21 @@ export class AgentService extends Disposable implements IAgentService {
 		this._publishWorkingDirectoryIdentities(session.toString());
 	}
 
-	private async _setChatWorkingDirectory(session: URI, chat: URI, directory: URI, replaceSessionWorkspace: boolean, gitState: ISessionGitState | undefined, isCurrentChat: () => boolean): Promise<void> {
+	private async _setChatWorkingDirectory(session: URI, chat: URI, directory: URI, replaceSessionWorkspace: boolean, gitState: ISessionGitState | undefined, isCurrentChat: () => boolean, additionalDirectories: readonly URI[] = []): Promise<void> {
 		const assertCurrentChat = () => {
 			if (!isCurrentChat()) {
 				throw new Error(localize('agentHost.chatWorkspaceTargetChanged', "The chat was removed or replaced while changing its workspace."));
 			}
 		};
 		assertCurrentChat();
-		const directories = [directory.toString()];
+		const directories = [directory, ...additionalDirectories].map(folder => folder.toString());
 		const state = this._stateManager.getSessionState(session.toString());
 		const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
 		const sessionDirectories = this._stateManager.getSessionSummary(session.toString())?.workingDirectories;
 		if (!state || !summary || (replaceSessionWorkspace
 			? !hasSingleUserChat(state.chats) || !this._chatOwnership.isDefaultChat(session.toString(), chat.toString()) || !sessionDirectories?.length
-			: !sessionDirectories?.includes(directories[0]))) {
+			: !directories.every(folder => sessionDirectories?.includes(folder)))
+			|| (replaceSessionWorkspace && additionalDirectories.length > 0)) {
 			throw new Error(`Cannot assign an unattached working directory to chat ${chat.toString()}.`);
 		}
 		await this._persistChatWorkingDirectories(session, chat, directories, summary.workingDirectories ?? sessionDirectories, assertCurrentChat);

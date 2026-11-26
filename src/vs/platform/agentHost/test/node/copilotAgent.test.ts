@@ -13483,6 +13483,63 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('a chat-only move of a multi-root chat keeps its other folders only when the host passes them', async () => {
+			const root = await fs.mkdtemp(`${os.tmpdir()}/agent-set-cwd-keep-`);
+			const previous = URI.file(join(root, 'previous'));
+			const secondary = URI.file(join(root, 'secondary'));
+			const next = URI.file(join(root, 'next'));
+			await Promise.all([fs.mkdir(previous.fsPath), fs.mkdir(secondary.fsPath), fs.mkdir(next.fsPath)]);
+			const session = AgentSession.uri('copilotcli', 'test-session-1');
+			const chat = defaultChatUri(session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const db = sessionDataService.openDatabase(session);
+			await db.object.setMetadata('copilot.workingDirectory', previous.toString());
+			await db.object.setMetadata('copilot.workingDirectories', JSON.stringify([previous.toString(), secondary.toString()]));
+			db.dispose();
+			const { agent, instantiationService } = createTestAgentContext(disposables, { sessionDataService });
+			const mockSession = new MockCopilotSession();
+			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession, workingDirectory: previous, additionalDirectories: [secondary] });
+			const activeClient = created.activeClient as { readonly pluginController: { readonly additionalDirectories: readonly URI[] } };
+			afterTest(async () => {
+				await fs.rm(root, { recursive: true, force: true });
+				await disposeAgent(agent);
+			});
+			await created.session.initializeSession();
+			(agent as unknown as {
+				_registerLiveChat(chat: URI, session: CopilotAgentSession, activeClient: unknown): void;
+			})._registerLiveChat(chat, created.session, created.activeClient);
+
+			let withoutFolders: string | undefined;
+			try {
+				await agent.setChatWorkingDirectory(chat, exactChatContext(session, chat, session), next);
+			} catch (error) {
+				withoutFolders = error instanceof Error ? error.message : String(error);
+			}
+			await agent.setChatWorkingDirectory(chat, exactChatContext(session, chat, session), next, { additionalDirectories: [secondary] });
+
+			const stored = sessionDataService.openDatabase(session);
+			const metadata = await stored.object.getMetadataObject({ 'copilot.workingDirectory': true, 'copilot.workingDirectories': true });
+			stored.dispose();
+			assert.deepStrictEqual({
+				withoutFolders,
+				sdkCalls: mockSession.workingDirectoryCalls,
+				liveWorkingDirectory: created.session.workingDirectory?.toString(),
+				liveAdditionalDirectories: created.session.appliedAdditionalDirectories.map(directory => directory.toString()),
+				pluginAdditionalDirectories: activeClient.pluginController.additionalDirectories.map(directory => directory.toString()),
+				metadata,
+			}, {
+				withoutFolders: `Cannot change the working directory for multi-root chat '${chat.toString()}'`,
+				sdkCalls: [next.fsPath],
+				liveWorkingDirectory: next.toString(),
+				liveAdditionalDirectories: [secondary.toString()],
+				pluginAdditionalDirectories: [secondary.toString()],
+				metadata: {
+					'copilot.workingDirectory': next.toString(),
+					'copilot.workingDirectories': JSON.stringify([next.toString(), secondary.toString()]),
+				},
+			});
+		});
+
 		suite('exact-chat working-directory conversion', () => {
 			async function createFixture(multiRoot = false, canvasesEnabled = false, session = AgentSession.uri('copilotcli', 'session-wide')) {
 				const root = await fs.mkdtemp('./.agent-session-cwd-');
@@ -14656,7 +14713,7 @@ suite('CopilotAgent', () => {
 				});
 			});
 
-			test('the next send of a live chat applies an additional folder replaced by its worktree, as isolate_folder leaves it', async () => {
+			test('the next send of a live chat applies an additional folder replaced by its worktree, as isolate_session leaves it', async () => {
 				const fixture = await createFixture(true);
 				afterTest(() => fixture.dispose());
 				const { agent, session, chats, resources, previous, next, secondary } = fixture;

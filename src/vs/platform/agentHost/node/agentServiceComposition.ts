@@ -286,20 +286,23 @@ export function createAgentServiceComposition(
 				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
 				{
 					supportsChatIsolation: session => workspaceConversionService.value?.supportsChatIsolation(session) === true,
-					requestChatIsolation: (chat, turnId) => {
+					requestChatIsolation: (chat, turnId, additionalFolders) => {
 						const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 						if (!workspaceConversionService.value) {
 							throw new Error(localize('agentHost.chatIsolationClientRequired', "Moving a chat to a worktree with this tool requires a turn initiated by a connected client."));
 						}
-						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
+						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId, additionalFolders);
 					},
 					supportsFolderIsolation: session => agentService?.supportsChatFolderIsolation(session) === true,
-					requestFolderIsolation: (session, chat, folder, turnId) => {
+					requestFolderIsolation: (session, chat, folders, turnId) => {
 						if (!folderIsolationService.value) {
 							throw new Error('Folder isolation is unavailable.');
 						}
-						folderIsolationService.value.request(session, chat, turnId, folder, callbackAdapter.sessionServerToolAccessor.getCredentialSource(chat));
+						folderIsolationService.value.request(session, chat, turnId, folders, callbackAdapter.sessionServerToolAccessor.getCredentialSource(chat));
 					},
+					getIsolatableFolders: async (session, chat) => agentService
+						? agentService.getIsolatableChatFolders(session, chat, workspaceConversionService.value?.canIsolateChat(chat) === true)
+						: { folders: [] },
 				},
 				{
 					isEnabled: () => isArtifactIntegrationsEnabled() && !!hostArtifactIntegrations.value,
@@ -325,7 +328,8 @@ export function createAgentServiceComposition(
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
 			runWithChatCatalogLock: (session, operation) => agentService!.runWithChatCatalogLock(session, operation),
 			prepareChatWorkingDirectory: (session, directory, options) => agentService!.prepareChatWorkingDirectory(session, directory, options),
-			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
+			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories, additionalDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories, additionalDirectories),
+			isolateChatFolder: (session, chat, folder, credentials) => agentService!.isolateChatFolder(session, chat, folder, credentials),
 		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
 		folderIsolationService.value = owned.add(instantiationService.createInstance(FolderIsolationService, {

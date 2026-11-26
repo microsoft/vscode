@@ -110,7 +110,7 @@ function isRenameChatTool(toolCall: ToolCallState): boolean {
 }
 
 /** The server tools whose confirmation names everything they act on itself, so their raw input is not shown. */
-const SERVER_TOOLS_HIDING_INPUT: readonly string[] = [SessionServerToolName.SetWorkspace, SessionServerToolName.IsolateFolder];
+const SERVER_TOOLS_HIDING_INPUT: readonly string[] = [SessionServerToolName.SetWorkspace, SessionServerToolName.IsolateSession];
 
 function hidesToolInput(toolCall: ToolCallState): boolean {
 	return SERVER_TOOLS_HIDING_INPUT.some(name => toolCall.toolName === name || toolCall.toolName.endsWith(`__${name}`));

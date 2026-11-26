@@ -72,18 +72,18 @@ suite('FolderIsolationService', () => {
 		return { service, started, isolated, admissions, end, clearTurn: () => { activeTurn = undefined; }, unregisterChat: () => unregister.fire({ chat: chat.toString() } as IChatRegistration) };
 	}
 
-	test('requests only from the active turn a folder the chat can isolate', () => {
-		const { service } = setup();
-		assert.throws(() => service.request(session, chat, 'turn-0', protocol, undefined), /requires an active turn/);
-		assert.throws(() => service.request(session, chat, 'turn-1', URI.file('/work/app'), undefined), /primary folder/);
+	test('requests only from the active turn folders the chat can isolate, scheduling none when one cannot', async () => {
+		const { service, isolated, end } = setup();
+		assert.throws(() => service.request(session, chat, 'turn-0', [protocol], undefined), /requires an active turn/);
+		assert.throws(() => service.request(session, chat, 'turn-1', [protocol, URI.file('/work/app')], undefined), /primary folder/);
+		await end('success');
+		assert.deepStrictEqual(isolated, []);
 	});
 
 	test('once the turn succeeds, isolates each requested folder with its sponsor and continues the task once, naming each worktree or failure', async () => {
 		const { service, started, isolated, end } = setup();
-		service.request(session, chat, 'turn-1', protocol, sponsor);
-		service.request(session, chat, 'turn-1', docs, sponsor);
-		service.request(session, chat, 'turn-1', protocol, sponsor);
-		service.request(session, chat, 'turn-1', notGit, sponsor);
+		service.request(session, chat, 'turn-1', [protocol, docs], sponsor);
+		service.request(session, chat, 'turn-1', [protocol, notGit], sponsor);
 		await end('success');
 		await end('success');
 
@@ -98,34 +98,34 @@ suite('FolderIsolationService', () => {
 		});
 	});
 
-	test('holds the chat\'s queued messages and refuses new ones from the end of the turn until its folders moved', async () => {
+	test('holds the chat\'s queued messages and refuses new ones from the end of the turn until all its folders moved', async () => {
 		const moved = new DeferredPromise<void>();
-		const { service, started, admissions, clearTurn } = setup({ moved: moved.p });
-		service.request(session, chat, 'turn-1', protocol, sponsor);
+		const { service, started, isolated, admissions, clearTurn } = setup({ moved: moved.p });
+		service.request(session, chat, 'turn-1', [protocol, docs], sponsor);
 		clearTurn();
 		service.onTurnEnd({ session: session.toString(), channel: chat.toString(), turnId: 'turn-1', reason: { kind: 'success' } });
 		const whileMoving = { admissions: [...admissions], moving: service.isMoving(chat.toString()), started: started.length };
 		await moved.complete();
 		await new Promise(resolve => setTimeout(resolve, 0));
 
-		assert.deepStrictEqual({ whileMoving, after: { admissions, moving: service.isMoving(chat.toString()), started: started.length } }, {
+		assert.deepStrictEqual({ whileMoving, after: { admissions, moving: service.isMoving(chat.toString()), isolated: isolated.length, started: started.length } }, {
 			// Held synchronously at the end of the turn, before the queue drain runs
 			whileMoving: { admissions: [`hold ${chat.toString()}`], moving: true, started: 0 },
-			// Released once the continuation started
-			after: { admissions: [`hold ${chat.toString()}`, `release ${chat.toString()}`], moving: false, started: 1 },
+			// Released once both folders moved and the continuation started
+			after: { admissions: [`hold ${chat.toString()}`, `release ${chat.toString()}`], moving: false, isolated: 2, started: 1 },
 		});
 	});
 
 	test('isolates nothing for a cancelled turn or a removed chat, and does not continue a chat with a message the user queued', async () => {
 		const cancelled = setup();
-		cancelled.service.request(session, chat, 'turn-1', protocol, sponsor);
+		cancelled.service.request(session, chat, 'turn-1', [protocol], sponsor);
 		await cancelled.end('cancelled');
 		const removed = setup();
-		removed.service.request(session, chat, 'turn-1', protocol, sponsor);
+		removed.service.request(session, chat, 'turn-1', [protocol], sponsor);
 		removed.unregisterChat();
 		await removed.end('success');
 		const queued = setup({ queuedMessages: [{ id: 'queued', kind: PendingMessageKind.Queued, message: { text: 'Next task', origin: { kind: MessageKind.User } } } as PendingMessage] });
-		queued.service.request(session, chat, 'turn-1', protocol, sponsor);
+		queued.service.request(session, chat, 'turn-1', [protocol], sponsor);
 		await queued.end('success');
 
 		assert.deepStrictEqual({

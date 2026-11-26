@@ -191,7 +191,7 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 			`* Primary folder: ${quote(primary.path)} (the current working directory). ${describe(primary)}`,
 			...additional.map(folder => `* Additional folder${folder.sharedCheckout ? ' (shared checkout, not isolated)' : ''}: ${quote(folder.path)}. ${describe(folder)}`),
 			...(additional.some(folder => folder.sharedCheckout) ? [
-				`A shared checkout is the user's own copy of the folder. Read it in place. Before creating, editing or deleting files in it, or running commands that change files in it, call the \`${SessionServerToolName.IsolateFolder}\` tool with its path: the user confirms moving it into a worktree of its own. Then end the turn: the host moves it and continues the task, telling you its new path, where you make every change to it. If the user skips it, the folder is not moved and you continue in it where it is.`,
+				`A shared checkout is the user's own copy of the folder. Read it in place. Before creating, editing or deleting files in it, or running commands that change files in it, call the \`${SessionServerToolName.IsolateSession}\` tool with its path, together with any other shared checkout you will change: the user confirms moving them into worktrees of their own. Then end the turn: the host moves them and continues the task, telling you their new paths, where you make every change to them. If the user skips it, nothing is moved and you continue in them where they are.`,
 			] : []),
 			...(additional.some(folder => folder.inPlace) ? [
 				'Folders that are not in a Git repository are not isolated in a worktree: changes to them are made in the user\'s own folder.',

@@ -20,19 +20,19 @@ import { IAgentHostTurnService } from '../../agentHostTurnService.js';
 export const IFolderIsolationService = createDecorator<IFolderIsolationService>('folderIsolationService');
 
 /**
- * Moves an additional folder of a chat into a worktree of its own when the agent asks for it with `isolate_folder`,
- * as `isolate_session` moves a chat: the tool asks the user to confirm and schedules the move, and once the turn that
- * called it ends successfully, the host moves the folder and continues the chat's task in a new turn, which a
+ * Moves additional folders of a chat into worktrees of their own when the agent asks for them with `isolate_session`,
+ * as it moves a chat of one folder: the tool asks the user to confirm and schedules the move, and once the turn that
+ * called it ends successfully, the host moves the folders and continues the chat's task in a new turn, which a
  * provider launches in the new folders.
  */
 export interface IFolderIsolationService {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Moves `folder` of `chat` into a worktree once its active turn `turnId` ends successfully. Throws when the turn is
-	 * not active or the chat cannot isolate the folder. `credentials`, the source of that turn, sponsor the worktree
-	 * and the turn that continues the task, as a client's message sponsors its turn.
+	 * Moves `folders` of `chat` into worktrees once its active turn `turnId` ends successfully. Throws, scheduling none,
+	 * when the turn is not active or the chat cannot isolate one of them. `credentials`, the source of that turn, sponsor
+	 * the worktrees and the turn that continues the task, as a client's message sponsors its turn.
 	 */
-	request(session: URI, chat: URI, turnId: string, folder: URI, credentials: IAgentHostCredentialSource | undefined): void;
+	request(session: URI, chat: URI, turnId: string, folders: readonly URI[], credentials: IAgentHostCredentialSource | undefined): void;
 	/**
 	 * Moves the folders a turn that ended successfully asked for, and continues the chat's task; drops them otherwise.
 	 * Until the folders are moved, the chat's queued messages wait and a message sent to it is refused, so that no turn
@@ -84,21 +84,25 @@ export class FolderIsolationService extends Disposable implements IFolderIsolati
 		return this._moving.has(chat);
 	}
 
-	request(session: URI, chat: URI, turnId: string, folder: URI, credentials: IAgentHostCredentialSource | undefined): void {
+	request(session: URI, chat: URI, turnId: string, folders: readonly URI[], credentials: IAgentHostCredentialSource | undefined): void {
 		const key = chat.toString();
 		if (this._stateManager.getActiveTurnId(key) !== turnId) {
 			throw new Error(localize('agentHost.isolateFolder.activeTurnRequired', "Isolating a folder with this tool requires an active turn."));
 		}
-		this._host.validateFolderIsolation(session, chat, folder);
-		const pending = this._pending.get(key);
-		if (pending?.turnId === turnId) {
+		for (const folder of folders) {
+			this._host.validateFolderIsolation(session, chat, folder);
+		}
+		let pending = this._pending.get(key);
+		if (pending?.turnId !== turnId) {
+			pending = { session, turnId, folders: [], credentials };
+			this._pending.set(key, pending);
+		}
+		for (const folder of folders) {
 			if (!pending.folders.some(candidate => candidate.toString() === folder.toString())) {
 				pending.folders.push(folder);
 			}
-			pending.credentials = credentials ?? pending.credentials;
-		} else {
-			this._pending.set(key, { session, turnId, folders: [folder], credentials });
 		}
+		pending.credentials = credentials ?? pending.credentials;
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
