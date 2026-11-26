@@ -430,6 +430,37 @@ suite('AgentHostPullRequestStatusService', () => {
 		});
 	});
 
+	test('watches and reports the pull request of a session folder no chat works in first, under its own changeset owner', async () => {
+		const { service, stateManager, subscriptions, resources, publishedStateKeys, chatGitStates, session } = createHarness();
+		const otherFolder = 'file:///other';
+		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: otherFolder });
+		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
+			pullRequestUrls: [otherPullRequestUrl],
+			pullRequestBranchName: 'tools-feature',
+		}));
+		const otherFolderOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([otherFolder]));
+		// The folder's own Git state, not the default chat's, which borrows its conversation.
+		chatGitStates.set(otherFolderOwner, { branchName: 'tools-feature' });
+
+		subscriptions.addSubscription(session, session);
+		for (let i = 0; i < 50 && resources.liveSubscriptions < 2; i++) {
+			await pump();
+		}
+
+		assert.deepStrictEqual({
+			watched: resources.subscribed.map(ref => `${ref.owner}/${ref.repo}#${ref.number}`),
+			sessionFolder: service.getPullRequestStatus(session)?.url,
+			otherFolder: service.getPullRequestStatus(otherFolderOwner)?.url,
+			publishedStateKeys,
+		}, {
+			watched: ['octo/repo#7', 'octo/tools#9'],
+			sessionFolder: pullRequestUrl,
+			otherFolder: otherPullRequestUrl,
+			publishedStateKeys: [session, otherFolderOwner],
+		});
+	});
+
 	test('refreshes a reused folder watch descriptor when the representative chat changes', async () => {
 		const { service, stateManager, subscriptions, resources, publishedStateKeys, chatGitStates, session } = createHarness();
 		const otherFolder = 'file:///other';

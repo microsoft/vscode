@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ChatOriginKind, isAhpChatChannel, readFolderScopeGitState, readSessionGitState, type ISessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -235,6 +237,63 @@ export function isSessionChatInFolder(stateManager: AgentHostStateManager, sessi
 	return isSessionChat && chatWorksInFolder(stateManager, chat, folderKey);
 }
 
+/** The most folders and repositories of one session that have an Agent Merge of their own as folder-only scopes. */
+export const MAX_FOLDER_ONLY_AGENT_MERGE_ROOTS = 16;
+
+/**
+ * The roots of a session's folder-only scopes (see {@link isFolderOnlyScope}) that have an Agent Merge and a pull
+ * request of their own, by working-directory key: the session's folders other than its first when it has several, then
+ * the repositories found in its folders, at most {@link MAX_FOLDER_ONLY_AGENT_MERGE_ROOTS}. A folder that a chat of the
+ * session works in first is that chat's folder, and is not one of them.
+ */
+export function getFolderOnlyAgentMergeRoots(stateManager: AgentHostStateManager, session: ProtocolURI): ReadonlyMap<string, ProtocolURI> {
+	const state = stateManager.getSessionState(session);
+	const sessionFolders = (stateManager.getSessionSummary(session)?.workingDirectories ?? []).filter(folder => !stateManager.isScratchFolder(folder));
+	const chatFolderKeys = new Set([
+		...sessionFolders.slice(0, 1),
+		...state?.chats.map(chat => chat.workingDirectories?.[0]).filter(directory => directory !== undefined) ?? [],
+	].map(getWorkingDirectoryKey));
+	const candidates = [
+		...(sessionFolders.length > 1 ? sessionFolders.slice(1) : []),
+		...Object.values(readSessionRepositories(state?._meta) ?? {}).flat().filter(repository => repository.kind !== 'folder').map(repository => repository.root),
+	];
+	const roots = new Map<string, ProtocolURI>();
+	for (const root of candidates) {
+		const key = getWorkingDirectoryKey(root);
+		if (!chatFolderKeys.has(key) && !roots.has(key)) {
+			roots.set(key, root);
+			if (roots.size === MAX_FOLDER_ONLY_AGENT_MERGE_ROOTS) {
+				break;
+			}
+		}
+	}
+	return roots;
+}
+
+/** The root of the folder-only scope with `folderKey` (see {@link getFolderOnlyAgentMergeRoots}), or `undefined` when there is none. */
+export function getFolderOnlyAgentMergeRoot(stateManager: AgentHostStateManager, session: ProtocolURI, folderKey: string | undefined): ProtocolURI | undefined {
+	return folderKey === undefined ? undefined : getFolderOnlyAgentMergeRoots(stateManager, session).get(folderKey);
+}
+
+/** Whether one of the effective working directories of `chat` is `root` or contains it, so its turns can work in `root`. */
+export function chatCoversFolder(stateManager: AgentHostStateManager, chat: ProtocolURI, root: ProtocolURI): boolean {
+	const rootUri = URI.parse(root);
+	return getEffectiveWorkingDirectories(stateManager, chat)?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(rootUri, URI.parse(directory))) === true;
+}
+
+/**
+ * The key under which the Git and GitHub state of `folder` is read and written: the session for its first folder, the
+ * folder's changeset owner for a folder-only scope (see {@link getFolderOnlyAgentMergeRoots}), and otherwise the chat
+ * working in the folder.
+ */
+export function getGitHubStateFolderKey(stateManager: AgentHostStateManager, folder: IGitHubStateFolder): ProtocolURI {
+	if (folder.isSessionFolder) {
+		return folder.sessionUri;
+	}
+	const root = getFolderOnlyAgentMergeRoot(stateManager, folder.sessionUri, folder.folderKey);
+	return root !== undefined ? buildFolderChangesetOwnerUri(folder.sessionUri, getWorkingDirectoryScopeId([root])) : folder.sourceUri;
+}
+
 /**
  * The chat whose own settings Agent Merge elevates for a folder: the chat that
  * owns the folder's repairs ({@link resolveAgentMergeOwningChat}) unless that is
@@ -267,12 +326,21 @@ export function resolveAgentMergeElevatedChat(stateManager: AgentHostStateManage
  * folder, else the first chat working in the folder. `undefined` when no chat
  * of the session works in the folder. The recorded chat is client-written, so
  * it is honored only for a chat of this session that works in the folder.
+ *
+ * A folder-only scope (see {@link getFolderOnlyAgentMergeRoots}) has no chat
+ * working in it first: its repairs run in the recorded chat, else the default
+ * chat, else the first chat, that has the folder among any of its working
+ * directories, or a folder containing it.
  */
 export function resolveAgentMergeOwningChat(stateManager: AgentHostStateManager, session: ProtocolURI, folderKey: string, recordedChat: ProtocolURI | undefined): ProtocolURI | undefined {
 	const state = stateManager.getSessionState(session);
 	const defaultChat = stateManager.getDefaultChat(session);
-	const worksInFolder = (chat: ProtocolURI) => chatWorksInFolder(stateManager, chat, folderKey);
-	if (recordedChat && isSessionChatInFolder(stateManager, session, recordedChat, folderKey)) {
+	const folderOnlyRoot = getFolderOnlyAgentMergeRoot(stateManager, session, folderKey);
+	const worksInFolder = folderOnlyRoot !== undefined
+		? (chat: ProtocolURI) => chatCoversFolder(stateManager, chat, folderOnlyRoot)
+		: (chat: ProtocolURI) => chatWorksInFolder(stateManager, chat, folderKey);
+	const isSessionChat = (chat: ProtocolURI) => isAhpChatChannel(chat) && (stateManager.isDefaultChat(session, chat) || state?.chats.some(candidate => candidate.resource === chat) === true);
+	if (recordedChat && isSessionChat(recordedChat) && worksInFolder(recordedChat)) {
 		return recordedChat;
 	}
 	if (defaultChat !== undefined && worksInFolder(defaultChat)) {

@@ -42,7 +42,7 @@ import { readSessionRepositories } from '../../common/meta/agentSessionRepositor
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../node/agentHostBranchChangesetScope.js';
+import { getFolderOnlyAgentMergeRoots, resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../node/agentHostBranchChangesetScope.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
@@ -3461,6 +3461,52 @@ suite('AgentHostGitStateService', () => {
 			before: { owner: 'contoso', repo: 'api', pullRequestUrls: ['https://github.com/contoso/api/pull/12'], pullRequestBranchName: 'feature' },
 			after: { owner: 'fabrikam', repo: 'api', pullRequestUrls: ['https://github.com/fabrikam/api/pull/30'], pullRequestBranchName: 'feature' },
 			lookups: ['feature', 'feature'],
+		});
+	}));
+
+	test('a folder-only scope reads, refreshes and looks up its own pull request through its changeset owner, and gets a chat covering it; the first folder and chat folders are unchanged', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const api = 'file:///api';
+		const web = 'file:///web';
+		const sessionGitState: ISessionGitState = { branchName: 'main', baseBranchName: 'main', hasGitHubRemote: true, githubOwner: 'contoso', githubRepo: 'app' };
+		const apiGitState: ISessionGitState = { branchName: 'api-feature', baseBranchName: 'main', hasGitHubRemote: true, githubOwner: 'contoso', githubRepo: 'api' };
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: sessionGitState });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: api });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: web });
+		// A chat working in `web` first makes it that chat's folder; it also works in `api`, which stays folder-only.
+		const webChat = buildChatUri(SESSION, 'web');
+		h.stateManager.addChat(SESSION, webChat, creationTimeChatStorageResource(SESSION, webChat, buildDefaultChatUri(SESSION)), { workingDirectories: [web, api] });
+		h.setGitResult(sessionGitState);
+		h.setGitResultForFolder(api, apiGitState);
+		h.setGitResultForFolder(web, { branchName: 'web-feature' });
+		h.setPullRequest('api-feature', createTestPullRequestSummary(12, { html_url: 'https://github.com/contoso/api/pull/12' }));
+		const apiOwner = buildFolderChangesetOwnerUri(SESSION, getWorkingDirectoryScopeId([api]));
+		const before = h.service.getSessionGitState(apiOwner);
+
+		await h.service.attachSessionGitHubPullRequest(apiOwner);
+
+		assert.deepStrictEqual({
+			roots: [...getFolderOnlyAgentMergeRoots(h.stateManager, SESSION).values()],
+			before,
+			apiGitState: h.service.getSessionGitState(apiOwner),
+			apiPullRequests: readFolderGitHubState(h.stateManager.getSessionState(SESSION)?._meta, getWorkingDirectoryKey(api))?.pullRequestUrls,
+			sessionGitState: h.service.getSessionGitState(SESSION),
+			apiOwningChat: resolveAgentMergeOwningChat(h.stateManager, SESSION, getWorkingDirectoryKey(api), undefined),
+			apiRecordedOwningChat: resolveAgentMergeOwningChat(h.stateManager, SESSION, getWorkingDirectoryKey(api), webChat),
+			firstFolderOwningChat: resolveAgentMergeOwningChat(h.stateManager, SESSION, getWorkingDirectoryKey(WORKING_DIRECTORY), webChat),
+			webOwningChat: resolveAgentMergeOwningChat(h.stateManager, SESSION, getWorkingDirectoryKey(web), undefined),
+			pullRequestCalls: h.pullRequestCalls,
+		}, {
+			roots: [api],
+			before: undefined,
+			apiGitState,
+			apiPullRequests: ['https://github.com/contoso/api/pull/12'],
+			sessionGitState,
+			apiOwningChat: buildDefaultChatUri(SESSION),
+			apiRecordedOwningChat: webChat,
+			firstFolderOwningChat: buildDefaultChatUri(SESSION),
+			webOwningChat: webChat,
+			pullRequestCalls: ['api-feature'],
 		});
 	}));
 

@@ -32,8 +32,9 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestAssociationResolver.js';
-import { isSessionChatInFolder, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { getFolderOnlyAgentMergeRoot, isSessionChatInFolder, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
+import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { readSessionNonRepositoryFolders, withSessionNonRepositoryFolders } from '../common/meta/agentSessionNonRepositoryFoldersMeta.js';
 import { readSessionRepositories, withSessionRepositories, type ISessionRepositoryEntry } from '../common/meta/agentSessionRepositoriesMeta.js';
 import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
@@ -192,6 +193,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async attachSessionGitHubPullRequest(sessionKey: string, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void> {
+		const folderOnly = this._resolveFolderOnlyOwner(sessionKey);
+		if (folderOnly) {
+			return this._attachFolderOnlyGitHubPullRequest(folderOnly, this._captureCredentials(folderOnly.sessionUri, source));
+		}
 		const credentials = this._captureCredentials(sessionKey, source);
 		await this._refreshSessionGitState(sessionKey, credentials);
 		if (isAhpChatChannel(sessionKey) && !this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
@@ -331,6 +336,30 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to find pull request for ${sessionKey}`, error);
 			return toPullRequestLookupFailure(error);
 		}
+	}
+
+	/**
+	 * The session and root of the folder-only scope (see `getFolderOnlyAgentMergeRoots`) that a folder changeset owner
+	 * URI names, or `undefined` for any other key. Its session's refresh records the folder's Git state, GitHub
+	 * repository and pull request, under the scope of the root alone.
+	 */
+	private _resolveFolderOnlyOwner(key: string): { readonly sessionUri: string; readonly root: string } | undefined {
+		const owner = parseFolderChangesetOwnerUri(key);
+		const root = owner ? resolveBranchChangesetScopeForOwner(this._stateManager, key)?.workingDirectories : undefined;
+		return owner && root?.length === 1 && getFolderOnlyAgentMergeRoot(this._stateManager, owner.sessionUri, getWorkingDirectoryKey(root[0])) !== undefined
+			? { sessionUri: owner.sessionUri, root: root[0] }
+			: undefined;
+	}
+
+	/** Refreshes a folder-only scope through its session, then looks up the pull request of the folder's branch. */
+	private async _attachFolderOnlyGitHubPullRequest(folderOnly: { readonly sessionUri: string; readonly root: string }, credentials: IRepositoryCredentialContext): Promise<void> {
+		await this._refreshSessionGitState(folderOnly.sessionUri, credentials);
+		const gitState = readFolderScopeGitState(this._stateManager.getSessionState(folderOnly.sessionUri)?._meta, getWorkingDirectoryScopeId([folderOnly.root]));
+		if (credentials.sponsorUnavailable || !gitState) {
+			return;
+		}
+		const folder = { sessionUri: folderOnly.sessionUri, sourceUri: folderOnly.sessionUri, folderKey: getWorkingDirectoryKey(folderOnly.root), isSessionFolder: false, workingDirectory: folderOnly.root };
+		return this._pullRequestSequencer.queue(`${folder.sessionUri}#${folder.folderKey}`, () => this._attachAdditionalFolderPullRequest(folder, gitState, credentials));
 	}
 
 	/** Queues a pull request lookup for a folder other than the session folder. */
@@ -500,6 +529,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async refreshSessionGitState(sessionKey: string, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
+		const folderOnly = this._resolveFolderOnlyOwner(sessionKey);
+		if (folderOnly) {
+			return this._refreshSessionGitState(folderOnly.sessionUri, this._captureCredentials(folderOnly.sessionUri, source), options);
+		}
 		return this._refreshSessionGitState(sessionKey, this._captureCredentials(sessionKey, source), options);
 	}
 
@@ -1148,6 +1181,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	getSessionGitState(sessionKey: string): ISessionGitState | undefined {
+		const folderOnly = this._resolveFolderOnlyOwner(sessionKey);
+		if (folderOnly) {
+			return readFolderScopeGitState(this._stateManager.getSessionState(folderOnly.sessionUri)?._meta, getWorkingDirectoryScopeId([folderOnly.root]));
+		}
 		if (!isAhpChatChannel(sessionKey)) {
 			return readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta);
 		}

@@ -17,11 +17,12 @@ import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
-import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
+import { buildFolderChangesetOwnerUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isAhpChatChannel, isSessionStatusArchived, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { getFolderOnlyAgentMergeRoots, getGitHubStateFolderKey, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -351,7 +352,10 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 	}
 
-	/** The folders of a session that have their own pull request: the session folder and each chat's first folder. */
+	/**
+	 * The folders of a session that have their own pull request: the session folder, each chat's first folder, and each
+	 * folder-only scope with an Agent Merge of its own (see `getFolderOnlyAgentMergeRoots`).
+	 */
 	private _getFolders(sessionKey: string): readonly IGitHubStateFolder[] {
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
@@ -361,6 +365,12 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		const defaultChat = this._chatOwnership.getDefaultChat(sessionKey);
 		for (const source of [sessionKey, ...state.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat)]) {
 			const folder = this._resolveFolder(source);
+			if (folder && !folders.has(watchKey(folder))) {
+				folders.set(watchKey(folder), folder);
+			}
+		}
+		for (const root of getFolderOnlyAgentMergeRoots(this._stateManager, sessionKey).values()) {
+			const folder = this._resolveFolder(buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([root])));
 			if (folder && !folders.has(watchKey(folder))) {
 				folders.set(watchKey(folder), folder);
 			}
@@ -511,8 +521,8 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			return { kind: 'skip', reason: 'no client is subscribed to the session changes' };
 		}
 		const gitHubState = readFolderGitHubState(state._meta, folder.folderKey);
-		// The session's Git state describes the session folder; another folder's comes from its chat.
-		const gitState = folder.isSessionFolder ? readSessionGitState(state._meta) : this._gitStateService.getSessionGitState?.(folder.sourceUri);
+		// The session's Git state describes the session folder; another folder's comes from its chat, or is its own.
+		const gitState = folder.isSessionFolder ? readSessionGitState(state._meta) : this._gitStateService.getSessionGitState?.(getGitHubStateFolderKey(this._stateManager, folder));
 		if (!hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
 			return { kind: 'skip', reason: `no pull request is known for branch '${gitState?.branchName ?? 'unknown'}'` };
 		}
@@ -561,8 +571,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		if (gitHubState?.pullRequestState === state && gitHubState.pullRequestStateUrl === pullRequestUrl) {
 			return;
 		}
-		// The session folder's state is keyed by the session; another folder's by the chat working in it.
-		const key = folder.isSessionFolder ? folder.sessionUri : folder.sourceUri;
+		const key = getGitHubStateFolderKey(this._stateManager, folder);
 		void this._gitStateService.setSessionGitHubState(key, {
 			pullRequestState: state,
 			pullRequestStateUrl: pullRequestUrl,

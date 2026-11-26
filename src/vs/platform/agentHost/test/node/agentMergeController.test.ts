@@ -26,7 +26,8 @@ import { captureCredentialSource, type IAgentHostCredentialSource } from '../../
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostArtifactIntegrationsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMissingPullRequestNotice, agentMergeRootConfigSchema, agentMergeSingleSignOnNotice, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { createPullRequestOperationMeta } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -677,6 +678,86 @@ suite('AgentMergeController', () => {
 			startTurns: [{ chat: peerChat, hasPrompt: true }],
 			notices: [{ chat: peerChat, kind: AgentSystemNotificationKind.AgentMergeEnabled }],
 			turnSources: ['captured-repair-token'],
+		});
+	});
+
+	test('runs a folder no chat works in first from its own Git state and pull request, in a chat covering it, naming its repository', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+		const session = `copilot:/agent-merge-controller-${++sessionCounter}`;
+		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
+		const otherOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([OTHER_REPOSITORY]));
+		const started = new DeferredPromise<void>();
+		const startTurns: { readonly chat: string; readonly prompt: string }[] = [];
+		const gitStateKeys: string[] = [];
+		const snapshot = repairSnapshot();
+		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
+			override readonly onDidRefreshSessionGitState = Event.None;
+			override readonly onDidChangeSessionGitHubState = Event.None;
+			override readonly getSessionGitState = (sessionKey: string) => {
+				return sessionKey === otherOwner ? { branchName: 'feature-tools', baseBranchName: 'main' } : undefined;
+			};
+			override async refreshSessionGitState(sessionKey: string): Promise<void> { gitStateKeys.push(sessionKey); }
+			override async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> { gitStateKeys.push(sessionKey); }
+		}();
+		disposables.add(new AgentMergeController(
+			{
+				startTurn: (chat, _turnId, prompt) => {
+					startTurns.push({ chat, prompt });
+					started.complete();
+					return true;
+				},
+				cancelTurn: () => { },
+				postNotice: () => { },
+			},
+			stateManager,
+			createTestChatOwnershipService(stateManager),
+			configurationService,
+			gitStateService,
+			noopGitService,
+			createTestGitHubService(new class extends mock<IGitHubClient>() {
+				override readonly credentials = new class extends mock<IGitHubCredentials>() {
+					override async getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential> {
+						return { account: snapshot.ref, token: 'test-token', generation: 1, cancellationToken };
+					}
+				}();
+				override readonly pullRequests = new class extends mock<IPullRequestResources>() {
+					override subscribePullRequest(): PullRequestSubscription {
+						return {
+							resource: { ref: snapshot.ref, snapshot: constObservable(snapshot) },
+							refresh: async () => { },
+							update: () => { },
+							dispose: () => { },
+						};
+					}
+				}();
+			}(), Event.None, {}),
+			disposables.add(new AgentHostGitHubEndpointService(configurationService, logService)),
+			createProviderService(() => ({})),
+			logService,
+		));
+		stateManager.createSession({ ...summary(session), workingDirectories: [REPOSITORY, OTHER_REPOSITORY] });
+		stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
+		stateManager.setSessionMeta(session, withFolderGitHubState(undefined, otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
+
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMergeFolders]: {
+				[otherKey]: { enabled: true },
+			},
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		await started.p;
+
+		assert.deepStrictEqual({
+			startTurns: startTurns.map(turn => ({ chat: turn.chat, namesRepository: turn.prompt.includes(`repository at \`${URI.parse(OTHER_REPOSITORY).fsPath}\``) })),
+			gitStateKeys: [...new Set(gitStateKeys)],
+			target: readAgentMergeFolderState(stateManager.getSessionState(session)?.config?.values, otherKey, getWorkingDirectoryKey(REPOSITORY))?.target?.pullRequestUrl,
+		}, {
+			startTurns: [{ chat: buildDefaultChatUri(session), namesRepository: true }],
+			gitStateKeys: [otherOwner],
+			target: 'https://github.com/octo/repo/pull/1',
 		});
 	});
 

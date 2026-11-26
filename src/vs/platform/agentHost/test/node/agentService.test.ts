@@ -8255,6 +8255,38 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('accepts a client\'s Agent Merge write for a repository found in a session folder', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const repo = URI.file('/repo').toString();
+			const nested = URI.file('/repo/packages/nested').toString();
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+			const stateManager = getStateManager(svc);
+			stateManager.setSessionMeta(session.toString(), withSessionRepositories(stateManager.getSessionState(session.toString())?._meta, { [getWorkingDirectoryKey(repo)]: [{ root: repo, kind: 'folder' }, { root: nested, kind: 'nested' }] }));
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: {
+					[SessionConfigKey.AgentMergeFolders]: {
+						[nested]: { enabled: true },
+						[URI.file('/repo/packages/unknown').toString()]: { enabled: true },
+					},
+				},
+			}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				folders: stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.AgentMergeFolders],
+			}, {
+				rejectionReason: undefined,
+				folders: { [getWorkingDirectoryKey(nested)]: { enabled: true } },
+			});
+		});
+
 		test('pins the default chat before expanding the session working directories', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const added = URI.file('/workspace/added');
