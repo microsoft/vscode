@@ -1450,6 +1450,37 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			turnedOff: ['@: abc, index', '@i: index', '@iq: closed'],
 		});
 	});
+
+	test('reopenOnDelete brings back only suggestions that showed, from the providers that they came from', async function () {
+		// Trigger characters with nothing to suggest in plain text, such as the space of the agent host's
+		// commands, and a provider of words without trigger characters, such as the word-based one
+		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
+			triggerCharacters: [' ', '.'],
+			provideCompletionItems(): CompletionList {
+				return { suggestions: [] };
+			}
+		}));
+		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos): CompletionList {
+				return { suggestions: ['these', 'item'].map(label => ({ label, kind: CompletionItemKind.Text, insertText: label, range: getDefaultSuggestRange(doc, pos) })) };
+			}
+		}));
+		disposables.add(registry.register({ scheme: 'test' }, mentionSupport));
+
+		const options: IEditorOptions = { quickSuggestions: false, suggest: { reopenOnDelete: true } };
+		assert.deepStrictEqual({
+			space: await recordSuggestions(options, ['t', 'e', 'x', 't', ' ', 'Backspace', 'Backspace', 'Backspace']),
+			period: await recordSuggestions(options, ['t', 'e', 'x', 't', '.', 'Backspace', 'Backspace', 'Backspace']),
+			typoOfTwoCharacters: await recordSuggestions(options, ['@', 'i', 'q', 'x', 'Backspace', 'Backspace']),
+		}, {
+			space: ['text : closed'],
+			period: ['text.: closed'],
+			// the first Backspace finds nothing either, and the word provider never joins the mentions
+			typoOfTwoCharacters: ['@: abc, index', '@i: index', '@iq: closed', '@iq: closed', '@i: index'],
+		});
+	});
 });
 
 suite('SuggestModel - offWhenInlineCompletions with InlineCompletionsController', function () {
