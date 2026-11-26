@@ -179,13 +179,6 @@ suite('AgentHostCatalogProjection', () => {
 		});
 	});
 
-	test('keeps the name and folders of a session\'s workspace', () => {
-		const data = createData();
-		const multiRoot = { workspaceFile: 'file:///workspace/project.code-workspace', name: 'Project', folders: ['file:///workspace', 'file:///workspace/secondary'] };
-		const decoded = decodeAgentHostCatalogPayload(encode({ ...data, _meta: { ...data._meta, [SESSION_META_MULTI_ROOT_KEY]: multiRoot } }).payload);
-		assert.deepStrictEqual(decoded.ok ? decoded.value.data._meta?.[SESSION_META_MULTI_ROOT_KEY] : decoded, multiRoot);
-	});
-
 	test('normalizes order and strips unknown properties without a SQL schema change', () => {
 		const source = JSON.parse(encode().payload);
 		source.futureEnvelopeField = 'ignored';

@@ -260,9 +260,6 @@ const projectValidator = plainObject(vObj({
 
 const multiRootValidator = plainObject(vObj({
 	workspaceFile: uriString(),
-	// The bounds of `ISessionMultiRootMetadata`, so that a value it accepts is projected unchanged.
-	name: vOptionalProp(boundedString(256)),
-	folders: vOptionalProp(boundedArray(uriString(), 64)),
 }));
 
 const folderPickerValidator = new RefinedValidator(plainObject(vObj({
