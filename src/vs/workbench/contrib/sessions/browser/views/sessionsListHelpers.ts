@@ -75,13 +75,12 @@ export function getSessionSectionType(sectionId: string): string {
 }
 
 /**
- * The one local root folder (the project or repository folder, never a session's worktree) that all the sessions of a section
- * belong to, if they have one: sessions in different worktrees of one repository share its root. Not for sessions with several
- * folders, a remote folder or none, nor for a section whose sessions belong to different roots.
+ * The {@link ISessionSection.rootFolder} of a workspace or repository section with these sessions: their one shared local root
+ * folder, if they have one. Sessions in different worktrees of one repository share its root.
  */
-export function getSessionSectionLocalFolder(section: ISessionSection): URI | undefined {
+export function getSessionsRootFolder(sessions: readonly ISession[]): URI | undefined {
 	let result: URI | undefined;
-	for (const session of section.sessions) {
+	for (const session of sessions) {
 		const workspace = getSessionPresentationWorkspace(session, undefined);
 		const folder = workspace?.folders.length === 1 ? workspace.folders[0] : undefined;
 		const uri = folder?.root;
@@ -575,12 +574,17 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 		.filter(k => k !== unknownWorkspaceLabel)
 		.sort((a, b) => a.localeCompare(b));
 
-	const result: ISessionSection[] = order.map(label => ({
-		id: `workspace:${label}`,
-		collapseStateId: workspaceCollapseStateId(groups.get(label)!),
-		label,
-		sessions: groups.get(label)!,
-	}));
+	const result: ISessionSection[] = order.map(label => {
+		const sessions = groups.get(label)!;
+		const rootFolder = getSessionsRootFolder(sessions);
+		return {
+			id: `workspace:${label}`,
+			collapseStateId: workspaceCollapseStateId(sessions),
+			label,
+			sessions,
+			...(rootFolder ? { rootFolder } : {}),
+		};
+	});
 
 	// "Unknown Workspace" always at the bottom
 	const unknownWorkspace = groups.get(unknownWorkspaceLabel);
@@ -661,7 +665,13 @@ export function groupByRepository(sessions: ISession[]): ISessionSection[] {
 	}
 	const unknownWorkspaceId = `workspace:${localize('unknown', "Unknown")}`;
 	const workspaceSections = groupByWorkspace(withoutRepository);
-	const sections = [...repositorySections.values(), ...workspaceSections.filter(section => section.id !== unknownWorkspaceId)];
+	const sections = [
+		...[...repositorySections.values()].map(section => {
+			const rootFolder = getSessionsRootFolder(section.sessions);
+			return rootFolder ? { ...section, rootFolder } : section;
+		}),
+		...workspaceSections.filter(section => section.id !== unknownWorkspaceId),
+	];
 	labelRepositorySections(sections);
 	sections.sort((a, b) => a.label.localeCompare(b.label));
 	sections.push(...workspaceSections.filter(section => section.id === unknownWorkspaceId));

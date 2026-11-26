@@ -20,7 +20,7 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { Menus } from '../../browser/menus.js';
 import { registerSessionsListActions } from '../../browser/views/sessionsListActions.js';
 import { ISessionSection, SessionSectionHasLocalFolderContext, SessionSectionTypeContext } from '../../browser/views/sessionsListCommon.js';
-import { getSessionSectionLocalFolder } from '../../browser/views/sessionsListHelpers.js';
+import { groupByRepository, groupByWorkspace } from '../../browser/views/sessionsListHelpers.js';
 import { OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID } from '../../common/sessionCommands.js';
 import { buildTestSession } from '../common/testSessionBuilder.js';
 
@@ -28,10 +28,12 @@ suite('Sessions list actions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, root: URI, workingDirectory: URI = root): ISession {
+	function createSession(id: string, root: URI, workingDirectory: URI = root, gitHubRepository?: string): ISession {
+		const [owner, repo] = gitHubRepository?.split('/') ?? [];
+		const gitRepository = gitHubRepository ? upcastPartial<NonNullable<ISessionWorkspace['folders'][number]['gitRepository']>>({ uri: root, gitHubInfo: constObservable({ owner, repo }) }) : undefined;
 		const workspace: ISessionWorkspace = {
-			uri: root, label: id, icon: undefined!, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
-			folders: [{ root, workingDirectory, name: id, description: undefined, gitRepository: undefined }],
+			uri: root, label: 'repo', icon: undefined!, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+			folders: [{ root, workingDirectory, name: id, description: undefined, gitRepository }],
 		};
 		return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace) };
 	}
@@ -59,7 +61,10 @@ suite('Sessions list actions', () => {
 			const worktree = createSession('w1', repo, URI.file('/work/repo.worktrees/feature'));
 			const otherWorktree = createSession('w2', repo, URI.file('/work/repo.worktrees/fix'));
 			const remote = createSession('remote', URI.from({ scheme: 'vscode-agent-host', path: '/work/repo' }));
-			const section = (...sessions: ISession[]) => upcastPartial<ISessionSection>({ id: 'workspace:repo', label: 'repo', sessions });
+			const section = (...sessions: ISession[]) => groupByWorkspace(sessions)[0];
+			const repositorySection = (...sessions: ISession[]) => groupByRepository(sessions)[0];
+			const clone = createSession('clone', repo, repo, 'microsoft/vscode');
+			const otherClone = createSession('otherClone', otherRepo, otherRepo, 'microsoft/vscode');
 			const runOn = (arg: ISessionSection) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(commandId)!.handler(accessor, arg));
 			await runOn(section(createSession('a', repo), createSession('b', repo)));
 			await runOn(section(worktree, otherWorktree));
@@ -73,11 +78,13 @@ suite('Sessions list actions', () => {
 				aiDisabled: shown('workspace', { [ChatContextKeys.enabled.key]: false }),
 				noLocalFolder: shown('workspace', { [SessionSectionHasLocalFolderContext.key]: false }),
 				folders: {
-					oneFolder: getSessionSectionLocalFolder(section(createSession('a', repo)))?.path,
-					worktree: getSessionSectionLocalFolder(section(worktree))?.path,
-					worktreesOfOneRepo: getSessionSectionLocalFolder(section(createSession('a', repo), worktree, otherWorktree))?.path,
-					differentRoots: getSessionSectionLocalFolder(section(createSession('a', repo), createSession('c', otherRepo))),
-					remote: getSessionSectionLocalFolder(section(remote)),
+					oneFolder: section(createSession('a', repo)).rootFolder?.path,
+					worktree: section(worktree).rootFolder?.path,
+					worktreesOfOneRepo: section(createSession('a', repo), worktree, otherWorktree).rootFolder?.path,
+					differentRoots: section(createSession('a', repo), createSession('c', otherRepo)).rootFolder,
+					remote: section(remote).rootFolder,
+					repository: [repositorySection(clone).id, repositorySection(clone).rootFolder?.path],
+					repositoryClones: [repositorySection(clone, otherClone).id, repositorySection(clone, otherClone).rootFolder],
 				},
 				opened,
 			}, {
@@ -86,7 +93,10 @@ suite('Sessions list actions', () => {
 				workspaceScope: false,
 				aiDisabled: false,
 				noLocalFolder: false,
-				folders: { oneFolder: '/work/repo', worktree: '/work/repo', worktreesOfOneRepo: '/work/repo', differentRoots: undefined, remote: undefined },
+				folders: {
+					oneFolder: '/work/repo', worktree: '/work/repo', worktreesOfOneRepo: '/work/repo', differentRoots: undefined, remote: undefined,
+					repository: ['repository:microsoft/vscode', '/work/repo'], repositoryClones: ['repository:microsoft/vscode', undefined],
+				},
 				// Only the sections whose sessions belong to one local root, which opens even for sessions in its worktrees
 				opened: [{ folder: '/work/repo', forceNewWindow: true }, { folder: '/work/repo', forceNewWindow: true }],
 			});
