@@ -12,7 +12,7 @@ import { PROTOCOL_VERSION } from '../../../../platform/agentHost/common/state/pr
 import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportSessionArtifactOpen, SessionArtifactOpenSource } from '../../../common/sessionArtifactOpenTelemetry.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
-import { ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
+import { getWellKnownChangesetId, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 
 /** Bounded provider categories emitted by Agents window telemetry. */
 export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';
@@ -26,6 +26,11 @@ export function getSessionsTelemetryProviderId(providerId: string): SessionsTele
 		return 'remote-agent-host';
 	}
 	return 'other';
+}
+
+/** Keeps the built-in `local` and `cloud` environments and reduces any other, such as a remote agent host's, to its provider category. */
+export function getSessionsTelemetryEnvironmentId(environmentId: string): string {
+	return environmentId === 'local' || environmentId === 'cloud' ? environmentId : getSessionsTelemetryProviderId(environmentId);
 }
 
 /** Removes the remote connection authority from an agent session type identifier. */
@@ -216,11 +221,11 @@ type ChangesViewVersionModeChangeEvent = {
 type ChangesViewVersionModeChangeClassification = {
 	owner: 'osortega';
 	comment: 'Tracks when the user switches the version mode in the Changes panel (Branch Changes, Session Changes, Last Turn).';
-	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version mode selected by the user.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The well-known id of the changeset selected by the user, or other for a provider-defined changeset.' };
 };
 
-export function logChangesViewVersionModeChange(telemetryService: ITelemetryService, mode: string): void {
-	telemetryService.publicLog2<ChangesViewVersionModeChangeEvent, ChangesViewVersionModeChangeClassification>('vscodeAgents.changesView/versionModeChange', { mode });
+export function logChangesViewVersionModeChange(telemetryService: ITelemetryService, changesetId: string): void {
+	telemetryService.publicLog2<ChangesViewVersionModeChangeEvent, ChangesViewVersionModeChangeClassification>('vscodeAgents.changesView/versionModeChange', { mode: getWellKnownChangesetId(changesetId) });
 }
 
 type ChangesViewFileSelectEvent = {
@@ -468,81 +473,4 @@ export function logSSHConnectAttempt(telemetryService: ITelemetryService, data: 
 		...data,
 		errorCategory: data.errorCategory ?? '',
 	});
-}
-
-// --- Socket lifecycle telemetry ---
-
-export type SocketCloseTrigger =
-	| 'server'
-	| 'sendOnDeadSocket'
-	| 'visibility'
-	| 'offline'
-	| 'malformedFrames'
-	| 'disposed'
-	| 'error';
-
-type SocketCloseEvent = {
-	closeCode: number;
-	wasClean: boolean;
-	lifetimeMs: number;
-	messagesSent: number;
-	messagesReceived: number;
-	messagesDropped: number;
-	trigger: string;
-};
-
-type SocketCloseClassification = {
-	owner: 'osortega';
-	comment: 'Tracks WebSocket close events for agent host connections to measure connection reliability.';
-	closeCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'WebSocket close code.' };
-	wasClean: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the close was clean.' };
-	lifetimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How long the socket was alive in milliseconds.' };
-	messagesSent: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total messages sent.' };
-	messagesReceived: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total messages received.' };
-	messagesDropped: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total messages dropped due to non-OPEN socket.' };
-	trigger: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'What triggered the close (server, sendOnDeadSocket, visibility, offline, malformedFrames, disposed, error).' };
-};
-
-export function logSocketClose(telemetryService: ITelemetryService, data: { closeCode: number; wasClean: boolean; lifetimeMs: number; messagesSent: number; messagesReceived: number; messagesDropped: number; trigger: SocketCloseTrigger }): void {
-	telemetryService.publicLog2<SocketCloseEvent, SocketCloseClassification>('vscodeAgents.socket/close', data);
-}
-
-// --- Send dropped telemetry ---
-
-type SendDroppedEvent = {
-	readyState: number;
-	timeSinceLastReceiveMs: number;
-	timeSinceLastSendMs: number;
-};
-
-type SendDroppedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when a message is silently dropped due to a non-OPEN WebSocket, indicating a zombie socket.';
-	readyState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'WebSocket readyState at drop time (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED).' };
-	timeSinceLastReceiveMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds since last received message.' };
-	timeSinceLastSendMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds since last sent message.' };
-};
-
-export function logSendDropped(telemetryService: ITelemetryService, data: { readyState: number; timeSinceLastReceiveMs: number; timeSinceLastSendMs: number }): void {
-	telemetryService.publicLog2<SendDroppedEvent, SendDroppedClassification>('vscodeAgents.socket/sendDropped', data);
-}
-
-// --- Visibility resumed telemetry ---
-
-type VisibilityResumedEvent = {
-	hiddenDurationMs: number;
-	socketAlive: boolean;
-	forceClosed: boolean;
-};
-
-type VisibilityResumedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks tab visibility resume events to measure zombie socket detection effectiveness.';
-	hiddenDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How long the tab was hidden in milliseconds.' };
-	socketAlive: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the socket was alive after zombie detection check.' };
-	forceClosed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the socket was force-closed on resume.' };
-};
-
-export function logVisibilityResumed(telemetryService: ITelemetryService, data: { hiddenDurationMs: number; socketAlive: boolean; forceClosed: boolean }): void {
-	telemetryService.publicLog2<VisibilityResumedEvent, VisibilityResumedClassification>('vscodeAgents.socket/visibilityResumed', data);
 }

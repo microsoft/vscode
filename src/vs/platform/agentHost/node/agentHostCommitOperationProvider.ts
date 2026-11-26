@@ -12,11 +12,8 @@ import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperat
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 export class AgentHostCommitOperationContribution extends Disposable implements IChangesetOperationContribution {
-
-	private _registry: IChangesetOperationRegistry | undefined;
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -26,12 +23,10 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 	}
 
 	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
-		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const handler = this._instantiationService.createInstance(AgentHostCommitOperationHandler, getSessionState, (sessionKey: string, source?: IAgentHostCredentialSource) => this._onCommitted(sessionKey, source));
+		const handler = this._instantiationService.createInstance(AgentHostCommitOperationHandler, getSessionState);
 		store.add(registry.registerChangesetOperationHandler(AgentHostCommitOperationHandler.OPERATION_COMMIT, handler));
-		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
 	}
 
@@ -63,25 +58,31 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation];
 	}
-
-	private async _onCommitted(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void> {
-		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey, source);
-	}
 }
 
 /**
- * Whether the working directory is checked out on its base branch, tracks the
- * base branch on `origin`, and has no commits ahead of it. The branch changeset
- * diffs the working tree against the merge base with `origin/<base>`, which is
- * then the current commit, so it shows exactly the uncommitted changes. Without
- * that upstream the outgoing commits are unknown, and committed work could make
- * the branch changeset show more than Commit commits.
+ * Whether the working directory is checked out on its base branch with no
+ * commits ahead of {@link ISessionGitState.baseBranchRef}, the ref the branch
+ * changeset diffs the working tree against. The merge base with that ref is
+ * then the current commit, so the branch changeset shows exactly the
+ * uncommitted changes:
+ * - a local base (`refs/heads/<base>`) is the checked-out branch itself, so
+ *   neither its upstream nor its outgoing commits matter;
+ * - a remote base (`refs/remotes/<remote>/<base>`) must be the branch's
+ *   upstream with no outgoing commits. Without that upstream the outgoing
+ *   commits are unknown, and committed work could make the branch changeset
+ *   show more than Commit commits.
+ * Without a base ref, as in git state saved by older builds, the base the
+ * branch changeset uses is unknown.
  */
 function isOnBaseBranchWithoutOutgoingCommits(gitState: ISessionGitState | undefined): boolean {
-	return !!gitState?.branchName
-		&& !gitState.isDetachedHead
-		&& gitState.branchName === gitState.baseBranchName
-		&& gitState.upstreamBranchName === `origin/${gitState.baseBranchName}`
+	if (!gitState?.branchName || gitState.isDetachedHead || gitState.branchName !== gitState.baseBranchName) {
+		return false;
+	}
+	if (gitState.baseBranchRef === `refs/heads/${gitState.branchName}`) {
+		return true;
+	}
+	return !!gitState.upstreamBranchName
+		&& gitState.baseBranchRef === `refs/remotes/${gitState.upstreamBranchName}`
 		&& gitState.outgoingChanges === 0;
 }

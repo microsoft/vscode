@@ -6,11 +6,11 @@
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from '../../platform/contextkey/common/contextkey.js';
 import { IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext, IsChromeOSContext } from '../../platform/contextkey/common/contextkeys.js';
-import { SplitEditorsVertically, InEditorZenModeContext, AuxiliaryBarVisibleContext, SecondarySideBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, ChatPartEnabledContext, ChatPartVisibleContext, EditorAreaHiddenByChatContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkspaceHasVirtualContentContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, TitleBarVisibleContext, TitleBarStyleContext, IsAuxiliaryWindowFocusedContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorGroupLockedContext, MultipleEditorGroupsContext, EditorsVisibleContext, AuxiliaryBarMaximizedContext, AuxiliaryBarMaximizeHiddenContext, InAutomationContext, IsSessionsWindowContext } from '../common/contextkeys.js';
+import { SplitEditorsVertically, InEditorZenModeContext, AuxiliaryBarVisibleContext, SecondarySideBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, ChatPartEnabledContext, ChatPartVisibleContext, EditorAreaHiddenByChatContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkspaceHasVirtualContentContext, WorkbenchStateContext, WorkbenchScopeContext, WorkbenchModeContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, TitleBarVisibleContext, TitleBarStyleContext, IsAuxiliaryWindowFocusedContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorGroupLockedContext, MultipleEditorGroupsContext, EditorsVisibleContext, AuxiliaryBarMaximizedContext, AuxiliaryBarMaximizeHiddenContext, InAutomationContext, IsSessionsWindowContext } from '../common/contextkeys.js';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../services/environment/common/environmentService.js';
-import { WorkbenchState, IWorkspaceContextService, isTemporaryWorkspace } from '../../platform/workspace/common/workspace.js';
+import { WorkbenchState, WorkbenchMode, IWorkspaceContextService, isTemporaryWorkspace } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchLayoutService, Parts, positionToString } from '../services/layout/browser/layoutService.js';
 import { getRemoteName } from '../../platform/remote/common/remoteHosts.js';
 import { getVirtualWorkspaceScheme, hasVirtualWorkspaceContent } from '../../platform/workspace/common/virtualWorkspace.js';
@@ -38,6 +38,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private splitEditorsVerticallyContext: IContextKey<boolean>;
 
 	private workbenchStateContext: IContextKey<string>;
+	private workbenchScopeContext: IContextKey<string>;
+	private workbenchModeContext: IContextKey<string>;
 	private workspaceFolderCountContext: IContextKey<number>;
 
 	private openFolderWorkspaceSupportContext: IContextKey<boolean>;
@@ -137,6 +139,12 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Workbench State
 		this.workbenchStateContext = WorkbenchStateContext.bindTo(this.contextKeyService);
 		this.updateWorkbenchStateContextKey();
+
+		this.workbenchScopeContext = WorkbenchScopeContext.bindTo(this.contextKeyService);
+		this.updateWorkbenchScopeContextKey();
+
+		this.workbenchModeContext = WorkbenchModeContext.bindTo(this.contextKeyService);
+		this.updateWorkbenchModeContextKey();
 
 		// Workspace Folder Count
 		this.workspaceFolderCountContext = WorkspaceFolderCountContext.bindTo(this.contextKeyService);
@@ -241,6 +249,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
+		this._register(this.contextService.onDidChangeWorkbenchScope(() => this.updateWorkbenchScopeContextKey()));
+		this._register(this.contextService.onDidChangeWorkbenchMode(() => this.updateWorkbenchModeContextKey()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
 			this.updateWorkspaceFolderCountContextKey();
 			this.updateWorkspaceContextKeys();
@@ -338,6 +348,14 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private updateWorkbenchStateContextKey(): void {
 		this.workbenchStateContext.set(this.getWorkbenchStateString());
+	}
+
+	private updateWorkbenchScopeContextKey(): void {
+		this.workbenchScopeContext.set(this.contextService.getWorkbenchScope() ? 'workspace' : 'all');
+	}
+
+	private updateWorkbenchModeContextKey(): void {
+		this.workbenchModeContext.set(this.contextService.getWorkbenchMode() === WorkbenchMode.Agents ? 'agents' : 'editor');
 	}
 
 	private updateWorkspaceFolderCountContextKey(): void {

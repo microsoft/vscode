@@ -1025,7 +1025,7 @@ export const platformRootSchema = createSchema({
 	[AgentHostComputerUseEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.computerUseEnabled.title', "Computer Use"),
-		description: localize('agentHost.config.computerUseEnabled.description', "Whether local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin."),
+		description: localize('agentHost.config.computerUseEnabled.description', "Whether Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin to operate desktop applications on the machine running the agent host."),
 		default: false,
 	}),
 	[AgentHostBrowserUseEnabledConfigKey]: schemaProperty<boolean>({

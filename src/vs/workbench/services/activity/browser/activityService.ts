@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActivityService, IActivity } from '../common/activity.js';
+import { IActivityService, IActivity, IViewTitleBadge } from '../common/activity.js';
 import { IDisposable, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IViewDescriptorService, ViewContainer } from '../../../common/views.js';
@@ -63,6 +63,12 @@ export class ActivityService extends Disposable implements IActivityService {
 
 	private readonly _onDidChangeActivity = this._register(new Emitter<string | ViewContainer>());
 	readonly onDidChangeActivity = this._onDidChangeActivity.event;
+
+	private readonly viewTitleBadges = new Map<string, { readonly id: number; readonly badge: IViewTitleBadge }>();
+	private viewTitleBadgeCounter = 0;
+
+	private readonly _onDidChangeViewTitleBadge = this._register(new Emitter<string>());
+	readonly onDidChangeViewTitleBadge = this._onDidChangeViewTitleBadge.event;
 
 	private readonly viewContainerActivities = new Map<string, IActivity[]>();
 	private readonly globalActivities = new Map<string, IActivity[]>();
@@ -135,6 +141,22 @@ export class ActivityService extends Disposable implements IActivityService {
 				this.viewActivities.delete(viewId);
 			}
 		});
+	}
+
+	showViewTitleBadge(viewId: string, badge: IViewTitleBadge): IDisposable {
+		const id = ++this.viewTitleBadgeCounter;
+		this.viewTitleBadges.set(viewId, { id, badge });
+		this._onDidChangeViewTitleBadge.fire(viewId);
+		return toDisposable(() => {
+			if (this.viewTitleBadges.get(viewId)?.id === id) {
+				this.viewTitleBadges.delete(viewId);
+				this._onDidChangeViewTitleBadge.fire(viewId);
+			}
+		});
+	}
+
+	getViewTitleBadge(viewId: string): IViewTitleBadge | undefined {
+		return this.viewTitleBadges.get(viewId)?.badge;
 	}
 
 	showAccountsActivity(activity: IActivity): IDisposable {

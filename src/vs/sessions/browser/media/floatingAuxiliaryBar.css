@@ -25,6 +25,15 @@
 	box-shadow: var(--vscode-shadow-md);
 }
 
+/* The surface owns the frame; an inset wrapper outline is obscured by it. */
+.monaco-workbench.agent-sessions-workbench .floating-details:focus {
+	outline: none;
+}
+
+.agent-sessions-workbench .floating-details:focus:not(:active) > .floating-details-surface {
+	border-color: var(--vscode-focusBorder);
+}
+
 .agent-sessions-workbench .floating-details.collapsed .floating-details-surface {
 	width: max-content;
 	max-width: 100%;
@@ -95,7 +104,6 @@
 	opacity: 1;
 }
 
-.agent-sessions-workbench .floating-details:focus-visible,
 .agent-sessions-workbench .floating-details-drag-handle:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));

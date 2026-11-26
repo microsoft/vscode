@@ -28,9 +28,8 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope } from '../../../../../workbench/services/sessions/common/session.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { ChangesHeaderChangesetOperationsActionContribution } from '../../../changes/browser/changesActions.js';
+import { ChangesHeaderChangesetOperationsActionContribution } from '../../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
 import { bindSessionActionContextKeys } from '../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
-import '../../../changes/browser/changesetReviewActions.js';
 import { ChangesetReviewSupportContext } from '../../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
 import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor, SessionChangesUIElementFactory } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';

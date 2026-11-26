@@ -47,4 +47,10 @@ export interface ISessionsNavigationService {
 
 	/** Stops showing `chat` of `session`, which was archived, where the window shows it as an open chat. */
 	closeArchivedChat(session: ISession, chat: IChat): Promise<void>;
+
+	/**
+	 * Stops showing `session` where the window shows it, such as while deleting it can still be undone. Reopen Closed Chat
+	 * or Session then does not bring it back.
+	 */
+	closeSession(session: ISession): Promise<void>;
 }

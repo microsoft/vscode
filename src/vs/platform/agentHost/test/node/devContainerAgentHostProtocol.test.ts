@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, DevContainerConnectExtensionMethod, DevContainerConnectFailureNotification, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification } from '../../common/agentHostExtensionProtocol.js';
 import { devContainerEnvironmentImage } from '../../common/devContainerEnvironments.js';
 import type { IDevContainerAgentHostConnectResult } from '../../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -91,15 +91,20 @@ suite('DevContainerAgentHostProtocol', () => {
 		await Promise.resolve();
 		service.sandboxSupport.fire({ connectionId: service.connects[0].connectionId, supported: false });
 		service.userState.fire({ connectionId: service.connects[0].connectionId, stage: 'link', outcome: 'failed', reason: 'script', exitCode: 1 });
+		service.connectFailure.fire({ connectionId: service.connects[0].connectionId, stage: 'link' });
 		await result.error(new Error('Unsupported sandbox startup'));
 		await rejected;
 		service.userState.fire({ connectionId: service.connects[0].connectionId, stage: 'userCommands', outcome: 'succeeded' });
+		service.connectFailure.fire({ connectionId: service.connects[0].connectionId, stage: 'connect' });
 		assert.deepStrictEqual(notifications, [{
 			method: DevContainerSandboxSupportNotification,
 			params: { connectionId: config.connectionId, supported: false },
 		}, {
 			method: DevContainerUserStateNotification,
 			params: { connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', exitCode: 1 },
+		}, {
+			method: DevContainerConnectFailureNotification,
+			params: { connectionId: config.connectionId, stage: 'link' },
 		}]);
 	});
 
@@ -112,16 +117,21 @@ suite('DevContainerAgentHostProtocol', () => {
 		const observed: unknown[] = [];
 		store.add(client.onDidChangeSandboxSupport(event => observed.push(event.supported)));
 		store.add(client.onDidReportUserState(event => observed.push(event)));
+		store.add(client.onDidFailConnect(event => observed.push(event)));
 		const request = client.connect(config);
 		const rejected = assert.rejects(request, /Unsupported sandbox startup/);
 		client.handleNotification(DevContainerSandboxSupportNotification, { connectionId: config.connectionId, supported: false });
 		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces' });
+		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', scriptUser: 'root', capChown: false, capDacReadSearch: true, stateOwner: 'user', privileged: false, runtime: 'gvisor' });
 		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'unknown', outcome: 'failed' });
+		client.handleNotification(DevContainerConnectFailureNotification, { connectionId: config.connectionId, stage: 'agentHostStart' });
+		client.handleNotification(DevContainerConnectFailureNotification, { connectionId: config.connectionId, stage: 'unknown' });
 		await pending.complete();
 		await rejected;
 		client.handleNotification(DevContainerSandboxSupportNotification, { connectionId: config.connectionId, supported: true });
 		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'userCommands', outcome: 'succeeded' });
-		assert.deepStrictEqual(observed, [false, { connectionId: config.connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces' }]);
+		client.handleNotification(DevContainerConnectFailureNotification, { connectionId: config.connectionId, stage: 'connect' });
+		assert.deepStrictEqual(observed, [false, { connectionId: config.connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces' }, { connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', scriptUser: 'root', capChown: false, capDacReadSearch: true, stateOwner: 'user', privileged: false, runtime: 'gvisor' }, { connectionId: config.connectionId, stage: 'agentHostStart' }]);
 	});
 
 	test('isolates IDs and notifications between transports', async () => {

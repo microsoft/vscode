@@ -13,7 +13,7 @@ import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { TfIdfCalculator, normalizeTfIdfScores } from '../../../base/common/tfIdf.js';
+import { NormalizedTfIdfScore, TfIdfCalculator, TfIdfDocument, normalizeTfIdfScores } from '../../../base/common/tfIdf.js';
 import { localize } from '../../../nls.js';
 import { ILocalizedString } from '../../action/common/action.js';
 import { ICommandService } from '../../commands/common/commands.js';
@@ -57,6 +57,9 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 	private readonly commandsHistory: CommandsHistory;
 
+	private readonly tfIdf = new TfIdfCalculator();
+	private tfIdfChunks = new Map<string, string>();
+
 	protected override readonly options: ICommandsQuickAccessOptions;
 
 	constructor(
@@ -83,18 +86,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			return [];
 		}
 
-		const runTfidf = createSingleCallFunction(() => {
-			const tfidf = new TfIdfCalculator();
-			tfidf.updateDocuments(allCommandPicks.map(commandPick => ({
-				key: commandPick.commandId,
-				textChunks: [this.getTfIdfChunk(commandPick)]
-			})));
-			const result = tfidf.calculateScores(filter, token);
-
-			return normalizeTfIdfScores(result)
-				.filter(score => score.score > AbstractCommandsQuickAccessProvider.TFIDF_THRESHOLD)
-				.slice(0, AbstractCommandsQuickAccessProvider.TFIDF_MAX_RESULTS);
-		});
+		const runTfidf = createSingleCallFunction(() => this.computeTfIdfScores(allCommandPicks, filter, token));
 
 		// Filter
 		const filteredCommandPicks: ICommandQuickPick[] = [];
@@ -103,7 +95,9 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 			let aliasHighlights: IMatch[] | undefined;
 			if (commandPick.commandAlias) {
-				aliasHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined;
+				aliasHighlights = commandPick.commandAlias === commandPick.label
+					? labelHighlights
+					: AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined;
 			}
 
 			// Add if matching in label or alias
@@ -336,6 +330,39 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				return TriggerAction.NO_ACTION;
 			} : commandPick.trigger
 		};
+	}
+
+	private computeTfIdfScores(commandPicks: readonly ICommandQuickPick[], filter: string, token: CancellationToken): NormalizedTfIdfScore[] {
+
+		// Only (re-)index commands that are new or changed since the last run, the last pick wins for duplicate command IDs
+		const chunks = new Map<string, string>();
+		for (const commandPick of commandPicks) {
+			chunks.set(commandPick.commandId, this.getTfIdfChunk(commandPick));
+		}
+		for (const key of this.tfIdfChunks.keys()) {
+			if (!chunks.has(key)) {
+				this.tfIdf.deleteDocument(key);
+			}
+		}
+		const changedDocuments: TfIdfDocument[] = [];
+		for (const [key, chunk] of chunks) {
+			if (this.tfIdfChunks.get(key) !== chunk) {
+				changedDocuments.push({ key, textChunks: [chunk] });
+			}
+		}
+		this.tfIdf.updateDocuments(changedDocuments);
+		this.tfIdfChunks = chunks;
+
+		const scores = this.tfIdf.calculateScores(filter, token);
+		if (scores.length > AbstractCommandsQuickAccessProvider.TFIDF_MAX_RESULTS) {
+			// Order scores like the command picks so that equal scores are cut off as with a freshly built calculator
+			const order = new Map<string, number>(Array.from(chunks.keys(), (key, index) => [key, index]));
+			scores.sort((a, b) => order.get(a.key)! - order.get(b.key)!);
+		}
+
+		return normalizeTfIdfScores(scores)
+			.filter(score => score.score > AbstractCommandsQuickAccessProvider.TFIDF_THRESHOLD)
+			.slice(0, AbstractCommandsQuickAccessProvider.TFIDF_MAX_RESULTS);
 	}
 
 	// TF-IDF string to be indexed

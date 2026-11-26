@@ -21,6 +21,9 @@ export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';
 /** Renames a session. Registered in `sessionsViewActions.ts`. */
 export const RENAME_SESSION_COMMAND_ID = 'sessionsViewPane.renameSession';
 
+/** Opens the root folder (project or repository, not a worktree) of a sessions list section, in a new editor window. Registered in `sessionsListActions.ts`. */
+export const OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID = 'sessionsViewPane.openSectionFolderInNewWindow';
+
 /** Renames a chat. Registered in `sessionsActions.ts`. */
 export const RENAME_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.renameChat';
 

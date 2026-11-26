@@ -14,8 +14,8 @@
  * must match `FLOATING_PANEL_MARGIN`, `FLOATING_PANEL_INNER_MARGIN` and the border
  * inset used there. The outermost
  * card on a cluster edge gets the density-specific outer gutter (`.floating-part-outer-*`).
- * Colors come from the generic `surface.*` tokens, with dedicated border
- * tokens for parts that need independent theming.
+ * Colors come from the shared surface and side bar tokens, with optional
+ * Modern UI tokens for independently themed side bars and panel borders.
  *
  * The default and compact gutter variables below must stay in sync with
  * `FLOATING_PANEL_MARGIN` and `COMPACT_FLOATING_PANEL_MARGIN` in code.
@@ -51,6 +51,13 @@
 	border-radius: var(--vscode-primarySideBar-cornerRadius, var(--vscode-cornerRadius-large));
 	background-color: var(--vscode-surface-background) !important;
 	color: var(--vscode-surface-foreground);
+}
+
+.monaco-workbench.modern-ui.floating-panels .part.sidebar,
+.monaco-workbench.modern-ui.floating-panels .part.auxiliarybar {
+	--modern-ui-floating-card-edge-color: var(--modern-ui-floating-card-border-color, var(--vscode-modernSideBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))));
+	background-color: var(--modern-ui-opaque-sidebar-background, var(--vscode-modernSideBar-background, var(--vscode-surface-background))) !important;
+	color: var(--vscode-modernSideBar-foreground, var(--modern-ui-sidebar-foreground, var(--vscode-surface-foreground))) !important;
 }
 
 /*
@@ -98,12 +105,12 @@
 	margin-bottom: var(--modern-ui-floating-card-outer-margin);
 }
 
-/* A bottom panel below the editor keeps the inter-card gap. */
-.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel):not(.nomaineditorarea) .part.panel.bottom {
+/* A bottom panel below the editor, or below the chat part filling the editor area, keeps the inter-card gap. */
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel):is(:not(.nomaineditorarea), .editor-hidden-by-chat) .part.panel.bottom {
 	margin-top: var(--modern-ui-floating-card-margin);
 }
 
-.monaco-workbench.floating-panels .part.editor > .content {
+.monaco-workbench.floating-panels .part.editor:not(.modal-editor-part) > .content {
 	border-radius: var(--vscode-cornerRadius-large, 8px);
 }
 
@@ -143,6 +150,10 @@
 	background-color: var(--vscode-sideBar-background) !important;
 }
 
+.monaco-workbench.modern-ui.floating-panels .part.auxiliarybar {
+	background-color: var(--modern-ui-opaque-sidebar-background, var(--vscode-modernSideBar-background, var(--modern-ui-sidebar-background, var(--vscode-sideBar-background)))) !important;
+}
+
 /* With no title bar and no banner above them (`.top-window-edge`, e.g. native fullscreen
  * on macOS) the cards use the outer gutter. Mirrors the .nostatusbar pattern below. */
 .monaco-workbench.floating-panels.top-window-edge .part.sidebar,
@@ -166,7 +177,7 @@
 	margin-top: var(--modern-ui-floating-card-outer-margin);
 }
 
-.monaco-workbench.floating-panels.top-window-edge.nomaineditorarea .part.panel.bottom {
+.monaco-workbench.floating-panels.top-window-edge.nomaineditorarea:not(.editor-hidden-by-chat) .part.panel.bottom {
 	margin-top: var(--modern-ui-floating-card-outer-margin);
 }
 
@@ -361,12 +372,24 @@
 }
 
 /* Align the edge icons with the activity bar's icon lane, mirrored on both sides.
- * The inset excludes the edge label's padding and half the status bar icon width. */
+ * The inset excludes the edge label's padding and half the status bar icon width.
+ * The insets are exposed as properties so window-facing item corners can stay
+ * concentric with the native frame (modernUI/browser/media/statusBar.css). */
 .monaco-workbench.floating-panels .part.statusbar {
-	padding-left: var(--vscode-spacing-size120);
-	padding-right: var(--vscode-spacing-size120);
+	--modern-ui-statusbar-inline-inset: var(--vscode-spacing-size120);
+	--modern-ui-statusbar-block-end-inset: var(--vscode-spacing-size20);
+	--modern-ui-statusbar-edge-label-inset: var(--vscode-spacing-sizeNone);
+	padding-left: var(--modern-ui-statusbar-inline-inset);
+	padding-right: var(--modern-ui-statusbar-inline-inset);
 	padding-top: var(--vscode-spacing-size20);
-	padding-bottom: var(--vscode-spacing-size20);
+	padding-bottom: var(--modern-ui-statusbar-block-end-inset);
+}
+
+/* A status bar painted with the shell color merges with the gap above it, so center its
+ * items in that combined band. `matches-shell-background` is set by statusbarPart.ts. */
+.monaco-workbench.floating-panels .part.statusbar.matches-shell-background {
+	--modern-ui-statusbar-block-end-inset: calc(var(--vscode-spacing-size20) + var(--modern-ui-floating-card-statusbar-margin) / 2);
+	padding-top: calc(var(--vscode-spacing-size20) - var(--modern-ui-floating-card-statusbar-margin) / 2);
 }
 
 .monaco-workbench.floating-panels .part.statusbar:not(:focus).status-border-top::after {
@@ -379,25 +402,21 @@
  * Compact density owns its own perimeter inset below, so it is excluded here to
  * keep the two densities mutually exclusive rather than specificity-ordered. */
 .monaco-workbench.floating-panels.activitybar-compact:not(.modern-ui-compact):not(.noactivitybar) .part.statusbar {
-	padding-left: var(--vscode-spacing-size80);
-	padding-right: var(--vscode-spacing-size80);
+	--modern-ui-statusbar-inline-inset: var(--vscode-spacing-size80);
 }
 
 /* Compact density has a narrower lane and smaller edge-label padding. */
 .monaco-workbench.floating-panels.modern-ui-compact .part.statusbar {
-	padding-left: var(--vscode-spacing-size80);
-	padding-right: var(--vscode-spacing-size80);
+	--modern-ui-statusbar-inline-inset: var(--vscode-spacing-size80);
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact.activitybar-compact .part.statusbar {
-	padding-left: var(--vscode-spacing-size40);
-	padding-right: var(--vscode-spacing-size40);
+	--modern-ui-statusbar-inline-inset: var(--vscode-spacing-size40);
 }
 
 /* With no activity bar to align to, keep the standard inset in either density. */
 .monaco-workbench.floating-panels.noactivitybar .part.statusbar {
-	padding-left: var(--vscode-spacing-size40);
-	padding-right: var(--vscode-spacing-size40);
+	--modern-ui-statusbar-inline-inset: var(--vscode-spacing-size40);
 }
 
 /* Labels own the edge inset so colored items and their hover surfaces stay flush. */
@@ -477,6 +496,10 @@
 	--modern-ui-floating-card-top-border-color: transparent;
 }
 
+.monaco-workbench.floating-panels.modern-ui-compact.modern-ui .part:is(.sidebar, .auxiliarybar) {
+	--modern-ui-floating-card-stroke-color: var(--vscode-modernSideBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)));
+}
+
 .monaco-workbench.floating-panels.modern-ui-compact .part.panel {
 	--modern-ui-floating-card-stroke-color: var(--vscode-modernPanel-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)));
 }
@@ -549,12 +572,12 @@
 		border-bottom-right-radius: var(--modern-ui-window-corner-radius);
 	}
 
-	.part.editor.floating-editor-outer-left.floating-editor-outer-bottom > .content,
+	/* Webviews float outside the editor card, so they round their own window-facing corners.
+	 * The card clips the editor's content to its corners itself (editorBorder.css). */
 	.webview-overlay-content.webview-overlay-outer-left.webview-overlay-outer-bottom:not(.webview-overlay-modal) {
 		border-bottom-left-radius: max(0px, calc(var(--modern-ui-window-corner-radius) - var(--vscode-strokeThickness)));
 	}
 
-	.part.editor.floating-editor-outer-right.floating-editor-outer-bottom > .content,
 	.webview-overlay-content.webview-overlay-outer-right.webview-overlay-outer-bottom:not(.webview-overlay-modal) {
 		border-bottom-right-radius: max(0px, calc(var(--modern-ui-window-corner-radius) - var(--vscode-strokeThickness)));
 	}

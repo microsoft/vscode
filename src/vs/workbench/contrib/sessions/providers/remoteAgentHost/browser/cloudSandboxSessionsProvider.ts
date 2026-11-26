@@ -281,6 +281,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
+		if (this._setPendingNewSessionArchived(sessionId, isArchived)) {
+			return;
+		}
 		const sessionKey = this._sessionKeyFromChatId(sessionId);
 		const session = sessionKey ? this._sessionCache.get(sessionKey) : undefined;
 		if (!session || !sessionKey) {
@@ -430,6 +433,11 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return this._withheldSessions.size === 0
 			? sessions
 			: sessions.filter(session => !this._withheldSessions.has(this._sessionKeyFromChatId(session.sessionId) ?? ''));
+	}
+
+	override getSession(resource: URI): ISession | undefined {
+		const session = super.getSession(resource);
+		return session && this._withheldSessions.has(this._sessionKeyFromChatId(session.sessionId) ?? '') ? undefined : session;
 	}
 
 	protected override _isSessionEvictable(rawId: string): boolean {

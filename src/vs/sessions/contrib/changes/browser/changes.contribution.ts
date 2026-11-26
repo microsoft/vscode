@@ -24,7 +24,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ISessionChangesService, SessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import './changesActions.js';
 import './changesViewActions.js';
-import './changesetReviewActions.js';
+import '../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
 import './checksActions.js';
 import './sessionActionContextKeys.contribution.js';
 import './sessionSyncChanges.js';

@@ -25,6 +25,8 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
+import { IChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { NullAgenticSkillsService } from '../../../common/promptSyntax/service/agenticSkillsService.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -247,6 +249,8 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				new NullLogService(),
 				service,
 				store.add(new MockPromptsService()),
+				new class extends mock<IChatExtensionCustomizationsService>() { }(),
+				new NullAgenticSkillsService(),
 				new class extends mock<ILabelService>() { }(),
 			));
 			const folders = await itemProvider.provideSourceFolders(session, PromptsType.skill, CancellationToken.None);

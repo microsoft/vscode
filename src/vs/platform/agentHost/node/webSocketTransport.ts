@@ -53,6 +53,8 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 	/** Includes partial messages and control frames from the underlying socket. */
 	readonly onDidReceiveData = this._onDidReceiveData.event;
 
+	private _closed = false;
+
 	constructor(
 		private readonly _ws: wsTypes.WebSocket,
 		private readonly _WebSocket: typeof wsTypes.WebSocket,
@@ -75,12 +77,12 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		});
 
 		this._ws.on('close', () => {
-			this._onClose.fire();
+			this._fireClose();
 		});
 
 		this._ws.on('error', () => {
 			// Error always precedes close — closing is handled in the close handler.
-			this._onClose.fire();
+			this._fireClose();
 		});
 	}
 
@@ -95,7 +97,17 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 
 	override dispose(): void {
 		this._ws.close();
+		// The socket's close event arrives after the closing handshake, when the
+		// emitter has already been disposed, so report the close now.
+		this._fireClose();
 		super.dispose();
+	}
+
+	private _fireClose(): void {
+		if (!this._closed) {
+			this._closed = true;
+			this._onClose.fire();
+		}
 	}
 }
 

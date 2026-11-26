@@ -304,6 +304,16 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 	});
 
+	test('GitHub provider — a Microsoft default account is not an enterprise GitHub account → AccessDenied', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, accountName: 'alice', sessionId: 's1', enterprise: true });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+	});
+
 	test('GitHub provider — a denied account that is later granted entitlement becomes Available', async () => {
 		// A denial is a verdict about the account as it is now, not a durable one: nothing may
 		// outlive the condition that produced it and keep the user locked out after it changes.

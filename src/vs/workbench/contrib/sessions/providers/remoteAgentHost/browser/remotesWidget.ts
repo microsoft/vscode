@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { IMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -52,7 +53,7 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getConnectionProblem, getGitHubEnvironmentLabel, getServerUpdateLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
+import { getConnectionProblem, getGitHubEnvironmentLabel, getServerUpdateLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteRowMenuActions, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import { RemoteEnvironmentDetails, RemoteEnvironmentDetailsMode } from './remoteEnvironmentDetails.js';
 import './media/remotesWidget.css';
 import '../../../browser/media/disclosure.css';
@@ -392,6 +393,28 @@ export class RemotesWidget extends Disposable {
 				this.toggleGroup(event.element.entry.id);
 			}
 		}));
+		this._register(this.table.onContextMenu(event => {
+			// Inline controls can have focus without the table focusing their row, such as a Sandbox Profile selector
+			// restoring focus when it closes. A keyboard menu from such a control is for the control's row.
+			const target = event.browserEvent.target;
+			const controlRow = dom.isKeyboardEvent(event.browserEvent) && dom.isHTMLElement(target) ? nameRenderer.getRowContaining(target) : undefined;
+			const row = controlRow ?? event.element;
+			const actions = row ? getRemoteRowMenuActions(row.entry, (entry, action) => this.runRowAction(entry, action)) : [];
+			if (!row || !actions.length) {
+				return;
+			}
+			dom.EventHelper.stop(event.browserEvent, true);
+			// The list has no anchor for a focused row scrolled out of view, so reveal the row and anchor the menu to it.
+			let anchor: HTMLElement | IMouseEvent | null | undefined = controlRow ? nameRenderer.getRowElement(controlRow.id) : event.anchor;
+			if (!anchor && event.index !== undefined) {
+				this.table.reveal(event.index);
+				anchor = nameRenderer.getRowElement(row.id);
+			}
+			contextMenuService.showContextMenu({
+				getAnchor: () => anchor ?? this.table.getHTMLElement(),
+				getActions: () => actions,
+			});
+		}));
 		this._register(dom.addDisposableListener(this.table.getHTMLElement(), dom.EventType.KEY_DOWN, event => {
 			if (!dom.isHTMLElement(event.target) || !event.target.classList.contains('monaco-list')) {
 				return;
@@ -507,6 +530,8 @@ export class RemotesWidget extends Disposable {
 				void this.notifyOnFailure(this.showExtension(entry.remote.contributedBy.extensionId));
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote, 'updateServer');
+			} else if (action === 'restartDistribution' && entry.remote.kind === 'wsl') {
+				void this.manageRemote(entry.remote, 'restartDistribution');
 			} else if (action === 'createDevContainer' && entry.remote.canCreateDevContainer) {
 				void this.createDevContainer(entry.remote.id);
 			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh' || entry.remote.kind === 'devContainer') && entry.remote.canDelete)) {
@@ -770,7 +795,8 @@ export class RemotesWidget extends Disposable {
 				if (this.sortBy === 'availability') {
 					const rank = (remote: ICustomizationRemote) => {
 						const group = getRemoteStatusGroup(remote);
-						return group === 'ready' ? 0 : group === 'available' ? 1 : group === 'offline' ? 2 : 3;
+						const index = statusGroups.findIndex(candidate => candidate.key === group);
+						return index < 0 ? statusGroups.length : index;
 					};
 					const difference = rank(a) - rank(b);
 					if (difference) {
@@ -1063,7 +1089,7 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async manageRemote(remote: ICustomizationRemote, action: 'rename' | 'githubEnvironment' | 'updateServer'): Promise<void> {
+	private async manageRemote(remote: ICustomizationRemote, action: 'rename' | 'githubEnvironment' | 'updateServer' | 'restartDistribution'): Promise<void> {
 		const { id } = remote;
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
@@ -1077,6 +1103,8 @@ export class RemotesWidget extends Disposable {
 				await this.model.setSharedAsGitHubEnvironment(id, !remote.gitHubEnvironment);
 			} else if (action === 'updateServer') {
 				await this.model.updateServer(id);
+			} else if (action === 'restartDistribution') {
+				await this.model.restartWSLDistribution(id);
 			} else {
 				await this.model.rename(id);
 			}

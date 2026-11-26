@@ -108,6 +108,13 @@ function activate(context) {
 			const command = 'workbench.action.chat.newLocalChat';
 			await waitForCommand(command, 60_000);
 			await vscode.commands.executeCommand(command);
+
+			// The command palette does not wait for this command, which can run
+			// seconds after the palette closed while the extension host is still
+			// activating this extension. Tell the smoke test that the chat view
+			// now shows the new local chat.
+			// Note: filename must match name in test/smoke/src/utils.ts
+			fs.writeFileSync(path.join(os.tmpdir(), 'vscode-smoketest-open-local-chat-done.txt'), String(Date.now()), 'utf-8');
 		})
 	);
 

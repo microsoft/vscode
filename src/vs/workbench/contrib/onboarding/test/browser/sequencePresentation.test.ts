@@ -12,7 +12,7 @@ import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestHostService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../test/browser/workbenchTestServices.js';
 import { RunOnboardingStepPresentation, RUN_ONBOARDING_STEP_KIND } from '../../browser/sequence/runOnboardingStep.js';
 import { OnboardingSequencePresentation } from '../../browser/sequence/sequencePresentation.js';
 import { IOnboardingTargetOptions, markOnboardingTarget } from '../../browser/spotlight/onboardingTarget.js';
@@ -22,6 +22,7 @@ import { IOnboardingRunContext } from '../../common/onboardingPresentation.js';
 import { IOnboardingRunResult, IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 import { IOnboardingSequencePayload, IOnboardingSequenceStep, IOnboardingSequenceStepContext, IOnboardingSequenceStepPresentation, IOnboardingSequenceStepResult, ONBOARDING_SEQUENCE_PRESENTATION_KIND, onboardingSequenceStepPresentationRegistry } from '../../common/onboardingSequence.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 
 class TestVisualStepPresentation implements IOnboardingSequenceStepPresentation {
 	readonly countsAsVisualStep = true;
@@ -90,7 +91,7 @@ suite('OnboardingSequencePresentation', () => {
 		mainWindow.document.body.appendChild(container);
 		disposables.add({ dispose: () => container.remove() });
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const spotlight = disposables.add(new SpotlightPresentation(new SequenceTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService));
+		const spotlight = disposables.add(new SpotlightPresentation(new SequenceTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		disposables.add(onboardingSequenceStepPresentationRegistry.register(spotlight));
 		disposables.add(onboardingSequenceStepPresentationRegistry.register(new RunOnboardingStepPresentation()));
 		const counters: string[] = [];

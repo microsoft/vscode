@@ -125,6 +125,8 @@ export class RemoteEnvironmentDetails extends Disposable {
 		this.domNode.setAttribute('aria-labelledby', `${this.title.id} ${this.owner.id}`);
 		this.body = dom.$('.remotes-details-body');
 		this.scrollable = this._register(new DomScrollableElement(this.body, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
+		// Moving focus below the fold scrolls the body natively; keep the scrollbar in sync.
+		this._register(dom.addDisposableListener(this.body, dom.EventType.SCROLL, () => this.scrollable.setScrollPosition({ scrollTop: this.body.scrollTop })));
 		dom.append(this.domNode, this.scrollable.getDomNode());
 		this.feedback = dom.$('p.remotes-details-feedback', { id: generateUuid(), role: 'status', 'aria-atomic': 'true' });
 		this.footer = dom.$('.remotes-details-actions.remotes-details-footer');

@@ -21,6 +21,7 @@ export function create(accessor: ServicesAccessor): IDisposable {
 
 function registerContextCommands(accessor: ServicesAccessor) {
 	return Disposable.from(
+		// Deprecated: hidden from the Command Palette in favor of the core command it forwards to.
 		commands.registerCommand('github.copilot.chat.attachFile', () => {
 			return commands.executeCommand('workbench.action.chat.attachFile');
 		}),

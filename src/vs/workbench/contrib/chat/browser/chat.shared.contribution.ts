@@ -29,7 +29,7 @@ import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabl
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotShellAuthenticationEnabledSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotMemoryModeValues, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotShellAuthenticationEnabledSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotProgrammaticToolCallingEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotMemoryModeValues, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { copilotPolicyHelperConfigurationProperties } from './copilotPolicyHelperConfiguration.js';
 import { imageGenerationConfigurationProperties } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
@@ -76,7 +76,7 @@ import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfigurationProperties } from './chatNetworkConfiguration.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, WelcomePageCardSurface, WelcomeSignInStyle } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
@@ -101,6 +101,9 @@ import { CustomizationMigrationTelemetryService, ICustomizationMigrationTelemetr
 import { CustomizationMigrationService } from './aiCustomization/customizationMigrationServiceImpl.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
+import { IChatExtensionCustomizationsService } from '../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { ChatExtensionCustomizationsService } from '../common/promptSyntax/service/chatExtensionCustomizationsServiceImpl.js';
+import { IAgenticSkillsService, NullAgenticSkillsService } from '../common/promptSyntax/service/agenticSkillsService.js';
 import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js';
 import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
@@ -158,6 +161,7 @@ import { ChatThinkingTitleService, IChatThinkingTitleService } from '../common/c
 import { CustomizationsTelemetryContribution, CustomizationsTelemetryService, ICustomizationsTelemetryService } from './aiCustomization/customizationsTelemetryService.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
+import { ChatCustomizationFileTelemetryContribution } from './promptSyntax/customizationFileTelemetry.js';
 import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
 import { ChatSpeechToTextService, DICTATION_MAI_MODEL_ID, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import { IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient } from './speechToText/voiceCodeTranscriptionClient.js';
@@ -1760,6 +1764,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview'],
 			scope: ConfigurationScope.APPLICATION,
 		},
+		[CopilotProgrammaticToolCallingEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.programmaticToolCalling.enabled', "When enabled, Copilot SDK sessions offer a `run_program` tool that runs a sandboxed JavaScript program to call other tools and return a reduced result, instead of making each call separately, and the system prompt explains when to use it. Tool calls inside a program keep their normal permissions. Replaces model-hosted programmatic tool calling. Applies to new and resumed sessions."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			scope: ConfigurationScope.APPLICATION,
+			agentHost: { key: CopilotCliConfigKey.ProgrammaticToolCalling },
+		},
 		[AgentHostCopilotProgressUpdatesPromptSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.copilot.progressUpdatesPrompt.enabled', "When enabled, Copilot SDK sessions running a GPT model or Auto are asked to send a brief user-visible update before their first tool call and while they work. Applies to new and resumed sessions."),
@@ -2457,6 +2469,20 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		[ChatConfiguration.WelcomePageSignInStyle]: {
+			type: 'string',
+			enum: [WelcomeSignInStyle.Button, WelcomeSignInStyle.CopilotCard, WelcomeSignInStyle.GitHubCard, WelcomeSignInStyle.CompactCard],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.signIn.style.button', "Show a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.copilotCard', "Show a card that lists what GitHub Copilot does, with a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.githubCard', "Show a card that lists what working with GitHub brings, such as pull requests, issues and GitHub Copilot, with a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.compactCard', "Show a card that sums up what signing in brings in one sentence, with a sign-in button."),
+			],
+			markdownDescription: nls.localize('chat.welcomePage.signIn.style', "Controls how the Welcome page asks you to sign in with GitHub when signed out. Applies only while {0} is enabled.", '`#chat.welcomePage.signIn.enabled#`'),
+			default: WelcomeSignInStyle.Button,
+			tags: ['advanced', 'experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: {
 			type: 'string',
 			enum: [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.Banner],
@@ -2484,6 +2510,18 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.welcomePage.agentsWindowSectionStyle', "Controls how the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. Applies only while {0} is `windowComparison`.", '`#chat.welcomePage.agentsWindowGraphic#`'),
 			default: AgentsWindowSectionStyle.Outline,
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ChatConfiguration.WelcomePageCardSurface]: {
+			type: 'string',
+			enum: [WelcomePageCardSurface.Neutral, WelcomePageCardSurface.Tint],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.cardSurface.neutral', "Show the cards on a neutral surface, like the walkthrough tiles."),
+				nls.localize('chat.welcomePage.cardSurface.tint', "Show the cards on a surface tinted with the accent color."),
+			],
+			markdownDescription: nls.localize('chat.welcomePage.cardSurface', "Controls the surface of the Welcome page's cards that promote a feature: the Agents window banner, shown while {0} is `banner`, and the sign-in cards, shown while {1} is a card.", '`#chat.welcomePage.agentsWindowGraphic#`', '`#chat.welcomePage.signIn.style#`'),
+			default: WelcomePageCardSurface.Neutral,
+			tags: ['advanced', 'experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.TitleBarOpenInAgentsWindowEnabled]: {
@@ -3424,6 +3462,7 @@ registerWorkbenchContribution2(ChatResponseResourceWorkbenchContribution.ID, Cha
 registerWorkbenchContribution2(ChatTerminalOutputTextModelWorkbenchContribution.ID, ChatTerminalOutputTextModelWorkbenchContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguageFeaturesProvider, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatCustomizationFileTelemetryContribution.ID, ChatCustomizationFileTelemetryContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AgentPluginRecommendations.ID, AgentPluginRecommendations, WorkbenchPhase.Eventually);
@@ -3522,6 +3561,8 @@ registerSingleton(IChatThinkingTitleService, ChatThinkingTitleService, Instantia
 registerSingleton(IAgentNetworkFilterService, AgentNetworkFilterService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
+registerSingleton(IChatExtensionCustomizationsService, ChatExtensionCustomizationsService, InstantiationType.Delayed);
+registerSingleton(IAgenticSkillsService, NullAgenticSkillsService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMigrationService, CustomizationMigrationService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMigrationTelemetryService, CustomizationMigrationTelemetryService, InstantiationType.Delayed);
 registerSingleton(ICustomizationsTelemetryService, CustomizationsTelemetryService, InstantiationType.Delayed);

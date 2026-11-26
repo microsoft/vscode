@@ -20,7 +20,8 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { createAgentsBanner } from '../../../../contrib/chat/browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic } from '../../../../contrib/chat/browser/agentSessions/agentsWindowGraphic.js';
-import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../../contrib/chat/common/constants.js';
+import { WelcomeSignInCard } from '../../../../contrib/chat/browser/agentSessions/welcomeSignInCard.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, WelcomePageCardSurface, WelcomeSignInStyle } from '../../../../contrib/chat/common/constants.js';
 import '../../../../contrib/welcomeGettingStarted/browser/media/gettingStarted.css';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -52,6 +53,11 @@ export default defineThemedFixtureGroup({ path: 'welcome/' }, {
 		additionalThemes: themes,
 		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.Banner, 1000),
 	}),
+	BannerTint: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: themes,
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.Banner, 1000, { cardSurface: WelcomePageCardSurface.Tint }),
+	}),
 	BannerCompact: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.Banner, 800, { layout: 'compact' }),
@@ -59,6 +65,34 @@ export default defineThemedFixtureGroup({ path: 'welcome/' }, {
 	BannerNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.Banner, 420),
+	}),
+	SignInButton: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { signInStyle: WelcomeSignInStyle.Button }),
+	}),
+	SignInCopilotCard: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: themes,
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { signInStyle: WelcomeSignInStyle.CopilotCard }),
+	}),
+	SignInGitHubCard: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: themes,
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { signInStyle: WelcomeSignInStyle.GitHubCard }),
+	}),
+	SignInCompactCard: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: themes,
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { signInStyle: WelcomeSignInStyle.CompactCard }),
+	}),
+	SignInGitHubCardTint: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: themes,
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { signInStyle: WelcomeSignInStyle.GitHubCard, cardSurface: WelcomePageCardSurface.Tint }),
+	}),
+	SignInCardNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 420, { signInStyle: WelcomeSignInStyle.GitHubCard }),
 	}),
 	SectionCard: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -91,20 +125,24 @@ export default defineThemedFixtureGroup({ path: 'welcome/' }, {
  * Renders the Welcome page's Agents window section within the Welcome page's DOM structure: the banner below the page's
  * title, or the footer with the graphic, Agents window button and startup checkbox. Without a section style, the
  * window comparison is styled like the setting's default. Without a layout, the graphic fits with room to spare.
+ * With a sign-in style, the user is signed out, so the footer offers sign-in in that style instead of a graphic.
+ * Without a card surface, the banner and sign-in card have the setting's default surface.
  */
-function renderWelcomePageAgentsSection({ container, disposableStore, theme }: ComponentFixtureContext, variant: AgentsWindowGraphicVariant, width: number, options: { sectionStyle?: AgentsWindowSectionStyle; layout?: 'spacious' | 'compact' } = {}): void {
+async function renderWelcomePageAgentsSection({ container, disposableStore, theme }: ComponentFixtureContext, variant: AgentsWindowGraphicVariant, width: number, options: { sectionStyle?: AgentsWindowSectionStyle; layout?: 'spacious' | 'compact'; signInStyle?: WelcomeSignInStyle; cardSurface?: WelcomePageCardSurface } = {}): Promise<void> {
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
 	const configurationService = new TestConfigurationService({
 		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: variant,
 		...(options.sectionStyle ? { [ChatConfiguration.WelcomePageAgentsWindowSectionStyle]: options.sectionStyle } : {}),
+		...(options.signInStyle ? { [ChatConfiguration.WelcomePageSignInStyle]: options.signInStyle } : {}),
 	});
 	// Graphics are only shown to signed-in users.
+	const signedIn = options.signInStyle === undefined;
 	const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
 		override sentiment = {};
 		override onDidChangeSentiment = Event.None;
-		override entitlementObs = constObservable(ChatEntitlement.Pro);
+		override entitlementObs = constObservable(signedIn ? ChatEntitlement.Pro : ChatEntitlement.Unknown);
 	}();
-	const account = new class extends mock<IDefaultAccount>() { }();
+	const account = signedIn ? new class extends mock<IDefaultAccount>() { }() : null;
 	const defaultAccountService = new class extends mock<IDefaultAccountService>() {
 		override currentDefaultAccount = account;
 		override onDidChangeDefaultAccount = Event.None;
@@ -113,11 +151,14 @@ function renderWelcomePageAgentsSection({ container, disposableStore, theme }: C
 		}
 	}();
 
-	const graphic = disposableStore.add(new AgentsWindowGraphic(configurationService, instantiationService.get(IStorageService), new NullWorkbenchAssignmentService(), instantiationService.get(ILogService), chatEntitlementService, defaultAccountService));
+	const storageService = instantiationService.get(IStorageService);
+	const graphic = disposableStore.add(new AgentsWindowGraphic(configurationService, storageService, new NullWorkbenchAssignmentService(), instantiationService.get(ILogService), chatEntitlementService, defaultAccountService));
+	const signInCard = disposableStore.add(new WelcomeSignInCard(configurationService, storageService));
 	const banner = createAgentsBanner(
 		{
 			cssClass: 'getting-started-category.agents-banner',
 			graphic: { element: graphic.element, design: graphic.design, shownDesign: graphic.shownDesign, signedIn: graphic.signedIn, isExposed: constObservable(true), bannerCopyResolved: graphic.bannerCopyResolved, hide: () => graphic.hide() },
+			signInCard: { element: signInCard.element, style: signInCard.style, hidden: signInCard.hidden, isExposed: constObservable(true), hide: () => signInCard.hide() },
 		},
 		instantiationService.get(ICommandService),
 		NullTelemetryService,
@@ -127,6 +168,9 @@ function renderWelcomePageAgentsSection({ container, disposableStore, theme }: C
 		instantiationService.get(IContextMenuService),
 	);
 	disposableStore.add(banner.disposables);
+	// The banner offers sign-in once it has resolved the default account.
+	await defaultAccountService.getDefaultAccount();
+	await Promise.resolve();
 
 	const showOnStartup = disposableStore.add(new Toggle({
 		icon: Codicon.check,
@@ -143,10 +187,14 @@ function renderWelcomePageAgentsSection({ container, disposableStore, theme }: C
 		...(isBanner ? [] : [banner.element]),
 		$('p.showOnStartup', {}, showOnStartup.domNode, $('label.caption', { for: 'showOnStartup' }, 'Show welcome page on startup')),
 	);
+	const shownSignInCard = banner.shownSignInCard.get();
 	const categoriesContainer = $('.gettingStartedCategoriesContainer', {
-		'data-agents-window-graphic': variant,
+		'data-agents-window-graphic': graphic.shownDesign.get() ?? AgentsWindowGraphicVariant.None,
 		'data-agents-window-section-style': graphic.sectionStyle.get(),
+		'data-welcome-card-surface': options.cardSurface ?? WelcomePageCardSurface.Neutral,
+		'data-welcome-sign-in': shownSignInCard ?? WelcomeSignInStyle.Button,
 	}, ...(isBanner ? [banner.element] : []), footer);
+	categoriesContainer.classList.toggle('welcome-sign-in-card-shown', shownSignInCard !== undefined);
 	if (graphic.shownDesign.get()) {
 		categoriesContainer.classList.add('agents-window-graphic-shown', ...(options.layout === 'compact' ? [] : ['agents-window-graphic-spacious']));
 	}

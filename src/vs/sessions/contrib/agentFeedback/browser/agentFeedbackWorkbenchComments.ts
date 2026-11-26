@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -15,6 +16,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { Comment, CommentMode, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
@@ -23,22 +25,27 @@ import { AgentFeedbackAuthorValue, authorForFeedbackKind } from '../../../../pla
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from '../../../../workbench/contrib/comments/browser/commentService.js';
+import { CommentController } from '../../../../workbench/contrib/comments/browser/commentsController.js';
 import { CommentContextKeys } from '../../../../workbench/contrib/comments/common/commentContextKeys.js';
 import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 import { ICellRange } from '../../../../workbench/contrib/notebook/common/notebookRange.js';
 import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
-import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
+import { IGitHubPullRequestRef } from '../../../../workbench/services/sessions/common/session.js';
+import { AGENTS_WINDOW_PR_COMMENTS_SETTING, createAgentFeedbackContext, getPRCommentPullRequests } from './agentFeedbackEditorUtils.js';
 import { acceptIcon, deleteIcon, editIcon, hideIcon } from './agentFeedbackEditorWidget.js';
 import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
 import { getSessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 
 const AGENT_FEEDBACK_COMMENT_CONTROLLER_ID = 'vscode.agentFeedback';
+
 
 function getThreadKey(sessionResource: URI, commentId: string): string {
 	return `${sessionResource.toString()}\n${commentId}`;
@@ -58,6 +65,12 @@ const enum CommentCapability {
 	ResolvePullRequestComment = 'resolvePR',
 	Hide = 'hide',
 }
+
+/**
+ * Listed in the context value of a new comment thread whose comment can be added to a pull request as a review comment,
+ * for the `when` clause of the action that adds it.
+ */
+const CAN_ADD_PULL_REQUEST_COMMENT = 'canAddPR';
 
 /** The same actions as the agent feedback widget offers for the comment. */
 function getCommentCapabilities(comment: ISessionEditorComment): readonly CommentCapability[] {
@@ -93,6 +106,8 @@ class AgentFeedbackCommentThread extends Disposable implements CommentThread<IRa
 	readonly onDidChangeCanReply = this._onDidChangeCanReply.event;
 
 	range: IRange;
+	label: string;
+	contextValue: string;
 	comments: readonly Comment[] = [];
 	state = CommentThreadState.Unresolved;
 	canReply: boolean;
@@ -102,6 +117,10 @@ class AgentFeedbackCommentThread extends Disposable implements CommentThread<IRa
 	comment: ISessionEditorComment | undefined;
 	/** The editor that a new comment is being written in, which reveals and focuses its widget. */
 	editorId: string | undefined;
+	/** The pull requests that a new comment can be added to as a review comment, rather than as agent feedback. */
+	pullRequests: readonly IGitHubPullRequestRef[] = [];
+	/** Counts the checks of which pull requests a new comment can be added to, of which only the latest applies. */
+	pullRequestsCheck = 0;
 	capabilities: readonly CommentCapability[] = [];
 	private _collapsibleState: CommentThreadCollapsibleState;
 	private _isEditing = false;
@@ -112,21 +131,24 @@ class AgentFeedbackCommentThread extends Disposable implements CommentThread<IRa
 		readonly sessionResource: URI | undefined,
 		readonly resourceUri: URI,
 		range: IRange,
-		readonly label: string,
-		readonly contextValue: string,
+		label: string,
+		contextValue: string,
 		readonly isTemplate: boolean,
 		collapsibleState: CommentThreadCollapsibleState,
 	) {
 		super();
 		this.resource = resourceUri.toString();
 		this.range = range;
+		this.label = label;
+		this.contextValue = contextValue;
 		this.canReply = isTemplate;
 		this.initialCollapsibleState = collapsibleState;
 		this._collapsibleState = collapsibleState;
 	}
 
 	static forComment(handle: number, comment: ISessionEditorComment, collapsibleState: CommentThreadCollapsibleState): AgentFeedbackCommentThread {
-		const thread = comment.source === SessionEditorCommentSource.PRReview
+		// An Agent Host mirrors pull request comments as agent feedback, so they are told apart by their kind rather than their source.
+		const thread = comment.kind === AgentFeedbackKind.PRReview
 			? new AgentFeedbackCommentThread(handle, comment.id, comment.sessionResource, comment.resourceUri, comment.range, localize('agentFeedback.prReviewThreadLabel', "Pull Request Review"), 'prReviewComment', false, collapsibleState)
 			: new AgentFeedbackCommentThread(handle, comment.id, comment.sessionResource, comment.resourceUri, comment.range, localize('agentFeedback.commentThreadLabel', "Agent Feedback"), 'agentFeedback', false, collapsibleState);
 		thread.update(comment);
@@ -137,6 +159,18 @@ class AgentFeedbackCommentThread extends Disposable implements CommentThread<IRa
 		const thread = new AgentFeedbackCommentThread(handle, threadId, undefined, resource, range, localize('agentFeedback.commentThreadLabel', "Agent Feedback"), 'agentFeedback', true, CommentThreadCollapsibleState.Expanded);
 		thread.editorId = editorId;
 		return thread;
+	}
+
+	/**
+	 * Offers adding the comment being written in a new thread to pull requests as a review comment, as well as agent
+	 * feedback, or only as agent feedback when there are none.
+	 */
+	setPullRequests(pullRequests: readonly IGitHubPullRequestRef[]): void {
+		this.pullRequests = pullRequests;
+		this.label = pullRequests.length
+			? localize('agentFeedback.newCommentThreadLabel', "New Comment")
+			: localize('agentFeedback.commentThreadLabel', "Agent Feedback");
+		this.contextValue = pullRequests.length ? `agentFeedback ${CAN_ADD_PULL_REQUEST_COMMENT}` : 'agentFeedback';
 	}
 
 	get collapsibleState(): CommentThreadCollapsibleState {
@@ -248,7 +282,7 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 	private _nextThreadHandle = 1;
 	private _nextTemplateId = 1;
 	/** A revealed comment whose thread has not been created yet. */
-	private _pendingRevealThreadKey: string | undefined;
+	private _pendingRevealThreadKey: string | undefined;
 
 	constructor(
 		@ICommentService private readonly _commentService: ICommentService,
@@ -256,11 +290,16 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IModelService private readonly _modelService: IModelService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
-		const enabled = observableConfigValue(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING, false, configurationService);
+		const enabled = observableConfigValue(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING, false, _configurationService);
+		this._register(runOnChange(observableConfigValue(AGENTS_WINDOW_PR_COMMENTS_SETTING, false, _configurationService), () => {
+			for (const template of this._templates.values()) {
+				void this._updatePullRequests(template);
+			}
+		}));
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
 				this._registerController();
@@ -335,12 +374,15 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 			changed: [],
 			pending: [],
 		});
+		void this._updatePullRequests(thread);
 		return Promise.resolve();
 	}
 
 	updateCommentThreadTemplate(threadHandle: number, range: IRange): Promise<void> {
 		const thread = [...this._templates.values()].find(thread => thread.commentThreadHandle === threadHandle);
 		if (thread) {
+			// The comment widget updates the range before each of its actions runs, even when it hasn't moved.
+			const isMoved = !Range.equalsRange(thread.range, range);
 			thread.range = range;
 			this._commentService.updateComments(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID, {
 				added: [],
@@ -348,6 +390,9 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 				changed: [thread],
 				pending: [],
 			});
+			if (isMoved) {
+				void this._updatePullRequests(thread);
+			}
 		}
 		return Promise.resolve();
 	}
@@ -391,26 +436,61 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 			return Promise.resolve();
 		}
 
-		const template = this._templates.get(thread.threadId);
-		if (!template || !template.resource || !Range.isIRange(template.range)) {
+		const newComment = this._getNewComment(thread);
+		if (!newComment) {
 			return Promise.resolve();
 		}
-
-		const resource = URI.parse(template.resource);
-		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(resource);
-		if (!sessionResource) {
-			return Promise.resolve();
-		}
-
-		// A comment added without a selection is about its whole line, like one added with the agent feedback input.
-		const model = this._modelService.getModel(resource);
-		const range = Range.isEmpty(template.range) && model
-			? new Range(template.range.startLineNumber, 1, template.range.startLineNumber, model.getLineMaxColumn(template.range.startLineNumber))
-			: template.range;
+		const { template, sessionResource, range } = newComment;
+		const resource = template.resourceUri;
 		const editor = this._getEditor(resource, template.editorId);
 		this._agentFeedbackService.addFeedback(sessionResource, resource, range, text, undefined, editor ? createAgentFeedbackContext(editor, this._codeEditorService, resource, range) : undefined);
 		this.deleteCommentThreadMain(template.threadId);
 		return Promise.resolve();
+	}
+
+	/** The pull requests that the comment being written in a new thread can be added to as a review comment. */
+	getPRCommentPullRequests(thread: CommentThread): readonly IGitHubPullRequestRef[] {
+		return this._templates.get(thread.threadId)?.pullRequests ?? [];
+	}
+
+	/**
+	 * Adds the comment being written in a new thread to a pull request as a review comment, rather than as agent
+	 * feedback. Resolves to `false` when the pull request can't take a comment on its code, and rejects when adding the
+	 * comment fails. The thread is only removed once the comment is added, so that what was written isn't lost.
+	 */
+	async addPRComment(thread: CommentThread, body: string, pullRequest: IGitHubPullRequestRef): Promise<boolean> {
+		const text = body.trim();
+		const newComment = this._getNewComment(thread);
+		if (!text || !newComment?.model || this._configurationService.getValue<boolean>(AGENTS_WINDOW_PR_COMMENTS_SETTING) !== true) {
+			return false;
+		}
+		const { template, sessionResource, range, model } = newComment;
+		const [target] = await this._codeReviewService.getPRReviewCommentTargets(sessionResource, template.resourceUri, range, model.getValue(), pullRequest);
+		if (!target) {
+			return false;
+		}
+		await this._codeReviewService.createPRReviewComment(target, text);
+		this.deleteCommentThreadMain(template.threadId);
+		return true;
+	}
+
+	/** The new thread that a comment is being written in, and the session and code that the comment is about. */
+	private _getNewComment(thread: CommentThread): { template: AgentFeedbackCommentThread; sessionResource: URI; range: IRange; model: ITextModel | null } | undefined {
+		const template = this._templates.get(thread.threadId);
+		if (!template || !Range.isIRange(template.range)) {
+			return undefined;
+		}
+		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(template.resourceUri);
+		if (!sessionResource) {
+			return undefined;
+		}
+
+		// A comment added without a selection is about its whole line, like one added with the agent feedback input.
+		const model = this._modelService.getModel(template.resourceUri);
+		const range = Range.isEmpty(template.range) && model
+			? new Range(template.range.startLineNumber, 1, template.range.startLineNumber, model.getLineMaxColumn(template.range.startLineNumber))
+			: template.range;
+		return { template, sessionResource, range, model };
 	}
 
 	/**
@@ -505,6 +585,74 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 	}
 
 	/**
+	 * Offers adding the comment being written in a new thread to the pull requests whose changes include its code. Only
+	 * GitHub knows which code that is, so the offer is made once it answers. GitHub is only asked again when the inputs
+	 * of its answer change, or when it couldn't answer.
+	 */
+	private async _updatePullRequests(template: AgentFeedbackCommentThread): Promise<void> {
+		const check = ++template.pullRequestsCheck;
+		const pullRequests = await this._getPullRequestsForNewComment(template);
+		// The thread can be removed while GitHub is asked, or checked again, such as when it moves to other code.
+		if (template.isDisposed || check !== template.pullRequestsCheck || (!pullRequests.length && !template.pullRequests.length)) {
+			return;
+		}
+		template.setPullRequests(pullRequests);
+		this._commentService.updateComments(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID, {
+			added: [],
+			removed: [],
+			changed: [template],
+			pending: [],
+		});
+	}
+
+	/**
+	 * Checks again which pull requests the comments being written in the new threads of a session can be added to, for
+	 * the threads that can't be added to any yet.
+	 */
+	private _updatePullRequestsOfNewComments(sessionResource: URI): void {
+		for (const template of this._templates.values()) {
+			if (!template.pullRequests.length && isEqual(this._agentFeedbackService.getFeedbackSessionResource(template.resourceUri), sessionResource)) {
+				void this._updatePullRequests(template);
+			}
+		}
+	}
+
+	/**
+	 * The pull requests whose changes include the code that the comment being written in a new thread is about. None
+	 * when another comment controller takes comments on the code, such as the GitHub Pull Requests extension, which adds
+	 * pull request comments itself, and which the user chose agent feedback over.
+	 */
+	private async _getPullRequestsForNewComment(template: AgentFeedbackCommentThread): Promise<readonly IGitHubPullRequestRef[]> {
+		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(template.resourceUri);
+		if (!sessionResource
+			|| !getPRCommentPullRequests(this._configurationService, this._codeReviewService, sessionResource, template.resourceUri).length
+			|| this._isCommentableByOthers(template.resourceUri, template.range, template.editorId)) {
+			return [];
+		}
+		const newComment = this._getNewComment(template);
+		if (!newComment?.model) {
+			return [];
+		}
+		try {
+			const targets = await this._codeReviewService.getPRReviewCommentTargets(sessionResource, template.resourceUri, newComment.range, newComment.model.getValue());
+			return targets.map(target => target.pullRequest);
+		} catch {
+			// The comment is only offered to the pull requests that GitHub confirms can take it.
+			return [];
+		}
+	}
+
+	/**
+	 * Whether another comment controller also takes a new comment at a range, in the editor that the comment is written
+	 * in, so that the user picks between it and agent feedback.
+	 */
+	private _isCommentableByOthers(resource: URI, range: IRange, editorId: string | undefined): boolean {
+		const editor = this._getEditor(resource, editorId);
+		const owners = editor && CommentController.get(editor)?.getCommentingOwners(Range.lift(range));
+		return !!owners?.some(owner => owner !== AGENT_FEEDBACK_COMMENT_CONTROLLER_ID);
+	}
+
+	/**
 	 * An editor that shows the file: the one with the given ID, which a new comment was written in, or else the focused
 	 * one, which shows the comment widget that ran an action.
 	 */
@@ -548,7 +696,14 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 		const sessionKey = sessionResource.toString();
 		if (!this._prReviewStateListeners.has(sessionKey)) {
 			this._prReviewStateListeners.set(sessionKey, runOnChange(this._codeReviewService.getPRReviewState(sessionResource), () => {
-				this._commentService.updateCommentingRanges(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID);
+				// An Agent Host mirrors the review comments as agent feedback, which shows them instead once it has loaded.
+				if (shouldIncludeRawPRReviewComments(this._agentFeedbackService, sessionResource)) {
+					this._commentService.updateCommentingRanges(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID);
+				}
+				// The review state changes when the session's pull requests become known, and loads again once GitHub
+				// answers after its client was replaced, such as when the user signs in, which cancels the checks it was
+				// asked for.
+				this._updatePullRequestsOfNewComments(sessionResource);
 			}));
 		}
 
@@ -737,5 +892,66 @@ export function registerAgentFeedbackWorkbenchCommentActions(): IDisposable {
 			}
 		}));
 	}
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'agentFeedback.commentThread.addPullRequestComment',
+				title: localize2('agentFeedback.commentThread.addPullRequestComment', "Add PR Comment"),
+				precondition: CommentContextKeys.commentIsEmpty.negate(),
+				menu: {
+					id: MenuId.CommentThreadActions,
+					group: 'inline',
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						CommentContextKeys.commentControllerContext.isEqualTo(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID),
+						ContextKeyExpr.regex(CommentContextKeys.commentThreadContext.key, new RegExp(`(^| )${CAN_ADD_PULL_REQUEST_COMMENT}( |$)`)),
+					),
+				},
+			});
+		}
+
+		async run(accessor: ServicesAccessor, context: unknown): Promise<void> {
+			const contribution = getContribution(accessor);
+			const quickInputService = accessor.get(IQuickInputService);
+			const notificationService = accessor.get(INotificationService);
+			if (!contribution || !isCommentActionContext(context) || !context.text) {
+				return;
+			}
+
+			let isAdded = false;
+			const pullRequest = await pickPullRequest(quickInputService, contribution.getPRCommentPullRequests(context.thread));
+			if (pullRequest) {
+				try {
+					isAdded = await contribution.addPRComment(context.thread, context.text, pullRequest);
+					if (!isAdded) {
+						notificationService.warn(localize('agentFeedback.prCommentUnavailableForLine', "A pull request comment cannot be added to this line."));
+					}
+				} catch (error) {
+					notificationService.error(localize('agentFeedback.addPRCommentFailed', "Failed to add pull request comment: {0}", getErrorMessage(error)));
+				}
+			}
+			if (!isAdded) {
+				// The comment widget clears what was written once an action finishes, unless the action fails. A
+				// cancellation keeps it without being reported as an unexpected error.
+				throw new CancellationError();
+			}
+		}
+	}));
 	return store;
+}
+
+/**
+ * The pull request to add a comment to: the only one there is, or the one that the user picks when there are several.
+ * `undefined` when there is none, or when the user cancels.
+ */
+async function pickPullRequest(quickInputService: IQuickInputService, pullRequests: readonly IGitHubPullRequestRef[]): Promise<IGitHubPullRequestRef | undefined> {
+	if (pullRequests.length <= 1) {
+		return pullRequests[0];
+	}
+	const picked = await quickInputService.pick(pullRequests.map(pullRequest => ({
+		label: `${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number}`,
+		description: pullRequest.title,
+		pullRequest,
+	})), { placeHolder: localize('agentFeedback.pickPullRequestForComment', "Select the pull request to add the comment to") });
+	return picked?.pullRequest;
 }

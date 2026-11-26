@@ -26,12 +26,22 @@ export interface ISessionPullRequestAgentMergeOptions {
 	readonly mergePullRequest: 'always' | 'ifUnchanged' | 'never';
 }
 
+/** Autopilot rules to turn on for the created pull request's artifact. */
+export interface ISessionPullRequestAutopilotOptions {
+	readonly addressReviews: boolean;
+	readonly fixCI: boolean;
+	readonly resolveConflicts: boolean;
+	readonly markReady: boolean;
+	readonly merge: 'always' | 'ifUnchanged' | 'never';
+}
+
 export interface ISessionPullRequestOptions {
 	readonly title: string;
 	readonly description: string;
 	readonly draft: boolean;
 	readonly agentMerge: boolean;
 	readonly agentMergeOptions?: ISessionPullRequestAgentMergeOptions;
+	readonly autopilot?: ISessionPullRequestAutopilotOptions;
 	readonly autoMergeMethod?: SessionPullRequestMergeMethod;
 	readonly expectedContext?: ISessionPullRequestContext;
 }
@@ -49,6 +59,8 @@ export interface ISessionPullRequestDetails {
 	readonly agentMergeAvailable: boolean;
 	/** Effective session options; presence also indicates support for configuring them during creation. */
 	readonly agentMergeOptions?: ISessionPullRequestAgentMergeOptions;
+	/** Whether Autopilot rules can be turned on for the created pull request. */
+	readonly autopilotAvailable?: boolean;
 	readonly generationError?: string;
 	/** Repository and branch identity to validate before submitting these details. */
 	readonly context?: ISessionPullRequestContext;

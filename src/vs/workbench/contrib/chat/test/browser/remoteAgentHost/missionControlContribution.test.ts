@@ -120,7 +120,6 @@ suite('Mission Control sharing service', () => {
 		defaultAccount?: IDefaultAccount;
 		configure?: (options: IMissionControlOptions | undefined) => Promise<void>;
 		stat?: IFileService['stat'];
-		realpath?: IFileService['realpath'];
 		createFolder?: IFileService['createFolder'];
 		windows?: boolean;
 		userHome?: URI;
@@ -201,9 +200,6 @@ suite('Mission Control sharing service', () => {
 		}());
 		const createdFolders: URI[] = [];
 		instantiation.stub(IFileService, new class extends mock<IFileService>() {
-			override async realpath(resource: URI): Promise<URI | undefined> {
-				return options.realpath ? options.realpath(resource) : resource;
-			}
 			override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
 				return options.stat ? options.stat(resource) : upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: true });
 			}
@@ -244,6 +240,16 @@ suite('Mission Control sharing service', () => {
 			});
 		}));
 	}
+
+	// Pins existing behaviour: the owner lookup already requires the default account's provider to be the GitHub provider.
+	test('does not withdraw an existing registration with a Microsoft default account and an unrelated GitHub session', () => runWithFakedTimers({}, async () => {
+		const { calls } = fixture({
+			available: false, existingEnvironment: 'registered-host',
+			defaultAccount: { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, accountName: 'alice', sessionId: 'microsoft-session', enterprise: false },
+		});
+		await timeout(0);
+		assert.deepStrictEqual(calls, []);
+	}));
 
 	test('does not guess an owner for an existing registration with multiple signed-in accounts', () => runWithFakedTimers({}, async () => {
 		const { calls, logService } = fixture({
@@ -655,7 +661,7 @@ suite('Mission Control sharing service', () => {
 		assert.deepStrictEqual(calls, [{ options: expectedOptions, withdrawingAccountId: undefined }]);
 	}));
 
-	test('shares readable local Windows drives but starts at home without creating a directory', () => runWithFakedTimers({}, async () => {
+	test('shares readable Windows drives but starts at home without creating a directory', () => runWithFakedTimers({}, async () => {
 		const windowsHome = URI.parse('file:///C:/Users/test');
 		const statRequests: string[] = [];
 		const { sharing, calls, createdFolders, logService } = fixture({
@@ -665,16 +671,10 @@ suite('Mission Control sharing service', () => {
 				if (resource.path === '/E:/') {
 					throw createFileSystemProviderError('Drive not ready', FileSystemProviderErrorCode.Unknown);
 				}
-				if (!['/C:/', '/D:/', '/F:/', '/Z:/'].includes(resource.path)) {
+				if (!['/C:/', '/D:/', '/Z:/'].includes(resource.path)) {
 					throw new FileOperationError('Drive not found', FileOperationResult.FILE_NOT_FOUND);
 				}
 				return upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: true });
-			},
-			realpath: async resource => {
-				if (resource.path === '/F:/') {
-					throw createFileSystemProviderError('Volume locked', FileSystemProviderErrorCode.Unknown);
-				}
-				return resource.path === '/Z:/' ? resource.with({ path: '\\\\server\\share\\' }) : resource;
 			},
 		});
 		const warn = stub(logService, 'warn');
@@ -682,12 +682,12 @@ suite('Mission Control sharing service', () => {
 		const driveWarnings = warn.getCalls().filter(call => call.args[0] === '[Mission Control] Excluding a drive that cannot be read from local filesystem sharing');
 		assert.deepStrictEqual({ options: calls[0].options, statRequests, createdFolders, driveWarnings: driveWarnings.map(call => call.args.slice(1)) }, {
 			options: {
-				...expectedOptions, roots: [URI.parse('file:///C:/').fsPath, URI.parse('file:///D:/').fsPath, windowsHome.fsPath],
+				...expectedOptions, roots: [URI.parse('file:///C:/').fsPath, URI.parse('file:///D:/').fsPath, URI.parse('file:///Z:/').fsPath, windowsHome.fsPath],
 				projects: [], defaultDirectory: windowsHome.fsPath,
 			},
 			statRequests: Array.from({ length: 26 }, (_, index) => `/${String.fromCharCode(65 + index)}:/`),
 			createdFolders: [],
-			driveWarnings: [['file:///e%3A/', 'Drive not ready'], ['file:///f%3A/', 'Volume locked']],
+			driveWarnings: [['file:///e%3A/', 'Drive not ready']],
 		});
 	}));
 
@@ -1323,6 +1323,14 @@ suite('Mission Control sharing service', () => {
 			assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
 		}));
 	}
+
+	test('does not use a Microsoft default account for sharing', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture({
+			defaultAccount: { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, accountName: 'alice', sessionId: copilotSession.id, enterprise: false },
+		});
+		await assert.rejects(sharing.setEnabled(true), sharingFailure('nonGitHubAccount', /Copilot account/));
+		assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
+	}));
 
 	for (const account of [null, { ...copilotAccount, sessionId: otherSession.id, accountName: otherSession.account.label }]) {
 		test(`withdraws sharing on Copilot ${account ? 'account change' : 'sign-out'} and requires a new opt-in`, () => runWithFakedTimers({}, async () => {

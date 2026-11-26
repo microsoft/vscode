@@ -123,6 +123,19 @@ suite('Agent host canvas extension consent', () => {
 		});
 	});
 
+	test('a retry that the host reports kept for the session explains when it asks again and offers no Try Again', async () => {
+		const notificationService = new RecordingNotificationService();
+		const host = createHost([{ kind: 'consentDenied', consent: consent(false), retryable: false, keptForSession: true }]);
+		const error = await openCanvasWithExtensionConsent(createDialog([]).dialogService, host.open, { retryDeniedConsent: true }).then(() => undefined, error => error);
+		assert.ok(error instanceof CanvasExtensionConsentDeniedError);
+		notifyCanvasOpenFailure(notificationService, error, 'Board', async () => { });
+		assert.deepStrictEqual(notificationService.notifications.map(notification => ({ severity: notification.severity, message: notification.message, actions: notification.actions?.primary?.length ?? 0 })), [{
+			severity: Severity.Warning,
+			message: `The canvas did not open because extension 'demo' was not allowed to read sensitive environment variables. You will be asked again in a new session.`,
+			actions: 0,
+		}]);
+	});
+
 	test('reports why the host did not open a canvas', async () => {
 		const host = createHost([{ kind: 'failed', failure: 'mismatchedDeclaration' }]);
 		const error = await openCanvasWithExtensionConsent(createDialog([]).dialogService, host.open).then(() => undefined, error => error);

@@ -403,6 +403,17 @@
 	display: none;
 }
 
+.review-widget .body .comment-form-container .comment-form-progress {
+	position: relative;
+}
+
+/* The progress of an action of the form overlays the bottom edge of the comment editor, so that it doesn't move the form. */
+.review-widget .body .comment-form-container .comment-form-progress .monaco-progress-container {
+	position: absolute;
+	top: -2px;
+	left: 0;
+}
+
 .review-widget .body .comment-form-container .form-actions,
 .review-widget .body .edit-container .form-actions {
 	overflow: auto;
@@ -678,6 +689,11 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 .monaco-editor .comment-thread-floating-widget.dragging,
 .monaco-editor .comment-thread-floating-widget.dragging > .review-widget > .head {
 	cursor: grabbing;
+}
+
+/* A docked widget stays in the space below its code, so its title bar isn't dragged. */
+.monaco-editor .comment-thread-floating-widget.docked > .review-widget > .head {
+	cursor: default;
 }
 
 /* Scrollable comments (`ICommentThreadWidgetOptions.scrollableComments`) fill the height they are given. */

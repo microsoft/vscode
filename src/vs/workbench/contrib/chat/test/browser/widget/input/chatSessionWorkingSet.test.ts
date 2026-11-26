@@ -43,7 +43,7 @@ import { IChatViewModel } from '../../../../common/model/chatViewModel.js';
 suite('ChatSessionWorkingSet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>, editingSession?: () => IChatEditingSession | undefined, openedPane?: ITextDiffEditorPane) {
+	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>, editingSession?: () => IChatEditingSession | undefined, openedPane?: ITextDiffEditorPane, openAll?: () => Promise<boolean>) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.OpenChangedFileInDiffEditor]: openInDiffEditor, [ChatConfiguration.EditorWorkingSetEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -99,6 +99,7 @@ suite('ChatSessionWorkingSet', () => {
 			keepEnabled,
 			undo,
 			editingSession,
+			openAll,
 		}, () => { inputFocusCalls++; }));
 		document.body.appendChild(workingSet.domNode);
 		store.add(toDisposable(() => workingSet.domNode.remove()));
@@ -302,6 +303,25 @@ suite('ChatSessionWorkingSet', () => {
 			signals: ['Undo Edits', 'Edits Kept'],
 			rows: ['/second.ts, 0 lines added, 0 lines removed'],
 		});
+	});
+
+	test('View All Edits opens the session\'s own Changes editor when the session has one, else a multi diff editor', async () => {
+		const changed = (path: string) => emptySessionEntryDiff(URI.file(`/before${path}`), URI.file(path));
+		const viewAll = async (opensOwn: boolean) => {
+			const openedOwn: string[] = [];
+			const { headerButton, opened } = createWorkingSet([changed('/a.ts')], true, undefined, undefined, undefined, undefined, undefined, async () => {
+				openedOwn.push('own');
+				return opensOwn;
+			});
+			headerButton('View All Edits').click();
+			await timeout(0);
+			return { openedOwn, opened: opened.map(input => isResourceMultiDiffEditorInput(input) ? input.label : undefined) };
+		};
+
+		assert.deepStrictEqual([await viewAll(true), await viewAll(false)], [
+			{ openedOwn: ['own'], opened: [] },
+			{ openedOwn: ['own'], opened: ['Session Changes'] },
+		]);
 	});
 
 	test('views, undoes, and keeps every listed file from the heading', async () => {

@@ -14,7 +14,7 @@ import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions, openCustomizationChat } from
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
-import { getDocumentationUrl, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { COPILOT_HOOKS_REFERENCE_URL, getDocumentationUrl, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAttachmentModel } from '../../../browser/attachments/chatAttachmentModel.js';
 
@@ -28,7 +28,7 @@ suite('Chat customization actions', () => {
 		prompt: `Create a new reusable prompt file. Ask me for the prompt name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check ${getDocumentationUrl(PromptsType.prompt)}. Finish with a file link to the generated prompt.`,
 		skill: `Create a new skill with a SKILL.md file. Ask me for the skill name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check ${getDocumentationUrl(PromptsType.skill)}. Finish with a file link to the generated skill.`,
 		agent: `Create a new custom agent file. Ask me for the agent name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check ${getDocumentationUrl(PromptsType.agent)}. Finish with a file link to the generated agent.`,
-		hook: `Create a new hook configuration file. Ask me for the hook name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check ${getDocumentationUrl(PromptsType.hook)}. Finish with a file link to the generated hook.`,
+		hook: `Create a new hook in the GitHub Copilot hooks format. Ask me for the hook name and purpose and user or workspace location. Do not ask further but come up with a first draft. Put a workspace hook in a .json file in .github/hooks at the root of the git repository, and a user hook in the hooks folder of the Copilot home: ~/.copilot/hooks by default, or $COPILOT_HOME/hooks when COPILOT_HOME is set. Follow ${COPILOT_HOOKS_REFERENCE_URL}: use "version": 1 and camelCase event names such as preToolUse, not PascalCase names such as PreToolUse. Finish with a file link to the generated hook.`,
 	};
 
 	function setup(sessionResource: URI | undefined, available = true) {
@@ -92,7 +92,7 @@ suite('Chat customization actions', () => {
 				},
 			})));
 			assert.deepStrictEqual(attachments, types.map(type => {
-				const url = getDocumentationUrl(type === 'init' ? PromptsType.instructions : type);
+				const url = type === PromptsType.hook ? COPILOT_HOOKS_REFERENCE_URL : getDocumentationUrl(type === 'init' ? PromptsType.instructions : type);
 				const resource = URI.parse(url);
 				return {
 					kind: 'generic',

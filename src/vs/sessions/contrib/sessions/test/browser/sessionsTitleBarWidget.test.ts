@@ -43,7 +43,7 @@ import { TestContextViewService } from '../../../../test/browser/testContextView
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { BlockedSessionReason, IBlockedSession } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IApprovedSession } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { IApprovedSession } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from '../../browser/sessionsActions.js';
 
 suite('SessionsTitleBarWidget', () => {
@@ -1044,5 +1044,49 @@ suite('SessionsTitleBarWidget', () => {
 			],
 			nativeTitles: 0,
 		});
+	});
+
+	test('ellipsizes long workspace and branch names in the command center', () => {
+		const commandCenter = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add(toDisposable(() => commandCenter.remove()));
+		commandCenter.classList.add('command-center');
+		const container = commandCenter.appendChild(mainWindow.document.createElement('div'));
+		container.classList.add('agent-sessions-titlebar-container');
+		container.style.width = '300px';
+		const dynamicDisposables = disposables.add(new DisposableStore());
+		const widget = Object.create(SessionsTitleBarWidget.prototype) as SessionsTitleBarWidget;
+		Reflect.set(widget, '_container', container);
+		Reflect.set(widget, '_dynamicDisposables', dynamicDisposables);
+		Reflect.set(widget, '_workspaceInfo', {
+			label: 'my-really-long-project-folder-name-that-will-not-fit-in-the-title-bar',
+			icon: Codicon.folder,
+			branch: 'feature/a-really-long-branch-name-that-will-not-fit-either',
+		});
+		Reflect.set(widget, '_isQuickChat', false);
+		Reflect.set(widget, '_sessionTitle', undefined);
+		Reflect.set(widget, 'options', {});
+		Reflect.set(widget, 'hoverService', upcastPartial<IHoverService>({
+			setupManagedHover: () => ({ ...Disposable.None, show: () => { }, hide: () => { }, update: () => { } }),
+		}));
+
+		renderActiveSession.call(widget);
+
+		const containerRect = container.getBoundingClientRect();
+		const containerMiddle = containerRect.top + containerRect.height / 2;
+		const labels = ['.agent-sessions-titlebar-workspace', '.agent-sessions-titlebar-branch'].map(selector => {
+			const label = container.querySelector<HTMLElement>(selector)!;
+			const style = mainWindow.getComputedStyle(label);
+			const rect = label.getBoundingClientRect();
+			return {
+				// `text-overflow: ellipsis` only applies to block containers, not to the text of a flex container.
+				display: style.display,
+				textOverflow: style.textOverflow,
+				overflows: label.scrollWidth > label.clientWidth,
+				verticallyCentered: Math.abs(rect.top + rect.height / 2 - containerMiddle) <= 1,
+			};
+		});
+
+		const expected = { display: 'block', textOverflow: 'ellipsis', overflows: true, verticallyCentered: true };
+		assert.deepStrictEqual(labels, [{ ...expected }, { ...expected }]);
 	});
 });

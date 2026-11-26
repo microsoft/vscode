@@ -172,7 +172,7 @@ import { IHistoryService } from '../../services/history/common/history.js';
 import { IHostService, IToastOptions, IToastResult } from '../../services/host/browser/host.js';
 import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
-import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IPartsLayoutState, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IUnattendedRestartService, UnattendedRestartService } from '../../services/lifecycle/common/unattendedRestart.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
@@ -200,7 +200,8 @@ import { InMemoryWorkingCopyBackupService } from '../../services/workingCopy/com
 import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../services/workingCopy/common/workingCopyEditorService.js';
 import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
-import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+import { IActivityService } from '../../services/activity/common/activity.js';
+import { TestActivityService, TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../services/accounts/browser/defaultAccount.js';
 import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
 
@@ -336,6 +337,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());
 	instantiationService.stub(ILanguageFeatureDebounceService, instantiationService.createInstance(LanguageFeatureDebounceService));
 	instantiationService.stub(IHistoryService, new TestHistoryService());
+	instantiationService.stub(IActivityService, new TestActivityService());
 	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	const themeService = new TestThemeService();
@@ -719,6 +721,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isAuxiliaryBarMaximized(): boolean { return false; }
 	hideAuxiliaryBarMaximize(): IDisposable { return Disposable.None; }
 	isAuxiliaryBarMaximizeHidden(): boolean { return false; }
+	getPartsLayoutState(): IPartsLayoutState | undefined { return undefined; }
+	applyPartsLayoutState(_state: IPartsLayoutState): void { }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
@@ -1018,6 +1022,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	readonly onWillDispose: Event<void> = Event.None;
 	readonly onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
+	readonly onDidRelayout: Event<void> = Event.None;
 	readonly onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	readonly onDidOpenEditorFail: Event<EditorInput> = Event.None;

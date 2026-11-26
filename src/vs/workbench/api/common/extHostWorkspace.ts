@@ -22,7 +22,7 @@ import { createDecorator } from '../../../platform/instantiation/common/instanti
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Severity } from '../../../platform/notification/common/notification.js';
 import { EditSessionIdentityMatch } from '../../../platform/workspace/common/editSessions.js';
-import { Workspace, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { WorkbenchMode, Workspace, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 import { IExtHostFileSystemInfo } from './extHostFileSystemInfo.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -208,6 +208,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _onDidChangeWorkspaceTrustedFolders = new Emitter<void>();
 	readonly onDidChangeWorkspaceTrustedFolders: Event<void> = this._onDidChangeWorkspaceTrustedFolders.event;
 
+	private readonly _onDidChangeWorkbenchMode = new Emitter<WorkbenchMode>();
+	readonly onDidChangeWorkbenchMode: Event<WorkbenchMode> = this._onDidChangeWorkbenchMode.event;
+
 	private readonly _logService: ILogService;
 	private readonly _requestIdProvider: Counter;
 	private readonly _barrier: Barrier;
@@ -224,6 +227,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	private _trusted: boolean = false;
+
+	private _workbenchMode: WorkbenchMode;
 
 	private readonly _editSessionIdentityProviders = new Map<string, vscode.EditSessionIdentityProvider>();
 
@@ -247,6 +252,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._messageService = extHostRpc.getProxy(MainContext.MainThreadMessageService);
 		this._telemetryProxy = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
 		const data = initData.workspace;
+		this._workbenchMode = data?.mode ?? WorkbenchMode.Editor;
 		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], !!data.transient, data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo)) : undefined;
 	}
 
@@ -478,6 +484,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 	}
 
+	get workbenchMode(): WorkbenchMode {
+		return this._workbenchMode;
+	}
+
 	$acceptWorkspaceData(data: IWorkspaceData | null): void {
 
 		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace, this._extHostFileSystemInfo);
@@ -492,6 +502,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			added,
 			removed,
 		}));
+
+		const mode = data?.mode ?? WorkbenchMode.Editor;
+		if (this._workbenchMode !== mode) {
+			this._workbenchMode = mode;
+			this._onDidChangeWorkbenchMode.fire(mode);
+		}
 	}
 
 	$acceptWorkspaceFolderLocations(data: IWorkspaceFolderLocationsDto[]): void {

@@ -23,7 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext } from '../../common/contextkeys.js';
-import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
+import { SessionItemContextMenuId } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions } from '../views/sessionsListActions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -208,41 +208,10 @@ export function registerAgentsChatPartActions(): IDisposable {
 
 /**
  * Registers the actions of the Sessions list of an editor window that start a new session in the chat part, until the
- * returned disposable is disposed: in the worktree of a section of the Worktree grouping, and in the folder of a session.
+ * returned disposable is disposed: in the folder of a session.
  */
 export function registerAgentsViewNewSessionActions(): IDisposable {
 	const store = new DisposableStore();
-
-	// A new session in the folder or worktree of a section of the Worktree grouping: not of its Other section
-	store.add(registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.agentsView.newSessionInWorktree',
-				title: localize2('agentsView.newSessionInWorktree', "New Session"),
-				icon: Codicon.plus,
-				precondition: ChatContextKeys.enabled,
-				menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({
-					id,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(SessionSectionTypeContext.key, 'worktree')),
-				})),
-			});
-		}
-		async run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> {
-			// Not in its Other section, of the sessions without a local checkout or worktree
-			if (!section?.id.startsWith('worktree:') || section.id === 'worktree:other') {
-				return;
-			}
-			// In the section's checkout or worktree, which its sessions work in, as its latest session, such as with the same agent
-			const latest = [...section.sessions].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).at(0);
-			const folderUri = latest && getSessionFolder(latest);
-			if (!folderUri) {
-				return;
-			}
-			await accessor.get(IEditorWindowSessionsPresenterService).presenter.get().openComposer(getNewSessionTarget(accessor.get(IEditorWindowComposerFoldersService), folderUri, latest), { newComposer: true });
-		}
-	}));
 
 	// A new session in the folder or worktree of a session
 	store.add(registerAction2(class extends Action2 {
