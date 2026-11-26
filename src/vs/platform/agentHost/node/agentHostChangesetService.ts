@@ -1666,11 +1666,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		try {
 			const baseBranch = await this._resolveBranchBaseBranch(session);
-			const recorded = repositoryFingerprints?.get(workingDirectoryUri.toString());
+			const recorded = repositoryFingerprints?.size === 1 ? repositoryFingerprints.get(workingDirectoryUri.toString()) : undefined;
 			const fingerprint = recorded && recorded.baseBranch === baseBranch ? recorded.fingerprint : undefined;
 			const diffs = await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch, fingerprint });
 			if (diffs) {
-				return { kind: 'ready', diffs, fingerprintOutdated: !!recorded && recorded.baseBranch !== baseBranch };
+				// The fingerprint was taken for exactly this repository and base, or it does not describe this result (such as
+				// repositories found inside the folder that are gone since)
+				const planMatches = !repositoryFingerprints || (repositoryFingerprints.size === 1 && !!recorded && recorded.baseBranch === baseBranch);
+				return { kind: 'ready', diffs, fingerprintOutdated: !planMatches };
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Branch git diff computation failed for ${session} in ${workingDirectory}`, err);

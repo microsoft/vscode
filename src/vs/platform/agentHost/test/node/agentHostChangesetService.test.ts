@@ -2172,6 +2172,37 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		assert.deepStrictEqual({ duringChange, backToA: files() }, { duringChange: ['/repoB/B.ts'], backToA: ['/repoB/A.ts'] });
 	});
 
+	test('a branch changeset whose found repositories disappear between its fingerprint and its diff is not kept under that fingerprint', async () => {
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async directory => directory.path === '/work' ? directory : undefined;
+		const workingDirectories = ['file:///work'];
+		const { svc, stateManager } = build({ workingDirectories, git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		const setDiscovery = (enabled: boolean) => stateManager.setSessionMeta(sessionStr, withSessionRepositories(stateManager.getSessionState(sessionStr)?._meta, enabled
+			? { [getWorkingDirectoryKey('file:///work')]: [{ root: 'file:///work', kind: 'folder' }, { root: 'file:///work/docs', kind: 'nested' }] }
+			: undefined));
+		let disableDuringFingerprint = false;
+		git.getBranchDiffFingerprint = async directory => {
+			// The found repositories go away while the refresh runs, after its fingerprint covered them
+			if (disableDuringFingerprint) {
+				disableDuringFingerprint = false;
+				setDiscovery(false);
+			}
+			return `${directory.path}-1`;
+		};
+		git.computeSessionFileDiffs = async directory => [gitDiff(`${directory.path}/file.ts`)];
+		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(workingDirectories)));
+		const files = () => stateManager.getChangesetState(changesetUri)?.files.map(file => URI.parse(file.id).path).sort();
+
+		setDiscovery(true);
+		disableDuringFingerprint = true;
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+		const whileOff = files();
+		setDiscovery(true);
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+
+		assert.deepStrictEqual({ whileOff, backOn: files() }, { whileOff: ['/work/file.ts'], backOn: ['/work/docs/file.ts', '/work/file.ts'] });
+	});
+
 	test('a folder of a multi-folder branch changeset whose repository cannot be looked up is reported, and the others are listed', async () => {
 		const git = createNoopGitService();
 		git.getRepositoryRoot = async workingDirectory => {
