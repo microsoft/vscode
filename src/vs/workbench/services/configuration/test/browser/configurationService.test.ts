@@ -1701,17 +1701,19 @@ suite('WorkspaceService - Initialization', () => {
 		testObject.acquireInstantiationService(instantiationService);
 	});
 
-	test('a plain empty window has no scope and is in the Editor mode, and opening a folder scopes it to the folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a plain empty window has no scope and is in the Editor mode, and the scope event fires only when the scope changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const empty = { scope: testObject.getWorkbenchScope(), mode: testObject.getWorkbenchMode() };
 		const scopes: (string | undefined)[] = [];
 		disposables.add(testObject.onDidChangeWorkbenchScope(scope => scopes.push(scope?.toString())));
 
 		const folder = joinPath(ROOT, 'a');
 		await testObject.initialize(convertToWorkspacePayload(folder));
+		await testObject.initialize(convertToWorkspacePayload(folder));
+		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.deepStrictEqual({ empty, scopes, mode: testObject.getWorkbenchMode() }, {
 			empty: { scope: undefined, mode: WorkbenchMode.Editor },
-			scopes: [folder.toString()],
+			scopes: [folder.toString(), configResource.toString()],
 			mode: WorkbenchMode.Editor,
 		});
 	}));
