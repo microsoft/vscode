@@ -18,7 +18,7 @@ import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthCredential } from '../agentHostAuthenticationService.js';
 
-export interface IEntraAuthority {
+interface IEntraAuthority {
 	/**
 	 * The `authenticate.accountId` of the first accepted discovery credential. Unlike the per-client GitHub
 	 * comparison, it is compared as given across clients and Microsoft resources, because one Microsoft account

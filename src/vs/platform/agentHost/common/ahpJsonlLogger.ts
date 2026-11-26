@@ -428,13 +428,14 @@ function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number):
 	});
 }
 
-/** Replaces the access token and ID Token of `authenticate` params, or returns `undefined` when neither needs it. */
-function redactAuthenticationParams(params: Record<string, unknown>): Record<string, unknown> | undefined {
-	const hasToken = params.token !== undefined && params.token !== '<redacted>' && params.token !== '[REDACTED]';
-	const hasIdToken = params.idToken !== undefined && params.idToken !== '<redacted>';
-	return hasToken || hasIdToken
-		? { ...params, ...(hasToken ? { token: '<redacted>' } : {}), ...(hasIdToken ? { idToken: '<redacted>' } : {}) }
-		: undefined;
+/** Returns an `authenticate` request with its access token and ID Token redacted, or `undefined` when there is nothing to redact. */
+function redactAuthenticationRequest(message: Record<string, unknown>): Record<string, unknown> | undefined {
+	const params = message.params;
+	if (message.method !== 'authenticate' || !isRecord(params)) {
+		return undefined;
+	}
+	const secrets = ['token', 'idToken'].filter(field => params[field] !== undefined && params[field] !== '<redacted>' && params[field] !== '[REDACTED]');
+	return secrets.length ? { ...message, params: { ...params, ...Object.fromEntries(secrets.map(field => [field, '<redacted>'])) } } : undefined;
 }
 
 /**
@@ -464,11 +465,9 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 		if (isRecord(value.result) && Array.isArray(value.result.certificates)) {
 			return { ...value, result: { ...value.result, certificates: '<redacted>' } };
 		}
-		if (value.method === 'authenticate' && isRecord(value.params)) {
-			const redacted = redactAuthenticationParams(value.params);
-			if (redacted) {
-				return { ...value, params: redacted };
-			}
+		const redactedAuthentication = redactAuthenticationRequest(value);
+		if (redactedAuthentication) {
+			return redactedAuthentication;
 		}
 		if (value.method === RegisterGitHubEnvironmentExtensionMethod && isRecord(value.params) && value.params.credential !== undefined
 			&& value.params.credential !== '<redacted>') {

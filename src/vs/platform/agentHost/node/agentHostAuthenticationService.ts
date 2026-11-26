@@ -98,6 +98,12 @@ interface ILocalCredentialsOptions {
 	readonly onDidChange: Event<void>;
 }
 
+function assertOptionalNonemptyString(value: unknown, name: string): void {
+	if (value !== undefined && (typeof value !== 'string' || value.length === 0)) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `${name} must be a nonempty string`);
+	}
+}
+
 function isAccepted(result: PromiseSettledResult<boolean>): boolean {
 	return result.status === 'fulfilled' && result.value;
 }
@@ -174,7 +180,6 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				resource: credential.resource, token: credential.token,
 				scopes: normalizeAuthenticationScopes(credential.scopes ?? metadata.scopes_supported),
 				expiresAt, accountId: credential.accountId,
-				...(credential.idToken !== undefined ? { idToken: credential.idToken } : {}),
 			});
 		}
 		this._hostExecutionCredentials = stored;
@@ -186,12 +191,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult> {
-		if (params.accountId !== undefined && (typeof params.accountId !== 'string' || params.accountId.length === 0)) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'accountId must be a nonempty string');
-		}
-		if (params.idToken !== undefined && (typeof params.idToken !== 'string' || params.idToken.length === 0)) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'idToken must be a nonempty string');
-		}
+		assertOptionalNonemptyString(params.accountId, 'accountId');
+		assertOptionalNonemptyString(params.idToken, 'idToken');
 		const providerList = [...providers];
 		if (scope) {
 			const resources = [
@@ -309,9 +310,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			const selection = { lastAccountId, unhintedAccountId };
 			this._accountSelectionHistory.set(selectionKey, selection);
 			this._tokens.set(key, {
-				resource: params.resource, scopes, token: params.token, expiresAt, accountId: params.accountId,
+				resource: params.resource, scopes, token: params.token, expiresAt, accountId: params.accountId, idToken: params.idToken,
 				clientId, ...selection, ...(params.target ? { target: params.target } : {}),
-				...(params.idToken !== undefined ? { idToken: params.idToken } : {}),
 			});
 		}
 		if (!params.target && this.useLocalCredentials) {
