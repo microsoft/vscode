@@ -1039,15 +1039,17 @@ extends:
                   container: ubuntu-24
                   arch: arm64
 
-      - stage: APIScan
-        dependsOn: []
-        pool:
-          name: ${{ variables.VSCODE_WINDOWS_POOL }}
-          os: windows
-        jobs:
-          - job: WindowsAPIScan
-            steps:
-              - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      # APIScan authenticates through the vscode-apiscan connection, so builds without the privileged connections skip it.
+      - ${{ if eq(variables.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+        - stage: APIScan
+          dependsOn: []
+          pool:
+            name: ${{ variables.VSCODE_WINDOWS_POOL }}
+            os: windows
+          jobs:
+            - job: WindowsAPIScan
+              steps:
+                - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}

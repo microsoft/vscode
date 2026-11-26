@@ -327,6 +327,8 @@ extends:
           os: linux
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
+            parameters:
+              VSCODE_PRIVILEGED_CONNECTIONS: false
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -501,6 +503,7 @@ extends:
                   VSCODE_ARCH: arm64
                   VSCODE_CHECK_ONLY: true
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_PRIVILEGED_CONNECTIONS: false
 
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
@@ -509,6 +512,7 @@ extends:
                 VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                 VSCODE_TEST_IDS:
                   - unit-electron
+                VSCODE_PRIVILEGED_CONNECTIONS: false
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -517,6 +521,7 @@ extends:
                 VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-webkit
+                VSCODE_PRIVILEGED_CONNECTIONS: false
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -527,6 +532,7 @@ extends:
                   - integration-remote
                   - smoke-browser-chromium
                   - smoke-remote
+                VSCODE_PRIVILEGED_CONNECTIONS: false
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -534,6 +540,7 @@ extends:
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
                   - integration-electron
+                VSCODE_PRIVILEGED_CONNECTIONS: false
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -541,6 +548,7 @@ extends:
                 VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
                 VSCODE_TEST_IDS:
                   - integration-agent-host-e2e
+                VSCODE_PRIVILEGED_CONNECTIONS: false
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -551,5 +559,6 @@ extends:
                   - smoke-agents-pac-proxy
                   - smoke-agents-kerberos-pac-proxy
                   - smoke-agents-basic-proxy
+                VSCODE_PRIVILEGED_CONNECTIONS: false
 
 
