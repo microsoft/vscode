@@ -238,7 +238,7 @@ Some containers include web browser used for validating web server targets.
 
 Sanity tests run in Azure Pipelines via the `product-sanity-tests.yml` pipeline.
 
-Linux x64 and ARM64 builds receive a separate container only DEB/RPM desktop pass whether they are published or resolved from build artifacts. It checks the installed `chrome-sandbox` ownership and mode, then exercises the UI with `--disable-namespace-sandbox` to force Chromium's setuid sandbox. Published runs select both package formats; artifact backed runs select only the DEB/RPM formats included in the job's downloads and use the same `--artifacts-dir` as the normal sanity pass. Native host, Alpine, ARM32, and archive only artifact jobs do not run this additional pass. Both passes publish separate JUnit results.
+Linux x64 and ARM64 builds receive a separate container only DEB/RPM desktop pass. It checks the installed `chrome-sandbox` ownership and mode, then exercises the UI with `--disable-namespace-sandbox` to force Chromium's setuid sandbox. Native host, Alpine, and ARM32 jobs do not run this additional pass. Both passes publish separate JUnit results.
 
 The dedicated container pass grants `SYS_ADMIN` so the setuid helper can create its PID/network namespaces, and runs the test runner as a non-root `sanity` user. The images must include `sudo`, `useradd`, and `runuser`; missing prerequisites fail explicitly rather than installing packages at test startup. The entrypoint allows that user to invoke only `dpkg` and `rpm` as root for package installation/removal. These changes apply only to the disposable setuid test container; running as root would cause Playwright to inject `--no-sandbox` and bypass the check.
 
