@@ -1104,8 +1104,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		disposables.add(auxiliaryWindow.onUnload(() => unloading = true));
 		// What shows in its other parts, such as terminals, leaves the window as it unloads, before its parts close.
 		disposables.add(Event.once(auxiliaryWindow.onUnload)(() => window?.willUnload()));
-		// Closes the parts as the window unloads, unless the chat window closed them first.
-		const partsBinding = disposables.add(bindEditorPartsToWindow(auxiliaryWindow, [chatPart, mainPart], this._editorGroupsService));
+		// Closes the parts as the window unloads, unless the chat window closed them first. Its chats close with it rather
+		// than moving, so that a chat that cannot leave the window, such as a new session not sent yet, does not keep it open.
+		const partsBinding = disposables.add(bindEditorPartsToWindow(auxiliaryWindow, [chatPart, mainPart], this._editorGroupsService, editor => !!window?.isChatEditor(editor)));
 		const gridRef = observableValue<ChatWindowGrid | undefined>(this, undefined);
 
 		const editorGroupsService = this._editorGroupsService;
