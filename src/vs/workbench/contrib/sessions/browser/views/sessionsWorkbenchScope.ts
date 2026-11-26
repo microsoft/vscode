@@ -19,7 +19,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { IEditableWorkspaceContextService } from '../../../../services/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../common/chatConstants.js';
-import { IInboxWorkspaceFilter, SessionsListFilters } from './sessionsListFilters.js';
+import { IInboxWorkspaceFilter, LOCAL_SESSIONS_ENVIRONMENT, SessionsListFilters } from './sessionsListFilters.js';
 
 export const ISessionsWorkbenchScopeService = createDecorator<ISessionsWorkbenchScopeService>('sessionsWorkbenchScopeService');
 
@@ -61,7 +61,7 @@ export class SessionsWorkbenchScopeService extends Disposable implements ISessio
 			return workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER && workspace.uri ? [workspace.uri] : workspace.folders.map(folder => folder.uri);
 		});
 		this.windowWorkspaces = derived(this, reader => this.enabled.read(reader) ? folders.read(reader).map(folder => ({
-			environment: 'local', resource: getComparisonKey(folder), label: basename(folder), description: folder.path,
+			environment: LOCAL_SESSIONS_ENVIRONMENT, resource: getComparisonKey(folder), label: basename(folder), description: folder.path,
 		})) : []);
 		let owned = false;
 		let lastScope: URI | undefined;

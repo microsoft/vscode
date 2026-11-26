@@ -134,9 +134,12 @@ export function listsQuickChatsIn(workspaceContextService: IWorkspaceContextServ
 	});
 }
 
+/** The environment id of the sessions on this computer. */
+export const LOCAL_SESSIONS_ENVIRONMENT = 'local';
+
 /** Orders environments as the Environment filter lists them: this computer, the cloud, then remote hosts by name. */
 export function compareSessionEnvironments(a: ISessionEnvironment, b: ISessionEnvironment): number {
-	const rank = (id: string) => id === 'local' ? 0 : id === 'cloud' ? 1 : 2;
+	const rank = (id: string) => id === LOCAL_SESSIONS_ENVIRONMENT ? 0 : id === 'cloud' ? 1 : 2;
 	return rank(a.id) - rank(b.id) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id);
 }
 
@@ -154,7 +157,7 @@ export interface ISessionsListResettableState {
 
 export function getSessionEnvironments(environments: readonly ISessionEnvironment[]): ISessionEnvironment[] {
 	const byId = new Map<string, ISessionEnvironment>([
-		['local', { id: 'local', label: localize('environment.local', "This Computer") }],
+		[LOCAL_SESSIONS_ENVIRONMENT, { id: LOCAL_SESSIONS_ENVIRONMENT, label: localize('environment.local', "This Computer") }],
 		['cloud', { id: 'cloud', label: localize('environment.cloud', "Cloud") }],
 	]);
 	for (const environment of environments) {

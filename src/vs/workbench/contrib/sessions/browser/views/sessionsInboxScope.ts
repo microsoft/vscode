@@ -20,7 +20,7 @@ import { getNoWorkspaceChoicePresentation } from '../chat/noWorkspaceChoice.js';
 import { ENVIRONMENT_PICKER_LIST_OPTIONS } from '../chat/sessionEnvironmentPicker.js';
 import { createSessionPickerToolbar } from '../chat/sessionPickerToolbar.js';
 import { WORKSPACE_PICKER_LIST_OPTIONS } from '../chat/sessionWorkspacePicker.js';
-import { getInboxWorkspaceOptions, getSessionEnvironments, IInboxWorkspaceFilter, SessionsListFilters } from './sessionsListFilters.js';
+import { getInboxWorkspaceOptions, getSessionEnvironments, IInboxWorkspaceFilter, LOCAL_SESSIONS_ENVIRONMENT, SessionsListFilters } from './sessionsListFilters.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 interface IInboxScopePickerItem {
@@ -29,7 +29,7 @@ interface IInboxScopePickerItem {
 }
 
 function getEnvironmentIcon(environment: string): ThemeIcon {
-	return environment === 'local' ? Codicon.deviceDesktop : environment === 'cloud' ? Codicon.cloud : Codicon.remote;
+	return environment === LOCAL_SESSIONS_ENVIRONMENT ? Codicon.deviceDesktop : environment === 'cloud' ? Codicon.cloud : Codicon.remote;
 }
 
 export class SessionsInboxScope extends Disposable {
@@ -57,7 +57,7 @@ export class SessionsInboxScope extends Disposable {
 			changed.read(reader);
 			const localIds = localEnvironmentIds.read(reader);
 			if (filters.inboxScope.environment && localIds.has(filters.inboxScope.environment.id)) {
-				filters.setInboxEnvironment({ id: 'local', label: localize('environment.local', "This Computer") });
+				filters.setInboxEnvironment({ id: LOCAL_SESSIONS_ENVIRONMENT, label: localize('environment.local', "This Computer") });
 			}
 		}));
 		const options = derived(this, reader => {
@@ -100,7 +100,7 @@ export class SessionsInboxScope extends Disposable {
 			}
 			const selected = scope.workspace;
 			const environment = environments.find(environment => environment.id === selected.environment);
-			const environmentAvailable = selected.environment === 'local' || localEnvironmentIds.read(reader).has(selected.environment)
+			const environmentAvailable = selected.environment === LOCAL_SESSIONS_ENVIRONMENT || localEnvironmentIds.read(reader).has(selected.environment)
 				|| (!!environment && !environment.unavailable && environment.isConnected !== false);
 			return filters.getInboxWorkspaceLabel(selected, workspaces, environmentAvailable)
 				?? localize('unavailableWorkspace', "Unavailable: {0}", selected.label);
