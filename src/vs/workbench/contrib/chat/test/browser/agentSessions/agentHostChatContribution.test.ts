@@ -80,7 +80,7 @@ import { CanvasState } from '../../../../../../platform/agentHost/common/state/p
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
-import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource, copilotEntraResources, copilotServiceForResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri, type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { withMessageReplacedTurn } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
@@ -26969,7 +26969,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(agentHostService.authenticateCalls.map(call => call.resource), [a.resource, c.resource]);
 		});
 
-		test('an unnamed Copilot service is not sent once the host names several services', async () => {
+		([undefined, 'github', 'm365'] as const).forEach(remembered => test(`an unnamed Copilot service is not sent once the host names several services, and the remembered one is (${remembered ?? 'none'} remembered)`, async () => {
 			const services = [...copilotEntraResources].map(([audience, resource]): ProtectedResourceMetadata => ({
 				resource,
 				resource_name: `Service ${audience}`,
@@ -26983,7 +26983,8 @@ suite('AgentHostChatContribution', () => {
 				scopes_supported: ['User.Read'],
 				required: false,
 			};
-			const { resource_name, ...unnamed } = services[0];
+			// The round that went stale holds the challenge for a service that is not the remembered one.
+			const { resource_name, ...unnamed } = services.find(service => copilotServiceForResource(service.resource) !== remembered)!;
 			const microsoftAuthService: Partial<IAuthenticationService> = {
 				onDidChangeSessions: Event.None,
 				getOrActivateProviderIdForServer: async () => 'microsoft',
@@ -26997,7 +26998,7 @@ suite('AgentHostChatContribution', () => {
 			const { agentHostService } = createContribution(disposables, {
 				authServiceOverride: microsoftAuthService,
 				defaultAccountOverride: {
-					currentDefaultAccount: { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, sessionId: 'selected', accountName: 'Selected', enterprise: false },
+					currentDefaultAccount: { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, sessionId: 'selected', accountName: 'Selected', enterprise: false, copilotService: remembered },
 				},
 			});
 			const gates = holdSends(agentHostService, discovery);
@@ -27009,8 +27010,11 @@ suite('AgentHostChatContribution', () => {
 			gates.get(discovery.resource)!.complete();
 			await timeout(0);
 
-			assert.deepStrictEqual(agentHostService.authenticateCalls.map(call => call.resource), [discovery.resource]);
-		});
+			assert.deepStrictEqual(agentHostService.authenticateCalls.map(call => call.resource), [
+				discovery.resource,
+				...services.filter(service => copilotServiceForResource(service.resource) === remembered).map(service => service.resource),
+			]);
+		}));
 
 		test('an equal list republished during a round sends every credential once', async () => {
 			const { agentHostService } = createContribution(disposables, { authServiceOverride: tokenAuthService({ current: 'tok-1' }) });
