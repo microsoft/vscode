@@ -337,6 +337,8 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 	private readonly sessionsChanged: IObservable<void>;
 	/** The pins whose canvas is being closed from the sidebar, which marks their chat done. */
 	private readonly closingAsDonePinIds = new Set<string>();
+	/** Hidden sessions observed as archived or archive-pending, so a rejected or undone archive lists them once unpinned. */
+	private readonly archivedOrPendingHiddenSessions = new Set<string>();
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -378,6 +380,29 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 			const gone = this.pins.read(reader).filter(pin => this.isOwnerGone(pin, reader));
 			for (const pin of gone) {
 				this.removePin(pin, true);
+			}
+		}));
+
+		// Reconcile hidden sessions whose pending archive is rejected or whose confirmed archive is undone after their
+		// last pin is removed, so they do not stay out of the Sessions list with no pin. Confirmed archived sessions stay hidden.
+		this._register(autorun(reader => {
+			this.sessionsChanged.read(reader);
+			const pins = this.pins.read(reader);
+			const toShow: ISession[] = [];
+			for (const session of this.sessionsManagementService.getSessions()) {
+				if (session.isAutomation?.read(reader) || this.sessionsListModelService.isSessionListed(session, reader)) {
+					this.archivedOrPendingHiddenSessions.delete(session.sessionId);
+					continue;
+				}
+				const archivedOrPending = session.isArchived.read(reader) || session.archivePending?.read(reader) === true;
+				if (archivedOrPending) {
+					this.archivedOrPendingHiddenSessions.add(session.sessionId);
+				} else if (this.archivedOrPendingHiddenSessions.delete(session.sessionId) && !pins.some(pin => isPinnedCanvasOwnedBy(pin.identity, session))) {
+					toShow.push(session);
+				}
+			}
+			if (toShow.length > 0) {
+				this.sessionsListModelService.showCanvasSessions(toShow);
 			}
 		}));
 
@@ -471,7 +496,23 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 			}
 		}));
 		this._register(sessionsManagementService.onDidArchiveSession(session => this.removeWhere(identity => isPinnedCanvasOwnedBy(identity, session), false)));
-		this._register(sessionsManagementService.onDidDeleteSession(session => this.removeWhere(identity => isPinnedCanvasOwnedBy(identity, session), false)));
+		this._register(sessionsManagementService.onDidUnarchiveSession(session => {
+			this.archivedOrPendingHiddenSessions.delete(session.sessionId);
+			if (!session.isArchived.get() && !session.archivePending?.get()
+				&& (!this.enabled.get() || !this.sessionsListModelService.isSessionListed(session))
+				&& !this.pins.get().some(pin => isPinnedCanvasOwnedBy(pin.identity, session))) {
+				this.sessionsListModelService.showCanvasSessions([session]);
+			}
+		}));
+		this._register(sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			if (this.archivedOrPendingHiddenSessions.delete(from.sessionId)) {
+				this.archivedOrPendingHiddenSessions.add(to.sessionId);
+			}
+		}));
+		this._register(sessionsManagementService.onDidDeleteSession(session => {
+			this.archivedOrPendingHiddenSessions.delete(session.sessionId);
+			this.removeWhere(identity => isPinnedCanvasOwnedBy(identity, session), false);
+		}));
 		this._register(sessionsManagementService.onDidDeleteChat(({ session, chatResource }) => this.removeWhere(identity => isPinnedCanvasOwnedBy(identity, session) && isEqual(identity.chat, chatResource), true)));
 		this._register(sessionsManagementService.onDidCloseCanvas(({ session, chatResource, canvasResource }) => {
 			for (const pin of this.pins.get()) {
@@ -587,10 +628,14 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 	 */
 	private listUnpinnedSession(identity: IPinnedCanvasIdentity): void {
 		const session = this.sessionsManagementService.getSession(identity.session);
-		if (session && isPinnedCanvasOwnedBy(identity, session) && !session.isArchived.get() && !session.archivePending?.get()
-			&& !this.pins.get().some(pin => isPinnedCanvasOwnedBy(pin.identity, session))) {
-			this.sessionsListModelService.showCanvasSessions([session]);
+		if (!session || !isPinnedCanvasOwnedBy(identity, session) || this.pins.get().some(pin => isPinnedCanvasOwnedBy(pin.identity, session))) {
+			return;
 		}
+		if (session.isArchived.get() || session.archivePending?.get()) {
+			this.archivedOrPendingHiddenSessions.add(session.sessionId);
+			return;
+		}
+		this.sessionsListModelService.showCanvasSessions([session]);
 	}
 
 	async show(target: PinnedCanvasTarget): Promise<void> {

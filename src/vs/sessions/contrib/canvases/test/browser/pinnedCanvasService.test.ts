@@ -70,6 +70,7 @@ suite('PinnedCanvasService', () => {
 
 	function createSession(resource: string, chats: readonly IChat[]) {
 		return upcastPartial<ISession>({
+			sessionId: resource,
 			providerId: 'local-agent-host',
 			resource: URI.parse(resource),
 			chats: observableValue('chats', chats),
@@ -83,11 +84,12 @@ suite('PinnedCanvasService', () => {
 		return { providerId: session.providerId, session: session.resource, chat: chat.resource, canvas: canvas.resource };
 	}
 
-	function createHarness(options: { readonly sessions: readonly ISession[]; readonly storage?: InMemoryStorageService; readonly activeSession?: ITestSessionWithChat; readonly observesChatCanvases?: boolean; readonly closeCompleted?: Promise<void>; readonly closeCanvas?: (canvas: ICanvas) => Promise<void>; readonly openCanvas?: () => Promise<void> }) {
+	function createHarness(options: { readonly sessions: readonly ISession[]; readonly storage?: InMemoryStorageService; readonly activeSession?: ITestSessionWithChat; readonly observesChatCanvases?: boolean; readonly closeCompleted?: Promise<void>; readonly closeCanvas?: (canvas: ICanvas) => Promise<void>; readonly openCanvas?: () => Promise<void>; readonly hiddenSessionIds?: readonly string[] }) {
 		const disposables = store.add(new DisposableStore());
 		const sessionsChanged = disposables.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = disposables.add(new Emitter<IChatDeletedEvent>());
 		const sessionArchived = disposables.add(new Emitter<ISession>());
+		const sessionUnarchived = disposables.add(new Emitter<ISession>());
 		const canvasClosed = disposables.add(new Emitter<ISessionCanvasClosedEvent>());
 		const observed: string[] = [];
 		const released: string[] = [];
@@ -103,16 +105,28 @@ suite('PinnedCanvasService', () => {
 		const lifecycle: string[] = [];
 		/** The sessions listed in the Sessions list again because none of their canvases is pinned. */
 		const listedSessions: string[] = [];
+		const hiddenSessionIds = observableValue<ReadonlySet<string>>('hiddenSessionIds', new Set(options.hiddenSessionIds));
 
 		const storage = options.storage ?? disposables.add(new InMemoryStorageService());
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({
-			showCanvasSessions: sessions => listedSessions.push(...sessions.map(session => session.resource.toString())),
+			isSessionListed: (session, reader) => !hiddenSessionIds.read(reader).has(session.sessionId),
+			showCanvasSessions: sessions => {
+				listedSessions.push(...sessions.map(session => session.resource.toString()));
+				const next = new Set(hiddenSessionIds.get());
+				for (const session of sessions) {
+					next.delete(session.sessionId);
+				}
+				hiddenSessionIds.set(next, undefined);
+			},
 		}));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			getSessions: () => [...options.sessions],
 			getSession: resource => options.sessions.find(session => session.resource.toString() === resource.toString()),
 			onDidChangeSessions: sessionsChanged.event,
 			onDidArchiveSession: sessionArchived.event,
+			onDidUnarchiveSession: sessionUnarchived.event,
+			onDidReplaceSession: Event.None,
 			onDidDeleteSession: Event.None,
 			onDidDeleteChat: chatDeleted.event,
 			onDidCloseCanvas: canvasClosed.event,
@@ -190,7 +204,7 @@ suite('PinnedCanvasService', () => {
 		}));
 		return {
 			service, storage, customViewService, observed, released, openedChats, openedCanvases, notifications, notificationActions, contextKeyService, chatObservations, lifecycle, listedSessions,
-			sessionsChanged, chatDeleted, sessionArchived, canvasClosed, setLive, setChatCanvases, setCanvasesEnabled, snapshot,
+			sessionsChanged, chatDeleted, sessionArchived, sessionUnarchived, canvasClosed, setLive, setChatCanvases, setCanvasesEnabled, snapshot,
 			dispose: () => disposables.dispose(),
 		};
 	}
@@ -1139,6 +1153,51 @@ suite('PinnedCanvasService', () => {
 			state: PinnedCanvasState.Pending,
 			reconnecting: false,
 			openedChats: [],
+		});
+	});
+
+	test('lists an unpinned hidden session when its pending archive is rejected or its confirmed archive is undone, while keeping confirmed archives hidden', () => {
+		const [rejectedCanvas, confirmedCanvas] = [createCanvas('rejected'), createCanvas('confirmed')];
+		const { chat: rejectedChat } = createChat('chat:/rejected', [rejectedCanvas]);
+		const { chat: confirmedChat } = createChat('chat:/confirmed', [confirmedCanvas]);
+		const rejectedPending = observableValue('rejectedPending', false);
+		const rejectedSession = upcastPartial<ISession>({ ...createSession('session:/rejected', [rejectedChat]), archivePending: rejectedPending });
+		const confirmedPending = observableValue('confirmedPending', false);
+		const confirmedSession = upcastPartial<ISession>({ ...createSession('session:/confirmed', [confirmedChat]), archivePending: confirmedPending });
+		const harness = createHarness({
+			sessions: [rejectedSession, confirmedSession],
+			hiddenSessionIds: [rejectedSession.sessionId, confirmedSession.sessionId],
+		});
+		harness.service.pin(reference(rejectedSession, rejectedChat, rejectedCanvas));
+		harness.service.pin(reference(confirmedSession, confirmedChat, confirmedCanvas));
+
+		// Both start a pending archive, and both lose their last pin while it is pending.
+		transaction(tx => {
+			(rejectedSession.isArchived as ISettableObservable<boolean>).set(true, tx);
+			rejectedPending.set(true, tx);
+			(confirmedSession.isArchived as ISettableObservable<boolean>).set(true, tx);
+			confirmedPending.set(true, tx);
+		});
+		harness.service.unpin(reference(rejectedSession, rejectedChat, rejectedCanvas));
+		harness.service.unpin(reference(confirmedSession, confirmedChat, confirmedCanvas));
+		const whilePending = [...harness.listedSessions];
+
+		// Reject the first archive and confirm the second.
+		transaction(tx => {
+			(rejectedSession.isArchived as ISettableObservable<boolean>).set(false, tx);
+			rejectedPending.set(false, tx);
+			confirmedPending.set(false, tx);
+		});
+		const afterSettle = [...harness.listedSessions];
+
+		// Later undo / unarchive the confirmed session.
+		(confirmedSession.isArchived as ISettableObservable<boolean>).set(false, undefined);
+		harness.sessionUnarchived.fire(confirmedSession);
+
+		assert.deepStrictEqual({ whilePending, afterSettle, afterUndo: harness.listedSessions }, {
+			whilePending: [],
+			afterSettle: ['session:/rejected'],
+			afterUndo: ['session:/rejected', 'session:/confirmed'],
 		});
 	});
 });

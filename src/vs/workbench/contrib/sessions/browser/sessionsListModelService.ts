@@ -13,6 +13,7 @@ import { autorun, IObservable, IReader, observableSignalFromEvent, observableVal
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
+import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -248,6 +249,9 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private readonly _provisionallyHiddenSessionIds = observableValue<ReadonlyMap<string, number>>(this, new Map());
 	/** Sessions left out of the list while their canvas is in the sidebar, and why, by session ID; see {@link hideCanvasSessions}. */
 	private readonly _hiddenCanvasSessions = observableValue<ReadonlyMap<string, CanvasSessionHiddenReason>>(this, new Map());
+	/** Pending Undo targets of {@link hideCanvasSessions}, kept so identity migration updates them before Undo runs. */
+	private readonly _canvasListingUndoTargets = new Set<Map<string, CanvasSessionHiddenReason | undefined>>();
+	private readonly _canvasesEnabled: IObservable<boolean>;
 	private readonly _automationSessionsMode: IObservable<AutomationSessionsListMode>;
 	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
 	private readonly _updatedDefaultPlacements: Map<string, number | null>;
@@ -272,6 +276,16 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._shownAutomationSessionIds.set(this.loadSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY), undefined);
 		this._hiddenAutomationSessionIds.set(this.loadSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY), undefined);
 		this._hiddenCanvasSessions.set(this.loadHiddenCanvasSessions(), undefined);
+		this._canvasesEnabled = observableConfigValue(CanvasesEnabledSettingId, true, configurationService);
+		this._register(runOnChange(this._canvasesEnabled, () => {
+			const hiddenCanvas = this._hiddenCanvasSessions.get();
+			if (hiddenCanvas.size === 0) {
+				return;
+			}
+			this.fireChanges(this.sessionsManagementService.getSessions()
+				.filter(session => !session.isAutomation?.get() && hiddenCanvas.has(session.sessionId))
+				.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.CanvasListing })));
+		}));
 		this._automationSessionsMode = observableConfigValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.AfterReply, configurationService);
 		this._register(runOnChange(this._automationSessionsMode, (mode, previous) => {
 			if ((mode === AutomationSessionsListMode.Always) !== (previous === AutomationSessionsListMode.Always)) {
@@ -391,6 +405,14 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			move(this._sortOverrides.updated, from, to);
 			move(this._updatedDefaultPlacements, from, to);
 			move(hiddenCanvas, from, to);
+			for (const undoTarget of this._canvasListingUndoTargets) {
+				if (undoTarget.has(from)) {
+					if (!undoTarget.has(to)) {
+						undoTarget.set(to, undoTarget.get(from));
+					}
+					undoTarget.delete(from);
+				}
+			}
 			const state = inbox.get(from);
 			if (state) {
 				if ((inbox.get(to)?.kind ?? 'resumed') === 'resumed') {
@@ -607,7 +629,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			return false;
 		}
 		if (!session.isAutomation?.read(reader)) {
-			return !this._hiddenCanvasSessions.read(reader).has(session.sessionId);
+			return !this._canvasesEnabled.read(reader) || !this._hiddenCanvasSessions.read(reader).has(session.sessionId);
 		}
 		if (this._hiddenAutomationSessionIds.read(reader).has(session.sessionId)) {
 			return false;
@@ -687,19 +709,23 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				hidden.set(sessionId, 'explicit');
 			}
 		}));
-		return () => this.fireChanges(this.updateCanvasListing(hidden => {
-			for (const [sessionId, reason] of previous) {
-				// A session whose listing has changed since keeps that change.
-				if (hidden.get(sessionId) !== 'explicit') {
-					continue;
+		this._canvasListingUndoTargets.add(previous);
+		return () => {
+			this._canvasListingUndoTargets.delete(previous);
+			this.fireChanges(this.updateCanvasListing(hidden => {
+				for (const [sessionId, reason] of previous) {
+					// A session whose listing has changed since keeps that change.
+					if (hidden.get(sessionId) !== 'explicit') {
+						continue;
+					}
+					if (reason) {
+						hidden.set(sessionId, reason);
+					} else {
+						hidden.delete(sessionId);
+					}
 				}
-				if (reason) {
-					hidden.set(sessionId, reason);
-				} else {
-					hidden.delete(sessionId);
-				}
-			}
-		}));
+			}));
+		};
 	}
 
 	/** Applies `update` to the sessions left out of the list while their canvas is in the sidebar, persists it, and returns the sessions whose state changed. */
@@ -711,6 +737,16 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			.filter(sessionId => previous.get(sessionId) !== hidden.get(sessionId))
 			.map(sessionId => ({ sessionId, kind: SessionListModelChangeKind.CanvasListing }));
 		if (changes.length > 0) {
+			for (const target of this._canvasListingUndoTargets) {
+				for (const sessionId of [...target.keys()]) {
+					if (hidden.get(sessionId) !== 'explicit') {
+						target.delete(sessionId);
+					}
+				}
+				if (target.size === 0) {
+					this._canvasListingUndoTargets.delete(target);
+				}
+			}
 			this._hiddenCanvasSessions.set(hidden, undefined);
 			this.saveHiddenCanvasSessions(hidden);
 		}
@@ -1018,7 +1054,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		if (hidden.size === 0) {
 			this.storageService.remove(SessionsListModelService.HIDDEN_CANVAS_SESSIONS_KEY, StorageScope.PROFILE);
 		} else {
-			this.storageService.store(SessionsListModelService.HIDDEN_CANVAS_SESSIONS_KEY, JSON.stringify([...hidden]), StorageScope.PROFILE, StorageTarget.USER);
+			this.storageService.store(SessionsListModelService.HIDDEN_CANVAS_SESSIONS_KEY, JSON.stringify([...hidden]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 	}
 

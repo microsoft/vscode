@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -1043,6 +1044,73 @@ suite('SessionsListModelService', () => {
 			loaded: ['automation'],
 			events: [{ changes: [{ sessionId: 'deleted', kind: SessionListModelChangeKind.CanvasListing }] }],
 			stored: JSON.stringify([['kept', 'default'], ['automation', 'explicit']]),
+		});
+	});
+
+	test('suspends canvas-session hiding while canvases are disabled, preserving stored reasons and notifying consumers', () => {
+		const [byDefault, explicit, listed] = ['byDefault', 'explicit', 'listed'].map(id => createSession(id));
+		sessions = [byDefault, explicit, listed];
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const setCanvasesEnabled = (enabled: boolean) => {
+			configurationService.setUserConfiguration(CanvasesEnabledSettingId, enabled);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === CanvasesEnabledSettingId,
+				affectedKeys: new Set([CanvasesEnabledSettingId]),
+				change: { keys: [CanvasesEnabledSettingId], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		};
+		service.hideCanvasSessionById(byDefault.sessionId);
+		service.hideCanvasSessions([explicit]);
+		const changes: string[] = [];
+		disposables.add(service.onDidChange(e => changes.push(...e.changes.map(c => `${c.kind} ${c.sessionId}`))));
+		const listedIds = () => sessions.filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+
+		setCanvasesEnabled(false);
+		const whileDisabled = {
+			listed: listedIds(),
+			stored: storageService.get('sessionsListControl.hiddenCanvasSessions', StorageScope.PROFILE),
+		};
+		setCanvasesEnabled(true);
+
+		assert.deepStrictEqual({ whileDisabled, afterReenable: listedIds(), changes }, {
+			whileDisabled: {
+				listed: ['byDefault', 'explicit', 'listed'],
+				stored: JSON.stringify([['byDefault', 'default'], ['explicit', 'explicit']]),
+			},
+			afterReenable: ['listed'],
+			changes: [
+				`${SessionListModelChangeKind.CanvasListing} byDefault`,
+				`${SessionListModelChangeKind.CanvasListing} explicit`,
+				`${SessionListModelChangeKind.CanvasListing} byDefault`,
+				`${SessionListModelChangeKind.CanvasListing} explicit`,
+			],
+		});
+	});
+
+	test('undoing a hide follows session identity replacement and stores hidden canvas sessions as machine state', () => {
+		const original = createSession('original');
+		const replacement = createSession('replacement');
+		const defaultOrig = createSession('defaultOrig');
+		const defaultReplacement = createSession('defaultReplacement');
+		service.hideCanvasSessionById(defaultOrig.sessionId);
+
+		const undo = service.hideCanvasSessions([original, defaultOrig]);
+		sessionReplacedEmitter.fire({ from: original, to: replacement });
+		sessionReplacedEmitter.fire({ from: defaultOrig, to: defaultReplacement });
+		const storedAsMachine = storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).includes('sessionsListControl.hiddenCanvasSessions');
+		const storedAsUser = storageService.keys(StorageScope.PROFILE, StorageTarget.USER).includes('sessionsListControl.hiddenCanvasSessions');
+		const beforeUndo = { replacement: service.isSessionListed(replacement), defaultReplacement: service.isSessionListed(defaultReplacement) };
+		undo();
+		const afterUndo = { replacement: service.isSessionListed(replacement), defaultReplacement: service.isSessionListed(defaultReplacement) };
+		service.showRepliedCanvasSession(defaultReplacement);
+
+		assert.deepStrictEqual({ beforeUndo, afterUndo, afterReply: service.isSessionListed(defaultReplacement), storedAsMachine, storedAsUser }, {
+			beforeUndo: { replacement: false, defaultReplacement: false },
+			afterUndo: { replacement: true, defaultReplacement: false },
+			afterReply: true,
+			storedAsMachine: true,
+			storedAsUser: false,
 		});
 	});
 
