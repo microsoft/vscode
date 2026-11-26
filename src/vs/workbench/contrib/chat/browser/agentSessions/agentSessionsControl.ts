@@ -95,6 +95,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private readonly sessionReveal = this._register(new MutableDisposable());
 	private readonly _onDidOpenSession = this._register(new Emitter<URI>());
 	readonly onDidOpenSession = this._onDidOpenSession.event;
+	private readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
+	/** Fires when the rows of the sessions take more or less height. */
+	readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 	private static readonly RECENT_SESSIONS_FOR_EXPAND = 5;
 
 	private sessionsListFindIsOpen = false;
@@ -373,6 +376,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
 		list.updateOptions({ indent: 0, defaultIndent: 0 });
+		this._register(list.onDidChangeContentHeight(() => this._onDidChangeContentHeight.fire()));
 		this._register(list.onDidScroll(e => {
 			container.classList.toggle('can-scroll-down', e.scrollTop + e.height < e.scrollHeight);
 		}));
@@ -947,6 +951,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		} else if (!expanded) {
 			this.archiveDemand.clear();
 		}
+	}
+
+	/** The height that the rows of the sessions take, `0` when no sessions show. */
+	get contentHeight(): number {
+		return this.sessionsList?.contentHeight ?? 0;
 	}
 
 	layout(height: number, width: number): void {

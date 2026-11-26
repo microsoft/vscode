@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -65,7 +66,6 @@ suite('SCMViewService', () => {
 				override readonly providerId = 'test';
 				override readonly label = id;
 				override readonly rootUri = URI.file(`/${id}`);
-				override readonly isHidden = constObservable(false);
 			}();
 			const repository = new class extends mock<ISCMRepository>() {
 				override readonly id = id;
@@ -82,71 +82,11 @@ suite('SCMViewService', () => {
 		assert.deepStrictEqual(activeRepositories, [undefined, 'repositoryA', 'repositoryB']);
 	}));
 
-	test('follows providers that are hidden and shown while they are registered, in one change', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-
-		const repositories: ISCMRepository[] = [];
-		const onDidAddRepository = disposables.add(new Emitter<ISCMRepository>());
-		instantiationService.stub(ISCMService, new class extends mock<ISCMService>() {
-			override readonly repositories = repositories;
-			override readonly onDidAddRepository = onDidAddRepository.event;
-			override readonly onDidRemoveRepository = Event.None;
-			override getRepository(): ISCMRepository | undefined { return undefined; }
-		}());
-		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override readonly activeEditor = undefined;
-			override readonly onDidActiveEditorChange = Event.None;
-		}());
-
-		const scmViewService = disposables.add(instantiationService.createInstance(SCMViewService));
-		const menus = disposables.add(scmViewService.menus as SCMMenus);
-		disposables.add(menus.titleMenu);
-
-		const addRepository = (id: string, isHidden: boolean) => {
-			const hidden = observableValue(id, isHidden);
-			const provider = new class extends mock<ISCMProvider>() {
-				override readonly id = id;
-				override readonly providerId = 'test';
-				override readonly label = id;
-				override readonly rootUri = URI.file(`/${id}`);
-				override readonly isHidden = hidden;
-			}();
-			const repository = new class extends mock<ISCMRepository>() {
-				override readonly id = id;
-				override readonly provider = provider;
-			}();
-
-			repositories.push(repository);
-			onDidAddRepository.fire(repository);
-			return hidden;
-		};
-
-		const current = addRepository('current', false);
-		const warm = addRepository('warm', true);
-		const before = scmViewService.repositories.map(r => r.id);
-
-		transaction(tx => {
-			warm.set(false, tx);
-			current.set(true, tx);
-		});
-
-		assert.deepStrictEqual({
-			before,
-			after: scmViewService.repositories.map(r => r.id),
-			visible: scmViewService.visibleRepositories.map(r => r.id)
-		}, {
-			before: ['current'],
-			after: ['warm'],
-			visible: ['warm']
-		});
-	}));
-
 	function createRepository(id: string): ISCMRepository {
 		const provider = new class extends mock<ISCMProvider>() {
 			override readonly providerId = 'git';
 			override readonly label = 'Git';
 			override readonly rootUri = URI.file(`/${id}`);
-			override readonly isHidden = constObservable(false);
 		}();
 
 		return new class extends mock<ISCMRepository>() {
@@ -259,6 +199,38 @@ suite('SCMViewService', () => {
 		scmViewService.dispose();
 	}));
 
+	test('shows structural changes while they are enabled, unless they are hidden in the workspace, also by another window', () => runWithFakedTimers({}, async () => {
+		const configurationService = new TestConfigurationService({ 'scm.structuralDiff.enabled': false });
+		const storageService = disposables.add(new TestStorageService());
+		const scmViewService = new SCMViewService(
+			new class extends mock<ISCMService>() {
+				override readonly onDidAddRepository = Event.None;
+				override readonly onDidRemoveRepository = Event.None;
+				override readonly repositories = [];
+			}(),
+			new MockContextKeyService(),
+			new class extends mock<IEditorService>() {
+				override readonly onDidActiveEditorChange = Event.None;
+			}(),
+			new class extends mock<IExtensionService>() {
+				override readonly onWillStop = Event.None;
+			}(),
+			new class extends mock<IInstantiationService>() {
+				override createInstance = (() => ({})) as IInstantiationService['createInstance'];
+			}(),
+			configurationService, storageService, new (mock<IWorkspaceContextService>())());
+		const states: boolean[] = [];
+		disposables.add(autorun(reader => { states.push(scmViewService.showStructuralDiff.read(reader)); }));
+
+		await configurationService.setUserConfiguration('scm.structuralDiff.enabled', true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === 'scm.structuralDiff.enabled' }));
+		storageService.store('scm.showStructuralDiff', false, StorageScope.WORKSPACE, StorageTarget.USER);
+		scmViewService.setShowStructuralDiff(true);
+
+		assert.deepStrictEqual({ states, stored: storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE) }, { states: [false, true, false, true], stored: true });
+		scmViewService.dispose();
+	}));
+
 	test('sorts repositories by full path, keeping nested repositories after their parent', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({ 'scm.repositories.sortOrder': 'path' })
@@ -274,7 +246,6 @@ suite('SCMViewService', () => {
 				override readonly providerId = 'git';
 				override readonly label = 'Git';
 				override readonly rootUri = URI.file(path);
-				override readonly isHidden = constObservable(false);
 			}();
 		}());
 

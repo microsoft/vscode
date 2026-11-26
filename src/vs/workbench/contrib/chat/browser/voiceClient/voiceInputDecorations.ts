@@ -178,7 +178,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
 				const hint = dom.$('span.partial');
-				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+				const kb = keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk');
 				const kbLabel = kb?.getLabel();
 				hint.textContent = kbLabel
 					? localize('voiceMode.pttHint', "Hold {0} to talk", kbLabel)

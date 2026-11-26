@@ -9,14 +9,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { SessionsWorkspaceContextService } from '../../../workspace/browser/workspaceContextService.js';
+import { AgentsWorkspaceContextService } from '../../../../../workbench/services/configuration/browser/agents/agentsWorkspaceContextService.js';
 import { SessionsMcpWorkspaceInstallTargetService } from '../../browser/mcpWorkspaceInstallTargetService.js';
 
 suite('Sessions MCP workspace install targets', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('excludes the synthetic workspace while following project folder changes', async () => {
-		const workspace = store.add(new SessionsWorkspaceContextService(
+		const workspace = store.add(new AgentsWorkspaceContextService(
 			{ id: 'agents', configPath: URI.file('/settings/agent-sessions.code-workspace') },
 			upcastPartial<IUriIdentityService>({ extUri }),
 		));

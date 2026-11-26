@@ -44,7 +44,7 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 					localize('sessionsChanges.createPR.draft', "Create as Draft keeps the pull request in draft until it is ready for review."),
 					localize('sessionsChanges.createPR.merge', "Merge Manually leaves merging to you. Selecting Agent Merge reveals checkboxes for addressing reviews, fixing CI failures, and resolving conflicts or behind branches. Merge Pull Request lets you turn merging off, merge only if Agent Merge made no changes, or merge when ready. Session settings are changed only on submission, not when opening or cancelling the form. Auto-Merge asks GitHub to merge when requirements pass and lets you choose an allowed merge method. GitHub auto-merge is not available for drafts."),
 					localize('sessionsChanges.createPR.preferences', "Draft, merge options, and the last-used submission action are remembered across sessions in this profile, even if you cancel. Title and description are kept in memory when you dismiss and reopen the form for the same session and branches. Cancel discards this content. Unavailable options are not applied, but your preferences are kept for repositories and hosts that support them."),
-					localize('sessionsChanges.createPR.autopilot', "Where artifact integrations are enabled, Autopilot replaces Agent Merge. Selecting Autopilot reveals the pull request's Autopilot rules as checkboxes: Automatically Address Reviews, Automatically Fix CI, Automatically Update Branch, and, when Create as Draft is checked, Automatically Mark Ready. Merge Automatically When Ready lets you turn merging off, always merge when ready, or merge only when no changes were made. The rules are turned on for the new pull request only on submission."),
+					localize('sessionsChanges.createPR.autopilot', "Where artifact integrations are enabled, Autopilot replaces Agent Merge. Selecting Autopilot reveals the pull request's Autopilot rules as checkboxes: Automatically Address Reviews, Automatically Fix CI, Automatically Update Branch, and, when Create as Draft is checked, Automatically Mark Ready. Merge Automatically When Ready lets you choose Off, When Not Changed, which merges only when Autopilot made no changes, or On, which merges even when it did. The rules are turned on for the new pull request only on submission."),
 					localize('sessionsChanges.createPR.agentMergeHints', "Each Agent Merge and Autopilot checkbox has a description explaining what it does and when it acts. Focus a checkbox to hear its description, or hover over the info icon after its label to read it. Press Space to toggle it."),
 					localize('sessionsChanges.createPR.submit', "Create PR is disabled while details are being generated. It closes the form immediately, then commits and pushes your changes and creates the pull request in the background. When available, Tab to Pull Request Actions and press Enter or Space to open the dropdown. Send Create PR Message is available even during generation. It asks this session's agent to create the pull request with your selected options and generate its own title and description, without using the form's text. The last-used action becomes the primary button. Control+Enter on Windows and Linux, or Command+Enter on macOS, runs that primary action. Press Escape to dismiss the dropdown, or Escape in the form to close without submitting and keep your text. Cancel closes the form and discards your text."),
 				].join('\n'),
@@ -54,12 +54,31 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 		}
 		const viewsService = accessor.get(IViewsService);
 		const inEditor = isHTMLElement(focusedElement) && !!focusedElement.closest('.session-changes-editor');
+		// Where the Changes editor draws its own header, such as in an editor window, there are no Changes view, Details and
+		// Run Code Review, and its header row offers its actions.
+		const inEditorWindow = isHTMLElement(focusedElement) && !!focusedElement.closest('.session-changes-editor.offers-header-actions');
 
 		const content: string[] = [];
 		content.push(inEditor
 			? localize('sessionsChanges.editorOverview', "You are in the Changes editor. It shows the changed files and their diffs for the current session.")
 			: localize('sessionsChanges.overview', "You are in the Changes view. It shows the files changed by the current session as a tree, followed by a collapsible Checks section."));
 		content.push(localize('sessionsChanges.empty', "When there are no changed files, use Tab to reach Open Files and Search in Files. Use Up Arrow and Down Arrow to move between those actions, and Enter or Space to run one."));
+		if (inEditorWindow) {
+			content.push(localize('sessionsChanges.editorWindowActions', "The Changes editor shows its actions on the right of its header row: the session's changeset operations, such as Commit, when available, Toggle Files, which shows or hides the list of changed files beside the diffs, and More Actions with the diff actions, such as Diff View and Word Wrap. Use the dropdown beside Toggle Files to switch between View as List and View as Tree, and to put the list on the left or right of the diffs."));
+			content.push(localize('sessionsChanges.editorWindowOperations', "When available, a changed file's toolbar provides actions such as Open File, Viewed, and Discard Changes. Destructive actions ask for confirmation and are disabled while the agent is working. Use Tab and Shift+Tab to move between the diffs and toolbar actions."));
+			content.push(localize('sessionsChanges.editorWindowDiffView', "The Toggle Preferred Diff View command switches the diffs between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>'));
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.SessionsChanges,
+				{ type: AccessibleViewType.Help },
+				() => content.join('\n'),
+				() => {
+					if (isHTMLElement(focusedElement) && focusedElement.isConnected) {
+						focusedElement.focus();
+					}
+				},
+				AccessibilityVerbositySettingId.SessionsChanges,
+			);
+		}
 		if (!inEditor) {
 			content.push(localize('sessionsChanges.tree', "Use the up and down arrow keys to move between changed files, and the left and right arrow keys to collapse or expand folders. Press Enter to open the selected file's diff."));
 			content.push(localize('sessionsChanges.checks', "The Checks section lists the continuous integration checks for the session's pull request. Its header is a button: press Enter or Space to collapse or expand it{0}.", '<keybinding:sessions.action.revealCIChecks>'));

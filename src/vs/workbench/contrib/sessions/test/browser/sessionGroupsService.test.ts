@@ -377,26 +377,39 @@ suite('SessionGroupsService', () => {
 		});
 	});
 
-	test('deleting an inherited group leaves the created session explicitly ungrouped', () => {
-		const creator = createSession('creator');
-		const createdSession = createSession('created', false, creator.resource);
-		sessions = [creator, createdSession];
-		const inherited = service.createGroup('Inherited', [creator.sessionId]);
-		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+	/** Moves the stored groups state to where an older build, which Settings Sync roamed it from, stored it. */
+	function storeAsOlderBuild(): void {
+		const state = storageService.get('sessionsListControl.localGroups', StorageScope.PROFILE);
+		storageService.remove('sessionsListControl.localGroups', StorageScope.PROFILE);
+		storageService.remove('sessionsListControl.localGroups.ownedByDevice', StorageScope.PROFILE);
+		storageService.store('sessionsListControl.groups', state, StorageScope.PROFILE, StorageTarget.USER);
+	}
 
-		service.deleteGroup(inherited.id);
-		service.dispose();
-		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
-		const replacement = service.createGroup('Replacement', [creator.sessionId]);
+	for (const acrossMigration of [false, true]) {
+		test(`deleting an inherited group leaves the created session explicitly ungrouped${acrossMigration ? ', also when an older build stored that' : ''}`, () => {
+			const creator = createSession('creator');
+			const createdSession = createSession('created', false, creator.resource);
+			sessions = [creator, createdSession];
+			const inherited = service.createGroup('Inherited', [creator.sessionId]);
+			sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
 
-		assert.deepStrictEqual({
-			creatorGroup: service.getGroupOfSession(creator.sessionId),
-			createdGroup: service.getGroupOfSession(createdSession.sessionId),
-		}, {
-			creatorGroup: replacement.id,
-			createdGroup: undefined,
+			service.deleteGroup(inherited.id);
+			service.dispose();
+			if (acrossMigration) {
+				storeAsOlderBuild();
+			}
+			service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+			const replacement = service.createGroup('Replacement', [creator.sessionId]);
+
+			assert.deepStrictEqual({
+				creatorGroup: service.getGroupOfSession(creator.sessionId),
+				createdGroup: service.getGroupOfSession(createdSession.sessionId),
+			}, {
+				creatorGroup: replacement.id,
+				createdGroup: undefined,
+			});
 		});
-	});
+	}
 
 	test('archiving an inherited session leaves it explicitly ungrouped', () => {
 		const creator = createSession('creator');
@@ -419,26 +432,35 @@ suite('SessionGroupsService', () => {
 		});
 	});
 
-	test('an initially archived created session does not inherit after restoration', () => {
-		const creator = createSession('creator');
-		const archived = createSession('created', true, creator.resource);
-		sessions = [creator, archived];
-		const inherited = service.createGroup('Inherited', [creator.sessionId]);
-		sessionsChangedEmitter.fire({ added: [archived], removed: [], changed: [] });
+	for (const acrossMigration of [false, true]) {
+		test(`an initially archived created session does not inherit after restoration${acrossMigration ? ', also when Settings Sync downloads the group afterwards' : ''}`, () => {
+			const creator = createSession('creator');
+			const archived = createSession('created', true, creator.resource);
+			sessions = [creator, archived];
+			const inheritedId = acrossMigration ? 'synced' : service.createGroup('Inherited', [creator.sessionId]).id;
+			sessionsChangedEmitter.fire({ added: [archived], removed: [], changed: [] });
 
-		const restored = createSession('created', false, creator.resource);
-		sessions = [creator, restored];
-		service.dispose();
-		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+			const restored = createSession('created', false, creator.resource);
+			sessions = [creator, restored];
+			if (acrossMigration) {
+				// The device that synced the group had the created session join its creator's group.
+				storageService.store('sessionsListControl.groups', JSON.stringify({
+					groups: [{ id: inheritedId, name: 'Inherited', createdAt: 1 }],
+					membership: { [creator.sessionId]: inheritedId, [restored.sessionId]: inheritedId },
+				}), StorageScope.PROFILE, StorageTarget.USER);
+			}
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(SessionGroupsService));
 
-		assert.deepStrictEqual({
-			creatorGroup: service.getGroupOfSession(creator.sessionId),
-			restoredGroup: service.getGroupOfSession(restored.sessionId),
-		}, {
-			creatorGroup: inherited.id,
-			restoredGroup: undefined,
+			assert.deepStrictEqual({
+				creatorGroup: service.getGroupOfSession(creator.sessionId),
+				restoredGroup: service.getGroupOfSession(restored.sessionId),
+			}, {
+				creatorGroup: inheritedId,
+				restoredGroup: undefined,
+			});
 		});
-	});
+	}
 
 	test('deletion clears a persisted ungrouped preference', () => {
 		const creator = createSession('creator');
@@ -606,7 +628,7 @@ suite('SessionGroupsService', () => {
 		service.setSectionColor('workspace:Workspace', undefined);
 		assert.deepStrictEqual({
 			appearance: service.getSectionAppearance('workspace:Workspace'),
-			stored: storageService.get('sessionsListControl.groups', StorageScope.PROFILE),
+			stored: storageService.get('sessionsListControl.localGroups', StorageScope.PROFILE),
 			events,
 		}, { appearance: undefined, stored: undefined, events: [false, false, false, false] });
 	});
@@ -768,10 +790,10 @@ suite('SessionGroupsService', () => {
 	});
 
 	test('loads pre-feature group state without explicit ungrouped data', () => {
-		storageService.store('sessionsListControl.groups', JSON.stringify({
+		storageService.store('sessionsListControl.localGroups', JSON.stringify({
 			groups: [{ id: 'legacy-group', name: 'Legacy', createdAt: 1 }],
 			membership: { s1: 'legacy-group' },
-		}), StorageScope.PROFILE, StorageTarget.USER);
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
@@ -783,6 +805,72 @@ suite('SessionGroupsService', () => {
 			group: 'Legacy',
 			membership: 'legacy-group',
 		});
+	});
+
+	/** The groups and top-level order services of a device whose profile storage is `deviceStorage`, as a window loads them. */
+	function loadDevice(deviceStorage: InMemoryStorageService): { readonly groups: SessionGroupsService; readonly order: SessionSectionOrderService } {
+		instantiationService.stub(IStorageService, deviceStorage);
+		const order = disposables.add(new SessionSectionOrderService(deviceStorage));
+		instantiationService.stub(ISessionSectionOrderService, order);
+		return { order, groups: disposables.add(instantiationService.createInstance(SessionGroupsService)) };
+	}
+
+	const syncedGroups = JSON.stringify({ groups: [{ id: 'work', name: 'Work', createdAt: 1 }], membership: { s1: 'work' } });
+	const syncedOrder = JSON.stringify({ order: ['workspace:vscode', 'group:work'], promoted: [] });
+
+	/** Settings Sync downloads the groups and top-level order that older builds roamed. */
+	function downloadSyncedState(deviceStorage: InMemoryStorageService): void {
+		deviceStorage.store('sessionsListControl.groups', syncedGroups, StorageScope.PROFILE, StorageTarget.USER);
+		deviceStorage.store('sessionsListControl.sectionOrder', syncedOrder, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	test('adopts the groups and top-level order that Settings Sync roamed, also when they arrive after a load, until deleting them', () => {
+		const deviceStorage = disposables.add(new InMemoryStorageService());
+		// An older build stored that the archived session left its group, without any groups, and each load stores it again.
+		// Neither is state the user made, so neither stops adopting the synced state.
+		sessions = [createSession('archived', true)];
+		deviceStorage.store('sessionsListControl.groups', JSON.stringify({ groups: [], membership: {}, explicitlyUngroupedSessionIds: ['archived'] }), StorageScope.PROFILE, StorageTarget.USER);
+		const describeDevice = ({ groups, order }: ReturnType<typeof loadDevice>) => ({
+			group: groups.getGroupOfSession('s1'),
+			order: order.resolveOrder(['group:work', 'workspace:vscode']),
+			onDevice: deviceStorage.keys(StorageScope.PROFILE, StorageTarget.MACHINE).sort(),
+		});
+
+		const beforeSync = describeDevice(loadDevice(deviceStorage));
+		downloadSyncedState(deviceStorage);
+		const adopted = loadDevice(deviceStorage);
+		const afterSync = describeDevice(adopted);
+		adopted.groups.deleteGroup('work');
+		adopted.order.retain([]);
+		const afterDeleting = describeDevice(loadDevice(deviceStorage));
+
+		assert.deepStrictEqual({
+			beforeSync,
+			afterSync,
+			afterDeleting,
+			synced: [deviceStorage.get('sessionsListControl.groups', StorageScope.PROFILE), deviceStorage.get('sessionsListControl.sectionOrder', StorageScope.PROFILE)],
+		}, {
+			beforeSync: { group: undefined, order: ['group:work', 'workspace:vscode'], onDevice: ['sessionsListControl.localGroups'] },
+			afterSync: {
+				group: 'work',
+				order: ['workspace:vscode', 'group:work'],
+				onDevice: ['sessionsListControl.localGroups', 'sessionsListControl.localGroups.ownedByDevice', 'sessionsListControl.localSectionOrder', 'sessionsListControl.localSectionOrder.ownedByDevice'],
+			},
+			afterDeleting: {
+				group: undefined,
+				order: ['group:work', 'workspace:vscode'],
+				onDevice: ['sessionsListControl.localGroups', 'sessionsListControl.localGroups.ownedByDevice', 'sessionsListControl.localSectionOrder.ownedByDevice'],
+			},
+			synced: [syncedGroups, syncedOrder],
+		});
+	});
+
+	test('keeps the groups this device made before Settings Sync downloads the roamed ones', () => {
+		const deviceStorage = disposables.add(new InMemoryStorageService());
+		loadDevice(deviceStorage).groups.createGroup('Local');
+		downloadSyncedState(deviceStorage);
+
+		assert.deepStrictEqual(loadDevice(deviceStorage).groups.getGroups().map(group => group.name), ['Local']);
 	});
 
 	/** Each group's name mapped to its parent's name, or `null` for a top-level group. */
@@ -811,7 +899,7 @@ suite('SessionGroupsService', () => {
 
 	/** Replaces the service with one that loads the given groups. */
 	function loadGroups(groups: readonly { readonly id: string; readonly name: string; readonly createdAt: number; readonly parentId?: string }[]): void {
-		storageService.store('sessionsListControl.groups', JSON.stringify({ groups, membership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('sessionsListControl.localGroups', JSON.stringify({ groups, membership: {} }), StorageScope.PROFILE, StorageTarget.MACHINE);
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
 	}
@@ -1042,7 +1130,7 @@ suite('SessionGroupsService', () => {
 	});
 
 	test('loading makes groups whose stored parent is missing or loops back top-level groups', () => {
-		storageService.store('sessionsListControl.groups', JSON.stringify({
+		storageService.store('sessionsListControl.localGroups', JSON.stringify({
 			groups: [
 				{ id: 'orphan', name: 'Orphan', createdAt: 1, parentId: 'missing' },
 				{ id: 'a', name: 'A', createdAt: 2, parentId: 'b' },
@@ -1051,7 +1139,7 @@ suite('SessionGroupsService', () => {
 				{ id: 'child', name: 'Child', createdAt: 5, parentId: 'a' },
 			],
 			membership: {},
-		}), StorageScope.PROFILE, StorageTarget.USER);
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
@@ -1465,7 +1553,7 @@ suite('SessionGroupsService', () => {
 			moveInto(promoted, source);
 			sessions = [source];
 			const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
-			const stored = JSON.parse(storageService.get('sessionsListControl.groups', StorageScope.PROFILE) ?? '{}');
+			const stored = JSON.parse(storageService.get('sessionsListControl.localGroups', StorageScope.PROFILE) ?? '{}');
 
 			assert.deepStrictEqual({
 				afterPromote,

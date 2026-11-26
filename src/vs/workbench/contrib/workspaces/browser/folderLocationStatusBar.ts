@@ -206,7 +206,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		const command = { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: localize('folderLocation', "Folder Location"), arguments: [FOLDER_LOCATION_STATUS_ENTRY_ID] };
 		const props = location ? {
 			name: localize('folderLocation', "Folder Location"),
-			text: `$(${location.icon?.id ?? Codicon.gitBranchCheckout.id}) ${location.label}`,
+			text: `$(${location.icon.id}) ${location.label}`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", this.labelService.getFolderLocationLabel(folder.uri)),
 			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", this.labelService.getFolderLocationLabel(folder.uri), primaryName),
 			command,
@@ -329,7 +329,7 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const currentLocation = folderLocationService.getLocation(folder);
 		// The folder itself: its name, as the window names it
 		const primaryEntry: ILocationEntry = { uri: primary, label: basename(primary), icon: Codicon.folder };
-		const toEntry = (location: IFolderLocation): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon ?? Codicon.gitBranchCheckout });
+		const toEntry = (location: IFolderLocation): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon });
 		// Seed the current location, in the group of its provider, so that accepting before the lookup resolves keeps it
 		const seedGroups: ILocationGroup[] = currentLocation ? [{ providerId: currentLocation.providerId, label: currentLocation.group, entries: [{ ...toEntry(currentLocation), uri: folder.uri }] }] : [];
 		const toGroups = (groups: readonly IFolderLocationGroup[]): ILocationGroup[] => groups.map(group => ({ providerId: group.providerId, label: group.label, entries: group.locations.map(toEntry) }));

@@ -29,8 +29,11 @@ jobs:
   #
   # It runs for pull requests and for the merge groups of the merge queue of main. Pull
   # requests to main run every job except the Windows ones ("Windows / *", "Copilot - Test
-  # (Windows)" and "chat-lib - Test (Windows)"), which the merge queue runs. Pull requests to
-  # release branches, which have no merge queue, run them too. The merge queue and the pull
+  # (Windows)" and "chat-lib - Test (Windows)"), which the merge queue runs, apart from the
+  # Windows unit tests ("Windows / Electron-Unit (electron)", "Windows / Electron-Unit (node)"
+  # and "Windows / Browser-Unit"): they finish within the time of the Linux jobs, and catch
+  # Windows path bugs before the merge queue. Pull requests to release branches, which have
+  # no merge queue, run them too. The merge queue and the pull
   # requests to release branches run every job on dedicated runners, so that the pull
   # requests to main cannot hold up the merges:
   #
@@ -68,6 +71,7 @@ jobs:
       # The commit of the base branch that a merge group forks from (see the Find the base step).
       merge-group-base: ${{ steps.base.outputs.merge-group-base }}
       cli: ${{ steps.detect.outputs.cli }}
+      dependencies: ${{ steps.detect.outputs.dependencies }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
       copilot: ${{ steps.detect.outputs.copilot }}
       unit-tests: ${{ steps.detect.outputs.unit-tests }}
@@ -606,12 +610,77 @@ jobs:
           fi
           echo "ripple built, passed its tests and planned the tests in Detect Changes."
 
-  # The test jobs below report "<OS> / <job>" checks, for example "Windows / Electron-Unit", whether
+  # Checks that the package versions that the changes add to pnpm-lock.yaml, package-lock.json and Cargo.lock come
+  # from registry.npmjs.org or crates.io, and are at least as old as the minimumReleaseAge of pnpm-workspace.yaml,
+  # unless its minimumReleaseAgeExclude lists them (see build/lib/dependencyReleaseAge.ts). It reads only public data,
+  # so that it also runs for pull requests from forks. For a merge group, it compares with the commit of the base
+  # branch that the group forks from, so that it covers the pull requests ahead of it in the queue too.
+  dependency-release-age:
+    name: Dependency Release Age
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.dependencies == 'true') }}
+    runs-on: *linux-runner
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The merge commit and its first parent, the base branch.
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      # The YAML parser of the check, pinned here with its integrity rather than installed from the lockfiles that the
+      # pull request may change. The version is the one of the root package.json.
+      - name: Download js-yaml
+        env:
+          JS_YAML_VERSION: 4.3.2
+          JS_YAML_INTEGRITY: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/js-yaml"
+          cd "$RUNNER_TEMP/js-yaml"
+          curl -fsSL --retry 3 -o js-yaml.tgz "https://registry.npmjs.org/js-yaml/-/js-yaml-$JS_YAML_VERSION.tgz"
+          integrity="sha512-$(openssl dgst -sha512 -binary js-yaml.tgz | base64 -w0)"
+          if [ "$integrity" != "$JS_YAML_INTEGRITY" ]; then
+            echo "::error::js-yaml-$JS_YAML_VERSION.tgz has the integrity $integrity, not $JS_YAML_INTEGRITY."
+            exit 1
+          fi
+          tar -xzf js-yaml.tgz
+          echo "DEPENDENCY_RELEASE_AGE_JS_YAML=$RUNNER_TEMP/js-yaml/package/dist/js-yaml.mjs" >> "$GITHUB_ENV"
+
+      - name: Check the release age of the added dependencies
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
+          MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+        run: |
+          set -e
+          base=HEAD^1
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            # The commit of the base branch that the group forks from, like Detect Changes finds it. Never the merge group
+            # ahead in the queue, which would leave out the dependencies of the pull requests ahead of this one.
+            base=$(gh api "repos/$GITHUB_REPOSITORY/compare/${MERGE_GROUP_BASE_REF#refs/heads/}...$MERGE_GROUP_HEAD_SHA" --jq .merge_base_commit.sha) || base=
+            if [ -z "$base" ]; then
+              echo "::error::Could not find the commit of $MERGE_GROUP_BASE_REF that the merge group forks from."
+              exit 1
+            fi
+            git cat-file -e "$base^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$base"
+          fi
+          node build/lib/dependencyReleaseAge.ts --base "$base" --head HEAD
+
+  # The test jobs below report "<OS> / <job>" checks, for example "Windows / Electron-Unit (electron)", whether
   # they run or not. Each calls the reusable workflow of its OS, whose jobs have fixed names, run on
   # the runner that the calling job passes, and skip when the changes cannot affect them (the
   # *_affected inputs). The calling jobs always run, as GitHub reports a skipped calling job under its
-  # own name only, except the Windows one, which pull requests to main skip, as the merge queue runs
-  # it: they report a single skipped Windows check.
+  # own name only. Pull requests to main run only the unit test jobs of Windows, and skip its other jobs,
+  # which the merge queue runs (see the top of the workflow).
   linux-rust-tests:
     name: Linux
     needs: changes
@@ -685,24 +754,26 @@ jobs:
   windows-tests:
     name: Windows
     needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main') }}
+    if: ${{ !cancelled() }}
     # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
     permissions:
       contents: read
       actions: read
     uses: ./.github/workflows/pr-win32-test.yml
+    # Pull requests to main run only the unit test jobs, and the merge queue the others too (see the top of the
+    # workflow).
     with:
       electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
-      electron_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
+      electron_affected: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
       # Windows runs Agent Host E2E in jobs of its own, and only the suites that the plan selects.
-      agent_host_e2e_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true' }}
-      electron_smoke_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
+      agent_host_e2e_affected: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true') }}
+      electron_smoke_affected: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
       browser_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
-      browser_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
-      remote_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
+      browser_affected: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true') }}
+      remote_affected: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
       # The Electron (node.js) job runs only the node.js integration tests that the plan selects, and is
       # skipped when it selects none.
-      node_integration_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-node-integration-tests == 'true' }}
+      node_integration_tests: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.selected-node-integration-tests == 'true') }}
       # The provider integration tests and the Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
@@ -1112,6 +1183,7 @@ jobs:
       - monaco-editor
       - telemetry
       - ripple
+      - dependency-release-age
       - linux-rust-tests
       - linux-tests
       # - macos-tests

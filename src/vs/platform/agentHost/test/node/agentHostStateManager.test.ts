@@ -1525,6 +1525,7 @@ suite('AgentHostStateManager', () => {
 				.filter(notification => notification.type === NotificationType.SessionSummaryChanged)
 				.map(notification => notification.changes);
 			assert.deepStrictEqual(changes, [{
+				modifiedAt: new Date(150).toISOString(),
 				chats: [
 					{
 						resource: buildDefaultChatUri(sessionUri),
@@ -1541,6 +1542,61 @@ suite('AgentHostStateManager', () => {
 					},
 				],
 			}]);
+		});
+	});
+
+	test('archiving and unarchiving a session advance its modified time and notify it', () => {
+		return runWithFakedTimers({ startTime: Date.parse('2025-01-02T00:00:00.000Z') }, async () => {
+			manager.createSession({ ...makeSessionSummary(), modifiedAt: '2025-01-01T00:00:00.000Z' });
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+			const notified: string[] = [];
+			disposables.add(manager.onDidChangeSessionSummary(({ changes }) => {
+				if (changes.modifiedAt !== undefined) {
+					notified.push(changes.modifiedAt);
+				}
+			}));
+			const modifiedAt = () => manager.getSessionSummary(sessionUri)?.modifiedAt;
+
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			const archived = modifiedAt();
+			await timeout(1000);
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			const archivedAgain = modifiedAt();
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsArchivedChanged, isArchived: false });
+			const unarchived = modifiedAt();
+			await timeout(150);
+
+			assert.deepStrictEqual({ archived, archivedAgain, unarchived, notified }, {
+				archived: '2025-01-02T00:00:00.000Z',
+				archivedAgain: '2025-01-02T00:00:00.000Z',
+				unarchived: '2025-01-02T00:00:01.000Z',
+				notified: ['2025-01-02T00:00:00.000Z', '2025-01-02T00:00:01.000Z'],
+			});
+		});
+	});
+
+	test('an archive change on an unloaded session advances its surfaced modified time, other status changes do not', () => {
+		return runWithFakedTimers({ startTime: Date.parse('2025-01-02T00:00:00.000Z') }, async () => {
+			manager.announceSurfacedSession({ ...makeSessionSummary(), modifiedAt: '2025-01-01T00:00:00.000Z' });
+			const archivedStatus = SessionStatus.Idle | SessionStatus.IsArchived;
+			const changes: { readonly status?: SessionStatus; readonly modifiedAt?: string }[] = [];
+			disposables.add(manager.onDidChangeSessionSummary(event => {
+				changes.push(event.changes);
+			}));
+
+			manager.setSurfacedSessionStatusAndChats(sessionUri, SessionStatus.Idle | SessionStatus.IsRead);
+			manager.setSurfacedSessionStatusAndChats(sessionUri, archivedStatus, undefined, true);
+			await timeout(1000);
+			manager.setSurfacedSessionStatusFlag(sessionUri, SessionStatus.IsArchived, false);
+
+			assert.deepStrictEqual({ changes, modifiedAt: manager.getSurfacedSessionSummary(sessionUri)?.modifiedAt }, {
+				changes: [
+					{ status: SessionStatus.Idle | SessionStatus.IsRead },
+					{ status: archivedStatus, modifiedAt: '2025-01-02T00:00:00.000Z' },
+					{ status: SessionStatus.Idle, modifiedAt: '2025-01-02T00:00:01.000Z' },
+				],
+				modifiedAt: '2025-01-02T00:00:01.000Z',
+			});
 		});
 	});
 
@@ -2353,39 +2409,43 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
-		test('chat archive action changes only the peer and emits chatUpdated', () => {
-			manager.createSession(makeSessionSummary());
-			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { title: 'Peer' });
-			const envelopes: ActionEnvelope[] = [];
-			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+		test('chat archive action changes only the peer, advances its modified time and emits chatUpdated', () => {
+			return runWithFakedTimers({ startTime: Date.parse('2025-01-02T00:00:00.000Z') }, async () => {
+				manager.createSession({ ...makeSessionSummary(), modifiedAt: '2025-01-01T00:00:00.000Z' });
+				manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { title: 'Peer' });
+				const envelopes: ActionEnvelope[] = [];
+				disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			manager.dispatchClientAction(peerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, { clientId: 'client', clientSeq: 1 });
-			const peerSummary = manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat);
-			const catalogSummary = manager.getSessionSummary(sessionUri)?.chats?.find(chat => chat.resource === peerChat);
-			const chatUpdated = envelopes.find(envelope => envelope.action.type === ActionType.SessionChatUpdated);
+				manager.dispatchClientAction(peerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, { clientId: 'client', clientSeq: 1 });
+				const peerSummary = manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat);
+				const catalogSummary = manager.getSessionSummary(sessionUri)?.chats?.find(chat => chat.resource === peerChat);
+				const chatUpdated = envelopes.find(envelope => envelope.action.type === ActionType.SessionChatUpdated);
 
-			assert.deepStrictEqual({
-				peerArchived: !!peerSummary && (peerSummary.status & SessionStatus.IsArchived) !== 0,
-				peerStateArchived: ((manager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
-				catalogSummary,
-				sessionArchived: ((manager.getSessionSummary(sessionUri)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
-				action: chatUpdated?.action,
-			}, {
-				peerArchived: true,
-				peerStateArchived: true,
-				catalogSummary: {
-					resource: peerChat,
-					title: 'Peer',
-					origin: { kind: ChatOriginKind.User },
-					status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
-					archived: true,
-				},
-				sessionArchived: false,
-				action: {
-					type: ActionType.SessionChatUpdated,
-					chat: peerChat,
-					changes: { status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived, activity: undefined },
-				},
+				assert.deepStrictEqual({
+					peerArchived: !!peerSummary && (peerSummary.status & SessionStatus.IsArchived) !== 0,
+					peerStateArchived: ((manager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+					catalogSummary,
+					sessionArchived: ((manager.getSessionSummary(sessionUri)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+					sessionModifiedAt: manager.getSessionSummary(sessionUri)?.modifiedAt,
+					action: chatUpdated?.action,
+				}, {
+					peerArchived: true,
+					peerStateArchived: true,
+					catalogSummary: {
+						resource: peerChat,
+						title: 'Peer',
+						origin: { kind: ChatOriginKind.User },
+						status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+						archived: true,
+					},
+					sessionArchived: false,
+					sessionModifiedAt: '2025-01-02T00:00:00.000Z',
+					action: {
+						type: ActionType.SessionChatUpdated,
+						chat: peerChat,
+						changes: { status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived, activity: undefined, modifiedAt: '2025-01-02T00:00:00.000Z' },
+					},
+				});
 			});
 		});
 

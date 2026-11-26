@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -52,9 +53,9 @@ suite('WorkspaceFolderLocationService', () => {
 		setUnexpectedErrorHandler(error => reported.push(error.message));
 		disposables.add(toDisposable(() => setUnexpectedErrorHandler(previous)));
 		const service = disposables.add(createService());
-		disposables.add(service.registerProvider(provider('x', [{ uri: a, label: 'A' }], true)));
-		disposables.add(service.registerProvider(provider('y', [{ uri: a, label: 'A' }, { uri: b, label: 'B' }])));
-		disposables.add(service.registerProvider(provider('z', [{ uri: a, label: 'A2' }])));
+		disposables.add(service.registerProvider(provider('x', [{ uri: a, label: 'A', icon: Codicon.folder }], true)));
+		disposables.add(service.registerProvider(provider('y', [{ uri: a, label: 'A', icon: Codicon.folder }, { uri: b, label: 'B', icon: Codicon.folder }])));
+		disposables.add(service.registerProvider(provider('z', [{ uri: a, label: 'A2', icon: Codicon.folder }])));
 
 		const actual = await service.getLocations(primary, CancellationToken.None);
 
@@ -63,8 +64,8 @@ suite('WorkspaceFolderLocationService', () => {
 
 	test('getLocationGroups groups the locations by provider, with its id, under its label, dedupes across providers and leaves out providers with none', async () => {
 		const service = disposables.add(createService());
-		disposables.add(service.registerProvider({ ...provider('x', [{ uri: a, label: 'A' }]), label: 'Worktrees' }));
-		disposables.add(service.registerProvider(provider('y', [{ uri: a, label: 'A' }, { uri: b, label: 'B' }])));
+		disposables.add(service.registerProvider({ ...provider('x', [{ uri: a, label: 'A', icon: Codicon.folder }]), label: 'Worktrees' }));
+		disposables.add(service.registerProvider(provider('y', [{ uri: a, label: 'A', icon: Codicon.folder }, { uri: b, label: 'B', icon: Codicon.folder }])));
 		disposables.add(service.registerProvider({ ...provider('z', []), label: 'Empty' }));
 
 		const groups = await service.getLocationGroups(primary, CancellationToken.None);
@@ -92,8 +93,8 @@ suite('WorkspaceFolderLocationService', () => {
 
 	test('resolveLocation reports provider and built-in flag', async () => {
 		const service = disposables.add(createService());
-		const registration = disposables.add(service.registerProvider(provider('x', [{ uri: a, label: 'A' }]), { builtIn: true }));
-		disposables.add(service.registerProvider(provider('y', [{ uri: b, label: 'B' }])));
+		const registration = disposables.add(service.registerProvider(provider('x', [{ uri: a, label: 'A', icon: Codicon.folder }]), { builtIn: true }));
+		disposables.add(service.registerProvider(provider('y', [{ uri: b, label: 'B', icon: Codicon.folder }])));
 
 		const resolvedA = await service.resolveLocation(primary, a, CancellationToken.None);
 		const resolvedB = await service.resolveLocation(primary, b, CancellationToken.None);
@@ -111,7 +112,7 @@ suite('WorkspaceFolderLocationService', () => {
 		const service = disposables.add(createService(workspace));
 		const events: string[] = [];
 		disposables.add(service.onDidChangeLocation(e => events.push(`${e.folder.uri.path}:${e.reason}`)));
-		const location = { uri: a, label: 'A', providerId: 'x', builtIn: false };
+		const location = { uri: a, label: 'A', icon: Codicon.folder, providerId: 'x', builtIn: false };
 
 		service.setLocation(workspace.folders[0], location, 'user');
 		const set = service.getLocation(workspace.folders[0]);
@@ -128,14 +129,14 @@ suite('WorkspaceFolderLocationService', () => {
 			override registerWorkspaceLabelDecorator() { return toDisposable(() => { }); }
 		}();
 		const service = disposables.add(new WorkspaceFolderLocationService(disposables.add(new UriIdentityService(disposables.add(new FileService(new NullLogService())))), context, labelService));
-		disposables.add(service.registerProvider(provider('x', [{ uri: worktree, label: 'wt1' }])));
+		disposables.add(service.registerProvider(provider('x', [{ uri: worktree, label: 'wt1', icon: Codicon.folder }])));
 		let changes = 0;
 		disposables.add(service.onDidChangeLocations(() => changes++));
 		const read = () => service.getFolderLocations(context.getWorkspace().folders[0], CancellationToken.None);
 
 		const atPrimary = await read();
 		context.setWorkspace(new Workspace('id', [folder(worktree)], false, null, () => false, undefined, repo));
-		service.setLocation(context.getWorkspace().folders[0], { uri: worktree, label: 'wt1', providerId: 'x', builtIn: false }, 'user');
+		service.setLocation(context.getWorkspace().folders[0], { uri: worktree, label: 'wt1', icon: Codicon.folder, providerId: 'x', builtIn: false }, 'user');
 		const atAlternate = await read();
 		context.setWorkspace(new Workspace('id', [folder(repo)], false, null, () => false));
 		service.setLocation(context.getWorkspace().folders[0], undefined, 'user');
@@ -156,7 +157,7 @@ suite('WorkspaceFolderLocationService', () => {
 		const actual = [];
 		for (const { primary, variants } of cases) {
 			const service = disposables.add(createService(new Workspace('id', [folder(primary)], false, null, () => false)));
-			disposables.add(service.registerProvider(provider('x', [...variants.map(uri => ({ uri, label: 'variant' })), { uri: worktree, label: 'wt1' }])));
+			disposables.add(service.registerProvider(provider('x', [...variants.map(uri => ({ uri, label: 'variant', icon: Codicon.folder })), { uri: worktree, label: 'wt1', icon: Codicon.folder }])));
 			actual.push((await service.getFolderLocations(folder(primary), CancellationToken.None)).map(l => [l.uri.path, l.label]));
 		}
 
@@ -187,11 +188,11 @@ suite('WorkspaceFolderLocationService', () => {
 		const decorator = decorators[0];
 		const before = decorator.getFolderLocationLabel(a);
 
-		service.setLocation(workspace.folders[0], { uri: a, label: 'A', description: 'x', providerId: 'x', builtIn: false });
+		service.setLocation(workspace.folders[0], { uri: a, label: 'A', icon: Codicon.folder, description: 'x', providerId: 'x', builtIn: false });
 		const withDescription = decorator.getFolderLocationLabel(a);
 		const changed: string[] = [];
 		disposables.add(decorator.onDidChange(uri => changed.push(uri.path)));
-		service.setLocation(workspace.folders[0], { uri: a, label: 'A', providerId: 'x', builtIn: false });
+		service.setLocation(workspace.folders[0], { uri: a, label: 'A', icon: Codicon.folder, providerId: 'x', builtIn: false });
 
 		assert.deepStrictEqual(
 			{ before, withDescription, current: decorator.getFolderLocationLabel(a), byIdentity: decorator.getFolderLocationLabel(primary), other: decorator.getFolderLocationLabel(b), changed },

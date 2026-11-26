@@ -91,7 +91,7 @@ import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isHostNoticeTurn, isSubagentSession, lastAttributableTurnId, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
-import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
+import { CopilotSessionWrapper, type CopilotProvisionalFusionStreamEvent, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
@@ -916,6 +916,8 @@ interface ICanvasOpenOperation {
 	consentShown?: boolean;
 	/** Whether telemetry reported how the open ended, which it does once. */
 	reported?: boolean;
+	/** Whether the open waits for the chat's restore of the canvas instead of opening it. */
+	readonly restore?: boolean;
 }
 
 type CanvasOpenExtension = Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'][number];
@@ -1539,15 +1541,21 @@ export class CopilotAgentSession extends Disposable {
 	/** Extension consent requests waiting for the user's decision, by consent ID. */
 	private readonly _extensionConsentGates = new Map<string, IExtensionConsentGate>();
 	private readonly _onDidAddExtensionConsentGate = this._register(new Emitter<void>());
+	/** Fires when a client or a turn is shown an extension consent request. */
+	private readonly _onDidShowExtensionConsent = this._register(new Emitter<void>());
 	/**
 	 * Extensions this runtime did not allow to load, by name. The runtime keeps a person's No, and the extension stays failed,
 	 * until it is replaced, so asking again needs a new runtime.
 	 */
 	private readonly _extensionConsentDenials = new Map<string, IExtensionConsentDenial>();
+	/** Extensions this runtime asked consent for, by name, whether or not anyone was shown the request. */
+	private readonly _extensionConsentRequested = new Set<string>();
 	/** How many consent requests people were shown for each extension, in a turn or by a client, which tells whether a canvas open waited for one. */
 	private readonly _extensionConsentShownCounts = new Map<string, number>();
 	/** UI-initiated canvas opens until the runtime settles them. */
 	private readonly _canvasOpens = new Set<ICanvasOpenOperation>();
+	/** Background reopens of restored canvases, by instance ID, which a client open of the same canvas waits for instead of opening it again. */
+	private readonly _canvasRestores = new Map<string, Promise<AgentCanvasOpenResult>>();
 	/** The open each consent request shown to a client belongs to, by consent and instance ID; kept after the open settles so a late answer gets its outcome. */
 	private readonly _canvasConsentOpens = new LRUCache<string, ICanvasOpenOperation>(32);
 	/** Keys session approvals that must not outlive this runtime. */
@@ -1701,7 +1709,7 @@ export class CopilotAgentSession extends Disposable {
 	 * wait for it as well.
 	 */
 	get hasActiveSubagents(): boolean { return this._subagents.hasActiveAgents; }
-	get usesStaticGitHubToken(): boolean { return this._launchPlan.githubCredentials.usesStaticToken; }
+	get usesStaticGitHubToken(): boolean { return this._launchPlan.accountContext === undefined && this._launchPlan.githubCredentials.usesStaticToken; }
 
 	installSandboxCertificate(scopeId: string): Promise<void> {
 		return this._sandbox.installCertificate(scopeId);
@@ -2480,6 +2488,11 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shownProvisionalFusionMessageIds = new Set<string>();
 	/** Fusion reasoning already shown, by message and text, so a message's committed copy doesn't show it again. */
 	private readonly _shownFusionReasoning = new Set<string>();
+	/**
+	 * The text and reasoning each staged Fusion phase has streamed and no complete message chunk has claimed yet, by phase tool call id,
+	 * and whether it streamed any reasoning. Each chunk of the phase's complete provisional message then shows only what its stream did not.
+	 */
+	private readonly _streamedFusionPhaseOutput = new Map<string, { text: string; reasoning: string; hasReasoning: boolean }>();
 	/** `task_complete` calls already shown in a provisional phase, reported again when their phase commits. */
 	private readonly _provisionalFusionTaskCompletions = new Map<string, ITaskCompletion>();
 	/**
@@ -3068,6 +3081,12 @@ export class CopilotAgentSession extends Disposable {
 		const incomingFusion = startsNewRun && echo ? this._fusionRequestCorrelation.getPrecedingResolution(echo) : undefined;
 		const preservesFusionState = (!startsNewRun || incomingFusion !== undefined) && steeredFromTurnId !== undefined && !this._fusionTurnCancelled;
 		this._logService.trace(`[Copilot:${this.sessionId}] Pending message promoted: pendingId=${steering.pendingMessage.id}, steeredFromTurn=${steeredFromTurnId}, runtimeDelivery=${runtimeDelivery ?? 'unknown'}, preservesFusionState=${preservesFusionState}`);
+		if (preservesFusionState) {
+			// An open phase chat's thinking belongs to the preempted turn; its next reasoning starts a part in the steering turn.
+			for (const toolCallId of this._fusionPhaseChats) {
+				this._reasoningTiming.finish(toolCallId);
+			}
+		}
 		this._completeActiveTurn(false, preservesFusionState);
 		const newTurnId = generateUuid();
 		steering.promotedTurnId = newTurnId;
@@ -5560,15 +5579,21 @@ export class CopilotAgentSession extends Disposable {
 			this._answerExtensionConsent(answer.consentId, answer.optionId);
 			return this._awaitCanvasOpen(shownFor);
 		}
+		// A client open of a canvas the chat is restoring waits for that restore, which reopens it with its input, instead of opening it again.
+		const projected = this._canvasByInstanceId.get(request.instanceId);
+		const restore = projected && projected.canvas.canvasId === request.canvasId && (!request.extensionId || projected.canvas.extensionId === request.extensionId)
+			? this._canvasRestores.get(request.instanceId)
+			: undefined;
 		const operation: ICanvasOpenOperation = {
 			request, outcome: new DeferredPromise(), ready: this._syncPermissionModeBeforeCanvasOpen(), stopwatch: StopWatch.create(), consentShownBefore: this._extensionConsentShownCount(request.extensionId),
 			// Read before the open starts, alongside the permission mode sync, so it tells whether the open starts the extension.
 			extensionRead: this._readCanvasOpenExtension(this._wrapper, request.extensionId),
+			restore: restore !== undefined,
 		};
 		// A client that stops waiting, for example while it asks for consent, must not leave the failure unhandled.
 		operation.outcome.p.catch(() => undefined);
 		this._canvasOpens.add(operation);
-		void this._runCanvasOpen(operation).then(result => {
+		void (restore ?? this._runCanvasOpen(operation)).then(result => {
 			this._reportUserCanvasOpen(operation, result.kind === 'failed' ? result.failure : result.kind === 'consentDenied' ? 'consentDenied' : 'opened');
 			operation.outcome.complete(result);
 		}, error => {
@@ -5599,6 +5624,7 @@ export class CopilotAgentSession extends Disposable {
 				const unattended = this._unattendedExtensionConsent();
 				if (!unattended) {
 					gate.presentedToClient = true;
+					this._onDidShowExtensionConsent.fire();
 					operation.consentShown = true;
 					this._noteExtensionConsentShown(gate.consent.extensionName);
 					this._canvasConsentOpens.set(canvasConsentOpenKey(gate.consent.id, operation.request.instanceId), operation);
@@ -5609,10 +5635,12 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const added = Event.toPromise(this._onDidAddExtensionConsentGate.event);
 			try {
-				const settled = await raceTimeout(Promise.race([
+				const next = Promise.race([
 					operation.outcome.p.then(result => ({ result })),
 					added.then(() => ({ result: undefined })),
-				]), this._controlPlaneRpcTimeoutMs);
+				]);
+				// A restore bounds its own wait, and timing out does not desynchronize the session.
+				const settled = operation.restore ? await next : await raceTimeout(next, this._controlPlaneRpcTimeoutMs);
 				if (!settled) {
 					// The open is still in flight and may still change runtime state; the client sees it time out.
 					this._reportUserCanvasOpen(operation, 'timeout');
@@ -5669,6 +5697,8 @@ export class CopilotAgentSession extends Disposable {
 			throw new Error('Canvases are disabled for this session.');
 		}
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);
+		// An open of a canvas this chat lists reopens that lifetime, which may wait for consent.
+		const projected = this._canvasByInstanceId.get(request.instanceId);
 		let latestEvent: SessionEventPayload<'session.canvas.opened' | 'session.canvas.closed' | 'session.canvas.unavailable'> | undefined;
 		const listener = wasIgnored ? wrapper.onEvent(event => {
 			if (!event.agentId
@@ -5682,9 +5712,16 @@ export class CopilotAgentSession extends Disposable {
 			await operation.ready;
 			operation.extension = await operation.extensionRead;
 			await this._awaitOtherExtensionConsents(operation);
+			const current = this._canvasByInstanceId.get(request.instanceId);
+			// A lifetime closed meanwhile stays closed.
+			if (projected && (!current || !isEqual(current.resource, projected.resource))) {
+				return { kind: 'failed', failure: 'dismissed' };
+			}
+			// The runtime coalesces concurrent opens of an instance with the first one's input, so a reopen keeps the lifetime's input.
+			const sameCanvas = current && current.canvas.canvasId === request.canvasId && (!request.extensionId || current.canvas.extensionId === request.extensionId);
 			let canvas: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>;
 			try {
-				canvas = await wrapper.session.rpc.canvas.open(request);
+				canvas = await wrapper.session.rpc.canvas.open(sameCanvas && current.input !== undefined ? { ...request, input: current.input } : request);
 			} catch (error) {
 				const denied = operation.denied ?? this._extensionConsentDenialFor(request.extensionId);
 				if (denied) {
@@ -5799,6 +5836,17 @@ export class CopilotAgentSession extends Disposable {
 		return extensionId
 			? this._extensionConsentDenialFor(extensionId)?.retryable === true
 			: [...this._extensionConsentDenials.keys()].some(name => this._extensionConsentDenialFor(name)?.retryable);
+	}
+
+	/** The consent request this runtime declined for `extensionId` in a way a new runtime can ask about again. */
+	getRetryableExtensionConsentDenial(extensionId: string): IAgentExtensionConsentRequest | undefined {
+		const denial = this._extensionConsentDenialFor(extensionId);
+		return denial?.retryable ? denial.consent : undefined;
+	}
+
+	/** Whether this runtime asked consent for `extensionId`, which a runtime that keeps an earlier decline does not do. */
+	hasRequestedExtensionConsent(extensionId: string): boolean {
+		return this._extensionConsentRequested.has(extensionId);
 	}
 
 	/** Asks for a new runtime at the next refresh, which forgets this runtime's extension consent denials so the user can be asked again. */
@@ -6163,7 +6211,13 @@ export class CopilotAgentSession extends Disposable {
 			const { handedOver: _handedOver, ...unavailable } = current;
 			this._canvasByInstanceId.set(instanceId, unavailable);
 			if (declared) {
-				void this._reopenCanvas(wrapper, unavailable);
+				const restore = this._reopenCanvas(wrapper, unavailable);
+				this._canvasRestores.set(instanceId, restore);
+				void restore.finally(() => {
+					if (this._canvasRestores.get(instanceId) === restore) {
+						this._canvasRestores.delete(instanceId);
+					}
+				});
 			}
 		}
 	}
@@ -6171,42 +6225,47 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Reopens a restored canvas without delaying the resume or the turn that triggered it. The wait is bounded but,
 	 * unlike control-plane requests, a timeout does not desynchronize the session: the canvas stays unavailable,
-	 * and a late reopen still arrives as an opened event.
+	 * and a late reopen still arrives as an opened event. Resolves with the outcome a client open of the canvas reports.
 	 */
-	private async _reopenCanvas(wrapper: CopilotSessionWrapper, projection: ICopilotCanvasProjection): Promise<void> {
+	private async _reopenCanvas(wrapper: CopilotSessionWrapper, projection: ICopilotCanvasProjection): Promise<AgentCanvasOpenResult> {
 		const { instanceId, extensionId, canvasId } = projection.canvas;
 		const stopwatch = StopWatch.create();
-		// A restored extension that starts may ask for consent, which a turn shows.
+		// A restored extension that starts may ask for consent, which a turn or a client that opens the canvas shows. An
+		// extension that is not running yet also waits for any other extension's consent, as an open that starts it does.
 		const consentShownBefore = this._extensionConsentShownCount(extensionId);
-		const askedForConsent = () => this._extensionConsentShownCount(extensionId) > consentShownBefore;
+		const anyConsentShownBefore = this._extensionConsentShownCount(undefined);
 		const extension = await this._readCanvasOpenExtension(wrapper, extensionId);
+		const askedForConsent = () => this._extensionConsentShownCount(extensionId) > consentShownBefore
+			|| (extension?.status !== 'running' && this._extensionConsentShownCount(undefined) > anyConsentShownBefore);
 		// A close or a replaced runtime during the read supersedes the restore; opening now would bring the canvas back.
 		if (this._store.isDisposed || this._wrapper !== wrapper || !this._isCurrentCanvasProjection(projection)) {
-			return;
+			return { kind: 'failed', failure: 'dismissed' };
 		}
 		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
 		// A runtime that just launched can list a canvas before its extension registers it, which a change reports. Other
-		// extensions report changes too, so each change allows another attempt until one deadline.
+		// extensions report changes too, so each change allows another attempt until one deadline. Time a person spends
+		// answering a consent request the restore waits for does not count.
+		const request: IAgentCanvasOpenRequest = { extensionId, canvasId, instanceId };
+		const consentWait = { ms: 0 };
 		const deadline = Date.now() + this._controlPlaneRpcTimeoutMs;
 		while (true) {
 			const registryChanged = Event.toPromise(Event.any(Event.signal(wrapper.onExtensionsLoaded), Event.signal(wrapper.onCanvasRegistryChanged)));
 			try {
-				reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
-					extensionId,
-					canvasId,
-					instanceId,
+				reopened = await this._awaitRestoringCanvasOpen(wrapper.session.rpc.canvas.open({
+					...request,
 					...(projection.input !== undefined ? { input: projection.input } : {}),
-				}), this._controlPlaneRpcTimeoutMs);
+				}), request, extension, consentWait);
 				break;
 			} catch (error) {
-				const remaining = deadline - Date.now();
+				const remaining = deadline + consentWait.ms - Date.now();
 				if (getCanvasOpenFailure(error) === 'unavailable' && remaining > 0 && await raceTimeout(registryChanged.then(() => true), remaining)
 					&& !this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
 					continue;
 				}
-				this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : this._extensionConsentDenialFor(extensionId) ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
+				const denied = this._store.isDisposed ? undefined : this._extensionConsentDenialFor(extensionId);
+				this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : denied ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
-				return;
+				return denied ? { kind: 'consentDenied', ...denied } : { kind: 'failed', failure: getCanvasOpenFailure(error) ?? 'unavailable' };
 			} finally {
 				registryChanged.cancel();
 			}
@@ -6214,11 +6273,52 @@ export class CopilotAgentSession extends Disposable {
 		this._reportCanvasHostOpen('restore', extension, stopwatch, reopened ? 'opened' : 'timeout', askedForConsent());
 		if (!reopened) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Reopening a restored canvas did not finish within ${this._controlPlaneRpcTimeoutMs}ms`);
-			return;
+			return { kind: 'failed', failure: 'unavailable' };
 		}
-		// Events received during the request, such as a close, supersede its result.
-		if (!this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
+		// Events received during the request, such as a close, supersede its result. An opened event of the same lifetime
+		// already projected the canvas, which counts as opened.
+		const current = this._canvasByInstanceId.get(instanceId);
+		if (this._store.isDisposed || this._wrapper !== wrapper || !current || !isEqual(current.resource, projection.resource)) {
+			return { kind: 'failed', failure: 'dismissed' };
+		}
+		if (this._isCurrentCanvasProjection(projection)) {
 			this._projectOpenedCanvas(reopened);
+		}
+		return { kind: 'opened' };
+	}
+
+	/**
+	 * Waits for a restore's open, bounded like other control-plane requests while nobody is asked the consent it waits
+	 * for. While a client or a turn shows that request, waits for the answer, then for a new bounded wait. Adds the time
+	 * spent asking to `consentWait`. Resolves `undefined` when the bounded wait ends first.
+	 */
+	private async _awaitRestoringCanvasOpen<T>(open: Promise<T>, request: IAgentCanvasOpenRequest, extension: CanvasOpenExtension | undefined, consentWait: { ms: number }): Promise<T | undefined> {
+		const settled = open.then(value => ({ value }));
+		// An open that fails after the bounded wait ended is reported by nobody.
+		settled.catch(() => undefined);
+		while (true) {
+			const shown = [...this._extensionConsentGates.values()].find(gate => !gate.decision.isSettled && (gate.presentedToClient || gate.confirmingInTurn) && this._canvasOpenWaitsFor(request, extension, gate));
+			if (shown) {
+				const stopwatch = StopWatch.create();
+				const result = await Promise.race([settled, shown.decision.p.then(() => undefined)]);
+				consentWait.ms += stopwatch.elapsed();
+				if (result) {
+					return result.value;
+				}
+				continue;
+			}
+			const showing = Event.toPromise(this._onDidShowExtensionConsent.event);
+			try {
+				const result = await raceTimeout(Promise.race([settled, showing.then(() => 'shown' as const)]), this._controlPlaneRpcTimeoutMs);
+				if (result === undefined) {
+					return undefined;
+				}
+				if (result !== 'shown') {
+					return result.value;
+				}
+			} finally {
+				showing.cancel();
+			}
 		}
 	}
 
@@ -10572,6 +10672,7 @@ export class CopilotAgentSession extends Disposable {
 		// A plugin is named after its package, which another source can reuse, so its access to secrets is remembered only for the install it was granted to.
 		const pluginSource = request.kind === 'extension-env-access' && request.extensionName.startsWith('plugin:') ? await this._resolvePluginInstallIdentity(request.extensionName) : undefined;
 		const gate = this._createExtensionConsentGate(request, pluginSource);
+		this._extensionConsentRequested.add(request.extensionName);
 		const lifetimeToken = this._lifetimeCts.token;
 		try {
 			while (!gate.decision.isSettled) {
@@ -10706,6 +10807,7 @@ export class CopilotAgentSession extends Disposable {
 		const { displayName: name, extensionName, items } = gate.consent;
 		const environment = gate.consent.kind === 'environment';
 		gate.confirmingInTurn = true;
+		this._onDidShowExtensionConsent.fire();
 		const result = await this._confirmEphemerally(turn, AgentHostExtensionPermissionApprovalsConfigKey, gate.identity, {
 			toolName: environment ? 'extension_env_consent' : 'extension_permission_consent',
 			displayName: localize('extensionPermissionConsentDisplayName', "Extensions"),
@@ -11623,7 +11725,7 @@ export class CopilotAgentSession extends Disposable {
 			this._emitMarkdownDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e));
 		}));
 
-		// Fusion phases stream no reasoning deltas, so a phase's reasoning arrives only with its complete message.
+		// A phase's streamed reasoning arrives again in its complete message, which shows the reasoning only when it did not stream.
 		const renderFusionReasoning = (e: SessionEventPayload<'assistant.message'>, contentParentToolCallId: string | undefined): void => {
 			const reasoning = e.data.reasoningText;
 			const key = JSON.stringify([e.data.messageId, reasoning]);
@@ -11637,7 +11739,7 @@ export class CopilotAgentSession extends Disposable {
 				part: { kind: ResponsePartKind.Reasoning, id: generateUuid(), content: reasoning },
 			}, contentParentToolCallId);
 		};
-		const renderMessage = (e: SessionEventPayload<'assistant.message'>, contentParentToolCallId: string | undefined, isLastMessageChunk: boolean, isFusionMessage = false): void => {
+		const renderMessage = (e: SessionEventPayload<'assistant.message'>, contentParentToolCallId: string | undefined, isLastMessageChunk: boolean, isFusionMessage = false, contentStreamed = false): void => {
 			if (this._shouldDropLateRootTurnEvent('assistant.message')) {
 				return;
 			}
@@ -11647,8 +11749,8 @@ export class CopilotAgentSession extends Disposable {
 			const markdownScope = contentParentToolCallId ?? '';
 			const state = this._getResponsePartState(contentParentToolCallId);
 			const isEmptyFinalAnswer = isLastMessageChunk && e.data.phase === 'final_answer' && !e.data.content && !e.data.toolRequests?.length;
-			// Fusion sends distinct complete chunks without preceding text deltas.
-			if (e.data.content && (isFusionMessage || (!state?.markdownPartIds.has(markdownScope) && !this._reasoningTiming.hasMarkdown(contentParentToolCallId)))) {
+			// A committed Fusion message never streamed into its chat, so it is a whole new chunk; a provisional one shows only what its phase did not stream.
+			if (e.data.content && !contentStreamed && (isFusionMessage || (!state?.markdownPartIds.has(markdownScope) && !this._reasoningTiming.hasMarkdown(contentParentToolCallId)))) {
 				const partId = generateUuid();
 				state?.markdownPartIds.set(markdownScope, partId);
 				this._emitAction({
@@ -12463,10 +12565,70 @@ export class CopilotAgentSession extends Disposable {
 			handleToolComplete(e);
 		}));
 
+		/**
+		 * Streams a staged phase's model output where that phase's complete message would show:
+		 * a phase with a chat streams there, and an inline phase streams only its reasoning,
+		 * as its answer waits for the commit. A response can't take back text the runtime later discards.
+		 */
+		const streamFusionPhaseOutput = (e: CopilotProvisionalFusionStreamEvent): void => {
+			// A review phase shows its critique when it completes.
+			if (!e.data.deltaContent || e.data.fusion?.conversationScope === 'review') {
+				return;
+			}
+			const phaseToolCallId = this._fusionPhaseToolCallId(undefined, e.data.fusion);
+			if (phaseToolCallId === undefined) {
+				return;
+			}
+			const isInlinePhase = this._fusionPhases.get(phaseToolCallId)?.presentation === 'inline';
+			if (e.type === 'assistant.message_delta' && isInlinePhase) {
+				return;
+			}
+			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId) ?? { text: '', reasoning: '', hasReasoning: false };
+			this._streamedFusionPhaseOutput.set(phaseToolCallId, streamed);
+			const contentParentToolCallId = isInlinePhase ? undefined : this._fusionPhaseContentParentToolCallId(phaseToolCallId);
+			if (e.type === 'assistant.reasoning_delta') {
+				streamed.reasoning += e.data.deltaContent;
+				streamed.hasReasoning = true;
+				this._emitReasoningDelta(e.data.deltaContent, contentParentToolCallId);
+			} else {
+				streamed.text += e.data.deltaContent;
+				this._emitMarkdownDelta(e.data.deltaContent, contentParentToolCallId);
+			}
+		};
+		/**
+		 * Whether this chunk's text and reasoning already streamed, matched against what its phase streamed and no earlier
+		 * chunk claimed, so a chunk that arrives only whole still shows, even when it repeats earlier output.
+		 * Streamed reasoning is not shown again, here or in the committed copy.
+		 */
+		const takeStreamedFusionPhaseOutput = (e: SessionEventPayload<'assistant.message'>, phaseToolCallId: string): { readonly text: boolean; readonly reasoning: boolean; readonly streamedReasoning: boolean } => {
+			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId);
+			const claim = (whole: string | undefined, stream: 'text' | 'reasoning'): boolean => {
+				const text = whole?.trim();
+				const index = text && streamed ? streamed[stream].indexOf(text) : -1;
+				if (!text || !streamed || index < 0) {
+					return false;
+				}
+				streamed[stream] = streamed[stream].slice(index + text.length);
+				return true;
+			};
+			const result = { text: claim(e.data.content, 'text'), reasoning: claim(e.data.reasoningText, 'reasoning'), streamedReasoning: !!streamed?.hasReasoning };
+			if (result.reasoning && e.data.reasoningText) {
+				this._shownFusionReasoning.add(JSON.stringify([e.data.messageId, e.data.reasoningText]));
+			}
+			if (isLastAssistantMessageChunk(e)) {
+				this._streamedFusionPhaseOutput.delete(phaseToolCallId);
+			}
+			return result;
+		};
+
 		store.add(wrapper.onProvisionalFusionEvent(e => {
 			if (e.type === 'tool.execution_complete') {
 				handleMeteredToolUsage(e);
 			} else if (e.type === 'tool.execution_start' ? this._shouldDropEarlierFusionToolStart(e) : this._shouldDropEarlierFusionEvent(e)) {
+				return;
+			}
+			if (e.type === 'assistant.message_delta' || e.type === 'assistant.reasoning_delta') {
+				streamFusionPhaseOutput(e);
 				return;
 			}
 			if (e.type === 'assistant.message') {
@@ -12478,6 +12640,7 @@ export class CopilotAgentSession extends Disposable {
 				if (phaseToolCallId === undefined) {
 					return;
 				}
+				const streamed = takeStreamedFusionPhaseOutput(e, phaseToolCallId);
 				if (this._fusionPhases.get(phaseToolCallId)?.presentation === 'inline') {
 					const call = this._provisionalInlineFusionMessageChunks.accept(e, phaseToolCallId);
 					if (call?.messages.some(chunk => chunk.data.toolRequests?.some(request => !isTaskCompleteTool(request.name)))) {
@@ -12491,10 +12654,14 @@ export class CopilotAgentSession extends Disposable {
 							renderFusionReasoning(chunk, undefined);
 						}
 					}
+					if (streamed.streamedReasoning && isLastAssistantMessageChunk(e)) {
+						// No answer follows the streamed reasoning until the commit, so its thinking time ends with this model call.
+						this._reasoningTiming.finish(undefined);
+					}
 					return;
 				}
 				this._shownProvisionalFusionMessageIds.add(e.data.messageId);
-				renderMessage(e, this._fusionPhaseContentParentToolCallId(phaseToolCallId), isLastAssistantMessageChunk(e), true);
+				renderMessage(e, this._fusionPhaseContentParentToolCallId(phaseToolCallId), isLastAssistantMessageChunk(e), true, streamed.text);
 				return;
 			}
 			if (e.type === 'tool.execution_start') {
@@ -14450,6 +14617,7 @@ export class CopilotAgentSession extends Disposable {
 		this._surfacedProvisionalFusionToolCallIds.clear();
 		this._shownProvisionalFusionMessageIds.clear();
 		this._shownFusionReasoning.clear();
+		this._streamedFusionPhaseOutput.clear();
 		this._provisionalFusionTaskCompletions.clear();
 		this._pendingFusionMessageChunks.clear();
 		this._provisionalInlineFusionMessageChunks.clear();
@@ -14495,6 +14663,20 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	/**
+	 * Ends a phase's streamed thinking when the phase ends, in the scope it streamed into; a fallback phase streams elsewhere.
+	 * An inline phase streams into the response, so only reasoning it left unfinished there is ended.
+	 */
+	private _finishFusionPhaseReasoning(phaseToolCallId: string): void {
+		const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId);
+		this._streamedFusionPhaseOutput.delete(phaseToolCallId);
+		if (this._fusionPhases.get(phaseToolCallId)?.presentation !== 'inline') {
+			this._reasoningTiming.finish(phaseToolCallId);
+		} else if (streamed?.hasReasoning) {
+			this._reasoningTiming.finish(undefined);
+		}
+	}
+
 	/** Cancellation closes these chats as cancelled, so an abort only drops local routing. */
 	private _forgetFusionPhaseChats(): void {
 		this._fusionPhases.clear();
@@ -14510,6 +14692,9 @@ export class CopilotAgentSession extends Disposable {
 		this._fusionPhaseChats.clear();
 		const generation = ++this._fusionPhaseChatCloseGeneration;
 		for (const toolCallId of toolCallIds) {
+			// A closed chat receives no later output to end its thinking, so end it before the chat closes.
+			this._reasoningTiming.finish(toolCallId);
+			this._reasoningTiming.clear(toolCallId);
 			this._pendingFusionPhaseChatCloses.set(toolCallId, generation);
 		}
 		const complete = () => {
@@ -14683,6 +14868,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		// `accept` drops repeated phase records and records for a finished workflow, so report only phases it accepted.
 		if (update?.phase && (event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed')) {
+			this._finishFusionPhaseReasoning(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
 			this._reportFusionPhase(event, turn.id, turn.clientContext, this._fusionProgress.syntheticModel);
 		}
 		if (update?.phase && event.type === 'assistant.fusion_phase_completed' && event.data.conversationScope === 'review') {

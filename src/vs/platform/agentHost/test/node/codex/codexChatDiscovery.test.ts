@@ -81,7 +81,7 @@ interface ITestCodexAgent {
 
 function thread(id: string, updatedAt = 1, name = id): Thread {
 	return {
-		id, sessionId: id, extra: null, forkedFromId: null, parentThreadId: null,
+		id, sessionId: id, extra: null, forkedFromId: null, parentThreadId: null, attachedToThreadId: null,
 		preview: id, ephemeral: false, section: null, sectionEnteredAt: null,
 		projectId: null, historyMode: 'paginated', modelProvider: 'openai', model: null,
 		environments: null, originator: null, daybreakEnabled: null,
@@ -869,7 +869,7 @@ suite('Codex chat discovery', () => {
 					pluginId: null, scriptPath: null,
 					aggregatedOutput, exitCode: 0, durationMs: 5,
 				},
-				{ type: 'agentMessage', id: 'one-agent', text: answer, phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },
+				{ type: 'agentMessage', id: 'one-agent', text: answer, phase: 'final_answer', memoryCitation: null, delivery: null, questions: null, moderation: null },
 			],
 		});
 		const retainedContent = (turns: readonly import('../../../common/state/sessionState.js').Turn[]) => {

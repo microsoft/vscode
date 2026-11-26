@@ -29,6 +29,7 @@ import { IPathService } from '../../../../../services/path/common/pathService.js
 import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { findRepositoryRoot } from './repositoryRoot.js';
 
 /**
  * Maximum recursion depth when traversing subdirectories for instruction files.
@@ -127,46 +128,26 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Walks up from {@link folderUri} collecting parent folders until a
-	 * repository root (a folder containing a `.git` directory or pointer) is
-	 * found. Returns the
-	 * intermediate parent folders only when a repo root is found; returns
-	 * an empty array when the walk reaches the filesystem root, the user
-	 * home directory, or a folder already present in {@link seen}.
+	 * Returns {@link folderUri} and the folders above it up to and including the root of the git
+	 * repository that contains it, when that root is found by {@link findRepositoryRoot} and is
+	 * trusted. Returns an empty array otherwise.
 	 */
 	private async findParentRepoFolders(folderUri: URI, userHome: URI, seen: ResourceSet, logger?: Logger): Promise<URI[]> {
-		const candidates: URI[] = [];
-		let current = folderUri;
-		while (true) {
-			try {
-				const gitStat = await this.fileService.stat(joinPath(current, '.git')).then(stat => stat, () => undefined);
-				const isRepoRoot = gitStat?.isDirectory === true || gitStat?.isFile === true;
-				if (isRepoRoot) {
-					if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
-						candidates.push(current);
-						return candidates;
-					}
-					logger?.logInfo(`Repository root found at ${current.toString()}, but it is not trusted. Skipping parent folder inclusion for this workspace folder.`);
-					return []; // if the repo root isn't trusted, don't include it or any parents
-				}
-			} catch (e) {
-				const msg = e instanceof Error ? e.message : String(e);
-				logger?.logInfo(`No repository root found for folder ${folderUri.toString()}. Error accessing ${joinPath(current, '.git')}: ${msg}.`);
-				return []; // if we can't access the folder, return an empty list to avoid treating it as a non-repository when we might just have a permission issue
-			}
-			candidates.push(current);
-			const parent = dirname(current);
-			// Stop walking up when we reach a filesystem root (fixed-point
-			// of dirname, e.g. '/' or a Windows drive root like 'D:\'),
-			// the user home directory, or an already-seen folder.
-			if (isEqual(current, parent) || current.path === '/' || isEqual(userHome, parent) || seen.has(parent)) {
-				break;
-			}
-			current = parent;
+		const repositoryRoot = await findRepositoryRoot(this.fileService, folderUri, userHome, folder => seen.has(folder));
+		if (!repositoryRoot) {
+			logger?.logInfo(`No repository root found for folder ${folderUri.toString()}.`);
+			return [];
 		}
-		// no repo found
-		logger?.logInfo(`No repository root found for folder ${folderUri.toString()}.`);
-		return [];
+		if (!(await this.workspaceTrustManagementService.getUriTrustInfo(repositoryRoot)).trusted) {
+			logger?.logInfo(`Repository root found at ${repositoryRoot.toString()}, but it is not trusted. Skipping parent folder inclusion for this workspace folder.`);
+			return []; // if the repo root isn't trusted, don't include it or any parents
+		}
+		const candidates: URI[] = [];
+		for (let current = folderUri; !isEqual(current, repositoryRoot); current = dirname(current)) {
+			candidates.push(current);
+		}
+		candidates.push(repositoryRoot);
+		return candidates;
 	}
 
 	/**

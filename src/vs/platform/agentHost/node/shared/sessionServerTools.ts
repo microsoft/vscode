@@ -25,6 +25,7 @@ import { PolicyState } from '../../common/state/protocol/channels-root/state.js'
 import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type ConfigPropertySchema, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { maxSentMessages, orchestrationLimitWindowMs, SessionActionLimiter } from '../../common/sessionActionLimiter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -45,61 +46,6 @@ const maxSessionSpawnDepth = 3;
 /** Per-session backstops against runaway spawning (breadth) and `send_message` fan-out, independent of depth. */
 const maxCreatedSessions = 50;
 const maxCreatedChats = 50;
-const maxSentMessages = 100;
-
-/** Sliding window over which the per-session backstops count; capacity frees up as older actions leave it. */
-const orchestrationLimitWindowMs = 60 * 60 * 1000;
-
-/**
- * Counts actions per session over a sliding window, so one busy session cannot
- * starve another and a session that hit its limit recovers on its own.
- */
-class SessionActionLimiter {
-	private readonly timestamps = new Map<string, number[]>();
-	private lastSweep: number;
-
-	constructor(private readonly maxActions: number, private readonly windowMs: number, private readonly now: () => number) {
-		this.lastSweep = now();
-	}
-
-	record(session: string): void {
-		const recent = this.getRecentActions(session);
-		recent.push(this.now());
-		this.timestamps.set(session, recent);
-		this.sweepIdleSessions();
-	}
-
-	/** Once per window, drops sessions that stopped acting so the map does not grow with every session ever seen. */
-	private sweepIdleSessions(): void {
-		if (this.now() - this.lastSweep < this.windowMs) {
-			return;
-		}
-		this.lastSweep = this.now();
-		for (const session of [...this.timestamps.keys()]) {
-			const recent = this.getRecentActions(session);
-			if (recent.length === 0) {
-				this.timestamps.delete(session);
-			} else {
-				this.timestamps.set(session, recent);
-			}
-		}
-	}
-
-	private getRecentActions(session: string): number[] {
-		const cutoff = this.now() - this.windowMs;
-		return (this.timestamps.get(session) ?? []).filter(time => time > cutoff);
-	}
-
-	/** Returns an actionable error message when `session` has exhausted its allowance, or `undefined` when another action is allowed now. */
-	describeLimit(action: string, session: string): string | undefined {
-		const recent = this.getRecentActions(session);
-		if (recent.length < this.maxActions) {
-			return undefined;
-		}
-		const retryAfterSeconds = Math.max(1, Math.ceil((recent[0] + this.windowMs - this.now()) / 1000));
-		return `Refusing to ${action}: this session already used ${recent.length} of ${this.maxActions} allowed in the last ${Math.round(this.windowMs / 60000)} minutes. The limit applies to each session separately and frees up as older actions leave that window. Retry after ${retryAfterSeconds} seconds, or turn off agent orchestration limits in settings.`;
-	}
-}
 
 const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession, SessionServerToolName.MoveSession]);
 const createSessionRelationshipValues = ['currentSession', 'independent'] as const;

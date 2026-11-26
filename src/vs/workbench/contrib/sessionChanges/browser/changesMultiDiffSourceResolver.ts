@@ -70,7 +70,7 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 				const resource = getChangesEditorFileResource(change);
 				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, resource, undefined, {
 					[SessionChangesFileResourceContext.key]: resource.toString(),
-				});
+				}, resource.toString());
 			});
 		});
 

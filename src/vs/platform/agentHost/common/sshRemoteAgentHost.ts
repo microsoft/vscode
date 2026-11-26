@@ -8,6 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { AgentHostEndpointAddress, AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { IRemoteAgentHostEntry } from './remoteAgentHostService.js';
@@ -379,6 +380,14 @@ export interface ISSHResolvedConfig {
 	readonly pubkeyAuthentication?: boolean;
 	/** `PreferredAuthentications`: the authentication methods to try, in order. */
 	readonly preferredAuthentications?: readonly string[];
+}
+
+/**
+ * Describes how an SSH ProxyCommand exited. Connection errors include this message,
+ * which troubleshooting recognizes in the language it was localized in.
+ */
+export function formatSSHProxyCommandExit(status: string | number, stderr: string): string {
+	return localize('sshProxyExited', "SSH ProxyCommand exited ({0}): {1}", status, stderr);
 }
 
 export interface ISSHConnectProgress {

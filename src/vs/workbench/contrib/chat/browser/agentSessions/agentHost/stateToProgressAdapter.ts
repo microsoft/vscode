@@ -771,6 +771,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
 				: { kind: 'systemNotification', content: markdown };
+		case AgentSystemNotificationKind.WorktreeGitLfsUnavailable:
+			return { kind: 'warning', content: markdown, keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.WorkspaceTransition:
 			if (!meta.workspaceName || !meta.workspaceKind) {
 				return { kind: 'systemNotification', content: markdown };

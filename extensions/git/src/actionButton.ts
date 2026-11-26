@@ -76,6 +76,9 @@ export class ActionButton {
 			repositoryHasUnresolvedConflicts: false
 		};
 
+		// The repository can have run git status and operations already, for example when it is attached again
+		this.onDidRunGitStatus();
+		this.onDidChangeOperations();
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 

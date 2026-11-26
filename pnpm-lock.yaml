@@ -202,8 +202,8 @@ importers:
         specifier: ^3.2.13
         version: 3.2.13(tslib@2.8.1)
       '@microsoft/copilot-sdk':
-        specifier: 2.0.2-unstable.45286541461.g05667ac
-        version: 2.0.2-unstable.45286541461.g05667ac
+        specifier: 2.0.3
+        version: 2.0.3
       '@microsoft/dev-tunnels-connections':
         specifier: ^1.3.61
         version: 1.3.61(@microsoft/dev-tunnels-ssh-tcp@3.12.22)(@microsoft/dev-tunnels-ssh@3.12.22)
@@ -401,8 +401,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
       '@openai/codex':
-        specifier: 0.163.0
-        version: 0.163.0
+        specifier: 0.170.0
+        version: 0.170.0
       '@playwright/cli':
         specifier: ^0.1.22
         version: 0.1.22
@@ -637,9 +637,6 @@ importers:
       typescript:
         specifier: npm:@typescript/typescript6@^6.0.2
         version: '@typescript/typescript6@6.0.2'
-      util:
-        specifier: ^0.12.4
-        version: 0.12.5
       vinyl-fs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -1121,9 +1118,6 @@ importers:
       openai:
         specifier: ^6.7.0
         version: 6.7.0(ws@8.21.0)(zod@4.4.3)
-      undici:
-        specifier: ^7.24.1
-        version: 7.29.1
       vscode-languageserver-protocol:
         specifier: ^3.17.5
         version: 3.17.5
@@ -2057,9 +2051,6 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
-      typescript:
-        specifier: ^5.8.0
-        version: 5.9.3
 
   test/integration/browser:
     devDependencies:
@@ -4049,52 +4040,52 @@ packages:
   '@microsoft/applicationinsights-web-snippet@1.0.1':
     resolution: {integrity: sha512-2IHAOaLauc8qaAitvWS+U931T+ze+7MNWrDHY47IENP5y2UA0vqJDu67kWZDdpCN1fFC77sfgfB+HV7SrKshnQ==}
 
-  '@microsoft/copilot-sdk-darwin-arm64@2.0.2-unstable.45286541461.g05667ac':
-    resolution: {integrity: sha512-v9GwENsVMN6LVvtW6H2FVygOz7tSpKC4XGlUU2TFkey6msTynRsFSViPUmC7vpWqoXHrfuj812jyvQaLqlVW/w==}
+  '@microsoft/copilot-sdk-darwin-arm64@2.0.3':
+    resolution: {integrity: sha512-bo8XD73gg/4QzN+Q26Sfyn/rKrGoJteZI4dX9X2rfUxN9YXii9trNC6kN5SO8RZ5HdsLmLwy7uNlbFIltRDTiw==}
     cpu: [arm64]
     os: [darwin]
 
-  '@microsoft/copilot-sdk-darwin-x64@2.0.2-unstable.45286541461.g05667ac':
-    resolution: {integrity: sha512-uKMadJIfU69HXCtvjQT2ioYpTdTQ1dAiLI6bChXB9S+seyQz9PWrRFz5RYmWmaGnYlesBjG614v95YRQH6mCtw==}
+  '@microsoft/copilot-sdk-darwin-x64@2.0.3':
+    resolution: {integrity: sha512-N1nd427jrtopNpWpGlWJkH1z9zR6HYf4kmQHWHDUkWTMCspbSB2Ct9zc6NyK6I2LLHfFzV2XSQYMW36fCSpWbA==}
     cpu: [x64]
     os: [darwin]
 
-  '@microsoft/copilot-sdk-linux-arm64@2.0.2-unstable.45286541461.g05667ac':
-    resolution: {integrity: sha512-iIUcWh9oKUFPg1tze7w0WWj5dJRhOLogvDHXfVcO7son+brXJWsXPcPt6znqgiHf4rdgPez5zu/FdOVii2Pm1w==}
+  '@microsoft/copilot-sdk-linux-arm64@2.0.3':
+    resolution: {integrity: sha512-kb60zmS935etgb3InYgCLFp2TWyWtHZZ8dCGxqb3Ha5xPlLCzT56p5cnMf9M9RBporXtQ049w0ZG850/HBKmHw==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@microsoft/copilot-sdk-linux-x64@2.0.2-unstable.45286541461.g05667ac':
-    resolution: {integrity: sha512-/AHn012mv+c5AgehuwwHU3sbjl5H0eCaSIXNAvbo2YY2Q5bdldFF1XbEf/JdJuFAWnEFBX40U7mPUHZP4khl2w==}
+  '@microsoft/copilot-sdk-linux-x64@2.0.3':
+    resolution: {integrity: sha512-hPQ2F6hcldAV9wGl309LgS2/PC2/qcwfB7GGgaFWAIKuzmtmanTg/aIaUT/JiLfNhfAIdKKWzdWZD36o3hvS/g==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.2-unstable.45286541461.g05667ac':
-    resolution: {integrity: sha512-9BW8ICPEmw0RWNzCYSX0EVf/CGLdgFpXkVOjZ98UReqb7PYvAvIwho7TtPn3K4uXrd3k8el7MjaiEWz6/7oy7A==}
+  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.3':
+    resolution: {integrity: sha512-Fjh7E92cox4J8rmFwXzlAto2d/KCkDaONeMMO6WNOi+FoKp8Fa9iFd9+lgr4a6vEwBVK0pr4CFAGSRDLcPVWog==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.2-unstable.45286541461.g05667ac':
-    resolution: {integrity: sha512-kfKBVXHwXHkPnHpRAdfnVIsyrrc8E1wL9uoT12Pcer3e67Rc3Ueu7S2fvfQi8NGqu9MrW+IyUh9Nng5fkT4Dxg==}
+  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.3':
+    resolution: {integrity: sha512-2HKAc3PLkbdESyeaD5X1Z65+yzu06C4TgKdflbGOdVSfT+sF5S6uC/RgoGaMVqGlt+FoVVonw/gg6SBNl3kK5Q==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@microsoft/copilot-sdk-win32-arm64@2.0.2-unstable.45286541461.g05667ac':
-    resolution: {integrity: sha512-8OlQ4c88SwyxKVZ1Qu9LlN2hCevHGaDMmMAJ4qYmEopCAqp2cr/ZW0UpgIF0FglxmVO4k1aa9xvq0BDXueqDOw==}
+  '@microsoft/copilot-sdk-win32-arm64@2.0.3':
+    resolution: {integrity: sha512-xfES/LVLuzCl+5CcmWZoXILlKouhDo+90vc3z5gzvn6/dnBx1FzI6n12SZvYtJmWdY9lEJtKhyRqJg4timzAmA==}
     cpu: [arm64]
     os: [win32]
 
-  '@microsoft/copilot-sdk-win32-x64@2.0.2-unstable.45286541461.g05667ac':
-    resolution: {integrity: sha512-5zsScrn8fd0M8ewJouNC4+EfBUnxhvlXJSza8b7zXW5BJGUUfHbmWkMkvkIXjkMOD7IPvEpyLU48UNQjJY7PsQ==}
+  '@microsoft/copilot-sdk-win32-x64@2.0.3':
+    resolution: {integrity: sha512-CB3zyAcbQWMKHcWnzBtmqoinBuGNRq4i9zlqPiZFm8chkfkYpG3v85GQ5mYSQCzlTUJw/jzuW+7tWscMF+8V6g==}
     cpu: [x64]
     os: [win32]
 
-  '@microsoft/copilot-sdk@2.0.2-unstable.45286541461.g05667ac':
-    resolution: {integrity: sha512-VFiMmF/UsXGy00c0rXji3xj45/5jAmVEBBp/ct/081zNR4Yyu9NUjQHxRKK/JEc6L47Q/UCi2enfiQS3UtomCQ==}
+  '@microsoft/copilot-sdk@2.0.3':
+    resolution: {integrity: sha512-1hz1hHJmN5Ifoff7eGU7/ZHU64EUFes+0R7z566pIKt5c1sBBUYbtjUhhGe6BlDZ1tsHBBaa76JQEKzdcjniHQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@microsoft/dev-tunnels-connections@1.3.61':
@@ -4341,43 +4332,43 @@ packages:
   '@octokit/types@9.3.2':
     resolution: {integrity: sha512-D4iHGTdAnEEVsB8fl95m1hiz7D5YiRdQ9b/OEb3BYRVwbLsGHcRVPz+u+BgRLNk0Q0/4iZCBqDN96j2XNxfXrA==}
 
-  '@openai/codex@0.163.0':
-    resolution: {integrity: sha512-HNd7vR9oTK6M2ikxFnvNDCdYUgAsyo9VVnd5KnEd2ON0GYI++7MiX9XNPUkhtdgGKFPsWS+CEppQ1UU63uVhUw==}
+  '@openai/codex@0.170.0':
+    resolution: {integrity: sha512-dwoughgqjiik++CFaNkjQ5y6pJO6LUzu5P1z8Hy4LUeJ+aIYcX/QO1P5rOQnHmBG4agOM7Y+hc4LtVo/a4GFiw==}
     engines: {node: '>=16'}
     hasBin: true
 
-  '@openai/codex@0.163.0-darwin-arm64':
-    resolution: {integrity: sha512-i7Dzk2a5aGmuGM9aNZgaUVTojZ/4bc5lRfosz++Y7X2BGhDkz+cySgbD+NYS1pOxfm0VEbLi9PZ3pAulI4kchw==}
+  '@openai/codex@0.170.0-darwin-arm64':
+    resolution: {integrity: sha512-sQyOGJabAUTEWCKe1O6GNsE7NKnHCHSjzLrazfYUgw8OFsFDeAQGVEwzvpXTK1yW1hJiLLAMRzC/W2Vu7m9DwQ==}
     engines: {node: '>=16'}
     cpu: [arm64]
     os: [darwin]
 
-  '@openai/codex@0.163.0-darwin-x64':
-    resolution: {integrity: sha512-Ioj7h+B1ME9ZU1PH1ATfvFV5DiototEpFFaSSbg3kfDifB9djhl5fcJ++g5mpcL/+uVbcnReei+RiSXEx8o+kw==}
+  '@openai/codex@0.170.0-darwin-x64':
+    resolution: {integrity: sha512-lniwntVB9YaCQNNaTgpLxVvABkrnZDCO/UZf3z7POwH71ikkVNi7NxBrfl6aSIS9b3UBJKxjPlAm3qeIxINJVg==}
     engines: {node: '>=16'}
     cpu: [x64]
     os: [darwin]
 
-  '@openai/codex@0.163.0-linux-arm64':
-    resolution: {integrity: sha512-IH2/R+4OarjGvsAf1ll3fdyLwrPgYLl3uzp6u9CyD9sj2Lw+ViDSe3QBZVHdcHJs0eIiZFg6Wprcuy4CRZaUGw==}
+  '@openai/codex@0.170.0-linux-arm64':
+    resolution: {integrity: sha512-mJLm5eia/GcukCrRfVEnYVD5dOXGE7cmpd9dJ/ixkSiKifzDAPaGq83ZEmwVhk3PxbdTPUSLRpnXZQKbNS5HoA==}
     engines: {node: '>=16'}
     cpu: [arm64]
     os: [linux]
 
-  '@openai/codex@0.163.0-linux-x64':
-    resolution: {integrity: sha512-uwRaOsrYogLQhcxAM/GoeWrw0QIWEMRo7c9gM8sKAviVkZQHlu9kRLJ5PkufbV+ABGjyZgIwiFdJ0LCJ0N6e8w==}
+  '@openai/codex@0.170.0-linux-x64':
+    resolution: {integrity: sha512-6cCZJaZL17tiTAvhd1Pirt8vsV1dP8CfG94+IHygUO4m24oYLQrIInJJLyKzcMv/uUonbu1dF2JmcXhA/s5bsg==}
     engines: {node: '>=16'}
     cpu: [x64]
     os: [linux]
 
-  '@openai/codex@0.163.0-win32-arm64':
-    resolution: {integrity: sha512-QnLn3gR2dExcdTThE/HAo5BrUq0/C8zDGQ0UZL3hNzfqt9ZklT6jGTyt8JhDyNZX4uSB4HhcJtbcOWucZGC0VQ==}
+  '@openai/codex@0.170.0-win32-arm64':
+    resolution: {integrity: sha512-VSfDt/Y/RYqeT+9gCwmIO1kEj7bF7RYQdhanhMWQqWpZBdPLrF19z2z8JbL+Gt/amE7A1d/Rt2g/p44DLrDhFg==}
     engines: {node: '>=16'}
     cpu: [arm64]
     os: [win32]
 
-  '@openai/codex@0.163.0-win32-x64':
-    resolution: {integrity: sha512-QQGQ/q9dCJ5C5jqhgFrwycpWG3szIyFNThMiKl6hYtu6N/eM3Qd7StesgnCFAfzVED8IkE3N3oH71szzcludqw==}
+  '@openai/codex@0.170.0-win32-x64':
+    resolution: {integrity: sha512-eNlCGvSTKMegqo1R0PPfAf0jOQp8OGfWH8WX2UyTtRN6E/YOecJnz4n1X9lIb02O8Zda/Lv6/WST7+8mufTVSw==}
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
@@ -11472,11 +11463,6 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-
   typescript@6.0.0-dev.20260113:
     resolution: {integrity: sha512-frXm5LJtstQlM511cGZLCalQjX5YUdUhvNSQAEcI4EuHoflAaqvCa2KIzPKNbyH3KmFPjA3EOs9FphTSKNc4CQ==}
     engines: {node: '>=14.17'}
@@ -14668,45 +14654,45 @@ snapshots:
 
   '@microsoft/applicationinsights-web-snippet@1.0.1': {}
 
-  '@microsoft/copilot-sdk-darwin-arm64@2.0.2-unstable.45286541461.g05667ac':
+  '@microsoft/copilot-sdk-darwin-arm64@2.0.3':
     optional: true
 
-  '@microsoft/copilot-sdk-darwin-x64@2.0.2-unstable.45286541461.g05667ac':
+  '@microsoft/copilot-sdk-darwin-x64@2.0.3':
     optional: true
 
-  '@microsoft/copilot-sdk-linux-arm64@2.0.2-unstable.45286541461.g05667ac':
+  '@microsoft/copilot-sdk-linux-arm64@2.0.3':
     optional: true
 
-  '@microsoft/copilot-sdk-linux-x64@2.0.2-unstable.45286541461.g05667ac':
+  '@microsoft/copilot-sdk-linux-x64@2.0.3':
     optional: true
 
-  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.2-unstable.45286541461.g05667ac':
+  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.3':
     optional: true
 
-  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.2-unstable.45286541461.g05667ac':
+  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.3':
     optional: true
 
-  '@microsoft/copilot-sdk-win32-arm64@2.0.2-unstable.45286541461.g05667ac':
+  '@microsoft/copilot-sdk-win32-arm64@2.0.3':
     optional: true
 
-  '@microsoft/copilot-sdk-win32-x64@2.0.2-unstable.45286541461.g05667ac':
+  '@microsoft/copilot-sdk-win32-x64@2.0.3':
     optional: true
 
-  '@microsoft/copilot-sdk@2.0.2-unstable.45286541461.g05667ac':
+  '@microsoft/copilot-sdk@2.0.3':
     dependencies:
       koffi: 3.2.1
       lossless-json: 4.3.3
       vscode-jsonrpc: 10.0.0
       zod: 4.6.7
     optionalDependencies:
-      '@microsoft/copilot-sdk-darwin-arm64': 2.0.2-unstable.45286541461.g05667ac
-      '@microsoft/copilot-sdk-darwin-x64': 2.0.2-unstable.45286541461.g05667ac
-      '@microsoft/copilot-sdk-linux-arm64': 2.0.2-unstable.45286541461.g05667ac
-      '@microsoft/copilot-sdk-linux-x64': 2.0.2-unstable.45286541461.g05667ac
-      '@microsoft/copilot-sdk-linuxmusl-arm64': 2.0.2-unstable.45286541461.g05667ac
-      '@microsoft/copilot-sdk-linuxmusl-x64': 2.0.2-unstable.45286541461.g05667ac
-      '@microsoft/copilot-sdk-win32-arm64': 2.0.2-unstable.45286541461.g05667ac
-      '@microsoft/copilot-sdk-win32-x64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-darwin-arm64': 2.0.3
+      '@microsoft/copilot-sdk-darwin-x64': 2.0.3
+      '@microsoft/copilot-sdk-linux-arm64': 2.0.3
+      '@microsoft/copilot-sdk-linux-x64': 2.0.3
+      '@microsoft/copilot-sdk-linuxmusl-arm64': 2.0.3
+      '@microsoft/copilot-sdk-linuxmusl-x64': 2.0.3
+      '@microsoft/copilot-sdk-win32-arm64': 2.0.3
+      '@microsoft/copilot-sdk-win32-x64': 2.0.3
 
   '@microsoft/dev-tunnels-connections@1.3.61(@microsoft/dev-tunnels-ssh-tcp@3.12.22)(@microsoft/dev-tunnels-ssh@3.12.22)':
     dependencies:
@@ -15008,31 +14994,31 @@ snapshots:
     dependencies:
       '@octokit/openapi-types': 18.1.1
 
-  '@openai/codex@0.163.0':
+  '@openai/codex@0.170.0':
     optionalDependencies:
-      '@openai/codex-darwin-arm64': '@openai/codex@0.163.0-darwin-arm64'
-      '@openai/codex-darwin-x64': '@openai/codex@0.163.0-darwin-x64'
-      '@openai/codex-linux-arm64': '@openai/codex@0.163.0-linux-arm64'
-      '@openai/codex-linux-x64': '@openai/codex@0.163.0-linux-x64'
-      '@openai/codex-win32-arm64': '@openai/codex@0.163.0-win32-arm64'
-      '@openai/codex-win32-x64': '@openai/codex@0.163.0-win32-x64'
+      '@openai/codex-darwin-arm64': '@openai/codex@0.170.0-darwin-arm64'
+      '@openai/codex-darwin-x64': '@openai/codex@0.170.0-darwin-x64'
+      '@openai/codex-linux-arm64': '@openai/codex@0.170.0-linux-arm64'
+      '@openai/codex-linux-x64': '@openai/codex@0.170.0-linux-x64'
+      '@openai/codex-win32-arm64': '@openai/codex@0.170.0-win32-arm64'
+      '@openai/codex-win32-x64': '@openai/codex@0.170.0-win32-x64'
 
-  '@openai/codex@0.163.0-darwin-arm64':
+  '@openai/codex@0.170.0-darwin-arm64':
     optional: true
 
-  '@openai/codex@0.163.0-darwin-x64':
+  '@openai/codex@0.170.0-darwin-x64':
     optional: true
 
-  '@openai/codex@0.163.0-linux-arm64':
+  '@openai/codex@0.170.0-linux-arm64':
     optional: true
 
-  '@openai/codex@0.163.0-linux-x64':
+  '@openai/codex@0.170.0-linux-x64':
     optional: true
 
-  '@openai/codex@0.163.0-win32-arm64':
+  '@openai/codex@0.170.0-win32-arm64':
     optional: true
 
-  '@openai/codex@0.163.0-win32-x64':
+  '@openai/codex@0.170.0-win32-x64':
     optional: true
 
   '@opentelemetry/api-logs@0.211.0':
@@ -22909,8 +22895,6 @@ snapshots:
   typescript@4.9.5: {}
 
   typescript@5.5.4: {}
-
-  typescript@5.9.3: {}
 
   typescript@6.0.0-dev.20260113: {}
 

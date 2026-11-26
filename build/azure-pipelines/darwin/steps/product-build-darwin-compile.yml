@@ -107,7 +107,6 @@ steps:
         pnpm -C test/smoke run compile
         pnpm -C test/integration/browser run compile
       displayName: Compile test suites (non-OSS)
-      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: pnpm -C build run copy-policy-dto && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc darwin

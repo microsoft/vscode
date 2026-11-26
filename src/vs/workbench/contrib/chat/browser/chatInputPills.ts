@@ -79,7 +79,7 @@ export interface IStandardChatInputPillsData {
 	readonly changes?: {
 		readonly stats: IObservable<IChatChangesStats>;
 		readonly label: IObservable<string>;
-		open(): void;
+		open(): void | Promise<void>;
 		getContextMenuActions?(): readonly IAction[];
 		getContextMenuPrimaryActions?(): readonly IAction[];
 	};

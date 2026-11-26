@@ -5778,6 +5778,19 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(result.data, 'blob:src/app.ts');
 		});
 
+		test('git-blob of a file inside a submodule resolves against the submodule', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const submodule = URI.joinPath(repoA, 'lib');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA]]), showBlobCalls);
+			gitService.getSubmoduleRoot = async (_workingDirectory, resource) => resource.path.startsWith(`${submodule.path}/`) ? submodule : undefined;
+			const { service: localService, session } = await createBlobSession(gitService, [repoA]);
+
+			await localService.resourceRead(URI.parse(buildGitBlobUri(session.toString(), 'submoduleSha', 'lib.txt', '/workspace/repoA/lib/lib.txt')));
+
+			assert.deepStrictEqual(showBlobCalls, [{ workingDirectory: submodule.toString(), ref: 'submoduleSha', repoRelativePath: 'lib.txt' }]);
+		});
+
 		test('git-blob owned by a peer chat resolves against the peer working directory', async () => {
 			const sessionRoot = URI.file('/workspace/session');
 			const peerRoot = URI.file('/workspace/peer');
@@ -7093,6 +7106,13 @@ suite('AgentService (node dispatcher)', () => {
 			const warm = await svc.createSession({ legacyChatUris: false, provider: 'copilot' });
 			const warmChat = getStateManager(svc).getDefaultChat(warm.toString())!;
 			unloadSession(svc, session);
+			const modifiedAtBefore = Date.parse(getStateManager(svc).getSurfacedSessionSummary(session.toString())!.modifiedAt);
+			const publishedModifiedAts: number[] = [];
+			disposables.add(getStateManager(svc).onDidChangeSessionSummary(({ session: changed, changes }) => {
+				if (changed === session.toString() && changes.modifiedAt !== undefined) {
+					publishedModifiedAts.push(Date.parse(changes.modifiedAt));
+				}
+			}));
 			const restoreCalls: string[] = [];
 			let restoreReleased = false;
 			const releaseRestore = new DeferredPromise<void>();
@@ -7126,6 +7146,7 @@ suite('AgentService (node dispatcher)', () => {
 				surfaced: surfacedChatFlags(svc, session, peer),
 				persisted: { archived: await readPersistedPeerArchived(svc, db, session, peer), read: await readPersistedPeerRead(svc, db, session, peer) },
 				cleared: agent.clearedCanvasContinuities,
+				advancedSessionModifiedAt: publishedModifiedAts.length > 0 && publishedModifiedAts.every(time => time >= modifiedAtBefore),
 			}, {
 				order: [1, 2],
 				restoreCalls: [],
@@ -7135,6 +7156,7 @@ suite('AgentService (node dispatcher)', () => {
 				surfaced: { archived: true, legacyArchived: true, read: true },
 				persisted: { archived: true, read: true },
 				cleared: [{ session: session.toString(), chat: peer }],
+				advancedSessionModifiedAt: true,
 			});
 		});
 
@@ -7200,6 +7222,40 @@ suite('AgentService (node dispatcher)', () => {
 				resident: false,
 			});
 		});
+
+		for (const catalog of ['legacy', 'normalized'] as const) {
+			test(`archived peers keep their archive times and order on a fresh host (${catalog})`, async () => {
+				const { svc, session, peer, restart } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				const secondPeer = mintPeerChatUri('opaque', sessionKey);
+				await svc.createChat(session, URI.parse(secondPeer));
+				await svc.whenCatalogReconciliationIdle();
+				// One archived while its session is loaded, the other while it is not.
+				getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+				const firstArchivedAt = getStateManager(svc).getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.modifiedAt;
+				await svc.whenCatalogReconciliationIdle();
+				await timeout(5);
+				unloadSession(svc, session);
+				const echo = clientEcho(svc, 1);
+				svc.dispatchAction(secondPeer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+				await echo;
+				await svc.whenCatalogReconciliationIdle();
+				const secondArchivedAt = getStateManager(svc).getSurfacedSessionSummary(sessionKey)?.modifiedAt;
+				// Queued behind the writes of both times.
+				await Promise.all([peer, secondPeer].map(chat => getTestSessionStateStore(svc).chatRows.getChatModifiedTime(session, URI.parse(chat))));
+				const restarted = await restart();
+				await restarted.restoreSession(session);
+				const restored = getStateManager(restarted).getSessionState(sessionKey)?.chats.filter(chat => chat.resource === peer || chat.resource === secondPeer) ?? [];
+
+				assert.deepStrictEqual({
+					times: Object.fromEntries(restored.map(chat => [chat.resource, chat.modifiedAt])),
+					order: [...restored].sort((a, b) => Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt)).map(chat => chat.resource),
+				}, {
+					times: { [peer]: firstArchivedAt, [secondPeer]: secondArchivedAt },
+					order: [secondPeer, peer],
+				});
+			});
+		}
 
 		test('a chat archive toggle on an unloaded session rejects default, tool and unknown chats without restoring', async () => {
 			const { svc, restoreCalls } = createReadToggleService();
@@ -9114,13 +9170,14 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('createSession', () => {
-		for (const { name, defaultBranch, repository, expected } of [
-			{ name: 'default branch upstream', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main', upstream: { name: 'origin/main', ref: 'refs/remotes/origin/main', remote: 'origin' } }, repository: true, expected: 'origin/main' },
-			{ name: 'remote default branch', defaultBranch: { kind: GitRefType.RemoteHead, name: 'upstream/main', ref: 'refs/remotes/upstream/main', remote: 'upstream' }, repository: true, expected: 'upstream/main' },
-			{ name: 'local default branch', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' }, repository: true, expected: 'main' },
-			{ name: 'selected branch fallback', defaultBranch: undefined, repository: true, expected: 'feature' },
+		for (const { name, defaultBranch, branch, repository, expected } of [
+			{ name: 'default branch upstream', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main', upstream: { name: 'origin/main', ref: 'refs/remotes/origin/main', remote: 'origin' } }, repository: true, expected: 'refs/remotes/origin/main' },
+			{ name: 'remote default branch', defaultBranch: { kind: GitRefType.RemoteHead, name: 'upstream/main', ref: 'refs/remotes/upstream/main', remote: 'upstream' }, repository: true, expected: 'refs/remotes/upstream/main' },
+			{ name: 'local default branch', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' }, repository: true, expected: 'refs/heads/main' },
+			{ name: 'selected branch fallback', defaultBranch: undefined, branch: { kind: GitRefType.Head, name: 'feature', ref: 'refs/heads/feature' }, repository: true, expected: 'refs/heads/feature' },
+			{ name: 'unborn selected branch fallback', defaultBranch: undefined, branch: undefined, repository: true, expected: 'feature' },
 			{ name: 'non-Git folder', defaultBranch: undefined, repository: false, expected: undefined },
-		] satisfies { name: string; defaultBranch: Branch | undefined; repository: boolean; expected: string | undefined }[]) {
+		] satisfies { name: string; defaultBranch: Branch | undefined; branch?: Branch; repository: boolean; expected: string | undefined }[]) {
 			for (const provisional of [false, true]) {
 				test(`records the ${name} diff base on folder session send, not draft creation (provisional: ${provisional})`, async () => {
 					const db = new TestSessionDatabase();
@@ -9129,6 +9186,7 @@ suite('AgentService (node dispatcher)', () => {
 					git.getRepositoryRoot = async () => repository ? directory : undefined;
 					git.getDefaultBranch2 = async () => defaultBranch;
 					git.getCurrentBranch = async () => 'feature';
+					git.getBranch = async (_directory, branchName) => branchName === 'feature' ? branch : undefined;
 					const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, git));
 					const agent = disposables.add(new MockAgent('copilot'));
 					const createChat = agent.chats.createChat;
@@ -9276,7 +9334,7 @@ suite('AgentService (node dispatcher)', () => {
 			defaultBranch.complete({ kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' });
 			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'the message should reach the provider');
 
-			assert.deepStrictEqual({ sendsWhileResolvingBase, base: await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined) }, { sendsWhileResolvingBase: 0, base: 'main' });
+			assert.deepStrictEqual({ sendsWhileResolvingBase, base: await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined) }, { sendsWhileResolvingBase: 0, base: 'refs/heads/main' });
 		});
 
 		test('folder send resolves the default branch at send time rather than draft time', async () => {
@@ -9298,7 +9356,7 @@ suite('AgentService (node dispatcher)', () => {
 			svc.dispatchAction(buildDefaultChatUri(session), chatTurnStarted('turn-1', 'start now'), 'client', 1);
 			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'the message should reach the provider');
 
-			assert.strictEqual(await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined), 'origin/release');
+			assert.strictEqual(await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined), 'refs/remotes/origin/release');
 		});
 
 		test('folder peer sends preserve the base pinned by another chat in the same folder', async () => {
@@ -24035,10 +24093,10 @@ suite('AgentService (node dispatcher)', () => {
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
 				getWorktrees: async () => [],
-				addWorktree: async () => { },
+				addWorktree: async () => ({ gitLfsPointerFiles: false }),
 				copyWorktreeIncludeFiles: async () => { },
 				symlinkWorktreeFolders: async () => [],
-				addExistingWorktree: async () => { },
+				addExistingWorktree: async () => ({ gitLfsPointerFiles: false }),
 				isWorktreeRegistered: async () => true,
 				removeWorktree: async () => { },
 				branchExists: async () => false,
@@ -24055,6 +24113,8 @@ suite('AgentService (node dispatcher)', () => {
 				pull: async () => { },
 				push: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
+				resolveBaseBranch: async () => undefined,
+				resolveMergeTargetBranch: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
 				captureWorkingTreeAsTree: async () => undefined,
@@ -24093,7 +24153,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
-				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: { ...gitState, baseBranchFullName: 'main' } }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
+				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
 			);
 		});
 
@@ -24155,10 +24215,10 @@ suite('AgentService (node dispatcher)', () => {
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
 				getWorktrees: async () => [],
-				addWorktree: async () => { },
+				addWorktree: async () => ({ gitLfsPointerFiles: false }),
 				copyWorktreeIncludeFiles: async () => { },
 				symlinkWorktreeFolders: async () => [],
-				addExistingWorktree: async () => { },
+				addExistingWorktree: async () => ({ gitLfsPointerFiles: false }),
 				isWorktreeRegistered: async () => true,
 				removeWorktree: async () => { },
 				branchExists: async () => false,
@@ -24175,6 +24235,8 @@ suite('AgentService (node dispatcher)', () => {
 				push: async () => { },
 				restore: async () => { },
 				getSessionGitState: async () => undefined,
+				resolveBaseBranch: async () => undefined,
+				resolveMergeTargetBranch: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
 				captureWorkingTreeAsTree: async () => undefined,
@@ -24350,7 +24412,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
 				assert.deepStrictEqual(
 					getStateManager(localService).getSessionState(session.toString())?._meta,
-					{ git: { ...gitState, baseBranchFullName: 'main' } },
+					{ git: gitState },
 				);
 			});
 
@@ -25511,7 +25573,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getRepositoryRoot = async () => workingDirectory;
 			gitService.revParse = async () => 'head';
 			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
-			gitService.addWorktree = async () => { };
+			gitService.addWorktree = async () => ({ gitLfsPointerFiles: false });
 			let removeWorktreeCalls = 0;
 			gitService.removeWorktree = async () => { removeWorktreeCalls++; };
 			const isolation = disposables.add(new WorktreeIsolation(
@@ -27425,9 +27487,9 @@ suite('AgentService (node dispatcher)', () => {
 		test('a read/archive toggle on an un-loaded session persists and publishes without restoring it', async () => {
 			// Regression: routing these toggles through `restoreSession` lost the
 			// archived state whenever that restore failed.
-			for (const { action, key, expectedStatus } of [
-				{ action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } as const, key: AH_META_IS_ARCHIVED_DB_KEY, expectedStatus: SessionStatus.Idle | SessionStatus.IsArchived },
-				{ action: { type: ActionType.SessionIsReadChanged, isRead: true } as const, key: AH_META_IS_READ_DB_KEY, expectedStatus: SessionStatus.Idle | SessionStatus.IsRead },
+			for (const { action, key, expectedStatus, advancesModifiedAt } of [
+				{ action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } as const, key: AH_META_IS_ARCHIVED_DB_KEY, expectedStatus: SessionStatus.Idle | SessionStatus.IsArchived, advancesModifiedAt: true },
+				{ action: { type: ActionType.SessionIsReadChanged, isRead: true } as const, key: AH_META_IS_READ_DB_KEY, expectedStatus: SessionStatus.Idle | SessionStatus.IsRead, advancesModifiedAt: false },
 			]) {
 				const db = new TestSessionDatabase();
 				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -27449,7 +27511,7 @@ suite('AgentService (node dispatcher)', () => {
 					title: 'Idle',
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
-					modifiedAt: new Date().toISOString(),
+					modifiedAt: '2025-01-01T00:00:00.000Z',
 				};
 				getStateManager(localService).announceSurfacedSession(summary);
 				getStateManager(localService).prepareSessionSummariesForListing([summary]);
@@ -27459,17 +27521,20 @@ suite('AgentService (node dispatcher)', () => {
 				const summaryChanged = await raceTimeout(published, 5000);
 				await getTestSessionStateStore(localService).whenIdle(undefined);
 				await localService.whenCatalogReconciliationIdle();
+				const publishedModifiedAt = summaryChanged?.type === 'root/sessionSummaryChanged' ? summaryChanged.changes.modifiedAt : undefined;
 
 				assert.deepStrictEqual({
 					action: action.type,
 					persisted: await db.getMetadata(key),
 					restored: !!getStateManager(localService).getSessionState(sessionStr),
 					publishedStatus: summaryChanged?.type === 'root/sessionSummaryChanged' ? summaryChanged.changes.status : undefined,
+					advancesModifiedAt: publishedModifiedAt !== undefined && Date.parse(publishedModifiedAt) > Date.parse(summary.modifiedAt),
 				}, {
 					action: action.type,
 					persisted: 'true',
 					restored: false,
 					publishedStatus: expectedStatus,
+					advancesModifiedAt,
 				});
 			}
 		});
@@ -45715,6 +45780,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			freshGitService.addWorktree = async () => {
 				freshGitCalls.addWorktree++;
+				return { gitLfsPointerFiles: false };
 			};
 			const freshSessionDataService = createSessionDataService(database);
 			const freshService = disposables.add(createService(freshSessionDataService, freshGitService));
@@ -45805,7 +45871,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getCurrentBranch = async () => 'main';
 			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
 			gitService.getFetchRemotes = async () => [{ name: 'origin', url: 'https://github.com/microsoft/vscode.git' }];
-			gitService.addWorktree = async (_root, options) => { mkdirSync(options.path.fsPath, { recursive: true }); };
+			gitService.addWorktree = async (_root, options) => { mkdirSync(options.path.fsPath, { recursive: true }); return { gitLfsPointerFiles: false }; };
 			const database = new TestSessionDatabase();
 			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
 			const sessionDataService = createSessionDataService(database);
@@ -46232,7 +46298,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
 			let addWorktreeCalls = 0;
 			let removeWorktreeCalls = 0;
-			gitService.addWorktree = async () => { addWorktreeCalls++; };
+			gitService.addWorktree = async () => { addWorktreeCalls++; return { gitLfsPointerFiles: false }; };
 			gitService.removeWorktree = async () => { removeWorktreeCalls++; };
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const isolation = disposables.add(new WorktreeIsolation(
@@ -46309,6 +46375,7 @@ suite('AgentService (node dispatcher)', () => {
 				if (addWorktreeCalls === 1) {
 					throw new Error('transient git failure');
 				}
+				return { gitLfsPointerFiles: false };
 			};
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const isolation = disposables.add(new WorktreeIsolation(

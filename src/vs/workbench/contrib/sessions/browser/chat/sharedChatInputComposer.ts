@@ -186,7 +186,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _modelSelection: SessionModelSelection;
 	/** The chat the input binds to: the composer's chat, else the session's shown chat. */
 	private readonly _shownChat: IObservable<IChat | undefined>;
-	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus(), text => this._widget?.input.startPromptWith(text));
+	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus());
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _promptOptions: NewSessionPromptOptionsPresenter;

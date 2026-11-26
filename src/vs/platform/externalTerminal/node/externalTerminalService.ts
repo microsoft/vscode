@@ -68,7 +68,9 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 
 		return new Promise<void>((c, e) => {
 			const env = getSanitizedEnvironment(process);
-			const child = spawner.spawn(command, cmdArgs, { cwd, env, detached: true });
+			// Don't spawn detached: on Windows that creates a new process group, which disables
+			// Ctrl+C for the terminal and every program started in it (#205417)
+			const child = spawner.spawn(command, cmdArgs, { cwd, env });
 			child.on('error', e);
 			child.on('exit', () => c());
 		});

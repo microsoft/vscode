@@ -191,6 +191,12 @@
 	.monaco-list .monaco-list-row.session-section.session-section-shortcut.active:not(:hover, .hovered) {
 		background-color: var(--vscode-list-inactiveSelectionBackground);
 	}
+
+	/* For the same reason, the row itself reveals its toolbar, such as the Canvases row's Open Canvas action. */
+	.monaco-list-row.session-section:is(:hover, .hovered, .dropdown-active) .session-section-toolbar,
+	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.session-section.focused .session-section-toolbar {
+		display: block;
+	}
 }
 
 /* A pinned canvas row names its owning chat after the canvas title, demoted to secondary text. */

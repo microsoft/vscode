@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -403,8 +403,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeCustomizations = this._register(new Emitter<{ readonly chatSessionType: string }>());
 	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
 
-	private readonly _hasCanDelegateProvidersKey: IContextKey<boolean>;
-
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -416,8 +414,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this._hasCanDelegateProvidersKey = ChatContextKeys.hasCanDelegateProviders.bindTo(this._contextKeyService);
 
 		this._register(extensionPoint.setHandler(extensions => {
 			for (const ext of extensions) {
@@ -594,7 +590,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					}
 				}
 				this._contributionDisposables.deleteAndDispose(contribution.type);
-				this._updateHasCanDelegateProvidersContextKey();
 			}
 		};
 	}
@@ -841,7 +836,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._onDidChangeSessionItems.fire({ removed: Array.from(disposedChatSessions) });
 			}
 		}
-		this._updateHasCanDelegateProvidersContextKey();
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
@@ -923,13 +917,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			.map(entry => this.resolveChatSessionContribution(entry.extension, entry.contribution));
 	}
 
-	private _updateHasCanDelegateProvidersContextKey(): void {
-		const hasCanDelegate = this.getAllChatSessionContributions().filter(c => c.canDelegate);
-		const canDelegateEnabled = hasCanDelegate.length > 0;
-		this._logService.trace(`[ChatSessionsService] hasCanDelegateProvidersAvailable=${canDelegateEnabled} (${hasCanDelegate.map(c => c.type).join(', ')})`);
-		this._hasCanDelegateProvidersKey.set(canDelegateEnabled);
-	}
-
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined {
 		const entry = this._contributions.get(chatSessionType);
 		if (!entry) {
@@ -1008,7 +995,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (contribution.onDidChangeAvailability) {
 			disposables.add(contribution.onDidChangeAvailability(() => this._onDidChangeAvailability.fire()));
 		}
-		this._updateHasCanDelegateProvidersContextKey();
 		this._onDidChangeAvailability.fire();
 
 		return toDisposable(() => {
@@ -1021,7 +1007,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				}
 			}
 			this._contributionDisposables.deleteAndDispose(contribution.type);
-			this._updateHasCanDelegateProvidersContextKey();
 			this._onDidChangeAvailability.fire();
 		});
 	}

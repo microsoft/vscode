@@ -503,13 +503,6 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.action-widget-delegate-label {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	font-size: 12px;
-}
-
 /* Filter input */
 .action-widget .action-list-filter {
 	padding: 2px 2px 4px 2px;
@@ -657,6 +650,29 @@
 .action-widget .monaco-list-row.action .action-list-submenu-indicator.codicon {
 	display: flex;
 	font-size: 16px;
+}
+
+/* A submenu button shows like the row toolbar: on a hovered or focused row, and beside the submenu it opened */
+.action-widget .monaco-list-row.action .action-list-submenu-indicator.submenu-button {
+	visibility: hidden;
+	opacity: 1;
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	/* Takes no height in its line, so showing or hiding it never moves the row's description */
+	margin-block: calc(var(--vscode-spacing-size200) / -2);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.action-widget .monaco-list-row.action .action-list-submenu-indicator.submenu-button.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.action-widget .monaco-list-row.action:is(:hover, .focused, .panel-anchor) .action-list-submenu-indicator.submenu-button {
+	visibility: visible;
+}
+
+.action-widget .monaco-list-row.action .action-list-submenu-indicator.submenu-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .action-list-submenu-panel {

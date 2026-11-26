@@ -33,8 +33,8 @@ import { CommentGlyphWidget } from './commentGlyphWidget.js';
 import { ICommentService } from './commentService.js';
 import { CommentedCodeGeometry, CommentThreadConnector } from './commentThreadConnector.js';
 import { commentThreadHasDraft, CommentWidgetFocus, confirmCommentThreadCollapse, createCommentThreadGlyph, getCommentThreadWidgetStateColor, ICommentThreadEditorWidget, updateCommentThreadTemplateRange } from './commentThreadEditorWidget.js';
-import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getCenteredTop, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getWidthBesideCode, IBesideLinesPlacement, ICommentThreadFloatingWidgetLayout, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IFloatingWidgetObstacle, IFloatingWidgetPlacement, IFloatingWidgetPlacementRequest, IRect, ISize, ISizeRange, isInTheWayOf, MIN_HEIGHT, MIN_WIDTH, rectsIntersect } from './commentThreadFloatingWidgetLayout.js';
-import { FloatingWidgetRoom } from './commentThreadFloatingWidgetRoom.js';
+import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getCenteredTop, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getWidthBesideCode, IBesideLinesPlacement, ICommentThreadFloatingWidgetLayout, IFloatingWidgetChosenSize, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IFloatingWidgetObstacle, IFloatingWidgetPlacement, IFloatingWidgetPlacementRequest, IPoint, IRect, ISize, ISizeRange, isInTheWayOf, MIN_HEIGHT, MIN_WIDTH, rectsIntersect, shouldDockFloatingWidgets } from './commentThreadFloatingWidgetLayout.js';
+import { FloatingWidgetDockZone, FloatingWidgetRoom } from './commentThreadFloatingWidgetRoom.js';
 import { CommentThreadWidget } from './commentThreadWidget.js';
 
 const closeIcon = registerIcon('review-comment-close', Codicon.close, nls.localize('closeIcon', "Icon to close a floating review comment."));
@@ -47,11 +47,19 @@ const emptyRangeHighlightOptions = ModelDecorationOptions.register({
 });
 
 /**
+ * The layout of a docked widget that hasn't floated yet. The widget is placed among the other widgets once it floats.
+ */
+const AUTOMATIC_DOCKED_LAYOUT: ICommentThreadFloatingWidgetLayout = { offsetTop: undefined, left: 0, width: 0, height: undefined, isChosenByUser: false };
+
+/**
  * Provided by the owner of the floating widgets of an editor.
  */
 export interface ICommentThreadFloatingWidgetHost {
 	getLayout(widget: ReviewFloatingWidget): ICommentThreadFloatingWidgetLayout | undefined;
 	setLayout(widget: ReviewFloatingWidget, layout: ICommentThreadFloatingWidgetLayout): void;
+	/** The size that the user last resized a widget to, which the widgets that are placed or docked after that start out at. */
+	getLastChosenSize(): IFloatingWidgetChosenSize;
+	setLastChosenSize(size: IFloatingWidgetChosenSize): void;
 	/** Adds a widget to the floating widgets of the editor, until the returned disposable is disposed. */
 	addWidget(widget: ReviewFloatingWidget): IDisposable;
 	/** The other floating widgets of the editor. */
@@ -74,6 +82,9 @@ interface IResizeSession {
 	readonly widthRange: ISizeRange;
 	north: boolean;
 	west: boolean;
+	/** Whether the user dragged the left or right edge, which chooses the widget's width. */
+	horizontal: boolean;
+	/** Whether the user dragged the top or bottom edge, which chooses the widget's height. */
 	vertical: boolean;
 }
 
@@ -90,7 +101,13 @@ type FloatingWidgetPlacementArea = Omit<IFloatingWidgetPlacementRequest, 'width'
 /**
  * Shows a comment thread in a window that floats above the editor. The window can be moved by dragging
  * its title and resized from its edges. A line connects it to the outlined code that the thread is about,
- * and it moves along with that code when the editor scrolls.
+ * and it moves along with that code when the editor scrolls. Once the user resized a window, the windows that
+ * are placed after that start out at its size.
+ *
+ * In an editor that is too narrow for the window to float without covering much of the code, such as a narrow diff
+ * editor, the window is docked right below its code instead, in space that the editor makes for it between its lines,
+ * until the editor is wide enough again. A docked window looks the same and is still connected to its code, but only
+ * its height can be changed.
  */
 export class ReviewFloatingWidget extends Disposable implements ICommentThreadEditorWidget {
 
@@ -105,6 +122,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	private _boxPosition: IOverlayWidgetPosition | null = null;
 	private readonly _codeGeometry: CommentedCodeGeometry;
 	private readonly _connector: CommentThreadConnector;
+	private readonly _dockZone: FloatingWidgetDockZone;
 	private readonly _sizeModel = new FloatingWidgetSizeModel();
 
 	private readonly _contextKeyService: IContextKeyService;
@@ -122,6 +140,13 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	private _isExpanded: boolean | undefined;
 	private _isAttached = false;
 	private _isDisposed = false;
+	/** Whether the widget is docked below its code, rather than floating over the code. */
+	private _isDocked = false;
+	/**
+	 * The height that the user last gave a docked widget when this one was docked, which it has while docked until the
+	 * user resizes it there.
+	 */
+	private _initialDockedHeight: number | undefined;
 	private _layout: ICommentThreadFloatingWidgetLayout | undefined;
 	private _renderedLeft = 0;
 	/** The width of the widget's border, which its content doesn't get. */
@@ -210,6 +235,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 
 		this._codeGeometry = this._register(new CommentedCodeGeometry(this.editor, () => this._commentThread.range));
 		this._connector = this._register(new CommentThreadConnector(this.editor, `${this._id}.connector`));
+		this._dockZone = this._register(new FloatingWidgetDockZone(this.editor));
 		this._boxOverlay = {
 			getId: () => this._id,
 			getDomNode: () => this._domNode,
@@ -354,10 +380,10 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 
 	/**
 	 * The area taken up by the widget in document coordinates, and where its code starts, or `undefined` when it isn't
-	 * shown.
+	 * floating over the code: when it isn't shown, or when it's docked below its code.
 	 */
 	getDocumentRect(): IFloatingWidgetObstacle | undefined {
-		if (!this._isAttached || !this._layout) {
+		if (!this._isAttached || !this._layout || this._isDocked) {
 			return undefined;
 		}
 		const { width, height } = this._resizable.size;
@@ -420,9 +446,16 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		} else {
 			this._sizeModel.resetGrowth();
 			// A widget that the user moved or resized goes where the user put it. The others are placed among the
-			// other widgets, in the order of their code.
-			const layout = this._layout ?? this._host.getLayout(this);
-			this._placeAmongOtherWidgets(layout?.isChosenByUser ? layout : undefined);
+			// other widgets, in the order of their code. A docked widget goes below its code, and keeps its floating
+			// placement for when it floats again.
+			this._layout ??= this._host.getLayout(this);
+			if (this._isDocked) {
+				this._layout ??= AUTOMATIC_DOCKED_LAYOUT;
+				this._applySize();
+				this._render();
+			} else {
+				this._placeAmongOtherWidgets(this._layout?.isChosenByUser ? this._layout : undefined);
+			}
 		}
 		this._updateEmptyRangeHighlight();
 
@@ -459,6 +492,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this.editor.addOverlayWidget(this._boxOverlay);
 		this._sizeModel.captureEditorSize(this._measureEditorSize());
 		this._cornerRadius = parseFloat(dom.getWindow(this._domNode).getComputedStyle(this._domNode).borderTopLeftRadius) || 0;
+		this._setDockedState(this._shouldDock());
 
 		this._attachedDisposables.add(this.editor.onDidScrollChange(e => {
 			if (e.scrollTopChanged || e.scrollLeftChanged) {
@@ -466,11 +500,21 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			}
 		}));
 		this._attachedDisposables.add(this.editor.onDidLayoutChange(() => {
-			// Resizing the editor doesn't resize the widget, unless the editor had no size when the widget was shown.
+			if (this._updateDocking()) {
+				return;
+			}
 			const editorSize = this._sizeModel.editorSize;
 			if (editorSize.width <= 0 || editorSize.height <= 0) {
+				// Resizing the editor doesn't resize a floating widget, unless the editor had no size when the widget was shown.
 				this._sizeModel.captureEditorSize(this._measureEditorSize());
 				this._applySize();
+			} else if (this._isDocked) {
+				// A docked widget is as wide as the editor.
+				const width = this._measureEditorSize().width;
+				if (width !== editorSize.width) {
+					this._sizeModel.captureEditorSize({ width, height: editorSize.height });
+					this._applySize();
+				}
 			}
 			this._render();
 		}));
@@ -478,6 +522,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this._attachedDisposables.add(this.editor.onDidChangeHiddenAreas(() => this._scheduleRender()));
 		this._attachedDisposables.add(this.editor.onDidContentSizeChange(() => this._scheduleRender()));
 		this._attachedDisposables.add(this.editor.onDidChangeModelContent(() => this._scheduleRender()));
+		// Other view zones can move the code, and the space below the code that a docked widget is in.
+		this._attachedDisposables.add(this.editor.onDidChangeViewZones(() => this._scheduleRender()));
 		this._attachedDisposables.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)) {
 				this._scheduleRender();
@@ -496,6 +542,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this._resizeSession = undefined;
 		this.editor.removeOverlayWidget(this._boxOverlay);
 		this._connector.detach();
+		this._dockZone.hide();
 		if (this._bottomWithRoom !== undefined) {
 			this._bottomWithRoom = undefined;
 			this._host.getRoom()?.update();
@@ -525,9 +572,10 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 
 	/**
 	 * Scrolls the editor so that the commented code and the widget are visible, if they aren't already. When requested,
-	 * a widget for code that is in view, but that reaches below the view, is placed again within the view first, so that
-	 * the code doesn't move, unless it would cover the code there. An editor that grows with its content can't scroll the
-	 * view that it's shown in, so for such an editor, that's always done instead of scrolling.
+	 * a floating widget for code that is in view, but that reaches below the view, is placed again within the view first,
+	 * so that the code doesn't move, unless it would cover the code there. An editor that grows with its content can only
+	 * scroll the view that it's shown in down, so for such an editor, a floating widget is always placed again instead of
+	 * scrolling, and the view scrolls down to a docked widget, which stays below its code.
 	 */
 	private _revealInEditor(placeWithinView: boolean): void {
 		if (!this._layout) {
@@ -539,15 +587,22 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		const viewportBottom = viewport.top + viewport.height;
 		const isCodeInView = code.top >= viewport.top && code.bottom <= viewportBottom;
 		let height = this._resizable.size.height;
-		if (isCodeInView && (placeWithinView || room) && !this._layout.isChosenByUser && this._getDocumentTop(this._layout, height) + height > viewportBottom - EDGE_MARGIN) {
+		if (isCodeInView && (placeWithinView || room) && !this._isDocked && !this._layout.isChosenByUser && this._getDocumentTop(this._layout, height) + height > viewportBottom - EDGE_MARGIN) {
 			this._placeAmongOtherWidgets(undefined, viewportBottom);
 			height = this._resizable.size.height;
 		}
+		const widgetTop = this._getDocumentTop(this._layout, height);
+		const widget = { top: widgetTop, bottom: widgetTop + height };
 		if (isCodeInView && room) {
+			if (this._isDocked) {
+				const scrollTop = getRevealScrollTop(code, widget, viewport.top, viewport.height);
+				if (scrollTop !== undefined) {
+					room.scrollDownTo(scrollTop);
+				}
+			}
 			return;
 		}
-		const widgetTop = this._getDocumentTop(this._layout, height);
-		const scrollTop = getRevealScrollTop(code, { top: widgetTop, bottom: widgetTop + height }, this.editor.getScrollTop(), this.editor.getLayoutInfo().height);
+		const scrollTop = getRevealScrollTop(code, widget, this.editor.getScrollTop(), this.editor.getLayoutInfo().height);
 		if (scrollTop !== undefined) {
 			this.editor.setScrollTop(scrollTop);
 		}
@@ -560,8 +615,9 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	}
 
 	/**
-	 * Where the widget goes and how large it is until the user moves or resizes it. The widget is laid out to measure
-	 * its content, and may be left at another width than the layout's until the layout is applied.
+	 * Where the widget goes and how large it is until the user moves or resizes it. Once the user resized a widget, this
+	 * one starts out at that size instead of at one that suits the editor. The widget is laid out to measure its
+	 * content, and may be left at another width than the layout's until the layout is applied.
 	 * @param obstacles The areas that other widgets take up, which the widget is placed around.
 	 * @param maxBottom How far down the widget can go, when that's less far than the editor can scroll through, such as
 	 * to keep it within the view. `undefined` when the widget can't go above that without covering its code.
@@ -573,8 +629,11 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		const contentWidths = this._measureContentWidths();
 		const widthRange = this._sizeModel.getWidthRange(contentWidths);
 		const isNewComment = !this._commentThread.comments?.length;
-		const preferredWidth = getDefaultFloatingWidgetWidth(this.editor.getLayoutInfo().contentWidth, bounds.right - bounds.left - 2 * EDGE_MARGIN, isNewComment);
+		const chosenSize = this._host.getLastChosenSize();
+		const preferredWidth = getDefaultFloatingWidgetWidth(this.editor.getLayoutInfo().contentWidth, bounds.right - bounds.left - 2 * EDGE_MARGIN, isNewComment, chosenSize.width);
 		const defaultWidth = this._sizeModel.getDefaultWidth(contentWidths, preferredWidth, this._commentThreadWidget.isEditing);
+		// A width that the user chose is kept where the widget is placed, rather than fit to the room or content there.
+		const isWidthChosen = chosenSize.width !== undefined;
 
 		const editorCode = this._codeGeometry.getBoundingRect();
 		const code = editorCode && { ...editorCode, top: editorCode.top + this.editor.getScrollTop() };
@@ -587,10 +646,10 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		};
 		// Laying the widget out makes the browser lay it out, so its size at the default width is measured at most once.
 		let defaultSize: ISize | undefined;
-		const measureDefaultSize = () => defaultSize ??= this._layOutAtWidth(defaultWidth, widthRange);
+		const measureDefaultSize = () => defaultSize ??= this._layOutAtWidth(defaultWidth, widthRange, chosenSize.height);
 		// A new comment goes right after its code when it can, so that it's close to where it's written.
-		let placement = code && isNewComment ? this._placeBesideCode({ ...area, ...measureDefaultSize() }, code, widthRange) : undefined;
-		placement ??= code && this._placeBesideLines(area, code, defaultWidth, measureDefaultSize, contentWidths.natural, widthRange);
+		let placement = code && isNewComment ? this._placeBesideCode({ ...area, ...measureDefaultSize() }, code, isWidthChosen ? defaultWidth : widthRange.min, widthRange, chosenSize.height) : undefined;
+		placement ??= code && this._placeBesideLines(area, code, defaultWidth, measureDefaultSize, isWidthChosen ? defaultWidth : contentWidths.natural, widthRange, chosenSize.height);
 		if (!placement) {
 			const request = { ...area, ...measureDefaultSize() };
 			placement = { ...computeFloatingWidgetPlacement(request), width: request.width, height: request.height };
@@ -599,7 +658,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			return undefined;
 		}
 		const { top, left, centered, width } = placement;
-		return { offsetTop: centered ? undefined : top - this._codeGeometry.getVerticalBounds().top, left, width, height: undefined, isChosenByUser: false };
+		return { offsetTop: centered ? undefined : top - this._codeGeometry.getVerticalBounds().top, left, width, height: chosenSize.height, isChosenByUser: false };
 	}
 
 	/**
@@ -649,7 +708,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 
 	/**
 	 * Places the widget where it goes until the user moves or resizes it, around the given other widgets that the user
-	 * moved or resized, or that are for code that doesn't start after its own.
+	 * moved or resized, or that are for code that doesn't start after its own. The height that the user gave the widget
+	 * while docked is kept for when it's docked again.
 	 * @param maxBottom How far down the widget can go, when that's less far than the editor can scroll through.
 	 * @returns Whether the widget was placed, which it isn't when it can't go above `maxBottom` without covering its code.
 	 */
@@ -668,7 +728,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			this._applySize();
 			return false;
 		}
-		this._layout = layout;
+		this._layout = { ...layout, dockedHeight: this._layout?.dockedHeight };
 		this._storeLayout();
 		this._applySize();
 		this._render();
@@ -679,13 +739,15 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	 * Places a new comment right after the end of its code, level with it, when there is room, so that it's close to
 	 * where it's written. `undefined` when there isn't, or when other widgets or the end of the area that the widget is
 	 * kept within move it away from its code, where it would hide the lines next to it.
+	 * @param minWidth The narrowest that the widget may be made to fit there.
+	 * @param chosenHeight The height that the user chose, or `undefined` when the widget sizes itself to its content.
 	 */
-	private _placeBesideCode(request: IFloatingWidgetPlacementRequest, code: IRect, widthRange: ISizeRange): ISizedFloatingWidgetPlacement | undefined {
-		const width = getWidthBesideCode(code, request.height, request.width, widthRange.min, request.maxRight, request.obstacles);
+	private _placeBesideCode(request: IFloatingWidgetPlacementRequest, code: IRect, minWidth: number, widthRange: ISizeRange, chosenHeight: number | undefined): ISizedFloatingWidgetPlacement | undefined {
+		const width = getWidthBesideCode(code, request.height, request.width, minWidth, request.maxRight, request.obstacles);
 		if (width === undefined) {
 			return undefined;
 		}
-		const size = this._layOutAtWidth(width, widthRange);
+		const size = this._layOutAtWidth(width, widthRange, chosenHeight);
 		const placement = computeFloatingWidgetPlacement({ ...request, ...size, besideCode: true });
 		return placement.top === code.top ? { ...placement, ...size } : undefined;
 	}
@@ -699,13 +761,14 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	 *
 	 * Laying the widget out at a new width takes far longer than estimating where lines end, so it's laid out once,
 	 * unless its height decides how wide it is. Which lines it's next to depends on its height, which is only known once
-	 * it's laid out, but it's at least the minimum height and at most the height that it sizes itself to. A taller widget
-	 * is next to more lines, which leave it no more room, so when both heights leave the same room, so do the heights in
-	 * between. A wider widget is no taller, so it's next to no more lines.
+	 * it's laid out, but it's at least the minimum height and at most the height that it sizes itself to, or that the
+	 * user chose. A taller widget is next to more lines, which leave it no more room, so when both heights leave the same
+	 * room, so do the heights in between. A wider widget is no taller, so it's next to no more lines.
 	 * @param measureDefaultSize Lays the widget out at its default width, the first time only, and returns its size there.
+	 * @param chosenHeight The height that the user chose, or `undefined` when the widget sizes itself to its content.
 	 */
-	private _placeBesideLines(area: FloatingWidgetPlacementArea, code: IRect, defaultWidth: number, measureDefaultSize: () => ISize, naturalWidth: number, widthRange: ISizeRange): ISizedFloatingWidgetPlacement | undefined {
-		const maxHeight = this._sizeModel.maxAutoHeight;
+	private _placeBesideLines(area: FloatingWidgetPlacementArea, code: IRect, defaultWidth: number, measureDefaultSize: () => ISize, naturalWidth: number, widthRange: ISizeRange, chosenHeight: number | undefined): ISizedFloatingWidgetPlacement | undefined {
+		const maxHeight = this._sizeModel.getMaxHeight(chosenHeight);
 		const centeredTop = (height: number) => getCenteredTop(code.top, code.top + code.height, height);
 		const nearbyLines = this._codeGeometry.estimateLineRects(centeredTop(maxHeight), centeredTop(maxHeight) + maxHeight);
 		const getPlacement = (lines: readonly IRect[], top: number, height: number) => getPlacementBesideLines(lines, top, top + height, code.left + code.width, area.maxRight, defaultWidth, naturalWidth);
@@ -721,11 +784,11 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		if (tallest && tallest.linesRight === shortest.linesRight && tallest.width === shortest.width
 			&& computeFloatingWidgetPlacement({ ...area, width: tallest.width, height: maxHeight, linesRight: tallest.linesRight }).centered) {
 			beside = tallest;
-			size = this._layOutAtWidth(beside.width, widthRange);
+			size = this._layOutAtWidth(beside.width, widthRange, chosenHeight);
 		} else {
 			const defaultSize = measureDefaultSize();
 			beside = defaultSize.height <= maxHeight ? getCenteredPlacement(defaultSize.height) : undefined;
-			size = beside && (beside.width === defaultSize.width ? defaultSize : this._layOutAtWidth(beside.width, widthRange));
+			size = beside && (beside.width === defaultSize.width ? defaultSize : this._layOutAtWidth(beside.width, widthRange, chosenHeight));
 		}
 		// A widget whose title, reply and actions alone are taller than it sizes itself to is next to unchecked lines.
 		if (!beside || !size || size.height > maxHeight) {
@@ -753,18 +816,18 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	}
 
 	/**
-	 * Lays the widget out at the given width, within the given range, and measures the size that it then takes when it
-	 * sizes itself to its content.
+	 * Lays the widget out at the given width, within the given range, and measures the size that it then takes at the
+	 * given height chosen by the user, or when it sizes itself to its content.
 	 */
-	private _layOutAtWidth(width: number, range: ISizeRange): ISize {
+	private _layOutAtWidth(width: number, range: ISizeRange, chosenHeight: number | undefined): ISize {
 		const newWidth = this._setWidth(width, range);
-		return { width: newWidth, height: this._sizeModel.getHeight(this._measureContentHeights(), undefined) };
+		return { width: newWidth, height: this._sizeModel.getHeight(this._measureContentHeights(), chosenHeight) };
 	}
 
 	/**
-	 * Sizes the widget to its layout, within the sizes that its content allows. The content is measured before the
-	 * widget is changed, so that measuring doesn't make the browser lay out the changes, unless the widget's width
-	 * changes, which changes the height of its content.
+	 * Sizes the widget to its layout, or a docked widget to the editor's width, within the sizes that its content allows.
+	 * The content is measured before the widget is changed, so that measuring doesn't make the browser lay out the
+	 * changes, unless the widget's width changes, which changes the height of its content.
 	 */
 	private _applySize(): void {
 		const layout = this._layout;
@@ -774,12 +837,13 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		let heights = this._measureContentHeights();
 		const widthRange = this._sizeModel.getWidthRange(this._measureContentWidths());
 		const previousWidth = this._resizable.size.width;
-		if (this._setWidth(layout.width, widthRange) !== previousWidth) {
+		if (this._setWidth(this._isDocked ? this._getDockedWidth() : layout.width, widthRange) !== previousWidth) {
 			heights = this._measureContentHeights();
 		}
 		const growthChanged = this._sizeModel.updateGrowth(heights);
-		const height = this._setHeight(this._sizeModel.getHeight(heights, layout.height), heights);
-		if (growthChanged) {
+		const height = this._setHeight(this._sizeModel.getHeight(heights, this._getChosenHeight(layout)), heights);
+		// A docked widget grows down, moving the code below it down.
+		if (growthChanged && !this._isDocked) {
 			const viewport = this._getViewport();
 			this._sizeModel.updateUpwardShift(layout.offsetTop, this._codeGeometry.getVerticalBounds(), height, viewport.top, viewport.height);
 		}
@@ -855,10 +919,95 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	}
 
 	/**
-	 * The top of the widget in document coordinates.
+	 * The top of the widget in document coordinates: where its layout puts it, or in the space below its code when it's
+	 * docked.
 	 */
 	private _getDocumentTop(layout: ICommentThreadFloatingWidgetLayout, height: number): number {
+		if (this._isDocked) {
+			// The space is made before the widget is placed, unless the editor has no view to make it in.
+			return (this._dockZone.getTop() ?? this._codeGeometry.getVerticalBounds().bottom) + EDGE_MARGIN;
+		}
 		return this._sizeModel.getTop(layout.offsetTop, this._codeGeometry.getVerticalBounds(), height, this._getScrollableHeight());
+	}
+
+	/**
+	 * Whether the widget should be docked below its code, rather than float over the code, in the editor at its current
+	 * width and font. An editor that has no size, such as one that isn't shown yet, leaves the widget as it is.
+	 */
+	private _shouldDock(): boolean {
+		const bounds = this._getHorizontalBounds();
+		const codeAreaWidth = bounds.right - bounds.left;
+		return codeAreaWidth > 0 ? shouldDockFloatingWidgets(codeAreaWidth, this.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth) : this._isDocked;
+	}
+
+	/**
+	 * Docks the widget below its code, or lets it float over the code, without placing it.
+	 */
+	private _setDockedState(docked: boolean): void {
+		this._isDocked = docked;
+		this._domNode.classList.toggle('docked', docked);
+		// A docked widget is as wide as the editor, so only its height can be changed.
+		this._resizable.enableSashes(!docked, !docked, true, !docked);
+		if (docked) {
+			this._initialDockedHeight = this._host.getLastChosenSize().dockedHeight;
+		} else {
+			this._dockZone.hide();
+		}
+	}
+
+	/**
+	 * Docks the widget below its code when the editor became too narrow for it to float over the code, and lets it float
+	 * again, where the user put it or among the other widgets, once the editor is wide enough.
+	 * @returns Whether the widget was docked or undocked, and placed again.
+	 */
+	private _updateDocking(): boolean {
+		const docked = this._shouldDock();
+		// A drag or resize that is going on finishes as it started, and the widget is docked or undocked after it.
+		if (docked === this._isDocked || this._resizeSession || this._dragMonitor.isMonitoring()) {
+			return false;
+		}
+		this._setDockedState(docked);
+		this._sizeModel.captureEditorSize(this._measureEditorSize());
+		if (docked) {
+			this._sizeModel.clearUpwardShift();
+			this._applySize();
+			this._render();
+		} else {
+			this._placeAmongOtherWidgets(this._layout?.isChosenByUser ? this._layout : undefined);
+		}
+		return true;
+	}
+
+	/**
+	 * The width of a docked widget, which spans the area that shows the code.
+	 */
+	private _getDockedWidth(): number {
+		const bounds = this._getHorizontalBounds();
+		return bounds.right - bounds.left - 2 * EDGE_MARGIN;
+	}
+
+	/**
+	 * The height that the user chose for the widget where it is now, docked below its code or floating, or `undefined`
+	 * when it sizes itself to its content there. A docked widget that the user didn't resize there has the height that
+	 * the user last gave a docked widget when it was docked.
+	 */
+	private _getChosenHeight(layout: ICommentThreadFloatingWidgetLayout): number | undefined {
+		return this._isDocked ? layout.dockedHeight ?? this._initialDockedHeight : layout.height;
+	}
+
+	/**
+	 * Where the connector from the code meets the widget, in editor coordinates: on the widget's rounded top left corner,
+	 * where the corner's curve is halfway around, or, for a docked widget, on its top edge, straight below the start of
+	 * the last line of the code, which it's right below.
+	 */
+	private _getConnectorAnchor(codeLines: readonly IRect[] | undefined, left: number, top: number, width: number): IPoint {
+		if (this._isDocked) {
+			const lastLine = codeLines?.[codeLines.length - 1];
+			const x = clamp((lastLine?.left ?? left) + this._cornerRadius, left + this._cornerRadius, left + width - this._cornerRadius);
+			return { x, y: top };
+		}
+		const cornerInset = this._cornerRadius * (1 - Math.SQRT1_2);
+		return { x: left + cornerInset, y: top + cornerInset };
 	}
 
 	/**
@@ -874,9 +1023,14 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			return;
 		}
 		this._scheduledRender.clear();
-		const bounds = this._getHorizontalBounds();
 		const { width, height } = this._resizable.size;
-		const left = clamp(this._layout.left, bounds.left, Math.max(bounds.left, bounds.right - width));
+		if (this._isDocked) {
+			// The space is made before the widget is placed in it, with room for the connector above and a margin below.
+			const isResizing = this._resizeSession !== undefined;
+			this._dockZone.show(this._codeGeometry.getLines()?.endLineNumber ?? 0, Math.ceil(height) + 2 * EDGE_MARGIN, isResizing);
+		}
+		const bounds = this._getHorizontalBounds();
+		const left = clamp(this._isDocked ? bounds.left + EDGE_MARGIN : this._layout.left, bounds.left, Math.max(bounds.left, bounds.right - width));
 		const documentTop = this._getDocumentTop(this._layout, height);
 		const top = documentTop - this.editor.getScrollTop();
 		// Measure the code before moving the widget: measuring code that is newly in view makes the editor render.
@@ -884,20 +1038,25 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this._renderedLeft = left;
 		this._boxPosition = { preference: { top: Math.round(top), left: Math.round(left) } };
 		this.editor.layoutOverlayWidget(this._boxOverlay);
-		// Anchor the connector on the widget's rounded top left corner, where the corner's curve is halfway around.
-		const cornerInset = this._cornerRadius * (1 - Math.SQRT1_2);
-		this._connector.render(codeLines, { x: left + cornerInset, y: top + cornerInset }, bounds);
-		// Scrolling doesn't move the widget within the document, so the editor only makes room again when it moved.
+		this._connector.render(codeLines, this._getConnectorAnchor(codeLines, left, top, width), bounds);
+		// Scrolling doesn't move the widget within the document, so the editor only makes room again when it moved. A
+		// docked widget is in the space below its code instead.
 		const room = this._host.getRoom();
-		if (room && documentTop + height !== this._bottomWithRoom) {
-			this._bottomWithRoom = documentTop + height;
+		const bottom = this._isDocked ? undefined : documentTop + height;
+		if (room && bottom !== this._bottomWithRoom) {
+			this._bottomWithRoom = bottom;
 			room.update();
 		}
 	}
 
 	private _scheduleRender(): void {
 		if (this._isAttached && !this._scheduledRender.value) {
-			this._scheduledRender.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.editor.getContainerDomNode()), () => this._render());
+			this._scheduledRender.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.editor.getContainerDomNode()), () => {
+				// The editor's font, like its width, decides whether the widget is docked.
+				if (!this._updateDocking()) {
+					this._render();
+				}
+			});
 		}
 	}
 
@@ -934,7 +1093,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 
 	private _onHeaderPointerDown(e: PointerEvent): void {
 		const startLayout = this._layout;
-		if (e.button !== 0 || !startLayout || !this._isAttached || this._isInHeaderActions(e.target)) {
+		// A docked widget stays below its code.
+		if (e.button !== 0 || !startLayout || !this._isAttached || this._isDocked || this._isInHeaderActions(e.target)) {
 			return;
 		}
 		// Prevent the text selection and focus change that a mouse down would cause.
@@ -961,6 +1121,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		}, () => {
 			this._domNode.classList.remove('dragging');
 			this._storeLayout();
+			this._updateDocking();
 		});
 	}
 
@@ -968,7 +1129,21 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		if (!this._isAttached || this._isInHeaderActions(e.target)) {
 			return;
 		}
-		// Restore the initial placement and size.
+		const lastChosenSize = this._host.getLastChosenSize();
+		if (this._isDocked) {
+			// Restore the initial height below the code, also for the widgets that are docked after this one. The floating
+			// placement and size stay as they are.
+			this._host.setLastChosenSize({ ...lastChosenSize, dockedHeight: undefined });
+			this._initialDockedHeight = undefined;
+			this._layout = { ...this._layout ?? AUTOMATIC_DOCKED_LAYOUT, dockedHeight: undefined };
+			this._storeLayout();
+			this._sizeModel.resetGrowth();
+			this._applySize();
+			this._render();
+			return;
+		}
+		// Restore the initial placement and size, also for the widgets that are placed after this one.
+		this._host.setLastChosenSize({ ...lastChosenSize, width: undefined, height: undefined });
 		this._placeAmongOtherWidgets();
 	}
 
@@ -982,7 +1157,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		const { width, height } = this._resizable.size;
 		const top = this._getDocumentTop(this._layout, height);
 		const widthRange = this._sizeModel.getWidthRange(this._measureContentWidths());
-		this._resizeSession = { layout: this._layout, top, left: this._renderedLeft, width, height, widthRange, north: false, west: false, vertical: false };
+		this._resizeSession = { layout: this._layout, top, left: this._renderedLeft, width, height, widthRange, north: false, west: false, horizontal: false, vertical: false };
 		// The allowed height changes with the width, so the sizes are limited while handling each resize instead.
 		this._resizable.minSize = new dom.Dimension(0, 0);
 		this._resizable.maxSize = new dom.Dimension(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
@@ -995,7 +1170,17 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		}
 		session.north ||= !!e.north;
 		session.west ||= !!e.west;
+		session.horizontal ||= !!(e.east || e.west);
 		session.vertical ||= !!(e.north || e.south);
+		if (e.done && !session.horizontal && !session.vertical) {
+			// Clicking an edge without dragging it doesn't resize the widget, so it isn't taken as a size the user chose.
+			this._resizeSession = undefined;
+			if (!this._updateDocking()) {
+				this._applySize();
+				this._render();
+			}
+			return;
+		}
 
 		// Keep the widget within the editor horizontally.
 		const bounds = this._getHorizontalBounds();
@@ -1006,31 +1191,39 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		// Dragging a corner trades width for height: the allowed height depends on the new width.
 		const heights = this._measureContentHeights();
 		this._sizeModel.updateGrowth(heights);
-		let requestedHeight = session.vertical ? e.dimension.height : this._sizeModel.getHeight(heights, session.layout.height);
+		let requestedHeight = session.vertical ? e.dimension.height : this._sizeModel.getHeight(heights, this._getChosenHeight(session.layout));
 		if (session.north) {
 			// The top edge can't go above the start of the document.
 			requestedHeight = Math.min(requestedHeight, session.top + session.height);
-		} else if (session.vertical) {
-			// The bottom edge can't go below the area that the editor can scroll through.
+		} else if (session.vertical && !this._isDocked) {
+			// The bottom edge can't go below the area that the editor can scroll through. A docked widget makes the
+			// space below its code taller instead.
 			requestedHeight = Math.min(requestedHeight, this._getScrollableHeight() - EDGE_MARGIN - session.top);
 		}
 		const height = this._setHeight(requestedHeight, heights);
 
-		// Resizing vertically pins the edge that isn't being dragged, so the widget stops being centered on the code.
-		let offsetTop = session.layout.offsetTop;
-		if (session.vertical) {
-			const top = session.north ? Math.max(0, session.top + session.height - height) : session.top;
-			offsetTop = top - this._codeGeometry.getVerticalBounds().top;
-			// The pinned edge includes any upward shift for the widget's expanded reply.
-			this._sizeModel.clearUpwardShift();
+		if (this._isDocked) {
+			// A docked widget stays below its code, as wide as the editor, and keeps its height there apart from its
+			// floating size.
+			this._layout = { ...session.layout, dockedHeight: session.vertical ? height : session.layout.dockedHeight };
+		} else {
+			// Resizing vertically pins the edge that isn't being dragged, so the widget stops being centered on the code.
+			let offsetTop = session.layout.offsetTop;
+			if (session.vertical) {
+				const top = session.north ? Math.max(0, session.top + session.height - height) : session.top;
+				offsetTop = top - this._codeGeometry.getVerticalBounds().top;
+				// The pinned edge includes any upward shift for the widget's expanded reply.
+				this._sizeModel.clearUpwardShift();
+			}
+			this._layout = {
+				...session.layout,
+				offsetTop,
+				left: session.west ? session.left + session.width - width : session.left,
+				width,
+				height: session.vertical ? height : session.layout.height,
+				isChosenByUser: true
+			};
 		}
-		this._layout = {
-			offsetTop,
-			left: session.west ? session.left + session.width - width : session.left,
-			width,
-			height: session.vertical ? height : session.layout.height,
-			isChosenByUser: true
-		};
 		this._render();
 
 		if (e.done) {
@@ -1040,8 +1233,16 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 				this._sizeModel.resetGrowth();
 			}
 			this._storeLayout();
-			this._applySize();
-			this._render();
+			// The widgets that are placed or docked after this one start out at the size that the user chose, in the
+			// dimensions that the user changed.
+			const lastChosenSize = this._host.getLastChosenSize();
+			this._host.setLastChosenSize(this._isDocked
+				? { ...lastChosenSize, dockedHeight: session.vertical ? height : lastChosenSize.dockedHeight }
+				: { ...lastChosenSize, width: session.horizontal ? width : lastChosenSize.width, height: session.vertical ? height : lastChosenSize.height });
+			if (!this._updateDocking()) {
+				this._applySize();
+				this._render();
+			}
 		}
 	}
 

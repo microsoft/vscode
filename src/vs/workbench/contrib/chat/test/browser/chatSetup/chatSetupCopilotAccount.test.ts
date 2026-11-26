@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, raceTimeout, Sequencer } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, Sequencer, timeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -13,7 +13,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
+import { CopilotServiceKind, IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AuthenticateParams } from '../../../../../../platform/agentHost/common/agent.js';
 import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraEmuAudience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
@@ -66,6 +66,7 @@ suite('Microsoft Copilot resource setup UI', () => {
 		const available = observableValue('connectionAvailable', true);
 		let root: RootState | Error = { agents: [] };
 		const calls: string[] = [];
+		const events: string[] = [];
 		const deliveries: AuthenticateParams[] = [];
 		const account = { id: 'opaque-account', label: 'Microsoft Account' };
 		const state = {
@@ -81,6 +82,9 @@ suite('Microsoft Copilot resource setup UI', () => {
 			consentError: undefined as Error | undefined, finishDiscoveryOnCredential: false, progress: false,
 			cancelProgress: undefined as (() => void) | undefined,
 			picks: [] as (readonly IQuickPickItem[])[],
+			defaultAccount: null as IDefaultAccount | null, accountKept: true, remembered: [] as { id: string; service: CopilotServiceKind }[], forgotten: 0, started: 0, deliveredBeforeInstall: undefined as number | undefined,
+			/** While set, the remembered account is stored at once but the update that follows it does not finish. */
+			rememberPending: undefined as DeferredPromise<void> | undefined,
 		};
 		const publish = (resources: readonly ProtectedResourceMetadata[]) => {
 			root = { agents: [{ provider: 'different-advertised-copilot-id', displayName: 'Agent', description: '', models: [], protectedResources: [...resources] }] };
@@ -94,13 +98,15 @@ suite('Microsoft Copilot resource setup UI', () => {
 		const retryShown = new DeferredPromise<void>();
 		const challengeAnswered = new DeferredPromise<void>();
 		const consentFailed = new DeferredPromise<void>();
+		const rememberStarted = new DeferredPromise<void>();
 		const isRefused = (scopes: readonly string[]) => !!state.refused?.scopes_supported?.every(scope => scopes.includes(scope));
 		const host = upcastPartial<IAgentHostService>({
 			connectionAvailable: available, rootState: subscription, onAgentHostExit: exited.event, onDidNotification: notifications.event,
-			startAgentHost() { },
+			startAgentHost() { state.started++; },
 			authenticate: async request => {
 				deliveries.push(request);
 				if (!request.token) {
+					events.push(`empty token for ${request.resource === discovery.resource ? 'discovery' : request.resource}`);
 					publish([unrelated, discovery]);
 					return { authenticated: true };
 				}
@@ -171,9 +177,19 @@ suite('Microsoft Copilot resource setup UI', () => {
 				}
 			}
 		});
-		instantiation.stub(IExtensionsWorkbenchService, { local: [], install: async () => { calls.push('install'); return undefined!; } });
+		instantiation.stub(IExtensionsWorkbenchService, { local: [], install: async () => { calls.push('install'); state.deliveredBeforeInstall = deliveries.length; return undefined!; } });
 		instantiation.stub(ILifecycleService, { willShutdown: false });
-		instantiation.stub(IDefaultAccountService, { getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }) });
+		instantiation.stub(IDefaultAccountService, {
+			getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }),
+			get currentDefaultAccount() { return state.defaultAccount; },
+			rememberMicrosoftAccount: async (remembered, service) => {
+				state.remembered.push({ id: remembered.id, service });
+				state.defaultAccount = state.accountKept ? { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, sessionId: 'microsoft-session', accountName: remembered.label, enterprise: false } : null;
+				void rememberStarted.complete();
+				await state.rememberPending?.p;
+			},
+			forgetMicrosoftAccount: async () => { await timeout(0); events.push('forgotten'); state.forgotten++; state.defaultAccount = null; },
+		});
 		instantiation.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
 		instantiation.stub(IWorkspaceTrustRequestService, { requestWorkspaceTrust: async () => true });
 		instantiation.stub(IDialogService, {
@@ -225,7 +241,7 @@ suite('Microsoft Copilot resource setup UI', () => {
 		const runner = instantiation.createInstance(ChatSetup, context, new Lazy(() => controller));
 		const run = (cancellationToken?: CancellationTokenSource['token']) => runner.run({ setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider, disableChatViewReveal: true, cancellationToken });
 		return {
-			host, publish, available, state, calls, deliveries, context, configuration, controller, requests, instantiation, run, account, credential, signInStarted, discoveryDelivered, activationStarted, notifications, retryShown, challengeAnswered, consentFailed,
+			host, publish, events, failRootState: () => { root = new Error('The agent host state is unavailable.'); }, available, state, calls, deliveries, context, configuration, controller, requests, instantiation, run, account, credential, signInStarted, discoveryDelivered, activationStarted, notifications, retryShown, challengeAnswered, consentFailed, rememberStarted,
 			disconnect: () => { available.set(false, undefined); exited.fire(0); }
 		};
 	}
@@ -539,15 +555,27 @@ suite('Microsoft Copilot resource setup UI', () => {
 			assert.deepStrictEqual({
 				success: result.success, completed: f.context.state.completed, calls: f.calls,
 				choices: f.state.picks.map(items => items.map(item => item.label)), delivered: f.deliveries,
+				remembered: f.state.remembered,
 			}, {
 				success: true, completed: true, calls: ['signIn', 'install'], choices: [['GitHub Copilot', 'Microsoft 365 Copilot']],
 				delivered: [discovery, services[pick]].map(resource => ({
 					resource: resource.resource, scopes: resource.scopes_supported, token: 'synthetic', expiresIn: 120,
 					accountId: '["microsoft","opaque-account",null]',
 				})),
+				remembered: [{ id: f.account.id, service: pick === 0 ? 'github' : 'm365' }],
 			});
 		});
 	}
+
+	test('setup sends no credential of its own for a challenge once the host names the services', async () => {
+		const f = fixture();
+		f.state.pick = 1;
+		f.state.challenge = requirement;
+		const result = await f.run();
+		assert.deepStrictEqual({ success: result.success, answered: f.challengeAnswered.isResolved, delivered: f.deliveries.map(request => request.resource) }, {
+			success: true, answered: false, delivered: [discovery.resource, services[1].resource],
+		});
+	});
 
 	test('waits for resource publication after the accepted discovery response', async () => {
 		const f = fixture();
@@ -731,7 +759,100 @@ suite('Microsoft Copilot resource setup UI', () => {
 			}
 		}
 		assert.deepStrictEqual(observed, [false, true].flatMap(enabled => ['github', 'github-enterprise', 'google', 'apple', ...(!enabled ? ['microsoft'] : [])].map(provider => ({
-			enabled, provider, result: true, calls: [provider, 'install'], delivered: [],
+			enabled, provider, result: true, calls: [provider, 'install'], delivered: enabled ? [{ resource: discovery.resource, scopes: discovery.scopes_supported, token: '' }] : [],
 		}))));
+	});
+
+	test('a setup that is not the Microsoft one tells an advertised discovery requirement to leave the account before install', async () => {
+		const outcomes = [];
+		for (const condition of ['setting off', 'advertised', 'not advertised', 'no state', 'no connection', 'window on Microsoft'] as const) {
+			const f = fixture();
+			await f.configuration.setUserConfiguration(AgentHostCopilotM365EnabledSettingId, condition !== 'setting off');
+			if (condition === 'window on Microsoft') {
+				f.state.defaultAccount = { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, sessionId: 'microsoft-session', accountName: 'Microsoft', enterprise: false };
+			}
+			if (condition === 'not advertised') {
+				f.publish([unrelated]);
+			} else if (condition === 'no state') {
+				f.failRootState();
+			} else if (condition === 'no connection') {
+				f.available.set(false, undefined);
+			}
+			f.requests.signIn = async () => ({ defaultAccount: { sessionId: 'chosen', accountName: 'GitHub', authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false }, enterprise: false }, entitlements: { entitlement: ChatEntitlement.Pro } });
+			const result = await f.controller.setupWithProvider({});
+			outcomes.push({ condition, result, delivered: f.deliveries.map(request => request.token), beforeInstall: f.state.deliveredBeforeInstall, started: f.state.started });
+		}
+		assert.deepStrictEqual(outcomes, [
+			{ condition: 'setting off', result: true, delivered: [], beforeInstall: 0, started: 0 },
+			{ condition: 'advertised', result: true, delivered: [''], beforeInstall: 1, started: 0 },
+			{ condition: 'not advertised', result: true, delivered: [], beforeInstall: 0, started: 0 },
+			{ condition: 'no state', result: true, delivered: [], beforeInstall: 0, started: 0 },
+			{ condition: 'no connection', result: true, delivered: [], beforeInstall: 0, started: 0 },
+			{ condition: 'window on Microsoft', result: true, delivered: [], beforeInstall: 0, started: 0 },
+		]);
+	});
+
+	test('a failure telling the host to leave the Microsoft account does not fail a setup that is not the Microsoft one', async () => {
+		const f = fixture();
+		f.requests.signIn = async () => ({ defaultAccount: { sessionId: 'chosen', accountName: 'GitHub', authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false }, enterprise: false }, entitlements: { entitlement: ChatEntitlement.Pro } });
+		(f.host as { authenticate: unknown }).authenticate = async () => { throw new Error('unreachable'); };
+		const result = await f.controller.setupWithProvider({});
+		assert.deepStrictEqual({ result, calls: f.calls }, { result: true, calls: ['install'] });
+	});
+
+	test('Microsoft setup remembers its account before it completes', async () => {
+		const f = fixture();
+		f.state.sessions = [f.credential(['User.Read'])];
+		f.state.offered = [services[0]];
+		const result = await f.run();
+		assert.deepStrictEqual({ success: result.success, remembered: f.state.remembered, forgotten: f.state.forgotten }, { success: true, remembered: [{ id: f.account.id, service: 'github' }], forgotten: 0 });
+	});
+
+	/** The continuation after a pending remember outlives the setup that started it, so these tests let it run to its end with a timer before asserting. */
+	for (const alreadyOnAccount of [false, true]) {
+		test(`a setup abandoned while its account is being remembered ${alreadyOnAccount ? 'does not forget an account the window was already on' : 'forgets that account'}`, async () => {
+			const f = fixture();
+			f.state.sessions = [f.credential(['User.Read'])];
+			f.state.offered = [services[0]];
+			f.state.rememberPending = new DeferredPromise<void>();
+			if (alreadyOnAccount) {
+				f.state.defaultAccount = { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, sessionId: 'microsoft-session', accountName: f.account.label, enterprise: false };
+			}
+			const pending = f.run();
+			await f.rememberStarted.p;
+			f.notifications.fire({ type: NotificationType.AuthRequired, channel: ROOT_STATE_URI, resource: discovery, reason: AuthRequiredReason.Required });
+			const result = await pending;
+			await f.state.rememberPending.complete();
+			await timeout(10);
+			assert.deepStrictEqual({ success: result.success, forgotten: f.state.forgotten, remembered: f.state.defaultAccount?.accountName }, {
+				success: false, forgotten: alreadyOnAccount ? 0 : 1, remembered: alreadyOnAccount ? f.account.label : undefined,
+			});
+		});
+	}
+
+	test('a setup cancelled while its account is being remembered does not succeed and forgets that account', async () => {
+		const f = fixture();
+		f.state.sessions = [f.credential(['User.Read'])];
+		f.state.offered = [services[0]];
+		f.state.rememberPending = new DeferredPromise<void>();
+		const cancellation = store.add(new CancellationTokenSource());
+		const pending = f.run(cancellation.token);
+		await f.rememberStarted.p;
+		cancellation.cancel();
+		await f.state.rememberPending.complete();
+		const result = await pending;
+		await timeout(10);
+		assert.deepStrictEqual({ succeeded: result?.success === true, forgotten: f.state.forgotten, remembered: f.state.defaultAccount?.accountName, order: f.events }, {
+			succeeded: false, forgotten: 1, remembered: undefined, order: ['forgotten', 'empty token for discovery'],
+		});
+	});
+
+	test('Microsoft setup does not complete when this window did not adopt the Microsoft account', async () => {
+		const f = fixture();
+		f.state.sessions = [f.credential(['User.Read'])];
+		f.state.offered = [services[0]];
+		f.state.accountKept = false;
+		const result = await f.run();
+		assert.deepStrictEqual({ success: result.success, calls: f.calls, remembered: f.state.remembered, forgotten: f.state.forgotten }, { success: false, calls: ['install', 'retry'], remembered: [{ id: f.account.id, service: 'github' }], forgotten: 1 });
 	});
 });

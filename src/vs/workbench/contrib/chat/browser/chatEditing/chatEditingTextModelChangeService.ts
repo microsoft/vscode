@@ -8,7 +8,7 @@ import { assert } from '../../../../../base/common/assert.js';
 import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -86,10 +86,15 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	private _diffOperationIds: number = 0;
 
 	private readonly _diffInfo = observableValue<IDocumentDiff>(this, nullDocumentDiff);
-	public get diffInfo() {
-		return this._diffInfo.map(value => {
+	private readonly _diffOriginalVersionId = observableValue<number | undefined>(this, undefined);
+	private readonly _diffModifiedVersionId = observableValue<number | undefined>(this, undefined);
+	public get diffInfo(): IObservable<IDocumentDiff2> {
+		return derived(r => {
+			const value = this._diffInfo.read(r);
+			const modifiedVersionId = this._diffModifiedVersionId.read(r);
 			return {
 				...value,
+				modifiedVersionId,
 				originalModel: this.originalModel,
 				modifiedModel: this.modifiedModel,
 				keep: changes => this._keepHunk(changes),
@@ -337,7 +342,11 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 	private _reset() {
 		this._originalToModifiedEdit = StringEdit.empty;
-		this._diffInfo.set(nullDocumentDiff, undefined);
+		transaction(tx => {
+			this._diffInfo.set(nullDocumentDiff, tx);
+			this._diffOriginalVersionId.set(undefined, tx);
+			this._diffModifiedVersionId.set(undefined, tx);
+		});
 		this._didUserEditModelFired = false;
 	}
 
@@ -410,9 +419,14 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}
 	}
 
+	private _isDiffCurrent(change: DetailedLineRangeMapping): boolean {
+		return this._diffInfo.get().changes.includes(change)
+			&& this._diffOriginalVersionId.get() === this.originalModel.getVersionId()
+			&& this._diffModifiedVersionId.get() === this.modifiedModel.getVersionId();
+	}
+
 	private async _keepHunk(change: DetailedLineRangeMapping): Promise<boolean> {
-		if (!this._diffInfo.get().changes.includes(change)) {
-			// diffInfo should have model version ids and check them (instead of the caller doing that)
+		if (!this._isDiffCurrent(change)) {
 			return false;
 		}
 		const edits: ISingleEditOperation[] = [];
@@ -430,7 +444,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 	private async _undoHunk(change: DetailedLineRangeMapping): Promise<boolean> {
-		if (!this._diffInfo.get().changes.includes(change)) {
+		if (!this._isDiffCurrent(change)) {
 			return false;
 		}
 		const edits: ISingleEditOperation[] = [];
@@ -491,7 +505,11 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}
 
 		if (this.state.get() !== ModifiedFileEntryState.Modified) {
-			this._diffInfo.set(nullDocumentDiff, undefined);
+			transaction(tx => {
+				this._diffInfo.set(nullDocumentDiff, tx);
+				this._diffOriginalVersionId.set(undefined, tx);
+				this._diffModifiedVersionId.set(undefined, tx);
+			});
 			this._originalToModifiedEdit = StringEdit.empty;
 			return nullDocumentDiff;
 		}
@@ -517,7 +535,11 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		// only update the diff if the documents didn't change in the meantime
 		if (this.modifiedModel.getVersionId() === docVersionNow && this.originalModel.getVersionId() === snapshotVersionNow) {
 			const diff2 = diff ?? nullDocumentDiff;
-			this._diffInfo.set(diff2, undefined);
+			transaction(tx => {
+				this._diffInfo.set(diff2, tx);
+				this._diffOriginalVersionId.set(snapshotVersionNow, tx);
+				this._diffModifiedVersionId.set(docVersionNow, tx);
+			});
 			this._originalToModifiedEdit = offsetEditFromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
 			return diff2;
 		}

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey, ISCMRepositorySelectionMode } from '../common/scm.js';
+import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey, ISCMRepositorySelectionMode, ISCMRepositoryNotice } from '../common/scm.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { SCMMenus } from './menus.js';
@@ -134,16 +134,15 @@ export class SCMViewService implements ISCMViewService {
 	readonly selectionModeConfig: IObservable<ISCMRepositorySelectionMode>;
 	readonly graphShowIncomingChangesConfig: IObservable<boolean>;
 	readonly graphShowOutgoingChangesConfig: IObservable<boolean>;
+	readonly showStructuralDiff: IObservable<boolean>;
+	/** The user's choice from the View & Sort menu, which is only shown while `scm.structuralDiff.enabled` is set. */
+	private readonly showStructuralDiffChoice: ISettableObservable<boolean>;
 
 	private didSelectRepository: boolean = false;
 	private previousState: ISCMViewServiceState | undefined;
 	private readonly disposables = new DisposableStore();
 
-	/** The views of the repositories whose provider is not hidden. */
 	private _repositories: ISCMRepositoryView[] = [];
-
-	/** Follow the providers hiding and showing again while they are registered. */
-	private readonly hiddenListeners = new DisposableMap<ISCMRepository>();
 
 	get repositories(): ISCMRepository[] {
 		return this._repositories.map(r => r.repository);
@@ -273,6 +272,14 @@ export class SCMViewService implements ISCMViewService {
 			return explorerEnabledConfig.read(reader) === true && this.selectionModeConfig.read(reader) === ISCMRepositorySelectionMode.Single;
 		});
 
+		this.showStructuralDiffChoice = observableValue(this, this.getShowStructuralDiffChoice());
+		const structuralDiffEnabled = observableConfigValue<boolean>('scm.structuralDiff.enabled', false, this.configurationService);
+		this.showStructuralDiff = derived(this, reader => structuralDiffEnabled.read(reader) === true && this.showStructuralDiffChoice.read(reader));
+		// Another window of the workspace can change the choice.
+		this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'scm.showStructuralDiff', this.disposables)(() => {
+			this.showStructuralDiffChoice.set(this.getShowStructuralDiffChoice(), undefined);
+		}, this, this.disposables);
+
 		try {
 			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
 
@@ -376,25 +383,6 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		this.hiddenListeners.set(repository, autorun(reader => {
-			if (repository.provider.isHidden.read(reader)) {
-				this.removeRepositoryView(repository);
-			} else {
-				this.addRepositoryView(repository);
-			}
-		}));
-	}
-
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.hiddenListeners.deleteAndDispose(repository);
-		this.removeRepositoryView(repository);
-	}
-
-	private addRepositoryView(repository: ISCMRepository): void {
-		if (this._repositories.some(r => r.repository === repository)) {
-			return;
-		}
-
 		if (!this.didFinishLoadingRepositories.get()) {
 			this.eventuallyFinishLoading();
 		}
@@ -482,7 +470,35 @@ export class SCMViewService implements ISCMViewService {
 		}
 	}
 
-	private removeRepositoryView(repository: ISCMRepository): void {
+	private readonly repositoryNotices = new Map<ISCMRepository, ISettableObservable<ISCMRepositoryNotice | undefined>>();
+
+	private getRepositoryNoticeObservable(repository: ISCMRepository): ISettableObservable<ISCMRepositoryNotice | undefined> {
+		let notice = this.repositoryNotices.get(repository);
+		if (!notice) {
+			notice = observableValue<ISCMRepositoryNotice | undefined>(this, undefined);
+			this.repositoryNotices.set(repository, notice);
+		}
+		return notice;
+	}
+
+	getRepositoryNotice(repository: ISCMRepository): IObservable<ISCMRepositoryNotice | undefined> {
+		return this.getRepositoryNoticeObservable(repository);
+	}
+
+	setRepositoryNotice(repository: ISCMRepository, notice: ISCMRepositoryNotice): IDisposable {
+		const observable = this.getRepositoryNoticeObservable(repository);
+		observable.set(notice, undefined);
+		return toDisposable(() => {
+			if (observable.get() === notice) {
+				observable.set(undefined, undefined);
+			}
+		});
+	}
+
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.repositoryNotices.get(repository)?.set(undefined, undefined);
+		this.repositoryNotices.delete(repository);
+
 		if (!this.didFinishLoadingRepositories.get()) {
 			this.eventuallyFinishLoading();
 		}
@@ -576,6 +592,16 @@ export class SCMViewService implements ISCMViewService {
 		this._activeRepositoryPinnedObs.set(repository, undefined);
 	}
 
+	setShowStructuralDiff(show: boolean): void {
+		this.storageService.store('scm.showStructuralDiff', show, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.showStructuralDiffChoice.set(show, undefined);
+	}
+
+	/** Structural changes are shown by default once `scm.structuralDiff.enabled` is set, unless the user hid them in this workspace. */
+	private getShowStructuralDiffChoice(): boolean {
+		return this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, true);
+	}
+
 	private compareRepositories(op1: ISCMRepositoryView, op2: ISCMRepositoryView): number {
 		// Sort by discovery time
 		if (this._repositoriesSortKey === ISCMRepositorySortKey.DiscoveryTime) {
@@ -661,7 +687,6 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	dispose(): void {
-		this.hiddenListeners.dispose();
 		this.disposables.dispose();
 		this._onDidFocusRepository.dispose();
 		this._onDidChangeRepositories.dispose();

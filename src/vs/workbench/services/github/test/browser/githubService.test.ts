@@ -276,6 +276,13 @@ suite('Workbench GitHub service', () => {
 		await assert.rejects(service.acquireDefaultAccountClient(cancellationToken()), { kind: 'authentication' });
 	});
 
+	test('a Microsoft default account is never used as a GitHub account', async () => {
+		const { service, state, calls } = setup();
+		state.account = { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, accountName: 'alice', sessionId: 'session', enterprise: false };
+		const error = await service.acquireDefaultAccountClient(cancellationToken()).then(() => undefined, (e: Error & { kind?: string }) => e);
+		assert.deepStrictEqual({ kind: error?.kind, message: error?.message, calls }, { kind: 'authentication', message: 'Sign in to GitHub to load GitHub data.', calls: [] });
+	});
+
 	test('acquires a client when the default account is first restored during startup', async () => {
 		const { service, state, defaultChanged } = setup();
 		const account = state.account;

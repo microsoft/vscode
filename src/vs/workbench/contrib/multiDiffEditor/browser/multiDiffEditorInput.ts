@@ -281,6 +281,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				original: r.originalUri ? new DiffItemSource(r.originalUri, original?.object.textEditorModel) : undefined,
 				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, modified?.object.textEditorModel) : undefined,
 				contextKeys: r.contextKeys,
+				key: r.key,
 				get options() {
 					return {
 						...getReadonlyConfiguration(modified?.object.isReadonly() ?? true),

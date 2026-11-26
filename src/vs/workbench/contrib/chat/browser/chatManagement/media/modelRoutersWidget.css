@@ -1,0 +1,216 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.model-routers-widget {
+	padding-right: var(--vscode-spacing-size240);
+}
+
+.model-routers-widget .model-routers-description {
+	margin: 0 0 var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.4;
+}
+
+/** Search and add button **/
+
+.model-routers-widget .model-routers-search-and-button-container {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.model-routers-widget .model-routers-search-container {
+	flex: 1;
+}
+
+.model-routers-widget .model-routers-search-container .monaco-inputbox {
+	width: 100%;
+}
+
+.model-routers-widget .model-routers-add-button {
+	width: auto;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	white-space: nowrap;
+}
+
+/** Routers and their routes **/
+
+.model-routers-widget .model-router-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	height: 100%;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	cursor: pointer;
+}
+
+.model-routers-widget .model-router-row-text {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.model-routers-widget .model-router-row-label,
+.model-routers-widget .model-router-row-detail {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-routers-widget .model-router-row-label {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 18px;
+}
+
+.model-routers-widget .model-router-route-row .model-router-row-label {
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.model-routers-widget .model-router-row-detail {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 14px;
+}
+
+.model-routers-widget .model-router-row.has-warning .model-router-row-detail {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.model-routers-widget .monaco-list-row:is(.selected, .focused) .model-router-row-detail {
+	color: inherit;
+}
+
+.model-routers-widget .model-router-row-actions {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.model-routers-widget .model-router-switching-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	white-space: nowrap;
+}
+
+.model-routers-widget .model-router-switching-label.disabled {
+	opacity: 0.6;
+}
+
+.model-routers-widget .monaco-list-row:is(.selected, .focused) .model-router-switching-label {
+	color: inherit;
+}
+
+/** Nothing to list **/
+
+.model-routers-widget .model-routers-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size320) var(--vscode-spacing-size240);
+	text-align: center;
+}
+
+.model-routers-widget .model-routers-empty-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-routers-widget .model-routers-empty-detail {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+/** The form for a new router: a centred column, which scrolls when it is taller than the page **/
+
+.model-routers-widget .model-routers-form-page {
+	overflow-y: auto;
+}
+
+.model-routers-widget .model-router-form {
+	max-width: 840px;
+	margin-inline: auto;
+	padding-bottom: var(--vscode-spacing-size160);
+	box-sizing: border-box;
+}
+
+.model-routers-widget .model-router-form-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-routers-widget .model-router-form-intro {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.4;
+}
+
+.model-routers-widget .model-router-form-routes {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+/* A route is a group of its own: what it runs on, when it is used, and how its work is done. */
+.model-routers-widget .model-router-form-route {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.model-routers-widget .model-router-form-route-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.model-routers-widget .model-router-form-route-title {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-routers-widget .model-router-form-route-note {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.model-routers-widget .model-router-form-route-actions {
+	margin-left: auto;
+}
+
+.model-routers-widget .model-router-form-route-settings {
+	display: grid;
+	grid-template-columns: minmax(0, 3fr) minmax(0, 4fr) minmax(0, 2fr) minmax(0, 2fr);
+	gap: var(--vscode-spacing-size80);
+}
+
+.model-routers-widget .model-router-form-route-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.model-routers-widget .model-router-form-route-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.model-routers-widget .model-router-form-route-select .monaco-select-box {
+	width: 100%;
+	min-height: 26px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size240) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+}
