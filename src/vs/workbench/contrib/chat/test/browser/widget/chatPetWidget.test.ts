@@ -3450,9 +3450,8 @@ suite('ChatPetWidget', () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 		disposables.add(toDisposable(() => clock.restore()));
 		const { widget, firstHost, overlay, firstParent, root, layout } = createHostTransitionHarness(true);
-		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		const tools = Array.from({ length: 100 }, (_, index) => createSubagentTool(`subagent-${index}`));
-		widget.setHost({ ...firstHost, transition: undefined, model: constObservable(createSubagentTestModel(tools, changed.event)) });
+		widget.setHost({ ...firstHost, transition: undefined, model: constObservable(createSubagentTestModel(tools)) });
 		const subagentPets = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
 		const initialSize = subagentPets[0].getBoundingClientRect().width;
 		assert.ok(Math.abs(initialSize - 24) < 0.1);
