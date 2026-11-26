@@ -17,7 +17,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { GoFilter, GoScope, IHistoryService } from '../../common/history.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { EditorPaneSelectionChangeReason, isResourceEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorCloseContext, EditorPaneSelectionChangeReason, EditorsOrder, isResourceEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
 import { IResourceEditorInput, ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IResolvedTextFileEditorModel, ITextFileService } from '../../../textfile/common/textfiles.js';
@@ -826,21 +826,9 @@ suite('HistoryService', function () {
 		}
 
 		/**
-		 * Closes all editors by applying a working set: one that switches the editors, as on a folder location switch, or another one.
+		 * Closes all editors like the switch of the editors of a folder location switch does.
 		 */
-		async function closeAllByWorkingSet(part: EditorPart, options: { switchesEditors: boolean }): Promise<void> {
-			const applying = part as unknown as { isApplyingWorkingSet: boolean; isSwitchingEditors: boolean }; // the test editor part implements the editor groups service
-			applying.isApplyingWorkingSet = true;
-			applying.isSwitchingEditors = options.switchesEditors;
-			try {
-				await part.activeGroup.closeAllEditors();
-			} finally {
-				applying.isApplyingWorkingSet = false;
-				applying.isSwitchingEditors = false;
-			}
-		}
-
-		const closeAllBySwitch = (part: EditorPart) => closeAllByWorkingSet(part, { switchesEditors: true });
+		const closeAllBySwitch = (part: EditorPart) => part.activeGroup.closeAllEditors({ context: EditorCloseContext.SWITCH });
 
 		/**
 		 * Reopens the last closed editors twice and returns the editors that are open then.
@@ -878,14 +866,43 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
-		test('editors that another working set closes after a folder location switch are recently closed', async () => {
+		test('a user close while the editors of a switch are pending is recently closed', async () => {
+			const { contextService, historyService, instantiationService, part, open } = await createFolderServices(folder);
+
+			await open('/outside.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await open('/worktree/c.txt');
+
+			// The apply of the switch is still pending, for example while its editors restore
+			const pending = part as unknown as { isApplyingWorkingSet: boolean; isSwitchingEditors: boolean }; // the test editor part implements the editor groups service
+			pending.isApplyingWorkingSet = true;
+			pending.isSwitchingEditors = true;
+			try {
+				await part.activeGroup.closeEditor(part.activeGroup.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.resource?.path === '/worktree/c.txt'));
+				await closeAllBySwitch(part);
+			} finally {
+				pending.isApplyingWorkingSet = false;
+				pending.isSwitchingEditors = false;
+			}
+
+			assert.deepStrictEqual(await reopenTwice(historyService, part), ['/worktree/c.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('an editor of the folder that was left, opened and closed at the new location, is recently closed there', async () => {
 			const { contextService, historyService, instantiationService, part, open } = await createFolderServices(folder);
 
 			contextService.setFolders([worktree], { isFolderLocationChange: true });
-			await open('/outside.txt');
-			await closeAllByWorkingSet(part, { switchesEditors: false });
+			await open('/repo/x.txt');
+			await part.activeGroup.closeAllEditors();
+			const atWorktree = await reopenTwice(historyService, part);
 
-			assert.deepStrictEqual(await reopenTwice(historyService, part), ['/outside.txt']);
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			await closeAllBySwitch(part);
+			const backAtFolder = await reopenTwice(historyService, part);
+
+			assert.deepStrictEqual({ atWorktree, backAtFolder }, { atWorktree: ['/repo/x.txt'], backAtFolder: [] });
 
 			return workbenchTeardown(instantiationService);
 		});
@@ -930,6 +947,22 @@ suite('HistoryService', function () {
 			contextService.setFolders([folder], { isFolderLocationChange: true });
 
 			assert.deepStrictEqual((await reopenTwice(historyService, part)).sort(), ['/repo/moved/b.txt', '/repo/renamed.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a location that was left with trailing separators moves its recently closed editors', async () => {
+			const { contextService, historyService, instantiationService, fileService, part, open } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			await part.activeGroup.closeAllEditors();
+
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/'), FileOperation.MOVE, stat('/renamed/', false)));
+
+			contextService.setFolders([URI.file('/renamed')], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(await reopenTwice(historyService, part), ['/renamed/a.txt']);
 
 			return workbenchTeardown(instantiationService);
 		});

@@ -80,31 +80,4 @@ suite('EditorParts - applying working set', () => {
 
 		assert.deepStrictEqual({ applying: parts.isApplyingWorkingSet, changes }, { applying: false, changes: [true, false] });
 	});
-
-	test('reports switching the editors only while an apply that switches them runs, also when it cannot be applied', async () => {
-		const parts = await createParts();
-
-		const pending: DeferredPromise<boolean>[] = [];
-		(parts as unknown as { doApplyWorkingSet(): Promise<boolean> }).doApplyWorkingSet = () => {
-			const deferred = new DeferredPromise<boolean>();
-			pending.push(deferred);
-			return deferred.p;
-		};
-
-		const other = parts.applyWorkingSet('empty');
-		const whileOtherApplies = parts.isSwitchingEditors;
-
-		const refused = parts.applyWorkingSet('empty', { switchesEditors: true });
-		const whileSwitching = parts.isSwitchingEditors;
-
-		await pending[0].complete(true);
-		await other;
-		const afterOther = parts.isSwitchingEditors;
-
-		await pending[1].complete(false);
-		await refused;
-		const afterRefused = parts.isSwitchingEditors;
-
-		assert.deepStrictEqual({ whileOtherApplies, whileSwitching, afterOther, afterRefused }, { whileOtherApplies: false, whileSwitching: true, afterOther: true, afterRefused: false });
-	});
 });

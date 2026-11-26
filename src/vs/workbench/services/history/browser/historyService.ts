@@ -704,12 +704,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		const { editor, context } = event;
-		if (context === EditorCloseContext.REPLACE || context === EditorCloseContext.MOVE) {
-			return; // ignore if editor was replaced or moved
-		}
-
-		if (this.editorGroupService.isSwitchingEditors || this.isInLeftFolder(editor)) {
-			return; // ignore editors that a switch of the editors closes (e.g. on a folder location switch), and editors of the folder it left
+		if (context === EditorCloseContext.REPLACE || context === EditorCloseContext.MOVE || context === EditorCloseContext.SWITCH) {
+			return; // ignore if editor was replaced, moved or switched out (e.g. on a folder location switch)
 		}
 
 		if (!editor.canReopen()) {
@@ -903,21 +899,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 	 * So Reopen Closed Editor only reopens editors closed at the current location.
 	 */
 	private swapRecentlyClosedEditors(removedFolders: readonly URI[], addedFolders: readonly URI[]): void {
-		const extUri = this.uriIdentityService.extUri;
-
 		for (const folder of removedFolders) {
-			const key = extUri.getComparisonKey(folder);
+			const key = this.toLocationKey(folder);
 			const entries = this.recentlyClosedEditors.filter(recentlyClosedEditor => recentlyClosedEditor.location === key);
 			this.recentlyClosedEditors = this.recentlyClosedEditors.filter(recentlyClosedEditor => recentlyClosedEditor.location !== key);
 
 			this.putAwayRecentlyClosedEditors.delete(key);
 			if (entries.length) {
-				this.putAwayRecentlyClosedEditors.set(key, { folder, entries });
+				this.putAwayRecentlyClosedEditors.set(key, { folder: this.uriIdentityService.extUri.removeTrailingPathSeparator(folder), entries });
 			}
 		}
 
 		for (const folder of addedFolders) {
-			const key = extUri.getComparisonKey(folder);
+			const key = this.toLocationKey(folder);
 			const putAway = this.putAwayRecentlyClosedEditors.get(key);
 			if (!putAway) {
 				continue;
@@ -959,12 +953,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return;
 		}
 
+		// A location is a folder: match it without trailing separators, so that a folder URI with one moves it too
 		const extUri = this.uriIdentityService.extUri;
+		const sourceFolder = extUri.removeTrailingPathSeparator(source);
+		const targetFolder = extUri.removeTrailingPathSeparator(target);
+
 		const moved = new Map<string, { readonly folder: URI; readonly entries: IRecentlyClosedEditor[] }>();
 		for (const [key, { folder, entries }] of this.putAwayRecentlyClosedEditors) {
 			const updated = coalesce(entries.map(entry => this.moveRecentlyClosedEditor(entry, source, target)));
-			const movedFolder = this.getMovedResource(folder, source, target);
-			const movedKey = movedFolder ? extUri.getComparisonKey(movedFolder) : key;
+			const movedFolder = this.getMovedResource(folder, sourceFolder, targetFolder);
+			const movedKey = movedFolder ? this.toLocationKey(movedFolder) : key;
 			const existing = moved.get(movedKey);
 			const merged = existing ? this.mergeRecentlyClosedEditors(existing.entries, updated) : updated;
 			if (merged.length) {
@@ -1004,7 +1002,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private getCurrentLocationKey(): string | undefined {
 		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders.at(0) : undefined;
 
-		return folder ? this.uriIdentityService.extUri.getComparisonKey(folder.uri) : undefined;
+		return folder ? this.toLocationKey(folder.uri) : undefined;
+	}
+
+	/**
+	 * The identity of a folder location: its comparison key without a trailing separator, which keeps the separator of a root.
+	 */
+	private toLocationKey(folder: URI): string {
+		const extUri = this.uriIdentityService.extUri;
+
+		return extUri.getComparisonKey(extUri.removeTrailingPathSeparator(folder));
 	}
 
 	//#endregion

@@ -9,7 +9,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -28,7 +28,7 @@ import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from '../
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { PART_GRID_CLASS } from '../../../../browser/parts/editor/partGridClass.js';
 import { EditorGroupLockActionsHiddenContext } from '../../../../common/contextkeys.js';
-import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorOpenContext, IEditorSerializer } from '../../../../common/editor.js';
+import { EditorCloseContext, EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorOpenContext, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -40,7 +40,7 @@ import { IUntitledTextEditorService } from '../../../untitled/common/untitledTex
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../layout/browser/layoutService.js';
-import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorPart, IEditorWorkingSet, IEditorWorkingSetOptions } from '../../common/editorGroupsService.js';
 
 /**
  * An editor part that is created by someone else than the editor parts
@@ -363,6 +363,31 @@ suite('Editor Parts', () => {
 		};
 
 		assert.deepStrictEqual({ preserved: await applyWith(true), notPreserved: await applyWith(false) }, { preserved: true, notPreserved: false });
+	});
+
+	test('applying a working set that switches the editors reports the switch as the context of their close events', async () => {
+		const { parts } = await createServices();
+		const mainPart = parts.testMainPart;
+		const workingSet = parts.saveWorkingSet('empty-main');
+
+		// Applying a working set recreates the groups: listen to the group that the apply closes the editors of
+		const closes: { path: string | undefined; context: EditorCloseContext }[] = [];
+		const listener = disposables.add(new MutableDisposable());
+		const openThenApply = async (path: string, workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions) => {
+			await mainPart.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file(path), 'testTypeId')), { pinned: true });
+			listener.value = mainPart.activeGroup.onDidCloseEditor(e => closes.push({ path: e.editor.resource?.path, context: e.context }));
+			await parts.applyWorkingSet(workingSet, options);
+		};
+
+		await openThenApply('/switched.txt', 'empty', { switchesEditors: true });
+		await openThenApply('/switched-again.txt', workingSet, { switchesEditors: true });
+		await openThenApply('/other.txt', 'empty');
+
+		assert.deepStrictEqual(closes, [
+			{ path: '/switched.txt', context: EditorCloseContext.SWITCH },
+			{ path: '/switched-again.txt', context: EditorCloseContext.SWITCH },
+			{ path: '/other.txt', context: EditorCloseContext.UNKNOWN }
+		]);
 	});
 
 	test('applying a working set with preserved focus moves the focus of an editor to the new active editor and leaves other focus alone', async () => {

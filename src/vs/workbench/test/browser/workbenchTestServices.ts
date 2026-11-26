@@ -950,7 +950,6 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	readonly isApplyingWorkingSet = false;
 	readonly onDidChangeApplyingWorkingSet = Event.None;
-	readonly isSwitchingEditors = false;
 	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
 	getGroups(_order?: GroupsOrder): readonly IEditorGroup[] { return this.groups; }
@@ -1772,7 +1771,6 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	readonly isApplyingWorkingSet = false;
 	readonly onDidChangeApplyingWorkingSet = Event.None;
-	readonly isSwitchingEditors = false;
 	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
 
