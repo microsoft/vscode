@@ -135,6 +135,7 @@ class Editor extends Disposable {
 	#navigationRevision = 0;
 	#navigationReady = false;
 	#navigationReportScheduled = false;
+	#pendingPaste = false;
 	readonly #scrollHost: HTMLElement;
 
 	readonly #comments = new CommentsModel();
@@ -613,7 +614,14 @@ class Editor extends Disposable {
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
 		this.#controller = this._register(new EditorController(model, view, {
-			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, this.#versions)),
+			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, this.#versions, navigator.clipboard, insert => {
+				this.#pendingPaste = true;
+				try {
+					insert();
+				} finally {
+					this.#pendingPaste = false;
+				}
+			})),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {
@@ -621,6 +629,16 @@ class Editor extends Disposable {
 				redo: () => this.#send('history redo', this.#host.history({ command: 'redo' })),
 			},
 		}));
+		const onPointerDown = (): void => {
+			const sel = this.model.selection.read(undefined);
+			this.#send('undoEditHint', this.#host.undoEditHint({
+				kind: 'break',
+				version: this.#versions.current,
+				offset: sel?.active,
+			}));
+		};
+		view.element.addEventListener('pointerdown', onPointerDown);
+		this._register({ dispose: () => view.element.removeEventListener('pointerdown', onPointerDown) });
 		let lastEditorFocus: boolean | undefined;
 		const postEditorFocus = (): void => {
 			const focused = document.hasFocus() && document.activeElement === view.element;
@@ -732,10 +750,28 @@ class Editor extends Disposable {
 		window.addEventListener('pagehide', saveScroll);
 		this._register({ dispose: () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', saveScroll); } });
 
+		// Track the last seen text and selection so we can distinguish pure
+		// caret navigation from typing-induced caret movement and report
+		// deletion direction (Backspace vs Delete) for undo grouping.
+		let previousText = this.model.sourceText.get().value;
+		let previousSelection = this.model.selection.get();
+
 		// Persist the cursor whenever it moves.
 		this._register(autorun((reader) => {
 			const sel = reader.readObservable(this.model.selection);
 			this.#patchViewState({ selection: sel ? { anchor: sel.anchor, active: sel.active } : undefined });
+			const currentText = this.model.sourceText.read(undefined).value;
+			if (currentText === previousText) {
+				if (!this.isUpdatingFromExtension && sel && previousSelection
+					&& (sel.anchor !== previousSelection.anchor || sel.active !== previousSelection.active)) {
+					this.#send('undoEditHint', this.#host.undoEditHint({
+						kind: 'break',
+						version: this.#versions.current,
+						offset: sel.active,
+					}));
+				}
+				previousSelection = sel;
+			}
 			this.#scheduleSelectionReport();
 		}));
 
@@ -761,7 +797,6 @@ class Editor extends Disposable {
 		// read-only, so this is a no-op in that mode; keeping it always registered
 		// means unlocking a read-only editor immediately resumes edit forwarding.
 		// Until the host's content arrives, edits are kept and merged with it then.
-		let previousText = this.model.sourceText.get().value;
 		this._register(autorun((reader) => {
 			const text = reader.readObservable(this.model.sourceText).value;
 			if (text !== previousText) {
@@ -770,6 +805,26 @@ class Editor extends Disposable {
 			}
 			if (!this.isUpdatingFromExtension && text !== previousText && this.#initialText === undefined) {
 				const edit = computeTextEdit(previousText, text);
+				const version = this.#versions.current;
+				if (this.#pendingPaste) {
+					this.#send('undoEditHint', this.#host.undoEditHint({
+						kind: 'isolated',
+						version,
+						offset: edit.start,
+						length: edit.text.length,
+					}));
+				} else if (edit.text.length === 0 && edit.endExclusive > edit.start && previousSelection) {
+					const deletedLength = edit.endExclusive - edit.start;
+					if (previousSelection.anchor !== previousSelection.active) {
+						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'isolated' }));
+					} else if (edit.endExclusive === previousSelection.active) {
+						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'deleteBackward', version, offset: edit.start, length: deletedLength }));
+					} else if (edit.start === previousSelection.active) {
+						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'deleteForward', version, offset: edit.start, length: deletedLength }));
+					} else {
+						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'isolated' }));
+					}
+				}
 				this.#content.applyEdits([{
 					kind: 'stringEdits',
 					path: [],
@@ -777,6 +832,7 @@ class Editor extends Disposable {
 				}]);
 			}
 			previousText = text;
+			previousSelection = this.model.selection.read(undefined);
 		}));
 
 		// Restore scroll last: content height settles over a few frames (async parse,

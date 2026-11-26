@@ -24,6 +24,7 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 		readonly host: Pick<MarkdownEditorHost, 'pasteImages'>,
 		readonly versions: EditorTextVersions,
 		readonly clipboard: Clipboard = navigator.clipboard,
+		readonly onWillPasteText?: (action: () => void) => void,
 	) {
 		super();
 		this.#strategy = new AsyncClipboardStrategy(clipboard, (context, plainText, nativeData?: NativeClipboardData) => this.#paste(context, async () => {
@@ -102,7 +103,14 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 			}
 			this.#status.hidden = true;
 			if (!images.length) {
-				if (text) { context.insertText(text, plainText); }
+				if (text) {
+					const insert = (): void => context.insertText(text, plainText);
+					if (this.onWillPasteText) {
+						this.onWillPasteText(insert);
+					} else {
+						insert();
+					}
+				}
 				return;
 			}
 			this.#status.textContent = 'Pasting media...';

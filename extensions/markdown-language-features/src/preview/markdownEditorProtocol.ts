@@ -130,9 +130,17 @@ const runtime = z.object({ runtimeId: z.string() });
 // The nested editor owns its protocol. Only its routing and lifetime belong to this bridge.
 const runtimeMessage = z.extend(runtime, { message: z.unknown() });
 
+const undoEditHint = z.object({
+	kind: z.enum(['break', 'isolated', 'deleteBackward', 'deleteForward']),
+	version: z.optional(version),
+	offset: z.optional(offset),
+	length: z.optional(offset),
+});
+
 export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }, {
 	ready: requestType(z.object({}), z.void()),
 	history: requestType(z.object({ command: z.enum(['undo', 'redo']) }), z.void()),
+	undoEditHint: notificationType(undoEditHint),
 	openLink: requestType(z.object({ href: z.string() }), z.void()),
 	setReadonly: requestType(z.object({ readonly: z.boolean() }), z.void()),
 	editorFocusChanged: requestType(z.object({ focused: z.boolean() }), z.void()),
@@ -200,4 +208,6 @@ export type RichLinkPresentationUpdate = z.infer<typeof richLinkPresentationUpda
 export type RichLinkSubscriptions = z.infer<typeof richLinkSubscriptions>;
 export type MarkdownDiagnostic = z.infer<typeof diagnostic>;
 export type MarkdownCompletion = z.infer<typeof completion>;
+export type UndoEditHintMessage = z.infer<typeof undoEditHint>;
+export type UndoEditHint = UndoEditHintMessage['kind'];
 export type MarkdownNavigationState = z.infer<typeof navigationState>;

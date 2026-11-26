@@ -16,7 +16,8 @@
     "externalUriOpener",
     "linkPresentation",
     "textDocumentReadonly",
-    "textEditorDiffInformation"
+    "textEditorDiffInformation",
+    "workspaceEditUndoStops"
   ],
   "engines": {
     "vscode": "^1.70.0"
