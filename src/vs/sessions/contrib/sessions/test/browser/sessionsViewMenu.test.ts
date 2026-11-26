@@ -41,7 +41,8 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IInputOptions, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { IsSessionsWindowContext, WorkbenchModeContext } from '../../../../../workbench/common/contextkeys.js';
+import { WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -83,7 +84,7 @@ suite('Sessions - View Menu', () => {
 		environments: readonly ISessionEnvironment[] = [],
 		wording = ChatSessionArchiveActionWording.MarkAsDone,
 		providers?: readonly ISessionsProvider[],
-		windowOptions?: { readonly sessionsWindow?: boolean },
+		windowOptions?: { readonly sessionsWindow?: boolean; readonly emptyWindow?: boolean },
 	) {
 		const configurationService = new class extends TestConfigurationService {
 			readonly updates: unknown[][] = [];
@@ -145,6 +146,7 @@ suite('Sessions - View Menu', () => {
 		let canOpenSession: (session: ISession) => Promise<boolean> = async () => true;
 		if (windowOptions?.sessionsWindow) {
 			IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+			WorkbenchModeContext.bindTo(contextKeyService).set('agents');
 		}
 		const host = {
 			_mainWindowHost: { session: shown },
@@ -158,6 +160,7 @@ suite('Sessions - View Menu', () => {
 			configurationService,
 			instantiationService: viewInstantiationService,
 			uriIdentityService,
+			workspaceContextService: { getWorkbenchScope: () => windowOptions?.sessionsWindow || windowOptions?.emptyWindow ? undefined : URI.file('/workspace'), getWorkbenchMode: () => windowOptions?.sessionsWindow ? WorkbenchMode.Agents : WorkbenchMode.Editor },
 			workspaceGroupCappedContextKey: capped,
 			filterContextKeys: new Map<string, { key: IContextKey<boolean>; read: () => boolean }>(),
 			archivedFilterRegistration: store.add(new DisposableStore()),
@@ -624,8 +627,10 @@ suite('Sessions - View Menu', () => {
 	test('the Grouping menu offers the groupings of its view: Time and Environment in the editor window', () => {
 		const { snapshot, contextKeyService } = createMenu();
 		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
+		const workbenchMode = WorkbenchModeContext.bindTo(contextKeyService);
 		const offered = (isSessionsWindow: boolean, groupings: readonly SessionsGrouping[]) => {
 			sessionsWindow.set(isSessionsWindow);
+			workbenchMode.set(isSessionsWindow ? 'agents' : 'editor');
 			bindSessionsViewGroupings(contextKeyService, groupings);
 			return snapshot(Menus.SessionsViewGrouping).map(item => item.title);
 		};
@@ -1658,6 +1663,24 @@ suite('Sessions - View Menu', () => {
 			opened: ['first'],
 			failed: { opened: 0, errors: ['trust failed'] },
 		});
+	});
+
+	test('offers the Worktrees filter in a plain empty window, which has no scope but is not in the Agents mode', () => {
+		const inFolder = (id: string, path: string): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace) };
+		};
+		const sessions = [inFolder('main', '/work/vscode'), inFolder('first', '/work/vscode.worktrees/first')];
+		const menu = createMenu(sessions, [], undefined, undefined, { emptyWindow: true });
+
+		assert.deepStrictEqual({
+			submenu: menu.snapshot(Menus.SessionsViewFilter).some(item => item.submenu === Menus.SessionsViewWorktree.id),
+			entries: MenuRegistry.getMenuItems(Menus.SessionsViewWorktree).filter(isIMenuItem).length > 0,
+		}, { submenu: true, entries: true });
 	});
 
 	test('offers no Worktrees filter in the Agents window, where a folder selected in an editor window selects nothing', () => {

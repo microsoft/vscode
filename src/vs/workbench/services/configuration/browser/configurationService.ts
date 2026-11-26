@@ -10,7 +10,7 @@ import { equals } from '../../../../base/common/objects.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Queue, Barrier, Promises, Delayer, Throttler } from '../../../../base/common/async.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
-import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, WorkbenchScope, WorkbenchMode, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, getWorkspaceScope, WorkbenchMode, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../../../../platform/configuration/common/configurationModels.js';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from '../../../../platform/configuration/common/configuration.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
@@ -98,7 +98,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = this._register(new Emitter<WorkbenchState>());
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
-	public readonly onDidChangeWorkbenchScope: Event<WorkbenchScope> = Event.None;
+	private readonly _onDidChangeWorkbenchScope: Emitter<URI | undefined> = this._register(new Emitter<URI | undefined>());
+	public readonly onDidChangeWorkbenchScope: Event<URI | undefined> = this._onDidChangeWorkbenchScope.event;
 	public readonly onDidChangeWorkbenchMode: Event<WorkbenchMode> = Event.None;
 
 	private isWorkspaceTrusted: boolean = true;
@@ -185,8 +186,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return this.workspace;
 	}
 
-	public getWorkbenchScope(): WorkbenchScope {
-		return WorkbenchScope.WORKSPACE;
+	public getWorkbenchScope(): URI | undefined {
+		return getWorkspaceScope(this.workspace);
 	}
 
 	public getWorkbenchMode(): WorkbenchMode {
@@ -633,9 +634,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		let previousState: WorkbenchState | undefined;
 		let previousWorkspacePath: string | undefined;
 		let previousFolders: WorkspaceFolder[] = [];
+		let previousScope: URI | undefined;
 
 		if (hasWorkspaceBefore) {
 			previousState = this.getWorkbenchState();
+			previousScope = this.getWorkbenchScope();
 			previousWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : undefined;
 			previousFolders = this.workspace.folders;
 			this.workspace.update(workspace);
@@ -655,6 +658,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			const newWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : undefined;
 			if (previousWorkspacePath && newWorkspacePath !== previousWorkspacePath || newState !== previousState) {
 				this._onDidChangeWorkspaceName.fire();
+			}
+
+			const newScope = this.getWorkbenchScope();
+			if (!this.uriIdentityService.extUri.isEqual(previousScope, newScope)) {
+				this._onDidChangeWorkbenchScope.fire(newScope);
 			}
 
 			const folderChanges: IWorkspaceFoldersChangeEvent = { ...this.compareFolders(previousFolders, this.workspace.folders), ...(isFolderLocationChange ? { isFolderLocationChange: true } : {}) };
