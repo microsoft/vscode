@@ -694,40 +694,53 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 	return `${message.substring(0, errorMessageHeadLength)}\n…\n${message.substring(message.length - (maxErrorMessageLength - errorMessageHeadLength - 3))}`;
 }
 
+const parenthesizedPathStartPattern = /\((?:[a-zA-Z]:)?[\\/]/y;
+const parenthesizedErrorCodePattern = /^[A-Z][A-Z0-9_]*$/;
+
 /**
  * Replaces paths in parentheses, e.g., the config file in "Dev container config (<path>) not found.", since the telemetry
- * service only partially redacts paths with spaces. Folder names can contain nested parentheses. A path whose
- * parentheses don't balance is redacted up to an unmatched closing parenthesis after it or to the end of the line.
+ * service only partially redacts paths with spaces. Folder names can contain parentheses, so the end of a path can be
+ * ambiguous. After the path's balanced closing parenthesis, the redaction extends over unmatched closing parentheses
+ * and parenthesized text other than error codes (e.g., "(ENOENT)") up to the next path. An unclosed parenthesis extends
+ * it to the end of the line. Scans the line once.
  */
 function redactParenthesizedPaths(line: string): string {
-	const pathStart = /\((?:[a-zA-Z]:)?[\\/]/g;
+	const isPathStart = (index: number) => {
+		parenthesizedPathStartPattern.lastIndex = index;
+		return parenthesizedPathStartPattern.test(line);
+	};
 	let result = '';
-	let end = 0;
-	let match: RegExpExecArray | null;
-	while ((match = pathStart.exec(line))) {
-		result += `${line.substring(end, match.index)}(<path>)`;
-		end = findParenthesizedPathEnd(line, match.index);
-		pathStart.lastIndex = end;
-	}
-	return result + line.substring(end);
-}
-
-function findParenthesizedPathEnd(line: string, start: number): number {
-	let depth = 0;
-	let end: number | undefined;
-	for (let i = start; i < line.length; i++) {
-		if (line[i] === '(') {
-			depth++;
-		} else if (line[i] === ')') {
-			depth--;
-			// After the balanced end, an unmatched closing parenthesis means the path likely contains one.
-			if (end === undefined ? depth === 0 : depth < 0) {
-				end = i + 1;
-				depth = 0;
+	let kept = 0;
+	let i = line.indexOf('(');
+	while (i !== -1 && i < line.length) {
+		if (!isPathStart(i)) {
+			i = line.indexOf('(', i + 1);
+			continue;
+		}
+		result += `${line.substring(kept, i)}(<path>)`;
+		let depth = 0;
+		let end: number | undefined;
+		let groupStart = i;
+		for (; i < line.length; i++) {
+			if (line[i] === '(') {
+				if (end !== undefined && depth === 0) {
+					if (isPathStart(i)) {
+						break;
+					}
+					groupStart = i;
+				}
+				depth++;
+			} else if (line[i] === ')') {
+				depth--;
+				if (end === undefined ? depth === 0 : depth < 0 || (depth === 0 && !parenthesizedErrorCodePattern.test(line.substring(groupStart + 1, i)))) {
+					end = i + 1;
+					depth = 0;
+				}
 			}
 		}
+		kept = end === undefined || depth > 0 ? line.length : end;
 	}
-	return end ?? line.length;
+	return result + line.substring(kept);
 }
 
 function escapeRegExp(value: string): string {
