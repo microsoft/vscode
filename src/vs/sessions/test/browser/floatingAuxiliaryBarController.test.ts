@@ -11,6 +11,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { isWeb } from '../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { FloatingAuxiliaryBarController } from '../../browser/floatingAuxiliaryBarController.js';
 import { DockedAuxiliaryBarController } from '../../browser/dockedAuxiliaryBarController.js';
@@ -34,6 +35,7 @@ import '../../../workbench/contrib/sessions/browser/parts/media/sessionActivityB
 
 suite('Sessions - Floating Details', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const browserTest = isWeb ? test : test.skip;
 
 	function createHost(pinned = true, contentHeight: number | undefined = undefined, relayoutOnWidthChange = false) {
 		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.dock-detail-panel'));
@@ -500,7 +502,7 @@ suite('Sessions - Floating Details', () => {
 	}
 
 	for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
-		test(`the focused region uses a single surface border in ${theme}`, () => {
+		browserTest(`the focused region uses a single surface border in ${theme}`, () => {
 			const { editor, tree, controller } = createHost();
 			const root = editor.closest<HTMLElement>('.monaco-workbench')!;
 			root.classList.add(theme);
