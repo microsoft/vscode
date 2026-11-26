@@ -19,12 +19,13 @@ icon actions, and styled as the Agents window's New button. */
 	white-space: nowrap;
 }
 
-.chat-view-new-split-button > .monaco-button-dropdown > .monaco-button.monaco-text-button {
+.chat-view-new-split-button > .monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
 	width: auto;
 	padding: 0 var(--vscode-spacing-size60);
+	border-right-width: 0 !important;
 	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
