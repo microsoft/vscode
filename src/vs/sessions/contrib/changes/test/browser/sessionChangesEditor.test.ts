@@ -286,6 +286,7 @@ suite('SessionChangesEditor changed files list', () => {
 		instantiationService.stubInstance(MultiDiffEditorFileList, {
 			layout() { },
 			focus() { calls.push('focus'); },
+			setVisible() { },
 			dispose() { },
 		});
 		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
@@ -407,6 +408,7 @@ suite('SessionChangesEditor header', () => {
 		});
 		instantiationService.stubInstance(MultiDiffEditorFileList, {
 			layout() { },
+			setVisible() { },
 			dispose() { },
 		});
 		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));

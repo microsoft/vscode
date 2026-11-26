@@ -17,10 +17,11 @@
 		background-color: var(--vscode-multiDiffEditor-background);
 	}
 
+	/* Like folders, and files in the Explorer, files show their icon right after their twistie. */
 	.multi-diff-file-list-item {
 		display: flex;
 		align-items: center;
-		padding: 0 var(--vscode-spacing-size80);
+		padding-right: var(--vscode-spacing-size80);
 
 		> .monaco-icon-label {
 			flex: 1 1 auto;
@@ -45,6 +46,25 @@
 			&[data-status="renamed"] {
 				color: var(--vscode-gitDecoration-modifiedResourceForeground);
 			}
+		}
+	}
+
+	/*
+	 * Files whose twistie the file icon theme hides, like those that cannot expand with Seti (see views.css), keep a left
+	 * inset in its place instead.
+	 */
+	.multi-diff-editor-with-file-list-files.align-icons-and-twisties .monaco-tl-twistie:not(.force-twistie):not(.collapsible) + .multi-diff-file-list-item,
+	.multi-diff-editor-with-file-list-files.hide-arrows .monaco-tl-twistie:not(.force-twistie) + .multi-diff-file-list-item {
+		padding-left: var(--vscode-spacing-size80);
+	}
+
+	/* Structural changes always keep their twistie, so they show their icon right after it, and line up their status letters with those of the files. */
+	.scm-structural-change {
+		padding-right: var(--vscode-spacing-size80);
+
+		.scm-structural-change-status {
+			font-size: var(--vscode-fontSize-body2);
+			font-weight: var(--vscode-fontWeight-semiBold);
 		}
 	}
 }
