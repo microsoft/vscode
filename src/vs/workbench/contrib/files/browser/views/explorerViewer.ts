@@ -32,7 +32,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IDragAndDropData, DataTransfers } from '../../../../../base/browser/dnd.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
-import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { IDialogService, getFileNamesMessage } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -71,6 +71,16 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+
+// One-shot flag: set by the explorer view when a Linux middle-click triggers
+// new-folder creation, consumed by FilesRenderer to apply the paste guard only
+// for that specific input rather than every empty input (which would also match
+// toolbar, command-palette, or double-click new-file/folder inputs).
+let _middleClickGuardRequested = false;
+
+export function requestMiddleClickPasteGuard(): void {
+	_middleClickGuardRequested = true;
+}
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -1091,6 +1101,36 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				}
 			}
 		}));
+
+		// A Linux middle-click creates the folder and also delivers the primary
+		// selection as a paste into the freshly focused input. The click target is
+		// not editable, so the click cannot prevent it; swallow it here instead.
+		// Only the input opened by that middle-click is guarded, never an input
+		// opened from the toolbar, command palette, or a double-click.
+		if (isLinux && _middleClickGuardRequested) {
+			_middleClickGuardRequested = false;
+			const guard = new DisposableStore();
+			const stopGuard = () => guard.dispose();
+			guard.add(DOM.addDisposableListener(inputBox.inputElement, 'beforeinput', (e: InputEvent) => {
+				if (e.inputType === 'insertFromPaste') {
+					e.preventDefault();
+					stopGuard();
+				}
+			}));
+			guard.add(DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.PASTE, (e: ClipboardEvent) => {
+				e.preventDefault();
+				stopGuard();
+			}));
+			guard.add(DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.INPUT, () => {
+				inputBox.value = '';
+				stopGuard();
+			}));
+			guard.add(DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, stopGuard));
+			guard.add(DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, stopGuard));
+			const timeoutHandle = mainWindow.setTimeout(stopGuard, 500);
+			guard.add(toDisposable(() => mainWindow.clearTimeout(timeoutHandle)));
+			disposables.add(guard);
+		}
 
 		return disposables;
 	}
