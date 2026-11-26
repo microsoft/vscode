@@ -21,6 +21,8 @@ import { ISessionSectionOrderService, SessionSectionOrderService } from '../../.
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionWorkspacesService } from '../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { SessionWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionWorkspacesService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsManagementService } from '../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
@@ -46,6 +48,7 @@ registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, Instant
 registerSingleton(ISessionSectionOrderService, SessionSectionOrderService, InstantiationType.Delayed);
 registerSingleton(ISessionGroupsService, SessionGroupsService, InstantiationType.Delayed);
 registerSingleton(ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService, InstantiationType.Delayed);
+registerSingleton(ISessionWorkspacesService, SessionWorkspacesService, InstantiationType.Delayed);
 registerSingleton(ISessionComparisonService, SessionComparisonService, InstantiationType.Delayed);
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Eager);
 registerSingleton(ISessionDraftsService, SessionDraftsService, InstantiationType.Delayed);
