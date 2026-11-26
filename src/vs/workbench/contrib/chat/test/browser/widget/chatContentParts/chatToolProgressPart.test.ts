@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { $ } from '../../../../../../../base/browser/dom.js';
 import { retry, timeout } from '../../../../../../../base/common/async.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -41,6 +42,7 @@ import { hasToolInvocationError, isAskQuestionsToolInvocation, isMcpToolInvocati
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IChatAutomationConfiguredData, IChatSessionTargetData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../common/constants.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
@@ -251,6 +253,24 @@ suite('ChatToolProgressSubPart', () => {
 			new MockChatWidgetService(),
 		));
 	}
+
+	test('updates a standalone MCP icon without remounting its tool content', () => {
+		const invocation = new ChatToolInvocation(
+			{ invocationMessage: 'Search tools' },
+			{ id: 'search', displayName: 'Search tools', modelDescription: 'Search tools', source: ToolDataSource.Internal },
+			'call-mcp', undefined, undefined,
+		);
+		const part = renderToolInvocation(invocation);
+		const icon = () => part.domNode.querySelector('.chat-tool-call-icon')?.className;
+		const content = part.domNode.querySelector('.progress-container')?.parentElement;
+		const before = icon();
+		invocation.updateIcon(Codicon.mcp);
+		assert.deepStrictEqual([before, icon(), !!content && part.domNode.querySelector('.progress-container')?.parentElement === content], [
+			'chat-tool-call-icon codicon codicon-search-compact',
+			'chat-tool-call-icon codicon codicon-mcp-compact',
+			true,
+		]);
+	});
 
 	test('does not retain an ordinary tool part when it becomes a parent subagent', () => {
 		const invocation = createToolInvocation();

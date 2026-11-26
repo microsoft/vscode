@@ -1354,6 +1354,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return _asExtensionEvent(extHostDocuments.onDidChangeDocument)(listener, thisArgs, disposables);
 			},
+			onDidChangeTextDocumentReadonly: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'textDocumentReadonly');
+				return _asExtensionEvent(extHostDocuments.onDidChangeDocumentReadonly)(listener, thisArgs, disposables);
+			},
 			onDidSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return _asExtensionEvent(extHostDocuments.onDidSaveDocument)(listener, thisArgs, disposables);
 			},

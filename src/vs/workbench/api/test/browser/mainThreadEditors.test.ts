@@ -55,6 +55,7 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { IUnattendedRestartService, UnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IMoveOperation, IWorkingCopyFileService } from '../../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestWorkingCopyService } from '../../../test/browser/workbenchTestServices.js';
@@ -119,6 +120,10 @@ suite('MainThreadEditors', () => {
 		services.set(IModelService, new SyncDescriptor(ModelService));
 		services.set(ICodeEditorService, new TestCodeEditorService(themeService));
 		services.set(IFileService, new TestFileService());
+		services.set(IFilesConfigurationService, new class extends mock<IFilesConfigurationService>() {
+			override onDidChangeReadonly = Event.None;
+			override isReadonly() { return false; }
+		});
 		services.set(IUriIdentityService, new SyncDescriptor(UriIdentityService));
 		services.set(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
 		services.set(IEditorService, disposables.add(new TestEditorService()));
@@ -134,7 +139,9 @@ suite('MainThreadEditors', () => {
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None,
-				onDidChangeEncoding: Event.None
+				onDidChangeReadonly: Event.None,
+				onDidChangeEncoding: Event.None,
+				get: () => undefined
 			};
 			// eslint-disable-next-line local/code-no-any-casts
 			override untitled = <any>{

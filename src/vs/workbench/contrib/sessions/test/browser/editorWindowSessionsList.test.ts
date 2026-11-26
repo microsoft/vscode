@@ -148,12 +148,13 @@ suite('EditorWindowSessionsList', () => {
 	test('registering the settings of the sessions list registers those of the New Session composer for an editor window, while held', () => {
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		const registered = () => [WORKSPACE_OPT_OUT_SETTING, NEW_SESSION_WELCOME_GRAPHIC_SETTING].map(key => configurationRegistry.getConfigurationProperties()[key]?.experiment?.mode);
+		// The Agents window's New Session composer, which other tests load, may hold them for good
 		const before = registered();
 		const settings = registerSessionsListConfiguration();
 		const held = registered();
 		settings.dispose();
 
-		assert.deepStrictEqual({ before, held, after: registered() }, { before: [undefined, undefined], held: ['auto', 'auto'], after: [undefined, undefined] });
+		assert.deepStrictEqual({ held, after: registered() }, { held: ['auto', 'auto'], after: before });
 	});
 
 	test('with its header in the view title, the Sessions view shows only the find widget in its header row while Find is open, at the row\'s full width', () => {
