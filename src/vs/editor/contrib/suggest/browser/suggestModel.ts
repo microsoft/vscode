@@ -155,6 +155,7 @@ export class SuggestModel implements IDisposable {
 	 * The providers that the current suggestions were requested from, `undefined` for all of them,
 	 * and whether they showed any items. Only a new request resets them, not requesting the
 	 * suggestions again (`retrigger`), so that Backspace can request closed suggestions again.
+	 * Typing another trigger character while suggestions show adds its providers.
 	 */
 	private _requestedProviders: Set<CompletionItemProvider> | undefined;
 	private _showedItems = false;
@@ -311,6 +312,9 @@ export class SuggestModel implements IDisposable {
 					if (!supports.has(provider)) {
 						providerItemsToReuse.set(provider, items);
 					}
+				}
+				if (this._requestedProviders) {
+					this._requestedProviders = new Set([...this._requestedProviders, ...supports]);
 				}
 			}
 

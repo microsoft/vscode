@@ -1481,6 +1481,29 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			typoOfTwoCharacters: ['@: abc, index', '@i: index', '@iq: closed', '@iq: closed', '@i: index'],
 		});
 	});
+
+	test('reopenOnDelete brings back suggestions that another trigger character added to', async function () {
+		// `foo.bar` still matches after typing `.`, so it keeps showing while `.` adds the suggestions of another provider
+		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
+			triggerCharacters: ['@'],
+			provideCompletionItems(doc, pos): CompletionList {
+				return { suggestions: [{ label: 'foo.bar', kind: CompletionItemKind.Property, insertText: 'foo.bar', range: getDefaultSuggestRange(doc, pos) }] };
+			}
+		}));
+		disposables.add(registry.register({ scheme: 'test' }, {
+			_debugDisplayName: 'test',
+			triggerCharacters: ['.'],
+			provideCompletionItems(doc, pos): CompletionList {
+				return { suggestions: [{ label: 'bar', kind: CompletionItemKind.Property, insertText: 'bar', range: getDefaultSuggestRange(doc, pos) }] };
+			}
+		}));
+
+		assert.deepStrictEqual(
+			await recordSuggestions({ quickSuggestions: false, suggest: { reopenOnDelete: true } }, ['@', 'f', '.', 'b', 'q', 'Backspace']),
+			['@: foo.bar', '@f: foo.bar', '@f.: foo.bar', '@f.: foo.bar, bar', '@f.b: foo.bar, bar', '@f.bq: closed', '@f.b: bar, foo.bar']
+		);
+	});
 });
 
 suite('SuggestModel - offWhenInlineCompletions with InlineCompletionsController', function () {
