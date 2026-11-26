@@ -3604,6 +3604,47 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual(lookups.filter(lookup => lookup.folder === notes && lookup.refreshIfNone).length, 1);
 	}));
 
+	test('folders known not to be repositories are not looked up again by an ordinary refresh, and once each by a forced one', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const folders = Array.from({ length: 16 }, (_, index) => `file:///notes${index}`);
+		// As the Git service: answers are cached; a lookup runs Git when nothing is cached, when it reads the disk
+		// (`fresh`), or for a cached negative with `refreshIfNone`
+		const cache = new Map<string, boolean>();
+		let probes = 0;
+		h.gitService.getRepositoryRoot = async (folder, options) => {
+			const key = folder.toString();
+			if (!folders.includes(key)) {
+				return folder;
+			}
+			if (cache.has(key) && !options?.fresh && !(options?.refreshIfNone && cache.get(key) === false)) {
+				return undefined;
+			}
+			probes++;
+			cache.set(key, false);
+			return undefined;
+		};
+		h.gitService.hasGitRoot = folder => constObservable(cache.get(folder.toString()));
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		for (const folder of folders) {
+			h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: folder });
+			h.setGitResultForFolder(folder, undefined);
+		}
+		h.setGitResult({ branchName: 'main' });
+		const refresh = async (force: boolean) => {
+			const before = probes;
+			await timeout(5_000);
+			await h.service.refreshSessionGitState(SESSION, undefined, { force });
+			return probes - before;
+		};
+
+		assert.deepStrictEqual({ first: await refresh(false), ordinary: await refresh(false), forced: await refresh(true), ordinaryAgain: await refresh(false) }, {
+			first: 16,
+			ordinary: 0,
+			forced: 16,
+			ordinaryAgain: 0,
+		});
+	}));
+
 	test('repositories found under drive letters of different case are one repository', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		h.gitService.findRepositories = async () => [{ root: URI.parse('file:///C%3A/wd/docs'), kind: 'nested' }, { root: URI.parse('file:///c%3A/wd/docs'), kind: 'nested' }];

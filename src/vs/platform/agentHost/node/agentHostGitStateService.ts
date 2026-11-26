@@ -761,9 +761,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				return { workingDirectory, gitState, isRepository: true };
 			}
 			// An inconclusive read is not proof that the folder is not a repository: only a lookup Git answered decides it,
-			// and a folder Git could not be asked about keeps its classification. The lookup reads the disk, so a root cached
-			// while the folder was a repository does not outlive its `.git`.
-			const isRepository = await this._gitService.getRepositoryRoot(folder, { fresh: true }).then(root => root ? true : this._gitService.hasGitRoot(folder).get(), () => undefined);
+			// and a folder Git could not be asked about keeps its classification. A folder Git already said is not a
+			// repository stays one without asking again (a forced refresh asked above); otherwise the lookup reads the disk,
+			// so a root cached while the folder was a repository does not outlive its `.git`.
+			const isRepository = this._gitService.hasGitRoot(folder).get() === false
+				? false
+				: await this._gitService.getRepositoryRoot(folder, { fresh: true }).then(root => root ? true : this._gitService.hasGitRoot(folder).get(), () => undefined);
 			return { workingDirectory, gitState, isRepository };
 		}));
 		if (!this._stateManager.getSessionState(sessionKey)) {
