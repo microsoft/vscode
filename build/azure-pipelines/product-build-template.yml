@@ -14,14 +14,6 @@ parameters:
     values:
       - Product
       - CI
-  - name: NPM_REGISTRY
-    displayName: "Custom NPM Registry"
-    type: string
-    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
-  - name: CARGO_REGISTRY
-    displayName: "Custom Cargo Registry"
-    type: string
-    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
   - name: VSCODE_BUILD_WIN32
     displayName: "🎯 Windows x64"
     type: boolean
