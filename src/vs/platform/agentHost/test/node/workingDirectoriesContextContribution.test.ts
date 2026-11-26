@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -15,6 +17,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, withSessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { WorkingDirectoriesContextContribution } from '../../node/chatContributions/workingDirectoriesContext/workingDirectoriesContextContribution.js';
 import { createNoopGitService } from '../common/testAgentHostGitService.js';
 
@@ -44,16 +47,35 @@ suite('WorkingDirectoriesContextContribution', () => {
 		});
 		state.setSessionMeta(session, withSessionGitHubState(undefined, app.toString(), { owner: 'octo', repo: 'app' }));
 		const git = createNoopGitService();
-		git.getRepositoryRoot = async directory => directory.path === notes.path ? undefined : directory;
+		const lookups = { started: [] as string[], running: 0, maxRunning: 0, gate: undefined as DeferredPromise<void> | undefined };
+		git.getRepositoryRoot = async directory => {
+			lookups.started.push(directory.path);
+			lookups.running++;
+			lookups.maxRunning = Math.max(lookups.maxRunning, lookups.running);
+			await lookups.gate?.p;
+			lookups.running--;
+			return directory.path === notes.path ? undefined : directory;
+		};
+		const dispatched = disposables.add(new Emitter<{ readonly chat: string; readonly turnId: string }>());
 		const instantiation = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, log],
 			[IAgentHostStateManager, state],
 			[IAgentHostGitService, git],
+			[IAgentHostTurnTracker, { onDidDispatchTurn: dispatched.event }],
 		), true));
 		const contributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(log, instantiation));
 		disposables.add(contributions.registerContribution(WorkingDirectoriesContextContribution));
 		let turn = 0;
-		return async (workingDirectories: readonly URI[]) => (await contributions.outgoingTurn({ session, chat, turnId: String(++turn), workingDirectories, message })).instructions;
+		/** Sends a turn; it reaches the provider unless `delivered` is false, as when it is cancelled before that. */
+		const send = async (workingDirectories: readonly URI[], delivered = true) => {
+			const turnId = String(++turn);
+			const { instructions } = await contributions.outgoingTurn({ session, chat, turnId, workingDirectories, message });
+			if (delivered) {
+				dispatched.fire({ chat, turnId });
+			}
+			return instructions;
+		};
+		return Object.assign(send, { lookups });
 	}
 
 	const header = [
@@ -109,5 +131,37 @@ suite('WorkingDirectoriesContextContribution', () => {
 			lines: block.split('\n').length,
 			closingTags: block.split('</working_directories>').length - 1,
 		}, { lines: 5, closingTags: 1 });
+	});
+
+	test('sends the list again when the turn that carried it did not reach the provider', async () => {
+		const send = setup();
+
+		const cancelled = await send([app, protocol], false);
+		const retried = await send([app, protocol]);
+		const afterDelivery = await send([app, protocol]);
+
+		assert.deepStrictEqual({ cancelled: !!cancelled, retried: !!retried, afterDelivery }, { cancelled: true, retried: true, afterDelivery: undefined });
+	});
+
+	test('resolves the folders\' repositories at most four at a time, keeping the folders\' order', async () => {
+		const send = setup();
+		const folders = Array.from({ length: 6 }, (_, index) => URI.file(`/work/folder${index}`));
+		send.lookups.gate = new DeferredPromise<void>();
+
+		const sending = send(folders);
+		for (let i = 0; i < 50 && send.lookups.started.length < 4; i++) {
+			await Promise.resolve();
+		}
+		await Promise.resolve();
+		const startedWhileBlocked = send.lookups.started.length;
+		send.lookups.gate.complete();
+		const [block] = (await sending) ?? [];
+
+		assert.deepStrictEqual({
+			startedWhileBlocked,
+			lookups: send.lookups.started.length,
+			maxRunning: send.lookups.maxRunning,
+			order: block.split('\n').slice(2, -1).map(line => line.includes(JSON.stringify(folders[0].fsPath)) ? 'first' : 'other')[0],
+		}, { startedWhileBlocked: 4, lookups: 6, maxRunning: 4, order: 'first' });
 	});
 });

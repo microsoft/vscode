@@ -3784,10 +3784,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/**
-	 * Handle the `vscode/removeSessionArtifact` session-data method. Returns a
-	 * Promise when the underlying service supports removal, undefined otherwise.
-	 */
-	/**
 	 * Handles the `vscode/detachSessionsFromWorkspace` method. Returns `undefined`, answered as method-not-found, when the
 	 * agent service does not support it.
 	 */
@@ -3808,6 +3804,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return this._agentService.detachSessionsFromWorkspace(workspaceFiles).then(sessions => ({ sessions: sessions.map(session => session.toString()) }));
 	}
 
+	/**
+	 * Handle the `vscode/removeSessionArtifact` session-data method. Returns a
+	 * Promise when the underlying service supports removal, undefined otherwise.
+	 */
 	private _handleRemoveSessionArtifactRequest(params: unknown): Promise<unknown> | undefined {
 		if (!this._agentService.removeSessionArtifact) {
 			return undefined;
@@ -4349,7 +4349,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === DetachSessionsFromWorkspaceExtensionMethod) {
 			// It changes every session of the host, not only those a relayed client can see
 			if (client.transport.relayClientId !== undefined || client.transport.relayPassive || this._config.relayRoots || this._config.relayRootMeta) {
-				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidRequest, readOnlyConnectionMessage));
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidRequest, localize('agentHost.detachSessionsFromWorkspace.relayed', "Detaching sessions from a workspace is not available over a relayed connection.")));
 			}
 			return this._handleDetachSessionsFromWorkspaceRequest(params);
 		}

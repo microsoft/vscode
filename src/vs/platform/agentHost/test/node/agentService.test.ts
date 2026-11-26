@@ -29,6 +29,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { constObservable, waitForState, type IReader } from '../../../../base/common/observable.js';
 import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/common/resources.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -4836,6 +4837,44 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('detachSessionsFromWorkspace keeps a loaded session\'s workspace when it cannot be persisted, so that detaching again works', async () => {
+		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(localService, agent);
+		const multiRoot = { workspaceFile: 'file:///work/agents.code-workspace' };
+		const session = await localService.createSession({ legacyChatUris: true, provider: agent.id, _meta: { multiRoot } });
+		const internals = localService as unknown as { _persistOrderedListVisibleSessionState(...args: unknown[]): Promise<void> };
+		const persist = internals._persistOrderedListVisibleSessionState;
+		internals._persistOrderedListVisibleSessionState = () => Promise.reject(new Error('disk full'));
+		const failed = await localService.detachSessionsFromWorkspace([URI.parse(multiRoot.workspaceFile)]);
+		const kept = readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta);
+		internals._persistOrderedListVisibleSessionState = persist;
+
+		const retried = await localService.detachSessionsFromWorkspace([URI.parse(multiRoot.workspaceFile)]);
+
+		assert.deepStrictEqual({
+			failed: failed.map(String),
+			kept,
+			retried: retried.map(String),
+			after: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta),
+		}, { failed: [], kept: multiRoot, retried: [session.toString()], after: undefined });
+	});
+
+	test('detachSessionsFromWorkspace matches a workspace file with another casing as the file system does', async () => {
+		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(localService, agent);
+		const recorded = URI.file('/Work/Agents.code-workspace');
+		const session = await localService.createSession({ legacyChatUris: true, provider: agent.id, _meta: { multiRoot: { workspaceFile: recorded.toString() } } });
+
+		const detached = await localService.detachSessionsFromWorkspace([URI.file('/work/agents.code-workspace')]);
+
+		// File paths are case-insensitive on Windows and macOS
+		assert.deepStrictEqual(detached.map(String), isLinux ? [] : [session.toString()]);
+	});
+
 	test('createSession fails open (shows the picker) when the folder-picker decision rejects', async () => {
 		class RejectingFolderPickerAgent extends MockAgent {
 			override getDescriptor() {
@@ -7674,6 +7713,75 @@ suite('AgentService (node dispatcher)', () => {
 						`Cannot remove the primary folder of chat ${chat}.`,
 					],
 					chat: [primary.toString(), secondary.toString()],
+				});
+			});
+
+			test('serializes concurrent changes of several clients to the folders of a chat', async () => {
+				const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession(false);
+				const chat = buildDefaultChatUri(session);
+				const state = getStateManager(svc);
+				const envelopes = (clientSeq: number) => Event.toPromise(Event.filter(svc.onDidAction, candidate => candidate.origin?.clientSeq === clientSeq));
+				const dispatchFrom = (clientId: string, clientSeq: number, channel: string, action: SessionAction | ChatAction) => {
+					const envelope = envelopes(clientSeq);
+					svc.dispatchAction(channel, action, clientId, clientSeq, AgentHostClientType.AgentsWindow);
+					return envelope.then(result => result.rejectionReason);
+				};
+				const one = URI.file('/workspace/one');
+				const two = URI.file('/workspace/two');
+				await dispatchFrom('a', 1, session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: one.toString() });
+				await dispatchFrom('b', 2, session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: two.toString() });
+
+				// Two clients add a folder each, at once
+				const adds = await Promise.all([
+					dispatchFrom('a', 3, chat, { type: ActionType.ChatWorkingDirectorySet, directory: one.toString() }),
+					dispatchFrom('b', 4, chat, { type: ActionType.ChatWorkingDirectorySet, directory: two.toString() }),
+				]);
+				const afterAdds = {
+					chat: state.getChatState(chat)?.workingDirectories,
+					catalog: state.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat)?.workingDirectories,
+				};
+				// Two clients remove the chat's folders until one is left, at once
+				const removals = await Promise.all([primary, secondary, one, two].map((folder, index) =>
+					dispatchFrom(index % 2 ? 'b' : 'a', 5 + index, chat, { type: ActionType.ChatWorkingDirectoryRemoved, directory: folder.toString() })));
+
+				assert.deepStrictEqual({
+					adds,
+					afterAdds,
+					removals: removals.filter(reason => reason !== undefined).length,
+					left: state.getChatState(chat)?.workingDirectories?.length,
+				}, {
+					adds: [undefined, undefined],
+					afterAdds: {
+						chat: [primary.toString(), secondary.toString(), one.toString(), two.toString()],
+						catalog: [primary.toString(), secondary.toString(), one.toString(), two.toString()],
+					},
+					removals: 1,
+					left: 1,
+				});
+			});
+
+			test('never removes a chat\'s primary folder, even for an agent that does not pin it, and accepts removing a folder no chat uses any more from the session', async () => {
+				const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession(false);
+				const chat = buildDefaultChatUri(session);
+				const added = URI.file('/workspace/added');
+				const state = getStateManager(svc);
+				const rejections = [
+					await dispatch(svc, chat, { type: ActionType.ChatWorkingDirectoryRemoved, directory: primary.toString() }, 1),
+					await dispatch(svc, session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: added.toString() }, 2),
+					await dispatch(svc, chat, { type: ActionType.ChatWorkingDirectorySet, directory: added.toString() }, 3),
+					await dispatch(svc, chat, { type: ActionType.ChatWorkingDirectoryRemoved, directory: added.toString() }, 4),
+					// Its client removes the folder from the session once no chat uses it
+					await dispatch(svc, session.toString(), { type: ActionType.SessionWorkingDirectoryRemoved, directory: added.toString() }, 5),
+				];
+
+				assert.deepStrictEqual({
+					rejections,
+					chat: state.getChatState(chat)?.workingDirectories,
+					session: state.getSessionSummary(session.toString())?.workingDirectories,
+				}, {
+					rejections: [`Cannot remove the primary folder of chat ${chat}.`, undefined, undefined, undefined, undefined],
+					chat: [primary.toString(), secondary.toString()],
+					session: [primary.toString(), secondary.toString()],
 				});
 			});
 
@@ -23376,7 +23484,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(readSessionMultiRootMetadata(sessions[0]._meta), multiRoot);
 		});
 
-		test('detachSessionsFromWorkspace clears the workspace of a stored session, which lists without it', async () => {
+		test('detachSessionsFromWorkspace clears the workspace of a stored session the list hides, which lists without it', async () => {
 			const db = new TestSessionDatabase();
 			const workspaceFile = 'file:///work/agents.code-workspace';
 			await db.setMetadata(SESSION_META_MULTI_ROOT_KEY, JSON.stringify({ workspaceFile }));
@@ -23388,9 +23496,13 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			// The session list hides the external session now; detaching still finds it.
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.None });
 
 			const unrelated = await svc.detachSessionsFromWorkspace([URI.parse('file:///work/other.code-workspace')]);
 			const detached = await svc.detachSessionsFromWorkspace([URI.parse(workspaceFile)]);
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 
 			assert.deepStrictEqual({
 				unrelated: unrelated.map(String),
