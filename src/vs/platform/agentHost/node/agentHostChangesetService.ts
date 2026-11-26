@@ -201,7 +201,13 @@ interface IStaticChangesetRequest {
 }
 
 type BranchDiffResult =
-	| { readonly kind: 'ready'; readonly diffs: readonly ISessionFileDiff[]; readonly failures?: readonly IChangesetFolderFailure[] }
+	| {
+		readonly kind: 'ready';
+		readonly diffs: readonly ISessionFileDiff[];
+		readonly failures?: readonly IChangesetFolderFailure[];
+		/** Whether a repository was diffed against another base branch than its fingerprint was taken against. */
+		readonly fingerprintOutdated?: boolean;
+	}
 	| { readonly kind: 'nonGit' }
 	| { readonly kind: 'failed' };
 
@@ -1664,7 +1670,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const fingerprint = recorded && recorded.baseBranch === baseBranch ? recorded.fingerprint : undefined;
 			const diffs = await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch, fingerprint });
 			if (diffs) {
-				return { kind: 'ready', diffs };
+				return { kind: 'ready', diffs, fingerprintOutdated: !!recorded && recorded.baseBranch !== baseBranch };
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Branch git diff computation failed for ${session} in ${workingDirectory}`, err);
@@ -1741,6 +1747,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return { kind: 'failed' };
 		}
 		const limiter = new Limiter<{ readonly diffs?: readonly ISessionFileDiff[]; readonly failure?: IFailedRepository }>(MAX_DIFF_REPOSITORY_CONCURRENCY);
+		// The plan the fingerprint was taken for no longer matches: its repositories or their bases changed in between
+		let fingerprintOutdated = !!repositoryFingerprints && (repositoryFingerprints.size !== gitRepositories.length || gitRepositories.some(root => !repositoryFingerprints.has(root.toString())));
 		const previousDiffs = this._branchRepositoryDiffs.get(session);
 		const forcedRefreshes = this._branchForcedRefreshes.get(session);
 		const computedDiffs = new Map<string, { readonly fingerprint: string; readonly diffs: readonly ISessionFileDiff[] }>();
@@ -1749,6 +1757,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				const repositoryBaseBranch = this._getRepositoryBaseBranch(session, workingDirectories, discovered, repoRoot) ?? baseBranch;
 				// A fingerprint taken against another base branch (the base changed since) does not describe this diff
 				const recorded = repositoryFingerprints?.get(repoRoot.toString());
+				if (repositoryFingerprints && recorded?.baseBranch !== repositoryBaseBranch) {
+					fingerprintOutdated = true;
+				}
 				const fingerprint = recorded && recorded.baseBranch === repositoryBaseBranch ? recorded.fingerprint : await this._gitService.getBranchDiffFingerprint?.(repoRoot, repositoryBaseBranch);
 				// A cached diff is reused only for the same repository state and the same base branch
 				const cacheKey = fingerprint === undefined ? undefined : JSON.stringify([repositoryBaseBranch ?? null, fingerprint]);
@@ -1780,6 +1791,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			kind: 'ready',
 			diffs: dedupeSessionFileDiffs(perRepoDiffs.map(result => result.diffs).filter(isDefined)),
 			failures: toFolderFailures(workingDirectories.map(directory => URI.parse(directory)), [...unresolved, ...failedRepositories]),
+			fingerprintOutdated,
 		};
 	}
 
@@ -2675,7 +2687,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._failedBranchOwners.delete(session);
 				// A result that cannot be tied to the current fingerprint must not keep an older one, which a later state could
 				// match; nor may a result with failed folders, so the next refresh computes them again.
-				if (branchFingerprint !== undefined && !folderFailures.length && forcedRefreshes === this._branchForcedRefreshes.get(session)) {
+				// Nor a result computed for another plan than the fingerprint's, such as a base branch that changed in between.
+				const fingerprintOutdated = branchResult?.kind === 'ready' && !!branchResult.fingerprintOutdated;
+				if (branchFingerprint !== undefined && !folderFailures.length && !fingerprintOutdated && forcedRefreshes === this._branchForcedRefreshes.get(session)) {
 					this._branchDiffFingerprints.set(session, branchFingerprint);
 				} else {
 					this._branchDiffFingerprints.delete(session);
