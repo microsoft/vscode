@@ -198,7 +198,7 @@ suite('ExtensionListRenderer', () => {
 	setup(() => setupTest(disposables));
 
 	for (const legacy of [false, true]) {
-		test(`list deprecation styling applies rollout changes on metadata refresh ${legacy ? 'with' : 'without'} legacy fallback`, async () => {
+		test(`list deprecation styling applies rollout changes immediately ${legacy ? 'with' : 'without'} legacy fallback`, async () => {
 			const configuration = instantiationService.get(IConfigurationService) as TestConfigurationService;
 			await configuration.setUserConfiguration(MarketplaceDeprecationConfigKey, true);
 			instantiationService.stub(IExtensionRecommendationsService, {
@@ -250,9 +250,9 @@ suite('ExtensionListRenderer', () => {
 			states.push(await readState());
 			assert.deepStrictEqual(states, [
 				{ deprecated: true, warning: true },
+				{ deprecated: legacy, warning: legacy },
+				{ deprecated: legacy, warning: legacy },
 				{ deprecated: true, warning: true },
-				{ deprecated: legacy, warning: legacy },
-				{ deprecated: legacy, warning: legacy },
 				{ deprecated: true, warning: true },
 				{ deprecated: legacy, warning: legacy },
 				{ deprecated: false, warning: false }
@@ -702,7 +702,7 @@ suite('ExtensionsActions', () => {
 				const gallery = aGalleryExtension('a');
 				const extension = extensions[0];
 				assert.ok(extension instanceof Extension);
-				extension.setGallery(gallery, /* useDeprecationFlag */ true);
+				extension.gallery = gallery;
 				installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 				testObject.extension = extension;
 				assert.ok(!testObject.enabled);
