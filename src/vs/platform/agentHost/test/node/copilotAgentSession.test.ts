@@ -26492,6 +26492,22 @@ Use the attached image as context.
 			});
 		});
 
+		test('Fusion names the model of the pass that writes into the chat before the pass runs', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			// The planned model could not run, so the pass runs on another.
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionMainPassTestData.started, phaseId: 'phase-2', model: 'model-c' });
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionMainPassTestData.phaseCompleted, phaseId: 'phase-2', model: 'model-c' });
+			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+				? [{ status: readAgentSystemNotificationMeta(action.part).fusionStatus, passModel: readAgentSystemNotificationMeta(action.part).fusionPassModel }] : []), [
+				{ status: 'selected', passModel: 'model-a' },
+				{ status: 'selected', passModel: 'model-c' },
+			]);
+		});
+
 		test('Fusion refreshes one running phase with Ready actions for activity and actual model changes', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('fusion-turn');

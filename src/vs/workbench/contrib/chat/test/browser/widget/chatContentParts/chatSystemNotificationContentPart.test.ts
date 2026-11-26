@@ -18,6 +18,8 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../../../../../../platform/agentHost/common/agentMerge.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -30,7 +32,7 @@ import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatCont
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatSystemNotificationContentPart } from '../../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { rawMarkdownToString } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../../../common/constants.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
 import '../../../../browser/widget/media/chat.css';
 
@@ -428,6 +430,46 @@ suite('ChatSystemNotificationContentPart', () => {
 			withDetailsHasCompactCheck: true,
 			withoutDetailsIsDisclosure: false,
 			withoutDetailsHasOrdinaryProgress: true,
+		});
+	});
+
+	test('leads the model a notification names with the logo of its provider while model logos are shown', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		const showModelLogos = (value: boolean) => {
+			configurationService.setUserConfiguration(ChatConfiguration.ModelLogos, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([ChatConfiguration.ModelLogos]),
+				change: { keys: [ChatConfiguration.ModelLogos], overrides: [] },
+				affectsConfiguration: key => key === ChatConfiguration.ModelLogos,
+			} satisfies IConfigurationChangeEvent);
+		};
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const notice = (model: { id: string; name: string }) => store.add(instantiationService.createInstance(ChatSystemNotificationContentPart, {
+			kind: 'systemNotification',
+			// Text from a host renders with non-breaking spaces.
+			content: new MarkdownString().appendText(`Copilot Fusion routing failed; continuing with ${model.name}`),
+			icon: Codicon.warning,
+			collapsible: true,
+			model,
+		}, renderer, undefined));
+		const parts = [notice({ id: 'claude-opus-5.5', name: 'Claude Opus 5.5' }), notice({ id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' })];
+		const snapshot = () => parts.map(part => {
+			const logo = part.domNode.querySelector('.chat-model-provider-logo');
+			return { logo: logo?.className, leads: logo?.nextSibling?.textContent, hidden: logo?.getAttribute('aria-hidden') };
+		});
+		const off = snapshot();
+		showModelLogos(true);
+		const on = snapshot();
+		showModelLogos(false);
+
+		const none = { logo: undefined, leads: undefined, hidden: undefined };
+		assert.deepStrictEqual({ off, on, offAgain: snapshot(), text: parts.map(part => part.domNode.textContent?.replace(/\u00a0/g, ' ')) }, {
+			off: [none, none],
+			on: [{ logo: 'chat-model-provider-logo codicon codicon-chat-model-provider-claude', leads: 'Claude\u00a0Opus\u00a05.5', hidden: 'true' }, none],
+			offAgain: [none, none],
+			text: ['Copilot Fusion routing failed; continuing with Claude Opus 5.5', 'Copilot Fusion routing failed; continuing with DeepSeek V4 Pro'],
 		});
 	});
 

@@ -417,6 +417,21 @@ suite('Agent host _meta readers', () => {
 				invalidModel: undefined,
 			});
 		});
+
+		test('round trips the model of a Fusion pass and drops malformed values', () => {
+			const passModel = (meta: Record<string, unknown>) => readAgentSystemNotificationMeta({ _meta: meta }).fusionPassModel;
+			assert.deepStrictEqual({
+				roundTrip: passModel(toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected', fusionPassModel: 'claude-opus-5.5' })),
+				absent: passModel(toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected' })),
+				emptyModel: passModel({ 'vscode.chat.fusionPassModel': '' }),
+				invalidModel: passModel({ 'vscode.chat.fusionPassModel': 1 }),
+			}, {
+				roundTrip: 'claude-opus-5.5',
+				absent: undefined,
+				emptyModel: undefined,
+				invalidModel: undefined,
+			});
+		});
 	});
 
 	suite('readEphemeralSessionMeta', () => {

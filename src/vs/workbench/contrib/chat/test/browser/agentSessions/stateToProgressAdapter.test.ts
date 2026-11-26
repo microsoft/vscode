@@ -36,10 +36,11 @@ import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostRe
 import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ChatInputAnswer, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
+import { autoModeRoutingTitle } from '../../../common/chatAutoModeExplainability.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, previousModelRouted, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, previousFusionPassModel, previousModelRouted, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
@@ -138,6 +139,7 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 			const raw = readUsageInfoMeta(usage).autoModeResolved?.chosenModel;
 			return usageInfoToAutoModeResolution(usage, raw ? displayNames[raw] : undefined);
 		},
+		toFusionPassResolution: raw => ({ kind: 'autoModeResolution', resolved: { id: raw, name: displayNames[raw] ?? raw }, fusion: true }),
 	};
 }
 
@@ -1699,6 +1701,44 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 
 			assert.deepStrictEqual(response.parts.filter(part => part.kind === 'autoModeResolution'), []);
+		});
+
+		test('restores a routing part for the model of a Copilot Fusion pass once per change', () => {
+			const milestone = (fusionStatus: 'selected' | 'degraded', fusionPassModel?: string) => ({
+				kind: ResponsePartKind.SystemNotification as const,
+				content: fusionStatus === 'selected' ? 'Selected Cascade workflow' : 'Routing failed',
+				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus, fusionPassModel }),
+			});
+			const turns = [
+				createTurn({ id: 'first', responseParts: [milestone('selected', 'model-a')] }),
+				createTurn({ id: 'same-model', responseParts: [milestone('selected', 'model-a')] }),
+				createTurn({ id: 'fallback-pass', responseParts: [milestone('selected', 'model-a'), milestone('selected', 'model-b')] }),
+				createTurn({ id: 'failed-routing', responseParts: [milestone('degraded', 'model-a')] }),
+				// A host that does not name the model of the pass.
+				createTurn({ id: 'unnamed', responseParts: [milestone('selected')] }),
+				createTurn({ id: 'after-unnamed', responseParts: [milestone('selected', 'model-a')] }),
+			];
+			const lookup = makeLookup('agent-host-copilot:', { 'model-a': 'Model A', 'model-b': 'Model B' });
+			const shown = (turnLookup: TurnModelLookup) => turnsToHistory(URI.file('/'), turns, 'p', turnLookup).flatMap(item => item.type === 'response' ? [item.parts.flatMap(part =>
+				part.kind === 'autoModeResolution' ? [autoModeRoutingTitle(part)]
+					: part.kind === 'systemNotification' ? [`${part.content.value} (${part.model?.id})`] : [])] : []);
+			assert.deepStrictEqual({
+				named: shown(lookup),
+				// A chat that does not name the routed model, such as one where the routing row is hidden.
+				unnamed: shown({ ...lookup, toFusionPassResolution: () => undefined }),
+				previous: ['first', 'same-model', 'after-unnamed', 'active'].map(turnId => previousFusionPassModel(turns, turnId)),
+			}, {
+				named: [
+					['Copilot Fusion routed task to Model A'],
+					[],
+					['Copilot Fusion routed task to Model B'],
+					['Copilot Fusion routing failed; continuing with Model A (model-a)'],
+					[],
+					['Copilot Fusion routed task to Model A'],
+				],
+				unnamed: [[], [], [], ['Routing failed (undefined)'], [], []],
+				previous: [undefined, 'model-a', undefined, 'model-a'],
+			});
 		});
 
 		test('a model router is settled after its first pick for a chat', () => {

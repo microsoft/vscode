@@ -185,23 +185,31 @@
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-model {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
 	flex: 0 1 auto;
 	min-width: 0;
-	max-width: 120px;
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 	color: var(--vscode-descriptionForeground);
-	opacity: 0.7;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-model::before {
 	content: '\00b7';
-	margin-right: var(--vscode-spacing-size40);
+	opacity: 0.7;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-model.hidden {
 	display: none;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-model-name {
+	min-width: 0;
+	max-width: 112px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	opacity: 0.7;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool {

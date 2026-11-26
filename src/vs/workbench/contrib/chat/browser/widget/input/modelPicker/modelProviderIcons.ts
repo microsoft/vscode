@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { registerIcon } from '../../../../../../../platform/theme/common/iconRegistry.js';
-import { ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../../common/languageModels.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { isHydraFusionModel } from './modelPickerPresentation.js';
 
@@ -66,6 +66,19 @@ export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentif
 	// The Copilot fallback reads the model's own name only: the vendor is `copilot` for
 	// every first-party model, so including it would brand the whole catalogue.
 	return getProviderIconForIdentity(identity, `${model.metadata.id} ${model.metadata.name}`);
+}
+
+/**
+ * The logo of the provider of a model that is reported by name and may not be registered,
+ * such as a subagent's model. Undefined when the provider has no logo of its own.
+ */
+export function getModelProviderLogo(modelName: string, modelId: string | undefined, metadata: ILanguageModelChatMetadata | undefined): ThemeIcon | undefined {
+	// As in `getModelProviderIcon`, the Copilot fallback reads the model's own name only,
+	// because the identifier of every first-party model names the `copilot` vendor.
+	const icon = modelId && metadata
+		? getModelProviderIcon({ identifier: modelId, metadata })
+		: getProviderIconForIdentity(modelId ? `${modelId} ${modelName}` : modelName, modelName);
+	return icon.id === genericModelProviderIcon.id ? undefined : icon;
 }
 
 export function getModelPickerIcon(model: ILanguageModelChatMetadataAndIdentifier): ThemeIcon {

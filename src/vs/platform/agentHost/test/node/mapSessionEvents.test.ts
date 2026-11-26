@@ -191,6 +191,20 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	test('restores the model of a Fusion pass that writes into the chat once, with or without its start record', async () => {
+		const passModels = async (withStartRecord: boolean) => {
+			const { turns } = await mapSessionEvents(session, undefined, [
+				...toSessionEvents([{ type: 'user.message', id: 'user-1', data: { content: 'Continue.' } }]),
+				...(withStartRecord ? [event('assistant.fusion_phase_started', { ...fusion.started, phaseKind: 'follow_up' }, { ephemeral: true })] : []),
+				event('assistant.fusion_phase_completed', { ...fusion.phaseCompleted, phaseKind: 'follow_up' }),
+				event('assistant.message', { messageId: 'final', content: 'Done', fusion: { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' } }),
+				event('session.fusion_completed', fusion.completed),
+			]);
+			return turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.SystemNotification ? [readAgentSystemNotificationMeta(part).fusionPassModel] : []);
+		};
+		assert.deepStrictEqual({ fromStart: await passModels(true), fromCompletion: await passModels(false) }, { fromStart: ['model-a'], fromCompletion: ['model-a'] });
+	});
+
 	test('restores Fusion after review cancellation with distinct workflow and agent-loop turn IDs', async () => {
 		const events: SessionEvent[] = [
 			event('user.message', { content: 'First request', turnId: '0' }, { id: 'user-1' }),

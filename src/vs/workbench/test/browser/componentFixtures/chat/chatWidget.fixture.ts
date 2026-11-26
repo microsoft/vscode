@@ -29,7 +29,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ChatMcpServersStarting, ChatRequestQueueKind, ElicitationState, IChatExternalEdit, IChatGeneratedImageData, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatMcpServersStarting, ChatRequestQueueKind, ElicitationState, IChatAutoModeResolutionPart, IChatExternalEdit, IChatGeneratedImageData, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatSideChatService } from '../../../../contrib/chat/common/chatSideChatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -91,6 +91,7 @@ export interface IFixtureMessage {
 		| { kind: 'progress'; text: string }
 		| { kind: 'thinking'; text: string; id?: string; generatedTitle?: string }
 		| IChatExternalEdit
+		| IChatAutoModeResolutionPart
 		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
 		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; progressMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post' | 'denied'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatGeneratedImageData | IChatToolInputInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; autoReply?: boolean; answerPresentation?: 'conversation' }
@@ -186,6 +187,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly chatFont?: { readonly size?: number; readonly family?: string };
 	/** Mirrors the `chat.editor.wordWrap` setting for code blocks. Defaults to `off`. */
 	readonly codeBlockWordWrap?: 'on' | 'off';
+	/** Shows the logo of a model's provider where the chat names the model, see `chat.modelLogos.enabled`. */
+	readonly modelLogos?: boolean;
 }
 
 export interface IChatWidgetFixtureHandle {
@@ -392,6 +395,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	if (options.persistentProgressVerbosity !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, options.persistentProgressVerbosity);
 	}
+	if (options.modelLogos !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.ModelLogos, options.modelLogos);
+	}
 	if (options.thinkingStyle !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.ThinkingStyle, options.thinkingStyle);
 	}
@@ -490,7 +496,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString(part.text) });
 			} else if (part.kind === 'thinking') {
 				model.acceptResponseProgress(request, { kind: 'thinking', id: part.id ?? generateUuid(), value: part.text, generatedTitle: part.generatedTitle });
-			} else if (part.kind === 'externalEdit') {
+			} else if (part.kind === 'externalEdit' || part.kind === 'autoModeResolution') {
 				model.acceptResponseProgress(request, part);
 			} else if (part.kind === 'systemNotification') {
 				model.acceptResponseProgress(request, part.notification);

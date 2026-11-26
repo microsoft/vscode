@@ -1363,6 +1363,58 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		test('shows the logo of the model provider beside the model name once the provider is known, while model logos are shown', () => {
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			const showModelLogos = (value: boolean) => {
+				configService.setUserConfiguration(ChatConfiguration.ModelLogos, value);
+				configService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([ChatConfiguration.ModelLogos]),
+					change: { keys: [ChatConfiguration.ModelLogos], overrides: [] },
+					affectsConfiguration: key => key === ChatConfiguration.ModelLogos,
+				} satisfies IConfigurationChangeEvent);
+			};
+			showModelLogos(true);
+			const models = new Map<string, ILanguageModelChatMetadata>();
+			const changed = store.add(new Emitter<string>());
+			instantiationService.stub(ILanguageModelsService, {
+				lookupLanguageModel: (identifier: string) => models.get(identifier),
+				onDidChangeLanguageModels: changed.event,
+			});
+			const context: IOpenSubagentChatContext = {
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+				parentSessionResource: 'agent-host-copilotcli:/session',
+				isActive: true,
+				parentModelId: 'agent-host-copilotcli:gpt-5.5',
+				parentModelName: 'GPT-5.5',
+			};
+			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const viewItem = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, context, action, {}, true));
+			const container = mainWindow.document.createElement('div');
+			viewItem.render(container);
+			const snapshot = () => ({
+				logo: container.querySelector('.chat-subagent-pill-model > .chat-model-provider-logo')?.className,
+				label: container.querySelector('.chat-subagent-pill-model')?.textContent,
+			});
+			const noModel = snapshot();
+			viewItem.setActionContext({ ...context, modelName: 'Gemini 4 Neon' });
+			const namedProvider = snapshot();
+			viewItem.setActionContext({ ...context, modelId: 'agent-host-copilotcli:preview-1', modelName: 'Preview 1' });
+			const unknownProvider = snapshot();
+			models.set('agent-host-copilotcli:preview-1', upcastPartial<ILanguageModelChatMetadata>({ id: 'preview-1', name: 'Preview 1', vendor: 'agent-host-copilotcli', family: 'claude' }));
+			changed.fire('agent-host-copilotcli:preview-1');
+			const registered = snapshot();
+			showModelLogos(false);
+
+			assert.deepStrictEqual({ noModel, namedProvider, unknownProvider, registered, withoutModelLogos: snapshot() }, {
+				noModel: { logo: 'chat-model-provider-logo hidden', label: '' },
+				namedProvider: { logo: 'chat-model-provider-logo codicon codicon-chat-model-provider-gemini', label: 'Gemini 4 Neon' },
+				unknownProvider: { logo: 'chat-model-provider-logo hidden', label: 'Preview 1' },
+				registered: { logo: 'chat-model-provider-logo codicon codicon-chat-model-provider-claude', label: 'Preview 1' },
+				withoutModelLogos: { logo: 'chat-model-provider-logo hidden', label: 'Preview 1' },
+			});
+		});
+
 		for (const [label, modelId, parentModelName, modelName] of [
 			['BYOK', 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1', 'Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)', 'OpenRouter/Amazon: Nova Micro 1.0'],
 			['subscription', 'agent-host-codex:chatgpt/gpt-5.4', 'GPT-5.4', 'GPT-5.4 (ChatGPT)'],

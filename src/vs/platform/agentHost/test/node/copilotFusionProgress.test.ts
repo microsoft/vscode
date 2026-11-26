@@ -9,7 +9,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduli
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { CopilotFusionProgress, formatFusionReviewContent } from '../../node/copilot/copilotFusionProgress.js';
-import { fusionTestData as data, fusionTestEvent as event } from './copilotFusionTestEvents.js';
+import { fusionMainPassTestData as mainPass, fusionTestData as data, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 
 suite('CopilotFusionProgress', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -153,6 +153,47 @@ suite('CopilotFusionProgress', () => {
 		const selected = fusionModel(progress.accept(event('session.fusion_resolved', { ...data.resolved, syntheticModel: 'hydrafusion-max' })));
 		const afterRouting = fusionModel(progress.interrupt());
 		assert.deepStrictEqual({ routing, selected, afterRouting }, { routing: 'hydrafusion-max', selected: 'hydrafusion-max', afterRouting: 'hydrafusion-max' });
+	});
+
+	test('names the model of the pass that writes into the chat once per change, live and replayed', () => {
+		const named = (update: ReturnType<CopilotFusionProgress['accept']>, part = update?.passModel) => part && {
+			status: readAgentSystemNotificationMeta(part).fusionStatus,
+			model: readAgentSystemNotificationMeta(part).fusionPassModel,
+			content: part.content,
+		};
+		const live = new CopilotFusionProgress();
+		const resolved = live.accept(event('session.fusion_resolved', data.resolved));
+		const plannedModel = live.accept(event('assistant.fusion_phase_started', mainPass.started));
+		const review = live.accept(event('assistant.fusion_phase_started', { ...data.started, phaseId: 'phase-2', phaseKind: 'judge', model: 'model-b' }));
+		const otherModel = live.accept(event('assistant.fusion_phase_started', { ...mainPass.started, phaseId: 'phase-3', model: 'model-c' }));
+		const otherModelCompleted = live.accept(event('assistant.fusion_phase_completed', { ...mainPass.phaseCompleted, phaseId: 'phase-3', model: 'model-c' }));
+		live.reset();
+		const followUp = live.accept(event('assistant.fusion_phase_started', { ...data.started, phaseKind: 'follow_up' }));
+		const replayed = new CopilotFusionProgress().accept(event('assistant.fusion_phase_completed', { ...data.phaseCompleted, phaseKind: 'follow_up' }));
+		const failedRouting = new CopilotFusionProgress();
+		const routeFailed = failedRouting.accept(event('session.fusion_route_failed', data.routeFailed));
+		const fallback = failedRouting.accept(event('assistant.fusion_phase_started', mainPass.started));
+		assert.deepStrictEqual({
+			resolved: named(resolved, resolved?.part),
+			plannedModel: named(plannedModel),
+			review: named(review),
+			otherModel: named(otherModel),
+			otherModelCompleted: named(otherModelCompleted),
+			followUp: named(followUp),
+			replayed: named(replayed),
+			routeFailed: named(routeFailed, routeFailed?.part),
+			fallback: named(fallback),
+		}, {
+			resolved: { status: 'selected', model: 'model-a', content: { markdown: 'Selected&nbsp;Cascade&nbsp;workflow' } },
+			plannedModel: undefined,
+			review: undefined,
+			otherModel: { status: 'selected', model: 'model-c', content: { markdown: 'Main&nbsp;pass&nbsp;started' } },
+			otherModelCompleted: undefined,
+			followUp: { status: 'selected', model: 'model-a', content: { markdown: 'Follow-up&nbsp;pass&nbsp;started' } },
+			replayed: { status: 'selected', model: 'model-a', content: { markdown: 'Follow-up&nbsp;pass&nbsp;started' } },
+			routeFailed: { status: 'degraded', model: 'model-a', content: { markdown: 'Copilot&nbsp;Fusion&nbsp;routing&nbsp;failed;&nbsp;continuing&nbsp;with&nbsp;model-a' } },
+			fallback: undefined,
+		});
 	});
 
 	test('persists historical interruption duration from the first phase start and resets timing for the next turn', () => {

@@ -302,7 +302,8 @@ suite('OpenSubagentChatActionViewItem', () => {
 		const during = { configurationListeners, modelListeners };
 		pills.dispose();
 		assert.deepStrictEqual({ during, after: { configurationListeners, modelListeners } }, {
-			during: { configurationListeners: 1, modelListeners: 1 },
+			// One listener for each setting the pills read: credit usage and model logos.
+			during: { configurationListeners: 2, modelListeners: 1 },
 			after: { configurationListeners: 0, modelListeners: 0 },
 		});
 	});

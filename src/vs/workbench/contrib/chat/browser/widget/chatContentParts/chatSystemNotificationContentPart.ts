@@ -9,17 +9,22 @@ import { Button, IButtonStyles } from '../../../../../../base/browser/ui/button/
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatSystemNotificationPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { getCompactCodicon } from '../../chatIcons.js';
+import { getModelProviderLogo } from '../input/modelPicker/modelProviderIcons.js';
 import './media/chatSystemNotificationContentPart.css';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart } from './chatContentParts.js';
+import { insertModelProviderLogoBeforeName, observeModelLogosEnabled } from './chatModelProviderLogo.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
 import { renderSubagentChatLinks } from './chatSubagentOpenChat.js';
 
@@ -50,6 +55,7 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		private readonly parentSessionResource: string | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -120,7 +126,24 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		if (this.parentSessionResource) {
 			this._register(renderSubagentChatLinks(rendered.element, this.parentSessionResource, instantiationService));
 		}
+		if (notification.model) {
+			this._renderModelLogo(notification.model, rendered.element);
+		}
 		return this._register(instantiationService.createInstance(ChatProgressSubPart, rendered.element, notification.icon ?? Codicon.check, undefined)).domNode;
+	}
+
+	/** Leads the name of the model the notification names with the logo of the model's provider. */
+	private _renderModelLogo(model: NonNullable<IChatSystemNotificationPart['model']>, rendered: HTMLElement): void {
+		const logo = getModelProviderLogo(model.name, model.id, undefined);
+		if (!logo) {
+			return;
+		}
+		const logosEnabled = observeModelLogosEnabled(this.configurationService);
+		this._register(autorun(reader => {
+			if (logosEnabled.read(reader)) {
+				reader.store.add(insertModelProviderLogoBeforeName(rendered, model.name, logo));
+			}
+		}));
 	}
 
 	private _renderCollapsibleNotification(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer, firstLineBreak: number, detailsValue: string): HTMLElement {
@@ -173,6 +196,7 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 			&& !!other.renderInlineTiming === !!this.notification.renderInlineTiming
 			&& other.presentation === this.notification.presentation
 			&& other.workspaceName === this.notification.workspaceName
-			&& other.accessibilityLabel === this.notification.accessibilityLabel;
+			&& other.accessibilityLabel === this.notification.accessibilityLabel
+			&& equals(other.model, this.notification.model);
 	}
 }
