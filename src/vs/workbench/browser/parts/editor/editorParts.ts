@@ -880,13 +880,22 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private readonly _onDidChangeApplyingWorkingSet = this._register(new Emitter<boolean>());
 	readonly onDidChangeApplyingWorkingSet = this._onDidChangeApplyingWorkingSet.event;
 
+	private switchingEditors = 0;
+	get isSwitchingEditors(): boolean { return this.switchingEditors > 0; }
+
 	async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
+		if (options?.switchesEditors) {
+			this.switchingEditors++;
+		}
 		if (this.applyingWorkingSets++ === 0) {
 			this._onDidChangeApplyingWorkingSet.fire(true);
 		}
 		try {
 			return await this.doApplyWorkingSet(workingSet, options);
 		} finally {
+			if (options?.switchesEditors) {
+				this.switchingEditors--;
+			}
 			if (--this.applyingWorkingSets === 0) {
 				this._onDidChangeApplyingWorkingSet.fire(false);
 			}

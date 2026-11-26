@@ -793,6 +793,13 @@ export interface IEditorWorkingSetOptions {
 	 * and focus inside of an editor part moves to the new active editor.
 	 */
 	readonly preserveFocus?: boolean;
+
+	/**
+	 * Whether applying switches the editors of one context for the ones of another, for example
+	 * on a folder location switch: the editors that it closes are switched out, not closed by the user.
+	 * See {@link IEditorGroupsService.isSwitchingEditors}.
+	 */
+	readonly switchesEditors?: boolean;
 }
 
 export interface IEditorGroupContextKeyProvider<T extends ContextKeyValue> {
@@ -916,6 +923,12 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Fires when {@link isApplyingWorkingSet} changed.
 	 */
 	readonly onDidChangeApplyingWorkingSet: Event<boolean>;
+
+	/**
+	 * Whether a working set is being applied with {@link IEditorWorkingSetOptions.switchesEditors}:
+	 * the editors that close meanwhile are switched out by its owner, not closed by the user.
+	 */
+	readonly isSwitchingEditors: boolean;
 
 	/**
 	 * Resolves the editors of the main part of a working set without applying it or
