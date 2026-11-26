@@ -3115,6 +3115,53 @@ suite('ModernUIContribution', () => {
 		]);
 	});
 
+	test('draws the modern side bar border on the inner edge of docked side bars', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', {});
+		const style = document.createElement('style');
+		document.head.appendChild(style);
+		store.add(toDisposable(() => style.remove()));
+		const root = appendElement(document.body, 'sidebar-border-theme monaco-workbench modern-ui');
+		store.add(toDisposable(() => root.remove()));
+		const parts = [['sidebar', 'left'], ['auxiliarybar', 'right'], ['sidebar', 'right'], ['auxiliarybar', 'left']].map(([part, position]) => {
+			const element = appendElement(root, `part ${part} ${position}`);
+			// Mirror the inline styles the parts set when no legacy side bar border exists.
+			element.style.borderLeftStyle = 'none';
+			element.style.borderRightStyle = 'none';
+			element.style.borderLeftWidth = '0px';
+			element.style.borderRightWidth = '0px';
+			return element;
+		});
+		const read = (customizations: { [id: string]: string }, classes: string) => {
+			theme.setCustomColors(customizations);
+			style.textContent = generateColorThemeCSS(theme, '.sidebar-border-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			root.className = `sidebar-border-theme monaco-workbench ${classes}`;
+			return parts.map(part => {
+				const computed = getWindow(part).getComputedStyle(part);
+				return `${computed.borderLeftWidth} ${computed.borderLeftStyle} | ${computed.borderRightWidth} ${computed.borderRightStyle} ${computed.borderRightStyle === 'solid' ? computed.borderRightColor : computed.borderLeftStyle === 'solid' ? computed.borderLeftColor : ''}`.trim();
+			});
+		};
+		const geometry = (values: string[]) => values.map(value => value.replace(/ rgba?\(.*\)$/, ''));
+
+		const none = Array(4).fill('0px none | 0px none');
+		assert.deepStrictEqual({
+			unset: read({}, 'modern-ui'),
+			border: read({ [MODERN_SIDE_BAR_BORDER]: '#FF0000' }, 'modern-ui'),
+			// Floating cards draw their own border; the docked inner-edge rule must not change it.
+			floatingUnchanged: geometry(read({ [MODERN_SIDE_BAR_BORDER]: '#FF0000' }, 'modern-ui floating-panels')).join() === geometry(read({}, 'modern-ui floating-panels')).join(),
+			legacy: read({ [MODERN_SIDE_BAR_BORDER]: '#FF0000' }, ''),
+		}, {
+			unset: none,
+			border: [
+				'0px none | 1px solid rgb(255, 0, 0)',
+				'1px solid | 0px none rgb(255, 0, 0)',
+				'1px solid | 0px none rgb(255, 0, 0)',
+				'0px none | 1px solid rgb(255, 0, 0)',
+			],
+			floatingUnchanged: true,
+			legacy: none,
+		});
+	});
+
 	test('preserves separately themed side bar titles, section headers, and sticky scroll', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs', {
 			'modernSideBar.background': '#101010',

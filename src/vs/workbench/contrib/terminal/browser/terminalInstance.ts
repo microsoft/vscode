@@ -6,6 +6,7 @@
 import { isFirefox } from '../../../../base/browser/browser.js';
 import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import { DataTransfers } from '../../../../base/browser/dnd.js';
+import { Color } from '../../../../base/common/color.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -2989,11 +2990,19 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 		if (location === ViewContainerLocation.Panel) {
 			return theme.getColor(PANEL_BACKGROUND);
 		}
-		if (!this._environmentService.isSessionsWindow && this._configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true) {
-			return getModernSideBarBackground(theme) ?? theme.getColor(SIDE_BAR_BACKGROUND);
-		}
-		return theme.getColor(SIDE_BAR_BACKGROUND);
+		return getTerminalSideBarBackground(theme, this._configurationService, this._environmentService);
 	}
+}
+
+/**
+ * Resolves the background of a terminal hosted in a side bar, following the
+ * Modern UI side bar background when it is enabled.
+ */
+export function getTerminalSideBarBackground(theme: IColorTheme, configurationService: IConfigurationService, environmentService: IWorkbenchEnvironmentService): Color | undefined {
+	if (!environmentService.isSessionsWindow && configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true) {
+		return getModernSideBarBackground(theme) ?? theme.getColor(SIDE_BAR_BACKGROUND);
+	}
+	return theme.getColor(SIDE_BAR_BACKGROUND);
 }
 
 function guessShellTypeFromExecutable(os: OperatingSystem, executable: string): TerminalShellType | undefined {
