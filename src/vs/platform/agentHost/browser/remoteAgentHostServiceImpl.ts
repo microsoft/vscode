@@ -513,11 +513,16 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const normalized = normalizeRemoteAgentHostAddress(address);
 		// Eagerly clear in-memory state so the UI updates immediately
 		// (the config change listener will reconcile, but this is instant).
-		this._names.delete(normalized);
-		this._tokens.delete(normalized);
-		this._pathStyles.delete(normalized);
+		// A host that stays configured, such as a disconnected tunnel, keeps its
+		// name, token, path style and label: only reconciliation sets them, so
+		// reconnecting it would otherwise show its address instead of its name.
+		if (!this._configuredEntries.get().some(entry => this._entryAddress(entry) === normalized)) {
+			this._names.delete(normalized);
+			this._tokens.delete(normalized);
+			this._pathStyles.delete(normalized);
+			this._clearHostLabelFormatter(normalized);
+		}
 		this._failedReconnects.delete(normalized);
-		this._clearHostLabelFormatter(normalized);
 		this._cancelReconnect(normalized);
 		this._reconnectAttempts.delete(normalized);
 		this._removeConnection(normalized);
