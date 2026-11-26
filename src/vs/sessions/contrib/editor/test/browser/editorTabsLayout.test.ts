@@ -289,7 +289,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 			});
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
-			...result, actions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], visibleActions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], 			overlaps: false, inBounds: true, addPosition: result.add ? 'relative' : undefined, tabsClear: true,
+			...result, actions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], visibleActions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], overlaps: false, inBounds: true, addPosition: result.add ? 'relative' : undefined, tabsClear: true,
 			separatorVisible: result.contextual && result.trailing,
 			reservedWidth: result.wrapperWidth,
 			// Following the last tab, the Add Tab control and the toolbars share its row
