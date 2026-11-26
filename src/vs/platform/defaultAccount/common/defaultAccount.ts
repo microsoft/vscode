@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
+import { CopilotServiceKind, ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IManagedSettingsFreshness, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../policy/common/managedSettingsFreshness.js';
@@ -77,7 +77,7 @@ export interface IDefaultAccountProvider {
 	 * default account is updated before the returned promise resolves, and other open windows update when they see
 	 * the stored choice change. Does nothing when the Microsoft default account is not enabled.
 	 */
-	rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }): Promise<void>;
+	rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }, service: CopilotServiceKind): Promise<void>;
 
 	/**
 	 * Forgets the remembered Microsoft account. The choice is stored for the application: this window's default account
@@ -117,7 +117,7 @@ export interface IDefaultAccountService {
 	 * default account is updated before the returned promise resolves, and other open windows update when they see
 	 * the stored choice change. Does nothing when the Microsoft default account is not enabled.
 	 */
-	rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }): Promise<void>;
+	rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }, service: CopilotServiceKind): Promise<void>;
 
 	/**
 	 * Forgets the remembered Microsoft account. The choice is stored for the application: this window's default account

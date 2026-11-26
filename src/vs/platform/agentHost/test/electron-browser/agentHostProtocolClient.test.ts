@@ -1902,7 +1902,7 @@ suite('AgentHostProtocolClient', () => {
 			return request.params as AuthenticateParams;
 		}
 
-		test('seals provider and targeted MCP credentials with separate keys without changing scopes or addressing', async () => {
+		test('seals provider and targeted MCP credentials with separate keys without changing scopes, addressing or the ID token', async () => {
 			const { client, transport } = createClient();
 			const sealed: IMissionControlCredentialSealingRequest[] = [];
 			disposables.add(client.registerAuthenticationTokenSealer(async request => {
@@ -1911,14 +1911,14 @@ suite('AgentHostProtocolClient', () => {
 			}));
 			await initialize(client, transport);
 			const target = { kind: AuthenticateTargetKind.McpServer, session: 'opaque-session://tenant/id', customizationId: 'server/one' };
-			const provider = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'provider-token', scopes: ['write', 'read'], expiresIn: 300 }));
+			const provider = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'provider-token', scopes: ['write', 'read'], expiresIn: 300, idToken: 'id-token' }));
 			const mcp = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'mcp-token', scopes: ['read'], target }));
 			assert.deepStrictEqual({
 				sealed: sealed.map(request => [request.token, request.resource, request.key.use, request.challenge]),
 				provider, mcp,
 			}, {
 				sealed: [['provider-token', resource, 'auth-token', challenge], ['mcp-token', resource, 'mcp-auth-token', challenge]],
-				provider: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.auth-token.ciphertext', scopes: ['read', 'write'], expiresIn: 300 },
+				provider: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.auth-token.ciphertext', scopes: ['read', 'write'], expiresIn: 300, idToken: 'id-token' },
 				mcp: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.mcp-auth-token.ciphertext', scopes: ['read'], target },
 			});
 		});

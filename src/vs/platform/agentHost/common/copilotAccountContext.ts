@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CopilotServiceKind } from '../../../base/common/defaultAccount.js';
+
 export interface ICopilotServiceChoice {
-	readonly service: 'github' | 'm365';
+	readonly service: CopilotServiceKind;
 	readonly resource: string;
 	readonly selectionId: string;
 	readonly host: string;

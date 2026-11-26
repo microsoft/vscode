@@ -36,6 +36,8 @@ import { IAgentPlugin, IAgentPluginService } from '../../../../contrib/chat/comm
 import { IMarketplacePlugin } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { PromptFileSource, PromptsType, Target } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentSkill, ICustomAgent, IInstructionFile, IPromptPath, IPromptPathBase, IPromptsService, PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IChatExtensionCustomizationsService } from '../../../../contrib/chat/common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { NullAgenticSkillsService } from '../../../../contrib/chat/common/promptSyntax/service/agenticSkillsService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -364,6 +366,10 @@ function createAgentHostItemProvider(ctx: ComponentFixtureContext, promptsServic
 		new NullLogService(),
 		new FixtureAgentHostCustomizationService(customizations),
 		promptsService,
+		new class extends mock<IChatExtensionCustomizationsService>() {
+			override async getExtensionPromptFiles() { return []; }
+		},
+		new NullAgenticSkillsService(),
 		new class extends mock<ILabelService>() { },
 	));
 }
@@ -503,6 +509,7 @@ async function renderOrganization(ctx: ComponentFixtureContext, options: IRender
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
+				override readonly onDidRunOperation = Event.None;
 			}());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
 				override readonly defaultChatAgent = upcastPartial<NonNullable<IProductService['defaultChatAgent']>>({ chatExtensionId: CHAT_EXTENSION_ID });

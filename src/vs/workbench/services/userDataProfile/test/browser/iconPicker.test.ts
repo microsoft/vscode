@@ -16,7 +16,7 @@ import { defaultInputBoxStyles } from '../../../../../platform/theme/browser/def
 import { getIconRegistry } from '../../../../../platform/theme/common/iconRegistry.js';
 import { TerminalIconPicker } from '../../../../contrib/terminal/browser/terminalIconPicker.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { getPickableIcons, IconPicker } from '../../browser/iconPicker.js';
+import { IconPicker } from '../../browser/iconPicker.js';
 import { WorkbenchIconSelectBox } from '../../browser/iconSelectBox.js';
 
 suite('Shared IconPicker', () => {
@@ -52,13 +52,17 @@ suite('Shared IconPicker', () => {
 		return { picker, host, hidden, quickWidget, grid: () => grid!, disposed: () => disposed };
 	}
 
-	test('pickable icons are read when asked, without blank, aliases or icons of other icons', () => {
+	test('the picker offers the icons registered when it opens, without blank, aliases or icons of other icons', async () => {
 		const registry = getIconRegistry();
 		disposables.add(toDisposable(() => ['test-pickable-glyph', 'test-pickable-alias', 'test-pickable-reference'].forEach(id => registry.deregisterIcon(id))));
 		registry.registerIcon('test-pickable-glyph', { fontCharacter: '\\f8ff' });
 		registry.registerIcon('test-pickable-alias', { fontCharacter: '\\f8ff' });
 		registry.registerIcon('test-pickable-reference', Codicon.rocket);
-		const ids = new Set(getPickableIcons().map(icon => icon.id));
+		const harness = setup();
+		const result = harness.picker.pickIcons();
+		const ids = new Set([...harness.grid().querySelectorAll<HTMLElement>('.icon-container')].map(icon => icon.title));
+		harness.hidden.fire({ reason: QuickInputHideReason.Gesture });
+		await result;
 		assert.deepStrictEqual(['blank', 'rocket', 'test-pickable-glyph', 'test-pickable-alias', 'test-pickable-reference'].map(id => ids.has(id)), [false, true, true, false, false]);
 	});
 

@@ -6,7 +6,8 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDispatchedAction, IHydrationContext, IRestoredChat } from '../../../common/agentHostChatContributionsService.js';
+import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { isAhpChatChannel, isSessionStatusRead } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
@@ -18,7 +19,8 @@ import { IAgentHostArchivedChatWorkspaceService } from './archivedChatWorkspaceS
 /**
  * Persists independently archived peer-chat state after the protocol action has
  * been accepted and reduced, and detaches an archived chat's folders from the
- * session workspace until it is unarchived.
+ * session workspace until it is unarchived. Also records the chat's modified time,
+ * which archiving advances, and restores it with an archived chat.
  */
 export class ChatArchiveContribution extends Disposable implements IAgentHostChatContribution {
 
@@ -32,6 +34,7 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 		@IAgentHostPeerChatPersistenceService private readonly _peerChatPersistenceService: IAgentHostPeerChatPersistenceService,
 		@IAgentHostArchivedChatWorkspaceService private readonly _archivedChatWorkspace: IAgentHostArchivedChatWorkspaceService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -50,8 +53,8 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 			this._providerService.getProviderForChat(session, chat)?.clearCanvasContinuity?.(session, chat);
 		}
 		// A chat whose history is not materialized carries its status on the session's chat summary.
-		const status = this._stateManager.getChatState(dispatched.channel)?.status
-			?? this._stateManager.getSessionState(dispatched.session)?.chats.find(chat => chat.resource === dispatched.channel)?.status;
+		const summary = this._stateManager.getSessionState(dispatched.session)?.chats.find(chat => chat.resource === dispatched.channel);
+		const status = this._stateManager.getChatState(dispatched.channel)?.status ?? summary?.status;
 		if (dispatched.action.isArchived && !isSessionStatusRead(status)) {
 			this._stateManager.dispatchServerAction(dispatched.channel, { type: ActionType.ChatIsReadChanged, isRead: true });
 		}
@@ -61,5 +64,26 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 		void this._archivedChatWorkspace.setChatWorkspaceAttached(session, chat, !dispatched.action.isArchived).catch(error => {
 			this._logService.error(error, `[ChatArchiveContribution] Failed to update the session workspace for ${dispatched.channel}`);
 		});
+		// A chat of an unloaded session has no summary here: its passive update records the time.
+		const modifiedTime = summary ? Date.parse(summary.modifiedAt) : Number.NaN;
+		if (Number.isFinite(modifiedTime)) {
+			this._sessionStateStore.chatRows.setChatModifiedTime(session, chat, modifiedTime).catch(error => {
+				this._logService.warn(`[ChatArchiveContribution] Failed to persist the modified time of ${dispatched.channel}`, error);
+			});
+		}
+	}
+
+	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		// Archiving changes no turn: only an archived chat's recorded time is its last update.
+		if (context.isDefaultChat || !context.archived || restored.modifiedAt !== undefined) {
+			return restored;
+		}
+		try {
+			const modifiedTime = await this._sessionStateStore.chatRows.getChatModifiedTime(URI.parse(context.session), URI.parse(context.chat));
+			return modifiedTime !== undefined ? { ...restored, modifiedAt: new Date(modifiedTime).toISOString() } : restored;
+		} catch (err) {
+			this._logService.warn(`[ChatArchiveContribution] Failed to restore the modified time of ${context.chat}`, err);
+			return restored;
+		}
 	}
 }

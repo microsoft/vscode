@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
+import type { ExtensionLaunchProviderResolveRequest } from '@microsoft/copilot-sdk';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -52,8 +53,6 @@ export interface ICopilotCreatedWorktree {
 export interface ICopilotProjectExtensionLaunchAdmission extends IDisposable {
 	readonly trustState: ICopilotProjectExtensionTrustState;
 }
-
-type CopilotExtensionSource = 'project' | 'user' | 'plugin' | 'session';
 
 /**
  * Decides which project extensions (`.github/extensions/<name>/extension.mjs`) the Copilot runtime may launch. The SDK's
@@ -231,8 +230,8 @@ export class CopilotProjectExtensionLaunchPolicy {
 		return { worktree: canonicalWorktree, repository: canonicalRepository };
 	}
 
-	async resolveLaunch(modulePath: string, source: CopilotExtensionSource, extensionBootstrapPath: string) {
-		if (!isAbsolute(modulePath) || basename(URI.file(modulePath)) !== 'extension.mjs' || source === 'session') {
+	async resolveLaunch(modulePath: string, source: ExtensionLaunchProviderResolveRequest['source'], extensionBootstrapPath: string) {
+		if ((source !== 'project' && source !== 'user' && source !== 'plugin') || !isAbsolute(modulePath) || basename(URI.file(modulePath)) !== 'extension.mjs') {
 			return {};
 		}
 

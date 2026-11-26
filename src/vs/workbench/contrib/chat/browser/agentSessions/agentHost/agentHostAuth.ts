@@ -17,7 +17,7 @@ import { isObject } from '../../../../../../base/common/types.js';
 import type { AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
-import { copilotEntraDiscoveryResource, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { copilotEntraDiscoveryResource, copilotEntraResources, copilotServiceForResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { agentEntitlementHintMeta, readAgentEntitlementHint, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -110,8 +110,8 @@ export class AgentHostAuthTokenCache {
 	 * Forwards a token once per resource/scope/target combination. Same-token callers share
 	 * and await an in-flight authentication.
 	 */
-	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, entitlement?: IAgentEntitlementHint, target?: AuthenticateTarget, identity?: IForwardedAuthenticationIdentity): Promise<boolean> {
-		const credentialKey = JSON.stringify([token, accountId, entitlement?.trackingId, entitlement?.sku]);
+	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, entitlement?: IAgentEntitlementHint, target?: AuthenticateTarget, identity?: IForwardedAuthenticationIdentity, idToken?: string): Promise<boolean> {
+		const credentialKey = JSON.stringify([token, accountId, entitlement?.trackingId, entitlement?.sku, idToken]);
 		const key = this._key(resource, scopes, target);
 		const globalGeneration = this._globalGeneration;
 		const keyGeneration = this._keyGenerations.get(key) ?? 0;
@@ -134,7 +134,7 @@ export class AgentHostAuthTokenCache {
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
-			return this.authenticate(resource, scopes, token, authenticate, accountId, entitlement, target, identity);
+			return this.authenticate(resource, scopes, token, authenticate, accountId, entitlement, target, identity, idToken);
 		}
 
 		if (this._completedTokens.get(key)?.credentialKey === credentialKey) {
@@ -721,6 +721,8 @@ export interface IAgentHostAuthenticateRequest {
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
 	readonly accountId?: string;
+	/** The ID Token the provider issued with the access token, forwarded unchanged. */
+	readonly idToken?: string;
 	readonly _meta?: Record<string, unknown>;
 }
 
@@ -749,6 +751,7 @@ interface IForwardedAuthenticationSession {
 	readonly id?: string;
 	readonly account?: AuthenticationSession['account'];
 	readonly authorizationServer?: URI;
+	readonly idToken?: string;
 }
 
 function resolveAuthenticationOptions(accessor: ServicesAccessor, options: IAgentHostAuthenticationOptions): IResolvedAgentHostAuthenticationOptions {
@@ -802,7 +805,7 @@ async function forwardAuthenticationToken(
 	};
 	if (options.authTokenCache) {
 		const identity = session?.id && session.account ? { sessionId: session.id, accountId: session.account.id } : undefined;
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), request.accountId, readAgentEntitlementHint(request), options.target, identity);
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), request.accountId, readAgentEntitlementHint(request), options.target, identity, request.idToken);
 	}
 	assertAuthenticationAccepted(await options.authenticate(request));
 	return true;
@@ -825,6 +828,7 @@ export function toAuthenticateRequest(
 		token: session?.accessToken ?? '',
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
 		...(accountId !== undefined ? { accountId } : {}),
+		...(session?.idToken ? { idToken: session.idToken } : {}),
 		...(entitlement ? { _meta: agentEntitlementHintMeta(entitlement) } : {}),
 	};
 }
@@ -882,14 +886,20 @@ export async function authenticateProtectedResources(
 	const defaultAccountService = accessor.get(IDefaultAccountService);
 	const logService = accessor.get(ILogService);
 	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
+	// Read once: a service remembered while this pass looks up a credential must not make it forward a second service.
+	const rememberedService = defaultAccountService.currentDefaultAccount?.copilotService;
 	for (const agent of agents) {
 		const resources = agent.protectedResources ?? [];
-		// With several named optional Microsoft service resources offered, the window cannot tell which one the user means, so it forwards none of them.
+		// With several named optional Microsoft service resources offered, the window forwards only the service remembered for the default account.
 		const isOptionalService = (r: ProtectedResourceMetadata) => r.required === false && isCopilotEntraServiceResource(r);
 		const choosesBetweenServices = resources.filter(r => isOptionalService(r) && !!r.resource_name).length > 1;
 		for (const resource of resources) {
 			if (choosesBetweenServices && isOptionalService(resource)) {
-				continue;
+				if (!rememberedService || copilotServiceForResource(resource.resource) !== rememberedService) {
+					continue;
+				}
+				// An earlier challenge answer may have sent this credential already; the host takes it as the choice only now, so it is sent again.
+				resolvedOptions.authTokenCache?.invalidate(resource.resource, resource.scopes_supported);
 			}
 			await authenticateProtectedResourceWithServices(authenticationService, defaultAccountService, logService, resource, resolvedOptions);
 		}

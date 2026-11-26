@@ -1015,6 +1015,34 @@ suite('Debug - ANSI Handling', () => {
 
 	});
 
+	test('Truncates long lines while keeping ANSI styles', () => {
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		const render = (text: string, maxLineLength: number) => [...handleANSIOutput(text, linkDetector, session.root, [], hoverBehavior, maxLineLength).children].map(child => ({ text: child.textContent, className: child.className }));
+		const red = 'code-foreground-colored';
+
+		assert.deepStrictEqual([
+			// a sequence after the cut still styles the ellipsis and the next line
+			render('abcd\x1b[31mefgh\nhello', 6),
+			// a reset in the dropped text still applies to the next line
+			render('\x1b[31mabcdefgh\x1b[0m\nok', 3),
+			// the CR of CRLF is part of the line break
+			render('abc\r\ndef', 3),
+			render('abcd\r\nef', 3),
+			// a surrogate pair is never split
+			render('ab\u{1F600}c', 3),
+			render('ab\u{1F600}c', 4),
+		], [
+			[{ text: 'abcd', className: '' }, { text: 'ef', className: red }, { text: '\u2026', className: red }, { text: '\nhello', className: red }],
+			[{ text: 'abc', className: red }, { text: '\u2026', className: red }, { text: '\nok', className: '' }],
+			[{ text: 'abc\r\ndef', className: '' }],
+			[{ text: 'abc', className: '' }, { text: '\u2026', className: '' }, { text: '\r\nef', className: '' }],
+			[{ text: 'ab', className: '' }, { text: '\u2026', className: '' }],
+			[{ text: 'ab\u{1F600}', className: '' }, { text: '\u2026', className: '' }],
+		]);
+
+		hoverBehavior.store.dispose();
+	});
+
 	test('calcANSI8bitColor', () => {
 		// Invalid values
 		// Negative (below range), simple range, decimals

@@ -170,6 +170,18 @@ steps:
           ${{ each pair in parameters.VSCODE_CLI_ENV }}:
             ${{ pair.key }}: ${{ pair.value }}
 
+    - ${{ if eq(parameters.VSCODE_CLI_TARGET, 'x86_64-pc-windows-msvc') }}:
+      - script: node ../build/azure-pipelines/common/runWithTimeout.ts 1200 -- cargo test --config http.multiplexing=false --config net.retry=5 --release --target ${{ parameters.VSCODE_CLI_TARGET }} --test tunnel_service --test agent_tunnel
+        displayName: Test Windows CLI startup
+        workingDirectory: $(Build.SourcesDirectory)/cli
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+          VSCODE_CLI_COMMIT: $(Build.SourceVersion)
+          RUSTC_WRAPPER: sccache
+          SCCACHE_DIR: $(Pipeline.Workspace)/sccache
+          ${{ each pair in parameters.VSCODE_CLI_ENV }}:
+            ${{ pair.key }}: ${{ pair.value }}
+
     - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
       - task: PublishSymbols@2
         inputs:

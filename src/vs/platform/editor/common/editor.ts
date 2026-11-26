@@ -450,6 +450,15 @@ export interface IModalEditorOptions {
 	 * the size changes to fit the modal again.
 	 */
 	readonly contentSize?: { readonly width: number; readonly height: number };
+
+	/**
+	 * When true and the modal holds more than one editor, its header
+	 * lists the editors as tabs to switch between, in place of the
+	 * title of the active editor. One editor asking is enough, whether
+	 * it is the active one or not. The tabs cannot be closed or moved.
+	 * Has no effect while the modal shows the tabs of its editor group.
+	 */
+	readonly showEditorsInHeader?: boolean;
 }
 
 /**

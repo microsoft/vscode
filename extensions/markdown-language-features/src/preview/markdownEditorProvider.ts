@@ -1055,7 +1055,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 * offsets.
 	 */
 	#wireQuickDiff(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, sync: TextDocumentSync): vscode.Disposable {
-		const diffProvider = vscode.window.createSourceControlDiffInformation(document.uri);
+		const diffProvider = vscode.window.createSourceControlDiffInformation(document.uri, { includeChatEdits: true });
 
 		const postMarkers = async () => {
 			// Offsets into the editor text are document offsets once the editor's changes are written.
@@ -1066,10 +1066,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			// document we hold, otherwise the line positions could be stale. A newer
 			// diff for the current version will arrive via onDidChange.
 			const version = sync.version;
-			if (!editorWebview.ready || !diffInformation || diffInformation.isStale || !version) {
+			if (!editorWebview.ready || !version || diffInformation?.isStale) {
 				return;
 			}
-			editorWebview.renderer.gutterMarkers({ version, markers: toGutterMarkers(document, diffInformation.changes) });
+			editorWebview.renderer.gutterMarkers({ version, markers: diffInformation ? toGutterMarkers(document, diffInformation.changes) : [] });
 		};
 		const publishMarkers = () => editorWebview.report('Publish quick diff', postMarkers());
 

@@ -24,7 +24,6 @@
 		"applicationinsights": "^2.9.7",
 		"jsonc-parser": "^3.3.1",
 		"openai": "^6.7.0",
-		"undici": "^7.24.1",
 		"vscode-languageserver-protocol": "^3.17.5",
 		"vscode-languageserver-textdocument": "^1.0.12",
 		"vscode-languageserver-types": "^3.17.5",
