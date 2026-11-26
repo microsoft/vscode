@@ -20,7 +20,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { CHAT_VIEW_NEW_SPLIT_BUTTON_NARROW_WIDTH, ChatViewNewSplitButtonActionViewItem } from '../../../browser/agentsView/chatViewNewSplitButton.js';
+import { ChatViewNewSplitButtonActionViewItem } from '../../../browser/agentsView/chatViewNewSplitButton.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
@@ -98,18 +98,29 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 		});
 	});
 
-	test('hides the keybinding while the title is narrow', async () => {
+	test('hides the keybinding exactly when the full button touches the next action and restores it', async () => {
 		const title = DOM.append(mainWindow.document.body, DOM.$('.pane-header'));
 		store.add({ dispose: () => title.remove() });
-		title.style.width = `${CHAT_VIEW_NEW_SPLIT_BUTTON_NARROW_WIDTH + 100}px`;
-		const container = DOM.append(title, DOM.$('div'));
+		title.style.width = '500px';
+		const toolbar = DOM.append(title, DOM.$('.monaco-action-bar'));
+		const actions = DOM.append(toolbar, DOM.$('ul.actions-container'));
+		actions.style.display = 'flex';
+		const container = DOM.append(actions, DOM.$('li.action-item'));
+		container.style.marginRight = '4px';
+		const next = DOM.append(actions, DOM.$('li.action-item'));
+		next.style.flex = '0 0 22px';
 		createItem(container);
 		await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
-		const wide = container.classList.contains('narrow');
+		const button = container.firstElementChild as HTMLElement;
+		const fullWidth = button.getBoundingClientRect().width;
+		const states = [container.classList.contains('narrow')];
 
-		title.style.width = `${CHAT_VIEW_NEW_SPLIT_BUTTON_NARROW_WIDTH - 100}px`;
-		TestResizeObserver.callback?.([], upcastPartial<ResizeObserver>({}));
+		for (const freeSpace of [0.5, 0, -0.5, 0.5]) {
+			toolbar.style.width = `${fullWidth + 22 + freeSpace}px`;
+			TestResizeObserver.callback?.([], upcastPartial<ResizeObserver>({}));
+			states.push(container.classList.contains('narrow'));
+		}
 
-		assert.deepStrictEqual([wide, container.classList.contains('narrow')], [false, true]);
+		assert.deepStrictEqual(states, [false, false, true, true, false]);
 	});
 });

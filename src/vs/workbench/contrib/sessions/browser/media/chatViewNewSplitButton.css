@@ -9,6 +9,12 @@ icon actions, and styled as the Agents window's New button. */
 .chat-view-new-split-button {
 	display: flex;
 	align-items: center;
+	min-width: 0;
+}
+
+.chat-view-new-split-button > .monaco-button-dropdown {
+	flex-shrink: 0;
+	width: max-content;
 }
 
 .chat-view-new-split-button > .monaco-button-dropdown > .monaco-button {

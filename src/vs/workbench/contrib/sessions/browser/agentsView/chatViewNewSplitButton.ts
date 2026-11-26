@@ -21,9 +21,6 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../common/agentsColors.js';
 
-/** The width of the title below which the split button leaves out the keybinding of its primary action. */
-export const CHAT_VIEW_NEW_SPLIT_BUTTON_NARROW_WIDTH = 300;
-
 /** The options of {@link ChatViewNewSplitButtonActionViewItem}. */
 export interface IChatViewNewSplitButtonOptions extends IBaseActionViewItemOptions {
 	/** Creates the resize observer of the title, which tests replace. */
@@ -33,12 +30,13 @@ export interface IChatViewNewSplitButtonOptions extends IBaseActionViewItemOptio
 /**
  * The New Chat split button of the Chat view's title while it shows the shared sessions list: "New" with the keybinding of
  * the menu's first action, which it runs, and a chevron that opens the menu, with the same actions as the title's default
- * split button. The keybinding hides while the title is narrower than {@link CHAT_VIEW_NEW_SPLIT_BUTTON_NARROW_WIDTH}.
+ * split button. The keybinding hides when the full button would touch the next title action.
  */
 export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 
 	private button: ButtonWithDropdown | undefined;
 	private readonly primaryAction: MenuItemAction | undefined;
+	private updateKeybindingFit: (() => void) | undefined;
 
 	constructor(
 		action: SubmenuItemAction,
@@ -115,6 +113,7 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 			const keybindingAriaLabel = keybinding?.getAriaLabel();
 			button.primaryButton.setTitle(keybindingLabelText ? localize('chatViewNewSplitButtonTitle', "{0} ({1})", name, keybindingLabelText) : name);
 			button.primaryButton.setAriaLabel(keybindingAriaLabel ? localize('chatViewNewSplitButtonTitle', "{0} ({1})", name, keybindingAriaLabel) : name);
+			this.updateKeybindingFit?.();
 		};
 		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateKeybinding));
 
@@ -122,14 +121,28 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 		this.updateEnabled();
 	}
 
-	/** Hides the keybinding while the title, of the view or of its container, is narrow, once the toolbar has added the button to it. */
+	/** Measures the full button against its allocated space after the toolbar has attached it. */
 	private observeTitleWidth(container: HTMLElement): void {
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(container), () => {
 			const title = container.closest<HTMLElement>('.pane-header, .composite.title');
 			if (!title) {
 				return;
 			}
-			const update = () => container.classList.toggle('narrow', title.clientWidth < CHAT_VIEW_NEW_SPLIT_BUTTON_NARROW_WIDTH);
+			const update = this.updateKeybindingFit = () => {
+				// Measure the unshrunk presentation even when the shortcut is currently hidden.
+				container.classList.remove('narrow');
+				const button = container.firstElementChild;
+				if (!DOM.isHTMLElement(button)) {
+					return;
+				}
+				const nextAction = container.nextElementSibling;
+				const right = button.getBoundingClientRect().right;
+				const fits = DOM.isHTMLElement(nextAction) && nextAction.getBoundingClientRect().width > 0
+					? right < nextAction.getBoundingClientRect().left
+					: right <= container.getBoundingClientRect().right;
+				container.classList.toggle('narrow', !fits);
+			};
+			// Only the title is observed: its size does not depend on the keybinding, so toggling it cannot loop the observer
 			const observer = this._register(new DOM.DisposableResizeObserver('chatViewNewSplitButton', update, DOM.getWindow(title), { resizeObserverCtor: this.splitButtonOptions?.resizeObserverCtor }));
 			this._register(observer.observe(title));
 			update();
