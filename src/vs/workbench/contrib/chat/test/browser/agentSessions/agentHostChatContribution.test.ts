@@ -75,7 +75,7 @@ import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/br
 import { IAgentHostResourceService } from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentHostAgentOrchestrationLimitsSettingId, AgentHostMcpToolRoutingEnabledSettingId, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentHostMcpToolRoutingEnabledSettingId, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
@@ -88,7 +88,6 @@ import { toSlashCommandResourceMeta } from '../../../../../../platform/agentHost
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
-import { OrchestrationLimitChoice, orchestrationLimitQuestionId, withOrchestrationLimitQuestion } from '../../../../../../platform/agentHost/common/meta/agentOrchestrationLimitMeta.js';
 import { createShellAuthenticationRequest } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
@@ -11978,45 +11977,6 @@ suite('AgentHostChatContribution', () => {
 				{ type: ActionType.ChatInputCompleted, requestId: 'defaults', response: ChatInputResponseKind.Accept, answers: answer },
 				{ type: ActionType.ChatInputCompleted, requestId: 'plan', response: ChatInputResponseKind.Decline, _meta: human },
 			]);
-			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
-			await turnPromise;
-		}));
-
-		test('turns off orchestration limits in user settings only when the person chose it in an orchestration limit question', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
-			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-			const question = {
-				kind: ChatInputQuestionKind.SingleSelect, id: orchestrationLimitQuestionId, message: 'Limit reached', required: true, allowFreeformInput: false,
-				options: [OrchestrationLimitChoice.AllowMore, OrchestrationLimitChoice.TurnOff].map(id => ({ id, label: id })),
-			};
-			const requests = [
-				{ id: 'defaults', marked: true },
-				{ id: 'unmarked', marked: false },
-				{ id: 'allowMore', marked: true },
-				{ id: 'turnOff', marked: true },
-			];
-			for (const { id, marked } of requests) {
-				const request = { id, questions: [question] };
-				fire({ type: ActionType.ChatInputRequested, request: marked ? withOrchestrationLimitQuestion(request) : request } as ChatAction);
-			}
-			await timeout(10);
-			const [defaults, unmarked, allowMore, turnOff] = collected.flat().filter((part): part is ChatQuestionCarouselData => part instanceof ChatQuestionCarouselData);
-			const updateValue = sinon.spy(instantiationService.get(IConfigurationService), 'updateValue');
-			const settingUpdatesAfter = async (carousel: ChatQuestionCarouselData, choice: string, submittedByUser: boolean) => {
-				updateValue.resetHistory();
-				carousel.submittedByUser = submittedByUser;
-				carousel.completion.complete({ answers: { [orchestrationLimitQuestionId]: { selectedValue: choice } } });
-				await timeout(10);
-				return updateValue.getCalls().map(call => call.args);
-			};
-
-			assert.deepStrictEqual({
-				defaults: await settingUpdatesAfter(defaults, OrchestrationLimitChoice.TurnOff, false),
-				unmarked: await settingUpdatesAfter(unmarked, OrchestrationLimitChoice.TurnOff, true),
-				allowMore: await settingUpdatesAfter(allowMore, OrchestrationLimitChoice.AllowMore, true),
-				turnOff: await settingUpdatesAfter(turnOff, OrchestrationLimitChoice.TurnOff, true),
-			}, { defaults: [], unmarked: [], allowMore: [], turnOff: [[AgentHostAgentOrchestrationLimitsSettingId, 'off', ConfigurationTarget.USER]] });
-			updateValue.restore();
 			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));

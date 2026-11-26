@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -22,7 +23,7 @@ import { getCopilotContextTier, getCopilotReasoningEffort } from '../../node/cop
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
-import { buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputQuestionKind, ChatInputAnswerValueKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, getAgentHostChatId, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, getAgentHostChatId, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
@@ -132,7 +133,7 @@ suite('SessionServerTools', () => {
 			getChatOwner: overrides?.getChatOwner ?? mintedTestChatOwner,
 			getDefaultChat: overrides?.getDefaultChat ?? recordedDefaultChat,
 			canAskUser: overrides?.canAskUser ?? (() => false),
-			turnOffOrchestrationLimits: overrides?.turnOffOrchestrationLimits ?? (() => { }),
+			onDidChangeRootConfig: overrides?.onDidChangeRootConfig ?? Event.None,
 		};
 	}
 
@@ -1891,7 +1892,7 @@ suite('SessionServerTools', () => {
 		const peerChat = buildChatUri(session, 'peer');
 		const messageArgs = { session: 'copilot:/s1', message: 'status' };
 
-		function setup(canAskUser = () => true, startPrompt?: () => Promise<void>, now = () => 0, turnOffOrchestrationLimits?: () => void) {
+		function setup(canAskUser = () => true, startPrompt?: () => Promise<void>, now = () => 0, limits?: { readonly enabled: () => boolean; readonly onDidChange: Event<void> }) {
 			const store = new DisposableStore();
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Caller', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: mainChat });
@@ -1899,7 +1900,7 @@ suite('SessionServerTools', () => {
 			stateManager.dispatchServerAction(mainChat, chatTurnStarted('turn-1', 'go'));
 			stateManager.dispatchServerAction(peerChat, chatTurnStarted('turn-1', 'go'));
 			let sent = 0;
-			const group = createSessionServerToolGroup(createAccessor({ canAskUser, turnOffOrchestrationLimits, getChatOwner: chat => stateManager.getChatOwner(chat), listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)], startPrompt: async () => { await startPrompt?.(); sent++; } }), () => true, now);
+			const group = createSessionServerToolGroup(createAccessor({ canAskUser, onDidChangeRootConfig: limits?.onDidChange, getChatOwner: chat => stateManager.getChatOwner(chat), listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)], startPrompt: async () => { await startPrompt?.(); sent++; } }), limits?.enabled ?? (() => true), now);
 			const questions: { readonly chat: string; readonly id: string; readonly title: string }[] = [];
 			let onQuestion: (() => void) | undefined;
 			store.add(stateManager.onDidEmitEnvelope(({ channel, action }) => {
@@ -2067,19 +2068,63 @@ suite('SessionServerTools', () => {
 			t.store.dispose();
 		});
 
-		test('turning limits off lets the waiting call through and turns them off in the host', async () => {
-			let turnedOff = 0;
-			const t = setup(undefined, undefined, undefined, () => { turnedOff++; });
+		test('turning the setting off releases every waiting call and closes the question; turning it on limits again', async () => {
+			let enabled = true;
+			const onDidChange = new Emitter<void>();
+			const hold = holdNextSend();
+			const t = setup(undefined, hold.startPrompt, undefined, { enabled: () => enabled, onDidChange: onDidChange.event });
 			await t.sendMany(100);
-			const result = await answered(t, 'turnOff', () => t.send(mainChat));
-			const request = t.stateManager.getChatState(mainChat)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.InputRequest);
+			const asked = t.nextQuestion();
+			const questioned = t.send(mainChat);
+			await asked;
+			const closed: string[] = [];
+			t.store.add(t.stateManager.onDidEmitEnvelope(({ action }) => {
+				if (action.type === ActionType.ChatInputCompleted) {
+					closed.push(action.requestId);
+				}
+			}));
+			enabled = false;
+			onDidChange.fire();
+			const whileOff = await t.sendMany(5);
+			enabled = true;
+			onDidChange.fire();
+			const reenabled = t.nextQuestion();
+			const afterOn = t.send(peerChat);
+			await reenabled;
+			t.answer('deny');
 
-			assert.deepStrictEqual({ result, after: await t.sendMany(10), turnedOff, options: request?.kind === ResponsePartKind.InputRequest && request.request.questions?.[0].kind === ChatInputQuestionKind.SingleSelect ? request.request.questions[0].options.map(option => option.label) : undefined }, {
-				result: 'allowed',
-				after: 'allowed x10',
-				turnedOff: 1,
-				options: ['Allow 100 More', 'Allow for This Session', 'Turn Off Limits', 'Don\'t Allow'],
+			assert.deepStrictEqual({ questioned: await questioned, closed: closed[0] === t.questions[0].id, whileOff, afterOn: await afterOn, questions: t.questions.length }, {
+				questioned: 'allowed',
+				closed: true,
+				whileOff: 'allowed x5',
+				afterOn: 'declined',
+				questions: 2,
 			});
+			onDidChange.dispose();
+			t.store.dispose();
+		});
+
+		test('a create_session call released by turning the setting off is not refused for recursion depth', async () => {
+			let enabled = false;
+			const onDidChange = new Emitter<void>();
+			const t = setup();
+			let created = 0;
+			const depths = new Map([[session, 3]]);
+			const group = createSessionServerToolGroup(createAccessor({ canAskUser: () => true, depths, onDidChangeRootConfig: onDidChange.event, getChatOwner: chat => t.stateManager.getChatOwner(chat), createSession: async () => URI.parse(`copilot:/created-${created++}`) }), () => enabled, () => 0);
+			const create = () => Promise.resolve(group.execute(t.stateManager, { sessionUri: session, chatUri: mainChat, turnId: 'turn-1' }, SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'go', title: 'Task' }))
+				.then(() => 'allowed', (error: Error) => /recursion limit/.test(error.message) ? 'depth' : 'refused');
+			for (let i = 0; i < 50; i++) {
+				await create();
+			}
+			enabled = true;
+			const asked = t.nextQuestion();
+			const waiting = create();
+			await asked;
+			enabled = false;
+			onDidChange.fire();
+
+			assert.deepStrictEqual({ waiting: await waiting, created }, { waiting: 'allowed', created: 51 });
+			onDidChange.dispose();
 			t.store.dispose();
 		});
 

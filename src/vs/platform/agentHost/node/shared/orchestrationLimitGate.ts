@@ -10,11 +10,10 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
-import { OrchestrationLimitChoice, orchestrationLimitQuestionId, readOrchestrationLimitChoice, withOrchestrationLimitQuestion } from '../../common/meta/agentOrchestrationLimitMeta.js';
 import { formatSessionActionLimit, type ISessionActionLimit, type ISessionActionReservation, type SessionActionLimiter } from '../../common/sessionActionLimiter.js';
 import { AgentHostAgentOrchestrationLimitsSettingId } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputResponseKind, ResponsePartKind, type ChatInputAnswer } from '../../common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ResponsePartKind, type ChatInputAnswer } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolExecutionContext } from './agentServerToolHost.js';
 
@@ -24,8 +23,16 @@ export const enum OrchestrationLimitKind {
 	Chats = 'chats',
 }
 
+const enum OrchestrationLimitChoice {
+	AllowMore = 'allowMore',
+	AllowUnlimited = 'allowUnlimited',
+	Deny = 'deny',
+}
+
 const unanswered = 'unanswered';
 type OrchestrationLimitAnswer = OrchestrationLimitChoice | typeof unanswered;
+
+const questionId = 'orchestrationLimit';
 
 interface IOrchestrationLimiter {
 	readonly kind: OrchestrationLimitKind;
@@ -36,14 +43,21 @@ interface IOrchestrationLimiter {
 export class OrchestrationLimitGate {
 
 	private readonly _questions = new Map<string, Event<OrchestrationLimitAnswer>>();
+	private readonly _onDidTurnOff: Event<void>;
 
 	constructor(
 		private readonly _canAskUser: (context: IServerToolExecutionContext) => boolean,
-		private readonly _turnOffLimits: () => void,
-	) { }
+		private readonly _isEnabled: () => boolean,
+		onDidChangeEnabled: Event<void>,
+	) {
+		this._onDidTurnOff = Event.filter(onDidChangeEnabled, () => !_isEnabled());
+	}
 
-	async check(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, { kind, limiter, action }: IOrchestrationLimiter, session: string): Promise<ISessionActionReservation> {
+	async check(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, { kind, limiter, action }: IOrchestrationLimiter, session: string): Promise<ISessionActionReservation | undefined> {
 		while (true) {
+			if (!this._isEnabled()) {
+				return undefined;
+			}
 			const limit = limiter.getLimit(session);
 			if (!limit) {
 				return limiter.reserve(session);
@@ -52,7 +66,7 @@ export class OrchestrationLimitGate {
 				throw new Error(formatSessionActionLimit(action, limit));
 			}
 			if (limit.used < limit.max) {
-				const capacityChanged = Event.any(Event.map(Event.filter(limiter.onDidRelease, released => released === session), () => true), onDidElapse(limit.nextExpiryMs));
+				const capacityChanged = Event.any(Event.map(Event.filter(limiter.onDidRelease, released => released === session), () => true), onDidElapse(limit.nextExpiryMs), Event.map(this._onDidTurnOff, () => true));
 				const woken = await whileCallerRuns(stateManager, context, context.turnId, capacityChanged);
 				if (woken === undefined || stateManager.getActiveTurnId(context.chatUri) !== context.turnId) {
 					throw new CancellationError();
@@ -74,15 +88,12 @@ export class OrchestrationLimitGate {
 		}
 		const onDidAnswer = new Emitter<OrchestrationLimitAnswer>();
 		this._questions.set(key, onDidAnswer.event);
-		void askUser(stateManager, context, turnId, kind, limit).then(answer => {
+		void askUser(stateManager, context, turnId, kind, limit, this._onDidTurnOff).then(answer => {
 			this._questions.delete(key);
 			if (answer === OrchestrationLimitChoice.AllowMore) {
 				limiter.allowMore(session);
 			} else if (answer === OrchestrationLimitChoice.AllowUnlimited) {
 				limiter.allowUnlimited(session);
-			} else if (answer === OrchestrationLimitChoice.TurnOff) {
-				limiter.allowUnlimited(session);
-				this._turnOffLimits();
 			}
 			onDidAnswer.fire(answer);
 			onDidAnswer.dispose();
@@ -132,7 +143,7 @@ function whileCallerRuns<T>(stateManager: AgentHostStateManager, context: IServe
 	});
 }
 
-function askUser(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, turnId: string, kind: OrchestrationLimitKind, limit: ISessionActionLimit): Promise<OrchestrationLimitAnswer> {
+function askUser(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, turnId: string, kind: OrchestrationLimitKind, limit: ISessionActionLimit, onDidTurnOff: Event<void>): Promise<OrchestrationLimitAnswer> {
 	const requestId = generateUuid();
 	return new Promise(resolve => {
 		const store = new DisposableStore();
@@ -141,35 +152,48 @@ function askUser(stateManager: AgentHostStateManager, context: IServerToolExecut
 			resolve(answer);
 		};
 		store.add(onDidEndCallerTurn(stateManager, context, turnId, () => finish(unanswered)));
+		store.add(onDidTurnOff(() => {
+			finish(unanswered);
+			stateManager.dispatchServerAction(context.chatUri, { type: ActionType.ChatInputCompleted, requestId, response: ChatInputResponseKind.Cancel });
+		}));
 		store.add(stateManager.onDidEmitEnvelope(({ channel, action }) => {
 			if (channel === context.chatUri && action.type === ActionType.ChatInputCompleted && action.requestId === requestId) {
-				finish(action.response === ChatInputResponseKind.Accept ? readOrchestrationLimitChoice(request, action.answers ?? readStoredAnswers(stateManager, context, requestId)) ?? OrchestrationLimitChoice.Deny : OrchestrationLimitChoice.Deny);
+				finish(action.response === ChatInputResponseKind.Accept ? readChoice(action.answers?.[questionId] ?? readStoredAnswer(stateManager, context, requestId)) ?? OrchestrationLimitChoice.Deny : OrchestrationLimitChoice.Deny);
 			}
 		}));
-		const request = withOrchestrationLimitQuestion(withChatInputRequestPurpose({
-			id: requestId,
-			questions: [{
-				kind: ChatInputQuestionKind.SingleSelect,
-				id: orchestrationLimitQuestionId,
-				title: getTitle(kind),
-				message: getMessage(kind, limit),
-				required: true,
-				allowFreeformInput: false,
-				options: [
-					{ id: OrchestrationLimitChoice.AllowMore, label: localize('orchestrationLimit.allowMore', "Allow {0} More", limit.max), recommended: true },
-					{ id: OrchestrationLimitChoice.AllowUnlimited, label: localize('orchestrationLimit.allowUnlimited', "Allow for This Session") },
-					{ id: OrchestrationLimitChoice.TurnOff, label: localize('orchestrationLimit.turnOff', "Turn Off Limits") },
-					{ id: OrchestrationLimitChoice.Deny, label: localize('orchestrationLimit.deny', "Don't Allow") },
-				],
-			}],
-		}, ChatInputRequestPurpose.Elicitation));
-		stateManager.dispatchServerAction(context.chatUri, { type: ActionType.ChatInputRequested, request });
+		stateManager.dispatchServerAction(context.chatUri, {
+			type: ActionType.ChatInputRequested,
+			request: withChatInputRequestPurpose({
+				id: requestId,
+				questions: [{
+					kind: ChatInputQuestionKind.SingleSelect,
+					id: questionId,
+					title: getTitle(kind),
+					message: getMessage(kind, limit),
+					required: true,
+					allowFreeformInput: false,
+					options: [
+						{ id: OrchestrationLimitChoice.AllowMore, label: localize('orchestrationLimit.allowMore', "Allow {0} More", limit.max), recommended: true },
+						{ id: OrchestrationLimitChoice.AllowUnlimited, label: localize('orchestrationLimit.allowUnlimited', "Allow for This Session") },
+						{ id: OrchestrationLimitChoice.Deny, label: localize('orchestrationLimit.deny', "Don't Allow") },
+					],
+				}],
+			}, ChatInputRequestPurpose.Elicitation),
+		});
 	});
 }
 
-function readStoredAnswers(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, requestId: string): Record<string, ChatInputAnswer> | undefined {
+function readStoredAnswer(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, requestId: string): ChatInputAnswer | undefined {
 	const part = stateManager.getChatState(context.chatUri)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.InputRequest && part.request.id === requestId);
-	return part?.kind === ResponsePartKind.InputRequest ? part.request.answers : undefined;
+	return part?.kind === ResponsePartKind.InputRequest ? part.request.answers?.[questionId] : undefined;
+}
+
+function readChoice(answer: ChatInputAnswer | undefined): OrchestrationLimitChoice | undefined {
+	if (answer?.state !== ChatInputAnswerState.Submitted || answer.value.kind !== ChatInputAnswerValueKind.Selected) {
+		return undefined;
+	}
+	const value = answer.value.value;
+	return value === OrchestrationLimitChoice.AllowMore || value === OrchestrationLimitChoice.AllowUnlimited || value === OrchestrationLimitChoice.Deny ? value : undefined;
 }
 
 function getTitle(kind: OrchestrationLimitKind): string {
@@ -182,8 +206,8 @@ function getTitle(kind: OrchestrationLimitKind): string {
 
 function getMessage(kind: OrchestrationLimitKind, limit: ISessionActionLimit): string {
 	switch (kind) {
-		case OrchestrationLimitKind.Messages: return localize('orchestrationLimit.messages.message', "This session reached its limit of {0} messages sent to other chats in {1} minutes.\n\n- **Allow {0} More**: you're asked again after {0} more messages.\n- **Allow for This Session**: no message limit for this session until the agent host restarts.\n- **Turn Off Limits**: turns off all agent orchestration limits for every session, including the limit on sessions creating sessions. Turn them back on with the `{2}` setting.\n- **Don't Allow**: this message isn't sent.", limit.max, limit.windowMinutes, AgentHostAgentOrchestrationLimitsSettingId);
-		case OrchestrationLimitKind.Sessions: return localize('orchestrationLimit.sessions.message', "This session reached its limit of {0} new sessions in {1} minutes.\n\n- **Allow {0} More**: you're asked again after {0} more sessions.\n- **Allow for This Session**: no limit on new sessions for this session until the agent host restarts.\n- **Turn Off Limits**: turns off all agent orchestration limits for every session, including the limit on sessions creating sessions. Turn them back on with the `{2}` setting.\n- **Don't Allow**: this session isn't created.", limit.max, limit.windowMinutes, AgentHostAgentOrchestrationLimitsSettingId);
-		case OrchestrationLimitKind.Chats: return localize('orchestrationLimit.chats.message', "This session reached its limit of {0} new chats in {1} minutes.\n\n- **Allow {0} More**: you're asked again after {0} more chats.\n- **Allow for This Session**: no limit on new chats for this session until the agent host restarts.\n- **Turn Off Limits**: turns off all agent orchestration limits for every session, including the limit on sessions creating sessions. Turn them back on with the `{2}` setting.\n- **Don't Allow**: this chat isn't created.", limit.max, limit.windowMinutes, AgentHostAgentOrchestrationLimitsSettingId);
+		case OrchestrationLimitKind.Messages: return localize('orchestrationLimit.messages.message', "This session reached its limit of {0} messages sent to other chats in {1} minutes.\n\n- **Allow {0} More**: you're asked again after {0} more messages.\n- **Allow for This Session**: no message limit for this session until the agent host restarts.\n- **Don't Allow**: this message isn't sent.\n\nTo turn off agent orchestration limits for every session, set `{2}` to `off`.", limit.max, limit.windowMinutes, AgentHostAgentOrchestrationLimitsSettingId);
+		case OrchestrationLimitKind.Sessions: return localize('orchestrationLimit.sessions.message', "This session reached its limit of {0} new sessions in {1} minutes.\n\n- **Allow {0} More**: you're asked again after {0} more sessions.\n- **Allow for This Session**: no limit on new sessions for this session until the agent host restarts.\n- **Don't Allow**: this session isn't created.\n\nTo turn off agent orchestration limits for every session, set `{2}` to `off`.", limit.max, limit.windowMinutes, AgentHostAgentOrchestrationLimitsSettingId);
+		case OrchestrationLimitKind.Chats: return localize('orchestrationLimit.chats.message', "This session reached its limit of {0} new chats in {1} minutes.\n\n- **Allow {0} More**: you're asked again after {0} more chats.\n- **Allow for This Session**: no limit on new chats for this session until the agent host restarts.\n- **Don't Allow**: this chat isn't created.\n\nTo turn off agent orchestration limits for every session, set `{2}` to `off`.", limit.max, limit.windowMinutes, AgentHostAgentOrchestrationLimitsSettingId);
 	}
 }

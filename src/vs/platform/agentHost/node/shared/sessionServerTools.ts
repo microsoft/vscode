@@ -5,6 +5,7 @@
 
 import type { Mutable } from '../../../../base/common/types.js';
 import { SequencerByKey } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -553,7 +554,7 @@ export interface ISessionServerToolAccessor extends IAgentServiceSessionServerTo
 	/** The recorded default chat of a session, if any. */
 	readonly getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined;
 	readonly canAskUser: (chat: ProtocolURI) => boolean;
-	readonly turnOffOrchestrationLimits: () => void;
+	readonly onDidChangeRootConfig: Event<void>;
 }
 
 /** Resolves the chat a link's chat id addresses against the session's recorded chats. */
@@ -2493,7 +2494,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 	const sessionsLimit = { kind: OrchestrationLimitKind.Sessions, limiter: createdSessions, action: 'create more sessions' };
 	const chatsLimit = { kind: OrchestrationLimitKind.Chats, limiter: createdChats, action: 'create more chats' };
 	const messagesLimit = { kind: OrchestrationLimitKind.Messages, limiter: sentMessages, action: 'send more messages' };
-	const limitGate = new OrchestrationLimitGate(context => accessor?.canAskUser(context.chatUri) === true, () => accessor?.turnOffOrchestrationLimits());
+	const limitGate = new OrchestrationLimitGate(context => accessor?.canAskUser(context.chatUri) === true, areAgentOrchestrationLimitsEnabled, accessor?.onDidChangeRootConfig ?? Event.None);
 	const group: IServerToolGroup = {
 		definitions: sessionServerToolDefinitions,
 		// Remove after 2026-10-26; self-mapped because its arguments differ from create_session.
@@ -2604,7 +2605,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					const limit = relationship === 'currentSession' ? chatsLimit : sessionsLimit;
 					const reservation = enforceAgentOrchestrationLimits ? await limitGate.check(stateManager, context, limit, sourceSession) : undefined;
 					try {
-						const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, enforceAgentOrchestrationLimits);
+						const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, areAgentOrchestrationLimitsEnabled());
 						recordAction(reservation, limit.limiter, sourceSession);
 						return formatCreateSessionResult(result);
 					} finally {

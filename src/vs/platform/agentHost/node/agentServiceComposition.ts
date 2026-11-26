@@ -249,7 +249,7 @@ export function createAgentServiceComposition(
 					&& configurationService.getRootValue(platformRootSchema, AgentHostAutoReplyEnabledConfigKey) !== true
 					&& configurationService.getChatEffectiveValue({ session, chat }, platformSessionSchema, SessionConfigKey.Mode) !== 'autopilot';
 			},
-			turnOffOrchestrationLimits: () => configurationService.updateRootConfig({ [AgentHostAgentOrchestrationLimitsConfigKey]: 'off' }),
+			onDidChangeRootConfig: configurationService.onDidRootConfigChange,
 			scheduleChatMove: (chat, turnId, move) => scheduledChatMoves.schedule(chat, turnId, move),
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation, credentials) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
