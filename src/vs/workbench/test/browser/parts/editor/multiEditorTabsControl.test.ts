@@ -445,7 +445,6 @@ suite('MultiEditorTabsControl', () => {
 					visibleEditors: tabs.every(tab => tab.offsetWidth > 0 && !tab.classList.contains('connected-tab-hidden')),
 					terminalEditor: tabs.map(tab => tab.classList.contains('connected-tab-last')),
 					addTab: {
-						visible: !addTab.classList.contains('hidden'),
 						isLast: addTab === addTab.parentElement!.lastElementChild,
 						terminalEditor: addTab.classList.contains('connected-tab-last'),
 						upperRow: addTab.classList.contains('connected-tab-upper-row'),
@@ -462,7 +461,7 @@ suite('MultiEditorTabsControl', () => {
 				renderedHeight: tabHeight === 'compact' ? 28 : 32,
 				visibleEditors: true,
 				terminalEditor: [false, true],
-				addTab: { visible: true, isLast: true, terminalEditor: false, upperRow: false },
+				addTab: { isLast: true, terminalEditor: false, upperRow: false },
 			}))),
 		});
 	});
@@ -738,22 +737,22 @@ suite('MultiEditorTabsControl', () => {
 					control.updateOptions(oldOptions, partOptions);
 					await layoutConnectedGroup(group, 300);
 					const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
-					const add = container.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
 					for (const visible of [false, true, false, true]) {
 						addMenuVisible = visible;
 						addMenuChange.fire();
 						await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+						const add = container.querySelector<HTMLElement>('.tabs-bar-add-tab');
 						results.push({
 							connected, direction, wrapTabs, visible,
-							hidden: add.classList.contains('hidden'),
-							widthCurrent: Number.parseFloat(tabs.style.getPropertyValue('--last-tab-add-tab-width')) === add.offsetWidth,
+							shown: !!add,
+							widthCurrent: Number.parseFloat(tabs.style.getPropertyValue('--last-tab-add-tab-width')) === (add?.offsetWidth ?? 0),
 							clippingCurrent: Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).some(tab => !!tab.style.clipPath) === (connected && !wrapTabs && visible),
 						});
 					}
 				}
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, hidden: !result.visible, widthCurrent: true, clippingCurrent: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, shown: result.visible, widthCurrent: true, clippingCurrent: true })));
 	});
 
 	test('wrapped fit check includes the terminal gutter and the independent controls row', async () => {
