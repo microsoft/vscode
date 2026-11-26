@@ -10,11 +10,11 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { COMPUTER_USE_REQUEST_KEY, COMPUTER_USE_STATUS_KEY, type ComputerUseAction, type ComputerUsePermission, type IComputerUseStatusV1 } from '../../common/computerUse.js';
 import { readComputerUseStatus } from '../../common/meta/computerUse.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentRootConfigurationChangeEvent } from '../../node/agentConfigurationService.js';
 
 /** The root configuration the Computer Use setup reads and writes, with the status as clients read it off the wire. */
 export class TestComputerUseConfiguration extends mock<IAgentConfigurationService>() implements IDisposable {
-	private readonly _onDidRootConfigChange = new Emitter<void>();
+	private readonly _onDidRootConfigChange = new Emitter<IAgentRootConfigurationChangeEvent>();
 	override readonly onDidRootConfigChange = this._onDidRootConfigChange.event;
 	readonly values: Record<string, unknown> = {};
 	/** Every published status, read back through the client's validating reader; `undefined` when withdrawn. */
@@ -30,7 +30,7 @@ export class TestComputerUseConfiguration extends mock<IAgentConfigurationServic
 
 	override updateRootConfig(patch: Record<string, unknown>): void {
 		Object.assign(this.values, patch);
-		this._onDidRootConfigChange.fire();
+		this._onDidRootConfigChange.fire({ changedKeys: new Set(Object.keys(patch)) });
 	}
 
 	override publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {

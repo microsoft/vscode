@@ -241,7 +241,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._register({ dispose: () => this._disposeAllWatchers() });
 		const hookState = () => JSON.stringify([this._workspaceTrust(), this._hooksEnabled()]);
 		let state = hookState();
-		this._register(this._configurationService.onDidRootConfigChange(() => {
+		this._register(this._configurationService.onDidRootConfigChange(({ changedKeys }) => {
+			if (!changedKeys.has(AgentHostWorkspaceTrustConfigKey) && !changedKeys.has(AgentHostHooksEnabledConfigKey)) {
+				return;
+			}
 			const next = hookState();
 			if (next !== state) {
 				state = next;

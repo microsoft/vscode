@@ -509,6 +509,8 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidSnapshotDefaultChatTitle = this._register(new Emitter<{ session: string; chat: string; title: string }>());
 	readonly onDidSnapshotDefaultChatTitle: Event<{ session: string; chat: string; title: string }> = this._onDidSnapshotDefaultChatTitle.event;
 
+	private readonly _onDidChangeRootConfig = this._register(new Emitter<{ previous: RootState['config']; current: RootState['config'] }>());
+	readonly onDidChangeRootConfig: Event<{ previous: RootState['config']; current: RootState['config'] }> = this._onDidChangeRootConfig.event;
 	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }>());
 	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }> = this._onDidChangeSessionConfig.event;
 	private readonly _onDidChangeChatConfig = this._register(new Emitter<{ session: URI; chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext; readonly action: ChatConfigChangedAction }>());
@@ -3009,7 +3011,11 @@ export class AgentHostStateManager extends Disposable {
 					return this._rootState;
 				}
 			}
+			const previousRootConfig = this._rootState.config;
 			this._rootState = rootReducer(this._rootState, action as RootAction, this._log);
+			if (action.type === ActionType.RootConfigChanged) {
+				this._onDidChangeRootConfig.fire({ previous: previousRootConfig, current: this._rootState.config });
+			}
 			resultingState = this._rootState;
 		}
 

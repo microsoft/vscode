@@ -8,6 +8,7 @@ import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { deepClone, equals } from '../../../../base/common/objects.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -93,8 +94,9 @@ export class CopilotSessionSandbox extends Disposable {
 	private _launchSession: CopilotSession | undefined;
 	private _extensionHome: URI | undefined;
 	private _pendingSelection: 'on' | 'off' | 'default' | undefined;
-	/** Serialized config the SDK session last accepted; re-sending it can restart pending MCP servers. */
-	private _appliedConfig: string | undefined;
+	/** Last config the SDK session accepted, along with the session instance it was applied to; re-sending it can restart pending MCP servers. */
+	private _appliedConfig: SandboxConfig | undefined;
+	private _appliedSession: CopilotSession | undefined;
 
 	constructor(
 		private readonly _options: ICopilotSessionSandboxOptions,
@@ -270,6 +272,7 @@ export class CopilotSessionSandbox extends Disposable {
 				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource, context.userFeedback);
 				// The grant changes the runtime's live policy outside `options.update`.
 				this._appliedConfig = undefined;
+				this._appliedSession = undefined;
 				const result = await session.rpc.sandbox.grantPathForRequest({
 					requestId,
 					...(attributed.kind === 'attributed' ? { decisionContext: attributed.decisionContext } : {}),
@@ -393,12 +396,20 @@ export class CopilotSessionSandbox extends Disposable {
 			? 'off' : undefined;
 	}
 
+	/** Clears cached applied sandbox state when the underlying SDK session is disconnected or recreated. */
+	resetAppliedState(): void {
+		this._appliedConfig = undefined;
+		this._appliedSession = undefined;
+		this._launchSession = undefined;
+	}
+
 	applyLaunchConfig(session: CopilotSession, isResume = false): Promise<void> {
 		return this._configSequencer.queue(async () => {
 			this._launchSession = session;
 			const requestedSelection = this._getLaunchSelection(isResume);
 			this._pendingSelection = undefined;
 			this._appliedConfig = undefined;
+			this._appliedSession = undefined;
 			if (isResume) {
 				this._disabledForSession = false;
 			}
@@ -557,6 +568,7 @@ export class CopilotSessionSandbox extends Disposable {
 			}
 			this._disabledForSession = !enabled;
 			this._appliedConfig = undefined;
+			this._appliedSession = undefined;
 			this._configurationService.setChatSandboxEnabled(target, enabled);
 			await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(enabled ? base : { enabled: false }));
 			return;
@@ -565,9 +577,8 @@ export class CopilotSessionSandbox extends Disposable {
 		if (!sandboxConfig) {
 			return;
 		}
-		const serialized = JSON.stringify(sandboxConfig);
 		try {
-			const unchanged = requestedSelection === undefined && serialized === this._appliedConfig;
+			const unchanged = requestedSelection === undefined && session === this._appliedSession && equals(sandboxConfig, this._appliedConfig);
 			if (!unchanged && reportMutation) {
 				this._options.onDidChangeRuntimeConfig?.();
 			}
@@ -581,7 +592,8 @@ export class CopilotSessionSandbox extends Disposable {
 					return;
 				}
 			}
-			this._appliedConfig = serialized;
+			this._appliedConfig = deepClone(sandboxConfig);
+			this._appliedSession = session;
 			this._disabledForSession = false;
 			this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
 			if (isResume && requestedSelection === undefined && sandboxConfig.enabled

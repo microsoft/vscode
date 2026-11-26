@@ -45,7 +45,7 @@ import { MISSION_CONTROL_AHP_LOG_ID, MissionControlUseLocalCredentialsConfigKey 
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentRootConfigurationChangeEvent } from '../../node/agentConfigurationService.js';
 import { AgentHostAhpJsonlLoggingEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { MissionControlSessionPublisher } from '../../node/missionControl/missionControlSessionPublisher.js';
@@ -98,13 +98,13 @@ suite('Mission Control host integration', () => {
 	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService, agentService?: IAgentService, quality: IProductService['quality'] = 'stable', sessionDataService?: ISessionDataService) {
 		const counts = { requests: 0, handlers: 0 };
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
-		const rootConfigChanged = store.add(new Emitter<void>());
+		const rootConfigChanged = store.add(new Emitter<IAgentRootConfigurationChangeEvent>());
 		const rootValues: Record<string, unknown> = {};
 		instantiation.stub(IAgentConfigurationService, new class extends mock<IAgentConfigurationService>() {
 			override readonly onDidRootConfigChange = rootConfigChanged.event;
 			override publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {
 				Object.assign(rootValues, patch);
-				rootConfigChanged.fire();
+				rootConfigChanged.fire({ changedKeys: new Set(Object.keys(patch)) });
 			}
 			override getRootValue<D extends SchemaDefinition, K extends keyof D & string>(
 				schema: ISchema<D>, key: K,
@@ -158,7 +158,7 @@ suite('Mission Control host integration', () => {
 		}, {
 			isEnabled: () => rootValues[MissionControlUseLocalCredentialsConfigKey] === true,
 			getResources: () => [{ resource: 'https://api.github.com', scopes_supported: ['read:user'] }, { resource: 'https://api.github.com/repos', scopes_supported: ['repo'] }],
-			onDidChange: rootConfigChanged.event,
+			onDidChange: Event.map(rootConfigChanged.event, () => undefined),
 		}));
 		instantiation.stub(IAgentHostAuthenticationService, authentication);
 		instantiation.stub(IFileService, new class extends mock<IFileService>() { }());
@@ -821,7 +821,7 @@ suite('Mission Control host integration', () => {
 		const enabled = [loggerOptions.isEnabled?.()];
 		for (const value of [true, false, true]) {
 			rootValues[AgentHostAhpJsonlLoggingEnabledConfigKey] = value;
-			rootConfigChanged.fire();
+			rootConfigChanged.fire({ changedKeys: new Set([AgentHostAhpJsonlLoggingEnabledConfigKey]) });
 			enabled.push(loggerOptions.isEnabled?.());
 		}
 		assert.deepStrictEqual(enabled, [false, true, false, true]);

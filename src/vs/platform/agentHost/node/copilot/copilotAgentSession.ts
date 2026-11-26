@@ -57,7 +57,8 @@ import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShel
 import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, SESSION_SANDBOX_PATHS_CHANGED, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { getSessionPathDisplay, type ISessionPathDisplay, type ISessionPathRoot } from '../../common/sessionPathDisplay.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
-import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
+import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
+import { AgentHostSandboxConfigKey } from '../../common/sandboxConfigSchema.js';
 import { copilotConnectorServers, reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { copilotConnectorsScope } from '../../../github/common/connectors/connectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
@@ -90,7 +91,7 @@ import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isHostNoticeTurn, isSubagentSession, lastAttributableTurnId, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
-import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
+import { hasChangedRootConfigKey, IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type CopilotProvisionalFusionStreamEvent, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
@@ -5410,6 +5411,7 @@ export class CopilotAgentSession extends Disposable {
 			await wrapper.disconnect().catch(() => { /* best-effort teardown */ });
 		}
 		this._wrapperDisposables.clear();
+		this._sandbox.resetAppliedState();
 		this._lastAppliedShellInitScripts = undefined;
 		this._registeredShellInitScriptPath = undefined;
 	}
@@ -9907,14 +9909,59 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	private static readonly _permissionRootConfigKeys: ReadonlySet<string> = new Set([
+		SessionConfigKey.AutoApprove,
+		SessionConfigKey.Mode,
+		SessionConfigKey.Permissions,
+		AgentHostGlobalAutoApproveEnabledConfigKey,
+		AgentHostAutoApprovePolicyRestrictedConfigKey,
+		AgentHostTerminalAutoApproveEnabledConfigKey,
+		AgentHostEditAutoApprovePatternsConfigKey,
+		AgentHostWorkspaceTrustConfigKey,
+	]);
+
+	private static readonly _sandboxRootConfigKeys: ReadonlySet<string> = new Set([
+		AgentHostSandboxConfigKey.Sandbox,
+		AgentHostSandboxConfigKey.SandboxProfile,
+		SessionConfigKey.SandboxEnabled,
+		CopilotCliConfigKey.EnableCustomTerminalTool,
+	]);
+
+	private static readonly _shellInitRootConfigKeys: ReadonlySet<string> = new Set([
+		CopilotCliConfigKey.EnableShellInitScript,
+		CopilotCliConfigKey.EnableCustomTerminalTool,
+	]);
+
+	private static readonly _imageGenerationRootConfigKeys: ReadonlySet<string> = new Set([
+		CopilotCliConfigKey.ImageGeneration,
+		CopilotCliConfigKey.ImageGenerationWatermark,
+	]);
+
+	private static readonly _settingExperimentTriggerRootConfigKeys: ReadonlySet<string> = new Set([
+		CopilotCliVSCodeAssignmentContextKey,
+		CopilotCliConfigKey.ExecutionSubagentDefaultControlled,
+		CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled,
+		CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled,
+	]);
+
 	private _subscribeToPermissionConfigChanges(): void {
-		this._register(this._configurationService.onDidRootConfigChange(() => {
-			void this._syncPermissionModeAfterConfigChange();
-			void this._syncAssistedApprovalInstructionsAfterConfigChange();
-			void this._syncImageGenerationAfterConfigChange();
+		this._register(this._configurationService.onDidRootConfigChange(({ changedKeys }) => {
+			const syncPermissionMode = hasChangedRootConfigKey(changedKeys, CopilotAgentSession._permissionRootConfigKeys);
+			const syncSandbox = hasChangedRootConfigKey(changedKeys, CopilotAgentSession._sandboxRootConfigKeys);
+			if (syncPermissionMode || syncSandbox) {
+				void this._syncPermissionModeAfterConfigChange(undefined, { syncPermissionMode, syncSandbox });
+			}
+			if (changedKeys.has(AgentHostAssistedApprovalInstructionsConfigKey)) {
+				void this._syncAssistedApprovalInstructionsAfterConfigChange();
+			}
+			if (hasChangedRootConfigKey(changedKeys, CopilotAgentSession._imageGenerationRootConfigKeys)) {
+				void this._syncImageGenerationAfterConfigChange();
+			}
 			// The forwarded shell init setting lives in root config.
-			void this._syncShellInitScript();
-			if (this._pendingSettingExperimentTriggers.size > 0) {
+			if (hasChangedRootConfigKey(changedKeys, CopilotAgentSession._shellInitRootConfigKeys)) {
+				void this._syncShellInitScript();
+			}
+			if (this._pendingSettingExperimentTriggers.size > 0 && hasChangedRootConfigKey(changedKeys, CopilotAgentSession._settingExperimentTriggerRootConfigKeys)) {
 				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
 				queueMicrotask(() => {
 					if (!this._store.isDisposed) {
@@ -10151,22 +10198,24 @@ export class CopilotAgentSession extends Disposable {
 		return this._shellInitScriptSequencer.queue(() => this._clearShellInitScript());
 	}
 
-	private async _syncPermissionModeAfterConfigChange(event?: IAgentChatConfigurationChangeEvent): Promise<void> {
+	private async _syncPermissionModeAfterConfigChange(event?: IAgentChatConfigurationChangeEvent, options?: { readonly syncPermissionMode?: boolean; readonly syncSandbox?: boolean }): Promise<void> {
 		if (this._isInactiveForBackgroundConfigSync()) {
 			return;
 		}
-		const sandboxChange = this._sandbox.prepareConfigChange(event);
+		const syncPermissionMode = options?.syncPermissionMode ?? true;
+		const syncSandbox = options?.syncSandbox ?? true;
+		const sandboxChange = syncSandbox ? this._sandbox.prepareConfigChange(event) : undefined;
 		try {
-			if (this.hasActiveTurn && (!sandboxChange.sessionCommand || (event && Object.hasOwn(event.config, SessionConfigKey.AutoApprove)))) {
+			if (syncPermissionMode && this.hasActiveTurn && (!sandboxChange?.sessionCommand || (event && Object.hasOwn(event.config, SessionConfigKey.AutoApprove)))) {
 				await this.syncPermissionMode('config-change');
 			}
-			await sandboxChange.apply();
+			await sandboxChange?.apply();
 		} catch (error) {
 			if (this._isInactiveForBackgroundConfigSync()) {
 				return;
 			}
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply permission config change${this.hasActiveTurn ? '; aborting active turn' : ''}`);
-			sandboxChange.reject(error);
+			sandboxChange?.reject(error);
 			if (!this.hasActiveTurn) {
 				return;
 			}

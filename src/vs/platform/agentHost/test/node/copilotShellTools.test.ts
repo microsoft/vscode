@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
-import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../../node/agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentRootConfigurationChangeEvent, type IAgentSessionConfigurationChangeEvent } from '../../node/agentConfigurationService.js';
 import type { ISessionSandboxPolicy } from '../../node/sessionSandbox.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -131,7 +131,7 @@ suite('CopilotShellTools', () => {
 	function createFakeAgentConfigurationService(initialSandbox?: Record<string, unknown>): IFakeAgentConfigurationService {
 		const sandbox: Record<string, unknown> = { ...initialSandbox };
 		const configValues: Record<string, unknown> = { [AgentHostSandboxConfigKey.Sandbox]: sandbox };
-		const emitter = disposables.add(new Emitter<void>());
+		const emitter = disposables.add(new Emitter<IAgentRootConfigurationChangeEvent>());
 		const sessionEmitter = disposables.add(new Emitter<IAgentSessionConfigurationChangeEvent>());
 		const sessionValues = new Map<string, Record<string, unknown>>();
 		const policies = new Map<string, ISessionSandboxPolicy>();
@@ -180,7 +180,7 @@ suite('CopilotShellTools', () => {
 			service,
 			setSandboxValue(key, value) {
 				sandbox[key] = value;
-				emitter.fire();
+				emitter.fire({ changedKeys: new Set([AgentHostSandboxConfigKey.Sandbox]) });
 			},
 		};
 	}
