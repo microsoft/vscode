@@ -30,7 +30,7 @@ export function createSessionIsolationToolGroup(accessor?: ISessionIsolationTool
 			deferLoading: true,
 		}, {
 			name: SessionServerToolName.IsolateFolder,
-			description: 'Move one additional folder of the current chat into a Git worktree of its own, on a new branch created from the folder\'s current branch, when you are about to change files in a folder that the working directories list as a shared checkout, not isolated. Call it before any tool that creates, edits or deletes files or runs commands that change files there. Not needed for reading, for the primary folder, which is already isolated, or for folders that are not in a Git repository. Only the current chat\'s folder is replaced by the worktree; other chats and the original folder are left unchanged, and uncommitted edits are not copied except configured worktree include-files. Folders in the same checkout share one worktree. Follow the tool confirmation flow; if the user declines, change the folder where it is. Make this the final tool call and end the turn after it succeeds, calling it first for each other shared checkout you will change; the host then moves the folders and continues its task automatically, telling you each folder\'s new path. Do not poll or repeat the request.',
+			description: 'Move one additional folder of the current chat into a Git worktree of its own, on a new branch created from the folder\'s current branch, when you are about to change files in a folder that the working directories list as a shared checkout, not isolated. Call it before any tool that creates, edits or deletes files or runs commands that change files there. Not needed for reading, for the primary folder, which is already isolated, or for folders that are not in a Git repository. Only the current chat\'s folder is replaced by the worktree; other chats and the original folder are left unchanged, and uncommitted edits are not copied except configured worktree include-files. Folders in the same checkout share one worktree. Follow the tool confirmation flow; if the user skips it, the folder is not moved and you continue in the shared folder. Make this the final tool call and end the turn after it succeeds, calling it first for each other shared checkout you will change; the host then moves the folders and continues its task automatically, telling you each folder\'s new path. Do not poll or repeat the request.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -103,8 +103,8 @@ function isolateFolderDisplay(args: unknown): IServerToolDisplay {
 			: localize('isolateFolder.complete', "Requested a worktree for a folder"),
 		confirmationTitle: localize('isolateFolder.confirmTitle', "Move Folder to a Worktree?"),
 		confirmationMessage: name !== undefined
-			? localize('isolateFolder.confirmNamed', "Move {0} into a new worktree for this chat? Other chats and the original folder are left unchanged. Uncommitted edits are not copied, except configured worktree include-files.", name)
-			: localize('isolateFolder.confirm', "Move a folder of this chat into a new worktree? Other chats and the original folder are left unchanged. Uncommitted edits are not copied, except configured worktree include-files."),
+			? localize('isolateFolder.confirmNamed', "Move {0} to a new worktree for this chat? Other chats and the original folder stay as they are, and uncommitted edits are not copied. Skip to keep working in the shared folder.", name)
+			: localize('isolateFolder.confirm', "Move this folder to a new worktree for this chat? Other chats and the original folder stay as they are, and uncommitted edits are not copied. Skip to keep working in the shared folder."),
 		hideConfirmationInput: true,
 	};
 }

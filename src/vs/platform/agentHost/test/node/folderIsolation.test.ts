@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -25,8 +27,9 @@ suite('FolderIsolationService', () => {
 	const worktreeOf = (folder: URI) => URI.file(`${folder.fsPath}.worktrees/task`);
 	const sponsor = { principal: { apiOrigin: 'https://api.github.com', userId: '1' } } as IAgentHostCredentialSource;
 
-	function setup(options: { queuedMessages?: PendingMessage[] } = {}) {
+	function setup(options: { queuedMessages?: PendingMessage[]; moved?: Promise<void> } = {}) {
 		let activeTurn: string | undefined = 'turn-1';
+		const admissions: string[] = [];
 		const started: { chat: string; text: string; sponsor?: string }[] = [];
 		const isolated: { folder: string; sponsor?: string }[] = [];
 		const turnService: Partial<IAgentHostTurnService> = {
@@ -40,6 +43,10 @@ suite('FolderIsolationService', () => {
 			getChatState: () => ({ queuedMessages: options.queuedMessages ?? [] }) as ChatState,
 			getSessionState: () => ({ chats: [{ resource: chat.toString() }] }) as unknown as ISessionWithDefaultChat,
 			onDidUnregisterChat: unregister.event,
+			holdChatAdmission: chats => {
+				admissions.push(`hold ${chats.join()}`);
+				return toDisposable(() => admissions.push(`release ${chats.join()}`));
+			},
 		};
 		const service = disposables.add(new FolderIsolationService({
 			validateFolderIsolation: (_session, _chat, folder) => {
@@ -49,6 +56,7 @@ suite('FolderIsolationService', () => {
 			},
 			isolateChatFolder: async (_session, _chat, folder, credentials) => {
 				isolated.push({ folder: folder.fsPath, ...(credentials ? { sponsor: credentials.principal?.userId } : {}) });
+				await options.moved;
 				if (folder.toString() === notGit.toString()) {
 					throw new Error('not in a Git repository');
 				}
@@ -61,7 +69,7 @@ suite('FolderIsolationService', () => {
 			// The isolation runs after the turn ended
 			await new Promise(resolve => setTimeout(resolve, 0));
 		};
-		return { service, started, isolated, end, unregisterChat: () => unregister.fire({ chat: chat.toString() } as IChatRegistration) };
+		return { service, started, isolated, admissions, end, clearTurn: () => { activeTurn = undefined; }, unregisterChat: () => unregister.fire({ chat: chat.toString() } as IChatRegistration) };
 	}
 
 	test('requests only from the active turn a folder the chat can isolate', () => {
@@ -87,6 +95,24 @@ suite('FolderIsolationService', () => {
 				text: `<!-- vscode-request-hidden-from-transcript -->\nContinue the task. ${JSON.stringify(protocol.fsPath)} is now ${JSON.stringify(worktreeOf(protocol).fsPath)}; make every change to it there only. ${JSON.stringify(docs.fsPath)} is now ${JSON.stringify(worktreeOf(docs).fsPath)}; make every change to it there only. ${JSON.stringify(notGit.fsPath)} could not be moved into a worktree (not in a Git repository); do not change it, and tell the user.`,
 				sponsor: '1',
 			}],
+		});
+	});
+
+	test('holds the chat\'s queued messages and refuses new ones from the end of the turn until its folders moved', async () => {
+		const moved = new DeferredPromise<void>();
+		const { service, started, admissions, clearTurn } = setup({ moved: moved.p });
+		service.request(session, chat, 'turn-1', protocol, sponsor);
+		clearTurn();
+		service.onTurnEnd({ session: session.toString(), channel: chat.toString(), turnId: 'turn-1', reason: { kind: 'success' } });
+		const whileMoving = { admissions: [...admissions], moving: service.isMoving(chat.toString()), started: started.length };
+		await moved.complete();
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({ whileMoving, after: { admissions, moving: service.isMoving(chat.toString()), started: started.length } }, {
+			// Held synchronously at the end of the turn, before the queue drain runs
+			whileMoving: { admissions: [`hold ${chat.toString()}`], moving: true, started: 0 },
+			// Released once the continuation started
+			after: { admissions: [`hold ${chat.toString()}`, `release ${chat.toString()}`], moving: false, started: 1 },
 		});
 	});
 

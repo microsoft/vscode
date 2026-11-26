@@ -83,7 +83,7 @@ import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContribut
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
-import { IFolderIsolationService } from '../../node/chatContributions/folderIsolation/folderIsolation.js';
+import { FolderIsolationService, IFolderIsolationService, type IFolderIsolationHost } from '../../node/chatContributions/folderIsolation/folderIsolation.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
@@ -257,6 +257,9 @@ function createTestSideEffects(
 		worktreeIsolation?: IAgentHostWorktreeIsolation;
 		fileService?: IFileService;
 		onDidCreateTurnService?: (turnService: IAgentHostTurnService) => void;
+		/** Moves folders for a real {@link FolderIsolationService}, instead of a service that moves none. */
+		folderIsolationHost?: IFolderIsolationHost;
+		onDidCreateFolderIsolation?: (service: IFolderIsolationService) => void;
 		authenticationService?: IAgentHostAuthenticationService;
 		logService?: ILogService;
 	},
@@ -276,7 +279,7 @@ function createTestSideEffects(
 	const services = new ServiceCollection(
 		[IAgentHostAuthenticationService, authenticationService],
 		[ILogService, logService],
-		[IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { } } satisfies IFolderIsolationService],
+		[IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { }, isMoving: () => false } satisfies IFolderIsolationService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
 		[IAgentHostCheckpointService, checkpointService],
@@ -343,6 +346,11 @@ function createTestSideEffects(
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
 	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
+	if (options.folderIsolationHost) {
+		const folderIsolation = disposables.add(instantiationService.createInstance(FolderIsolationService, options.folderIsolationHost));
+		services.set(IFolderIsolationService, folderIsolation);
+		options.onDidCreateFolderIsolation?.(folderIsolation);
+	}
 	const localTurns = options.localTurns ?? new AgentHostLocalTurns(createTestChatRows(options.sessionDataService, disposables), logService);
 	services.set(IAgentHostLocalTurns, localTurns);
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
@@ -5365,6 +5373,52 @@ suite('AgentSideEffects', () => {
 				heldQueue: ['q-held'],
 				sent: ['after the move'],
 				queueAfter: undefined,
+			});
+		});
+
+		test('a queued message of a chat whose folder isolate_folder moves waits until the folder moved, and then launches instead of the continuation', async () => {
+			const moved = new DeferredPromise<URI>();
+			let folderIsolation: IFolderIsolationService | undefined;
+			sideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				authenticationService,
+				folderIsolationHost: { validateFolderIsolation: () => { }, isolateChatFolder: () => moved.p },
+				onDidCreateFolderIsolation: service => folderIsolation = service,
+			}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+			folderIsolation!.request(sessionUri, URI.parse(defaultChatUri), 'turn-1', URI.file('/work/lib'), undefined);
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'q-moving',
+				message: { text: 'after the move', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, setAction);
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: chatTurnComplete('turn-1', 1000),
+			});
+			await timeout(0);
+			const whileMoving = {
+				sent: agent.sendMessageCalls.length,
+				queue: stateManager.getChatState(defaultChatUri)?.queuedMessages?.map(message => message.id),
+				moving: folderIsolation!.isMoving(defaultChatUri),
+			};
+			moved.complete(URI.file('/work/lib.worktrees/task'));
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({ whileMoving, sent: agent.sendMessageCalls.map(call => call.prompt), moving: folderIsolation!.isMoving(defaultChatUri) }, {
+				whileMoving: { sent: 0, queue: ['q-moving'], moving: true },
+				// The queued message launches once the folder moved, in place of the continuation
+				sent: ['after the move'],
+				moving: false,
 			});
 		});
 

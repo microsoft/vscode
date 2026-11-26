@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostCredentialSource } from '../../../common/agentHostCredentials.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IIncomingRequest, IncomingRequestDisposition, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { getPendingSteeringMessages } from '../../../common/agentSessionMessage.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../../../common/meta/agentMessageMeta.js';
@@ -33,8 +33,14 @@ export interface IFolderIsolationService {
 	 * and the turn that continues the task, as a client's message sponsors its turn.
 	 */
 	request(session: URI, chat: URI, turnId: string, folder: URI, credentials: IAgentHostCredentialSource | undefined): void;
-	/** Moves the folders a turn that ended successfully asked for, and continues the chat's task; drops them otherwise. */
+	/**
+	 * Moves the folders a turn that ended successfully asked for, and continues the chat's task; drops them otherwise.
+	 * Until the folders are moved, the chat's queued messages wait and a message sent to it is refused, so that no turn
+	 * launches in the folders being replaced.
+	 */
 	onTurnEnd(turn: ITurnEnd): void;
+	/** Whether the folders of `chat` are being moved. */
+	isMoving(chat: string): boolean;
 }
 
 /** What {@link FolderIsolationService} needs from the agent service. */
@@ -57,6 +63,7 @@ export class FolderIsolationService extends Disposable implements IFolderIsolati
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _pending = new Map<string, IPendingFolderIsolation>();
+	private readonly _moving = new Set<string>();
 
 	constructor(
 		private readonly _host: IFolderIsolationHost,
@@ -67,7 +74,14 @@ export class FolderIsolationService extends Disposable implements IFolderIsolati
 		super();
 		// A chat removed before its turn ended never reaches `onTurnEnd`.
 		this._register(this._stateManager.onDidUnregisterChat(({ chat }) => this._pending.delete(chat)));
-		this._register(toDisposable(() => this._pending.clear()));
+		this._register(toDisposable(() => {
+			this._pending.clear();
+			this._moving.clear();
+		}));
+	}
+
+	isMoving(chat: string): boolean {
+		return this._moving.has(chat);
 	}
 
 	request(session: URI, chat: URI, turnId: string, folder: URI, credentials: IAgentHostCredentialSource | undefined): void {
@@ -95,38 +109,49 @@ export class FolderIsolationService extends Disposable implements IFolderIsolati
 		this._pending.delete(turn.channel);
 		// As a moved chat, a folder is moved only after a turn that succeeded
 		if (turn.reason.kind === 'success') {
-			void this._isolate(URI.parse(turn.channel), pending);
+			// Taken now, before this turn end's queue drain, as a scheduled chat move takes it
+			const admission = this._stateManager.holdChatAdmission([turn.channel]);
+			this._moving.add(turn.channel);
+			void this._isolate(URI.parse(turn.channel), pending, admission);
 		}
 	}
 
-	private async _isolate(chat: URI, pending: IPendingFolderIsolation): Promise<void> {
-		const outcomes: string[] = [];
-		// One at a time: folders in the same checkout share one worktree
-		for (const folder of pending.folders) {
-			try {
-				const isolated = await this._host.isolateChatFolder(pending.session, chat, folder, pending.credentials);
-				outcomes.push(`${JSON.stringify(folder.fsPath)} is now ${JSON.stringify(isolated.fsPath)}; make every change to it there only`);
-			} catch (error) {
-				this._logService.warn(`[FolderIsolation] Failed to isolate ${folder.toString()} of ${chat.toString()}: ${toErrorMessage(error)}`);
-				outcomes.push(`${JSON.stringify(folder.fsPath)} could not be moved into a worktree (${toErrorMessage(error)}); do not change it, and tell the user`);
-			}
-		}
-		// A message the user sent or queued meanwhile takes the continuation's place: its turn launches in the new
-		// folders too, and the working directories list tells the agent where they are.
+	private async _isolate(chat: URI, pending: IPendingFolderIsolation, admission: IDisposable): Promise<void> {
 		const key = chat.toString();
-		const state = this._stateManager.getChatState(key);
-		const removed = !this._stateManager.getSessionState(pending.session.toString())?.chats.some(candidate => candidate.resource === key);
-		if (removed || this._stateManager.getActiveTurnId(key) !== undefined
-			|| (state && (state.queuedMessages?.length || getPendingSteeringMessages(state).length))) {
-			return;
-		}
 		try {
-			this._turnService.startTurnMessage(chat, withMessageRequestHiddenFromTranscript(withMessageSystemInitiatedLabel({
-				text: `Continue the task. ${outcomes.join('. ')}.`,
-				origin: { kind: MessageKind.SystemNotification },
-			}, localize('agentHost.continueInFolderWorktree', "Continue in Worktree")), true), pending.credentials);
-		} catch (error) {
-			this._logService.error(`[FolderIsolation] Failed to continue ${key} after isolating its folders`, error);
+			const outcomes: string[] = [];
+			try {
+				// One at a time: folders in the same checkout share one worktree
+				for (const folder of pending.folders) {
+					try {
+						const isolated = await this._host.isolateChatFolder(pending.session, chat, folder, pending.credentials);
+						outcomes.push(`${JSON.stringify(folder.fsPath)} is now ${JSON.stringify(isolated.fsPath)}; make every change to it there only`);
+					} catch (error) {
+						this._logService.warn(`[FolderIsolation] Failed to isolate ${folder.toString()} of ${key}: ${toErrorMessage(error)}`);
+						outcomes.push(`${JSON.stringify(folder.fsPath)} could not be moved into a worktree (${toErrorMessage(error)}); do not change it, and tell the user`);
+					}
+				}
+			} finally {
+				this._moving.delete(key);
+			}
+			// A message the user queued meanwhile takes the continuation's place: its turn launches in the new folders,
+			// once the admission is released, and the working directories list tells the agent where they are.
+			const state = this._stateManager.getChatState(key);
+			const removed = !this._stateManager.getSessionState(pending.session.toString())?.chats.some(candidate => candidate.resource === key);
+			if (removed || this._stateManager.getActiveTurnId(key) !== undefined
+				|| (state && (state.queuedMessages?.length || getPendingSteeringMessages(state).length))) {
+				return;
+			}
+			try {
+				this._turnService.startTurnMessage(chat, withMessageRequestHiddenFromTranscript(withMessageSystemInitiatedLabel({
+					text: `Continue the task. ${outcomes.join('. ')}.`,
+					origin: { kind: MessageKind.SystemNotification },
+				}, localize('agentHost.continueInFolderWorktree', "Continue in Worktree")), true), pending.credentials);
+			} catch (error) {
+				this._logService.error(`[FolderIsolation] Failed to continue ${key} after isolating its folders`, error);
+			}
+		} finally {
+			admission.dispose();
 		}
 	}
 }
@@ -147,5 +172,19 @@ export class FolderIsolationContribution extends Disposable implements IAgentHos
 
 	onTurnEnd(turn: ITurnEnd): void {
 		this._folderIsolation.onTurnEnd(turn);
+	}
+
+	onIncomingRequest(request: IIncomingRequest): IncomingRequestDisposition | undefined {
+		if (!this._folderIsolation.isMoving(request.chat)) {
+			return undefined;
+		}
+		return {
+			kind: 'reject',
+			error: {
+				errorType: 'folderIsolationPending',
+				message: localize('agentHost.folderIsolationPending', "Wait for the folder to move to its worktree before sending another message."),
+			},
+			stage: 'validation',
+		};
 	}
 }

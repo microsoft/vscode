@@ -996,7 +996,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	});
 	services.set(IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { observed?.push('scheduledChatMoves'); } } satisfies IAgentHostScheduledChatMoves);
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
-	services.set(IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { } } satisfies IFolderIsolationService);
+	services.set(IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { }, isMoving: () => false } satisfies IFolderIsolationService);
 	const queueAgent = new MockAgent();
 	const providerService = createTestAgentHostProviderService(() => queueAgent);
 	services.set(IAgentHostProviderService, providerService);

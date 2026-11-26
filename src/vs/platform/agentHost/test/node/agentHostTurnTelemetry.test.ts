@@ -285,7 +285,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const services = new ServiceCollection(
 			[IAgentHostAuthenticationService, authenticationService],
 			[ILogService, logService],
-			[IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { } } satisfies IFolderIsolationService],
+			[IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { }, isMoving: () => false } satisfies IFolderIsolationService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],

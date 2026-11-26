@@ -139,7 +139,7 @@ suite('Session isolation tool', () => {
 				invocationMessage: 'Requesting a worktree for protocol',
 				pastTenseMessage: 'Requested a worktree for protocol',
 				confirmationTitle: 'Move Folder to a Worktree?',
-				confirmationMessage: 'Move protocol into a new worktree for this chat? Other chats and the original folder are left unchanged. Uncommitted edits are not copied, except configured worktree include-files.',
+				confirmationMessage: 'Move protocol to a new worktree for this chat? Other chats and the original folder stay as they are, and uncommitted edits are not copied. Skip to keep working in the shared folder.',
 				hideConfirmationInput: true,
 			},
 		});
@@ -153,7 +153,7 @@ suite('Session isolation tool', () => {
 		assert.match(description, /before any tool that creates, edits or deletes files or runs commands that change files/);
 		assert.match(description, /Not needed for reading, for the primary folder/);
 		assert.match(description, /other chats and the original folder are left unchanged/);
-		assert.match(description, /Follow the tool confirmation flow; if the user declines, change the folder where it is/);
+		assert.match(description, /Follow the tool confirmation flow; if the user skips it, the folder is not moved and you continue in the shared folder/);
 		assert.match(description, /final tool call and end the turn.*continues its task automatically/);
 		assert.match(description, /Do not poll or repeat the request/);
 	});
