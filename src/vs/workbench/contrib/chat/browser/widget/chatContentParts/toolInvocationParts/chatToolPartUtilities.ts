@@ -114,7 +114,7 @@ interface IToolInvocationIconData {
 
 /** Resolves the activity icon shared by standalone, grouped, and subagent tool rows. */
 export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIconData, resultText?: string): ThemeIcon {
-	if (isMcpToolInvocation({ toolId, source: data?.source })) {
+	if (isMcpToolInvocation({ toolId, source: data?.source }) || (data?.icon && ThemeIcon.isEqual(data.icon, Codicon.mcp))) {
 		return Codicon.mcp;
 	}
 
@@ -176,7 +176,7 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 		lowerToolId.includes('replace') ||
 		lowerToolId.includes('patch')
 	) {
-		return Codicon.pencil;
+		return Codicon.edit;
 	}
 	if (lowerToolId.includes('terminal') || lowerToolId === 'bash' || lowerToolId === 'powershell' || lowerToolId === 'shell') {
 		return Codicon.terminal;
