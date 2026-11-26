@@ -7,6 +7,7 @@ import { IPendingSessionItem, isPendingSessionItem } from './pendingSessions.js'
 import '../media/sessionsList.css';
 import '../media/disclosure.css';
 import { IReader } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -74,6 +75,8 @@ export const SessionItemIsInSessionsListContext = new RawContextKey<boolean>('se
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolean>('sessionSection.hasGitHubRepository', false);
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
+/** Whether a section has a {@link ISessionSection.rootFolder}. */
+export const SessionSectionHasRootFolderContext = new RawContextKey<boolean>('sessionSection.hasRootFolder', false);
 export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
 export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
 export const SessionGroupIsComparisonContext = new RawContextKey<boolean>('sessionGroup.isComparison', false);
@@ -102,6 +105,12 @@ export interface ISessionSection {
 	readonly environment?: ISessionEnvironment;
 	/** The pinned canvas a navigation row opens. */
 	readonly pinnedCanvas?: IPinnedCanvas;
+	/**
+	 * The root folder (the project or repository folder, never a session's worktree) of a workspace or repository section:
+	 * the root of its first session that has one. Unset when none of its sessions has a folder, or when that root is a cloud
+	 * folder.
+	 */
+	readonly rootFolder?: URI;
 }
 
 /** A GitHub repository that sessions work in, whichever environment they run in. */

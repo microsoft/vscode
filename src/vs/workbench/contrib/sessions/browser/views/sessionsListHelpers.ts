@@ -11,7 +11,7 @@ import { localize } from '../../../../../nls.js';
 import { isSideChat } from '../sideChatPlacement.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getUntitledSessionTitle, IChat, ISession, ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
@@ -71,6 +71,21 @@ export function isSessionGroupingSection(sectionId: string): boolean {
 /** The {@link SessionSectionTypeContext} value of a section: its grouping kind, or its id for the fixed sections. */
 export function getSessionSectionType(sectionId: string): string {
 	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId;
+}
+
+/**
+ * The {@link ISessionSection.rootFolder} of a workspace or repository section with these sessions: the root folder of the
+ * first session that has one. A session in a worktree of a repository has that repository as its root. None when that root is
+ * a cloud folder, which an editor window can't open.
+ */
+export function getSessionsRootFolder(sessions: readonly ISession[]): URI | undefined {
+	for (const session of sessions) {
+		const root = getSessionPresentationWorkspace(session, undefined)?.folders[0]?.root;
+		if (root) {
+			return root.scheme === GITHUB_REMOTE_FILE_SCHEME ? undefined : root;
+		}
+	}
+	return undefined;
 }
 
 //#region Approval Helpers
@@ -555,12 +570,17 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 		.filter(k => k !== unknownWorkspaceLabel)
 		.sort((a, b) => a.localeCompare(b));
 
-	const result: ISessionSection[] = order.map(label => ({
-		id: `workspace:${label}`,
-		collapseStateId: workspaceCollapseStateId(groups.get(label)!),
-		label,
-		sessions: groups.get(label)!,
-	}));
+	const result: ISessionSection[] = order.map(label => {
+		const sessions = groups.get(label)!;
+		const rootFolder = getSessionsRootFolder(sessions);
+		return {
+			id: `workspace:${label}`,
+			collapseStateId: workspaceCollapseStateId(sessions),
+			label,
+			sessions,
+			...(rootFolder ? { rootFolder } : {}),
+		};
+	});
 
 	// "Unknown Workspace" always at the bottom
 	const unknownWorkspace = groups.get(unknownWorkspaceLabel);
@@ -641,7 +661,13 @@ export function groupByRepository(sessions: ISession[]): ISessionSection[] {
 	}
 	const unknownWorkspaceId = `workspace:${localize('unknown', "Unknown")}`;
 	const workspaceSections = groupByWorkspace(withoutRepository);
-	const sections = [...repositorySections.values(), ...workspaceSections.filter(section => section.id !== unknownWorkspaceId)];
+	const sections = [
+		...[...repositorySections.values()].map(section => {
+			const rootFolder = getSessionsRootFolder(section.sessions);
+			return rootFolder ? { ...section, rootFolder } : section;
+		}),
+		...workspaceSections.filter(section => section.id !== unknownWorkspaceId),
+	];
 	labelRepositorySections(sections);
 	sections.sort((a, b) => a.label.localeCompare(b.label));
 	sections.push(...workspaceSections.filter(section => section.id === unknownWorkspaceId));
