@@ -341,6 +341,7 @@ suite('AgentHostFileCompletionProvider', () => {
 			);
 			assert.deepStrictEqual(result.flatMap(item => item.attachment.type === MessageAttachmentKind.Resource && item.attachment.displayKind === 'directory' ? [item.attachment.uri] : []), [
 				URI.joinPath(root, 'src').toString(),
+				nested.toString(),
 			]);
 		});
 
@@ -383,7 +384,7 @@ suite('AgentHostFileCompletionProvider', () => {
 				items: completions.map(item => item.attachment.type === MessageAttachmentKind.Resource ? item.attachment.uri : undefined),
 			}, {
 				enumerated: [root.path, sibling.path],
-				items: [parentFile.toString(), nestedFile.toString(), siblingFile.toString()],
+				items: [parentFile.toString(), nestedFile.toString(), siblingFile.toString(), nested.toString()],
 			});
 		});
 

@@ -171,7 +171,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 				for (let i = 1; i < segments.length; i++) {
 					const directory = joinPath(outermostRoot, segments.slice(0, i).join('/'));
 					const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(directory);
-					const directoryOwner = findDeepestContainingWorkingDirectory(directory, roots.logicalRoots);
+					const directoryOwner = findDeepestContainingWorkingDirectory(directory, roots.logicalRoots.filter(root => !extUriBiasedIgnorePathCase.isEqual(root, directory)));
 					const directoryRelativePath = directoryOwner && extUriBiasedIgnorePathCase.relativePath(directoryOwner, directory);
 					if (!directoryOwner || !directoryRelativePath || seen.has(directoryKey)) {
 						continue;
