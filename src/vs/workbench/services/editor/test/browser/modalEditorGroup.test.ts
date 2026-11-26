@@ -20,7 +20,7 @@ import { MockKeybindingService, MockScopableContextKeyService } from '../../../.
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IEditorService, MODAL_GROUP, MODAL_GROUP_TYPE } from '../../common/editorService.js';
+import { IEditorService, MODAL_GROUP, MODAL_GROUP_TYPE, UseModalEditorMode } from '../../common/editorService.js';
 import { findGroup } from '../../common/editorGroupFinder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -33,7 +33,7 @@ import { EditorPartModalCanMaximizeContext, EditorPartModalVisibleContext } from
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID } from '../../../../browser/parts/editor/editorCommands.js';
 import { IWorkbenchLayoutService, Parts } from '../../../layout/browser/layoutService.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 
 class TestModalOptionsEditorInput extends TestFileEditorInput implements IModalEditorOptionsProvider {
@@ -1059,6 +1059,83 @@ suite('Modal Editor Group', () => {
 			assert.strictEqual(modalPart.partOptions.showTabs, 'none');
 
 			await modalPart.close();
+		});
+	});
+
+	suite('editors in header', () => {
+
+		class TestHeaderTabEditorInput extends TestFileEditorInput implements IModalEditorOptionsProvider {
+			constructor(private readonly name: string, private readonly showEditorsInHeader: boolean) {
+				super(URI.file(`foo/${name}`), TEST_EDITOR_INPUT_ID);
+			}
+			override getName(): string { return this.name; }
+			getModalEditorOptions(): IModalEditorOptions { return { showEditorsInHeader: this.showEditorsInHeader }; }
+		}
+
+		async function createModalEditorService(useModal: UseModalEditorMode) {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', useModal);
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+			const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+			instantiationService.stub(IEditorService, editorService);
+			return { parts, editorService };
+		}
+
+		/** The tabs the header shows, with the selected one marked. */
+		function headerTabs(parts: IEditorGroupsService): string[] {
+			const header = (parts.activeModalEditorPart!.modalElement as HTMLElement).querySelector<HTMLElement>('.modal-editor-header')!;
+			if (!header.classList.contains('has-editor-tabs')) {
+				return [];
+			}
+			return Array.from(header.querySelectorAll<HTMLElement>('.modal-editor-tabs [role="tab"]'), tab => `${tab.textContent}${tab.getAttribute('aria-selected') === 'true' ? ' (selected)' : ''}`);
+		}
+
+		test('lists every editor of the group as a tab once one asks for it', async () => {
+			const { parts, editorService } = await createModalEditorService('some');
+			const models = disposables.add(new TestHeaderTabEditorInput('Models', true));
+			const routers = disposables.add(new TestHeaderTabEditorInput('Routers', true));
+			const other = disposables.add(new TestHeaderTabEditorInput('Other', false));
+			const snapshots: string[][] = [];
+
+			await editorService.openEditor(other, { pinned: true }, MODAL_GROUP);
+			await editorService.openEditor(models, { pinned: true, inactive: true }, MODAL_GROUP);
+			snapshots.push(headerTabs(parts));
+			const modalPart = parts.activeModalEditorPart!;
+			await modalPart.activeGroup.closeEditor(other);
+			snapshots.push(headerTabs(parts));
+			await editorService.openEditor(routers, { pinned: true, inactive: true }, MODAL_GROUP);
+			snapshots.push(headerTabs(parts));
+
+			// Selecting a tab shows its editor
+			const editorChanged = Event.toPromise(modalPart.activeGroup.onDidActiveEditorChange);
+			(modalPart.modalElement as HTMLElement).querySelectorAll<HTMLElement>('.modal-editor-tabs [role="tab"]')[1].click();
+			await editorChanged;
+			snapshots.push(headerTabs(parts), [modalPart.activeGroup.activeEditor!.getName()]);
+
+			assert.deepStrictEqual(snapshots, [
+				['Other (selected)', 'Models'],
+				[],
+				['Models (selected)', 'Routers'],
+				['Models', 'Routers (selected)'],
+				['Routers'],
+			]);
+
+			await modalPart.close();
+		});
+
+		test('leaves the tabs to the editor group when it shows them', async () => {
+			const { parts, editorService } = await createModalEditorService('all');
+
+			await editorService.openEditor(disposables.add(new TestHeaderTabEditorInput('Models', true)), { pinned: true }, MODAL_GROUP);
+			await editorService.openEditor(disposables.add(new TestHeaderTabEditorInput('Routers', true)), { pinned: true }, MODAL_GROUP);
+
+			assert.deepStrictEqual({ groupTabs: parts.activeModalEditorPart!.partOptions.showTabs, headerTabs: headerTabs(parts) }, { groupTabs: 'multiple', headerTabs: [] });
+
+			await parts.activeModalEditorPart!.close();
 		});
 	});
 

@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
-import { ensureSessionWorktreesTrusted } from '../../../../workbench/services/sessions/browser/worktreeTrust.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ensureSessionWorktreesTrusted } from '../../../services/sessions/browser/worktreeTrust.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { Queue } from '../../../../base/common/async.js';
-import { ISessionWorkspace } from '../../../../workbench/services/sessions/common/session.js';
-import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
-import { IHistoryService } from '../../../../workbench/services/history/common/history.js';
+import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { IWorkspaceFolderLabelService } from '../../../services/workspaces/common/workspaceFolderLabelService.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {

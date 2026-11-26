@@ -122,6 +122,14 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		});
 	});
 
+	test('forwards the ID token of a session that has one', async () => {
+		const f = fixture();
+		f.authentication.sessions = [{ ...selected, idToken: 'synthetic-id-token' }];
+		assert.deepStrictEqual(await f.resolve(), {
+			resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, accountId: '["microsoft","selected",null]', idToken: 'synthetic-id-token',
+		});
+	});
+
 	test('does not substitute another account or its display label for a missing default identity', async () => {
 		const f = fixture();
 		const credentials = [];
@@ -505,6 +513,19 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		assert.deepStrictEqual({ tokens: forwarded.map(request => request.token), prompts: f.authentication.created }, { tokens: [selected.accessToken], prompts: [] });
+	});
+
+	test('an ID token that becomes available is forwarded once for an unchanged access token', async () => {
+		const f = fixture();
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const forward = () => f.instantiation.invokeFunction(authenticateProtectedResources,
+			[{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }], options);
+		await forward();
+		f.authentication.sessions = [{ ...selected, idToken: 'synthetic-id-token' }];
+		await forward();
+		await forward();
+		assert.deepStrictEqual(forwarded.map(request => [request.token, request.idToken]), [[selected.accessToken, undefined], [selected.accessToken, 'synthetic-id-token']]);
 	});
 
 	test('repeated challenges never prompt for a Microsoft credential and accept a later silent replacement', async () => {

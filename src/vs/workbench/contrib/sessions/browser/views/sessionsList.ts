@@ -2243,7 +2243,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				revealSessionIds: revealedSessionIds,
 			});
 			const children = sectionId === 'archived' && standaloneDoneChats.length > 0
-				? this.toDoneSectionChildren(limited.sessions, standaloneDoneChats, sorting, toSessionChildren)
+				? this.toDoneSectionChildren(limited.sessions, standaloneDoneChats, toSessionChildren)
 				: toSessionChildren(limited.sessions);
 			if (limited.showMore) {
 				children.push({ element: limited.showMore });
@@ -2774,18 +2774,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return attach(children);
 	}
 
-	/** The Done section's rows: its done sessions and the standalone done chats of sessions that are not done, newest first. */
+	/** The Done section's rows: its done sessions and the standalone done chats of sessions that are not done, most recently updated first whatever the sorting. */
 	private toDoneSectionChildren(
 		sessions: readonly ISession[],
 		chats: readonly { readonly session: ISession; readonly chat: IChat }[],
-		sorting: SessionsSorting,
 		toSessionChildren: (sessions: readonly ISession[]) => IObjectTreeElement<SessionListItem>[],
 	): IObjectTreeElement<SessionListItem>[] {
 		const sessionChildren = toSessionChildren(sessions);
 		const rows = [
-			...sessions.map((session, index) => ({ time: this._sessionsListModelService.getSortKey(session, sortingToMode(sorting)), child: sessionChildren[index] })),
+			...sessions.map((session, index) => ({ time: session.updatedAt.get().getTime(), child: sessionChildren[index] })),
 			...chats.map(({ session, chat }) => ({
-				time: sorting === SessionsSorting.Updated ? chat.updatedAt.get()?.getTime() ?? chat.createdAt.getTime() : chat.createdAt.getTime(),
+				time: chat.updatedAt.get()?.getTime() ?? chat.createdAt.getTime(),
 				child: { element: new SessionChatItem(session, chat, true, true) } satisfies IObjectTreeElement<SessionListItem>,
 			})),
 		];

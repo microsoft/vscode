@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isExpired } from '../../../../base/common/date.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { getClaimsFromJWT } from '../../../../base/common/oauth.js';
 import { derived, observableValue, transaction, type IReader } from '../../../../base/common/observable.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
@@ -26,6 +27,8 @@ interface IEntraAuthority {
 	 * and is not a boundary between clients, which share these credentials and can replace them.
 	 */
 	readonly accountId: string;
+	/** The unverified `tid` claim of the first ID Token a client sent for the account. */
+	readonly tenantId: string | undefined;
 }
 
 interface IEntraTokenChallenge {
@@ -65,10 +68,10 @@ export class CopilotEntraAuthentication extends Disposable {
 		}));
 		if (this._authenticationService.onDidAuthenticate) {
 			this._register(this._authenticationService.onDidAuthenticate(request => {
-				if (request.resource === copilotEntraDiscoveryResource && !this._authority.get()) {
-					const accountId = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: copilotEntraDiscoveryMetadata.scopes_supported })?.accountId;
-					if (accountId) {
-						this._authority.set({ accountId }, undefined);
+				if (request.resource === copilotEntraDiscoveryResource) {
+					const credential = this._authenticationService.getAuthCredential(request);
+					if (credential && copilotEntraDiscoveryMetadata.scopes_supported?.every(scope => credential.scopes.includes(scope))) {
+						this._authority.set(acceptEntraDiscoveryCredential(this._authority.get(), credential), undefined);
 					}
 				}
 				if (this.getCredential(request.resource, request.scopes ?? [])) {
@@ -291,7 +294,36 @@ function resolveEntraIdentity(request: Extract<EntraTokenProviderArgs, { kind: '
 	if (request.reason === 'forceInteractive') {
 		return undefined;
 	}
+	// TODO: Replace the return below with this one once the SDK includes github/copilot-agent-runtime#34048, which requires the tenant; the runtime before it rejects the field.
+	// return authority.tenantId ? { kind: 'identity', accountId: authority.accountId, tenantId: authority.tenantId } : undefined;
 	return { kind: 'identity', accountId: authority.accountId };
+}
+
+/** The host's Microsoft account after a discovery credential is accepted: the first account is kept, and its tenant is learned once. */
+export function acceptEntraDiscoveryCredential(authority: IEntraAuthority | undefined, credential: Pick<IAgentHostAuthCredential, 'accountId' | 'idToken'> | undefined): IEntraAuthority | undefined {
+	if (!credential?.accountId) {
+		return authority;
+	}
+	if (!authority) {
+		return { accountId: credential.accountId, tenantId: readTenantId(credential.idToken) };
+	}
+	if (authority.tenantId || authority.accountId !== credential.accountId) {
+		return authority;
+	}
+	const tenantId = readTenantId(credential.idToken);
+	return tenantId ? { ...authority, tenantId } : authority;
+}
+
+function readTenantId(idToken: string | undefined): string | undefined {
+	if (!idToken) {
+		return undefined;
+	}
+	try {
+		const { tid } = getClaimsFromJWT(idToken);
+		return typeof tid === 'string' && tid.trim() ? tid : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 export function copilotEntraResourceForRequest(request: EntraTokenProviderArgs): ProtectedResourceMetadata | undefined {

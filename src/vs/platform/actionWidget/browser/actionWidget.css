@@ -503,13 +503,6 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.action-widget-delegate-label {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	font-size: 12px;
-}
-
 /* Filter input */
 .action-widget .action-list-filter {
 	padding: 2px 2px 4px 2px;

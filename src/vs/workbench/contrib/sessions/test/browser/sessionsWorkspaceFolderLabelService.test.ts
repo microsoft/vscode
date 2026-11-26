@@ -12,11 +12,11 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { SessionsWorkspaceFolderLabelService } from '../../browser/workspaceFolderLabelService.js';
-import { focusedSessionHostServiceOf, TestShown } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionsService } from '../../browser/sessionsService.js';
+import { SessionsWorkspaceFolderLabelService } from '../../browser/sessionsWorkspaceFolderLabelService.js';
+import { focusedSessionHostServiceOf, TestShown } from './sessionHostTestUtils.js';
 
 suite('Sessions - Workspace Folder Label Service', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

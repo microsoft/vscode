@@ -82,7 +82,7 @@ import { skillIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { startCopilotChatWithPrompt } from '../agentSessions/copilotChatPrompt.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, GuidanceCustomizationMigration, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationResult, IPluginMarketplaceCustomizationMigrationCandidate, IPluginMarketplaceCustomizationMigrationResult, isFileCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPluginMarketplaceCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
@@ -1176,18 +1176,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateHomeButtonHarnessPresentation();
 	}
 
-	private async runMarketplacePrompt(prompt: string): Promise<void> {
-		if (this.workspaceService.isSessionsWindow) {
-			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, prefillPrompt: true, noWorkspace: true });
-			return;
-		}
-		const sessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`);
-		const widget = sessionResource ? this.chatWidgetService.getWidgetBySessionResource(sessionResource) : undefined;
-		if (!widget) {
-			throw new Error(localize('marketplaceDetail.chatUnavailable', "The new Copilot session input is unavailable."));
-		}
-		widget.setInput(prompt);
-		widget.focusInput();
+	private runMarketplacePrompt(prompt: string): Promise<void> {
+		return startCopilotChatWithPrompt(prompt, this.workspaceService.isSessionsWindow, this.commandService, this.chatWidgetService);
 	}
 
 	public createCanvas(): Promise<void> {
