@@ -166,6 +166,46 @@ function renderStatusBar(
 	}
 }
 
+function renderZoomedOutDockedStatusBar({ container, disposableStore, theme }: ComponentFixtureContext): void {
+	container.style.width = '520px';
+	container.style.padding = '16px';
+	container.style.backgroundColor = 'var(--vscode-editor-background)';
+
+	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
+	const root = dom.append(container, dom.$('.monaco-workbench.mac.macos-tahoe.border.modern-ui'));
+	root.style.width = '488px';
+	root.style.height = '120px';
+	root.style.setProperty('--window-zoom-factor', '0.5');
+	root.style.setProperty('--window-border-color', 'var(--vscode-widget-border)');
+	root.style.backgroundColor = 'var(--vscode-editor-background)';
+
+	const statusbar = dom.append(root, dom.$('.part.statusbar'));
+	statusbar.style.position = 'absolute';
+	statusbar.style.left = '0';
+	statusbar.style.right = '0';
+	statusbar.style.bottom = '0';
+	statusbar.style.backgroundColor = 'var(--vscode-statusBar-background)';
+	statusbar.style.color = 'var(--vscode-statusBar-foreground)';
+
+	const leftItems = dom.append(statusbar, dom.$('.items-container.left-items'));
+	const rightItems = dom.append(statusbar, dom.$('.items-container.right-items'));
+
+	const addItem = (items: HTMLElement, classes: string, text: string) => {
+		const itemContainer = dom.append(items, dom.$(`.statusbar-item.${classes}.has-background-color`));
+		const item = disposableStore.add(instantiationService.createInstance(
+			StatusbarEntryItem,
+			itemContainer,
+			statusbarEntry(text, text, 'remote'),
+			nativeHoverDelegate,
+		));
+		itemContainer.style.backgroundColor = 'var(--vscode-statusBarItem-remoteBackground)';
+		item.labelContainer.style.backgroundColor = 'var(--vscode-statusBarItem-remoteHoverBackground)';
+	};
+
+	addItem(leftItems, 'left.first-visible-item', '$(remote) Remote');
+	addItem(rightItems, 'right.last-visible-item', '$(check) Connected');
+}
+
 export default defineThemedFixtureGroup({ path: 'workbench/statusBar/' }, {
 	DefaultDensity: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
@@ -178,6 +218,11 @@ export default defineThemedFixtureGroup({ path: 'workbench/statusBar/' }, {
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The same seven status-bar scenarios at compact density use tighter spacing while preserving contiguous hover fills at split-button seams and full-width hover fills on colored items.'],
 		render: context => renderStatusBar(context, true),
+	}),
+	ZoomedOutDockedCorners: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A zoomed-out macOS Tahoe workbench shows remote status-bar item and label backgrounds clipped by the native frame curve at both bottom corners, while their remaining control corners stay small and rounded.'],
+		render: renderZoomedOutDockedStatusBar,
 	}),
 	Comparison_Default_Before: defineComponentFixture({
 		labels: { kind: 'screenshot' },

@@ -2506,7 +2506,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('rounds window-facing status bar item corners concentric with the native frame', () => {
+	test('uses frame clipping for docked status bar corners and keeps floating corners concentric with the native frame', () => {
 		const root = appendElement(document.body, 'monaco-workbench');
 		store.add(toDisposable(() => root.remove()));
 		const statusbar = appendElement(root, 'part statusbar');
@@ -2533,7 +2533,7 @@ suite('ModernUIContribution', () => {
 			fullscreen: measure('mac floating-panels noactivitybar fullscreen'),
 			nonMac: measure('floating-panels noactivitybar'),
 		}, {
-			docked: ['16px', '14px 16px', '16px', '14px 16px'],
+			docked: ['0px', '0px', '0px', '0px'],
 			floating: ['4px 14px', '4px 14px', '4px 14px', '4px 14px'],
 			floatingWithoutActivitybar: ['12px 14px', '12px 14px', '12px 14px', '12px 14px'],
 			fullscreen: ['4px', '4px', '4px', '4px'],
