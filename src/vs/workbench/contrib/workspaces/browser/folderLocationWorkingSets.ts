@@ -250,7 +250,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	private async tryApply(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean> {
 		try {
 			this.logService.trace(`[folderLocation] Applying the working set ${workingSet === 'empty' ? 'empty' : workingSet.id}`);
-			const applied = await this.editorGroupsService.applyWorkingSet(workingSet, { preserveFocus: true });
+			const applied = await this.editorGroupsService.applyWorkingSet(workingSet, { preserveFocus: true, switchesEditors: true });
 			this.logService.trace(`[folderLocation] Applied the working set: ${applied}`);
 			if (applied) {
 				return true;
