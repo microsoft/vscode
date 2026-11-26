@@ -13,6 +13,8 @@ import { posix, win32 } from '../../../base/common/path.js';
 
 /** Stable path in the container that links to the user state folder on the state volume. */
 export const devContainerStatePath = '/vscode-state';
+/** Marks a container that was linked before, see `buildLinkDevContainerStateCommand`. */
+const devContainerConnectedPath = '/.vscode-state-connected';
 /** Preferred state volume target, which also persists sibling folders such as agent worktrees. */
 export const devContainerStateWorkspacesTarget = '/workspaces';
 export const devContainerStateFallbackTarget = '/.vscode-volume';
@@ -181,7 +183,9 @@ export interface IDevContainerStateLinkOptions {
 /**
  * Links user state folders in the home folders to the state volume. Runs as root before the server or any
  * lifecycle command starts. Folders with a mount at, above or inside them are already persisted otherwise.
- * When the container was already running, e.g., after an earlier link failed, see `keepExistingFolders`.
+ * When the container was already running, e.g., after an earlier link failed, see `keepExistingFolders`. A container
+ * linked before may have changed its folders since, e.g., after linking was skipped, so restoring the volume's state
+ * keeps a copy of them.
  */
 export function buildLinkDevContainerStateCommand(options: IDevContainerStateLinkOptions): string {
 	const { uid, gid, serverDataFolderName } = options;
@@ -205,6 +209,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 			'fi',
 		];
 	});
+	const serverFolders = [...new Set([serverDataFolderName, ...knownServerDataFolderNames])].flatMap(name => serverStateFolders.map(folder => `${name}/${folder}`));
 	return [
 		'set -eu',
 		'umask 022',
@@ -252,6 +257,10 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  done < /proc/self/mountinfo',
 		'  case ",$root_options," in *,ro,*) progress skipped:readOnlyRootfs; echo "Not persisting user state: the root file system is read-only" >&2; exit 0 ;; esac',
 		'fi',
+		// Marked before anything can skip linking, see the restore below. `mkdir` does not follow a symlink.
+		`connected=${shellQuote(devContainerConnectedPath)}`,
+		'connected_before=',
+		'if [ -e "$connected" ] || [ -L "$connected" ]; then connected_before=1; else mkdir "$connected" 2>/dev/null || :; fi',
 		'progress step:volume',
 		'test ! -L "$volume"',
 		'test -d "$volume"',
@@ -270,22 +279,43 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// The volume's root folder.
 		'volume_uid=$(stat -c %u ..)',
 		'progress "volumeOwner:$(owner_kind "$volume_uid")"',
+		// Removes the container user's earlier links to state they cannot trust, so their folders start fresh. Leaves the state
+		// and the link to it, which other users' links may use. A copy of the fresh folders is kept when the state is restored.
+		// The container may be running, so enters one folder at a time without following symlinks and removes the link
+		// relative to the folder it entered.
+		'unlink_folder() (',
+		'  cd -P "$1" 2>/dev/null || exit 0',
+		'  name=$2',
+		'  while case "$name" in */*) true ;; *) false ;; esac; do',
+		'    part=${name%%/*}',
+		'    dir=$(pwd -P)',
+		'    if [ -L "$part" ] || ! cd -P "$part" 2>/dev/null || [ "$(pwd -P)" != "${dir%/}/$part" ]; then exit 0; fi',
+		'    name=${name#*/}',
+		'  done',
+		'  if [ -L "$name" ] && [ "$(readlink "$name")" = "$link_path/$2" ]; then rm -f "$name"; echo "No longer persisting ~/$2" >&2; fi',
+		')',
+		'unlink_state() {',
+		`  for rel in ${serverFolders.map(shellQuote).join(' ')}; do unlink_folder "$home" "$rel"; done`,
+		`  for rel in ${homeStateFolders.map(shellQuote).join(' ')}; do unlink_folder "$user_home" "$rel"; done`,
+		'}',
 		// E.g., after a `chown -R` of the volume in a lifecycle command. Taking ownership again would not make the folders and
 		// symlinks the user could add meanwhile safe for this script to work in.
 		'if [ "$state_uid" != 0 ]; then',
 		'  progress skipped:stateNotRootOwned',
 		'  echo "Not persisting user state: $state is not owned by root. To keep it, give it and its contents back to root (chown -R root:root) if you trust them, or remove it to start fresh" >&2',
+		// A user other than root keeps using state that they own and that no other user can replace.
+		'  if [ "$user_uid" = 0 ] || [ "$(owner_kind "$state_uid")" = other ] || [ "$(owner_kind "$volume_uid")" = other ]; then unlink_state; fi',
 		'  exit 0',
 		'fi',
 		'root_only() { case "$(stat -c %u:%A "$1")" in 0:d????-??-?*) return 0 ;; *) return 1 ;; esac; }',
 		// A root user's state must neither come from nor be replaceable by another user, e.g., hooks in ~/.copilot run as root.
 		'if [ "$user_uid" = 0 ]; then',
 		'  if ! root_only . || ! root_only ..; then',
-		'    progress skipped:untrustedState; echo "Not persisting user state: a user other than root can write to $state or $volume" >&2; exit 0',
+		'    progress skipped:untrustedState; echo "Not persisting user state: a user other than root can write to $state or $volume" >&2; unlink_state; exit 0',
 		'  fi',
 		// Another user could replace the state folder with their own.
 		'elif [ "$(owner_kind "$volume_uid")" = other ]; then',
-		'  progress skipped:untrustedState; echo "Not persisting user state: another user owns $volume" >&2; exit 0',
+		'  progress skipped:untrustedState; echo "Not persisting user state: another user owns $volume" >&2; unlink_state; exit 0',
 		'fi',
 		// Moved folders are no longer protected by the home folder's permissions, so only the user's group may enter. Root
 		// owns the state folder and the parents of moved folders, so the user cannot plant symlinks for this script to follow.
@@ -433,10 +463,11 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  if [ ! -L "$src" ]; then',
 		'    if [ -d "$dst" ]; then',
 		'      result=restored',
-		// Like a volume mount, existing state hides the container's own folder. A folder kept while the container was running
-		// may have changed meanwhile, so a copy of it stays on the volume.
+		// Like a volume mount, existing state hides the container's own folder. Unless the container is new, its folder may
+		// have changed, e.g., while it was kept because the container was running, so a copy of it stays on the volume. Older
+		// versions of this script mark only kept folders.
 		'      if [ -d "$src" ]; then',
-		'        if [ -e "$dst.deferred" ]; then',
+		'        if [ -n "$connected_before" ] || [ -e "$dst.deferred" ]; then',
 		'          need_fowner',
 		// A new folder, because the user owns earlier copies and could plant symlinks in them.
 		'          copy=$(mktemp -d "$dst.deferred.XXXXXX")',
