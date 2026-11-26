@@ -197,6 +197,8 @@ import { IAgentHostProtectedResourcesService } from '../../../browser/agentSessi
 import { IAgentHostMcpAppToolsService } from '../../../browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { IChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { NullAgenticSkillsService, IAgenticSkillsService } from '../../../common/promptSyntax/service/agenticSkillsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -1245,6 +1247,11 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			return [];
 		}
 	}());
+	instantiationService.stub(IChatExtensionCustomizationsService, new class extends mock<IChatExtensionCustomizationsService>() {
+		override readonly onDidChange = Event.None;
+		override async getExtensionPromptFiles() { return []; }
+	}());
+	instantiationService.stub(IAgenticSkillsService, new NullAgenticSkillsService());
 	instantiationService.stub(ITerminalChatService, {
 		onDidContinueInBackground: Event.None,
 		registerTerminalInstanceWithToolSession: () => { },

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -37,7 +38,7 @@ suite('MainThreadWorkspace', () => {
 			onDidChangeLocations: Event.None,
 			onDidChangeProviders: Event.None,
 			getLocations: async () => [],
-			getFolderLocations: async folder => [{ uri: folder.uri, label: folder.name }]
+			getFolderLocations: async folder => [{ uri: folder.uri, label: folder.name, icon: Codicon.folder }]
 		});
 	});
 
@@ -173,7 +174,7 @@ suite('MainThreadWorkspace', () => {
 		const folder = URI.file('/work/repo');
 
 		function location(uri: URI): IFolderLocation {
-			return { uri, label: uri.path };
+			return { uri, label: uri.path, icon: Codicon.folder };
 		}
 
 		async function setup2(context?: Partial<IWorkspaceContextService>, requested = true) {
@@ -299,7 +300,7 @@ suite('MainThreadWorkspace', () => {
 
 		test('the pushed model comes from the location service', async () => {
 			const { requests, pushed } = await setup2();
-			requests[0].complete([{ uri: folder, label: 'repo' }, location(URI.file('/work/wt'))]);
+			requests[0].complete([{ uri: folder, label: 'repo', icon: Codicon.folder }, location(URI.file('/work/wt'))]);
 			await tick();
 			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => [l.uri.path, l.name])), [[['/work/repo', 'repo'], ['/work/wt', '/work/wt']]]);
 		});

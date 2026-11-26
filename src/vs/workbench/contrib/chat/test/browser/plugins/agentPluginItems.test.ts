@@ -35,6 +35,7 @@ suite('AgentPlugin items', () => {
 		return {
 			uri,
 			label: 'test',
+			discovery: 'configured',
 			format: PluginFormat.Copilot,
 			enablement: observableValue('enablement', ContributionEnablementState.EnabledProfile),
 			hooks: observableValue('hooks', []),

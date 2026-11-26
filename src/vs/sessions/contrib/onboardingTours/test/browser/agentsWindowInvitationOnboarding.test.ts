@@ -37,7 +37,7 @@ import { OnboardingDismissReason, OnboardingOutcome } from '../../../../../workb
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { ChatEntitlement, ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestChatEntitlementService, TestLifecycleService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { AgentHostSessionTypesAvailableContext, NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
@@ -89,7 +89,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 				return (name.endsWith('.show') ? true : name.endsWith('.id') ? 'onb-parallel-work-test' : undefined) as T | undefined;
 			}
 		}();
-		const onboarding = store.add(new OnboardingScenarioService(storage, context, configuration, lifecycle, assignment, NullTelemetryService, new TestDialogService()));
+		const onboarding = store.add(new OnboardingScenarioService(storage, context, configuration, lifecycle, assignment, NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		store.add(onboardingScenarioRegistry.register(createNewSessionViewV2Tour(constObservable(true))));
 		const entitlement = new class extends TestChatEntitlementService {
 			override readonly sentiment = { hidden: options.hidden ?? false };
@@ -490,6 +490,8 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			const presentation = store.add(new SpotlightPresentation(
 				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
 				new TestHostService(), h.context, h.configuration, NullTelemetryService,
+				new TestDialogService(),
+				new TestQuickInputService(),
 			));
 			const shown = new DeferredPromise<void>();
 			h.setPresentation({
@@ -759,6 +761,8 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			const presentation = store.add(new SpotlightPresentation(
 				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
 				new TestHostService(), h.context, h.configuration, NullTelemetryService,
+				new TestDialogService(),
+				new TestQuickInputService(),
 			));
 			let shown = false;
 			let cancelled = false;
@@ -827,6 +831,8 @@ suite('AgentsWindowInvitationOnboarding', () => {
 		const presentation = store.add(new SpotlightPresentation(
 			new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
 			new TestHostService(), h.context, h.configuration, NullTelemetryService,
+			new TestDialogService(),
+			new TestQuickInputService(),
 		));
 		const steps: { title: string | undefined; description: string | undefined; action: string | null; primary: boolean }[] = [];
 		h.setPresentation({
@@ -888,6 +894,8 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			const presentation = store.add(new SpotlightPresentation(
 				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
 				new TestHostService(), h.context, h.configuration, NullTelemetryService,
+				new TestDialogService(),
+				new TestQuickInputService(),
 			));
 			const steps: { title: string | undefined; action: string | null; primary: boolean; interactive: boolean; clickable: boolean }[] = [];
 			h.setPresentation({

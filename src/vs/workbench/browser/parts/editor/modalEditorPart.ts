@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/modalEditorPart.css';
-import { $, addDisposableListener, append, Dimension, EventHelper, EventType, getWindow, hide, IDimension, isHTMLElement, setVisibility, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventType, getWindow, hide, IDimension, isHTMLElement, setVisibility, show } from '../../../../base/browser/dom.js';
 import { GlobalPointerMoveMonitor } from '../../../../base/browser/globalPointerMoveMonitor.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -13,6 +13,7 @@ import { Action, Separator } from '../../../../base/common/actions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
+import { equals } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
@@ -278,6 +279,20 @@ export class ModalEditorPart {
 		titleElement.id = titleId;
 		titleElement.textContent = '';
 
+		// Editor tabs, shown in place of the title when an editor asks for them.
+		// They take the look of the tabs of an editor group from the classes
+		// the two share.
+		const editorTabsContainer = append(headerElement, $('div.modal-editor-tabs.modern-ui-editor-tab-group.modern-ui-editor-tab-group-active'));
+		hide(editorTabsContainer);
+		const editorTabsList = append(editorTabsContainer, $('div.modal-editor-tab-list.modern-ui-editor-tab-strip.modern-ui-editor-tab-list.show-file-icons', {
+			role: 'tablist',
+			'aria-label': localize('modalEditorTabs', "Editors"),
+		}));
+		// The gestures of the header, such as moving the modal, are not for its tabs
+		for (const eventType of [EventType.POINTER_DOWN, EventType.CLICK, EventType.DBLCLICK, EventType.CONTEXT_MENU]) {
+			disposables.add(addDisposableListener(editorTabsContainer, eventType, e => e.stopPropagation()));
+		}
+
 		// Navigation widget
 		const navigationContainer = append(headerElement, $('div.modal-editor-navigation'));
 		hide(navigationContainer);
@@ -477,6 +492,88 @@ export class ModalEditorPart {
 			}
 		};
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, updateLabel));
+
+		// Create editor tabs. One editor asking for them lists every editor of the
+		// group, so that none is left without a way to reach it.
+		const editorTabs = new Map<EditorInput, { readonly element: HTMLElement; readonly label: ResourceLabel }>();
+		const editorTabDisposables = disposables.add(new DisposableStore());
+		const createEditorTab = (editor: EditorInput) => {
+			const element = append(editorTabsList, $('div.modal-editor-tab.modern-ui-editor-tab', { role: 'tab' }));
+			append(element, $('div.modern-ui-editor-tab-fill', { 'aria-hidden': 'true' }));
+			append(element, $('div.tab-connected-edge', { 'aria-hidden': 'true' }));
+			const label = editorTabDisposables.add(scopedInstantiationService.createInstance(ResourceLabel, append(element, $('div.modal-editor-tab-label.modern-ui-editor-tab-label')), {}));
+
+			editorTabDisposables.add(addDisposableListener(element, EventType.CLICK, () => editorPart.activeGroup.openEditor(editor)));
+
+			// Keyboard, as for the tabs of an editor group: Enter and Space show
+			// the editor, the arrow keys move to its neighbours and keep the focus
+			editorTabDisposables.add(addDisposableListener(element, EventType.KEY_UP, async e => {
+				const event = new StandardKeyboardEvent(e);
+				const group = editorPart.activeGroup;
+				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+					EventHelper.stop(e, true);
+					await group.openEditor(editor);
+					return;
+				}
+
+				const index = group.getIndexOfEditor(editor);
+				let target: EditorInput | undefined;
+				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.UpArrow)) {
+					target = group.getEditorByIndex(index - 1);
+				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.DownArrow)) {
+					target = group.getEditorByIndex(index + 1);
+				} else if (event.equals(KeyCode.Home)) {
+					target = group.getEditorByIndex(0);
+				} else if (event.equals(KeyCode.End)) {
+					target = group.getEditorByIndex(group.count - 1);
+				}
+				if (target) {
+					EventHelper.stop(e, true);
+					await group.openEditor(target, { preserveFocus: true });
+					editorTabs.get(target)?.element.focus();
+				}
+			}));
+
+			return { element, label };
+		};
+		const updateEditorTabs = () => {
+			const group = editorPart.activeGroup;
+			const showEditorTabs = editorPart.partOptions.showTabs === 'none' && group.count > 1
+				&& group.editors.some(editor => resolveModalEditorOptions(editor)?.showEditorsInHeader);
+			const editors = showEditorTabs ? group.editors : [];
+
+			// Keep the tabs of unchanged editors, and with them the keyboard focus
+			if (!equals(editors, [...editorTabs.keys()])) {
+				editorTabDisposables.clear();
+				editorTabs.clear();
+				clearNode(editorTabsList);
+				for (const editor of editors) {
+					editorTabs.set(editor, createEditorTab(editor));
+				}
+			}
+
+			for (const [editor, tab] of editorTabs) {
+				const active = group.isActive(editor);
+				tab.label.element.setResource(
+					{
+						resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
+						name: editor.getName()
+					},
+					{
+						title: editor.getTitle(Verbosity.LONG),
+						icon: editor.getIcon(),
+						extraClasses: editor.getLabelExtraClasses(),
+					}
+				);
+				tab.element.classList.toggle('active', active);
+				tab.element.setAttribute('aria-selected', String(active));
+				tab.element.tabIndex = active ? 0 : -1; // Only the active tab can be focused into
+			}
+
+			headerElement.classList.toggle('has-editor-tabs', showEditorTabs);
+			setVisibility(showEditorTabs, editorTabsContainer);
+		};
+		disposables.add(Event.runAndSubscribe(Event.any<unknown>(modalEditorService.onDidActiveEditorChange, modalEditorService.onDidEditorsChange, editorPart.onDidChangeEditorPartOptions), () => updateEditorTabs()));
 
 		// Handle double-click on header to toggle maximize
 		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {

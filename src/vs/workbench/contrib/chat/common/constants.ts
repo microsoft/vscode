@@ -877,6 +877,8 @@ function getVisibleNonLocalEditorChatSessionTypes(
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
+/** The editor that lists model routers, which opens beside the Language Models editor. {@link MANAGE_CHAT_COMMAND_ID} takes it to show that one of the two. */
+export const MODEL_ROUTERS_EDITOR_ID = 'workbench.editor.modelRouters';
 export const CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID = 'workbench.action.chat.openAgentHostChat';
 export { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, getAgentHostSessionResource } from '../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 

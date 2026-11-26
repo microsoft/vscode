@@ -451,6 +451,15 @@ export interface IModalEditorOptions {
 	 * the default size of modal editors. Defaults to `false`.
 	 */
 	readonly fitToContent?: boolean;
+
+	/**
+	 * When true and the modal holds more than one editor, its header
+	 * lists the editors as tabs to switch between, in place of the
+	 * title of the active editor. One editor asking is enough, whether
+	 * it is the active one or not. The tabs cannot be closed or moved.
+	 * Has no effect while the modal shows the tabs of its editor group.
+	 */
+	readonly showEditorsInHeader?: boolean;
 }
 
 /**

@@ -27,7 +27,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { Memento } from '../../../../../common/memento.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
-import { TestHostService, TestLayoutService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestChatEntitlementService, TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
@@ -285,6 +285,7 @@ suite('SessionArchiveNudge', () => {
 			new NullWorkbenchAssignmentService(),
 			NullTelemetryService,
 			new TestDialogService(),
+			new TestQuickInputService(),
 		));
 		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService, chatService));
 		const current = observableValue<ISession | undefined>('current', sessions[0]);
@@ -1270,6 +1271,8 @@ suite('SessionArchiveNudge', () => {
 			store.add(new ContextKeyService(context.configuration)),
 			context.configuration,
 			NullTelemetryService,
+			new TestDialogService(),
+			new TestQuickInputService(),
 		));
 		context.onboarding.setPresentation({
 			kind: presentation.kind,
