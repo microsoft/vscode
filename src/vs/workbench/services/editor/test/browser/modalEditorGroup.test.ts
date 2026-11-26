@@ -1465,6 +1465,29 @@ suite('Modal Editor Group', () => {
 			await modalPart.close();
 		});
 
+		test('a modal editor that does not fit its content narrows the sidebar that an editor fitting its content made wider than it', async () => {
+			const { instantiationService, parts } = await createParts('all');
+			(instantiationService.get(IWorkbenchLayoutService) as TestLayoutService).mainContainerDimension = { width: 1800, height: 900 };
+			const modalPart = await parts.createModalEditorPart({ sidebar: { render: () => toDisposable(() => { }) } });
+			const sidebar = (modalPart.modalElement as HTMLElement).querySelector<HTMLElement>('.modal-editor-sidebar')!;
+
+			const otherInput = createTestFileEditorInput(URI.file('foo/default'), TEST_EDITOR_INPUT_ID);
+			await modalPart.activeGroup.openEditor(otherInput, { pinned: true });
+			await modalPart.activeGroup.openEditor(createFitToContentInput({ width: 300, height: 300 }), { pinned: true });
+
+			// Drag the sidebar sash as far right as the fitted modal lets it go
+			const sash = sidebar.parentElement!.querySelector<HTMLElement>(':scope > .monaco-sash.vertical')!;
+			sash.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 0, clientY: 0 }));
+			mainWindow.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, button: 0, clientX: 2000, clientY: 0 }));
+			mainWindow.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, clientX: 2000, clientY: 0 }));
+			const fittedSidebarWidth = sidebar.style.width;
+			await modalPart.activeGroup.openEditor(otherInput);
+
+			assert.deepStrictEqual({ fittedSidebarWidth, sidebarWidth: sidebar.style.width }, { fittedSidebarWidth: '1498px', sidebarWidth: '260px' });
+
+			await modalPart.close();
+		});
+
 		test('an editor that fits its content centers the modal at the default size until its editor pane reports a size, then fits it', async () => {
 			const { parts } = await createParts('some');
 			const modalPart = await parts.createModalEditorPart({ position: { left: 10, top: 20 } });

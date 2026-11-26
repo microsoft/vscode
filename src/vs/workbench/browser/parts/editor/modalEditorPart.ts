@@ -331,12 +331,18 @@ export class ModalEditorPart {
 
 			return contentSize ? Math.max(MODAL_SIDEBAR_MIN_WIDTH, this.layoutService.mainContainerDimension.width - contentSize.width - MODAL_BORDER_SIZE) : undefined;
 		};
+		let isFirstLayout = true;
+		let isLayingOutModal = false;
 		const sidebarResult = this.createSidebar(editorPartContainer, headerElement, options?.sidebar, modalContextKeyService, getFittedSidebarMaxWidth, disposables);
 		if (sidebarResult) {
 			if (sidebarResult.isVisible()) {
 				editorPartContainer.classList.add('has-sidebar');
 			}
-			disposables.add(sidebarResult.onDidResize(() => layoutModal()));
+			disposables.add(sidebarResult.onDidResize(() => {
+				if (!isLayingOutModal) {
+					layoutModal(); // the modal lays itself out with the sidebar width it clamps while laying out
+				}
+			}));
 		}
 
 		// Create the editor part (scoped to the modal context key service so that
@@ -843,12 +849,21 @@ export class ModalEditorPart {
 		};
 
 		// Layout the modal editor part
-		let isFirstLayout = true;
+		let wasFitted = false;
 		let fittedTitleHeight: number | undefined; // the title height the fitted modal was last fitted to
 		const layoutModal = () => {
 			if (isResizing) {
 				return; // skip layout during interactive resize
 			}
+
+			isLayingOutModal = true;
+			try {
+				doLayoutModal();
+			} finally {
+				isLayingOutModal = false;
+			}
+		};
+		const doLayoutModal = () => {
 
 			const containerDimension = this.layoutService.mainContainerDimension;
 			const titleBarOffset = this.layoutService.mainContainerOffset.top;
@@ -890,11 +905,13 @@ export class ModalEditorPart {
 
 			height = Math.min(height, availableHeight); // Ensure the modal never exceeds available height (below the title bar)
 
-			// On first layout, clamp sidebar width if it would leave the editor too narrow
-			if (isFirstLayout) {
+			// On first layout, clamp sidebar width if it would leave the editor too narrow, and so after a modal that fitted its
+			// content, which can give the sidebar more room than this modal has
+			if (isFirstLayout || (wasFitted && !contentSize)) {
 				isFirstLayout = false;
 				sidebarResult?.clampWidth(width);
 			}
+			wasFitted = !!contentSize;
 
 			// Update resizable element size and constraints
 			resizableElement.maxSize = new Dimension(containerDimension.width, availableHeight);
