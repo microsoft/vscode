@@ -2082,21 +2082,61 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
-	test('a turn of one folder lists the changes of a repository found inside it', async () => {
+	test('a turn lists the tracked edits of a repository found inside its folder, without asking for checkpoints there', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: '/work/docs/guide.md', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
+		const checkpointRoots: Array<string | undefined> = [];
 		const git = createNoopGitService();
 		git.getRepositoryRoot = async wd => wd.path === '/work' ? wd : undefined;
-		git.computeFileDiffsBetweenRefs = async wd => [gitDiff(`${wd.path}/turn.ts`)];
-		const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
-		const { svc, stateManager } = build({ workingDirectories: ['file:///work'], git, checkpoint });
+		git.computeFileDiffsBetweenRefs = async () => [gitDiff('/work/turn.ts')];
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getTurnCheckpointPair: async (_session, _chat, _turnId, root) => {
+				checkpointRoots.push(root?.path);
+				return { parent: 'p', current: 'c' };
+			},
+		};
+		const { svc, stateManager } = build({ workingDirectories: ['file:///work'], git, checkpoint, db });
 		stateManager.setSessionMeta(sessionStr, withSessionRepositories(stateManager.getSessionState(sessionStr)?._meta, {
 			[getWorkingDirectoryKey('file:///work')]: [{ root: 'file:///work', kind: 'folder' }, { root: 'file:///work/docs', kind: 'nested' }],
 		}));
-		stateManager.dispatchServerAction(buildDefaultChatUri(sessionStr), chatTurnStarted('turn-1', 'edit', new Date(0).toISOString()));
-		stateManager.dispatchServerAction(buildDefaultChatUri(sessionStr), chatTurnComplete('turn-1', 1));
 
 		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
 
-		assert.deepStrictEqual(stateManager.getChangesetState(turnUri)?.files.map(file => URI.parse(file.id).path).sort(), ['/work/docs/turn.ts', '/work/turn.ts']);
+		assert.deepStrictEqual({
+			files: stateManager.getChangesetState(turnUri)?.files.map(file => URI.parse(file.id).path).sort(),
+			// Checkpoints are captured only for the folders' own repositories
+			checkpointRoots,
+		}, {
+			files: ['/work/docs/guide.md', '/work/turn.ts'],
+			checkpointRoots: ['/work'],
+		});
+	});
+
+	test('a branch changeset of a non-Git first folder and one Git folder diffs again when that folder\'s base changes', async () => {
+		const diffBases: Array<string | undefined> = [];
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async workingDirectory => workingDirectory.path === '/repoB' ? URI.parse(workingDirectory.toString()) : undefined;
+		// The repository's state does not change; only its recorded base does
+		git.getBranchDiffFingerprint = async () => 'tree-1';
+		git.computeSessionFileDiffs = async (workingDirectory, options) => {
+			diffBases.push(options?.baseBranch);
+			return [gitDiff(`${workingDirectory.path}/${options?.baseBranch}.ts`)];
+		};
+		const workingDirectories = ['file:///docs', 'file:///repoB'];
+		const { svc, stateManager } = build({ workingDirectories, git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(workingDirectories)));
+		const setBase = (baseBranchName: string) => stateManager.setSessionMeta(sessionStr, withFolderScopeGitState(stateManager.getSessionState(sessionStr)?._meta, getWorkingDirectoryScopeId(['file:///repoB']), { branchName: 'topic', baseBranchName }));
+
+		setBase('master');
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+		setBase('develop');
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+
+		assert.deepStrictEqual({ diffBases, files: stateManager.getChangesetState(changesetUri)?.files.map(file => URI.parse(file.id).path) }, {
+			diffBases: ['master', 'develop'],
+			files: ['/repoB/develop.ts'],
+		});
 	});
 
 	test('a folder of a multi-folder branch changeset whose repository cannot be looked up is reported, and the others are listed', async () => {

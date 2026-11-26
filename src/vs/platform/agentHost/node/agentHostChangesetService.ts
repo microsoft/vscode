@@ -155,6 +155,12 @@ function withDiscoveredRepositories(roots: readonly URI[], discovered: readonly 
 	return result.slice(0, limit);
 }
 
+/** A repository's {@link IAgentHostGitService.getBranchDiffFingerprint}, with the base branch it was taken against. */
+interface IRepositoryFingerprint {
+	readonly fingerprint: string;
+	readonly baseBranch: string | undefined;
+}
+
 function staticChangesetUri(owner: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
 	return kind === 'branch'
 		? buildBranchChangesetUri(owner)
@@ -1410,9 +1416,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (source.strategy === 'git' && nonGitDirectories.length > 0) {
 			throw new Error(localize('turnGitDiffNonGitFolders', "Cannot compute all turn changes using Git because the session includes non-Git folders."));
 		}
-		// The repositories found inside the folders too, as for the folders' uncommitted and branch changes; every folder's
-		// own repository is still diffed, as before
-		gitRepositories = withDiscoveredRepositories(gitRepositories, this._getDiscoveredRepositoryRoots(session, workingDirectories), Math.max(gitRepositories.length, MAX_UNCOMMITTED_FOLDERS));
+		// The repositories found inside the folders too. Turn checkpoints are captured only for the folders' own
+		// repositories, so a found one's turn changes come from the edits the agent's tools recorded, as for a non-Git
+		// folder: edits made otherwise, such as in a terminal, are not seen there. A Git-only computation leaves them out.
+		if (source.strategy !== 'git') {
+			const discovered = this._getDiscoveredRepositoryRoots(session, workingDirectories)
+				.filter(root => !gitRepositories.some(repository => isEqualOrInside(repository, root) && isEqualOrInside(root, repository)))
+				.slice(0, MAX_UNCOMMITTED_FOLDERS);
+			nonGitDirectories = [...nonGitDirectories, ...discovered];
+		}
 
 		// Diff every resolved repository, but bound how many per-repo git diffs
 		// run at once so a many-repository session cannot spawn an unbounded
@@ -1633,7 +1645,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		)).finally(() => limiter.dispose());
 	}
 
-	private async _computeBranchDiffs(session: ProtocolURI, workingDirectory: string | undefined, repositoryFingerprints?: ReadonlyMap<string, string>): Promise<BranchDiffResult> {
+	private async _computeBranchDiffs(session: ProtocolURI, workingDirectory: string | undefined, repositoryFingerprints?: ReadonlyMap<string, IRepositoryFingerprint>): Promise<BranchDiffResult> {
 		if (!workingDirectory) {
 			return { kind: 'nonGit' };
 		}
@@ -1648,7 +1660,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		try {
 			const baseBranch = await this._resolveBranchBaseBranch(session);
-			const fingerprint = repositoryFingerprints?.get(workingDirectoryUri.toString());
+			const recorded = repositoryFingerprints?.get(workingDirectoryUri.toString());
+			const fingerprint = recorded && recorded.baseBranch === baseBranch ? recorded.fingerprint : undefined;
 			const diffs = await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch, fingerprint });
 			if (diffs) {
 				return { kind: 'ready', diffs };
@@ -1706,7 +1719,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return isMultiRootSession(workingDirectories) || this._getDiscoveredRepositoryRoots(owner, workingDirectories).length > 0;
 	}
 
-	private async _computeMultiFolderBranchDiffs(session: ProtocolURI, workingDirectories: readonly string[], repositoryFingerprints?: ReadonlyMap<string, string>): Promise<BranchDiffResult> {
+	private async _computeMultiFolderBranchDiffs(session: ProtocolURI, workingDirectories: readonly string[], repositoryFingerprints?: ReadonlyMap<string, IRepositoryFingerprint>): Promise<BranchDiffResult> {
 		let gitRepositories: URI[];
 		let discovered: URI[];
 		let unresolved: IFailedRepository[];
@@ -1734,7 +1747,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const perRepoDiffs = await Promises.settled(gitRepositories.map(repoRoot => limiter.queue(async () => {
 			try {
 				const repositoryBaseBranch = this._getRepositoryBaseBranch(session, workingDirectories, discovered, repoRoot) ?? baseBranch;
-				const fingerprint = repositoryFingerprints?.get(repoRoot.toString()) ?? await this._gitService.getBranchDiffFingerprint?.(repoRoot, repositoryBaseBranch);
+				// A fingerprint taken against another base branch (the base changed since) does not describe this diff
+				const recorded = repositoryFingerprints?.get(repoRoot.toString());
+				const fingerprint = recorded && recorded.baseBranch === repositoryBaseBranch ? recorded.fingerprint : await this._gitService.getBranchDiffFingerprint?.(repoRoot, repositoryBaseBranch);
 				// A cached diff is reused only for the same repository state and the same base branch
 				const cacheKey = fingerprint === undefined ? undefined : JSON.stringify([repositoryBaseBranch ?? null, fingerprint]);
 				const previous = previousDiffs?.get(repoRoot.toString());
@@ -2376,7 +2391,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * they cannot all be determined cheaply, in which case the changeset must be computed. `onWillReadGit` runs
 	 * once the base branch is known, before the repositories and their Git state are read.
 	 */
-	private async _computeBranchFingerprint(owner: ProtocolURI, workingDirectories: readonly string[] | undefined, onWillReadGit?: () => void): Promise<{ readonly fingerprint: string; readonly repositories: ReadonlyMap<string, string> } | undefined> {
+	private async _computeBranchFingerprint(owner: ProtocolURI, workingDirectories: readonly string[] | undefined, onWillReadGit?: () => void): Promise<{ readonly fingerprint: string; readonly repositories: ReadonlyMap<string, IRepositoryFingerprint> } | undefined> {
 		if (!workingDirectories?.length) {
 			return undefined;
 		}
@@ -2398,7 +2413,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				return undefined;
 			}
 			// Each repository with the base branch its diff uses, so a change of a folder's own base changes the fingerprint
-			const baseBranches = directories.map(directory => (discovered.length || directories.length > 1 ? this._getRepositoryBaseBranch(owner, workingDirectories, discovered, directory) : undefined) ?? baseBranch);
+			const multipleRepositories = this._hasMultipleRepositories(owner, workingDirectories);
+			const baseBranches = directories.map(directory => (multipleRepositories ? this._getRepositoryBaseBranch(owner, workingDirectories, discovered, directory) : undefined) ?? baseBranch);
 			const limiter = new Limiter<string | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
 			const fingerprints = await Promise.all(directories.map((directory, index) => limiter.queue(async () => this._gitService.getBranchDiffFingerprint?.(directory, baseBranches[index])))).finally(() => limiter.dispose());
 			if (fingerprints.some(fingerprint => fingerprint === undefined)) {
@@ -2406,7 +2422,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			return {
 				fingerprint: JSON.stringify([workingDirectories, baseBranch, directories.map(directory => directory.toString()), baseBranches, fingerprints]),
-				repositories: new Map(directories.map((directory, index) => [directory.toString(), fingerprints[index]!])),
+				repositories: new Map(directories.map((directory, index) => [directory.toString(), { fingerprint: fingerprints[index]!, baseBranch: baseBranches[index] }])),
 			};
 		} catch (err) {
 			this._logService.debug(`[AgentHostChangesetService] Could not fingerprint the branch changeset of ${owner}`, err);
@@ -2472,7 +2488,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		let branchFingerprint: string | undefined;
-		let repositoryFingerprints: ReadonlyMap<string, string> | undefined;
+		let repositoryFingerprints: ReadonlyMap<string, IRepositoryFingerprint> | undefined;
 		const forcedRefreshes = this._branchForcedRefreshes.get(session);
 		if (kind === ChangesetKind.Branch) {
 			const fingerprinted = await this._computeBranchFingerprint(session, workingDirectories, onWillReadBranchGit);
