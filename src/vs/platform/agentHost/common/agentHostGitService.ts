@@ -325,9 +325,13 @@ export interface IAgentHostGitWorktree {
 
 /** See {@link IAgentHostGitService.findRepositories}. */
 export interface IFindRepositoriesOptions {
+	/** How many folder levels below the scanned folder are read; `-1` for no limit (the scan still has a depth bound). */
 	readonly scanMaxDepth: number;
+	/** Folder names that are not read, compared case-insensitively. */
 	readonly scanIgnoredFolders: readonly string[];
+	/** Whether the submodules a found repository's (or the scanned folder's) `.gitmodules` lists are repositories too. */
 	readonly detectSubmodules: boolean;
+	/** The most repositories to return. */
 	readonly limit: number;
 }
 
@@ -335,6 +339,45 @@ export interface IFindRepositoriesOptions {
 export interface IFoundRepository {
 	readonly root: URI;
 	readonly kind: 'nested' | 'submodule';
+}
+
+/**
+ * The file system work and time that repository scans may take, shared by every scan it is passed to. Each file system
+ * call of a scan (reading a folder, checking for a `.git` entry, checking a path component, reading a `.gitmodules`
+ * file) charges one probe before it runs; once the probes are used up or the deadline passes, the scans stop and return
+ * what they found.
+ */
+export class RepositoryScanBudget {
+	private _used = 0;
+
+	constructor(
+		private readonly _maxProbes: number,
+		private readonly _deadline: number,
+		private readonly _now: () => number = Date.now,
+	) { }
+
+	/** How many probes were charged. */
+	get used(): number {
+		return this._used;
+	}
+
+	/** How many probes are left, ignoring the deadline. */
+	get remaining(): number {
+		return Math.max(0, this._maxProbes - this._used);
+	}
+
+	get exhausted(): boolean {
+		return this._used >= this._maxProbes || this._now() > this._deadline;
+	}
+
+	/** Charges one probe. Returns `false`, charging nothing, when the budget is exhausted. */
+	charge(): boolean {
+		if (this.exhausted) {
+			return false;
+		}
+		this._used++;
+		return true;
+	}
 }
 
 export interface IAgentHostGitService {
@@ -361,10 +404,12 @@ export interface IAgentHostGitService {
 	 * `detectSubmodules`, the submodules that the `.gitmodules` file of a found repository (or of `folder` itself)
 	 * lists. Does not include `folder` itself, and does not search inside a found repository except for its
 	 * submodules, nor follow symbolic links. Returns at most `limit` repositories, in the order they are found, breadth
-	 * first. Whatever the options, a scan has bounds of its own: its depth, the folders it reads, the repositories it
-	 * finds and its duration; one that reaches them returns what it found.
+	 * first. A submodule counts only when its path stays inside its repository and no component of it, nor the
+	 * `.gitmodules` file, is a symbolic link. Whatever the options, a scan is bounded in depth and in repositories found,
+	 * and every file system call it makes is charged to `budget` (by default, a budget of its own): once that is used
+	 * up, the scan returns what it found.
 	 */
-	findRepositories?(folder: URI, options: IFindRepositoriesOptions): Promise<readonly IFoundRepository[]>;
+	findRepositories?(folder: URI, options: IFindRepositoriesOptions, budget?: RepositoryScanBudget): Promise<readonly IFoundRepository[]>;
 	/** Reads roots and branches in one Git invocation, with unquoted, NUL-delimited paths. Throws if inventory fails. */
 	getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]>;
 	/**

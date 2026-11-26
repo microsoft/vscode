@@ -12,7 +12,7 @@ import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getWorktr
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { Branch, EMPTY_TREE_OBJECT, getBaseBranchLabel, getBranchCompletions, GitRefType, IRefQuery, parseBaseBranchRef, type IFindRepositoriesOptions } from '../../common/agentHostGitService.js';
+import { Branch, EMPTY_TREE_OBJECT, getBaseBranchLabel, getBranchCompletions, GitRefType, IRefQuery, parseBaseBranchRef, RepositoryScanBudget, type IFindRepositoriesOptions } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -373,11 +373,38 @@ suite('AgentHostGitService', () => {
 			}
 		}
 
-		function find(options: Partial<IFindRepositoriesOptions>): Promise<string[]> {
+		function find(options: Partial<IFindRepositoriesOptions>, budget?: RepositoryScanBudget): Promise<string[]> {
 			const git = store.add(new AgentHostGitService(...gitArguments()));
-			return git.findRepositories(URI.file(root), { scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], detectSubmodules: true, limit: 16, ...options })
+			return git.findRepositories(URI.file(root), { scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], detectSubmodules: true, limit: 16, ...options }, budget)
 				.then(found => found.map(repository => `${repository.kind} ${relative(root, repository.root.fsPath).split(sep).join('/')}`));
 		}
+
+		test('charges every file system call to its budget and stops where the budget ends', async () => {
+			await makeFolder('a', { repository: true });
+			await makeFolder('b/c');
+			const scan = async (probes: number) => {
+				const budget = new RepositoryScanBudget(probes, Number.MAX_SAFE_INTEGER);
+				return { found: await find({ scanMaxDepth: 2, detectSubmodules: false }, budget), used: budget.used };
+			};
+
+			assert.deepStrictEqual({ full: await scan(100), short: await scan(3) }, {
+				// readdir of the folder, .git of a and of b, readdir of b, .git of b/c
+				full: { found: ['nested a'], used: 5 },
+				short: { found: ['nested a'], used: 3 },
+			});
+		});
+
+		test('takes no submodule through a symbolic link, nor from a .gitmodules file that is one', async () => {
+			await makeFolder('elsewhere/core', { repository: true });
+			await makeFolder('linked', { repository: true, gitmodules: ['libs/core'] });
+			await fsPromises.symlink(join(root, 'elsewhere'), join(root, 'linked', 'libs'), 'dir');
+			await makeFolder('modules', { repository: true });
+			await makeFolder('modules/core', { gitFile: true });
+			await makeFolder('real', { gitmodules: ['core'] });
+			await fsPromises.symlink(join(root, 'real', '.gitmodules'), join(root, 'modules', '.gitmodules'));
+
+			assert.deepStrictEqual(await find({ scanIgnoredFolders: ['elsewhere', 'real'] }), ['nested linked', 'nested modules']);
+		});
 
 		test('finds the repositories of the subfolders as source control does', async () => {
 			await makeFolder('vscode', { repository: true, gitmodules: ['extensions/lib'] });

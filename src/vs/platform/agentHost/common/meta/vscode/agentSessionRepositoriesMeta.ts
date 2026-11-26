@@ -42,8 +42,12 @@ export function readRepositoryDetectionOptions(value: unknown): Readonly<Record<
 /**
  * VS Code-owned session metadata listing the Git repositories the host found for each session folder, by
  * working-directory key: the folder's own repository first, when it is in one, then the repositories nested in it and
- * their submodules, as its {@link IRepositoryDetectionOptions} say. Each repository's Git state is the folder-scope Git
- * state of its root. Absent metadata, from another or an older host, means each folder is its own repository.
+ * their submodules, as its {@link IRepositoryDetectionOptions} say. Absent metadata, from another or an older host,
+ * means each folder is its own repository.
+ *
+ * Where each repository's Git state is: a folder's own repository (`folder`) has the folder's Git state, under the
+ * folder's working directory (the session's Git state for its first folder), also when its root is above the folder;
+ * every other repository has the folder-scope Git state of its root.
  */
 export const VSCODE_SESSION_REPOSITORIES_META_KEY = 'vscode.sessionRepositories';
 
@@ -77,7 +81,13 @@ export function readSessionRepositories(meta: Record<string, unknown> | undefine
 	return result;
 }
 
-/** Returns `meta` with `repositories` as the repositories of each folder; preserves every other entry. */
-export function withSessionRepositories(meta: Record<string, unknown> | undefined, repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>>): Record<string, unknown> {
-	return { ...meta, [VSCODE_SESSION_REPOSITORIES_META_KEY]: Object.fromEntries(Object.entries(repositories).map(([folderKey, entries]) => [folderKey, entries.map(({ root, kind }) => ({ root, kind }))])) };
+/** Returns `meta` with `repositories` as the repositories of each folder, or without them; preserves every other entry. */
+export function withSessionRepositories(meta: Record<string, unknown> | undefined, repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined): Record<string, unknown> | undefined {
+	const next: Record<string, unknown> = { ...meta };
+	if (repositories) {
+		next[VSCODE_SESSION_REPOSITORIES_META_KEY] = Object.fromEntries(Object.entries(repositories).map(([folderKey, entries]) => [folderKey, entries.map(({ root, kind }) => ({ root, kind }))]));
+	} else {
+		delete next[VSCODE_SESSION_REPOSITORIES_META_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
 }
