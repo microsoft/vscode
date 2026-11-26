@@ -5,7 +5,8 @@
 
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
@@ -56,8 +57,9 @@ export class OrchestrationLimitGate {
 				throw new Error(formatSessionActionLimit(action, limit));
 			}
 			if (limit.used < limit.max) {
-				const released = await whileCallerRuns(stateManager, context, context.turnId, Event.filter(limiter.onDidRelease, released => released === session));
-				if (released === undefined) {
+				const capacityChanged = Event.any(Event.map(Event.filter(limiter.onDidRelease, released => released === session), () => true), onDidElapse(limit.nextExpiryMs));
+				const woken = await whileCallerRuns(stateManager, context, context.turnId, capacityChanged);
+				if (woken === undefined || stateManager.getActiveTurnId(context.chatUri) !== context.turnId) {
 					throw new CancellationError();
 				}
 				continue;
@@ -113,6 +115,10 @@ function onDidEndCallerTurn(stateManager: AgentHostStateManager, context: IServe
 		}
 	}));
 	return store;
+}
+
+function onDidElapse(ms: number | undefined): Event<boolean> {
+	return listener => ms === undefined ? Disposable.None : disposableTimeout(() => listener(true), ms);
 }
 
 function whileCallerRuns<T>(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, turnId: string, event: Event<T>): Promise<T | undefined> {

@@ -19,6 +19,7 @@ export interface ISessionActionLimit {
 	readonly max: number;
 	readonly windowMinutes: number;
 	readonly retryAfterSeconds: number | undefined;
+	readonly nextExpiryMs: number | undefined;
 }
 
 /** Counts actions per session over a sliding window. */
@@ -120,6 +121,7 @@ export class SessionActionLimiter {
 			max: this.maxActions,
 			windowMinutes: Math.round(this.windowMs / 60000),
 			retryAfterSeconds: recent.length >= this.maxActions && retryIndex < recent.length ? Math.max(1, Math.ceil((recent[retryIndex] + this.windowMs - this.now()) / 1000)) : undefined,
+			nextExpiryMs: recent.length ? Math.max(1, recent[0] + this.windowMs - this.now()) : undefined,
 		};
 	}
 

@@ -1890,7 +1890,7 @@ suite('SessionServerTools', () => {
 		const peerChat = buildChatUri(session, 'peer');
 		const messageArgs = { session: 'copilot:/s1', message: 'status' };
 
-		function setup(canAskUser = () => true, startPrompt?: () => Promise<void>) {
+		function setup(canAskUser = () => true, startPrompt?: () => Promise<void>, now = () => 0) {
 			const store = new DisposableStore();
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Caller', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: mainChat });
@@ -1898,7 +1898,7 @@ suite('SessionServerTools', () => {
 			stateManager.dispatchServerAction(mainChat, chatTurnStarted('turn-1', 'go'));
 			stateManager.dispatchServerAction(peerChat, chatTurnStarted('turn-1', 'go'));
 			let sent = 0;
-			const group = createSessionServerToolGroup(createAccessor({ canAskUser, getChatOwner: chat => stateManager.getChatOwner(chat), startPrompt: async () => { await startPrompt?.(); sent++; } }), () => true, () => 0);
+			const group = createSessionServerToolGroup(createAccessor({ canAskUser, getChatOwner: chat => stateManager.getChatOwner(chat), listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)], startPrompt: async () => { await startPrompt?.(); sent++; } }), () => true, now);
 			const questions: { readonly chat: string; readonly id: string; readonly title: string }[] = [];
 			let onQuestion: (() => void) | undefined;
 			store.add(stateManager.onDidEmitEnvelope(({ channel, action }) => {
@@ -1907,7 +1907,7 @@ suite('SessionServerTools', () => {
 					onQuestion?.();
 				}
 			}));
-			const send = (chat: string, turnId = 'turn-1') => Promise.resolve(group.execute(stateManager, { sessionUri: session, chatUri: chat, turnId }, SessionServerToolName.SendMessage, messageArgs))
+			const send = (chat: string, target = 'copilot:/s1') => Promise.resolve(group.execute(stateManager, { sessionUri: session, chatUri: chat, turnId: 'turn-1' }, SessionServerToolName.SendMessage, { ...messageArgs, session: target }))
 				.then(() => 'allowed', (error: Error) => error.message.includes('the user did not allow more') ? 'declined' : 'refused');
 			const nextQuestion = () => new Promise<void>(resolve => { onQuestion = () => { onQuestion = undefined; resolve(); }; });
 			const answer = (value: string | undefined) => {
@@ -1916,10 +1916,10 @@ suite('SessionServerTools', () => {
 					? { type: ActionType.ChatInputCompleted, requestId: id, response: ChatInputResponseKind.Cancel }
 					: { type: ActionType.ChatInputCompleted, requestId: id, response: ChatInputResponseKind.Accept, answers: { orchestrationLimit: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value } } } });
 			};
-			const sendMany = async (count: number, chat = mainChat, turnId = 'turn-1') => {
+			const sendMany = async (count: number, chat = mainChat) => {
 				const results = new Set<string>();
 				for (let i = 0; i < count; i++) {
-					results.add(await send(chat, turnId));
+					results.add(await send(chat));
 				}
 				return `${[...results].join(',')} x${count}`;
 			};
@@ -2008,6 +2008,61 @@ suite('SessionServerTools', () => {
 				questions: 0,
 				sent: 100,
 			});
+			t.store.dispose();
+		});
+
+		function holdNextSend() {
+			let hold = false;
+			const held = new DeferredPromise<void>();
+			const entered = new DeferredPromise<void>();
+			return {
+				held, entered, start: () => { hold = true; },
+				startPrompt: async () => {
+					if (hold) {
+						hold = false;
+						entered.complete();
+						await held.p;
+					}
+				},
+			};
+		}
+
+		test('a waiting call whose chat started another turn is not let through when capacity frees', async () => {
+			const hold = holdNextSend();
+			const t = setup(undefined, hold.startPrompt);
+			await t.sendMany(99);
+			hold.start();
+			const holding = t.send(mainChat);
+			await hold.entered.p;
+			const waiting = t.send(peerChat);
+			t.stateManager.dispatchServerAction(peerChat, chatTurnStarted('turn-2', 'next'));
+			hold.held.error(new Error('target unavailable'));
+
+			assert.deepStrictEqual({ holding: await holding, waiting: await waiting, questions: t.questions.length, sent: t.sent() }, {
+				holding: 'refused',
+				waiting: 'refused',
+				questions: 0,
+				sent: 99,
+			});
+			t.store.dispose();
+		});
+
+		test('a waiting call goes ahead when completed actions leave the window', async () => {
+			const windowMs = 60 * 60 * 1000;
+			let now = 0;
+			const hold = holdNextSend();
+			const t = setup(undefined, hold.startPrompt, () => now);
+			await t.sendMany(99);
+			now = windowMs - 1;
+			hold.start();
+			const holding = t.send(mainChat);
+			await hold.entered.p;
+			const waiting = t.send(peerChat, 'copilot:/s2');
+			now = windowMs;
+
+			assert.deepStrictEqual({ waiting: await waiting, questions: t.questions.length }, { waiting: 'allowed', questions: 0 });
+			hold.held.complete();
+			assert.deepStrictEqual({ holding: await holding, sent: t.sent() }, { holding: 'allowed', sent: 101 });
 			t.store.dispose();
 		});
 
