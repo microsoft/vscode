@@ -275,7 +275,7 @@ jobs:
         - task: Docker@1
           displayName: Login to Container Registry
           inputs:
-            azureSubscriptionEndpoint: vscode
+            azureSubscriptionEndpoint: vscodehub-ro
             azureContainerRegistry: vscodehub.azurecr.io
             command: login
 

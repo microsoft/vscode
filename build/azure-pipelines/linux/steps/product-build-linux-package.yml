@@ -132,7 +132,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
     - task: Docker@1
       inputs:
-        azureSubscriptionEndpoint: vscode
+        azureSubscriptionEndpoint: vscodehub-ro
         azureContainerRegistry: vscodehub.azurecr.io
         command: login
       displayName: Login to Container Registry
