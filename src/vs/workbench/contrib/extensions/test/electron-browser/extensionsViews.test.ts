@@ -415,7 +415,7 @@ suite('ExtensionsViews Tests', () => {
 		}, { retainedModel: true, message: 'Updated advice', focus: [0], selection: [0] });
 	}));
 
-	test('deprecated query refreshes an empty result, switch changes, and API removal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('deprecated query refreshes an empty result, applies switch changes on metadata refresh, and handles API removal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const configuration = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configuration.setUserConfiguration(MarketplaceDeprecationConfigKey, true);
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
@@ -437,13 +437,16 @@ suite('ExtensionsViews Tests', () => {
 			});
 			await timeout(200);
 			counts.push(testableView.count());
+			await workbenchService.queryGallery(CancellationToken.None);
+			await timeout(200);
+			counts.push(testableView.count());
 		}
 
 		queryPage = aPage([aGalleryExtension(localEnabledTheme.manifest.name)]);
 		await workbenchService.queryGallery(CancellationToken.None);
 		await timeout(200);
 		counts.push(testableView.count());
-		assert.deepStrictEqual(counts, [0, 1, 0, 1, 0]);
+		assert.deepStrictEqual(counts, [0, 1, 1, 0, 0, 1, 0]);
 	}));
 
 	test('Test installed query with category', async () => {

@@ -1102,10 +1102,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly remoteExtensions: Extensions | null = null;
 	private readonly webExtensions: Extensions | null = null;
 	private readonly extensionsServers: Extensions[] = [];
-	// Track observations without retaining discarded gallery search models.
-	private readonly marketplaceDeprecationReferences = new WeakMap<Extension, WeakRef<Extension>>();
-	private readonly marketplaceDeprecationObservations = new Map<WeakRef<Extension>, IDeprecationInfo | undefined>();
-	private readonly marketplaceDeprecationRegistry = new FinalizationRegistry<WeakRef<Extension>>(reference => this.marketplaceDeprecationObservations.delete(reference));
 
 	private updatesCheckDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
@@ -1167,21 +1163,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		super();
 
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
-		this._register(toDisposable(() => {
-			for (const reference of this.marketplaceDeprecationObservations.keys()) {
-				this.marketplaceDeprecationRegistry.unregister(reference);
-			}
-			this.marketplaceDeprecationObservations.clear();
-		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(MarketplaceDeprecationConfigKey)) {
-				const enabled = this.configurationService.getValue<boolean>(MarketplaceDeprecationConfigKey);
-				for (const [reference, info] of this.marketplaceDeprecationObservations) {
-					const extension = reference.deref();
-					if (extension) {
-						extension.setMarketplaceDeprecationInfo(enabled ? info : undefined);
-					}
-				}
 				this._onChange.fire(undefined);
 			}
 		}));
@@ -1238,23 +1221,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private updateMarketplaceDeprecationInfo(extension: Extension, info: IDeprecationInfo | undefined): boolean {
-		this.recordMarketplaceDeprecationInfo(extension, info);
 		return extension.setMarketplaceDeprecationInfo(this.configurationService.getValue<boolean>(MarketplaceDeprecationConfigKey) ? info : undefined);
 	}
 
 	private setGallery(extension: Extension, gallery: IGalleryExtension): void {
-		this.recordMarketplaceDeprecationInfo(extension, gallery.deprecationInfo);
 		extension.setGallery(gallery, this.configurationService.getValue<boolean>(MarketplaceDeprecationConfigKey));
-	}
-
-	private recordMarketplaceDeprecationInfo(extension: Extension, info: IDeprecationInfo | undefined): void {
-		let reference = this.marketplaceDeprecationReferences.get(extension);
-		if (!reference) {
-			reference = new WeakRef(extension);
-			this.marketplaceDeprecationReferences.set(extension, reference);
-			this.marketplaceDeprecationRegistry.register(extension, reference, reference);
-		}
-		this.marketplaceDeprecationObservations.set(reference, info);
 	}
 
 	private async initialize(): Promise<void> {

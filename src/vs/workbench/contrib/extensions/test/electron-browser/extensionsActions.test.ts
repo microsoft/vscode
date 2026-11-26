@@ -198,7 +198,7 @@ suite('ExtensionListRenderer', () => {
 	setup(() => setupTest(disposables));
 
 	for (const legacy of [false, true]) {
-		test(`list deprecation styling refreshes on rollout changes ${legacy ? 'with' : 'without'} legacy fallback`, async () => {
+		test(`list deprecation styling applies rollout changes on metadata refresh ${legacy ? 'with' : 'without'} legacy fallback`, async () => {
 			const configuration = instantiationService.get(IConfigurationService) as TestConfigurationService;
 			await configuration.setUserConfiguration(MarketplaceDeprecationConfigKey, true);
 			instantiationService.stub(IExtensionRecommendationsService, {
@@ -230,6 +230,7 @@ suite('ExtensionListRenderer', () => {
 			};
 			renderer.renderElement(extension, 0, data);
 			const states = [await readState()];
+			editors.push(disposables.add(new ExtensionsInput(extension)));
 			for (const enabled of [false, true]) {
 				await configuration.setUserConfiguration(MarketplaceDeprecationConfigKey, enabled);
 				configuration.onDidChangeConfigurationEmitter.fire({
@@ -239,8 +240,9 @@ suite('ExtensionListRenderer', () => {
 					affectsConfiguration: key => key === MarketplaceDeprecationConfigKey
 				});
 				states.push(await readState());
+				await workbenchService.queryGallery(CancellationToken.None);
+				states.push(await readState());
 			}
-			editors.push(disposables.add(new ExtensionsInput(extension)));
 			gallery = { ...gallery, deprecationInfo: undefined };
 			await workbenchService.queryGallery(CancellationToken.None);
 			states.push(await readState());
@@ -248,6 +250,8 @@ suite('ExtensionListRenderer', () => {
 			states.push(await readState());
 			assert.deepStrictEqual(states, [
 				{ deprecated: true, warning: true },
+				{ deprecated: true, warning: true },
+				{ deprecated: legacy, warning: legacy },
 				{ deprecated: legacy, warning: legacy },
 				{ deprecated: true, warning: true },
 				{ deprecated: legacy, warning: legacy },
@@ -360,7 +364,6 @@ suite('ExtensionsActions', () => {
 			const states = [{ hidden: action.hidden, enabled: action.enabled }];
 
 			for (const enabled of [false, true]) {
-				const changed = Event.toPromise(Event.filter(action.onDidChange, e => e.enabled === true));
 				await configurationService.setUserConfiguration(MarketplaceDeprecationConfigKey, enabled);
 				configurationService.onDidChangeConfigurationEmitter.fire({
 					source: ConfigurationTarget.USER,
@@ -368,6 +371,9 @@ suite('ExtensionsActions', () => {
 					change: { keys: [MarketplaceDeprecationConfigKey], overrides: [] },
 					affectsConfiguration: key => key === MarketplaceDeprecationConfigKey
 				});
+				await workbenchService.queryGallery(CancellationToken.None);
+				const changed = Event.toPromise(Event.filter(action.onDidChange, e => e.enabled === true));
+				action.update();
 				await changed;
 				states.push({ hidden: action.hidden, enabled: action.enabled });
 				await action.run();
