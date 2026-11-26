@@ -81,9 +81,6 @@ node .github/skills/azure-pipelines/azure-pipeline.ts queue --branch my-feature-
 
 # Queue with custom parameters
 node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_BUILD_WEB=false" --parameter "VSCODE_PUBLISH=false"
-
-# Parameter value with spaces
-node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_BUILD_TITLE_PREFIX=My Validation "
 ```
 
 > **Important**: Before queueing a new build, cancel any previous builds on the same branch that you no longer need. This frees up build agents and reduces resource waste:
@@ -109,7 +106,6 @@ node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_
 | Name | Type | Default | Allowed Values | Description |
 |------|------|---------|----------------|-------------|
 | `VSCODE_QUALITY` | string | `insider` | `exploration`, `insider`, `stable` | Build quality channel |
-| `VSCODE_BUILD_TITLE_PREFIX` | string | `none` | any | Prefix of the build title |
 | `NPM_REGISTRY` | string | `https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/` | any URL | Custom npm registry |
 | `CARGO_REGISTRY` | string | `sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/` | any URL | Custom Cargo registry |
 | `VSCODE_BUILD_WIN32` | boolean | `true` | `true`, `false` | Build Windows x64 |
