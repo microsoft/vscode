@@ -2131,19 +2131,32 @@ suite('SessionServerTools', () => {
 
 		test('the result of a call the user let through says so', async () => {
 			const t = setup();
-			const note = (result: string) => result.split('\n').slice(1).join('\n');
-			const before = note(await t.sendRaw(mainChat));
+			const fields = async (result: Promise<string>) => {
+				const { action, status, userAllowedMore } = JSON.parse(await result);
+				return { action, status, userAllowedMore };
+			};
+			const before = await fields(t.sendRaw(mainChat));
 			await t.sendMany(99);
-			const allowedMore = note(await answered(t, 'allowMore', () => t.sendRaw(mainChat)));
-			const next = note(await t.sendRaw(mainChat));
+			const allowedMore = await fields(answered(t, 'allowMore', () => t.sendRaw(mainChat)));
+			const next = await fields(t.sendRaw(mainChat));
 			await t.sendMany(98);
-			const allowedForSession = note(await answered(t, 'allowUnlimited', () => t.sendRaw(mainChat)));
+			const allowedForSession = await fields(answered(t, 'allowUnlimited', () => t.sendRaw(mainChat)));
+			let chats = 0;
+			const chatGroup = createSessionServerToolGroup(createAccessor({ canAskUser: () => true, getChatOwner: chat => t.stateManager.getChatOwner(chat), createChat: async () => { chats++; } }), () => true, () => 0);
+			const createChat = () => Promise.resolve(chatGroup.execute(t.stateManager, { sessionUri: session, chatUri: mainChat, turnId: 'turn-1' }, SessionServerToolName.CreateSession, { relationship: 'currentSession', prompt: 'go', title: 'Peer' }));
+			for (let i = 0; i < 50; i++) {
+				await createChat();
+			}
+			const chatResult = (await answered(t, 'allowMore', createChat)).split('\n');
 
-			assert.deepStrictEqual({ before, allowedMore, next, allowedForSession }, {
-				before: '',
-				allowedMore: 'This session reached its limit of 100 in 60 minutes, and the user allowed it to send more messages: another 100 before they are asked again.',
-				next: '',
-				allowedForSession: 'This session reached its limit of 100 in 60 minutes, and the user allowed it to send more messages without a limit until the agent host restarts.',
+			const sent = { action: 'started', status: 'processing' };
+			assert.deepStrictEqual({ before, allowedMore, next, allowedForSession, chatNote: chatResult.slice(1), chats }, {
+				before: { ...sent, userAllowedMore: undefined },
+				allowedMore: { ...sent, userAllowedMore: 'This session reached its limit of 100 in 60 minutes, and the user allowed it to send more messages: another 100 before they are asked again.' },
+				next: { ...sent, userAllowedMore: undefined },
+				allowedForSession: { ...sent, userAllowedMore: 'This session reached its limit of 100 in 60 minutes, and the user allowed it to send more messages without a limit until the agent host restarts.' },
+				chatNote: ['This session reached its limit of 50 in 60 minutes, and the user allowed it to create more chats: another 50 before they are asked again.'],
+				chats: 51,
 			});
 			t.store.dispose();
 		});

@@ -2640,7 +2640,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 						if (operation === 'send') {
 							recordAction(admission, sentMessages, sendingSession);
 						}
-						return withUserAllowedMore(result, admission);
+						return admission?.userAllowedMore ? JSON.stringify({ ...JSON.parse(result), userAllowedMore: admission.userAllowedMore }) : result;
 					} finally {
 						admission?.reservation?.dispose();
 					}
