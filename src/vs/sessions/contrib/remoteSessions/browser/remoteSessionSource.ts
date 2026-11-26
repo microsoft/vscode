@@ -14,6 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSessionResolution, isDefaultChatLinkId } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IRemoteSessionOrigin, readRemoteSessionDepth, readRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
+import { withRoutedModel } from '../../../../platform/agentHost/common/modelRouter.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents, type ModelSelection } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -165,7 +166,8 @@ export async function resolveRemoteSessionSource(
 			}
 			checkSource();
 			// The turn in progress is the one delegating; otherwise the chat continues on its draft's or latest turn's model.
-			const selection = chat.activeTurn?.message.model ?? chat.draft?.model ?? chat.turns.at(-1)?.message.model;
+			// A router isn't a model: like create_session, the session continues on the model the router chose.
+			const selection = withRoutedModel(chat, chat.activeTurn?.message.model ?? chat.draft?.model ?? chat.turns.at(-1)?.message.model);
 			model = selection && { provider: chat.provider ?? state.provider, selection };
 		}
 		return { ...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state), sourceChat: chatResource, ...(model ? { model } : {}) };

@@ -27,7 +27,8 @@ import { ReasoningEffortConfigKey } from '../../../../../platform/agentHost/comm
 import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PolicyState, RootState } from '../../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ActiveTurn, buildChatUri, ChatState, ChatSummary, ComponentToState, MessageKind, ModelSelection, readSessionSpawnDepth, SessionState, StateComponents, withSessionSpawnDepth } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ActiveTurn, buildChatUri, ChatState, ChatSummary, ComponentToState, MessageKind, ModelSelection, readSessionSpawnDepth, SessionState, StateComponents, UsageInfo, withSessionSpawnDepth } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { modelRouterModelId } from '../../../../../platform/agentHost/common/modelRouter.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -132,6 +133,7 @@ suite('RemoteSessionService', () => {
 			sourceClientId: 'test-client',
 			/** The model of the source chat's turn in progress, which called the tool. */
 			sourceChatModel: undefined as ModelSelection | undefined,
+			sourceChatUsage: undefined as UsageInfo | undefined,
 		};
 		const models = new Map<string, ILanguageModelChatMetadata>(hosts.flatMap(host => host.root.agents.flatMap(agent => {
 			const vendor = remoteAgentHostSessionTypeId(agentHostAuthority(host.remoteAddress), agent.provider);
@@ -208,7 +210,7 @@ suite('RemoteSessionService', () => {
 				[StateComponents.Chat]: () => upcastPartial<IAgentSubscription<ChatState>>({
 					value: upcastPartial<ChatState>({
 						turns: [],
-						activeTurn: upcastPartial<ActiveTurn>({ message: { text: 'Delegate', origin: { kind: MessageKind.User }, model: state.sourceChatModel } }),
+						activeTurn: upcastPartial<ActiveTurn>({ message: { text: 'Delegate', origin: { kind: MessageKind.User }, model: state.sourceChatModel }, usage: state.sourceChatUsage }),
 					}),
 				}),
 			};
@@ -428,6 +430,20 @@ suite('RemoteSessionService', () => {
 			{ sessionType: 'copilot', modelId: `${offering.sessionTypes[1].chatSessionType}:test-model`, modelConfiguration: config, reported: { provider: 'copilot', id: 'test-model' } },
 			{ sessionType: 'copilot', modelId: undefined, modelConfiguration: undefined, reported: { provider: 'copilot', id: null } },
 		]);
+	});
+
+	test('a source chat on a model router continues on the model the router chose', async () => {
+		const host = new RemoteProvider('host');
+		host.supportsModelConfigurationForCreation = true;
+		const { create, calls, state } = setup([host]);
+		state.sourceChatModel = { id: modelRouterModelId('fast') };
+		state.sourceChatUsage = upcastPartial<UsageInfo>({ _meta: { modelRouted: { router: 'fast', chosenModel: 'test-model', effort: 'high' } } });
+		const result = await create();
+		assert.deepStrictEqual({ modelId: calls[0].options?.modelId, modelConfiguration: calls[0].options?.modelConfiguration, reported: result.model }, {
+			modelId: `${host.sessionTypes[0].chatSessionType}:test-model`,
+			modelConfiguration: { [ReasoningEffortConfigKey]: 'high' },
+			reported: { provider: 'copilot', id: 'test-model' },
+		});
 	});
 
 	test('a named model that is the source chat\'s model keeps its options only while agents can choose model options', async () => {
