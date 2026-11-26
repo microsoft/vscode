@@ -6,8 +6,7 @@
 import { SessionsGrouping, SessionsSorting, ISessionSection, ISessionRepository, ISessionShowMore } from './sessionsListCommon.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
-import { Schemas } from '../../../../../base/common/network.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { isSideChat } from '../sideChatPlacement.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -75,21 +74,17 @@ export function getSessionSectionType(sectionId: string): string {
 }
 
 /**
- * The {@link ISessionSection.rootFolder} of a workspace or repository section with these sessions: their one shared local root
- * folder, if they have one. Sessions in different worktrees of one repository share its root.
+ * The {@link ISessionSection.rootFolder} of a workspace or repository section with these sessions: the root folder of the
+ * first session that has one. A session in a worktree of a repository has that repository as its root.
  */
 export function getSessionsRootFolder(sessions: readonly ISession[]): URI | undefined {
-	let result: URI | undefined;
 	for (const session of sessions) {
-		const workspace = getSessionPresentationWorkspace(session, undefined);
-		const folder = workspace?.folders.length === 1 ? workspace.folders[0] : undefined;
-		const uri = folder?.root;
-		if (uri?.scheme !== Schemas.file || (result && !extUriBiasedIgnorePathCase.isEqual(result, uri))) {
-			return undefined;
+		const root = getSessionPresentationWorkspace(session, undefined)?.folders[0]?.root;
+		if (root) {
+			return root;
 		}
-		result ??= uri;
 	}
-	return result;
+	return undefined;
 }
 
 //#region Approval Helpers

@@ -76,7 +76,7 @@ export const SessionSectionTypeContext = new RawContextKey<string>('sessionSecti
 export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolean>('sessionSection.hasGitHubRepository', false);
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
 /** Whether a section has a {@link ISessionSection.rootFolder}. */
-export const SessionSectionHasLocalFolderContext = new RawContextKey<boolean>('sessionSection.hasLocalFolder', false);
+export const SessionSectionHasRootFolderContext = new RawContextKey<boolean>('sessionSection.hasRootFolder', false);
 export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
 export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
 export const SessionGroupIsComparisonContext = new RawContextKey<boolean>('sessionGroup.isComparison', false);
@@ -106,9 +106,8 @@ export interface ISessionSection {
 	/** The pinned canvas a navigation row opens. */
 	readonly pinnedCanvas?: IPinnedCanvas;
 	/**
-	 * The one local root folder (the project or repository folder, never a session's worktree) that all the sessions of a
-	 * workspace or repository section belong to. Unset when they belong to different roots, as when a repository section
-	 * holds several clones, or when a session has several folders, a remote folder or none.
+	 * The root folder (the project or repository folder, never a session's worktree) of a workspace or repository section:
+	 * the root of its first session that has one. Unset when none of its sessions has a folder.
 	 */
 	readonly rootFolder?: URI;
 }

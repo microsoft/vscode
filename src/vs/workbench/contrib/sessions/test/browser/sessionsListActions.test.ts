@@ -19,7 +19,7 @@ import { ISession, ISessionWorkspace } from '../../../../services/sessions/commo
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../browser/menus.js';
 import { registerSessionsListActions } from '../../browser/views/sessionsListActions.js';
-import { ISessionSection, SessionSectionHasLocalFolderContext, SessionSectionTypeContext } from '../../browser/views/sessionsListCommon.js';
+import { ISessionSection, SessionSectionHasRootFolderContext, SessionSectionTypeContext } from '../../browser/views/sessionsListCommon.js';
 import { groupByRepository, groupByWorkspace } from '../../browser/views/sessionsListHelpers.js';
 import { OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID } from '../../common/sessionCommands.js';
 import { buildTestSession } from '../common/testSessionBuilder.js';
@@ -38,13 +38,13 @@ suite('Sessions list actions', () => {
 		return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace) };
 	}
 
-	test('opens the one local root folder of a folder section in a new editor window, in a window that lists all sessions', async () => {
+	test('opens the root folder of a folder section in a new editor window, in a window that lists all sessions', async () => {
 		const registrations = new DisposableStore();
 		try {
 			registrations.add(registerSessionsListActions());
 			const commandId = OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID;
 			const when = MenuRegistry.getMenuItems(Menus.SessionSectionContext).filter(isIMenuItem).find(item => item.command.id === commandId)?.when;
-			const context: Record<string, unknown> = { [ChatContextKeys.enabled.key]: true, [WorkbenchScopeContext.key]: 'all', [SessionSectionHasLocalFolderContext.key]: true };
+			const context: Record<string, unknown> = { [ChatContextKeys.enabled.key]: true, [WorkbenchScopeContext.key]: 'all', [SessionSectionHasRootFolderContext.key]: true };
 			const shown = (type: string, overrides: Record<string, unknown> = {}) => !!when?.evaluate({ getValue: <T>(key: string) => ({ ...context, [SessionSectionTypeContext.key]: type, ...overrides })[key] as T });
 
 			const opened: { folder: string; forceNewWindow: boolean | undefined }[] = [];
@@ -52,7 +52,7 @@ suite('Sessions list actions', () => {
 			instantiationService.stub(IHostService, upcastPartial<IHostService>({
 				openWindow: async (toOpen?: unknown, options?: IOpenWindowOptions) => {
 					for (const window of toOpen as IWindowOpenable[]) {
-						opened.push({ folder: (window as IFolderToOpen).folderUri.path, forceNewWindow: options?.forceNewWindow });
+						opened.push({ folder: (window as IFolderToOpen).folderUri.toString(), forceNewWindow: options?.forceNewWindow });
 					}
 				},
 			}));
@@ -76,15 +76,15 @@ suite('Sessions list actions', () => {
 				customGroup: MenuRegistry.getMenuItems(Menus.SessionGroupContext).filter(isIMenuItem).some(item => item.command.id === commandId),
 				workspaceScope: shown('workspace', { [WorkbenchScopeContext.key]: 'workspace' }),
 				aiDisabled: shown('workspace', { [ChatContextKeys.enabled.key]: false }),
-				noLocalFolder: shown('workspace', { [SessionSectionHasLocalFolderContext.key]: false }),
+				noRootFolder: shown('workspace', { [SessionSectionHasRootFolderContext.key]: false }),
 				folders: {
 					oneFolder: section(createSession('a', repo)).rootFolder?.path,
 					worktree: section(worktree).rootFolder?.path,
 					worktreesOfOneRepo: section(createSession('a', repo), worktree, otherWorktree).rootFolder?.path,
-					differentRoots: section(createSession('a', repo), createSession('c', otherRepo)).rootFolder,
-					remote: section(remote).rootFolder,
+					differentRoots: section(createSession('a', repo), createSession('c', otherRepo)).rootFolder?.path,
+					remote: section(remote).rootFolder?.path,
 					repository: [repositorySection(clone).id, repositorySection(clone).rootFolder?.path],
-					repositoryClones: [repositorySection(clone, otherClone).id, repositorySection(clone, otherClone).rootFolder],
+					repositoryClones: [repositorySection(clone, otherClone).id, repositorySection(clone, otherClone).rootFolder?.path],
 				},
 				opened,
 			}, {
@@ -92,13 +92,18 @@ suite('Sessions list actions', () => {
 				customGroup: false,
 				workspaceScope: false,
 				aiDisabled: false,
-				noLocalFolder: false,
+				noRootFolder: false,
 				folders: {
-					oneFolder: '/work/repo', worktree: '/work/repo', worktreesOfOneRepo: '/work/repo', differentRoots: undefined, remote: undefined,
-					repository: ['repository:microsoft/vscode', '/work/repo'], repositoryClones: ['repository:microsoft/vscode', undefined],
+					oneFolder: '/work/repo', worktree: '/work/repo', worktreesOfOneRepo: '/work/repo', differentRoots: '/work/repo', remote: '/work/repo',
+					repository: ['repository:microsoft/vscode', '/work/repo'], repositoryClones: ['repository:microsoft/vscode', '/work/repo'],
 				},
-				// Only the sections whose sessions belong to one local root, which opens even for sessions in its worktrees
-				opened: [{ folder: '/work/repo', forceNewWindow: true }, { folder: '/work/repo', forceNewWindow: true }],
+				// The root of the section's first session, never a worktree
+				opened: [
+					{ folder: 'file:///work/repo', forceNewWindow: true },
+					{ folder: 'file:///work/repo', forceNewWindow: true },
+					{ folder: 'file:///work/repo', forceNewWindow: true },
+					{ folder: 'vscode-agent-host:/work/repo', forceNewWindow: true },
+				],
 			});
 		} finally {
 			registrations.dispose();
