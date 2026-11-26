@@ -400,6 +400,10 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		// Every file system call is charged first; one the budget no longer allows, or that fails, finds nothing
 		const probe = async <T>(run: () => Promise<T>): Promise<T | undefined> => budget.charge() ? run().catch(() => undefined) : undefined;
 		const hasGitEntry = async (directory: string) => !!await probe(() => fsPromises.lstat(path.join(directory, '.git')));
+		// A `.git` entry is a repository only when Git opens a checkout rooted there, as Source Control asks Git for the
+		// root before it opens one: not an empty or broken marker, nor one Git skips for an enclosing checkout
+		const isCheckoutRoot = async (directory: string) => (await probe(() => this._runGit(URI.file(directory), ['rev-parse', '--show-cdup'], { throwOnError: true, env: { LC_ALL: 'C' } })))?.trim() === '';
+		const isRepository = async (directory: string) => await hasGitEntry(directory) && await isCheckoutRoot(directory);
 		const isPlainDirectory = async (directory: string) => {
 			const stat = await probe(() => fsPromises.lstat(directory));
 			return !!stat && stat.isDirectory() && !stat.isSymbolicLink();
@@ -464,7 +468,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 					continue;
 				}
 				const candidate = await containedFolder(repository.fsPath, parts);
-				if (candidate && await hasGitEntry(candidate)) {
+				if (candidate && await isRepository(candidate)) {
 					const root = URI.file(candidate);
 					if (!isIgnored(root)) {
 						add(root, 'submodule');
@@ -498,7 +502,10 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 					}
 					const child = URI.file(path.join(parent.fsPath, entry.name));
 					if (await hasGitEntry(child.fsPath)) {
-						await addRepository(child);
+						// A folder with a `.git` entry is not searched further, whether or not it is a repository
+						if (await isCheckoutRoot(child.fsPath)) {
+							await addRepository(child);
+						}
 					} else if (depth < maxDepth && next.length < budget.remaining) {
 						// Only folders the scan can still read are queued
 						next.push(child);
@@ -521,7 +528,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			}
 			scannedPaths.add(key);
 			const candidate = await containedFolder(folder.fsPath, parts);
-			if (candidate && await hasGitEntry(candidate)) {
+			if (candidate && await isRepository(candidate)) {
 				await addRepository(URI.file(candidate));
 			}
 		}

@@ -3376,6 +3376,67 @@ suite('AgentHostGitStateService', () => {
 		});
 	}));
 
+	test('a pull request found for another folder of the session is recorded for that folder only, never as the session\'s latest outcome', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const api = 'file:///api';
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: api });
+		await h.service.recordSessionMerge(SESSION, 'abc123');
+		h.setGitResult({ branchName: 'main' });
+		h.setGitResultForFolder(api, { branchName: 'feature', baseBranchName: 'main', hasGitHubRemote: true, githubOwner: 'contoso', githubRepo: 'api' });
+		h.setPullRequest('feature', createTestPullRequestSummary(12, { html_url: 'https://github.com/contoso/api/pull/12' }));
+
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		await timeout(1_000);
+
+		const meta = h.stateManager.getSessionState(SESSION)?._meta;
+		assert.deepStrictEqual({
+			sourceControl: readSessionSourceControlState(meta),
+			api: readFolderGitHubState(meta, getWorkingDirectoryKey(api))?.pullRequestUrls,
+		}, {
+			sourceControl: { merge: { commit: 'abc123' }, latestOutcome: SessionSourceControlOutcome.Merge },
+			api: ['https://github.com/contoso/api/pull/12'],
+		});
+	}));
+
+	test('another folder loses the state recorded for it once Git says it is not a repository, or its remotes are read and none is on GitHub, but not after a read that could not tell', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const run = async (next: { readonly gitState: ISessionGitState | undefined; readonly hasGitRoot: boolean | undefined }) => {
+			const h = createHarness();
+			const api = 'file:///api';
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+			h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: api });
+			h.setGitResult({ branchName: 'main' });
+			h.setGitResultForFolder(api, { branchName: 'feature', baseBranchName: 'main', hasGitHubRemote: true, githubOwner: 'contoso', githubRepo: 'api' });
+			h.setPullRequest('feature', createTestPullRequestSummary(12, { html_url: 'https://github.com/contoso/api/pull/12' }));
+			await h.service.refreshSessionGitState(SESSION, undefined);
+			await timeout(1_000);
+
+			h.setGitResultForFolder(api, next.gitState);
+			h.gitService.getRepositoryRoot = async folder => folder.toString() === api && next.hasGitRoot !== true ? undefined : folder;
+			h.gitService.hasGitRoot = folder => constObservable(folder.toString() === api ? next.hasGitRoot : undefined);
+			await timeout(5_000);
+			await h.service.refreshSessionGitState(SESSION, undefined);
+			await timeout(1_000);
+			const meta = h.stateManager.getSessionState(SESSION)?._meta;
+			return {
+				branch: readFolderScopeGitState(meta, getWorkingDirectoryScopeId([api]))?.branchName,
+				gitHub: readFolderGitHubState(meta, getWorkingDirectoryKey(api))?.repo,
+			};
+		};
+
+		assert.deepStrictEqual({
+			notRepository: await run({ gitState: undefined, hasGitRoot: false }),
+			unreadable: await run({ gitState: undefined, hasGitRoot: undefined }),
+			noGitHubRemote: await run({ gitState: { branchName: 'feature', baseBranchName: 'main', hasGitRemote: true, hasGitHubRemote: false }, hasGitRoot: true }),
+			remotesUnread: await run({ gitState: { branchName: 'feature', baseBranchName: 'main' }, hasGitRoot: true }),
+		}, {
+			notRepository: { branch: undefined, gitHub: undefined },
+			unreadable: { branch: 'feature', gitHub: 'api' },
+			noGitHubRemote: { branch: 'feature', gitHub: undefined },
+			remotesUnread: { branch: 'feature', gitHub: 'api' },
+		});
+	}));
+
 	test('records the Git state of every folder of any session of several folders, whatever created it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const read = async (setUp: (h: ReturnType<typeof createHarness>) => void) => {
 			const h = createHarness();

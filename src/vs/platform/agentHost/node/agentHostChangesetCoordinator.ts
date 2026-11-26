@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { equals as objectEquals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agent.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, changesetSession, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
@@ -16,6 +17,7 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { isAnyAgentMergeEnabled } from '../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChatOriginKind, isAhpChatChannel, isSessionChatArchived, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
@@ -197,6 +199,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
 		this._refreshSummarySource(session, previous);
+		// The session's repositories are found again with the new options, also in a session doing nothing else
+		if (!objectEquals(previous?.values[SessionConfigKey.RepositoryDetection], current?.values[SessionConfigKey.RepositoryDetection])) {
+			void this._gitStateService.refreshSessionGitState(session);
+		}
 		const sessionFolder = this._stateManager.getSessionSummary(session)?.workingDirectories?.[0];
 		const sessionFolderKey = sessionFolder ? getWorkingDirectoryKey(sessionFolder) : undefined;
 		const wasEnabled = isAnyAgentMergeEnabled(previous?.values, sessionFolderKey);

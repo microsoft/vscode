@@ -412,8 +412,8 @@ export interface IAgentHostGitService {
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**
-	 * Finds the Git repositories in the subfolders of `folder`, as source control does: folders that have a `.git` entry,
-	 * down to `scanMaxDepth` levels (`-1` for no limit), not in the `scanIgnoredFolders` or a `.git` folder, the paths
+	 * Finds the Git repositories in the subfolders of `folder`, as source control does: folders that have a `.git` entry
+	 * and that Git opens as the root of a checkout (one Git call each, charged to `budget`), down to `scanMaxDepth` levels (`-1` for no limit), not in the `scanIgnoredFolders` or a `.git` folder, the paths
 	 * `scanRepositories` lists, and, with `detectSubmodules`, the first `detectSubmodulesLimit` submodules that the
 	 * `.gitmodules` file of a found repository (or of `folder` itself, or of a submodule) lists, read as the Git
 	 * extension reads it. Leaves out the `ignoredRepositories` and their submodules. Does not include `folder` itself,

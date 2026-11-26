@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as fsPromises from 'fs/promises';
+import { execFile } from 'child_process';
 import { tmpdir } from 'os';
 import { join, relative, sep } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -349,24 +350,30 @@ suite('AgentHostGitService', () => {
 
 	suite('findRepositories', () => {
 		let root: string;
+		// Where the Git directories of checkouts with a `.git` file live, outside the scanned folder
+		let gitDirs: string;
 
 		setup(async () => {
 			root = await fsPromises.mkdtemp(join(tmpdir(), 'agent-host-find-repositories-'));
+			gitDirs = await fsPromises.mkdtemp(join(tmpdir(), 'agent-host-find-repositories-gitdirs-'));
 		});
 
 		teardown(async () => {
 			await fsPromises.rm(root, { recursive: true, force: true });
+			await fsPromises.rm(gitDirs, { recursive: true, force: true });
 		});
+
+		const initRepository = (folder: string, ...args: string[]) => new Promise<void>((resolve, reject) => execFile('git', ['init', '-q', ...args, folder], error => error ? reject(error) : resolve()));
 
 		async function makeFolder(relative: string, options?: { readonly repository?: boolean; readonly gitFile?: boolean; readonly gitmodules?: readonly string[] }): Promise<void> {
 			const folder = join(root, relative);
 			await fsPromises.mkdir(folder, { recursive: true });
 			if (options?.repository) {
-				await fsPromises.mkdir(join(folder, '.git'));
+				await initRepository(folder);
 			}
 			if (options?.gitFile) {
-				// A submodule's or worktree's `.git` is a file
-				await fsPromises.writeFile(join(folder, '.git'), 'gitdir: ../.git/modules/x');
+				// A submodule's or worktree's `.git` is a file pointing at its Git directory
+				await initRepository(folder, `--separate-git-dir=${join(gitDirs, relative.replace(/[\\/.]/g, '_') || 'root')}`);
 			}
 			if (options?.gitmodules) {
 				await fsPromises.writeFile(join(folder, '.gitmodules'), options.gitmodules.map(path => `[submodule "${path.replaceAll('"', '')}"]\n\tpath = ${path}\n\turl = https://example.test/${path.replaceAll('"', '')}\n`).join(''));
@@ -388,8 +395,8 @@ suite('AgentHostGitService', () => {
 			};
 
 			assert.deepStrictEqual({ full: await scan(100), short: await scan(3) }, {
-				// readdir of the folder, .git of a and of b, readdir of b, .git of b/c
-				full: { found: ['nested a'], used: 5 },
+				// readdir of the folder, .git of a, Git's check of a, .git of b, readdir of b, .git of b/c
+				full: { found: ['nested a'], used: 6 },
 				short: { found: ['nested a'], used: 3 },
 			});
 		});
@@ -454,6 +461,19 @@ suite('AgentHostGitService', () => {
 			await fsPromises.symlink(join(root, 'elsewhere'), join(root, 'link'), 'dir');
 
 			assert.deepStrictEqual(await find({ scanMaxDepth: -1, scanIgnoredFolders: ['elsewhere'] }), ['nested a/b/c/repo3']);
+		});
+
+		test('takes a folder with a .git entry only when Git opens a checkout rooted there', async () => {
+			await makeFolder('.', { repository: true, gitmodules: ['libs/empty', 'libs/broken', 'libs/core'] });
+			await makeFolder('libs/core', { gitFile: true });
+			// An empty `.git` folder, which Git skips for the enclosing checkout, and a broken `.git` file
+			await fsPromises.mkdir(join(root, 'libs/empty/.git'), { recursive: true });
+			await fsPromises.mkdir(join(root, 'libs/broken'), { recursive: true });
+			await fsPromises.writeFile(join(root, 'libs/broken/.git'), 'gitdir: ../missing');
+			await makeFolder('valid', { repository: true });
+			await fsPromises.mkdir(join(root, 'stale/.git'), { recursive: true });
+
+			assert.deepStrictEqual(await find({ scanRepositories: ['libs/empty', 'libs/broken'] }), ['submodule libs/core', 'nested valid']);
 		});
 
 		test('takes the first submodules up to the limit, as Source Control opens them, and the submodules of submodules', async () => {

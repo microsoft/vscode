@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChangesetStatus, ChatOriginKind, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
@@ -479,6 +479,23 @@ suite('ChangesetSessionCoordinator', () => {
 			branch: [buildBranchChangesetOwner(session)],
 			session: [session],
 		});
+	});
+
+	test('a change of the session\'s repository detection options refreshes its Git state, which finds its repositories again', () => {
+		const { stateManager, gitStateService } = createEnvironment();
+		const session = AgentSession.uri('mock', 'repository-detection').toString();
+		createSession(stateManager, session, URI.file('/repo').toString());
+		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: {} });
+		const before = gitStateService.refreshed.length;
+		const options = (scanSubfolders: boolean) => ({ [getWorkingDirectoryKey(URI.file('/repo').toString())]: { scanSubfolders, scanMaxDepth: 1, scanIgnoredFolders: [], detectSubmodules: true } });
+
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.RepositoryDetection]: options(true) } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.RepositoryDetection]: options(true) } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.Isolation]: 'folder' } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.RepositoryDetection]: options(false) } });
+
+		// Once per change of the options; the same options again, or another setting, do not refresh it
+		assert.deepStrictEqual(gitStateService.refreshed.slice(before).filter(key => key === session), [session, session]);
 	});
 
 	for (const isolation of ['folder', 'worktree']) {

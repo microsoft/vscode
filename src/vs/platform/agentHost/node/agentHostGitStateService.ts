@@ -782,6 +782,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					nonRepositoryFolders.add(folderKey);
 				}
 			}
+			// Git said it is not a repository: what was recorded while it was one no longer applies
+			if (isRepository === false && this._removeFolderState(sessionKey, workingDirectory)) {
+				changed = true;
+			}
 			if (gitState && this._applyAdditionalFolderGitState(sessionKey, workingDirectory, gitState, credentials)) {
 				changed = true;
 			}
@@ -815,6 +819,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			changed = true;
 			this._persistInBackground(this.setFolderGitState(sessionKey, [workingDirectory], gitState));
 		}
+		if (gitState.hasGitHubRemote === false && !gitState.githubOwner) {
+			// Its remotes were read and none is on GitHub: the GitHub repository recorded before, and its pull request, are gone.
+			// A read that could not list them (`hasGitHubRemote` undefined) keeps them.
+			return this._removeFolderGitHubState(sessionKey, workingDirectory) || changed;
+		}
 		if (credentials.sponsorUnavailable || !gitState.githubOwner || !gitState.githubRepo) {
 			return changed;
 		}
@@ -823,7 +832,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const repositoryChanged = currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo;
 		if (repositoryChanged) {
 			changed = true;
-			this._persistInBackground(this._applySessionGitHubState(folder, this._stateManager.getSessionState(sessionKey)?._meta, currentGitHubState, { owner: gitState.githubOwner, repo: gitState.githubRepo }));
+			this._persistInBackground(this._applySessionGitHubState(folder, this._stateManager.getSessionState(sessionKey)?._meta, currentGitHubState, { owner: gitState.githubOwner, repo: gitState.githubRepo }, true));
 		}
 		if (repositoryChanged || previousGitState?.branchName !== gitState.branchName) {
 			// Not awaited, so a slow lookup does not hold the session's refresh; the folder's GitHub state announces the result
@@ -992,18 +1001,28 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		if (!state || owned) {
 			return false;
 		}
+		return this._removeFolderState(sessionKey, root);
+	}
+
+	/** Removes the Git and GitHub state recorded under the scope of `root` alone. Returns whether there was any. */
+	private _removeFolderState(sessionKey: string, root: string): boolean {
 		let removed = false;
-		if (readFolderScopeGitState(state._meta, scope)) {
+		if (readFolderScopeGitState(this._stateManager.getSessionState(sessionKey)?._meta, getWorkingDirectoryScopeId([root]))) {
 			removed = true;
 			this._persistInBackground(this.setFolderGitState(sessionKey, [root], undefined));
 		}
+		return this._removeFolderGitHubState(sessionKey, root) || removed;
+	}
+
+	/** Removes the GitHub state, with its pull requests, recorded for `root`. Returns whether there was any. */
+	private _removeFolderGitHubState(sessionKey: string, root: string): boolean {
 		const folderKey = getWorkingDirectoryKey(root);
-		if (readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folderKey)) {
-			removed = true;
-			this._stateManager.setSessionMeta(sessionKey, withFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folderKey, undefined));
-			this._persistInBackground(this._saveGitHubState({ sessionUri: sessionKey, sourceUri: sessionKey, folderKey, isSessionFolder: false, workingDirectory: root }));
+		if (!readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folderKey)) {
+			return false;
 		}
-		return removed;
+		this._stateManager.setSessionMeta(sessionKey, withFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folderKey, undefined));
+		this._persistInBackground(this._saveGitHubState({ sessionUri: sessionKey, sourceUri: sessionKey, folderKey, isSessionFolder: false, workingDirectory: root }));
+		return true;
 	}
 
 	/** What the repositories of a session are found from: its folders and their detection options. */
@@ -1097,7 +1116,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				nextGitHubState = { ...nextGitHubState, ...withInitialSessionPullRequest(latestGitHubState, pr.html_url) };
 			}
 			// Its save does not hold the folder's next lookup
-			this._persistInBackground(this._applySessionGitHubState(folder, latestMeta, latestGitHubState, nextGitHubState));
+			this._persistInBackground(this._applySessionGitHubState(folder, latestMeta, latestGitHubState, nextGitHubState, true));
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Failed to find the pull request of folder ${folder.workingDirectory} of ${folder.sessionUri}`, error);
 		}
@@ -1450,7 +1469,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		return true;
 	}
 
-	private async _applySessionGitHubState(folder: IGitHubStateFolder, currentMeta: SessionSummaryMeta | undefined, currentState: ISessionGitHubState | undefined, state: ISessionGitHubState): Promise<void> {
+	/**
+	 * @param passive whether the state was found without the user's source control action, as for a folder other than the
+	 * session's first or a repository found in one: it is recorded for the folder only, and never becomes the session's
+	 * latest outcome (which a session merge recorded, for example).
+	 */
+	private async _applySessionGitHubState(folder: IGitHubStateFolder, currentMeta: SessionSummaryMeta | undefined, currentState: ISessionGitHubState | undefined, state: ISessionGitHubState, passive = false): Promise<void> {
 		const sessionKey = folder.sessionUri;
 		let nextState = state;
 		const currentPullRequest = getSessionRelatedPullRequestUrls(currentState)[0];
@@ -1464,7 +1488,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			nextState = stateWithoutPullRequestStatus;
 		}
 		const currentSourceControlState = readSessionSourceControlState(currentMeta);
-		const nextSourceControlState = nextPullRequest && nextPullRequest !== currentPullRequest
+		const nextSourceControlState = !passive && nextPullRequest && nextPullRequest !== currentPullRequest
 			? { ...currentSourceControlState, latestOutcome: SessionSourceControlOutcome.PullRequest } satisfies ISessionSourceControlState
 			: currentSourceControlState;
 		const sourceControlStateChanged = !objectEquals(currentSourceControlState, nextSourceControlState);
