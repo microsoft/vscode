@@ -27,15 +27,18 @@ import { SessionsWorkbenchScopeService } from '../../../browser/views/sessionsWo
 suite('SessionsWorkbenchScope', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createScope({ chatEnabled = true, hidden = false } = {}) {
+	type WindowKind = 'agents' | 'empty' | 'folder' | 'multiRoot';
+
+	function createScope({ chatEnabled = true, hidden = false, kind = 'agents' as WindowKind } = {}) {
 		const folder = URI.file('/work/repo');
 		let scope: URI | undefined = folder;
+		const state = kind === 'folder' ? WorkbenchState.FOLDER : kind === 'multiRoot' ? WorkbenchState.WORKSPACE : WorkbenchState.EMPTY;
 		const workspace = new class extends mock<IEditableWorkspaceContextService>() {
 			override onDidChangeWorkspaceFolders = Event.None;
 			override onDidChangeWorkbenchState = Event.None;
 			override onDidChangeWorkbenchMode = Event.None;
-			override getWorkbenchMode() { return WorkbenchMode.Editor; }
-			override getWorkbenchState() { return WorkbenchState.FOLDER; }
+			override getWorkbenchMode() { return kind === 'agents' ? WorkbenchMode.Agents : WorkbenchMode.Editor; }
+			override getWorkbenchState() { return state; }
 			override getWorkspace() { return { id: 'repo', uri: folder, folders: [] }; }
 			override getWorkbenchScope() { return scope; }
 			override setWorkbenchScope(value: URI | undefined) { scope = value; }
@@ -75,9 +78,24 @@ suite('SessionsWorkbenchScope', () => {
 		scopes.push(workspace.getWorkbenchScope()?.toString());
 		firstRegistration.dispose();
 		scopes.push(workspace.getWorkbenchScope()?.toString());
-		assert.deepStrictEqual({ scopes, options: service.windowWorkspaces.get().map(option => option.resource) }, {
-			scopes: [undefined, 'file:///other', 'file:///other', 'file:///work/repo', 'file:///other', 'file:///work/repo'],
-			options: ['file:///work/repo'],
+		assert.deepStrictEqual(scopes, [undefined, 'file:///other', 'file:///other', 'file:///work/repo', 'file:///other', 'file:///work/repo']);
+	});
+
+	test('the bar shows and scopes the window only in empty editor windows and the Agents window', () => {
+		const pick = { environment: 'local', resource: 'file:///other', label: 'other' };
+		const result: Record<string, { barShown: boolean; scope: string | undefined }> = {};
+		for (const kind of ['agents', 'empty', 'folder', 'multiRoot'] as const) {
+			const { service, workspace, filters } = createScope({ kind });
+			const bar = filters();
+			bar.setInboxWorkspace(pick);
+			store.add(service.registerScopeBar(bar));
+			result[kind] = { barShown: service.barShown.get(), scope: workspace.getWorkbenchScope()?.toString() };
+		}
+		assert.deepStrictEqual(result, {
+			agents: { barShown: true, scope: 'file:///other' },
+			empty: { barShown: true, scope: 'file:///other' },
+			folder: { barShown: false, scope: 'file:///work/repo' },
+			multiRoot: { barShown: false, scope: 'file:///work/repo' },
 		});
 	});
 

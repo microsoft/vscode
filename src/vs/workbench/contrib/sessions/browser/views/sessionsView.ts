@@ -608,8 +608,7 @@ export class SessionsView extends ViewPane {
 		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions,
 			derived(reader => scopeEnvironments.read(reader).environments),
 			derived(reader => scopeEnvironments.read(reader).localEnvironmentIds),
-			derived(reader => { scopeChanged.read(reader); return this.grouping === SessionsGrouping.Inbox; }),
-			this.workbenchScopeService.windowWorkspaces));
+			derived(reader => { scopeChanged.read(reader); return this.grouping === SessionsGrouping.Inbox; })));
 		this._register(autorun(reader => {
 			if (barEnabled.read(reader)) {
 				reader.store.add(this.workbenchScopeService.registerScopeBar(sessionsControl.filters));

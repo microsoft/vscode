@@ -20,7 +20,7 @@ import { getNoWorkspaceChoicePresentation } from '../chat/noWorkspaceChoice.js';
 import { ENVIRONMENT_PICKER_LIST_OPTIONS } from '../chat/sessionEnvironmentPicker.js';
 import { createSessionPickerToolbar } from '../chat/sessionPickerToolbar.js';
 import { WORKSPACE_PICKER_LIST_OPTIONS } from '../chat/sessionWorkspacePicker.js';
-import { getInboxWorkspaceOptions, getSessionEnvironments, IInboxWorkspaceFilter, LOCAL_SESSIONS_ENVIRONMENT, SessionsListFilters } from './sessionsListFilters.js';
+import { getInboxWorkspaceOptions, getSessionEnvironments, LOCAL_SESSIONS_ENVIRONMENT, SessionsListFilters } from './sessionsListFilters.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 interface IInboxScopePickerItem {
@@ -43,7 +43,6 @@ export class SessionsInboxScope extends Disposable {
 		environments: IObservable<readonly ISessionEnvironment[]>,
 		localEnvironmentIds: IObservable<ReadonlySet<string>>,
 		inbox: IObservable<boolean> = constObservable(true),
-		windowWorkspaces: IObservable<readonly IInboxWorkspaceFilter[]> = constObservable([]),
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -86,7 +85,7 @@ export class SessionsInboxScope extends Disposable {
 					isConnected: environment.isConnected?.read(reader),
 					unavailable: !availableEnvironments.has(environment.id),
 				})),
-				workspaces: filters.withWindowWorkspaces(getInboxWorkspaceOptions(catalog, uriIdentityService.extUri, scope.environment?.id, reader), windowWorkspaces.read(reader), scope.environment?.id),
+				workspaces: getInboxWorkspaceOptions(catalog, uriIdentityService.extUri, scope.environment?.id, reader),
 				hasQuickChats: catalog.some(session => (!scope.environment || scope.environment.id === session.environment) && session.isQuickChat?.read(reader)),
 			};
 		});

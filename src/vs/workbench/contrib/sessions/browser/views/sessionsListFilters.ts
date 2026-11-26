@@ -487,11 +487,6 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		return options.find(option => this.isSameInboxWorkspace(option, workspace))?.label ?? (environmentAvailable ? workspace.label : undefined);
 	}
 
-	withWindowWorkspaces(options: readonly IInboxWorkspaceFilter[], windowWorkspaces: readonly IInboxWorkspaceFilter[], environment: string | undefined): IInboxWorkspaceFilter[] {
-		const added = windowWorkspaces.filter(workspace => (environment === undefined || workspace.environment === environment) && !options.some(option => this.isSameInboxWorkspace(option, workspace)));
-		return [...options, ...added].sort(compareInboxWorkspaces);
-	}
-
 	/**
 	 * Whether the list shows `session`. `availableWorktrees` are the keys of the folders the Worktrees filter offers
 	 * ({@link getWorktreeFilterKeys}): the selected one applies only where it is one of them.
