@@ -330,23 +330,17 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	// https://github.com/aadsm/jschardet/blob/v2.1.1/src/index.js#L36-L40
 	const binaryString = encodeLatin1(limitedBuffer.buffer);
 
-	// ensure to convert candidate encodings to jschardet encoding names if provided
-	if (candidateGuessEncodings) {
-		candidateGuessEncodings = coalesce(candidateGuessEncodings.map(e => toJschardetEncoding(e)));
-		if (candidateGuessEncodings.length === 0) {
-			candidateGuessEncodings = undefined;
-		}
-	}
+	const candidates = coalesce((candidateGuessEncodings ?? []).map(e => toGuessableEncoding(e)));
 
 	let guessed: { encoding: string | undefined } | undefined;
 	try {
-		guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
+		guessed = jschardet.detect(binaryString, candidates.length > 0 ? { detectEncodings: candidates.map(candidate => candidate.guessableName) } : undefined);
 	} catch (error) {
 		return null; // jschardet throws for unknown encodings (https://github.com/microsoft/vscode/issues/239928)
 	}
 
 	if (!guessed?.encoding) {
-		return candidateGuessEncodings ? guessEncodingByCandidates(limitedBuffer, candidateGuessEncodings) : null;
+		return candidates.length > 0 ? guessEncodingByCandidates(limitedBuffer, candidates.map(candidate => candidate.encoding)) : null;
 	}
 
 	const enc = guessed.encoding.toLowerCase();
@@ -354,7 +348,17 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		return null; // see comment above why we ignore some encodings
 	}
 
-	return toIconvLiteEncoding(guessed.encoding);
+	// several encodings share a jschardet name (e.g. GBK and GB18030 are both guessed
+	// as GB2312), so prefer the first configured one that decodes the sample losslessly
+	const guessedName = normalizeEncoding(guessed.encoding);
+	const matches = candidates.filter(candidate => normalizeEncoding(candidate.guessableName) === guessedName).map(candidate => candidate.encoding);
+	if (matches.length > 1) {
+		const [lossless] = await decodeLosslessly(limitedBuffer, matches, true);
+
+		return lossless?.encoding ?? matches[0];
+	}
+
+	return matches[0] ?? toIconvLiteEncoding(guessed.encoding);
 }
 
 async function guessEncodingByCandidates(buffer: VSBuffer, candidates: string[]): Promise<string | null> {
@@ -368,33 +372,42 @@ async function guessEncodingByCandidates(buffer: VSBuffer, candidates: string[])
 		}
 	}
 
-	const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
-	let guessedEncoding: string | null = null;
-
-	for (const candidate of candidates) {
-		const encoding = toIconvLiteEncoding(candidate);
-		if (isUTFEncoding(encoding)) {
-			continue;
-		}
-
-		const decoded = iconv.decode(buffer.buffer, encoding);
-		if (!VSBuffer.wrap(iconv.encode(decoded, encoding)).equals(buffer)) {
-			continue;
-		}
-
-		if (guessedEncoding && guessedEncoding !== encoding) {
-			return null;
-		}
-
-		guessedEncoding = encoding;
+	const matches = await decodeLosslessly(buffer, candidates.filter(candidate => !isUTFEncoding(candidate)), false);
+	if (matches.length === 0 || matches.some(match => match.decoded !== matches[0].decoded)) {
+		return null; // candidates that decode the sample differently are ambiguous
 	}
 
-	return guessedEncoding;
+	return matches[0].encoding;
+}
+
+/**
+ * Returns the encodings that decode the buffer losslessly, in the given order.
+ * With `allowIncompleteEnd`, the buffer may end in the middle of a character.
+ */
+async function decodeLosslessly(buffer: VSBuffer, encodings: string[], allowIncompleteEnd: boolean): Promise<{ encoding: string; decoded: string }[]> {
+	const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
+	const maxIncompleteBytes = allowIncompleteEnd ? 3 : 0; // GB18030 characters have up to 4 bytes
+
+	const results: { encoding: string; decoded: string }[] = [];
+	for (const encoding of encodings) {
+		// without calling `end()`, the decoder holds back an incomplete character
+		const decoded = iconv.getDecoder(encoding).write(buffer.buffer);
+		const encoded = VSBuffer.wrap(iconv.encode(decoded, encoding));
+		const incompleteBytes = buffer.byteLength - encoded.byteLength;
+		if (incompleteBytes >= 0 && incompleteBytes <= maxIncompleteBytes && encoded.equals(buffer.slice(0, encoded.byteLength))) {
+			results.push({ encoding, decoded });
+		}
+	}
+
+	return results;
 }
 
 const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 	'ibm866': 'cp866',
-	'big5': 'cp950'
+	'big5': 'cp950',
+	// jschardet's GB2312 detector also accepts GB18030 sequences, and GB18030
+	// decodes GB2312 and GBK content identically
+	'gb2312': 'gb18030'
 };
 
 function normalizeEncoding(encodingName: string): string {
@@ -408,11 +421,11 @@ function toIconvLiteEncoding(encodingName: string): string {
 	return mapped || normalizedEncodingName;
 }
 
-function toJschardetEncoding(encodingName: string): string | undefined {
-	const normalizedEncodingName = normalizeEncoding(encodingName);
-	const mapped = GUESSABLE_ENCODINGS[normalizedEncodingName];
+function toGuessableEncoding(encodingName: string): { encoding: string; guessableName: string } | undefined {
+	const encoding = normalizeEncoding(encodingName);
+	const guessableName = GUESSABLE_ENCODINGS[encoding]?.guessableName;
 
-	return mapped ? mapped.guessableName : undefined;
+	return guessableName ? { encoding, guessableName } : undefined;
 }
 
 function encodeLatin1(buffer: Uint8Array): string {
@@ -741,12 +754,14 @@ export const SUPPORTED_ENCODINGS: EncodingsMap = {
 	gbk: {
 		labelLong: 'Simplified Chinese (GBK)',
 		labelShort: 'GBK',
-		order: 36
+		order: 36,
+		guessableName: 'GB2312'
 	},
 	gb18030: {
 		labelLong: 'Simplified Chinese (GB18030)',
 		labelShort: 'GB18030',
-		order: 37
+		order: 37,
+		guessableName: 'GB2312'
 	},
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',

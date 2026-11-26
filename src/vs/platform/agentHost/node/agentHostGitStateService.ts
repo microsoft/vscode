@@ -31,7 +31,7 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestAssociationResolver.js';
-import { isSessionChatInFolder, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { isSessionChatInFolder, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -498,8 +498,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		if (!this._resolveGitStateWorkingDirectory(sessionKey)) {
 			if (isAhpChatChannel(sessionKey) && this.getSessionGitState(sessionKey)) {
-				await this._setChatGitState(sessionKey, undefined);
+				const sharedSession = await this._setChatGitState(sessionKey, undefined);
 				this._onDidRefreshSessionGitState.fire(sessionKey);
+				if (sharedSession) {
+					this._onDidRefreshSessionGitState.fire(sharedSession);
+				}
 			}
 			return;
 		}
@@ -590,6 +593,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 		// A refresh announces itself only when it observed something new, when it is the first one, or when its caller knows the checkout changed in ways the state does not describe.
 		let announce = force || !this._announcedGitStateRefreshes.has(sessionKey);
+		// The session whose Git state this chat's refresh changed, as the session's default chat in its first folder
+		let sharedSession: string | undefined;
 		try {
 			const workingDirectoryUri = URI.parse(workingDirectory);
 			this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectoryUri.fsPath}`);
@@ -612,7 +617,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				if (gitStateChanged) {
 					announce = true;
 					if (isAhpChatChannel(sessionKey)) {
-						await this._setChatGitState(sessionKey, gitState);
+						sharedSession = await this._setChatGitState(sessionKey, gitState);
 					} else {
 						await this._setSessionGitState(sessionKey, gitState);
 					}
@@ -660,6 +665,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			if (announce) {
 				this._announcedGitStateRefreshes.set(sessionKey, isAhpChatChannel(sessionKey) ? this._chatOwnership.getChatOwner(sessionKey) ?? sessionKey : sessionKey);
 				this._onDidRefreshSessionGitState.fire(sessionKey);
+			}
+			if (sharedSession) {
+				// The session's own refresh would find its state unchanged and not announce it, so its changesets would
+				// keep operations computed from the previous state
+				this._onDidRefreshSessionGitState.fire(sharedSession);
 			}
 			void this.reconcilePendingRecordedPullRequests(sessionKey).catch(error =>
 				this._logService.warn(`[AgentHostGitStateService] Failed to reconcile pending pull requests for ${sessionKey}`, error));
@@ -1074,8 +1084,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	async resolveSessionBaseBranchRef(sessionKey: string): Promise<string | undefined> {
 		const state = this._getStateForGitScope(sessionKey);
 		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchRef;
-		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder;
-		if (!isSessionFolder && this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
+		const isChat = isAhpChatChannel(sessionKey);
+		// Chats sharing a folder scope read the base of the chat representing it, which the Branch Changes diff reads and the base's writers record.
+		const source = isChat ? resolveBranchChangesetScopeForOwner(this._stateManager, resolveBranchChangesetScopeForSource(this._stateManager, sessionKey).ownerUri)?.sourceUri ?? sessionKey : sessionKey;
+		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, source).isSessionFolder;
+		if (!isSessionFolder && this._chatOwnership.isRegisteredDefaultChat(source)) {
 			return gitStateBaseBranch;
 		}
 
@@ -1084,13 +1097,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return gitStateBaseBranch;
 		}
 		// `sessionKey` may be a chat: its base branch is the one recorded for its folder scope in its session's state.
-		const isChat = isAhpChatChannel(sessionKey);
 		const session = isChat ? this._chatOwnership.getChatOwner(sessionKey) : sessionKey;
 		if (session === undefined) {
 			return gitStateBaseBranch;
 		}
 		try {
-			const persisted = await this._sessionStateStore.readBaseBranchWithoutImport(URI.parse(session), isChat && !this._chatOwnership.isRegisteredDefaultChat(sessionKey) ? sessionKey : undefined);
+			const persisted = await this._sessionStateStore.readBaseBranchWithoutImport(URI.parse(session), isChat && !this._chatOwnership.isRegisteredDefaultChat(source) ? source : undefined);
 			return persisted || gitStateBaseBranch;
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Failed to read the persisted base branch for ${sessionKey}`, error);
@@ -1129,13 +1141,18 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 	}
 
-	private async _setChatGitState(sessionKey: string, gitState: ISessionGitState | undefined): Promise<void> {
+	/**
+	 * Records a chat's Git state: the session's own, when the chat is the session's default chat working in its first
+	 * folder, otherwise the state of the chat's folders. Returns the session when it recorded the session's own state.
+	 */
+	private async _setChatGitState(sessionKey: string, gitState: ISessionGitState | undefined): Promise<string | undefined> {
 		const scope = resolveBranchChangesetScopeForSource(this._stateManager, sessionKey);
 		if (this._chatOwnership.isRegisteredDefaultChat(sessionKey) && scope.workingDirectories[0] === this._stateManager.getSessionSummary(scope.sessionUri)?.workingDirectories?.[0]) {
 			await this._setSessionGitState(scope.sessionUri, gitState);
-			return;
+			return scope.sessionUri;
 		}
 		await this.setFolderGitState(scope.sessionUri, scope.workingDirectories, gitState);
+		return undefined;
 	}
 
 	async setFolderGitState(sessionKey: string, workingDirectories: readonly string[], gitState: ISessionGitState | undefined): Promise<void> {

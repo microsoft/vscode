@@ -33,7 +33,8 @@ import { IME } from '../../../../../base/common/ime.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { inputLatency } from '../../../../../base/browser/performance.js';
-import { ViewportData } from '../../../../common/viewLayout/viewLinesViewportData.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
+import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -64,6 +65,9 @@ export class NativeEditContext extends AbstractEditContext {
 	// Overflow guard container
 	private readonly _parent: HTMLElement;
 	private _parentBounds: DOMRect | null = null;
+	private readonly _parentBoundsUpdate = this._register(new MutableDisposable());
+	// Selection and control bounds relative to the overflow guard container
+	private _relativeSelectionAndControlBounds: DOMRect | null = null;
 	private _decorations: string[] = [];
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 
@@ -297,34 +301,26 @@ export class NativeEditContext extends AbstractEditContext {
 		return this._primarySelection.getPosition();
 	}
 
-	public override onBeforeRender(viewportData: ViewportData): void {
-		// The edit context bounds are only used while this editor has focus,
-		// and reading them can force a synchronous layout (e.g. on every scroll frame).
-		if (!this.isFocused()) {
-			this._parentBounds = null;
-			return;
-		}
-		// We need to read the position of the container dom node
-		// It is best to do this before we begin touching the DOM at all
-		// Because the sync layout will be fast if we do it here
-		this._parentBounds = this._parent.getBoundingClientRect();
-	}
-
 	public override prepareRender(ctx: RenderingContext): void {
 		this._screenReaderSupport.prepareRender(ctx);
-		if (this._parentBounds) {
+		// The edit context bounds are only used while this editor has focus
+		if (this.isFocused()) {
 			this._updateSelectionAndControlBoundsData(ctx);
 		}
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
 		this._screenReaderSupport.render(ctx);
-		if (this._parentBounds) {
-			this._updateSelectionAndControlBounds(this._parentBounds);
+		if (this.isFocused()) {
+			this._updateSelectionAndControlBounds();
 		}
 	}
 
 	public override onFocusChanged(e: ViewFocusChangedEvent): boolean {
+		if (!e.isFocused) {
+			this._parentBounds = null;
+			this._parentBoundsUpdate.clear();
+		}
 		// Render to update the edit context bounds, which are skipped while unfocused
 		return true;
 	}
@@ -572,19 +568,18 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _updateSelectionAndControlBounds(parentBounds: DOMRect) {
+	private _updateSelectionAndControlBounds(): void {
 		const options = this._context.configuration.options;
-		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const contentLeft = layoutInfo.contentLeft;
 
 		const viewSelection = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(this._primarySelection);
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewSelection.startLineNumber);
 		const verticalOffsetEnd = this._context.viewLayout.getVerticalOffsetAfterLineNumber(viewSelection.endLineNumber);
 
-		// !!! parentBounds must be the cached bounds read in onBeforeRender
-		// !!! to make sure this doesn't force an extra layout
-		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
+		const top = verticalOffsetStart - this._scrollTop;
 		const height = verticalOffsetEnd - verticalOffsetStart;
-		let left = parentBounds.left + contentLeft - this._scrollLeft;
+		let left = contentLeft - this._scrollLeft;
 		let width: number;
 
 		if (this._primarySelection.isEmpty()) {
@@ -593,19 +588,34 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			width = 0;
 		} else {
-			width = parentBounds.width - contentLeft;
+			width = layoutInfo.width - contentLeft;
 		}
 
-		const selectionBounds = new DOMRect(left, top, width, height);
-		this._editContext.updateSelectionBounds(selectionBounds);
-		this._editContext.updateControlBounds(selectionBounds);
+		this._relativeSelectionAndControlBounds = new DOMRect(left, top, width, height);
+		if (!this._parentBoundsUpdate.value) {
+			// !!! Reading the bounds of the parent during rendering can force a synchronous layout.
+			// !!! A task posted from the animation frame runs after the frame is painted, when the
+			// !!! layout is clean and reading the bounds is cheap.
+			this._parentBoundsUpdate.value = disposableTimeout(() => {
+				this._parentBoundsUpdate.clear();
+				const relativeBounds = this._relativeSelectionAndControlBounds;
+				if (!relativeBounds) {
+					return;
+				}
+				const parentBounds = this._parent.getBoundingClientRect();
+				this._parentBounds = parentBounds;
+				const selectionBounds = new DOMRect(parentBounds.left + relativeBounds.left, parentBounds.top + relativeBounds.top, relativeBounds.width, relativeBounds.height);
+				this._editContext.updateSelectionBounds(selectionBounds);
+				this._editContext.updateControlBounds(selectionBounds);
+			});
+		}
 	}
 
 	private _updateCharacterBounds(e: CharacterBoundsUpdateEvent): void {
 		const options = this._context.configuration.options;
 		const typicalHalfWidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
-		// The bounds are not cached if no render happened since this editor gained focus
+		// The bounds are not cached yet if they were not read since this editor gained focus
 		const parentBounds = this._parentBounds ?? this._parent.getBoundingClientRect();
 
 		const characterBounds: DOMRect[] = [];

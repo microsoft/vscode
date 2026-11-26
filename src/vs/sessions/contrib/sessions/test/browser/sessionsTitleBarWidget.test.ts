@@ -43,7 +43,7 @@ import { TestContextViewService } from '../../../../test/browser/testContextView
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { BlockedSessionReason, IBlockedSession } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IApprovedSession } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { IApprovedSession } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from '../../browser/sessionsActions.js';
 
 suite('SessionsTitleBarWidget', () => {

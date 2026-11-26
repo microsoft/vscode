@@ -24,7 +24,7 @@ import { createSessionDataService, TestSessionDatabase } from '../../common/sess
 
 function savedThread(id: string): Thread {
 	return {
-		id, sessionId: id, environments: null, extra: null, forkedFromId: null, parentThreadId: null,
+		id, sessionId: id, environments: null, extra: null, forkedFromId: null, parentThreadId: null, attachedToThreadId: null,
 		preview: 'Earlier question', ephemeral: false, section: null, sectionEnteredAt: null, projectId: null,
 		historyMode: 'legacy', modelProvider: 'openai', model: null, reasoningEffort: null,
 		createdAt: 1, updatedAt: 2, recencyAt: null, status: { type: 'notLoaded' }, path: null,
@@ -36,7 +36,7 @@ function savedThread(id: string): Thread {
 			startedAt: null, completedAt: null, durationMs: null,
 			items: [
 				{ type: 'userMessage', id: 'message-1', clientId: null, content: [{ type: 'text', text: 'Earlier question', text_elements: [] }] },
-				{ type: 'agentMessage', id: 'message-2', text: 'Saved answer', phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },
+				{ type: 'agentMessage', id: 'message-2', text: 'Saved answer', phase: 'final_answer', memoryCitation: null, delivery: null, questions: null, moderation: null },
 			],
 		}],
 	};

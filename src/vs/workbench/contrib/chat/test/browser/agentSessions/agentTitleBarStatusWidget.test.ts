@@ -101,8 +101,26 @@ suite('AgentTitleBarStatusWidget', () => {
 
 		assert.deepStrictEqual({ atPrimary, atAlternate, afterReturn: name() }, {
 			atPrimary: 'Open Quick Access',
-			atAlternate: 'Open Quick Access, repo-tasks, branch feature-x',
+			atAlternate: 'Open Quick Access, repo-tasks, Folder Location, wt-1',
 			afterReturn: 'Open Quick Access'
 		});
+	});
+
+	test('a location that changes only its label is shown and named with the new label', () => {
+		const location = { current: { uri: URI.file('/wt-1'), label: 'wt-1', description: 'feature-x', icon: Codicon.folder } as IFolderLocation | undefined };
+		const { container, widget } = renderWidget(location, disposables.add(new DisposableStore()));
+		const state = () => ({
+			label: container.querySelector('.folder-location-label')?.textContent,
+			name: container.querySelector('.agent-status-input-area')?.getAttribute('aria-label'),
+		});
+
+		const before = state();
+		location.current = { ...location.current!, label: 'wt-renamed' };
+		(widget as unknown as { _render(): void })._render();
+
+		assert.deepStrictEqual([before, state()], [
+			{ label: 'wt-1', name: 'Open Quick Access, repo-tasks, Folder Location, wt-1' },
+			{ label: 'wt-renamed', name: 'Open Quick Access, repo-tasks, Folder Location, wt-renamed' },
+		]);
 	});
 });

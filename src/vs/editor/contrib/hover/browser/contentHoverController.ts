@@ -21,7 +21,7 @@ import { isMousePositionWithinElement, shouldShowHover, isTriggerModifierPressed
 import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
-import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
+import { isOnColorDecorator, isOnColorDecoratorOf } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
 import { isModifierKey, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { isHTMLElement } from '../../../../base/browser/dom.js';
@@ -203,7 +203,10 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 			const isMouseOnHoverWithColorPicker = isColorPickerVisible && isMouseOnContentHoverWidget;
 			const isMaybeChoosingColor = isColorPickerVisible && this._isMouseDown;
-			return isMouseOnHoverWithColorPicker || isMaybeChoosingColor;
+			// Keep the hover open while the mouse is over the decorator that opened the visible picker
+			const pickerRange = contentWidget.colorPickerRange;
+			const isMouseOnColorDecorator = isColorPickerVisible && !!pickerRange && isOnColorDecoratorOf(mouseEvent, pickerRange);
+			return isMouseOnHoverWithColorPicker || isMaybeChoosingColor || isMouseOnColorDecorator;
 		};
 		// TODO@aiday-mar verify if the following is necessary code
 		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean): boolean => {

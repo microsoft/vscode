@@ -12,6 +12,7 @@ import { ExtensionIdentifier, IExtensionDescription, IExtensionManifest } from '
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPromptsService, PromptsStorage } from './service/promptsService.js';
+import { IChatExtensionCustomizationsService } from './service/chatExtensionCustomizationsService.js';
 import { PromptsType } from './promptTypes.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -119,7 +120,7 @@ export class ChatPromptFilesExtensionPointHandler extends Disposable implements 
 	public static readonly ID = 'workbench.contrib.chatPromptFilesExtensionPointHandler';
 
 	constructor(
-		@IPromptsService private readonly promptsService: IPromptsService,
+		@IChatExtensionCustomizationsService private readonly extensionCustomizations: IChatExtensionCustomizationsService,
 	) {
 		super();
 		this.handle(epPrompt, ChatContributionPoint.chatPromptFiles);
@@ -167,7 +168,7 @@ export class ChatPromptFilesExtensionPointHandler extends Disposable implements 
 					continue;
 				}
 				try {
-					registrations.set(key, this.promptsService.registerContributedFile(type, uri, extension.description, file.name, file.description, file.when, file.sessionTypes));
+					registrations.set(key, this.extensionCustomizations.registerContributedFile(type, uri, extension.description, file.name, file.description, file.when, file.sessionTypes));
 				} catch (e) {
 					const msg = e instanceof Error ? e.message : String(e);
 					extension.collector.error(localize('extension.registration.failed', "Extension '{0}' {1}. Failed to register {2}: {3}", extension.description.identifier.value, contributionPoint, file.path, msg));

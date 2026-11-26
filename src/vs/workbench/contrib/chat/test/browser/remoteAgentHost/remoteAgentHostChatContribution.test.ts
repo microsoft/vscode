@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -18,6 +18,7 @@ import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentH
 import { IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
+import type { AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AuthRequiredReason, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -75,10 +76,13 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		const errors: unknown[][] = [];
 		let handler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
 		let registered = true;
+		let rootAgents: AgentInfo[] | undefined;
+		let gate: ((params: AuthenticateParams) => Promise<void> | undefined) | undefined;
+		const providersRegistered = store.add(new Emitter<{ id: string; label: string }>());
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly clientId = 'client';
 			override readonly rootState = {
-				value: undefined, verifiedValue: undefined,
+				get value() { return rootAgents && { agents: rootAgents, activeSessions: 0 }; }, verifiedValue: undefined,
 				onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None,
 			};
 			override readonly onDidNotification = notifications.event;
@@ -89,6 +93,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 			override async authenticate(params: AuthenticateParams) {
 				sent.push(params);
 				void authenticationSent.complete();
+				await gate?.(params);
 				return { authenticated: true };
 			}
 		}();
@@ -106,7 +111,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 			override getConnection() { return connection; }
 		}());
 		instantiation.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
-			override readonly onDidRegisterAuthenticationProvider = Event.None;
+			override readonly onDidRegisterAuthenticationProvider = providersRegistered.event;
 			override readonly onDidChangeSessions = Event.None;
 			override isDynamicAuthenticationProvider() { return true; }
 			override isAuthenticationProviderRegistered() { return true; }
@@ -122,7 +127,8 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		instantiation.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
 		instantiation.stub(IDynamicAuthenticationProviderStorageService, { getClientRegistration: async () => ({ clientId: 'docs-client' }) });
 		instantiation.stub(IRemoteAgentHostConnectionCustomizationService, { get: () => customization });
-		instantiation.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
+		const authenticationService = new RemoteAgentHostAuthenticationService();
+		instantiation.stub(IRemoteAgentHostAuthenticationService, authenticationService);
 		instantiation.stub(IAgentHostFileSystemService, { registerAuthority: () => Disposable.None });
 		instantiation.stubInstance(RemoteAgentHostLogForwarder, store.add(toDisposable(() => { })));
 		instantiation.stub(IChatSessionsService, {});
@@ -159,6 +165,17 @@ suite('Remote Agent Host silent MCP authentication', () => {
 			authenticate: (value: IAgentHostMcpAuthenticationRequest) => { assert.ok(handler); return handler(value); }, sent, sessionOptions,
 			notifications, opened, authenticationSent: authenticationSent.p, authenticationError: authenticationError.p, errors,
 			removeConnection: () => { registered = false; connectionsChanged.fire(); },
+			/** Publishes the host's agents and starts a connect round for them, as an authentication change does. */
+			advertise: (agents: AgentInfo[]) => { rootAgents = agents; providersRegistered.fire({ id: 'docs-provider', label: 'Docs' }); },
+			holdSends: (value: (params: AuthenticateParams) => Promise<void> | undefined) => { gate = value; },
+			authenticationPending: () => {
+				const reference = authenticationService.acquire(address);
+				try {
+					return reference.object.get();
+				} finally {
+					reference.dispose();
+				}
+			},
 			shown: () => handler !== undefined,
 		};
 	}
@@ -210,6 +227,32 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		const authenticated = await context.authenticate(request);
 		assert.deepStrictEqual({ authenticated, sent: context.sent }, {
 			authenticated: true, sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
+		});
+	});
+
+	test('a connect round ends without an error and does not settle authentication when the host replaces the resources it was started for', async () => {
+		const context = fixture();
+		const resourceFor = (name: string) => ({ resource: `https://${name}.example`, authorization_servers: ['https://issuer.example'], scopes_supported: ['read'], required: true });
+		const agentsWith = (...names: string[]): AgentInfo[] => [{ provider: 'copilot', displayName: 'Copilot', description: '', models: [], protectedResources: names.map(resourceFor) }];
+		const releases = new Map([['https://a.example', new DeferredPromise<void>()], ['https://c.example', new DeferredPromise<void>()]]);
+		context.holdSends(params => releases.get(params.resource)?.p);
+		const pending: boolean[] = [];
+
+		context.advertise(agentsWith('a', 'b'));
+		await timeout(0);
+		context.advertise(agentsWith('a', 'c'));
+		await timeout(0);
+		await releases.get('https://a.example')!.complete();
+		await timeout(0);
+		pending.push(context.authenticationPending());
+		await releases.get('https://c.example')!.complete();
+		await timeout(0);
+		pending.push(context.authenticationPending());
+
+		assert.deepStrictEqual({ sent: context.sent.map(params => params.resource), errors: context.errors, pending }, {
+			sent: ['https://a.example', 'https://c.example'],
+			errors: [],
+			pending: [true, false],
 		});
 	});
 
