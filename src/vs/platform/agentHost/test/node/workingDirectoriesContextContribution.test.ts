@@ -128,7 +128,7 @@ suite('WorkingDirectoriesContextContribution', () => {
 		});
 	});
 
-	test('a worktree session marks additional Git folders outside its worktrees as shared checkouts, asking the user first, until they are isolated', async () => {
+	test('a worktree session marks additional Git folders outside its worktrees as shared checkouts, which the agent asks to isolate through the tool confirmation, until they are isolated', async () => {
 		const send = setup();
 		send.state.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
 		const protocolWorktree = URI.file('/work/protocol.worktrees/task');
@@ -143,7 +143,7 @@ suite('WorkingDirectoriesContextContribution', () => {
 				`* Primary folder: ${JSON.stringify(app.fsPath)} (the current working directory). Git repository root: ${JSON.stringify(app.fsPath)} (GitHub: octo/app).`,
 				`* Additional folder (shared checkout, not isolated): ${JSON.stringify(protocol.fsPath)}. Git repository root: ${JSON.stringify(protocol.fsPath)}.`,
 				`* Additional folder: ${JSON.stringify(notes.fsPath)}. Not a Git repository.`,
-				'A shared checkout is the user\'s own copy of the folder. Read it in place. Before creating, editing or deleting files in it, or running commands that change files in it, ask the user whether to isolate it in a worktree of its own or to work in place, and wait for the answer. To isolate it, call the `isolate_folder` tool with its path, on its own, then end the turn: the host continues the task, and you work only in the path that tool returned. To work in place, change it where it is.',
+				'A shared checkout is the user\'s own copy of the folder. Read it in place. Before creating, editing or deleting files in it, or running commands that change files in it, call the `isolate_folder` tool with its path: the user confirms moving it into a worktree of its own. Then end the turn: the host moves it and continues the task, telling you its new path, where you make every change to it. If the user declines, change it where it is.',
 				'</working_directories>',
 			].join('\n')],
 			isolated: [[

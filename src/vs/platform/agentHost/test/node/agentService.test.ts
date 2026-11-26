@@ -12521,7 +12521,17 @@ suite('AgentService (node dispatcher)', () => {
 			const stateManager = getStateManager(svc);
 			// As a session created with worktree isolation, whose primary worktree is created.
 			stateManager.setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
-			const isolate = (folder: URI) => svc.isolateChatFolder(session, chat, folder, 'turn-1');
+			const isolate = (folder: URI) => svc.isolateChatFolder(session, chat, folder, undefined);
+			const validate = (target: URI, folder: URI) => {
+				try {
+					svc.validateFolderIsolation(target, URI.parse(buildDefaultChatUri(target)), folder);
+					return 'valid';
+				} catch (error) {
+					return String(error.message);
+				}
+			};
+			// What the tool checks before it schedules the isolation
+			const validation = [primary, protocol, URI.file('/work/other')].map(folder => validate(session, folder));
 
 			const first = await isolate(protocol);
 			const again = await isolate(protocol);
@@ -12530,7 +12540,8 @@ suite('AgentService (node dispatcher)', () => {
 			const release = await isolate(protocolRelease);
 			const rejected = await Promise.allSettled([isolate(primary), isolate(notes), isolate(URI.file('/work/other'))]);
 			const plainSession = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary, protocol] });
-			const withoutIsolation = await Promise.allSettled([svc.isolateChatFolder(plainSession, URI.parse(buildDefaultChatUri(plainSession)), protocol, 'turn-1')]);
+			const withoutIsolation = await Promise.allSettled([svc.isolateChatFolder(plainSession, URI.parse(buildDefaultChatUri(plainSession)), protocol, undefined)]);
+			validation.push(validate(plainSession, protocol));
 			const records = await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session);
 			const expectedFolders = [primary, worktreeOf(protocol), joinPath(worktreeOf(protocol), 'docs'), worktreeOf(protocolRelease), notes].map(folder => folder.toString());
 
@@ -12539,6 +12550,7 @@ suite('AgentService (node dispatcher)', () => {
 				created,
 				rejected: rejected.map(outcome => outcome.status === 'rejected' ? String(outcome.reason.message) : 'fulfilled'),
 				withoutIsolation: withoutIsolation.map(outcome => outcome.status === 'rejected' ? String(outcome.reason.message) : 'fulfilled'),
+				validation,
 				sessionFolders: stateManager.getSessionSummary(session.toString())?.workingDirectories,
 				chatFolders: stateManager.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat.toString())?.workingDirectories,
 				records: records.map(({ workingDirectory, repositoryRoot, chat, source }) => ({ workingDirectory, repositoryRoot, chat, source })),
@@ -12552,6 +12564,12 @@ suite('AgentService (node dispatcher)', () => {
 					`${URI.file('/work/other').fsPath} is not a folder of this chat.`,
 				],
 				withoutIsolation: ['This session doesn\'t use worktree isolation, so its folders are not isolated.'],
+				validation: [
+					`${primary.fsPath} is the primary folder of this chat, which the session's own worktree already isolates.`,
+					'valid',
+					`${URI.file('/work/other').fsPath} is not a folder of this chat.`,
+					'This session doesn\'t use worktree isolation, so its folders are not isolated.',
+				],
 				// The worktrees take the folders' places, in the session and in the chat.
 				sessionFolders: expectedFolders,
 				chatFolders: expectedFolders,
@@ -12599,7 +12617,7 @@ suite('AgentService (node dispatcher)', () => {
 				return readCatalogSnapshot(sessions);
 			};
 
-			const isolated = await svc.isolateChatFolder(session, chat, protocol, 'turn-1');
+			const isolated = await svc.isolateChatFolder(session, chat, protocol, undefined);
 
 			assert.deepStrictEqual({
 				isolated: isolated.toString(),
@@ -12642,7 +12660,7 @@ suite('AgentService (node dispatcher)', () => {
 			const chat = URI.parse(buildDefaultChatUri(session));
 			getStateManager(svc).setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
 
-			const isolated = await svc.isolateChatFolder(session, chat, appPackage, 'turn-1');
+			const isolated = await svc.isolateChatFolder(session, chat, appPackage, undefined);
 
 			assert.deepStrictEqual({ isolated: isolated.toString(), created, sessionFolders: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories }, {
 				isolated: joinPath(primary, 'packages/core').toString(),
@@ -12679,7 +12697,7 @@ suite('AgentService (node dispatcher)', () => {
 			// As setting the chat's workspace, which rebinds its folders under the chat catalog lock.
 			let isolation: Promise<URI> | undefined;
 			const createdDuringRebind = await svc.runWithChatCatalogLock(session, async () => {
-				isolation = svc.isolateChatFolder(session, chat, protocol, 'turn-1');
+				isolation = svc.isolateChatFolder(session, chat, protocol, undefined);
 				const createdEarly = await raceTimeout(created.p.then(() => true), 50) ?? false;
 				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: [primary.toString()] } });
 				return createdEarly;
@@ -12699,7 +12717,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('isolating a folder of a session bound to a principal sponsors the continuation with the calling chat\'s source', async () => {
+		test('isolating a folder of a session bound to a principal creates its worktree with the source of the turn that asked for it', async () => {
 			const primary = URI.file('/work/app.worktrees/session');
 			const protocol = URI.file('/work/protocol');
 			const gitService: IAgentHostGitService = {
@@ -12728,19 +12746,13 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await svc.createSession({ legacyChatUris: false, provider: 'copilot', credentials: remote, workingDirectories: [primary, protocol] });
 			const chat = URI.parse(getStateManager(svc).getDefaultChat(session.toString())!);
 			getStateManager(svc).setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
-			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Observe the sponsor handed to the continuation without exposing a test-only API.
-			const schedule = stub(svc['_folderIsolationContinuation'], 'schedule');
 
-			const isolated = await svc.isolateChatFolder(session, chat, protocol, 'turn-1');
+			// The source of the turn that asked for it, which the folder isolation service hands over
+			const isolated = await svc.isolateChatFolder(session, chat, protocol, remote);
 
-			assert.deepStrictEqual({
-				isolated: isolated.toString(),
-				worktreeCredentials,
-				continuationSponsor: schedule.getCalls().map(call => call.args[4]?.principal?.userId),
-			}, {
+			assert.deepStrictEqual({ isolated: isolated.toString(), worktreeCredentials }, {
 				isolated: URI.file('/work/protocol.worktrees/task').toString(),
 				worktreeCredentials: ['1'],
-				continuationSponsor: ['1'],
 			});
 		});
 

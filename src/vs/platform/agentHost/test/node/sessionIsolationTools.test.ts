@@ -38,9 +38,8 @@ suite('Session isolation tool', () => {
 			supportsChatIsolation: () => enabled,
 			requestChatIsolation: (chat, turnId) => calls.push({ chat: chat.toString(), turnId }),
 			supportsFolderIsolation: () => folderIsolation,
-			isolateChatFolder: async (session, chat, folder, turnId) => {
+			requestFolderIsolation: (session, chat, folder, turnId) => {
 				folderCalls.push({ session: session.toString(), chat: chat.toString(), folder: folder.fsPath, turnId });
-				return URI.file(`${folder.fsPath}.worktrees/task`);
 			},
 		});
 		const host = new AgentServerToolHost(stateManager, [group]);
@@ -109,53 +108,54 @@ suite('Session isolation tool', () => {
 		assert.deepStrictEqual(stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name), [SessionServerToolName.IsolateSession]);
 	});
 
-	test('isolate_folder is offered only to sessions with worktree isolation, and isolates the folder it is given without confirmation', async () => {
+	test('isolate_folder is offered, deferred, only to sessions with worktree isolation, and requests the isolation of the folder it is given from an active turn, after confirmation', () => {
 		const { stateManager, host, session, main, folderCalls, enableFolderIsolation } = createHarness();
 		const folder = URI.file('/work/protocol').fsPath;
 		const before = host.getDefinitionsForSession(session).map(tool => tool.name);
 		enableFolderIsolation();
-		const after = host.getDefinitionsForSession(session).map(tool => tool.name);
-		const [outsideTurn] = await Promise.allSettled([host.executeTool(main, SessionServerToolName.IsolateFolder, { folder })]);
+		const after = host.getDefinitionsForSession(session).map(({ name, deferLoading }) => ({ name, deferLoading }));
+		assert.throws(() => host.executeTool(main, SessionServerToolName.IsolateFolder, { folder }), /requires an active turn/);
 		stateManager.dispatchServerAction(main, chatTurnStarted('turn-1', 'Change the protocol'));
-		const result = await host.executeTool(main, SessionServerToolName.IsolateFolder, { folder });
-		const invalid = await Promise.allSettled([
-			host.executeTool(main, SessionServerToolName.IsolateFolder, {}),
-			host.executeTool(main, SessionServerToolName.IsolateFolder, { folder: 'relative/path' }),
-			host.executeTool(main, SessionServerToolName.IsolateFolder, { folder, extra: true }),
-		]);
+		for (const args of [{}, { folder: 'relative/path' }, { folder, extra: true }]) {
+			assert.throws(() => host.executeTool(main, SessionServerToolName.IsolateFolder, args), /absolute path of one additional folder/);
+		}
+		const result = host.executeTool(main, SessionServerToolName.IsolateFolder, { folder });
 
 		assert.deepStrictEqual({
 			before,
 			after,
+			canConfirm: host.canRequireConfirmation(SessionServerToolName.IsolateFolder),
 			confirms: host.requiresConfirmation(main, SessionServerToolName.IsolateFolder),
-			outsideTurn: outsideTurn.status === 'rejected' && /requires an active turn/.test(String(outsideTurn.reason)),
 			folderCalls,
-			returnsPath: String(result).includes(JSON.stringify(URI.file(`${folder}.worktrees/task`).fsPath)),
-			endsTurn: /end this turn now without changing files.*continues the task automatically/.test(String(result)),
-			invalid: invalid.map(outcome => outcome.status === 'rejected' && /absolute path of one additional folder/.test(String(outcome.reason))),
 			display: getServerToolDisplay(SessionServerToolName.IsolateFolder, { folder }),
 		}, {
 			before: [SessionServerToolName.IsolateSession],
-			after: [SessionServerToolName.IsolateSession, SessionServerToolName.IsolateFolder],
-			confirms: false,
-			outsideTurn: true,
+			after: [{ name: SessionServerToolName.IsolateSession, deferLoading: true }, { name: SessionServerToolName.IsolateFolder, deferLoading: true }],
+			canConfirm: true,
+			confirms: true,
 			folderCalls: [{ session, chat: main, folder, turnId: 'turn-1' }],
-			returnsPath: true,
-			endsTurn: true,
-			invalid: [true, true, true],
-			display: { displayName: 'Isolate Folder in a Worktree', invocationMessage: 'Creating a worktree for protocol', pastTenseMessage: 'Created a worktree for protocol' },
+			display: {
+				displayName: 'Isolate Folder in a Worktree',
+				invocationMessage: 'Requesting a worktree for protocol',
+				pastTenseMessage: 'Requested a worktree for protocol',
+				confirmationTitle: 'Move Folder to a Worktree?',
+				confirmationMessage: 'Move protocol into a new worktree for this chat? Other chats and the original folder are left unchanged. Uncommitted edits are not copied, except configured worktree include-files.',
+				hideConfirmationInput: true,
+			},
 		});
+		assert.match(String(result), /scheduled.*end this turn now without calling more tools or replying.*continue the original task automatically/);
 	});
 
-	test('isolate_folder tells the agent when to call it, to end the turn, and to work only in the returned path', () => {
+	test('isolate_folder tells the agent when to call it, to follow the confirmation flow and to end the turn', () => {
 		const { group } = createHarness();
 		const description = group.definitions.find(tool => tool.name === SessionServerToolName.IsolateFolder)!.description!;
-		assert.match(description, /on its own, before any tool that creates, edits or deletes files or runs commands that change files/);
 		assert.match(description, /shared checkout, not isolated/);
+		assert.match(description, /before any tool that creates, edits or deletes files or runs commands that change files/);
 		assert.match(description, /Not needed for reading, for the primary folder/);
-		assert.match(description, /Folders in the same checkout share one worktree/);
-		assert.match(description, /end this turn without changing files; the host continues the task automatically/);
-		assert.match(description, /in the returned path only/);
+		assert.match(description, /other chats and the original folder are left unchanged/);
+		assert.match(description, /Follow the tool confirmation flow; if the user declines, change the folder where it is/);
+		assert.match(description, /final tool call and end the turn.*continues its task automatically/);
+		assert.match(description, /Do not poll or repeat the request/);
 	});
 
 	test('requires confirmation and explains chat-only effects and turn ordering', () => {

@@ -52,6 +52,7 @@ import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
+import { FolderIsolationService, IFolderIsolationService } from './chatContributions/folderIsolation/folderIsolation.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentHostScheduledChatMoves, IAgentHostScheduledChatMoves } from './chatContributions/scheduledChatMoves/scheduledChatMovesService.js';
 import { ChatMoveConfigKey, chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
@@ -235,6 +236,7 @@ export function createAgentServiceComposition(
 			return acquireComposedArtifact(hostArtifactIntegrations.value, client && { access: client.integrations.access, startedTurn: client.startedTurn }, session, artifactId, logService);
 		};
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
+		const folderIsolationService: { value: IFolderIsolationService | undefined } = { value: undefined };
 		const scheduledChatMoves = owned.add(instantiationService.createInstance(AgentHostScheduledChatMoves, {
 			applyChatMove: move => callbackAdapter.sessionServerToolAccessor.applyChatMove(move),
 		}));
@@ -292,11 +294,11 @@ export function createAgentServiceComposition(
 						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
 					},
 					supportsFolderIsolation: session => agentService?.supportsChatFolderIsolation(session) === true,
-					isolateChatFolder: (session, chat, folder, turnId) => {
-						if (!agentService) {
-							throw new Error('The agent service is unavailable.');
+					requestFolderIsolation: (session, chat, folder, turnId) => {
+						if (!folderIsolationService.value) {
+							throw new Error('Folder isolation is unavailable.');
 						}
-						return agentService.isolateChatFolder(session, chat, folder, turnId);
+						folderIsolationService.value.request(session, chat, turnId, folder, callbackAdapter.sessionServerToolAccessor.getCredentialSource(chat));
 					},
 				},
 				{
@@ -326,6 +328,11 @@ export function createAgentServiceComposition(
 			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
 		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
+		folderIsolationService.value = owned.add(instantiationService.createInstance(FolderIsolationService, {
+			validateFolderIsolation: (session, chat, folder) => agentService!.validateFolderIsolation(session, chat, folder),
+			isolateChatFolder: (session, chat, folder, credentials) => agentService!.isolateChatFolder(session, chat, folder, credentials),
+		}));
+		services.set(IFolderIsolationService, folderIsolationService.value);
 		services.set(IAgentHostArchivedChatWorkspaceService, {
 			_serviceBrand: undefined,
 			setChatWorkspaceAttached: (session, chat, attached) => agentService!.setArchivedChatWorkspaceAttached(session, chat, attached),

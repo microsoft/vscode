@@ -77,7 +77,6 @@ import { AgentHostStateManager, ChatRemovalReason, creationTimeChatStorageResour
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostSessionPrewarmer } from './agentHostSessionPrewarmer.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
-import { IFolderIsolationContinuationService } from './chatContributions/folderIsolation/folderIsolationContinuation.js';
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import type { IScratchFolder } from './agentHostScratchFolderDatabase.js';
 import type { WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
@@ -1291,7 +1290,6 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostTurnTracker private readonly _turnTracker: IAgentHostTurnTracker,
 		@IAgentHostResourceProviders private readonly _resourceProviders: IAgentHostResourceProviders,
 		@IAgentHostWorktreeDiskUsageService private readonly _worktreeDiskUsage: IAgentHostWorktreeDiskUsageService,
-		@IFolderIsolationContinuationService private readonly _folderIsolationContinuation: IFolderIsolationContinuationService,
 	) {
 		super();
 		this.artifactIntegrations = collaborators.artifactIntegrations;
@@ -13634,23 +13632,21 @@ export class AgentService extends Disposable implements IAgentService {
 	 * folder's current branch, and replaces the folder by it in the chat's folders, keeping their order. The original
 	 * checkout is left unchanged, and stays a session folder while another chat works in it. A folder in a checkout
 	 * the session already created a worktree from for this purpose moves into that worktree. Returns
-	 * the folder to work in, also when the folder was already moved, under either path. The provider runs `turnId` in
-	 * the folders it launched it in, so the chat continues in a new turn once `turnId` ends.
+	 * the folder to work in, also when the folder was already moved, under either path. `sponsor`, the source of the
+	 * turn that asked for it, sponsors the worktree. The isolation service runs it once that turn ended, and continues
+	 * the chat's task in the new folders.
 	 */
-	async isolateChatFolder(session: URI, chat: URI, folder: URI, turnId: string): Promise<URI> {
+	async isolateChatFolder(session: URI, chat: URI, folder: URI, sponsor: IAgentHostCredentialSource | undefined): Promise<URI> {
 		const sessionKey = session.toString();
 		const chatKey = chat.toString();
 		if (!this.supportsChatFolderIsolation(session)) {
 			throw new Error(localize('agentHost.isolateFolder.noIsolation', "This session doesn't use worktree isolation, so its folders are not isolated."));
 		}
-		// The turn that called the tool sponsors the worktree and the turn that continues the task.
-		const sponsor = this._getServerToolCredentialSource(chat);
 		const credentials = await this._resolveExecutionCredentials(sessionKey, sponsor);
 		// Taken now, so that a chat removed or replaced (by a new workspace) meanwhile is not changed.
 		const isCurrentChat = this._stateManager.captureChatValidity(chatKey);
-		let replaced = false;
 		// With setting a chat's workspace, creating and deleting chats, which change the folders of chats too.
-		const isolated = await this._runSessionFolderChange(session, async () => {
+		return this._runSessionFolderChange(session, async () => {
 			if (!isCurrentChat() || this._chatOwnership.getChatOwner(chatKey) !== sessionKey) {
 				throw new Error(localize('agentHost.isolateFolder.chatChanged', "This chat was removed or moved while isolating its folder."));
 			}
@@ -13687,7 +13683,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			try {
 				await this._replaceChatFolder(session, chatKey, URI.parse(chatFolders[index]), isolated, isCurrentChat);
-				replaced = true;
 			} catch (error) {
 				if (created) {
 					await this._discardAdditionalWorktree(session, created.handle);
@@ -13696,10 +13691,24 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return isolated;
 		});
-		if (replaced) {
-			this._folderIsolationContinuation.schedule(chat, turnId, folder, isolated, credentials);
+	}
+
+	/**
+	 * Throws when `chat` cannot move `folder` into a worktree with {@link isolateChatFolder}: the session does not use
+	 * worktree isolation, or the folder is not one of the chat's additional folders. What the tool checks before the
+	 * isolation is scheduled; whether the folder is in a Git repository is known only once it runs.
+	 */
+	validateFolderIsolation(session: URI, chat: URI, folder: URI): void {
+		if (!this.supportsChatFolderIsolation(session)) {
+			throw new Error(localize('agentHost.isolateFolder.noIsolation', "This session doesn't use worktree isolation, so its folders are not isolated."));
 		}
-		return isolated;
+		const index = this._getChatFolders(session, chat.toString()).findIndex(candidate => extUriBiasedIgnorePathCase.isEqual(URI.parse(candidate), folder));
+		if (index === 0) {
+			throw new Error(localize('agentHost.isolateFolder.primary', "{0} is the primary folder of this chat, which the session's own worktree already isolates.", folder.fsPath));
+		}
+		if (index === -1) {
+			throw new Error(localize('agentHost.isolateFolder.notChatFolder', "{0} is not a folder of this chat.", folder.fsPath));
+		}
 	}
 
 	/** The folders `chat` works in: its own, or the session's when it inherits them. */
