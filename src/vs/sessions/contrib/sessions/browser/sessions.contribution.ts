@@ -17,7 +17,6 @@ import { SessionsAccountTelemetryContribution } from './sessionsAccountTelemetry
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { AutomationHistoryActionsContribution } from '../../automations/browser/automationRunHistory.js';
-import '../../automations/browser/automationsEditor.js';
 import './views/sessionsViewActions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';

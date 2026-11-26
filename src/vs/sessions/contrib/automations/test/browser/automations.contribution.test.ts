@@ -40,6 +40,7 @@ import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/com
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 
 import '../../browser/automations.contribution.js';
+import '../../browser/automations.desktop.contribution.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 const automationEnabledProperty = configurationRegistry.getConfigurationProperties()[CHAT_AUTOMATIONS_ENABLED_SETTING];

@@ -250,6 +250,8 @@ suite('Sessions presentation entry isolation', () => {
 			const normal = [
 				automationsRoot + 'automations.desktop.contribution.ts',
 				automationsRoot + 'defaultAutomationDialogService.ts',
+				automationsRoot + 'automationsEditor.ts',
+				automationsRoot + 'automationsModalWidget.ts',
 				'src/vs/sessions/contrib/sessions/browser/views/automationsView.ts',
 				'src/vs/sessions/contrib/sessions/browser/views/automationsAccessibility.ts',
 			];

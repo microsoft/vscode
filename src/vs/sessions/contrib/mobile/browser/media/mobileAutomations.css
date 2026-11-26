@@ -96,11 +96,15 @@
 }
 
 .mobile-automation-detail,
-.mobile-automation-row > .codicon,
 .mobile-automations-history-message,
 .mobile-automations .automations-history-group-header {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
+}
+
+.mobile-automation-row > .codicon {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-codiconFontSize);
 }
 
 .mobile-automations-notice p,

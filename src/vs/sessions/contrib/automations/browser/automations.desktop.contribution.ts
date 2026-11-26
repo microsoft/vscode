@@ -20,10 +20,12 @@ import { AutomationsCustomViewAccessibilityHelp, AutomationsCustomViewAccessible
 import { AutomationsCustomViewContribution } from '../../sessions/browser/views/automationsView.js';
 import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from './automationsEditorInput.js';
 import { DefaultAutomationDialogService } from './defaultAutomationDialogService.js';
+import './automationsEditor.js';
 
 // Automations presentation for the desktop (and desktop-web) workbench: the cards view, the
-// dialog form, and their accessibility help. The shared catalogue, runner, and commands live in
-// automations.contribution.ts; the phone bundle imports that file but not this one.
+// catalogue editor, the dialog form, and their accessibility help. The shared catalogue state,
+// runner, and commands live in automations.contribution.ts; the phone bundle imports that file
+// but not this one.
 
 registerSingleton(IAutomationDialogService, DefaultAutomationDialogService, InstantiationType.Delayed);
 registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
