@@ -855,14 +855,16 @@ export function setup(logger: Logger, quality: Quality) {
 			const agentHostLogPath = path.join(context.logsPath, 'agenthost.log');
 			const logins = context.proxyLogins;
 			assert.ok(logins, 'Expected the suite to fill the proxy login dialogs');
+			let unsupportedBackend: string | undefined;
 			try {
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
-				await assertSandboxedNetworkProbe(app, context.mockServer, {
+				unsupportedBackend = await assertSandboxedNetworkProbe(app, context.mockServer, {
 					prompt: `fetch through the sandbox and the PAC proxy [scenario:${scenario}]`,
 					reply,
 					probePath,
 					readAgentHostLog: () => readFileIfExists(agentHostLogPath),
+					allowUnsupportedBackend: true,
 				});
 				if (localCopilotRuntimePath) {
 					assert.ok(readFileIfExists(agentHostLogPath).includes(`[Copilot] Using configured runtime path: ${localCopilotRuntimePath}`), `Expected the Agent Host to use the Copilot runtime at ${localCopilotRuntimePath}`);
@@ -874,6 +876,10 @@ export function setup(logger: Logger, quality: Quality) {
 				throw error;
 			} finally {
 				await logins.stop();
+			}
+			if (unsupportedBackend !== undefined) {
+				logger.log(`Skipping Agents Window (local Basic PAC proxy, sandbox): the Copilot runtime has no sandbox backend on this host: ${unsupportedBackend}`);
+				this.skip();
 			}
 		});
 	});
@@ -1680,20 +1686,33 @@ function sandboxProxySettings(agentHostPlatform: NodeJS.Platform): Record<string
  * Copilot runtime's own shell tool ran the command in its sandbox, and that the command fetched the URL. Only the
  * proxy of the PAC script resolves the mock server's host, so the request shows that the sandbox's network proxy
  * forwarded it there.
+ *
+ * With `allowUnsupportedBackend`, returns the reason the Copilot runtime gives when the host has no sandbox backend,
+ * such as a Windows version without one, instead of waiting for a probe that cannot run in the sandbox.
  */
 async function assertSandboxedNetworkProbe(app: Application, mockServer: MockLlmServer, options: {
 	readonly prompt: string;
 	readonly reply: string;
 	readonly probePath: string;
 	readonly readAgentHostLog: () => string | Promise<string>;
-}): Promise<void> {
+	readonly allowUnsupportedBackend?: boolean;
+}): Promise<string | undefined> {
 	assert.ok(process.env.VSCODE_SMOKE_TEST_MOCK_HOST, 'Expected the mock server host that only the proxy resolves, from run-agents-window-wsl-kerberos-proxy.ps1');
 	await app.workbench.agentsWindow.submitNewSessionPrompt(options.prompt);
 	await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+	const sdkShellRun = /\[Copilot:[^\]]+\] Tool started: (bash|powershell|pwsh)\b/;
+	if (options.allowUnsupportedBackend) {
+		// The Agent Host logs the runtime's sandbox host support while it starts a session, before a turn runs the shell tool.
+		const unsupportedBackend = /\] Sandbox backend unavailable (?<reason>.*)/;
+		const startLog = await waitForLogContent(options.readAgentHostLog, content => sdkShellRun.test(content) || unsupportedBackend.test(content), 2 * 60 * 1000);
+		const unsupported = unsupportedBackend.exec(startLog);
+		if (unsupported) {
+			return unsupported.groups?.reason ?? '';
+		}
+	}
 	// The command echoes the reply only after curl fetched the URL. Starting the sandbox can take minutes on Windows.
 	await app.workbench.agentsWindow.waitForAssistantText(shellEchoResponseMatcher(options.reply), 5 * 60 * 1000, { acceptToolConfirmations: true });
 	assert.ok(mockServer.getRequests().some(request => request.method === 'GET' && request.path === options.probePath), `Expected the sandboxed command to fetch ${options.probePath} from the mock server`);
-	const sdkShellRun = /\[Copilot:[^\]]+\] Tool started: (bash|powershell|pwsh)\b/;
 	const log = await waitForLogContent(options.readAgentHostLog, sdkShellRun, 30_000);
 	assert.deepStrictEqual({
 		sandboxConfigApplied: /\[Copilot:[^\]]+\] Applied SDK sandboxConfig via session\.options\.update/.test(log),
@@ -1704,6 +1723,7 @@ async function assertSandboxedNetworkProbe(app: Application, mockServer: MockLlm
 		sdkShellRun: true,
 		agentHostShellRun: false,
 	}, 'Expected the Copilot runtime\'s own shell tool to run the command with the sandbox configuration of the Agent Host');
+	return undefined;
 }
 
 async function assertRemoteDevContainerRouting(logsPath: string, transport: RemoteDevContainerTransport, workspacePath: string, reply: string): Promise<void> {
