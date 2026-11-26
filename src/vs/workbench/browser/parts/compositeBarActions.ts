@@ -420,8 +420,12 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.keybindingLabel = this.computeKeybindingLabel();
 		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.compositeBarActionItem.name, this.keybindingLabel) : this.compositeBarActionItem.name;
 
-		const badges = this.getVisibleBadges((this.action as CompositeBarAction).activities).badges;
-		for (const badge of badges) {
+		const activities = (this.action as CompositeBarAction).activities;
+		const { badges, type } = this.getVisibleBadges(activities);
+
+		// An icon badge replaces number badges visually, but their counts must remain in the title and accessible label
+		const hiddenNumberBadges = type === 'icon' ? activities.map(activity => activity.badge).filter(badge => badge instanceof NumberBadge) : [];
+		for (const badge of [...badges, ...hiddenNumberBadges]) {
 			const description = badge.getDescription();
 			if (!description) {
 				continue;

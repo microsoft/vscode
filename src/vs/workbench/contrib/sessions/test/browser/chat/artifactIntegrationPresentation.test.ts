@@ -54,8 +54,9 @@ import '../../../../../browser/media/style.css';
 import '../../../../../browser/actions/listCommands.js';
 import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView, ArtifactDetailsContextView } from '../../../browser/chat/artifactDetailsContextView.js';
 import { ArtifactIntegrationPresentation } from '../../../browser/chat/artifactIntegrationPresentation.js';
+import { ArtifactIntegrationGroup } from '../../../browser/chat/artifactIntegrationGroup.js';
 import { ArtifactDetailsModel } from '../../../browser/chat/artifactDetailsModel.js';
-import { ArtifactDetailsPanel } from '../../../browser/chat/artifactDetailsPanel.js';
+import { ArtifactDetailsPanel, fitArtifactListHeights } from '../../../browser/chat/artifactDetailsPanel.js';
 import { artifactViewKey, IArtifactDetailsViewData } from '../../../browser/chat/artifactDetailsView.js';
 import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../sessionHostTestUtils.js';
 
@@ -234,7 +235,7 @@ suite('Artifact Integration Presentation', () => {
 		instantiation.stub(IKeybindingService, keybindingService);
 		const controller = store.add(instantiation.createInstance(ArtifactDetailsContextView, () => input, () => row, () => input.focus()));
 
-		function artifact(id = 'artifact') {
+		function artifact(id = 'artifact', baseEntry?: Pick<IChatPillEntry, 'pillHover'>) {
 			const snapshot = observableValue<ArtifactSnapshot>(id, {
 				authority: { id: 'client', targetHost: 'host', location: 'client' }, session: 'session',
 				artifact: { id, label: `Recorded ${id}`, resource: `https://example.test/${id}` }, mainIntegrationId: 'test', runs: [],
@@ -365,9 +366,9 @@ suite('Artifact Integration Presentation', () => {
 				},
 			};
 			const presentation = store.add(instantiation.createInstance(ArtifactIntegrationPresentation, model, reader => chat.read(reader), controller));
-			const copy = store.add(new Action('copy', 'Copy Link', undefined, true, async () => { shellActions++; }));
-			const remove = store.add(new Action('remove', 'Remove Artifact', undefined, true, async () => { shellActions++; }));
-			const base: IChatPillEntry = { id, label: `Recorded ${id}`, toolbarActions: [copy, remove], open: () => { resourceOpens++; } };
+			const copy = store.add(new Action('copy', 'Copy Link', 'codicon codicon-copy', true, async () => { shellActions++; }));
+			const remove = store.add(new Action('remove', 'Remove Artifact', 'codicon codicon-close', true, async () => { shellActions++; }));
+			const base: IChatPillEntry = { id, label: `Recorded ${id}`, toolbarActions: [copy], promotedAction: remove, ...baseEntry, open: () => { resourceOpens++; } };
 			const entry = derived(reader => presentation.decorate(base, reader));
 			const container = append(actions, $('.action-item'));
 			const item = entry.get().inlinePill!.createActionViewItem!({});
@@ -403,12 +404,21 @@ suite('Artifact Integration Presentation', () => {
 		f.contextView.layout();
 	}
 
+	/** Opens the whole artifact's details as its Details section does, or a status section's when given. */
 	async function open(f: Fixture, a: Artifact, section?: number): Promise<HTMLElement> {
-		(section === undefined ? a.main : a.container.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[section]).click();
+		if (section === undefined) {
+			f.controller.toggle(a.presentation, a.main);
+		} else {
+			sections(a)[section].click();
+		}
 		await settle(f);
 		const panel = f.host.querySelector<HTMLElement>('.artifact-integration-panel');
 		assert.ok(panel);
 		return panel;
+	}
+
+	function sections(a: Artifact): HTMLElement[] {
+		return [...a.container.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')];
 	}
 
 	function button(panel: HTMLElement, label: string): HTMLElement {
@@ -497,8 +507,8 @@ suite('Artifact Integration Presentation', () => {
 			stateActions: [{ id: 'deploy', label: 'Deploy', primary: true, enabled: true, run: () => { commands.push('deploy'); } }],
 			generalActions: [{ id: 'copy', label: 'Copy Link', run: () => { commands.push('copy'); } }],
 			autopilot: [{
-				id: 'delivery', title: 'Autopilot', expanded: true, checked: false, disabled: false, summary: '0 of 1 on', toggleLabel: 'All Available Autopilot Rules', description: 'Deploy automatically when healthy.',
-				rules: [{ id: 'autoDeploy', label: 'Deploy When Healthy', description: 'Wait for healthy checks.', checked: false, disabled: false, pending: false, setEnabled: async value => { commands.push(`rule:${value}`); } }],
+				id: 'delivery', title: 'Autopilot', expanded: true, checked: false, disabled: false, summary: '0 of 1 on', toggleLabel: 'Toggle All Autopilot Rules', description: 'Deploy automatically when healthy.',
+				rules: [{ id: 'autoDeploy', label: 'Deploy When Healthy', description: 'Wait for healthy checks.', checked: false, disabled: false, setEnabled: async value => { commands.push(`rule:${value}`); } }],
 				setExpanded: expanded => { commands.push(`expand:${expanded}`); }, setEnabled: async value => { commands.push(`group:${value}`); },
 			}],
 			activities: { expanded: false, loading: false, items: [], summary: '0 loaded', message: '', setExpanded: () => { } }, sections: [], accessibleText: 'Deployment\nHealth\nDeploy\nAutopilot',
@@ -603,9 +613,9 @@ suite('Artifact Integration Presentation', () => {
 			assert.deepStrictEqual({
 				hiddenBefore, collapsed, lazy, reopened,
 				hiddenAfter: panel.querySelector<HTMLElement>('.artifact-activities')?.hidden,
-				footer: [...panel.querySelectorAll('.artifact-general-actions [role="button"]')].map(element => element.textContent),
+				headerActions: [...panel.querySelectorAll('.artifact-header-actions [role="button"]')].map(element => element.getAttribute('aria-label')),
 				focus: getActiveElement() === panel,
-			}, { hiddenBefore: true, collapsed: 'false', lazy: 0, reopened: 'true', hiddenAfter: true, footer: ['Copy Link', 'Remove Artifact'], focus: true });
+			}, { hiddenBefore: true, collapsed: 'false', lazy: 0, reopened: 'true', hiddenAfter: true, headerActions: ['Copy Link', 'Close Artifact Details'], focus: true });
 		});
 
 		for (const count of [1, 20]) {
@@ -617,7 +627,7 @@ suite('Artifact Integration Presentation', () => {
 				const panel = await open(f, a);
 				button(panel, 'Autopilot').click();
 				await expand(f, panel);
-				const outer = panel.querySelector<HTMLElement>('.artifact-details-lower-content')!;
+				const outer = panel.querySelector<HTMLElement>('.artifact-details-body')!;
 				const inner = panel.querySelector<HTMLElement>('.artifact-activities-list .monaco-scrollable-element')!;
 				const contents = inner.querySelector<HTMLElement>('.monaco-list-rows')!;
 				const innerScrollTop = () => Math.round(inner.getBoundingClientRect().top - contents.getBoundingClientRect().top);
@@ -644,6 +654,88 @@ suite('Artifact Integration Presentation', () => {
 					JSON.stringify({ first, bottom, backUp, final: { inner: innerScrollTop(), outer: outer.scrollTop }, rowsTop: contents.style.top, outerHeight: outer.clientHeight, outerScrollHeight: outer.scrollHeight }));
 			});
 		}
+
+		test('everything below the header scrolls together, and only by a distance worth scrolling', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			setActivities(a, Array.from({ length: 20 }, (_, index) => activity(a, `entry-${index}`, { createdAt: index })));
+			const panel = await open(f, a);
+			panel.querySelector<HTMLElement>('[role="tab"]')!.click();
+			button(panel, 'Autopilot').click();
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			const overflows = new Set<string>();
+			for (let height = 300; height <= 800; height += 10) {
+				f.host.style.height = `${height}px`;
+				await settle(f);
+				const overflow = body.scrollHeight - body.clientHeight;
+				overflows.add(overflow <= 0 ? 'fits' : overflow < 56 ? `scrolls only ${overflow}px at ${height}px` : 'scrolls');
+			}
+			assert.deepStrictEqual({
+				scrolled: ['.artifact-tabbed-state-widget', '.artifact-autopilot', '.artifact-activities'].map(selector => body.contains(panel.querySelector(selector))),
+				header: body.contains(panel.querySelector('.artifact-details-header')),
+				overflows: [...overflows].sort(),
+			}, { scrolled: [true, true, true], header: false, overflows: ['fits', 'scrolls'] });
+		});
+
+		test('keyboard navigation reveals the focused row when the panel is shorter than the list', async () => {
+			const f = fixture();
+			f.host.style.height = '300px';
+			const a = f.artifact();
+			setActivities(a, Array.from({ length: 20 }, (_, index) => activity(a, `entry-${index}`, { createdAt: index })));
+			const panel = await open(f, a);
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			const list = panel.querySelector<HTMLElement>('.artifact-activities-list .monaco-list')!;
+			assert.ok(body.clientHeight < list.offsetHeight, `The panel (${body.clientHeight}px) must be shorter than the list (${list.offsetHeight}px)`);
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			const visible: boolean[] = [];
+			for (const id of ['list.focusFirst', 'list.focusDown', 'list.focusDown', 'list.focusDown', 'list.focusDown', 'list.focusLast', 'list.focusFirst']) {
+				f.instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+				await settle(f);
+				const row = list.querySelector('.monaco-list-row.focused')!.getBoundingClientRect();
+				const viewport = body.getBoundingClientRect();
+				visible.push(row.top >= viewport.top - 0.5 && row.bottom <= viewport.bottom + 0.5);
+			}
+			assert.deepStrictEqual(visible, Array(7).fill(true));
+		});
+
+		test('layout and model updates keep the scroll position', async () => {
+			const f = fixture();
+			f.host.style.height = '560px';
+			const a = f.artifact();
+			const entries = (count: number) => Array.from({ length: count }, (_, index) => activity(a, `entry-${index}`, { createdAt: index }));
+			setActivities(a, entries(20));
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			assert.ok(body.scrollHeight - body.clientHeight > 40, 'The panel must have content to scroll');
+			body.scrollTop = 40;
+			body.dispatchEvent(new mainWindow.Event('scroll'));
+			await settle(f);
+			const afterLayout = body.scrollTop;
+			setActivities(a, entries(21));
+			await settle(f);
+			assert.deepStrictEqual({ afterLayout, afterUpdate: body.scrollTop }, { afterLayout: 40, afterUpdate: 40 });
+		});
+
+		test('lists shrink to fit and grow back when scrolling would reveal too little', () => {
+			const lists = [{ preferred: 196, minimum: 112, step: 28 }, { preferred: 168, minimum: 84, step: 28 }];
+			const fit = (overflow: number, slack = 8) => {
+				const result = fitArtifactListHeights(lists, overflow, slack);
+				return [...result.heights, result.overflow];
+			};
+			assert.deepStrictEqual([0, 30, 168, 174, 180, 300].map(overflow => fit(overflow)), [
+				[196, 168, 0],
+				[140, 168, -26],
+				[112, 84, 0],
+				[112, 84, 6],
+				[140, 112, 68],
+				[112, 84, 132],
+			]);
+		});
 
 		test('shows an accessible right-aligned loaded activity count while collapsed and expanded', async () => {
 			const f = fixture();
@@ -975,8 +1067,78 @@ suite('Artifact Integration Presentation', () => {
 		assert.deepStrictEqual({
 			hover: hover().content, acquired: a.acquired, inline: a.entry.get().inlinePill === a.presentation.inlinePill,
 			labels: [...a.container.querySelectorAll('.chat-pill-label')].map(element => element.textContent),
-			popup: a.main.getAttribute('aria-haspopup'), expanded: a.main.getAttribute('aria-expanded'),
-		}, { hover: 'Open: compact status', acquired: [], inline: true, labels: ['#42', '1/2', '1'], popup: 'dialog', expanded: 'false' });
+			main: { label: a.main.getAttribute('aria-label'), description: a.main.getAttribute('aria-description'), popup: a.main.getAttribute('aria-haspopup') },
+			sections: sections(a).map(section => ({ popup: section.getAttribute('aria-haspopup'), expanded: section.getAttribute('aria-expanded') })),
+		}, {
+			hover: 'Open: compact status', acquired: [], inline: true, labels: ['#42', '1/2', '1'],
+			main: { label: 'Open #42', description: 'Open: compact status', popup: null },
+			sections: [{ popup: 'dialog', expanded: 'false' }, { popup: 'dialog', expanded: 'false' }],
+		});
+	});
+
+	test('a pill label shortens the artifact\'s own pill, while its label still names it for screen readers and dropdown rows', () => {
+		const f = fixture();
+		const a = f.artifact();
+		updateContribution(a, c => ({ ...c, view: { ...c.view, main: { ...c.view.main!, label: 'Use the theme\'s minimap background', pillLabel: 'PR #42', description: undefined } } }));
+		const hover = f.hovers.get(a.main);
+		assert.ok(typeof hover === 'function');
+		assert.deepStrictEqual({
+			label: a.main.querySelector('.chat-pill-label')?.textContent,
+			ariaLabel: a.main.getAttribute('aria-label'),
+			description: a.main.getAttribute('aria-description'),
+			hover: hover().content,
+			row: a.entry.get().label,
+		}, {
+			label: 'PR #42',
+			ariaLabel: 'Open Use the theme\'s minimap background',
+			description: null,
+			hover: 'Use the theme\'s minimap background',
+			row: 'Use the theme\'s minimap background',
+		});
+	});
+
+	test('the main part shows its entry\'s rich hover, such as a pull request card, in place of the integration description', () => {
+		const f = fixture();
+		const card = $('.rich-card');
+		const a = f.artifact('artifact', { pillHover: { element: () => card, contentOwnsPadding: true } });
+		const hover = f.hovers.get(a.main);
+		assert.ok(typeof hover === 'function');
+		const options = hover();
+		assert.deepStrictEqual({
+			card: options.content === card, stableIdentity: !!options.id && options.id === hover().id,
+			additionalClasses: options.additionalClasses, appearance: options.appearance, style: options.style,
+			actions: options.actions?.map(action => action.label), trapFocus: options.trapFocus,
+			description: a.main.getAttribute('aria-description'),
+		}, {
+			card: true, stableIdentity: true,
+			additionalClasses: ['managed-hover-content-owns-padding'], appearance: { showPointer: true }, style: undefined,
+			actions: ['Copy Link'], trapFocus: true,
+			description: 'Open: compact status',
+		});
+	});
+
+	test('the main part opens the resource, and a Details section toggles the details while there are no status sections', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		a.main.click();
+		await settle(f);
+		const afterMain = { opens: a.counts().resourceOpens, selected: f.controller.selected.get(), acquired: [...a.acquired] };
+		updateContribution(a, c => ({ ...c, view: { ...c.view, sections: [] } }));
+		const details = sections(a);
+		details[0].click();
+		await settle(f);
+		const opened = { selected: f.controller.selected.get() === a.presentation, expanded: details[0].getAttribute('aria-expanded') };
+		updateContribution(a, c => ({ ...c, view: { ...c.view, sections: [{ id: 'status', icon: { id: 'pass' }, label: '2/2', detailsId: 'checks' }] } }));
+		assert.deepStrictEqual({
+			afterMain, opened,
+			details: details.map(section => ({ label: section.textContent, ariaLabel: section.getAttribute('aria-label'), icon: !!section.querySelector('.codicon-info') })),
+			replaced: sections(a).map(section => section.textContent),
+		}, {
+			afterMain: { opens: 1, selected: undefined, acquired: [] },
+			opened: { selected: true, expanded: 'true' },
+			details: [{ label: '', ariaLabel: 'Show artifact details: Open: compact status', icon: true }],
+			replaced: ['2/2'],
+		});
 	});
 
 	test('an integration pill shares pointer hovers across its adjacent section buttons', () => {
@@ -1023,29 +1185,67 @@ suite('Artifact Integration Presentation', () => {
 		}, { beforeDelay: undefined, firstShown: true, sectionShownImmediately: true });
 	}));
 
-	test('main click opens full details; the title navigates and shell actions remain available', async () => {
+	test('whole-artifact details show the full title, which navigates, and shell actions other than Remove remain available', async () => {
 		const f = fixture();
 		const a = f.artifact();
 		const panel = await open(f, a);
 		const before = a.counts();
 		panel.querySelector<HTMLElement>('.artifact-details-title-link')!.click();
 		button(panel, 'Copy Link').click();
-		button(panel, 'Remove Artifact').click();
 		await settle(f);
 		assert.deepStrictEqual({
 			before, after: a.counts(), title: panel.querySelector('h2')?.textContent,
 			description: panel.querySelector('.artifact-details-description-content')?.textContent,
-			selected: a.container.classList.contains('artifact-pill-selected'), expanded: a.main.getAttribute('aria-expanded'),
-			controls: a.main.getAttribute('aria-controls'), rootId: panel.parentElement?.id,
+			selected: a.container.classList.contains('artifact-pill-selected'), expanded: sections(a)[0].getAttribute('aria-expanded'),
+			controls: sections(a)[0].getAttribute('aria-controls'), rootId: panel.parentElement?.id,
 			acquired: a.acquired,
 			headerActions: [...panel.querySelectorAll('.artifact-header-actions [role="button"]')].map(element => element.getAttribute('aria-label')),
-			footerActions: [...panel.querySelectorAll('.artifact-general-actions [role="button"]')].map(element => element.textContent),
+			headerText: [...panel.querySelectorAll('.artifact-header-actions [role="button"]')].map(element => element.textContent),
+			headerIcons: [...panel.querySelectorAll('.artifact-header-actions [role="button"] .codicon')].map(icon => [...icon.classList].find(name => name.startsWith('codicon-'))),
+			footer: panel.querySelector('.artifact-general-actions'),
 		}, {
-			before: { resourceOpens: 0, shellActions: 0 }, after: { resourceOpens: 1, shellActions: 2 },
+			before: { resourceOpens: 0, shellActions: 0 }, after: { resourceOpens: 1, shellActions: 1 },
 			title: 'Full title for artifact', description: 'The actual resource description.',
-			selected: true, expanded: 'true', controls: f.controller.id, rootId: f.controller.id, acquired: ['main', 'checks', 'comments'],
-			headerActions: ['Close Artifact Details'], footerActions: ['Copy Link', 'Remove Artifact'],
+			selected: true, expanded: 'false', controls: f.controller.id, rootId: f.controller.id, acquired: ['main', 'checks', 'comments'],
+			headerActions: ['Copy Link', 'Close Artifact Details'], headerText: ['', ''],
+			headerIcons: ['codicon-copy', 'codicon-close'], footer: null,
 		});
+	});
+
+	test('header actions share the title row until the title would be squeezed, then move below it and wrap instead of overflowing', async () => {
+		const f = fixture();
+		// The test page does not load the codicon font, so give header glyphs their product size.
+		append(f.host, $('style')).textContent = '.artifact-header-actions .codicon { display: inline-block; width: 16px; height: 16px; }';
+		const a = f.artifact();
+		const panel = await open(f, a);
+		const measure = () => {
+			const header = panel.querySelector('.artifact-details-header')!.getBoundingClientRect();
+			const icon = panel.querySelector('.artifact-details-title-icon')!.getBoundingClientRect();
+			const title = panel.querySelector('.artifact-details-title')!.getBoundingClientRect();
+			const actions = [...panel.querySelectorAll('.artifact-header-actions .monaco-button')].map(button => button.getBoundingClientRect());
+			return {
+				count: actions.length,
+				actionsBelowTitle: actions.every(action => action.top >= title.bottom),
+				iconBesideTitle: Math.abs(icon.top - title.top) < 1,
+				actionRows: new Set(actions.map(action => Math.round(action.top))).size,
+				withinHeader: actions.every(action => action.left >= header.left - 0.5 && action.right <= header.right + 0.5),
+			};
+		};
+		const layout = [];
+		for (const width of [540, 200]) {
+			f.host.style.width = `${width}px`;
+			await settle(f);
+			layout.push(measure());
+		}
+		updateContribution(a, c => ({ ...c, view: { ...c.view, stateActions: [], generalActions: ['fix', 'reviews', 'merge'].map(id => ({ id, enabled: true })) } }));
+		f.host.style.width = '160px';
+		await settle(f);
+		layout.push(measure());
+		assert.deepStrictEqual(layout, [
+			{ count: 2, actionsBelowTitle: false, iconBesideTitle: true, actionRows: 1, withinHeader: true },
+			{ count: 2, actionsBelowTitle: true, iconBesideTitle: true, actionRows: 1, withinHeader: true },
+			{ count: 5, actionsBelowTitle: true, iconBesideTitle: true, actionRows: 2, withinHeader: true },
+		]);
 	});
 
 	test('list rows show only one line, ellipsize full comment text, and retain state in accessible labels and hovers', async () => {
@@ -1082,24 +1282,26 @@ suite('Artifact Integration Presentation', () => {
 		});
 	});
 
-	test('shell footer actions use concise labels while preserving the full accessible target', async () => {
+	test('header general actions are icon-only and name the full action and any reason in their hover', async () => {
 		const f = fixture();
 		const a = f.artifact();
-		const remove = a.base.toolbarActions![1];
-		remove.label = 'Remove Artifact Full title for artifact from Session';
-		withChatPillHoverLabel(remove, 'Remove Artifact');
+		const copy = a.base.toolbarActions![0];
+		copy.label = 'Copy Link to Full title for artifact';
+		withChatPillHoverLabel(copy, 'Copy Link');
+		updateContribution(a, c => ({ ...c, view: { ...c.view, stateActions: [], generalActions: [{ id: 'merge', enabled: false, disabledReason: 'Checks must pass.' }] } }));
 		const panel = await open(f, a);
-		const removeButton = button(panel, 'Remove Artifact');
-		const hover = f.hovers.get(removeButton);
-		const hoverOptions = typeof hover === 'function' ? hover() : hover;
+		const hover = (element: HTMLElement) => {
+			const options = f.hovers.get(element);
+			return (typeof options === 'function' ? options() : options)?.content;
+		};
+		const copyButton = button(panel, 'Copy Link to Full title for artifact');
+		const mergeButton = button(panel, 'Merge. Checks must pass.');
 		assert.deepStrictEqual({
-			label: removeButton.textContent,
-			accessibleLabel: removeButton.getAttribute('aria-label'),
-			hover: hoverOptions?.content,
+			text: [copyButton.textContent, mergeButton.textContent],
+			hovers: [hover(copyButton), hover(mergeButton)],
 		}, {
-			label: 'Remove Artifact',
-			accessibleLabel: 'Remove Artifact Full title for artifact from Session',
-			hover: 'Remove Artifact Full title for artifact from Session',
+			text: ['', ''],
+			hovers: ['Copy Link to Full title for artifact', 'Merge. Checks must pass.'],
 		});
 	});
 
@@ -1126,13 +1328,13 @@ suite('Artifact Integration Presentation', () => {
 		assert.deepStrictEqual({
 			before, after: state(), focused: getActiveElement() === fix, sameButton: fix === button(panel, 'Fix CI'),
 			primaryBackground: button(panel, 'Merge').style.backgroundColor,
-			quietFooter: [...panel.querySelectorAll('.artifact-general-actions .monaco-button')].every(element => element.classList.contains('secondary')),
+			quietHeader: [...panel.querySelectorAll('.artifact-header-actions .monaco-button')].every(element => element.classList.contains('secondary')),
 			providerOrderUnchanged: offered.map(action => action.id),
 		}, {
 			before: { order: ['Address Comments', 'Fix CI', 'Merge'], primary: ['Address Comments'] },
 			after: { order: ['Merge', 'Address Comments', 'Fix CI'], primary: ['Merge'] },
 			focused: true, sameButton: true, primaryBackground: 'var(--vscode-button-background)',
-			quietFooter: true, providerOrderUnchanged: ['merge', 'reviews', 'fix'],
+			quietHeader: true, providerOrderUnchanged: ['merge', 'reviews', 'fix'],
 		});
 	});
 
@@ -1176,14 +1378,18 @@ suite('Artifact Integration Presentation', () => {
 		]);
 	});
 
-	test('the active main pill toggles closed; Escape and Close restore focus to the trigger', async () => {
+	test('the Details section toggles closed; Escape and Close restore focus to the main part', async () => {
 		const f = fixture();
 		const a = f.artifact();
+		updateContribution(a, c => ({ ...c, view: { ...c.view, sections: [] } }));
+		const [details] = sections(a);
 		const results = [];
 		for (const method of ['toggle', 'escape', 'close']) {
-			const panel = await open(f, a);
+			details.click();
+			await settle(f);
+			const panel = f.host.querySelector<HTMLElement>('.artifact-integration-panel')!;
 			if (method === 'toggle') {
-				a.main.click();
+				details.click();
 			} else if (method === 'escape') {
 				const action = button(panel, 'Fix CI');
 				action.focus();
@@ -1191,7 +1397,7 @@ suite('Artifact Integration Presentation', () => {
 			} else {
 				button(panel, 'Close Artifact Details').click();
 			}
-			results.push({ selected: f.controller.selected.get() !== undefined, focused: getActiveElement() === a.main, expanded: a.main.getAttribute('aria-expanded') });
+			results.push({ selected: f.controller.selected.get() !== undefined, focused: getActiveElement() === a.main, expanded: details.getAttribute('aria-expanded') });
 		}
 		assert.deepStrictEqual(results, Array(3).fill({ selected: false, focused: true, expanded: 'false' }));
 	});
@@ -1202,8 +1408,8 @@ suite('Artifact Integration Presentation', () => {
 		const b = f.artifact('second');
 		const first = await open(f, a);
 		const root = first.parentElement;
-		b.main.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
-		const second = await open(f, b);
+		sections(b)[0].dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+		const second = await open(f, b, 0);
 		assert.deepStrictEqual({
 			sameRoot: second.parentElement === root, contextShows: f.contextShows(), title: second.querySelector('h2')?.textContent,
 			selection: [a, b].map(a => a.container.classList.contains('artifact-pill-selected')),
@@ -1222,18 +1428,93 @@ suite('Artifact Integration Presentation', () => {
 			{ selected: undefined, focusedInput: true, released: ['main', 'checks', 'comments'] });
 	});
 
-	test('section clicks focus the corresponding list in the whole panel, including repeated clicks', async () => {
+	test('only the section that shows the details is expanded and tinted; it closes them, while another section switches to its list', async () => {
 		const f = fixture();
+		f.host.style.setProperty('--vscode-button-secondaryBackground', 'rgb(49, 49, 49)');
+		f.host.style.setProperty('--vscode-toolbar-activeBackground', 'rgba(255, 255, 255, 0.1)');
 		const a = f.artifact();
+		const normal = 'linear-gradient(rgb(49, 49, 49), rgb(49, 49, 49))';
+		const active = `linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)), ${normal}`;
+		const state = () => ({
+			open: f.controller.selected.get() === a.presentation,
+			expanded: sections(a).map(section => section.getAttribute('aria-expanded')),
+			backgrounds: sections(a).map(section => mainWindow.getComputedStyle(section).backgroundImage),
+		});
 		const first = await open(f, a, 0);
-		const checksFocused = first.querySelector('.artifact-state-list .monaco-list') === getActiveElement();
-		const again = await open(f, a, 0);
-		const comments = await open(f, a, 1);
-		assert.deepStrictEqual({
-			same: first === again && first === comments, shows: f.contextShows(), checksFocused,
-			commentsFocused: comments.querySelectorAll('.artifact-state-list .monaco-list')[1] === getActiveElement(),
-			title: comments.querySelector('h2')?.textContent, actions: comments.querySelectorAll('.artifact-state-actions [role="button"]').length,
-		}, { same: true, shows: 1, checksFocused: true, commentsFocused: true, title: 'Full title for artifact', actions: 3 });
+		const checks = { ...state(), focusedList: first.querySelector('.artifact-state-list .monaco-list') === getActiveElement() };
+		const second = await open(f, a, 1);
+		const comments = { ...state(), samePanel: first === second, focusedList: second.querySelectorAll('.artifact-state-list .monaco-list')[1] === getActiveElement() };
+		sections(a)[1].click();
+		await settle(f);
+		const toggledClosed = { open: state().open, focusedSection: getActiveElement() === sections(a)[1] };
+		f.input.focus();
+		const afterToggle = state();
+		await open(f, a, 0);
+		f.input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+		await settle(f);
+		assert.deepStrictEqual({ checks, comments, toggledClosed, afterToggle, afterOutsideClick: state(), shows: f.contextShows() }, {
+			checks: { open: true, expanded: ['true', 'false'], backgrounds: [active, normal], focusedList: true },
+			comments: { open: true, expanded: ['false', 'true'], backgrounds: [normal, active], samePanel: true, focusedList: true },
+			toggledClosed: { open: false, focusedSection: true },
+			afterToggle: { open: false, expanded: ['false', 'false'], backgrounds: [normal, normal] },
+			afterOutsideClick: { open: false, expanded: ['false', 'false'], backgrounds: [normal, normal] },
+			shows: 2,
+		});
+	});
+
+	test('a group dropdown keeps the member details it replaces, so its active section closes them and another section switches them', async () => {
+		const f = fixture();
+		const members = [f.artifact('first'), f.artifact('second')];
+		const group = store.add(f.instantiation.createInstance(ArtifactIntegrationGroup, 'group', constObservable(members.map(a => ({ presentation: a.presentation, entry: a.base }))), f.controller));
+		const item = group.pill.createActionViewItem!({});
+		assert.ok(item instanceof BaseActionViewItem);
+		store.add(item);
+		const pill = append(f.row.querySelector<HTMLElement>('.actions-container')!, $('.action-item'));
+		item.render(pill);
+		const button = pill.querySelector<HTMLElement>('.chat-pill-button')!;
+		const rows = () => [...f.host.querySelectorAll<HTMLElement>('.artifact-group-row')];
+		const statuses = (row: number) => [...rows()[row].querySelectorAll<HTMLElement>('.artifact-group-row-status')];
+		const state = () => ({
+			dropdown: !!f.host.querySelector('.artifact-group-dropdown'),
+			details: f.host.querySelector('.artifact-integration-panel h2')?.textContent,
+			selected: members.findIndex(a => a.presentation === f.controller.selected.get()),
+			activeSection: f.controller.activeSection.get(),
+		});
+		const openFromDropdown = async (row: number, section: number) => {
+			button.click();
+			statuses(row)[section].click();
+			await settle(f);
+		};
+
+		await openFromDropdown(1, 1);
+		const panel = f.host.querySelector('.artifact-integration-panel');
+		const opened = state();
+		button.click();
+		const reopened = {
+			...state(),
+			expanded: rows().map((_, index) => statuses(index).map(status => status.getAttribute('aria-expanded'))),
+			selectedRows: rows().map(row => row.classList.contains('selected')),
+			focusedRow: rows().findIndex(row => row.contains(getActiveElement())),
+		};
+		statuses(1)[0].click();
+		await settle(f);
+		const switched = { ...state(), samePanel: panel === f.host.querySelector('.artifact-integration-panel'), released: [...members[1].released] };
+		await openFromDropdown(1, 0);
+		const toggledClosed = { ...state(), focusedPill: getActiveElement() === button, released: [...members[1].released] };
+		await openFromDropdown(0, 0);
+		button.click();
+		escape(f.host.querySelector<HTMLElement>('.artifact-group-dropdown')!);
+		await settle(f);
+		assert.deepStrictEqual({ opened, reopened, switched, toggledClosed, dismissed: state() }, {
+			opened: { dropdown: false, details: 'Full title for second', selected: 1, activeSection: '["test","comments"]' },
+			reopened: {
+				dropdown: true, details: undefined, selected: 1, activeSection: '["test","comments"]',
+				expanded: [['false', 'false'], ['false', 'true']], selectedRows: [false, true], focusedRow: 1,
+			},
+			switched: { dropdown: false, details: 'Full title for second', selected: 1, activeSection: '["test","status"]', samePanel: true, released: [] },
+			toggledClosed: { dropdown: false, details: undefined, selected: -1, activeSection: undefined, focusedPill: true, released: ['main', 'checks', 'comments'] },
+			dismissed: { dropdown: false, details: undefined, selected: -1, activeSection: undefined },
+		});
 	});
 
 	test('Quick Pick renders above artifact details without replacing the artifact context view', async () => {
@@ -1242,18 +1523,8 @@ suite('Artifact Integration Presentation', () => {
 		const quickInput = store.add(f.instantiation.createInstance(QuickInputService));
 		f.instantiation.stub(IQuickInputService, quickInput);
 		const a = f.artifact();
-		updateContribution(a, contribution => ({
-			...contribution,
-			options: [{
-				id: 'merge', kind: 'enum', label: 'Merge Automatically', description: 'Choose an automatic merge policy.',
-				actionIds: ['merge'], maxAttempts: 1, defaultValue: 'off', disabledValue: 'off',
-				choices: [{ value: 'off', label: 'Off' }, { value: 'ready', label: 'When Ready' }],
-			}],
-			configuration: { ...contribution.configuration, values: { merge: 'off' } },
-		}));
 		const panel = await open(f, a);
-		button(panel, 'Autopilot').click();
-		button(panel, 'When Ready').click();
+		const picked = quickInput.pick([{ label: 'When Ready' }]);
 		await timeout(0);
 		const quickWidget = f.host.querySelector<HTMLElement>('.quick-input-widget')!;
 		const context = f.contextView.getContextViewElement();
@@ -1272,6 +1543,7 @@ suite('Artifact Integration Presentation', () => {
 			configured: a.configured,
 		}, { quickPickVisible: true, quickPickAbove: true, samePanel: true, overlaps: true, pickerReceivesPointer: true, configured: [] });
 		await quickInput.cancel();
+		await picked;
 		await timeout(0);
 	});
 
@@ -1502,6 +1774,33 @@ suite('Artifact Integration Presentation', () => {
 			same: true, checked: true, configured: [
 				{ integrationId: 'test', revision: 4, values: { fix: true } }, { integrationId: 'test', revision: 5, values: { fix: false } },
 			], errors: ['The artifact operation failed: Consent failed'], invoked: [],
+		});
+	});
+
+	test('switches change at once and can be clicked in quick succession while the provider saves and refreshes', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const panel = await open(f, a);
+		const toggles = [...panel.querySelectorAll<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')];
+		const state = () => toggles.map(toggle => ({ checked: toggle.getAttribute('aria-checked'), disabled: toggle.disabled }));
+		const write = new DeferredPromise<void>();
+		a.setConfigureResult(write.p);
+		toggles[0].click();
+		// Every Autopilot change makes the provider refresh the resource, which keeps showing its last known state.
+		updateContribution(a, c => ({ ...c, view: { ...c.view, availability: { kind: 'stale', reason: 'Refreshing.' } } }));
+		await settle(f);
+		toggles[1].click();
+		toggles[2].click();
+		await settle(f);
+		const saving = { toggles: state(), writes: a.configured.length };
+		await write.complete();
+		await settle(f);
+		const on = { checked: 'true', disabled: false };
+		assert.deepStrictEqual({ saving, saved: state(), configured: a.configured, errors: f.errors }, {
+			saving: { toggles: [on, on, on], writes: 1 }, saved: [on, on, on],
+			configured: [
+				{ integrationId: 'test', revision: 4, values: { fix: true } }, { integrationId: 'test', revision: 5, values: { reviews: true, merge: true } },
+			], errors: [],
 		});
 	});
 
@@ -1795,7 +2094,7 @@ suite('Artifact Integration Presentation', () => {
 			view: { ...c.view, availability: { kind: 'authenticationRequired', reason: 'Sign in to GitHub.' }, sections: [], lists: [] },
 		}));
 		const toggle = panel.querySelector<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')!;
-		button(panel, 'Sign In').click();
+		button(panel, 'Sign In. Sign in to GitHub.').click();
 		await settle(f);
 		assert.deepStrictEqual({
 			title: panel.querySelector('h2')?.textContent, description: panel.querySelector('.artifact-details-description-content')?.textContent,
@@ -1810,10 +2109,10 @@ suite('Artifact Integration Presentation', () => {
 		updateContribution(a, c => ({ ...c, authentication: { enabled: true }, view: { ...c.view, availability: { kind: 'authenticationRequired', reason: 'Sign in.' }, sections: [], lists: [] } }));
 		const panel = await open(f, a);
 		a.setAuthenticationResult(Promise.reject(new CancellationError()));
-		button(panel, 'Sign In').click();
+		button(panel, 'Sign In. Sign in.').click();
 		await settle(f);
 		a.setAuthenticationResult(Promise.reject(new Error('Authentication failed')));
-		button(panel, 'Sign In').click();
+		button(panel, 'Sign In. Sign in.').click();
 		await settle(f);
 		assert.deepStrictEqual({ errors: f.errors, acquired: a.acquired, requests: a.authentications }, { errors: ['The artifact operation failed: Authentication failed'], acquired: [], requests: ['test', 'test'] });
 	});
@@ -1824,7 +2123,7 @@ suite('Artifact Integration Presentation', () => {
 		const authorizationUrl = 'https://github.com/orgs/octo/sso?authorization_request=example';
 		updateContribution(a, c => ({ ...c, authentication: { enabled: true }, view: { ...c.view, availability: { kind: 'authenticationRequired', reason: 'Authorize single sign-on.', authorizationUrl }, sections: [], lists: [] } }));
 		const panel = await open(f, a);
-		button(panel, 'Sign In').click();
+		button(panel, 'Sign In. Authorize single sign-on.').click();
 		await settle(f);
 		assert.deepStrictEqual({ opened: f.openedItems, requests: a.authentications, errors: f.errors }, { opened: [authorizationUrl], requests: [], errors: [] });
 	});
@@ -1993,7 +2292,7 @@ suite('Artifact Integration Presentation', () => {
 		const a = f.artifact();
 		const panel = await open(f, a);
 		const first = panel.querySelector<HTMLElement>('.artifact-details-title-link')!;
-		const last = button(panel, 'Remove Artifact');
+		const last = panel.querySelector<HTMLElement>('.artifact-autopilot-group .artifact-card-heading [role="switch"]')!;
 		last.focus();
 		last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
 		const forward = getActiveElement() === first;
@@ -2025,7 +2324,7 @@ suite('Artifact Integration Presentation', () => {
 		const a = f.artifact();
 		await open(f, a);
 		f.sentiment.set({ hidden: true }, undefined);
-		a.main.click();
+		sections(a)[0].click();
 		const hidden = f.controller.selected.get() === undefined;
 		f.sentiment.set({ hidden: false }, undefined);
 		await open(f, a);
@@ -2045,12 +2344,27 @@ suite('Artifact Integration Presentation', () => {
 			return a.container.querySelector<HTMLElement>('.artifact-pill-sections [aria-label^="Show Autopilot:"]');
 		}
 
+		function choices(panel: HTMLElement): HTMLElement[] {
+			return [...panel.querySelectorAll<HTMLElement>('.artifact-autopilot-choices [role="radio"]')];
+		}
+
+		function choice(panel: HTMLElement, label: string): HTMLElement {
+			const result = choices(panel).find(choice => choice.textContent === label);
+			assert.ok(result, `Missing choice: ${label}`);
+			return result;
+		}
+
+		/** The selected choice of each enum rule, in order. */
+		function selectedChoices(panel: HTMLElement): (string | null)[] {
+			return [...panel.querySelectorAll('.artifact-autopilot-choices')].map(group => group.querySelector('[aria-checked="true"]')?.textContent ?? null);
+		}
+
 		function useEnumAutomation(a: Artifact, value = 'off'): void {
 			updateContribution(a, contribution => ({
 				...contribution, options: [{
 					id: 'merge', kind: 'enum', label: 'Merge Automatically When Ready', description: 'Choose a merge policy.',
 					actionIds: ['merge'], maxAttempts: 1, defaultValue: 'off', disabledValue: 'off',
-					choices: [{ value: 'off', label: 'Off' }, { value: 'always', label: 'Always' }, { value: 'ifUnchanged', label: 'When No Changes Were Made' }],
+					choices: [{ value: 'off', label: 'Off' }, { value: 'ifUnchanged', label: 'When Not Changed', description: 'Merges only while unchanged.' }, { value: 'always', label: 'Always' }],
 				}],
 				configuration: { ...contribution.configuration, values: { merge: value } },
 			}));
@@ -2065,7 +2379,7 @@ suite('Artifact Integration Presentation', () => {
 				options: [...contribution.options.filter(option => option.id !== 'merge'), {
 					id: 'merge', kind: 'enum', label: 'Merge Policy', description: 'Choose when merging is allowed.',
 					actionIds: ['merge'], maxAttempts: 1, defaultValue: 'never', disabledValue: 'never',
-					choices: [{ value: 'never', label: 'Off' }, { value: 'always', label: 'Always' }, { value: 'ifUnchanged', label: 'When No Changes Were Made' }],
+					choices: [{ value: 'never', label: 'Off' }, { value: 'ifUnchanged', label: 'When Not Changed' }, { value: 'always', label: 'Always' }],
 				}, {
 					id: 'shared', kind: 'boolean', label: 'Repair Both', description: 'Repair checks and reviews.',
 					actionIds: ['fix', 'reviews'], maxAttempts: 1, defaultValue: false,
@@ -2094,7 +2408,7 @@ suite('Artifact Integration Presentation', () => {
 			}, { absent: true, initial: '3', retainedWhileUnavailable: true, multipleProviders: '4', hasAutomationIcon: true, removed: true });
 		});
 
-		test('the Autopilot pill section opens, expands and focuses Autopilot without toggling the panel closed', async () => {
+		test('the Autopilot pill section opens, expands and focuses Autopilot, and re-expands it when switching from another section', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, values: { ...contribution.configuration.values, fix: true } } }));
@@ -2112,7 +2426,7 @@ suite('Artifact Integration Presentation', () => {
 			};
 			const focused = getActiveElement() === heading;
 			heading.click();
-			badge.click();
+			sections(a)[0].click();
 			badge.click();
 			await settle(f);
 			const expanded = heading.getAttribute('aria-expanded');
@@ -2125,7 +2439,7 @@ suite('Artifact Integration Presentation', () => {
 				labels, lastSection, focused, expanded, focusedAgain, samePanel, views: f.contextShows(),
 				badgeRemoved: !automationBadge(a), restoredToMain: getActiveElement() === a.main,
 			}, {
-				labels: { badge: 'Show Autopilot: 1 enabled', master: 'All Available Autopilot Rules', help: true },
+				labels: { badge: 'Show Autopilot: 1 enabled', master: 'Toggle All Autopilot Rules', help: true },
 				lastSection: true, focused: true, expanded: 'true', focusedAgain: true, samePanel: true, views: 1, badgeRemoved: true, restoredToMain: true,
 			});
 		});
@@ -2201,18 +2515,19 @@ suite('Artifact Integration Presentation', () => {
 			await settle(f);
 			const retainedFocus = getActiveElement() === title;
 			const retainedLink = panel.querySelector('.artifact-details-title-link') === title;
-			button(panel, 'Remove Artifact').focus();
-			button(panel, 'Remove Artifact').dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+			const last = panel.querySelector<HTMLElement>('.artifact-autopilot-group .artifact-card-heading [role="switch"]')!;
+			last.focus();
+			last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
 			assert.deepStrictEqual({
 				normal, hovered, retainedFocus, retainedLink, opens: a.counts().resourceOpens,
 				text: title.textContent, href: title.getAttribute('href'), nativeLink: !title.hasAttribute('role'),
 				htmlChildren: [...title.children].map(child => child.tagName), heading: title.parentElement?.tagName,
 				wrappedFocus: getActiveElement() === title,
-				footer: [...panel.querySelectorAll('.artifact-general-actions .monaco-button')].map(button => button.textContent),
+				headerActions: [...panel.querySelectorAll('.artifact-header-actions .monaco-button')].map(button => button.getAttribute('aria-label')),
 			}, {
 				normal: 'rgb(51, 51, 51)', hovered: 'rgb(0, 102, 204)', retainedFocus: true, retainedLink: true, opens: 2,
 				text: '<em>Updated title</em>', href: 'https://example.test/updated', nativeLink: true, htmlChildren: ['SPAN'], heading: 'H2', wrappedFocus: true,
-				footer: ['Copy Link', 'Remove Artifact'],
+				headerActions: ['Copy Link', 'Close Artifact Details'],
 			});
 		});
 
@@ -2275,10 +2590,10 @@ suite('Artifact Integration Presentation', () => {
 			}
 			press('Enter', 13);
 			const collapsedByEnter = { ...tabState(), listsHidden: panel.querySelector<HTMLElement>('.artifact-details-lists')!.hidden };
-			const section = a.container.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[0];
-			section.click();
+			const pillSections = a.container.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]');
+			pillSections[1].click();
 			await settle(f);
-			section.click();
+			pillSections[0].click();
 			await settle(f);
 			assert.deepStrictEqual({
 				collapsedArrow, expandedByEnter, selected, collapsedByEnter, tabStops: tabs.map(tab => tab.tabIndex),
@@ -2339,29 +2654,72 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('the whole heading except the master switch toggles expansion and shows hover feedback', async () => {
+		test('the whole heading except the Toggle All switch and its label toggles expansion and shows hover feedback', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			const panel = await open(f, a);
 			const group = panel.querySelector<HTMLElement>('.artifact-autopilot-group')!;
 			const heading = group.querySelector<HTMLElement>('.artifact-card-heading')!;
 			const master = heading.querySelector<HTMLButtonElement>('[role="switch"]')!;
-			const expanded = () => group.querySelector('.artifact-card-disclosure')!.getAttribute('aria-expanded');
-			const states: { expanded: string | null; controlHovered?: boolean }[] = [];
+			const toggleAll = master.parentElement!;
+			const label = toggleAll.querySelector('label')!;
+			const state = () => ({
+				expanded: group.querySelector('.artifact-card-disclosure')!.getAttribute('aria-expanded'), checked: master.getAttribute('aria-checked'),
+				controlHovered: heading.classList.contains('artifact-card-heading-control-hovered'),
+			});
 			heading.querySelector<HTMLElement>('.artifact-autopilot-summary')!.click();
 			await settle(f);
-			states.push({ expanded: expanded() });
+			const states = [state()];
+			toggleAll.dispatchEvent(new MouseEvent('mouseenter'));
 			master.click();
 			await settle(f);
-			master.dispatchEvent(new MouseEvent('mouseenter'));
-			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
-			master.dispatchEvent(new MouseEvent('mouseleave'));
+			states.push(state());
+			// Activating a label focuses its control as a pointer would, which hides the keyboard focus ring from
+			// every later test in the page. A switch that already has focus does not get focused again.
+			master.focus();
+			label.click();
+			await settle(f);
+			states.push(state());
+			toggleAll.dispatchEvent(new MouseEvent('mouseleave'));
 			heading.click();
 			await settle(f);
-			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
-			assert.deepStrictEqual({ states, configured: a.configured.length, focused: getActiveElement() === group.querySelector('.artifact-card-disclosure') }, {
-				states: [{ expanded: 'true' }, { expanded: 'true', controlHovered: true }, { expanded: 'false', controlHovered: false }],
-				configured: 1, focused: true,
+			states.push(state());
+			assert.deepStrictEqual({
+				label: label.textContent, states,
+				configured: a.configured.length, focused: getActiveElement() === group.querySelector('.artifact-card-disclosure'),
+			}, {
+				label: 'Toggle All',
+				states: [
+					{ expanded: 'true', checked: 'false', controlHovered: false },
+					{ expanded: 'true', checked: 'true', controlHovered: true },
+					{ expanded: 'true', checked: 'false', controlHovered: true },
+					{ expanded: 'false', checked: 'false', controlHovered: false },
+				],
+				configured: 2, focused: true,
+			});
+		});
+
+		test('a card disclosure shows its focus ring for keyboard focus but not for pointer focus', async function () {
+			// Hidden Electron windows do not match focus pseudo-classes; run this check in a browser.
+			if (!mainWindow.document.hasFocus()) {
+				this.skip();
+			}
+			const f = fixture();
+			const panel = await open(f, f.artifact());
+			const disclosure = button(panel, 'Autopilot');
+			const ring = () => ({ focusVisible: disclosure.matches(':focus-visible'), outline: mainWindow.getComputedStyle(disclosure).outlineStyle });
+			// Avoid inheriting focus-visible from the element that opening the details focused.
+			const active = getActiveElement();
+			if (isHTMLElement(active)) {
+				active.blur();
+			}
+			disclosure.focus({ focusVisible: false });
+			const pointer = ring();
+			disclosure.blur();
+			disclosure.focus({ focusVisible: true });
+			assert.deepStrictEqual({ pointer, keyboard: ring() }, {
+				pointer: { focusVisible: false, outline: 'none' },
+				keyboard: { focusVisible: true, outline: 'solid' },
 			});
 		});
 
@@ -2391,182 +2749,242 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('tabbed enum choices can be prepared while off and enabled without another picker', async () => {
+		test('enum rules show every choice before their label, as tall as a switch row, and save the selected one', async () => {
 			const f = fixture();
-			const quickInput = store.add(f.instantiation.createInstance(QuickInputService));
-			f.instantiation.stub(IQuickInputService, quickInput);
 			const a = f.artifact();
 			useEnumAutomation(a);
-			let panel = await open(f, a);
+			const panel = await open(f, a);
 			button(panel, 'Autopilot').click();
-			const initialPicker = button(panel, 'Always');
-			const initial = { visible: !initialPicker.hidden, grant: a.snapshot.get().contributions[0].configuration.values.merge, badge: automationBadge(a)?.textContent ?? null };
-			initialPicker.click();
-			await settle(f);
-			await quickInput.cancel();
-			await settle(f);
-			const cancelled = { value: initialPicker.textContent, writes: a.configured.length };
-			initialPicker.click();
-			await settle(f);
-			const choice = f.host.querySelectorAll<HTMLElement>('.quick-input-widget .monaco-list-row')[1];
-			choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			choice.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, button: 0 }));
-			await settle(f);
-			const accessible = f.controller.getAccessibilityProvider(AccessibleViewType.View);
-			const prepared = {
-				value: button(panel, 'When No Changes Were Made').textContent, grant: a.snapshot.get().contributions[0].configuration.values.merge,
-				writes: a.configured.length, badge: automationBadge(a)?.textContent ?? null,
-				accessible: accessible?.provideContent().includes('Off; selected policy: When No Changes Were Made'),
+			const rule = panel.querySelector<HTMLElement>('.artifact-autopilot-rule')!;
+			const label = rule.querySelector<HTMLElement>('.artifact-autopilot-rule-label')!;
+			const radio = rule.querySelector<HTMLElement>('[role="radiogroup"]')!;
+			const initial = {
+				choices: choices(panel).map(choice => choice.textContent), selected: selectedChoices(panel),
+				labelledBy: radio.getAttribute('aria-labelledby') === label.id ? label.textContent : null,
+				choicesFirst: radio.parentElement?.firstElementChild === radio && radio.nextElementSibling === label,
+				labelAfterChoices: label.getBoundingClientRect().left > radio.getBoundingClientRect().right, noSwitch: !rule.querySelector('[role="switch"]'),
+				height: Math.round(radio.getBoundingClientRect().height), badge: automationBadge(a)?.textContent ?? null,
 			};
-			accessible?.dispose();
-			escape(panel);
-			panel = await open(f, a);
-			const picker = button(panel, 'When No Changes Were Made');
-			const toggle = panel.querySelector<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')!;
-			toggle.click();
-			await settle(f);
-			const enabled = {
-				checked: toggle.getAttribute('aria-checked'), choice: picker.hidden,
-				dropdown: picker.getAttribute('aria-haspopup'), chevron: !!picker.querySelector('.codicon-chevron-down'),
-				afterToggle: picker.getBoundingClientRect().left > toggle.getBoundingClientRect().right, noPicker: !quickInput.currentQuickInput,
-			};
-			picker.click();
-			await settle(f);
-			const choices = [...f.host.querySelectorAll('.quick-input-widget .monaco-list-row')].map(row => row.textContent);
-			const selectedPolicy = f.host.querySelector('.quick-input-widget .monaco-list-row.focused')?.textContent;
-			const firstChoice = f.host.querySelector<HTMLElement>('.quick-input-widget .monaco-list-row')!;
-			firstChoice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			firstChoice.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, button: 0 }));
-			await settle(f);
-			toggle.click();
-			await settle(f);
-			const disabled = { state: toggle.getAttribute('aria-checked'), value: picker.textContent, visible: !picker.hidden, noPicker: !quickInput.currentQuickInput };
-			toggle.click();
-			await settle(f);
-			assert.deepStrictEqual({
-				initial, cancelled, prepared, enabled, choices, selectedPolicy, disabled,
-				reenabled: toggle.getAttribute('aria-checked'), noPicker: !quickInput.currentQuickInput,
-				samePanel: f.host.querySelector('.artifact-integration-panel') === panel, configured: a.configured, actions: a.invoked,
-			}, {
-				initial: { visible: true, grant: 'off', badge: null }, cancelled: { value: 'Always', writes: 0 },
-				prepared: { value: 'When No Changes Were Made', grant: 'off', writes: 0, badge: null, accessible: true },
-				enabled: { checked: 'true', choice: false, dropdown: 'listbox', chevron: true, afterToggle: true, noPicker: true },
-				choices: ['Always', 'When No Changes Were Made'], selectedPolicy: 'When No Changes Were Made',
-				disabled: { state: 'false', value: 'Always', visible: true, noPicker: true }, reenabled: 'true', noPicker: true, samePanel: true,
+			const selections = [];
+			for (const label of ['Always', 'When Not Changed', 'Off']) {
+				choice(panel, label).click();
+				await settle(f);
+				const accessible = f.controller.getAccessibilityProvider(AccessibleViewType.View);
+				const content = accessible?.provideContent() ?? '';
+				const hover = f.hovers.get(rule.querySelector<HTMLElement>('.artifact-autopilot-rule-label')!);
+				const hoverContent = typeof hover === 'function' ? hover().content : hover?.content;
+				selections.push({
+					selected: selectedChoices(panel), badge: automationBadge(a)?.textContent ?? null,
+					accessible: content.includes(`Merge Automatically When Ready: ${label}.`),
+					// The mode's explanation, on the label's hover and in the Accessible View.
+					mode: [content, String(hoverContent)].map(text => /Mode: [^.]+\.(?: Merges only while unchanged\.)?/.exec(text)?.[0] ?? null),
+				});
+				accessible?.dispose();
+			}
+			assert.deepStrictEqual({ initial, selections, configured: a.configured, actions: a.invoked, samePanel: f.host.querySelector('.artifact-integration-panel') === panel }, {
+				initial: {
+					choices: ['Off', 'When Not Changed', 'Always'], selected: ['Off'], labelledBy: 'Merge Automatically When Ready',
+					choicesFirst: true, labelAfterChoices: true, noSwitch: true, height: 24, badge: null,
+				},
+				selections: [
+					{ selected: ['Always'], badge: '1', accessible: true, mode: ['Mode: Always.', 'Mode: Always.'] },
+					{ selected: ['When Not Changed'], badge: '1', accessible: true, mode: ['Mode: When Not Changed. Merges only while unchanged.', 'Mode: When Not Changed. Merges only while unchanged.'] },
+					{ selected: ['Off'], badge: null, accessible: true, mode: [null, null] },
+				],
 				configured: [
-					{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } },
-					{ integrationId: 'test', revision: 5, values: { merge: 'always' } },
+					{ integrationId: 'test', revision: 4, values: { merge: 'always' } },
+					{ integrationId: 'test', revision: 5, values: { merge: 'ifUnchanged' } },
 					{ integrationId: 'test', revision: 6, values: { merge: 'off' } },
-					{ integrationId: 'test', revision: 7, values: { merge: 'always' } },
-				], actions: [],
+				],
+				actions: [], samePanel: true,
 			});
 		});
 
-		test('tabbed bulk enablement uses the displayed enum choices without a policy picker', async () => {
+		test('enum choices move focus with the arrow keys, keep it across refreshes, and save only on Enter or Space', async () => {
 			const f = fixture();
-			let picks = 0;
-			f.instantiation.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
-				override readonly pick: IQuickInputService['pick'] = async () => { picks++; return undefined; };
-			}());
-			const configured = [];
-			for (const [id, value, label] of [['default', 'always', 'Always'], ['prepared', 'ifUnchanged', 'When No Changes Were Made']]) {
+			const a = f.artifact();
+			useEnumAutomation(a);
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const press = (key: string, keyCode: number) => getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			const tabStops = () => choices(panel).filter(choice => choice.tabIndex === 0).map(choice => choice.textContent);
+			const initialTabStops = tabStops();
+			choice(panel, 'Off').focus();
+			press('ArrowRight', 39);
+			press('ArrowRight', 39);
+			updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view } }));
+			await settle(f);
+			const moved = { focused: getActiveElement()?.textContent, selected: selectedChoices(panel), writes: a.configured.length };
+			press('ArrowLeft', 37);
+			press('Enter', 13);
+			await settle(f);
+			assert.deepStrictEqual({ initialTabStops, moved, focused: getActiveElement()?.textContent, selected: selectedChoices(panel), tabStops: tabStops(), configured: a.configured }, {
+				initialTabStops: ['Off'], moved: { focused: 'Always', selected: ['Off'], writes: 0 },
+				focused: 'When Not Changed', selected: ['When Not Changed'], tabStops: ['When Not Changed'],
+				configured: [{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } }],
+			});
+		});
+
+		test('an update that selects another enum choice keeps the tab stop on the focused one, so Tab still wraps', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			useEnumAutomation(a);
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const press = (key: string, keyCode: number) => getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			choice(panel, 'Off').focus();
+			press('ArrowRight', 39);
+			press('ArrowRight', 39);
+			// Selected by another client while focus is on Always.
+			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 5, values: { merge: 'ifUnchanged' } } }));
+			await settle(f);
+			const updated = {
+				focused: getActiveElement()?.textContent, selected: selectedChoices(panel),
+				tabStops: choices(panel).filter(choice => choice.tabIndex === 0).map(choice => choice.textContent),
+			};
+			press('Tab', 9);
+			assert.deepStrictEqual({ updated, wrapped: getActiveElement() === panel.querySelector('.artifact-details-title-link'), writes: a.configured }, {
+				updated: { focused: 'Always', selected: ['When Not Changed'], tabStops: ['Always'] }, wrapped: true, writes: [],
+			});
+		});
+
+		test('enum choices wrap onto more rows in a narrow panel instead of being clipped', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			useEnumAutomation(a);
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const radio = panel.querySelector<HTMLElement>('.artifact-autopilot-choices')!;
+			const content = radio.closest<HTMLElement>('.artifact-card-content')!;
+			const layout = () => {
+				const bounds = content.getBoundingClientRect();
+				const options = choices(panel).map(choice => choice.getBoundingClientRect());
+				return {
+					wrapped: new Set(options.map(option => Math.round(option.top))).size > 1,
+					inside: options.every(option => option.left >= bounds.left && option.right <= bounds.right),
+					reachable: choices(panel).every(choice => {
+						const option = choice.getBoundingClientRect();
+						return choice.contains(mainWindow.document.elementFromPoint(option.left + option.width / 2, option.top + option.height / 2));
+					}),
+				};
+			};
+			const wide = layout();
+			panel.style.width = '200px';
+			const narrow = layout();
+			assert.deepStrictEqual({ wide, narrow }, {
+				wide: { wrapped: false, inside: true, reachable: true },
+				narrow: { wrapped: true, inside: true, reachable: true },
+			});
+		});
+
+		test('turning on all rules uses the last choice of an enum rule, else its first one that turns it on', async () => {
+			const f = fixture();
+			const results = [];
+			for (const [id, last] of [['first', undefined], ['last', 'always']] as const) {
 				const a = f.artifact(id);
 				useEnumAutomation(a);
-				if (id === 'prepared') {
-					a.presentation.viewState.preparedPolicies.set(JSON.stringify(['test', 'merge']), value);
+				if (last) {
+					a.presentation.viewState.lastChoices.set(JSON.stringify(['test', 'merge']), last);
 				}
 				const panel = await open(f, a);
-				const picker = button(panel, label);
-				panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!.click();
+				const master = panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!;
+				master.click();
 				await settle(f);
-				configured.push({ value: picker.textContent, writes: a.configured, checked: panel.querySelector('.artifact-card-heading [role="switch"]')?.getAttribute('aria-checked') });
+				results.push({ selected: selectedChoices(panel), writes: a.configured, checked: master.getAttribute('aria-checked') });
 			}
-			assert.deepStrictEqual({ picks, configured }, {
-				picks: 0,
-				configured: [
-					{ value: 'Always', writes: [{ integrationId: 'test', revision: 4, values: { merge: 'always' } }], checked: 'true' },
-					{ value: 'When No Changes Were Made', writes: [{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } }], checked: 'true' },
-				],
-			});
+			assert.deepStrictEqual(results, [
+				{ selected: ['When Not Changed'], writes: [{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } }], checked: 'true' },
+				{ selected: ['Always'], writes: [{ integrationId: 'test', revision: 4, values: { merge: 'always' } }], checked: 'true' },
+			]);
 		});
 
-		test('prepared enum choices are provider-qualified and follow authoritative enabled values', async () => {
+		test('enum choices follow authoritative values and remember the last enabled one per provider', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			useEnumAutomation(a);
 			const first = a.snapshot.get().contributions[0];
 			a.snapshot.set({ ...a.snapshot.get(), contributions: [first, { ...first, integrationId: 'other', label: 'Other Provider' }] }, undefined);
-			a.presentation.viewState.preparedPolicies.set(JSON.stringify(['test', 'merge']), 'ifUnchanged');
 			const panel = await open(f, a);
-			const values = () => [...panel.querySelectorAll('.artifact-autopilot-policy')].map(picker => picker.textContent);
-			const prepared = values();
-			a.snapshot.set({
+			const initial = selectedChoices(panel);
+			const setMerge = (merge: string) => a.snapshot.set({
 				...a.snapshot.get(), contributions: a.snapshot.get().contributions.map(contribution => contribution.integrationId === 'test'
-					? { ...contribution, configuration: { ...contribution.configuration, values: { merge: 'always' } } } : contribution),
+					? { ...contribution, configuration: { ...contribution.configuration, values: { merge } } } : contribution),
 			}, undefined);
+			setMerge('always');
 			await settle(f);
-			const enabled = values();
-			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, values: { merge: 'off' } } }));
+			const enabled = selectedChoices(panel);
+			setMerge('off');
 			await settle(f);
-			assert.deepStrictEqual({ prepared, enabled, disabled: values(), writes: a.configured }, {
-				prepared: ['When No Changes Were Made', 'Always'], enabled: ['Always', 'Always'], disabled: ['Always', 'Always'], writes: [],
+			assert.deepStrictEqual({ initial, enabled, disabled: selectedChoices(panel), lastChoices: [...a.presentation.viewState.lastChoices], writes: a.configured }, {
+				initial: ['Off', 'Off'], enabled: ['Always', 'Off'], disabled: ['Off', 'Off'], lastChoices: [[JSON.stringify(['test', 'merge']), 'always']], writes: [],
 			});
 		});
 
-		test('an off-state policy picker cannot overwrite consent enabled by another update', async () => {
+		test('another choice for an enabled rule cannot re-enable it after another update turns it off', async () => {
 			const f = fixture();
-			const quickInput = store.add(f.instantiation.createInstance(QuickInputService));
-			f.instantiation.stub(IQuickInputService, quickInput);
 			const a = f.artifact();
-			useEnumAutomation(a);
+			useEnumAutomation(a, 'always');
+			updateContribution(a, contribution => ({
+				...contribution,
+				options: [{ id: 'fix', kind: 'boolean', label: 'Auto Fix CI', description: 'Repair failed checks.', actionIds: ['fix'], maxAttempts: 3, defaultValue: false }, ...contribution.options],
+				configuration: { ...contribution.configuration, revision: 7, values: { fix: false, merge: 'always' } },
+			}));
 			const panel = await open(f, a);
 			button(panel, 'Autopilot').click();
-			button(panel, 'Always').click();
+			// The new choice waits for an earlier write, and is turned off meanwhile.
+			const earlierWrite = new DeferredPromise<void>();
+			a.setConfigureResult(earlierWrite.p);
+			panel.querySelector<HTMLElement>('.artifact-autopilot-rule [role="switch"]')!.click();
 			await settle(f);
-			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 5, values: { merge: 'always' } } }));
-			const choice = f.host.querySelectorAll<HTMLElement>('.quick-input-widget .monaco-list-row')[1];
-			choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			choice.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, button: 0 }));
+			choice(panel, 'When Not Changed').click();
+			await settle(f);
+			const shown = selectedChoices(panel);
+			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 8, values: { ...contribution.configuration.values, merge: 'off' } } }));
+			await earlierWrite.complete();
 			await settle(f);
 			assert.deepStrictEqual({
-				value: button(panel, 'Always').textContent, grant: a.snapshot.get().contributions[0].configuration.values.merge,
-				writes: a.configured, errors: f.errors, pickerClosed: !quickInput.currentQuickInput,
+				shown, writes: a.configured, values: a.snapshot.get().contributions[0].configuration.values, selected: selectedChoices(panel),
+				lastChoice: a.presentation.viewState.lastChoices.get(JSON.stringify(['test', 'merge'])), errors: f.errors,
 			}, {
-				value: 'Always', grant: 'always', writes: [],
-				errors: ['The artifact operation failed: This Autopilot rule changed while selecting a policy. Choose the policy again.'],
-				pickerClosed: true,
+				shown: ['When Not Changed'], writes: [{ integrationId: 'test', revision: 7, values: { fix: true } }],
+				values: { fix: true, merge: 'off' }, selected: ['Off'], lastChoice: 'ifUnchanged',
+				errors: ['The artifact operation failed: Merge Automatically When Ready was turned off before your choice was saved, so it stays off. Select the mode again to turn it on.'],
 			});
 		});
 
-		test('enum choices stay visible while unavailable and failed enablement does not discard the prepared value', async () => {
+		test('enum choices stay visible but unavailable, with their label explaining why, and a failed choice shows the saved one again', async () => {
 			const f = fixture();
-			let picks = 0;
-			f.instantiation.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
-				override readonly pick: IQuickInputService['pick'] = async () => { picks++; return undefined; };
-			}());
 			const a = f.artifact();
 			useEnumAutomation(a);
-			a.presentation.viewState.preparedPolicies.set(JSON.stringify(['test', 'merge']), 'ifUnchanged');
 			const panel = await open(f, a);
 			button(panel, 'Autopilot').click();
-			const toggle = panel.querySelector<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')!;
-			const picker = button(panel, 'When No Changes Were Made');
 			a.setConfigureResult(Promise.reject(new Error('Consent revision changed')));
-			toggle.click();
+			choice(panel, 'Always').click();
 			await settle(f);
-			const failed = { checked: toggle.getAttribute('aria-checked'), choice: picker.textContent, badge: automationBadge(a)?.textContent ?? null };
+			const failed = { selected: selectedChoices(panel), badge: automationBadge(a)?.textContent ?? null };
 			updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view, automationAvailability: [{ id: 'merge', available: false, unavailableReason: 'Refresh required.' }] } }));
 			await settle(f);
+			choice(panel, 'When Not Changed').click();
+			await settle(f);
+			const label = panel.querySelector<HTMLElement>('.artifact-autopilot-rule-label')!;
 			assert.deepStrictEqual({
-				failed, visible: !picker.hidden, pickerDisabled: picker.getAttribute('aria-disabled'), switchDisabled: toggle.disabled,
-				picks, errors: f.errors,
+				failed, choices: choices(panel).map(choice => ({ label: choice.textContent, disabled: choice.getAttribute('aria-disabled'), tabIndex: choice.tabIndex })),
+				label: { tabIndex: label.tabIndex, reason: label.getAttribute('aria-description')?.endsWith('Refresh required.') },
+				selected: selectedChoices(panel), writes: a.configured, errors: f.errors,
 			}, {
-				failed: { checked: 'false', choice: 'When No Changes Were Made', badge: null }, visible: true, pickerDisabled: 'true', switchDisabled: true,
-				picks: 0, errors: ['The artifact operation failed: Consent revision changed'],
+				failed: { selected: ['Off'], badge: null },
+				choices: [
+					{ label: 'Off', disabled: 'true', tabIndex: -1 },
+					{ label: 'When Not Changed', disabled: 'true', tabIndex: -1 },
+					{ label: 'Always', disabled: 'true', tabIndex: -1 },
+				],
+				label: { tabIndex: 0, reason: true }, selected: ['Off'],
+				writes: [{ integrationId: 'test', revision: 4, values: { merge: 'always' } }],
+				errors: ['The artifact operation failed: Consent revision changed'],
 			});
 		});
 
-		test('an enum with no enabled choices cannot grant consent and explains its visible disabled picker', async () => {
+		test('an enum with no enabled choices cannot grant consent', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			useEnumAutomation(a);
@@ -2575,13 +2993,11 @@ suite('Artifact Integration Presentation', () => {
 			}));
 			const panel = await open(f, a);
 			button(panel, 'Autopilot').click();
-			const picker = button(panel, 'No Available Policies');
-			const toggle = panel.querySelector<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')!;
-			toggle.click();
+			choice(panel, 'Off').click();
 			assert.deepStrictEqual({
-				visible: !picker.hidden, pickerDisabled: picker.getAttribute('aria-disabled'), switchDisabled: toggle.disabled,
+				choices: choices(panel).map(choice => ({ label: choice.textContent, disabled: choice.getAttribute('aria-disabled') })),
 				masterDisabled: panel.querySelector<HTMLButtonElement>('.artifact-card-heading [role="switch"]')?.disabled, writes: a.configured,
-			}, { visible: true, pickerDisabled: 'true', switchDisabled: true, masterDisabled: true, writes: [] });
+			}, { choices: [{ label: 'Off', disabled: 'true' }], masterDisabled: true, writes: [] });
 		});
 
 		test('list-owned icons remain visible when compact sections and list items disappear', async () => {
@@ -2610,8 +3026,9 @@ suite('Artifact Integration Presentation', () => {
 			assert.deepStrictEqual({
 				states,
 				sameTabs: [...panel.querySelectorAll('[role="tab"]')].every((tab, index) => tab === tabs[index]),
-				pillSections: a.container.querySelectorAll('.artifact-pill-sections [role="button"]').length,
-			}, { states: [[true, true], [true, true], [true, true], [true, true]], sameTabs: true, pillSections: 0 });
+				// Only the Details section remains to reach the details.
+				pillSections: sections(a).map(section => section.getAttribute('aria-label')),
+			}, { states: [[true, true], [true, true], [true, true], [true, true]], sameTabs: true, pillSections: ['Show artifact details: Open: compact status'] });
 		});
 
 		test('tabbed lists retain tabs and controls across refresh and collapse when the selected list is removed', async () => {
@@ -2833,18 +3250,29 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('Autopilot partial enablement is explicit and failed writes never fabricate saved consent', async () => {
+		test('Autopilot master is on while any rule is on, revokes only enabled rules, and failed writes keep saved state', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, values: { ...contribution.configuration.values, fix: true } } }));
 			const panel = await open(f, a);
 			const master = panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!;
+			const summary = () => panel.querySelector('.artifact-autopilot-summary')?.textContent;
 			const before = master.getAttribute('aria-checked');
 			a.setConfigureResult(Promise.reject(new Error('Consent revision changed')));
 			master.click();
 			await settle(f);
-			assert.deepStrictEqual({ before, after: master.getAttribute('aria-checked'), summary: panel.querySelector('.artifact-autopilot-summary')?.textContent, errors: f.errors, invoked: a.invoked }, {
-				before: 'false', after: 'false', summary: '1 of 3 on',
+			const failed = { checked: master.getAttribute('aria-checked'), summary: summary() };
+			a.setConfigureResult(Promise.resolve());
+			master.click();
+			await settle(f);
+			assert.deepStrictEqual({ before, failed, after: { checked: master.getAttribute('aria-checked'), summary: summary() }, configured: a.configured, errors: f.errors, invoked: a.invoked }, {
+				before: 'true',
+				failed: { checked: 'true', summary: '1 of 3 on' },
+				after: { checked: 'false', summary: '0 of 3 on' },
+				configured: [
+					{ integrationId: 'test', revision: 4, values: { fix: false } },
+					{ integrationId: 'test', revision: 4, values: { fix: false } },
+				],
 				errors: ['The artifact operation failed: Consent revision changed'], invoked: [],
 			});
 		});

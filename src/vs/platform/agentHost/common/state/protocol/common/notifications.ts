@@ -72,24 +72,24 @@ export interface AuthRequiredParams {
 }
 
 /**
- * One fragment of a data message on a windowed subscription.
+ * One frame of a data message on a windowed subscription.
  *
- * A sender uses fragments when a data message is larger than
- * `maximumFrameBytes`, and to let subscriptions take turns so that one busy
+ * A sender uses frames when a data message is larger than
+ * `maxFrameBytes`, and to let subscriptions take turns so that one busy
  * subscription does not hold up the whole connection. It serializes the message
  * to JSON text, divides the text into pieces, and sends each piece in order. The
  * receiver joins the `data` strings and parses the result only after it receives
- * the fragment with `final: true`.
+ * the frame with `final: true`.
  *
- * Fragments MUST NOT be empty and MUST NOT divide a UTF-16 surrogate pair. The
+ * Frames MUST NOT be empty and MUST NOT divide a UTF-16 surrogate pair. The
  * channel inside the joined message MUST match `channel`. For each subscription
- * and direction, only one fragmented message can be in progress. Control
- * messages, requests, and responses MUST NOT be sent in fragments.
+ * and direction, only one framed message can be in progress. Control
+ * messages, requests, and responses MUST NOT be sent in frames.
  *
- * Each fragment counts against the window when it is sent, by the size of the
+ * Each frame counts against the window when it is sent, by the size of the
  * complete `channel/frame` message, including its envelope and escape
  * characters. If the window becomes full partway through a message, the sender
- * waits for credit before it sends the next fragment.
+ * waits for credit before it sends the next frame.
  *
  * @category Protocol Notifications
  * @method channel/frame
@@ -97,7 +97,7 @@ export interface AuthRequiredParams {
  * @direction Both
  * @messageType Notification
  * @version 1
- * @see {@link /specification/windowed-delivery#fragments | Windowed Delivery: Fragments}
+ * @see {@link /specification/windowed-delivery#frames | Windowed Delivery: Frames}
  */
 export interface ChannelFrameParams {
 	/** The URI of the windowed subscription. */
@@ -107,7 +107,7 @@ export interface ChannelFrameParams {
 	 * @minLength 1
 	 */
 	data: string;
-	/** `true` on the last fragment of the message. Absent or `false` on other fragments. */
+	/** `true` on the last frame of the message. Absent or `false` on other frames. */
 	final?: boolean;
 }
 
@@ -115,14 +115,14 @@ export interface ChannelFrameParams {
  * Reports how much data the receiver has released.
  *
  * `consumedBytes` is the total size, in UTF-16 bytes, of the data messages and
- * fragments that the receiver has released on this subscription. It is a total,
+ * frames that the receiver has released on this subscription. It is a total,
  * not an increment, and can be any value up to the amount of data sent; it does
- * not need to match the end of a message or fragment. The size of a message or
- * fragment is the size of its complete JSON-RPC text as received.
+ * not need to match the end of a message or frame. The size of a message or
+ * frame is the size of its complete JSON-RPC text as received.
  *
  * The receiver decides when to send credit; for example, after it applies an
  * action, after stream data leaves its local buffer, or after it stores a
- * fragment for reassembly. When outstanding data reaches `windowBytes`, the
+ * frame for reassembly. When outstanding data reaches `windowBytes`, the
  * receiver MUST send credit as soon as it is ready to receive more data.
  *
  * A sender ignores a value that is not greater than the previous value. The
@@ -142,7 +142,7 @@ export interface ChannelCreditParams {
 	/** The URI of the windowed subscription. */
 	channel: URI;
 	/**
-	 * Total UTF-16 bytes of data messages and fragments that the receiver has released.
+	 * Total UTF-16 bytes of data messages and frames that the receiver has released.
 	 * @integer
 	 * @minimum 0
 	 * @maximum 9007199254740991
@@ -156,15 +156,15 @@ export interface ChannelCreditParams {
  * On a windowed subscription, the `subscribe` result does not contain a
  * snapshot. The server sends this notification instead. It MUST be the first
  * data message that the server sends on every windowed subscription, and the
- * first after `snapshot` recovery. If it is sent in fragments, this applies to
+ * first after `snapshot` recovery. If it is sent in frames, this applies to
  * the joined message. Data messages after it are changes to this state, or new
  * data for the channel. For a channel whose state has no fields,
  * `snapshot.state` is an {@link EmptyState} and `snapshot.fromSeq` is the
  * server's current `serverSeq`.
  *
  * This is a data message that counts against the window. The server can send it
- * in `channel/frame` fragments, and MUST do so if it is larger than
- * `maximumFrameBytes`. `snapshot.resource` MUST be the same as `channel`.
+ * in `channel/frame` notifications, and MUST do so if it is larger than
+ * `maxFrameBytes`. `snapshot.resource` MUST be the same as `channel`.
  *
  * The server does not send this notification on ordinary subscriptions.
  *

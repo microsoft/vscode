@@ -42,7 +42,18 @@ export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 	'sql', 'session_store_sql', 'store_memory', 'vote_memory',
 	// Canvases
 	'list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action',
+	// Fine-tuned secret detection scope submission. The runtime adds it only to the security-review
+	// subagent, and only when the `SECURITY_REVIEW_FINE_TUNED_MODEL` feature flag is on.
+	'submit_security_review_scope',
 ];
+
+/**
+ * The runtime's client-side programmatic tool calling built-in. Deliberately not in
+ * {@link COPILOT_ENABLED_BUILTIN_TOOL_NAMES}: the launcher adds it to the default filter
+ * only while `chat.copilot.programmaticToolCalling.enabled` sends the runtime flag that
+ * registers it.
+ */
+export const PROGRAMMATIC_TOOL_CALLING_TOOL_NAME = 'run_program';
 
 /**
  * The default `availableTools` filter: the enabled built-ins plus every host,

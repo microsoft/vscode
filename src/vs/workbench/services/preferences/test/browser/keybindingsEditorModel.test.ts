@@ -73,6 +73,16 @@ suite('KeybindingsEditorModel', () => {
 		assertKeybindingItems(actuals, [expected[0]]);
 	});
 
+	test('fetch keeps bindings with different system-wide scope distinct', async () => {
+		const keybinding = aResolvedKeybindingItem({ command: 'scope.' + uuid.generateUuid(), firstChord: { keyCode: KeyCode.Escape }, isDefault: false });
+		const systemWideKeybinding = new ResolvedKeybindingItem(keybinding.resolvedKeybinding, keybinding.command, keybinding.commandArgs, keybinding.when, false, null, false, true);
+		prepareKeybindingService(keybinding, systemWideKeybinding);
+
+		await testObject.resolve();
+
+		assert.deepStrictEqual(testObject.fetch('').filter(entry => entry.keybindingItem.command === keybinding.command).map(entry => entry.keybindingItem.keybindingItem.systemWide).sort(), [false, true]);
+	});
+
 	test('fetch returns default keybindings at the top', async () => {
 		const expected = prepareKeybindingService(
 			aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstChord: { keyCode: KeyCode.Escape } }),

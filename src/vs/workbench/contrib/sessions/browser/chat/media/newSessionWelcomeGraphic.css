@@ -1,0 +1,295 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.new-session-welcome-graphic {
+	--welcome-graphic-stroke: color-mix(in srgb, var(--vscode-foreground) 20%, transparent);
+	--welcome-graphic-muted: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
+	--welcome-graphic-subtle: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+	--welcome-graphic-fill: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+	align-self: center;
+	box-sizing: border-box;
+	width: 100%;
+	margin-bottom: var(--vscode-spacing-size400);
+	color: var(--vscode-foreground);
+	pointer-events: none;
+	user-select: none;
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .new-session-welcome-graphic {
+	--welcome-graphic-stroke: var(--vscode-contrastBorder);
+	--welcome-graphic-muted: var(--vscode-foreground);
+	--welcome-graphic-subtle: var(--vscode-descriptionForeground);
+	--welcome-graphic-fill: transparent;
+}
+
+.new-session-welcome-graphic[hidden] {
+	display: none;
+}
+
+/* Out of the flow but measurable, so it can return once the view is tall enough. */
+.new-session-welcome-graphic.collapsed {
+	position: absolute;
+	top: 0;
+	left: 0;
+	visibility: hidden;
+}
+
+.agent-sessions-workbench.phone-layout .new-session-welcome-graphic,
+.monaco-workbench.mobile-workbench .new-session-welcome-graphic {
+	display: none;
+}
+
+.new-session-welcome-graphic .welcome-graphic-figure {
+	max-width: 360px;
+	margin-inline: auto;
+}
+
+.new-session-welcome-graphic .welcome-graphic-diagram {
+	display: block;
+	width: 100%;
+	height: auto;
+	overflow: hidden;
+}
+
+/* Shapes */
+
+.new-session-welcome-graphic :is(.welcome-graphic-outline, .welcome-graphic-prompt > rect) {
+	stroke: var(--welcome-graphic-stroke);
+	vector-effect: non-scaling-stroke;
+}
+
+.new-session-welcome-graphic .welcome-graphic-line {
+	stroke: var(--welcome-graphic-muted);
+	stroke-width: 3;
+	stroke-linecap: round;
+	opacity: 0.6;
+}
+
+.new-session-welcome-graphic .welcome-graphic-prompt-send {
+	stroke: var(--welcome-graphic-muted);
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	opacity: 0.6;
+}
+
+.new-session-welcome-graphic .welcome-graphic-copy {
+	fill: var(--welcome-graphic-fill);
+}
+
+/* Without a fill in high contrast, a border keeps the copies of a project apart. */
+.monaco-workbench:is(.hc-black, .hc-light) .new-session-welcome-graphic .welcome-graphic-copy {
+	stroke: var(--welcome-graphic-stroke);
+	vector-effect: non-scaling-stroke;
+}
+
+.new-session-welcome-graphic .welcome-graphic-file-icon {
+	stroke: var(--welcome-graphic-muted);
+}
+
+.new-session-welcome-graphic .welcome-graphic-file-label {
+	stroke: var(--welcome-graphic-muted);
+	stroke-width: 3;
+	stroke-linecap: round;
+	opacity: 0.6;
+}
+
+.new-session-welcome-graphic .welcome-graphic-wave {
+	display: none;
+	opacity: 0.6;
+	transform-box: fill-box;
+}
+
+.new-session-welcome-graphic .welcome-graphic-wave-edge {
+	stop-color: var(--welcome-graphic-muted);
+}
+
+.new-session-welcome-graphic .welcome-graphic-wave-center {
+	stop-color: var(--welcome-graphic-subtle);
+}
+
+.new-session-welcome-graphic .welcome-graphic-label {
+	fill: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label2);
+	dominant-baseline: central;
+}
+
+.new-session-welcome-graphic .welcome-graphic-project-name {
+	fill: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+/* Without motion, the animated graphics rest in their Agents window state. */
+
+.new-session-welcome-graphic .welcome-graphic-workspace {
+	width: 109.333333px;
+}
+
+.new-session-welcome-graphic .welcome-graphic-project {
+	width: 226px;
+}
+
+.new-session-welcome-graphic .welcome-graphic-motion.welcome-graphic-editor {
+	opacity: 0.3;
+}
+
+/* Static comparisons */
+
+.new-session-welcome-graphic .welcome-graphic-windows {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	align-items: center;
+	max-width: 620px;
+}
+
+.new-session-welcome-graphic .welcome-graphic-window {
+	align-self: stretch;
+	min-width: 0;
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--welcome-graphic-stroke);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.new-session-welcome-graphic .welcome-graphic-window-label {
+	display: block;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	border-bottom: var(--vscode-strokeThickness) solid var(--welcome-graphic-stroke);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: 1.5;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.new-session-welcome-graphic .welcome-graphic-arrow {
+	width: 44px;
+	height: 12px;
+	color: var(--welcome-graphic-muted);
+}
+
+/* Window comparison */
+
+.new-session-welcome-graphic .welcome-graphic-comparison {
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--welcome-graphic-stroke);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.new-session-welcome-graphic .welcome-graphic-modes {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	border-bottom: var(--vscode-strokeThickness) solid var(--welcome-graphic-stroke);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: 1.2;
+}
+
+.new-session-welcome-graphic .welcome-graphic-sentence {
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size80) 0;
+	color: var(--welcome-graphic-muted);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: 1.2;
+	text-align: center;
+	text-wrap: balance;
+}
+
+.new-session-welcome-graphic .welcome-graphic-sentence > span {
+	color: var(--vscode-foreground);
+}
+
+/* Motion: one task at a time in the editor window gives way to parallel tasks in the Agents window, and back. */
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-motion {
+	animation-duration: 11040ms;
+	animation-timing-function: ease-out;
+	animation-iteration-count: infinite;
+	animation-fill-mode: both;
+}
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-motion.welcome-graphic-editor {
+	animation-name: welcome-graphic-editor;
+}
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-motion.welcome-graphic-agents {
+	animation-name: welcome-graphic-agents;
+}
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-motion.welcome-graphic-workspace {
+	animation-name: welcome-graphic-workspace;
+}
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-motion.welcome-graphic-project {
+	animation-name: welcome-graphic-project;
+}
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-motion.welcome-graphic-reveal {
+	animation-name: welcome-graphic-reveal;
+}
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-motion.welcome-graphic-extra {
+	animation-name: welcome-graphic-extra;
+}
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-motion.welcome-graphic-last {
+	animation-name: welcome-graphic-last;
+}
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-wave {
+	display: block;
+	animation: welcome-graphic-wave 3000ms ease-in-out infinite both;
+}
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-extra .welcome-graphic-wave {
+	animation-delay: -300ms;
+}
+
+.monaco-enable-motion .new-session-welcome-graphic .welcome-graphic-last .welcome-graphic-wave {
+	animation-delay: -650ms;
+}
+
+/* Rests while the user writes a prompt, or while there is no room to show it. */
+.new-session-welcome-graphic:is(.paused, .collapsed) :is(.welcome-graphic-motion, .welcome-graphic-wave) {
+	animation-play-state: paused;
+}
+
+@keyframes welcome-graphic-editor {
+	0%, 16.3043%, 83.6957%, 100% { opacity: 1; }
+	24.4565%, 75.5435% { opacity: 0.3; }
+}
+
+@keyframes welcome-graphic-agents {
+	0%, 16.3043%, 83.6957%, 100% { opacity: 0.3; }
+	24.4565%, 75.5435% { opacity: 1; }
+}
+
+@keyframes welcome-graphic-workspace {
+	0%, 16.3043%, 83.6957%, 100% { width: 344px; }
+	24.4565%, 75.5435% { width: 109.333333px; }
+}
+
+@keyframes welcome-graphic-project {
+	0%, 16.3043%, 83.6957%, 100% { width: 344px; }
+	24.4565%, 75.5435% { width: 226px; }
+}
+
+@keyframes welcome-graphic-reveal {
+	0%, 16.3043%, 83.6957%, 100% { opacity: 0; }
+	24.4565%, 75.5435% { opacity: 1; }
+}
+
+@keyframes welcome-graphic-extra {
+	0%, 24.4565%, 75.5435%, 100% { opacity: 0; transform: translateY(4px); }
+	29.8913%, 70.1087% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes welcome-graphic-last {
+	0%, 28.2609%, 71.7391%, 100% { opacity: 0; transform: translateY(4px); }
+	33.6957%, 66.3043% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes welcome-graphic-wave {
+	from { transform: translateX(-100%); }
+	to { transform: translateX(100%); }
+}

@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import sinon from 'sinon';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { NullAgentHostService } from '../../../../../../platform/agentHost/browser/nullAgentHostService.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -13,7 +16,7 @@ import { Lazy } from '../../../../../../base/common/lazy.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, toChatMicrosoftAuthenticationMode } from '../../../../../../platform/chat/common/chatSettings.js';
+import { AgentHostCopilotM365EnabledSettingId, ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, toChatMicrosoftAuthenticationMode } from '../../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -33,7 +36,7 @@ import { ChatSetupFromAccountsWhen } from '../../../browser/chatSetup/chatSetupC
 import { buildUpgradeUrlWithRedirect, ChatSetupAnonymous, ChatSetupSource, ChatSetupStrategy, IChatSetupRunOptions } from '../../../browser/chatSetup/chatSetup.js';
 import { ChatSetupController } from '../../../browser/chatSetup/chatSetupController.js';
 import { ChatMicrosoftSignInProbeService, IChatMicrosoftSignInProbeService, MicrosoftSignInProbeOutcome, probeMicrosoftSignIn } from '../../../browser/chatSetup/chatSetupMicrosoftProbe.js';
-import { ChatSetup, ChatSetupDialog, getChatSetupDialogButtons, getChatSetupDialogFooter, IChatSetupDialogProviders, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
+import { ChatSetup, ChatSetupDialog, getChatSetupDialogButtons, getChatSetupDialogFooter, IChatSetupDialogOptions, IChatSetupDialogProviders, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
 
 /**
  * Parses the final URL and extracts the decoded return_to value,
@@ -294,6 +297,7 @@ suite('Chat Microsoft sign-in probe service', () => {
 	}
 
 	interface IServiceOptions {
+		readonly runtimeMicrosoft?: boolean;
 		/** The mode the experiment assigned as the default. */
 		readonly assigned?: ChatMicrosoftAuthenticationMode;
 		/** A mode the user chose, which wins over any assignment. */
@@ -315,14 +319,16 @@ suite('Chat Microsoft sign-in probe service', () => {
 		instantiationService.stub(IDefaultAccountService, {
 			onDidChangeDefaultAccount: accountChanged.event,
 			getDefaultAccountAuthenticationProvider: () => ({ id: gitHubProviderId, name: 'GitHub', enterprise: false }),
+			currentDefaultAccount: null,
+			resolveGitHubUrl: path => `https://github.com/${path}`,
 		});
 		instantiationService.stub(IChatEntitlementService, {
 			entitlementObs: constObservable(options.entitlement ?? ChatEntitlement.Unknown),
 			sentimentObs: constObservable({ hidden: options.hidden }),
 		});
 		instantiationService.stub(IConfigurationService, options.user !== undefined
-			? new TestConfigurationService({ [ChatMicrosoftAuthenticationEnabledSettingId]: options.user })
-			: new AssignedDefaultConfigurationService({ [ChatMicrosoftAuthenticationEnabledSettingId]: options.assigned ?? ChatMicrosoftAuthenticationMode.Auto }));
+			? new TestConfigurationService({ [ChatMicrosoftAuthenticationEnabledSettingId]: options.user, [AgentHostCopilotM365EnabledSettingId]: options.runtimeMicrosoft })
+			: new AssignedDefaultConfigurationService({ [ChatMicrosoftAuthenticationEnabledSettingId]: options.assigned ?? ChatMicrosoftAuthenticationMode.Auto, [AgentHostCopilotM365EnabledSettingId]: options.runtimeMicrosoft }));
 		instantiationService.stub(IProductService, upcastPartial<IProductService>({
 			defaultChatAgent: options.microsoftProvider === false ? undefined : upcastPartial<NonNullable<IProductService['defaultChatAgent']>>({ provider: upcastPartial<NonNullable<IProductService['defaultChatAgent']>['provider']>({ microsoft: { id: 'microsoft', name: 'Microsoft' } }) }),
 		}));
@@ -333,8 +339,61 @@ suite('Chat Microsoft sign-in probe service', () => {
 			gitHubProviderId = id;
 			accountChanged.fire(null);
 		};
-		return { service, calls, reported: telemetryService.reported, reportedOnce: telemetryService.reportedOnce.p, switchGitHubProvider, triggers: telemetryService.triggers };
+		return { service, calls, reported: telemetryService.reported, reportedOnce: telemetryService.reportedOnce.p, switchGitHubProvider, triggers: telemetryService.triggers, instantiationService };
 	}
+
+	test('shared provider dialog offers Microsoft by probe when off and immediately without probing when on', async () => {
+		const observed = [];
+		for (const runtimeMicrosoft of [false, true]) {
+			for (const probe of ['negative', 'positive', 'pending'] as const) {
+				const pending = new DeferredPromise<readonly AuthenticationSession[]>();
+				const f = createService({
+					runtimeMicrosoft, respond: async call => {
+						if (probe === 'pending') {
+							return pending.p;
+						}
+						return call.providerId === 'microsoft' ? [probeSession('first', 'entra-first')] : probe === 'positive' ? [probeSession('mona', '')] : [];
+					}
+				});
+				if (!runtimeMicrosoft && probe !== 'pending') {
+					await f.reportedOnce;
+				}
+				const host = new class extends NullAgentHostService {
+					override readonly authenticationPending = constObservable(true);
+					override get rootState() {
+						return { value: undefined, verifiedValue: undefined, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+					}
+				}();
+				const i = f.instantiationService;
+				i.stub(IAgentHostService, host);
+				i.stub(IChatMicrosoftSignInProbeService, f.service);
+				i.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
+				i.stub(IWorkspaceTrustRequestService, { requestWorkspaceTrust: async () => true });
+				i.stub(ILayoutService, {});
+				const shown = new DeferredPromise<boolean>();
+				const closed = new DeferredPromise<ChatSetupStrategy>();
+				i.stubInstance(ChatSetupDialog, { show: () => { void shown.complete(true); return closed.p; }, dispose() { } });
+				const spy = sinon.spy(i, 'createInstance');
+				const context = upcastPartial<ChatEntitlementContext>({ state: { entitlement: ChatEntitlement.Unknown, sku: undefined, organisations: undefined, isStaff: undefined, copilotTrackingId: undefined }, update: async () => { } });
+				const setup = i.createInstance(ChatSetup, context, new Lazy(() => assert.fail('Canceled dialog must not execute a provider')));
+				const cancellation = store.add(new CancellationTokenSource());
+				const run = setup.run({ forceSignInDialog: true, cancellationToken: cancellation.token });
+				const promptShown = await raceTimeout(shown.p, 100);
+				const options = spy.getCalls().find(call => call.args[0] === ChatSetupDialog)?.args[2] as IChatSetupDialogOptions | undefined;
+				observed.push({ runtimeMicrosoft, probe, promptShown, strategies: options?.buttons.map(button => button.strategy), runtimeProbed: runtimeMicrosoft && f.calls.length > 0 });
+				await closed.complete(ChatSetupStrategy.Canceled);
+				cancellation.cancel();
+				await run;
+				spy.restore();
+				await pending.complete([]);
+			}
+		}
+		assert.deepStrictEqual(observed, [false, true].flatMap(runtimeMicrosoft => ['negative', 'positive', 'pending'].map(probe => ({
+			runtimeMicrosoft, probe, promptShown: true, runtimeProbed: false,
+			strategies: [ChatSetupStrategy.SetupWithoutEnterpriseProvider, ChatSetupStrategy.SetupWithGoogleProvider, ChatSetupStrategy.SetupWithAppleProvider,
+			...(runtimeMicrosoft || probe === 'positive' ? [ChatSetupStrategy.SetupWithMicrosoftProvider] : []), ChatSetupStrategy.SetupWithEnterpriseProvider],
+		}))));
+	});
 
 	test('offers Microsoft sign-in once a probe finds a linked account for the current GitHub host', async () => {
 		const { service, calls, reported, reportedOnce, switchGitHubProvider } = createService();
@@ -562,7 +621,7 @@ suite('Chat setup strategy', () => {
 	test('routes the Microsoft strategy to the Microsoft social provider', async () => {
 		let setupOptions: { useEnterpriseProvider?: boolean; useSocialProvider?: string; additionalScopes?: readonly string[] } | undefined;
 		const setup = new ChatSetup(
-			{ update() { } } as never,
+			{ state: {}, update() { } } as never,
 			{
 				value: {
 					setupWithProvider: async (options: typeof setupOptions) => {
@@ -582,6 +641,7 @@ suite('Chat setup strategy', () => {
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
 			undefined as never,
+			new TestConfigurationService(),
 		);
 
 		const result = await setup.run({ setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider, additionalScopes: ['repo'] });
@@ -654,7 +714,7 @@ suite('Chat setup dialog cancellation', () => {
 		const setupStarted = new DeferredPromise<void>();
 		let setupToken: CancellationToken | undefined;
 		const setup = new ChatSetup(
-			{ update() { } } as never,
+			{ state: {}, update() { } } as never,
 			{
 				value: {
 					setup: (options: { cancellationToken?: CancellationToken }) => {
@@ -680,6 +740,7 @@ suite('Chat setup dialog cancellation', () => {
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
 			undefined as never,
+			new TestConfigurationService(),
 		);
 
 		const result = setup.run({ setupStrategy: ChatSetupStrategy.DefaultSetup, cancellationToken: cancellation.token });
@@ -698,6 +759,8 @@ suite('Chat setup dialog telemetry', () => {
 
 	function createSetup(entitlement = ChatEntitlement.Unknown, accountAvailable = false) {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAgentHostService, new NullAgentHostService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const impressions: (ITelemetryData | undefined)[] = [];
 		const dialogShown = new DeferredPromise<void>();
 		const dialogResult = new DeferredPromise<ChatSetupStrategy>();

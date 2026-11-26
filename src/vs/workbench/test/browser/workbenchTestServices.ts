@@ -132,7 +132,7 @@ import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput
 import { TextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '../../common/views.js';
-import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetRevealer, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { FileEditorInput } from '../../contrib/files/browser/editors/fileEditorInput.js';
@@ -147,6 +147,8 @@ import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITer
 import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
 import { ChatSideChatService, IChatSideChatService } from '../../contrib/chat/common/chatSideChatService.js';
 import { IChatThinkingTitleService } from '../../contrib/chat/common/chatThinkingTitleService.js';
+import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../contrib/chat/common/localChatAvailability.js';
+import { stubChatViewSessionsListService } from '../../contrib/chat/test/common/chatViewSessionsListServiceTestUtils.js';
 import { ChatRequestOriginService, IChatRequestOriginService } from '../../contrib/chat/common/chatRequestOrigin.js';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
@@ -198,7 +200,8 @@ import { InMemoryWorkingCopyBackupService } from '../../services/workingCopy/com
 import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../services/workingCopy/common/workingCopyEditorService.js';
 import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
-import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+import { IActivityService } from '../../services/activity/common/activity.js';
+import { TestActivityService, TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../services/accounts/browser/defaultAccount.js';
 import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
 
@@ -334,6 +337,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());
 	instantiationService.stub(ILanguageFeatureDebounceService, instantiationService.createInstance(LanguageFeatureDebounceService));
 	instantiationService.stub(IHistoryService, new TestHistoryService());
+	instantiationService.stub(IActivityService, new TestActivityService());
 	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	const themeService = new TestThemeService();
@@ -396,9 +400,11 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 	instantiationService.stub(IChatSideChatService, disposables.add(new ChatSideChatService()));
+	instantiationService.stub(ILocalChatAvailabilityService, disposables.add(new LocalChatAvailabilityService()));
+	stubChatViewSessionsListService(instantiationService);
 	instantiationService.stub(IChatThinkingTitleService, { getCachedTitle: () => undefined, generateTitle: async () => undefined });
 	instantiationService.stub(IChatRequestOriginService, disposables.add(new ChatRequestOriginService()));
-	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
+	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined, connections: [], onDidChangeConnections: Event.None, getConnectionByAddress: () => undefined });
 	instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 	instantiationService.stub(IAccountPolicyGateService, { _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
@@ -667,6 +673,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	readonly onDidChangePanelPosition: Event<string> = Event.None;
 	readonly onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
 	readonly onDidChangePartVisibility: Event<IPartVisibilityChangeEvent> = Event.None;
+	readonly onDidChangeChatPartVisibility: Event<boolean> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
 	onDidLayoutContainer = Event.None;
@@ -674,6 +681,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidAddContainer = Event.None;
 	onDidChangeActiveContainer = Event.None;
 	onDidChangeAuxiliaryBarMaximized = Event.None;
+	onDidChangeAuxiliaryBarMaximizeHidden = Event.None;
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
@@ -705,12 +713,19 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
 	isPanelMaximized(): boolean { return false; }
+	hasChatPart(): boolean { return false; }
+	isEditorHiddenByChat(): boolean { return false; }
+	setEditorHiddenByChat(_hidden: boolean): void { }
 	toggleMaximizedAuxiliaryBar(): void { }
 	setAuxiliaryBarMaximized(maximized: boolean): boolean { return false; }
 	isAuxiliaryBarMaximized(): boolean { return false; }
+	hideAuxiliaryBarMaximize(): IDisposable { return Disposable.None; }
+	isAuxiliaryBarMaximizeHidden(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
+	setChatPartAnchor(): void { }
+	getChatPartPosition(): PartPosition.LEFT | PartPosition.RIGHT { return this.getSideBarPosition() === PartPosition.RIGHT ? PartPosition.RIGHT : PartPosition.LEFT; }
 	getPanelPosition() { return 0; }
 	getPanelAlignment(): PanelAlignment { return 'center'; }
 	async setPanelPosition(_position: PartPosition): Promise<void> { }
@@ -895,6 +910,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	readonly parts: readonly IEditorPart[] = [this];
 
+	supportsSplitting = true;
+
 	windowId = mainWindow.vscodeWindowId;
 
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
@@ -929,6 +946,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	saveWorkingSet(name: string): IEditorWorkingSet { throw new Error('Method not implemented.'); }
 	getWorkingSets(): IEditorWorkingSet[] { throw new Error('Method not implemented.'); }
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	readonly isApplyingWorkingSet = false;
+	readonly onDidChangeApplyingWorkingSet = Event.None;
 	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
 	getGroups(_order?: GroupsOrder): readonly IEditorGroup[] { return this.groups; }
@@ -997,6 +1016,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	titleHeight!: IEditorGroupTitleHeight;
 
 	isEmpty = true;
+	isOpeningEditor = false;
 
 	readonly onWillDispose: Event<void> = Event.None;
 	readonly onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
@@ -1746,6 +1766,8 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	saveWorkingSet(name: string): IEditorWorkingSet { throw new Error('Method not implemented.'); }
 	getWorkingSets(): IEditorWorkingSet[] { throw new Error('Method not implemented.'); }
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	readonly isApplyingWorkingSet = false;
+	readonly onDidChangeApplyingWorkingSet = Event.None;
 	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
 
@@ -2224,6 +2246,8 @@ export class TestChatWidgetService implements IChatWidgetService {
 
 	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> { return false; }
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
+	registerWidgetRevealer(revealer: IChatWidgetRevealer): IDisposable { return Disposable.None; }
+	async revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
 	getAllWidgets(): ReadonlyArray<IChatWidget> { return []; }
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined { return undefined; }
 	openSession(sessionResource: URI): Promise<IChatWidget | undefined>;

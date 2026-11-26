@@ -116,6 +116,12 @@ export class ClaudeSdkPipeline extends Disposable {
 		return { commands, agents, mcpServers, plugins: this._initPlugins };
 	}
 
+	/** Returns the original configured names of the live session's MCP servers. */
+	async getMcpServerNames(): Promise<readonly string[]> {
+		const query = await this._ensureQueryBound();
+		return (await query.mcpServerStatus()).map(server => server.name);
+	}
+
 	async startMcpServer(serverName: string): Promise<boolean> {
 		const query = await this._ensureQueryBound();
 		return this._applyMcpServerEnablement(query, serverName, true);

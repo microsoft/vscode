@@ -12,10 +12,13 @@ import { EventType } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { Menus } from '../menus.js';
 
 const $ = DOM.$;
 
-/** Phone-only Sort and Find actions for the sessions list. */
+/** Phone-only actions for the sessions list. */
 export class MobileSessionFilterChips extends Disposable {
 
 	private readonly container: HTMLElement;
@@ -41,7 +44,10 @@ export class MobileSessionFilterChips extends Disposable {
 	 */
 	readonly onDidRequestFind: Event<void> = this._onDidRequestFind.event;
 
-	constructor(parent: HTMLElement) {
+	constructor(
+		parent: HTMLElement,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
 		super();
 
 		this.container = DOM.append(parent, $('.mobile-session-filter-chips'));
@@ -66,6 +72,10 @@ export class MobileSessionFilterChips extends Disposable {
 		}
 
 		this.createSortGroupChip();
+		const actions = DOM.append(this.scrollContainer, $('.mobile-session-list-actions'));
+		this.chipDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.MobileSessionsListActions, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+		}));
 		this.createFindChip();
 	}
 

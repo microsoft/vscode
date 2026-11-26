@@ -9,7 +9,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { getMenuActionGroupTitle, IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { getMenuActionGroupTitle, IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatContextPick, IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/attachments/chatContextPickService.js';
@@ -86,9 +86,11 @@ class CanvasContextPickerPick implements IChatContextPickerItem {
 	}
 
 	private toPick(action: IAction): IChatContextPickerPickItem {
+		// A canvas entry shows the canvas's own icon, as its menu does.
+		const icon = action instanceof MenuItemAction ? action.item.icon : undefined;
 		return {
 			label: action.label,
-			iconClass: ThemeIcon.asClassName(Codicon.preview),
+			...(icon && !ThemeIcon.isThemeIcon(icon) && icon.dark ? { iconPath: { dark: icon.dark, light: icon.light } } : { iconClass: ThemeIcon.asClassName(ThemeIcon.isThemeIcon(icon) ? icon : Codicon.preview) }),
 			disabled: !action.enabled,
 			asAttachment: async () => {
 				try {

@@ -194,10 +194,25 @@ export interface ChangesetFile {
 	 */
 	nonce?: string;
 	/**
-	 * Whether the host reports an ongoing edit to this file.
-	 * This is advisory; false or absent does not guarantee that modifying the file is safe.
+	 * Host-reported activity on this file, as a bitset of
+	 * {@link ChangesetFileStatus} flags. Absent or `0` means no activity is
+	 * reported. This is advisory; the absence of
+	 * {@link ChangesetFileStatus.Editing} does not guarantee that modifying the
+	 * file is safe.
 	 */
-	isEditing?: boolean;
+	status?: ChangesetFileStatus;
+}
+
+/**
+ * Bitset flags describing host-reported activity on a {@link ChangesetFile}.
+ *
+ * @category Changesets
+ * @nonexhaustive
+ * @bitset
+ */
+export const enum ChangesetFileStatus {
+	/** The host reports an ongoing edit to this file. */
+	Editing = 1,
 }
 
 /**

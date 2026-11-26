@@ -20,6 +20,12 @@ suite('claudePromptResolver', () => {
 			.join('\n');
 	}
 
+	test('skill resources preserve slash invocation without adding file context', () => {
+		const file: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: 'file:///workspace/file.ts', label: 'file.ts' };
+		const skill: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: 'custom-skills:/review', label: '/review', displayKind: 'skill' };
+		assert.deepStrictEqual(resolvePromptToContentBlocks('/review changes', [skill, file]), resolvePromptToContentBlocks('/review changes', [file]));
+	});
+
 	test('a host-created snapshot path is annotated read-only, a normal file reference is not (#331154)', () => {
 		const snapshotUri = URI.file('/data/attachments/id/Pasted text #1.txt');
 		const snapshot: MessageAttachment = {

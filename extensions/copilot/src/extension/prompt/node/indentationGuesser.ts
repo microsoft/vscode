@@ -24,12 +24,6 @@ const enum CharCode {
 	Comma = 44,
 }
 
-export interface IIndentationTextBuffer {
-	getLineCount(): number;
-	getLineLength(lineNumber: number): number;
-	getLineContent(lineNumber: number): string;
-}
-
 class SpacesDiffResult {
 	public spacesDiff = 0;
 	public looksLikeAlignment = false;

@@ -7,12 +7,13 @@ import assert from 'assert';
 import * as json from '../../../../../base/common/json.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
+import { KeybindingParser } from '../../../../../base/common/keybindingParser.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IUserFriendlyKeybinding } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IKeybindingService, IUserFriendlyKeybinding } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -77,6 +78,10 @@ suite('KeybindingsEditing', () => {
 			environmentService: () => environmentService
 		}, disposables);
 
+		instantiationService.stub(IKeybindingService, 'resolveUserBinding', (key: string) => {
+			const parsed = KeybindingParser.parseKeybinding(key);
+			return parsed ? USLayoutResolvedKeybinding.resolveKeybinding(parsed, OS) : [];
+		});
 		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditingService));
 	});
 
@@ -193,12 +198,55 @@ suite('KeybindingsEditing', () => {
 		assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
 
+	test('edit a default system-wide keybinding adds a user keybinding that is not system-wide', async () => {
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
+		await testObject.editKeybinding(aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape }, command: 'a', systemWide: true }), 'alt+c', undefined);
+		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	});
+
 	test('edit a user keybinding preserves systemWide on other entries', async () => {
 		await writeToKeybindingsFile({ key: 'escape', command: 'b' }, { key: 'alt+shift+g', command: 'c', systemWide: true });
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'b' }, { key: 'alt+shift+g', command: 'c', systemWide: true }];
 		await testObject.editKeybinding(aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }), 'alt+c', undefined);
 		assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
+
+	for (const operation of ['edit', 'remove', 'reset'] as const) {
+		test(`${operation} the last matching binding preserves siblings with different keys, arguments, conditions, or scope`, async () => {
+			const selected: IUserFriendlyKeybinding = {
+				key: 'escape', command: 'a', when: 'editorTextFocus', args: { value: 1 }, systemWide: true,
+			};
+			const siblings: IUserFriendlyKeybinding[] = [
+				{ ...selected, key: 'alt+c' },
+				{ ...selected, args: { value: 2 } },
+				{ ...selected, when: 'terminalFocus' },
+				{ ...selected, systemWide: false },
+				{ ...selected },
+			];
+			const laterSibling = operation === 'edit'
+				? { ...selected, key: 'alt+c' }
+				: operation === 'remove'
+					? { ...selected, args: { value: 2 } }
+					: { ...selected, systemWide: false };
+			await writeToKeybindingsFile(...siblings, selected, laterSibling);
+			const binding = new ResolvedKeybindingItem(
+				aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape } }).resolvedKeybinding,
+				'a', { value: 1 }, ContextKeyExpr.has('editorTextFocus'), false, null, false, true,
+			);
+			if (operation === 'edit') {
+				await testObject.editKeybinding(binding, 'alt+x', 'terminalFocus');
+			} else if (operation === 'remove') {
+				await testObject.removeKeybinding(binding);
+			} else {
+				await testObject.resetKeybinding(binding);
+			}
+			assert.deepStrictEqual(await getUserKeybindings(), [
+				...siblings,
+				...(operation === 'edit' ? [{ ...selected, key: 'alt+x', when: 'terminalFocus' }] : []),
+				laterSibling,
+			]);
+		});
+	}
 
 	test('remove a default keybinding', async () => {
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }];
@@ -285,7 +333,7 @@ suite('KeybindingsEditing', () => {
 		return json.parse((await fileService.readFile(userDataProfileService.currentProfile.keybindingsResource)).value.toString());
 	}
 
-	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers } }): ResolvedKeybindingItem {
+	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord, systemWide }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers }; systemWide?: boolean }): ResolvedKeybindingItem {
 		const aSimpleKeybinding = function (chord: { keyCode: KeyCode; modifiers?: Modifiers }): KeyCodeChord {
 			const { ctrlKey, shiftKey, altKey, metaKey } = chord.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
 			return new KeyCodeChord(ctrlKey!, shiftKey!, altKey!, metaKey!, chord.keyCode);
@@ -298,6 +346,6 @@ suite('KeybindingsEditing', () => {
 			}
 		}
 		const keybinding = chords.length > 0 ? new USLayoutResolvedKeybinding(chords, OS) : undefined;
-		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
+		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false, systemWide);
 	}
 });

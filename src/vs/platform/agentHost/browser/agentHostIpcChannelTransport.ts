@@ -12,6 +12,7 @@
 // upstream to the local agent host process and pipes raw JSON frames over
 // the IPC channel.
 
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { IChannel } from '../../../base/parts/ipc/common/ipc.js';
@@ -43,6 +44,7 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
+	private readonly _closed = new DeferredPromise<void>();
 	private _isOpen = false;
 	private _closeFired = false;
 	private _malformedFrames = 0;
@@ -61,18 +63,15 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 	}
 
 	async connect(): Promise<void> {
-		if (this._store.isDisposed) {
-			throw new Error('Transport is disposed');
-		}
-		const options = await this._resolveConnectionOptions?.();
-		if (this._store.isDisposed) {
-			throw new Error('Transport is disposed');
-		}
+		this._throwIfClosed();
+		const options = await Promise.race([this._resolveConnectionOptions?.(), this._closed.p]);
+		this._throwIfClosed();
 		// Subscribe before connecting so we don't miss any frames the upstream
 		// host emits between open and our listener attaching.
 		this._register(this._channel.listen<string>('frame')(text => this._handleFrame(text)));
 		this._register(this._channel.listen<void>('close')(() => this._fireClose()));
-		await this._channel.call('connect', options);
+		await Promise.race([this._channel.call('connect', options), this._closed.p]);
+		this._throwIfClosed();
 		this._isOpen = true;
 	}
 
@@ -125,12 +124,22 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 		this._ahpLogger?.log(redactAuthenticationToken(message), direction, getAhpLogByteLength(text));
 	}
 
+	private _throwIfClosed(): void {
+		if (this._store.isDisposed) {
+			throw new Error('Transport is disposed');
+		}
+		if (this._closeFired) {
+			throw new Error('Transport is closed');
+		}
+	}
+
 	private _fireClose(): void {
 		if (this._closeFired) {
 			return;
 		}
 		this._closeFired = true;
 		this._isOpen = false;
+		this._closed.complete();
 		this._onClose.fire();
 	}
 }

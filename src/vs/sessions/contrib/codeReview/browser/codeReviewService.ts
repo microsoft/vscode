@@ -15,7 +15,7 @@ import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { IGitHubPullRequestReviewThread } from '../../../../workbench/contrib/sessions/common/github/types.js';
-import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, isSessionArchiveConfirmed, ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { parsePRContentUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
@@ -207,8 +207,15 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	private _registerSessionListeners(): void {
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			// Dispose PR review state for removed or archived sessions.
-			for (const session of [...e.removed, ...e.changed.filter(s => s.isArchived.get())]) {
+			for (const session of [...e.removed, ...e.changed.filter(s => isSessionArchiveConfirmed(s))]) {
 				this._disposePRReview(session.resource);
+			}
+		}));
+		// New-session drafts are deleted when discarded or replaced, without a session change event.
+		this._register(this._sessionsManagementService.onDidDiscardNewSession(session => this._disposePRReview(session.resource)));
+		this._register(this._sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
+			if (!isEqual(from.resource, to.resource)) {
+				this._disposePRReview(from.resource);
 			}
 		}));
 	}

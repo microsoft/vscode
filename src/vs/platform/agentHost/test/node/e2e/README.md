@@ -318,6 +318,8 @@ The managed-permissions AHP suite sends real client policy contributions rather 
 
 The synthetic managed-permissions suite checks native read-only shell approval on both platforms: `echo` and `Write-Output` complete without a callback unless a managed ask applies. Managed asks still require approval on create and cold resume, and removing them restores the read-only fast path.
 
+The synthetic credential-sponsorship suite selects GPT-5.3 Codex for its native `apply_patch` and `rg` tool contract and advertises the local fixture's Chat Completions transport for that model. It retains actual file mutations, shell credential isolation, scoped/legacy prompt parity, and cold-history assertions; legacy GPT models do not support the freeform patch tool.
+
 Client tool results that require confirmation remain in protocol state without being forwarded to the provider. Approval forwards the stored result; denial forwards a failure without the denied content. The Copilot result-confirmation scenario asserts that no continuation model request is made while the result is pending, and unit routing tests cover both decisions on default and peer chats from client and server actions.
 
 Provider availability:
@@ -353,6 +355,8 @@ The parallel runner defaults to `--storage split` on Linux CI: the selected repl
 `--storage disk` runs the selected suite with normal temporary storage; `--storage tmpfs` runs only the RAM-backed pass. Local runs and other platforms retain disk-backed storage by default. Linux tmpfs requires noninteractive `sudo mount`/`umount`; allocation, capacity, and cleanup errors fail explicitly rather than falling back to disk. Each mount uses a uniquely allocated directory under `/tmp`, outside the checkout so providers cannot discover repository instructions through parent directories. Only that directory is removed after unmounting and child cleanup; diagnostics remain in the workspace logs artifact. Temporary-directory overrides apply only to E2E children, not other integration suites.
 
 On Windows, test-server cleanup records descendants before requesting graceful shutdown and terminates any survivors after the server exits, before temporary directories are removed. Recording descendants and waiting for graceful exit share the existing shutdown deadline.
+
+Temporary-directory cleanup awaits `fs.promises.rm` with per-entry retries disabled so recursive retries do not multiply with directory depth and outlast the existing outer retry deadline. Its permission-repair fallback preserves cleanup of owned read-only directories on POSIX, but uses `lstat` and skips symbolic links and directory junctions at every recursion boundary. External files and their attributes must remain unchanged. Cleanup errors still fail teardown.
 
 - **Per-test** (always while recording) — fork a fresh server + proxy for every test and kill it in teardown. Full isolation: nothing carries over between tests. The cost is that every test re-pays the server fork **and** the provider SDK/CLI cold start (`_ensureClient` spawns and caches the CLI subprocess per server).
 
@@ -733,6 +737,12 @@ The Responses (`/responses`) regenerator announces each output item before strea
 ### A test passes on macOS/Linux but fails on Windows
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and provider-specific file-operation gates for established patterns.
+
+### Windows cleanup fails on FNM junctions
+
+A PowerShell profile can run FNM inside the isolated home and create `AppData/Local/fnm_multishells` junctions pointing to a Node installation outside that home. Synchronous recursive removal in Windows Electron can traverse these junctions: a running external executable produces `EPERM`, while an unlocked external target can be deleted even when teardown reports success. A recursive `stat`/`chmod` fallback also follows the links and can change external file attributes.
+
+Use `removeTempDirs` and its awaited asynchronous removal rather than synchronous removal. Its permission-repair fallback must skip links, including when the supplied root itself is a link. Do not terminate processes using the external Node installation: they are not owned by the test. Reproduce with isolated external targets and verify both content and attributes survive; a passing teardown alone does not establish link safety.
 
 ### Codex passes its tests but cannot remove its temporary home
 

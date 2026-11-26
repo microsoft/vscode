@@ -10,7 +10,7 @@ import type { IAgentModelInfo } from './agent.js';
 import type { SessionMode } from './agentHostSchema.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { readAgentModelPricingMeta } from './meta/agentModelMeta.js';
-import { modelContextSizes } from './modelRouter.js';
+import { modelContextSizes, type IModelRouter } from './modelRouter.js';
 import { MessageAttachmentKind, readFolderScopeGitState, readSessionGitHubState, readSessionGitState, readWorkingDirectoryScopeId, type MessageAttachment, type SessionState } from './state/sessionState.js';
 
 export interface IModelRouterAttachmentSummary {
@@ -128,6 +128,18 @@ const MAX_NAME_LENGTH = 80;
 /** Names come from files, folders and clients, so each stays one short line of the request. */
 function oneLine(name: string | undefined): string | undefined {
 	return name?.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH) || undefined;
+}
+
+/**
+ * The facts a router's decision is told about a turn. Autopilot mode says how much the user
+ * approves, not what the work is, and it drew requests to the routes for building. So only a
+ * router whose own text names it is told.
+ */
+export function modelRouterSituationFor(router: Pick<IModelRouter, 'guidance' | 'routes'>, situation: IModelRouterSituation | undefined): IModelRouterSituation | undefined {
+	if (situation?.mode !== 'autopilot' || [router.guidance, ...router.routes.flatMap(route => [route.when, ...route.examples])].some(text => /autopilot/i.test(text))) {
+		return situation;
+	}
+	return { ...situation, mode: undefined };
 }
 
 /** The lines a decision is given about a turn. */

@@ -478,6 +478,7 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 interface IPendingChatAction {
 	readonly clientSeq: number;
 	readonly action: ChatAction;
+	readonly previousTurnId?: string;
 }
 
 /**
@@ -515,7 +516,8 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 	 */
 	applyOptimistic(action: ChatAction): number {
 		const clientSeq = this._seqAllocator();
-		this._pendingActions.push({ clientSeq, action });
+		const previousTurnId = action.type === ActionType.ChatTurnStarted ? this.verifiedValue?.activeTurn?.id ?? this.verifiedValue?.turns.at(-1)?.id : undefined;
+		this._pendingActions.push({ clientSeq, action, previousTurnId });
 		const base = this._optimisticState ?? this.verifiedValue;
 		if (base) {
 			this._optimisticState = chatReducer(base, action as IProtocolChatAction, this._log);
@@ -543,7 +545,12 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 	}
 
 	protected override _onSnapshotApplied(fromSeq: number): void {
-		// A snapshot can confirm a turn before this subscription receives its start acknowledgement.
+		this._acknowledgeVisibleTurns();
+		super._onSnapshotApplied(fromSeq);
+		this._recomputeOptimistic();
+	}
+
+	private _acknowledgeVisibleTurns(): void {
 		const state = this._confirmedState;
 		for (let i = this._pendingActions.length - 1; i >= 0; i--) {
 			const action = this._pendingActions[i].action;
@@ -552,8 +559,15 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 				this._pendingActions.splice(i, 1);
 			}
 		}
-		super._onSnapshotApplied(fromSeq);
-		this._recomputeOptimistic();
+	}
+
+	getTurnRecoveryCursor(unsent: ReadonlySet<number>): string | undefined {
+		const state = this.verifiedValue;
+		if (state?.turnsNextCursor !== undefined && this._pendingActions.some(p => p.action.type === ActionType.ChatTurnStarted && !unsent.has(p.clientSeq)
+			&& (!p.previousTurnId || (p.previousTurnId !== state.activeTurn?.id && !state.turns.some(t => t.id === p.previousTurnId))))) {
+			return state.turnsNextCursor;
+		}
+		return undefined;
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
@@ -574,6 +588,9 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 		} else if (!envelope.rejectionReason) {
 			this._promotePendingTurnStartIfTerminal(envelope.action);
 			this._confirmedApply(envelope.action);
+		}
+		if (envelope.action.type === ActionType.ChatTurnsLoaded && !envelope.rejectionReason) {
+			this._acknowledgeVisibleTurns();
 		}
 		this._recomputeOptimistic();
 	}
@@ -849,8 +866,7 @@ interface IPendingAnnotationsAction {
 }
 
 /**
- * Subscription to a session's annotations channel (e.g.
- * `<sessionUri>/annotations`).
+ * Subscription to a session's advertised annotations channel.
  *
  * Annotations actions are client-dispatchable, so this subscription supports
  * write-ahead reconciliation: optimistic state is layered on top of confirmed
@@ -1341,7 +1357,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * subscription when {@link ROOT_STATE_URI} matches, otherwise reseats the
 	 * matching entry in {@link _subscriptions}. Unknown resources are ignored.
 	 */
-	applyReconnectSnapshot(resource: string, state: unknown, fromSeq: number, preservePending = false): void {
+	applyReconnectSnapshot(resource: string, state: unknown, fromSeq: number, preservePending: boolean | 'turnStarts' = false): void {
 		if (isAhpRootChannel(resource)) {
 			this._rootState.handleSnapshot(state as RootState, fromSeq);
 			return;
@@ -1356,7 +1372,13 @@ export class AgentSubscriptionManager extends Disposable {
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
 		// state and won't reconcile correctly against a fresh snapshot.
-		if (!preservePending && (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription)) {
+		if (preservePending === 'turnStarts' && entry.sub instanceof ChatStateSubscription) {
+			for (const { clientSeq, action } of entry.sub.getPendingActions()) {
+				if (action.type !== ActionType.ChatTurnStarted) {
+					entry.sub.dropPendingByClientSeq(clientSeq);
+				}
+			}
+		} else if (!preservePending && (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription)) {
 			entry.sub.clearPending();
 		}
 		entry.sub.handleSnapshot(state as never, fromSeq);

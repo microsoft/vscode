@@ -72,6 +72,9 @@ export interface ICommentController {
 	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo<IRange>>;
 	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo>;
 	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment?: Comment } | undefined): Promise<void>;
+	/** The label of the button that submits what is typed into a thread, or `undefined` when there is no such button. */
+	getSubmitCommentThreadLabel?(thread: CommentThread<IRange | ICellRange>): string | undefined;
+	submitCommentThread?(thread: CommentThread, text: string): Promise<void>;
 }
 
 export interface IContinueOnCommentProvider {
@@ -238,7 +241,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 		this._register(this.modelService.onModelAdded(model => {
 			// Excluded schemes
-			if ((model.uri.scheme === Schemas.vscodeSourceControl)) {
+			if (model.uri.scheme === Schemas.vscodeSourceControl || model.uri.scheme === Schemas.commentsInput) {
 				return;
 			}
 			// Allows comment providers to cause their commenting ranges to be prefetched by opening text documents in the background.
@@ -249,15 +252,15 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	private _updateResourcesWithCommentingRanges(resource: URI, commentInfos: (ICommentInfo | null)[]) {
-		let addedResources = false;
+		const resourceKey = resource.toString();
 		for (const comments of commentInfos) {
 			if (comments && (comments.commentingRanges.ranges.length > 0 || comments.threads.length > 0)) {
-				this._commentingRangeResources.add(resource.toString());
-				addedResources = true;
+				if (!this._commentingRangeResources.has(resourceKey)) {
+					this._commentingRangeResources.add(resourceKey);
+					this._onResourceHasCommentingRanges.fire();
+				}
+				return;
 			}
-		}
-		if (addedResources) {
-			this._onResourceHasCommentingRanges.fire();
 		}
 	}
 

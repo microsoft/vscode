@@ -791,6 +791,8 @@ export class Configuration {
 
 	private _workspaceConsolidatedConfiguration: ConfigurationModel | null = null;
 	private _foldersConsolidatedConfigurations = new ResourceMap<ConfigurationModel>();
+	// Keyed by consolidated model identity, which changes whenever a consolidated cache is invalidated.
+	private _policyAppliedConfigurations = new WeakMap<ConfigurationModel, ConfigurationModel>();
 
 	constructor(
 		private _defaultConfiguration: ConfigurationModel,
@@ -830,7 +832,9 @@ export class Configuration {
 		}
 
 		if (!overrides.resource) {
+			// The configurations of folders contain the memory configuration too
 			this._workspaceConsolidatedConfiguration = null;
+			this._foldersConsolidatedConfigurations.clear();
 		}
 	}
 
@@ -890,6 +894,7 @@ export class Configuration {
 
 	updatePolicyConfiguration(policyConfiguration: ConfigurationModel): void {
 		this._policyConfiguration = policyConfiguration;
+		this._policyAppliedConfigurations = new WeakMap<ConfigurationModel, ConfigurationModel>();
 	}
 
 	updateApplicationConfiguration(applicationConfiguration: ConfigurationModel): void {
@@ -1052,19 +1057,36 @@ export class Configuration {
 		return this._folderConfigurations;
 	}
 
+	get memoryConfiguration(): ConfigurationModel {
+		return this._memoryConfiguration;
+	}
+
+	get memoryConfigurationByResource(): ResourceMap<ConfigurationModel> {
+		return this._memoryConfigurationByResource;
+	}
+
 	private getConsolidatedConfigurationModel(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		if (overrides.overrideIdentifier) {
 			configurationModel = configurationModel.override(overrides.overrideIdentifier);
 		}
 		if (!this._policyConfiguration.isEmpty() && this._policyConfiguration.getValue(section) !== undefined) {
-			// clone by merging
-			configurationModel = configurationModel.merge();
-			for (const key of this._policyConfiguration.keys) {
-				configurationModel.setValue(key, this._policyConfiguration.getValue(key));
-			}
+			configurationModel = this.getPolicyAppliedConfigurationModel(configurationModel);
 		}
 		return configurationModel;
+	}
+
+	private getPolicyAppliedConfigurationModel(configurationModel: ConfigurationModel): ConfigurationModel {
+		let policyAppliedConfigurationModel = this._policyAppliedConfigurations.get(configurationModel);
+		if (!policyAppliedConfigurationModel) {
+			// clone by merging
+			policyAppliedConfigurationModel = configurationModel.merge();
+			for (const key of this._policyConfiguration.keys) {
+				policyAppliedConfigurationModel.setValue(key, this._policyConfiguration.getValue(key));
+			}
+			this._policyAppliedConfigurations.set(configurationModel, policyAppliedConfigurationModel);
+		}
+		return policyAppliedConfigurationModel;
 	}
 
 	private getConsolidatedConfigurationModelForResource({ resource }: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {

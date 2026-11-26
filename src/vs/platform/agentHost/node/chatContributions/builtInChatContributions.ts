@@ -31,6 +31,7 @@ import { RemoteSessionOriginContribution } from './remoteSessionOrigin/remoteSes
 import { ScheduledChatMovesContribution } from './scheduledChatMoves/scheduledChatMovesContribution.js';
 import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContribution.js';
 import { SessionInputNeededContribution } from './sessionInputNeeded/sessionInputNeededContribution.js';
+import { SessionSummaryTelemetryContribution } from './sessionSummaryTelemetry/sessionSummaryTelemetryContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from './sideChat/sideChatContribution.js';
 import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribution.js';
@@ -77,5 +78,6 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(AdditionalWorktreeLifecycleContribution));
 	registrations.add(contributions.registerContribution(ChatArchiveContribution));
 	registrations.add(contributions.registerContribution(ChatReadContribution));
+	registrations.add(contributions.registerContribution(SessionSummaryTelemetryContribution));
 	return registrations;
 }

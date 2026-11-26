@@ -10,11 +10,26 @@ import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 
 const CHAT_WIDGET_LOAD_TIMEOUT_MS = 10_000;
 
+/** Which widget {@link whenChatWidgetForSession} resolves to, and how long it waits for one. */
+export interface IChatWidgetForSessionOptions {
+	/**
+	 * Only a widget that can host input requests, such as the full chat of a session rather than its row in the Inbox,
+	 * which shows the session too but must not take what is sent to it.
+	 */
+	readonly supportsInputRequests?: boolean;
+	readonly timeoutMs?: number;
+}
+
 /**
  * Resolves the chat widget once it has loaded the requested session model.
  */
-export async function whenChatWidgetForSession(chatWidgetService: IChatWidgetService, sessionResource: URI, timeoutMs: number = CHAT_WIDGET_LOAD_TIMEOUT_MS): Promise<IChatWidget | undefined> {
-	const existing = chatWidgetService.getWidgetBySessionResource(sessionResource);
+export async function whenChatWidgetForSession(chatWidgetService: IChatWidgetService, sessionResource: URI, options?: IChatWidgetForSessionOptions): Promise<IChatWidget | undefined> {
+	const find = () => {
+		const widget = chatWidgetService.getWidgetBySessionResource(sessionResource, { preferInputRequests: options?.supportsInputRequests });
+		return options?.supportsInputRequests && widget?.supportsInputRequests === false ? undefined : widget;
+	};
+
+	const existing = find();
 	if (existing) {
 		return existing;
 	}
@@ -23,7 +38,7 @@ export async function whenChatWidgetForSession(chatWidgetService: IChatWidgetSer
 	try {
 		const loaded = new Promise<IChatWidget>(resolve => {
 			const check = () => {
-				const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+				const widget = find();
 				if (widget) {
 					resolve(widget);
 				}
@@ -40,7 +55,7 @@ export async function whenChatWidgetForSession(chatWidgetService: IChatWidgetSer
 			check();
 		});
 
-		return await raceTimeout(loaded, timeoutMs);
+		return await raceTimeout(loaded, options?.timeoutMs ?? CHAT_WIDGET_LOAD_TIMEOUT_MS);
 	} finally {
 		store.dispose();
 	}

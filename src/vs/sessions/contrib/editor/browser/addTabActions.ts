@@ -22,7 +22,7 @@ import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorsOrder, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveAuxiliaryContext, ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IsQuickChatSessionContext, SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../common/agentsWindowContextKeys.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
@@ -35,6 +35,7 @@ import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/se
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { ChatWindowLayoutCommandsContext, resolveChatWindowOfContext } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { SESSIONS_FILES_CONTAINER_ID } from '../../../../workbench/contrib/files/common/files.js';
 
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
 export const OPEN_BROWSER_COMMAND_ID = 'workbench.action.agentSessions.openBrowser';
@@ -360,7 +361,10 @@ export function registerSessionActivityBarTabEntries(): IDisposable {
 				title: localize2('newFileTab', "Files"),
 				icon: EmptyFileEditorInput.ICON,
 				precondition: filesTabActionWhen,
-				toggled: sessionActivityBarEntryToggled(EmptyFileEditorInput.EDITOR_ID),
+				toggled: ContextKeyExpr.or(
+					sessionActivityBarEntryToggled(EmptyFileEditorInput.EDITOR_ID),
+					ContextKeyExpr.and(AuxiliaryBarVisibleContext, ActiveAuxiliaryContext.isEqualTo(SESSIONS_FILES_CONTAINER_ID)),
+				),
 			},
 			group: SessionActivityBarGroup.SidePanel,
 			order: 2,

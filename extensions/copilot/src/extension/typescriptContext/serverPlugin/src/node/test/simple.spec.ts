@@ -397,6 +397,19 @@ suite('TypeOfExpressionRunnable', () => {
 	});
 });
 
+suite('Imports', () => {
+	test('namespace import', () => {
+		const session: testing.TestSession = create(path.join(root, 'p3'));
+		const expected: testing.ExpectedCodeSnippet[] = [{
+			kind: ContextKind.Snippet,
+			value: 'declare namespace features { declare function isEmailAddress(value: string): boolean; }',
+			fileName: /p3\/source\/f1.ts$/
+		}];
+		const context = computeContext(session, path.join(root, 'p3/source/f2.ts'), { line: 6, character: 0 }, ContextKind.Snippet);
+		assertContextItems(context, expected);
+	});
+});
+
 suite('Traits', () => {
 	test('complete traits', () => {
 		const session: testing.TestSession = create(path.join(root, 'p1'));

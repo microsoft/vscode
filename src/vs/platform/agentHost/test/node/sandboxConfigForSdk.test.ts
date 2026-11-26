@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { homedir } from 'os';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { homedir, tmpdir } from 'os';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { dirname, join } from '../../../../base/common/path.js';
+import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { toAgentHostUri } from '../../common/agentHostUri.js';
@@ -15,9 +19,70 @@ import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, ty
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { AgentSandboxEnabledValue, type IAgentSandboxUserConfiguredPaths } from '../../../sandbox/common/settings.js';
 import { buildSandboxConfigForSdk, resolveAttachedPathGrants, toSandboxFileSystemPath, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
+import { getApplicationSandboxReadRoots } from '../../node/applicationSandboxPaths.js';
+
+suite('application sandbox read roots', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { platform, versioned } of [
+		{ platform: 'linux', versioned: false },
+		{ platform: 'win32', versioned: false },
+		{ platform: 'win32', versioned: true },
+	] as const) {
+		test(`excludes portable storage on ${platform} (versioned=${versioned})`, async () => {
+			const installation = mkdtempSync(join(tmpdir(), 'vscode-portable-read-roots-'));
+			store.add(toDisposable(() => rmSync(installation, { recursive: true, force: true })));
+			const runtimeDirectory = versioned ? join(installation, 'commit-hash') : installation;
+			const appRoot = join(runtimeDirectory, 'resources', 'app');
+			const executable = join(installation, platform === 'win32' ? 'Code.exe' : 'code');
+			const runtimeData = join(runtimeDirectory, 'icudtl.dat');
+			const privateFiles = [
+				join(installation, 'data', 'user-data', 'User', 'globalStorage', 'state.vscdb'),
+				join(installation, 'data', 'user-data', 'agentSessionData', 'other-session', 'session.db'),
+				join(installation, 'data', 'extensions', 'private-extension', 'settings.json'),
+			];
+			mkdirSync(appRoot, { recursive: true });
+			for (const file of privateFiles) {
+				mkdirSync(dirname(file), { recursive: true });
+				writeFileSync(file, 'private fixture data');
+			}
+			writeFileSync(executable, '');
+			writeFileSync(runtimeData, '');
+
+			const roots = await getApplicationSandboxReadRoots(appRoot, installation, platform);
+			assert.deepStrictEqual({
+				roots,
+				privateFilesReadable: privateFiles.map(file => roots.some(root => isEqualOrParent(URI.file(file), root))),
+			}, {
+				roots: [URI.file(appRoot), URI.file(executable), URI.file(runtimeData)],
+				privateFilesReadable: [false, false, false],
+			});
+		});
+	}
+
+	test('preserves macOS bundle access and does not widen non-packaged layouts', async () => {
+		const contents = '/Applications/Code.app/Contents';
+		assert.deepStrictEqual([
+			await getApplicationSandboxReadRoots(`${contents}/Resources/app`, contents, 'darwin'),
+			await getApplicationSandboxReadRoots('/workspace/vscode', '/workspace/vscode', 'linux'),
+		], [
+			[URI.file(contents)],
+			[URI.file('/workspace/vscode')],
+		]);
+	});
+});
 
 suite('VS Code sandbox read roots', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('grants application contents alongside session resources', () => {
+		const appBundleRoot = '/Applications/Visual Studio Code - Insiders.app/Contents';
+		const terminalOutputDirectory = URI.file('/cache/terminal-output');
+		assert.deepStrictEqual(getVSCodeSandboxReadRoots({ applicationReadRoots: [URI.file(appBundleRoot)], terminalOutputDirectory }), [
+			URI.file(appBundleRoot),
+			terminalOutputDirectory,
+		]);
+	});
 
 	test('grants the local harness its terminal output root', () => {
 		const terminalOutputDirectory = URI.file('/cache/terminal-output');
@@ -115,6 +180,19 @@ function expectedSandboxConfig(options?: {
 }
 
 suite('buildSandboxConfigForSdk', () => {
+	test('grants the shared canvas data root only for sandboxed extension sessions and respects restrictions', () => {
+		const home = URI.file('/custom/copilot');
+		const enabled = sandbox('linux', AgentSandboxEnabledValue.On);
+		const data = '/custom/copilot/extension-data';
+		const writable = (config: ISandboxConfigValue | undefined, extensionHome?: URI, managedWrites?: string[]) =>
+			buildSandboxConfigForSdk('linux', config, undefined, { enabled: true, readwritePaths: managedWrites }, undefined, extensionHome)?.userPolicy?.filesystem?.readwritePaths;
+		assert.deepStrictEqual([
+			writable(enabled, home), writable(enabled), writable(undefined, home), writable(enabled, home, []),
+			writable(sandbox('linux', AgentSandboxEnabledValue.On, { readonlyPaths: ['/custom'] }), home),
+			writable(sandbox('linux', AgentSandboxEnabledValue.On, { deniedPaths: [`${data}/private`] }), home),
+		], [[data], undefined, undefined, undefined, undefined, undefined]);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('enablement', () => {
@@ -630,6 +708,7 @@ suite('getAttachedLocalPaths', () => {
 		const folder = URI.file('/home/u/notes');
 		const attachments: MessageAttachment[] = [
 			{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'mockup.txt', displayKind: 'file' },
+			{ type: MessageAttachmentKind.Resource, uri: URI.file('/skills/review/SKILL.md').toString(), label: '/review', displayKind: 'skill' },
 			{ type: MessageAttachmentKind.Resource, uri: folder.toString(), label: 'notes', displayKind: 'directory' },
 			{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'mockup.txt', displayKind: 'selection', selection: { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } } },
 			{ type: MessageAttachmentKind.Resource, uri: toAgentHostUri(URI.file('/home/u/wrapped.txt'), 'my-server').toString(), label: 'wrapped.txt' },

@@ -15,8 +15,10 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -39,13 +41,14 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext, SessionChangesEditorDrawsHeaderContext } from '../../sessions/common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -71,7 +74,7 @@ import { ISessionChangesService } from './sessionChangesService.js';
 import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -86,6 +89,7 @@ import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../sessions/browser/fixCIChecks.
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../sessions/providers/agentHost/browser/agentHostSkillButtons.js';
 import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { getBaseBranchLabel } from '../../../../platform/agentHost/common/agentHostGitService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../sessions/common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -101,6 +105,7 @@ import { ISessionsHostLayoutService } from '../../../services/sessions/browser/s
 import { CreatePullRequestContextView } from './createPullRequestContextView.js';
 import { CreatePullRequestChatRequest } from './createPullRequestChatRequest.js';
 import { isSessionPullRequestOperation } from '../../sessions/common/pullRequestCreation.js';
+import { BaseBranchCandidatesState, getBaseBranchSubmenuActions, getBaseBranchSubmenuOptions } from './changesBaseBranchPicker.js';
 
 const $ = dom.$;
 
@@ -372,6 +377,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@INotificationService notificationService: INotificationService,
 	) {
 		super();
 
@@ -408,6 +414,14 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			const operation = changes.changesetOperationsObs.get().find(operation => operation.id === e.action.id);
 			if (!operation || !isSessionPullRequestOperation(operation)) {
 				unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService);
+			}
+		}));
+		// The button bar's action runner catches what an operation throws, such
+		// as a merge the agent host rejects, so report it here.
+		this._register(buttonBar.onDidRun(({ action, error }) => {
+			if (error && !isCancellationError(error)) {
+				this.logService.error(`[ChangesWorkbenchButtonBarWidget] Changeset operation failed: operation=${action.id}`, error);
+				notificationService.error(error);
 			}
 		}));
 		this.onDidChangeActions = Event.signal(buttonBar.onDidChange);
@@ -510,6 +524,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 							chat: chat?.resource,
 							branchName: state?.branchName,
 							baseBranchName: state?.baseBranchName,
+							artifactIntegrations: artifactIntegrationsEnabledObs.read(undefined),
 							sendToChat: session ? options => createPullRequestChatRequest.send(session, options, op.pullRequestCreation, chat) : undefined,
 							onRestoreFocus: () => buttonBar.buttons[0]?.focus(),
 						}, options => {
@@ -586,11 +601,16 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			const usesContributedPrimary = !operations.hasRunning && dropdownMenuActions.primary !== undefined;
 			const primaryAction = usesContributedPrimary ? dropdownMenuActions.primary : operations.groups[0]?.[0];
 
+			// The bar renders a single button, so while an operation owns it the
+			// actions of the toolbar's submenus, such as Submit Feedback, join
+			// its dropdown rather than being dropped behind it.
+			const toolbarActions = primaryAction ? getChangesToolbarDropdownActions(menuActions.primary) : [];
+
 			// The button bar treats the first entry of a submenu as the button
 			// itself and the remainder as the dropdown, so the primary has to
 			// lead. A contributed primary only names its own actions, so the
 			// menu entry it came from is dropped rather than repeated below it.
-			const groups = [...operations.groups, ...dropdownMenuActions.groups]
+			const groups = [...operations.groups, ...dropdownMenuActions.groups, toolbarActions]
 				.map(group => group.filter(action => action !== dropdownMenuActions.contributed))
 				.filter(group => group.length > 0);
 			const entryCount = groups.reduce((count, group) => count + group.length, 0);
@@ -741,6 +761,17 @@ export function actionsNamingSession<T extends MenuItemAction | SubmenuItemActio
 	return withSession.map(([group, actions], groupIndex) => [group, actions.map((action, index) => action instanceof MenuItemAction && action.item.source ? withResource[groupIndex]?.[1][index] ?? action : action)]);
 }
 
+/**
+ * The actions of the submenus of the Changes toolbar, such as Apply Actions with Submit Feedback, as entries of the
+ * dropdown of the operation that owns the button, such as Merge Changes: the button bar renders only its first action,
+ * so the submenu itself would never show, and the dropdown is a flat list.
+ */
+export function getChangesToolbarDropdownActions(actions: readonly IAction[]): IAction[] {
+	return actions.flatMap(action => action instanceof SubmenuAction
+		? action.actions.filter(child => !(child instanceof Separator))
+		: []);
+}
+
 export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
@@ -766,24 +797,29 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
-interface IChangesPickerLabel {
+export interface IChangesPickerLabel {
 	readonly label: string;
 	readonly tooltip?: string;
 	readonly isNonDefault: boolean;
 }
 
 export function createChangesPickerLabelObservable(owner: object, changes: IChangesSessionObservables): IObservable<IChangesPickerLabel | undefined> {
-	return derivedObservableWithCache<IChangesPickerLabel | undefined>(owner, (reader, lastValue) => {
+	return derivedObservableWithCache<(IChangesPickerLabel & { readonly changesetLabel: string }) | undefined>(owner, (reader, lastValue) => {
 		const changeset = changes.changesetObs.read(reader);
 		if (!changeset && changes.changesetsLoadingObs.read(reader)) {
-			return lastValue;
+			// Keeps the label stable, but without a base branch the incoming changesets may not share.
+			return lastValue && { ...lastValue, label: lastValue.changesetLabel };
 		}
 		if (!changeset) {
 			return undefined;
 		}
 		const defaultChangeset = findDefaultChangeset(changes.changesetsObs.read(reader) ?? [], reader);
+		const baseBranchRef = changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changes.baseBranchRefObs.read(reader) : undefined;
 		return {
-			label: changeset.label,
+			label: baseBranchRef
+				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the base branch the host compares the changes against, as shown in the Branch row, for example origin/main.'] }, "{0} → {1}", changeset.label, getBaseBranchLabel(baseBranchRef))
+				: changeset.label,
+			changesetLabel: changeset.label,
 			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
 			isNonDefault: changeset.id !== defaultChangeset?.id,
 		};
@@ -2183,6 +2219,12 @@ export class VersionsPickerAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: desktopChangesEditorHeader,
+			}, {
+				// The header that the Changes editor draws itself, where the editor part around it does not
+				id: Menus.SessionsEditorHeaderPrimary,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionChangesEditorDrawsHeaderContext),
 			}],
 		});
 	}
@@ -2278,6 +2320,12 @@ export class ChangesPickerSummary extends Disposable {
 	}
 }
 
+/** The branches a base branch selection can compare against, as they load. */
+interface IBaseBranchCandidatesOfSelection {
+	readonly selection: ISessionChangesetBaseBranchSelection;
+	readonly state: BaseBranchCandidatesState;
+}
+
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	private readonly _labelObs: IObservable<IChangesPickerLabel | undefined>;
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
@@ -2285,6 +2333,11 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	private readonly _changesPendingObs: IObservable<boolean>;
 	private readonly _pickerEnabledObs: IObservable<boolean>;
 	private readonly _summaryLease = this._register(new MutableDisposable());
+	private readonly _changes: IChangesSessionObservables;
+	private readonly _onDidChangeActions: Emitter<void>;
+	/** The branches the submenu of the Branch row lists while the list of changesets is open, and the selection they are of. */
+	private _baseBranchCandidates: IBaseBranchCandidatesOfSelection | undefined;
+	private readonly _baseBranchCandidatesRequest = this._register(new MutableDisposable<DisposableStore>());
 	private _container: HTMLElement | undefined;
 	private _labelElement: HTMLElement | undefined;
 
@@ -2299,10 +2352,13 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		@IChangesViewService changesViewService: IChangesViewService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChangesEditorScope editorScope: IChangesEditorScope,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		// Without an explicit scope the picker follows the active session.
 		const changes = scope?.changes ?? getActiveSessionChanges(changesViewService);
+		const onDidChangeActions = new Emitter<void>();
 		const actionProvider: IActionWidgetDropdownActionProvider = {
+			onDidChangeActions: onDidChangeActions.event,
 			getActions: () => {
 				const changesets = changes.changesetsObs.get() ?? [];
 				const selectedChangeset = changes.changesetObs.get();
@@ -2322,6 +2378,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 						order: 0
 					},
 					enabled: !catalogueLoading && changeset.isEnabled.get(),
+					...(changeset.id === BRANCH_CHANGES_CHANGESET_ID ? this._getBaseBranchSubmenu() : undefined),
 					run: async () => {
 						if (changes.changesetsLoadingObs.get()
 							|| !isEqual(changes.resourceObs.get(), sessionResource)) {
@@ -2339,6 +2396,9 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		};
 
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+		this._changes = changes;
+		this._onDidChangeActions = this._register(onDidChangeActions);
+		this._register(this.onDidChangeDropdownVisibility(visible => this._updateBaseBranchCandidates(visible)));
 
 		this._labelObs = labelObs ?? createChangesPickerLabelObservable(this, changes);
 		this._pickerEnabledObs = derived(reader => {
@@ -2460,6 +2520,75 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 			default:
 				return '';
 		}
+	}
+
+	private _getBaseBranchSelection(reader?: IReader): ISessionChangesetBaseBranchSelection | undefined {
+		return this._changes.changesetsObs.read(reader)?.find(changeset => changeset.id === BRANCH_CHANGES_CHANGESET_ID)?.baseBranchSelection?.read(reader);
+	}
+
+	/** The submenu of the Branch row, which a pen opens to change the base branch it compares against, while the base can change. */
+	private _getBaseBranchSubmenu(): Pick<IActionWidgetDropdownAction, 'submenuActions' | 'submenuOptions' | 'submenuButton' | 'hover'> | undefined {
+		const selection = this._getBaseBranchSelection();
+		const currentRef = selection && this._changes.baseBranchRefObs.get();
+		const sessionResource = this._changes.resourceObs.get();
+		// Branches of another selection are of another session, chat or changeset, as the changesets may be while the catalogue loads.
+		if (!selection || !currentRef || this._changes.changesetsLoadingObs.get() || (this._baseBranchCandidates && this._baseBranchCandidates.selection !== selection)) {
+			return undefined;
+		}
+		// The list asks for its rows before it tells this item it opens.
+		const candidates = this._baseBranchCandidates?.state ?? { kind: 'loading' };
+		if (candidates.kind === 'failed') {
+			return undefined;
+		}
+		return {
+			// Like the row's own run, a pick changes nothing while the catalogue loads, when it still lists the changesets shown before.
+			submenuActions: getBaseBranchSubmenuActions(candidates, currentRef, selection, () => !this._changes.changesetsLoadingObs.get()
+				&& isEqual(this._changes.resourceObs.get(), sessionResource)
+				&& this._getBaseBranchSelection() === selection, this.notificationService),
+			submenuOptions: getBaseBranchSubmenuOptions(),
+			submenuButton: { icon: Codicon.editCompact, label: localize('changesView.picker.changeBaseBranch', "Change Base Branch...") },
+			// The branches line up with the list of changesets rather than center on the Branch row.
+			hover: { alignToParentTop: true },
+		};
+	}
+
+	/** Loads the branches of the Branch row's submenu while the list of changesets is `visible`. */
+	private _updateBaseBranchCandidates(visible: boolean): void {
+		this._baseBranchCandidatesRequest.clear();
+		if (!visible) {
+			this._setBaseBranchCandidates(undefined);
+			return;
+		}
+		const request = this._baseBranchCandidatesRequest.value = new DisposableStore();
+		// Observing the selection keeps the Branch changeset loaded while another changeset is shown, so the pen shows as soon as its state arrives.
+		const selectionObs = derived(reader => this._getBaseBranchSelection(reader));
+		request.add(autorun(reader => {
+			const selection = selectionObs.read(reader);
+			if (!selection) {
+				this._setBaseBranchCandidates(undefined);
+				return;
+			}
+			const token = cancelOnDispose(reader.store);
+			this._setBaseBranchCandidates({ selection, state: { kind: 'loading' } });
+			selection.getCandidates(token).then(candidates => {
+				if (!token.isCancellationRequested) {
+					this._setBaseBranchCandidates({ selection, state: { kind: 'loaded', candidates } });
+				}
+			}, error => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				if (!isCancellationError(error)) {
+					this.notificationService.error(error);
+				}
+				this._setBaseBranchCandidates({ selection, state: { kind: 'failed' } });
+			});
+		}));
+	}
+
+	private _setBaseBranchCandidates(candidates: IBaseBranchCandidatesOfSelection | undefined): void {
+		this._baseBranchCandidates = candidates;
+		this._onDidChangeActions.fire();
 	}
 }
 

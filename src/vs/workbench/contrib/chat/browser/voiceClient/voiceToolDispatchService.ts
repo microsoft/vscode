@@ -33,6 +33,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../../services/policies/common/accountPolicyService.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getNewChatSessionResource } from '../../common/model/chatUri.js';
+import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
 
 /**
  * Callbacks that require access to the chat widget or view state.
@@ -174,13 +175,14 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
+		@ILocalChatAvailabilityService private readonly localChatAvailabilityService: ILocalChatAvailabilityService,
 	) { }
 
 	async createChatSession(token: CancellationToken = CancellationToken.None): Promise<IChatModelReference> {
 		await raceCancellationError(whenAccountPolicySettled(this.accountPolicyGateService), token);
 		const { sessionType, selectionReason } = getDefaultNewChatSessionTypeAndReasonFromServices(
 			this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(),
-			this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(),
+			this.agentHostEnablementService.enabled.get(), { localChatHidden: this.localChatAvailabilityService.hidden.get() }, this.agentHostEnablementService.managedSandboxEnforced.get(),
 			requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 		const ref = sessionType === localChatSessionType
 			? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'voice-new-session', sessionTypeSelectionReason: selectionReason })
@@ -601,6 +603,9 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 	): IVoiceDispatchResult {
 		if (carousel.isUsed || carousel.answeredExternally) {
 			return { ok: false, reason: 'stale_pending' };
+		}
+		if (carousel.questions.some(question => question.password)) {
+			return { ok: false, reason: 'unsupported' };
 		}
 		if (skip && !carousel.allowSkip) {
 			return { ok: false, reason: 'stale_pending' };

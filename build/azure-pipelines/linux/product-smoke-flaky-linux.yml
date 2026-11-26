@@ -9,6 +9,12 @@ parameters:
     type: boolean
   - name: iterations
     type: object
+  # 20 Electron and 20 node.js unit iterations don't fit in one job within its
+  # timeout, so they are split across parallel jobs by odd and even iteration
+  # number, like the Windows ones (see ../win32/product-smoke-flaky-win32.yml).
+  - name: iterationShards
+    type: object
+    default: [odd, even]
 
 jobs:
   - template: ../common/product-smoke-flaky-build.yml@self
@@ -47,65 +53,74 @@ jobs:
           displayName: Archive packaged server for reuse by test jobs
 
   - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
-    - template: ../common/product-smoke-flaky-test.yml@self
-      parameters:
-        jobName: LinuxSmokeFlakyUnit
-        buildJobName: LinuxSmokeFlakyBuild
-        displayName: Linux Unit Tests
-        platform: linux
-        arch: x64
-        testName: unit
-        artifactPrefix: smoke-flaky-linux-x64
-        artifacts:
-          - name: repo
-            displayName: Download built workspace
-        display: ":10"
-        extractArtifactSteps:
-          - script: |
-              set -e
-              mkdir -p $(Build.SourcesDirectory)
-              tar -xzf $(Pipeline.Workspace)/smoke-flaky-linux-x64-repo/repo.tar.gz -C $(Build.SourcesDirectory)
-            displayName: Extract built workspace
-        setupSteps:
-          - script: |
-              set -e
-              ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
-              ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
-                xvfb \
-                libgtk-3-0 \
-                libxkbfile-dev \
-                libkrb5-dev \
-                libgbm1 \
-                rpm \
-                bubblewrap \
-                socat
-              sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
-              sudo chmod +x /etc/init.d/xvfb
-              sudo update-rc.d xvfb defaults
-              sudo service xvfb start
-            displayName: Setup system services
-        postSetupSteps:
-          - script: |
-              set -e
-              ELECTRON_ROOT=.build/electron
-              sudo chown root $ELECTRON_ROOT/chrome-sandbox
-              sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
-            displayName: Change setuid helper binary permission
-        testSteps:
-          - ${{ each i in parameters.iterations }}:
-            - script: ./scripts/test.sh --build --tfs "Unit Tests"
-              env:
-                VSCODE_SKIP_PRELAUNCH: '1'
-              displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
-              continueOnError: true
-              timeoutInMinutes: 15
-          - ${{ each i in parameters.iterations }}:
+    - ${{ each shard in parameters.iterationShards }}:
+      - template: ../common/product-smoke-flaky-test.yml@self
+        parameters:
+          jobName: LinuxSmokeFlakyUnit_${{ shard }}
+          buildJobName: LinuxSmokeFlakyBuild
+          displayName: Linux Unit Tests (${{ shard }} iterations)
+          platform: linux
+          arch: x64
+          testName: unit-${{ shard }}
+          # Fits 10 Electron and 10 node.js iterations at their 20 and 15 minute
+          # step timeouts, plus job setup.
+          timeoutInMinutes: 370
+          artifactPrefix: smoke-flaky-linux-x64
+          artifacts:
+            - name: repo
+              displayName: Download built workspace
+          display: ":10"
+          extractArtifactSteps:
             - script: |
                 set -e
-                pnpm run test-node --build
-              displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
-              continueOnError: true
-              timeoutInMinutes: 15
+                mkdir -p $(Build.SourcesDirectory)
+                tar -xzf $(Pipeline.Workspace)/smoke-flaky-linux-x64-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+              displayName: Extract built workspace
+          setupSteps:
+            - script: |
+                set -e
+                ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+                ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
+                  xvfb \
+                  libgtk-3-0 \
+                  libxkbfile-dev \
+                  libkrb5-dev \
+                  libgbm1 \
+                  rpm \
+                  bubblewrap \
+                  socat
+                sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+                sudo chmod +x /etc/init.d/xvfb
+                sudo update-rc.d xvfb defaults
+                sudo service xvfb start
+              displayName: Setup system services
+          postSetupSteps:
+            - script: |
+                set -e
+                ELECTRON_ROOT=.build/electron
+                sudo chown root $ELECTRON_ROOT/chrome-sandbox
+                sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
+              displayName: Change setuid helper binary permission
+          testSteps:
+            # Template expressions have no arithmetic, so an iteration's parity is
+            # read from its last digit. The odd shard keeps odd iterations and the
+            # even shard keeps the rest.
+            - ${{ each i in parameters.iterations }}:
+              - ${{ if xor(eq(shard, 'even'), or(endsWith(format('{0}', i), '1'), endsWith(format('{0}', i), '3'), endsWith(format('{0}', i), '5'), endsWith(format('{0}', i), '7'), endsWith(format('{0}', i), '9'))) }}:
+                - script: ./scripts/test.sh --build --tfs "Unit Tests"
+                  env:
+                    VSCODE_SKIP_PRELAUNCH: '1'
+                  displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+                  continueOnError: true
+                  timeoutInMinutes: 20
+            - ${{ each i in parameters.iterations }}:
+              - ${{ if xor(eq(shard, 'even'), or(endsWith(format('{0}', i), '1'), endsWith(format('{0}', i), '3'), endsWith(format('{0}', i), '5'), endsWith(format('{0}', i), '7'), endsWith(format('{0}', i), '9'))) }}:
+                - script: |
+                    set -e
+                    pnpm run test-node --build
+                  displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
+                  continueOnError: true
+                  timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
     - template: ../common/product-smoke-flaky-test.yml@self

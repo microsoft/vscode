@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -40,6 +40,9 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { TestChatWidgetService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../browser/chat.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatStatusPromo } from '../../browser/chatStatus/chatStatusPromo.js';
 import type { ChatWidget } from '../../browser/widget/chatWidget.js';
 import type { ChatInputPart } from '../../browser/widget/input/chatInputPart.js';
@@ -48,6 +51,7 @@ import { ChatClosedPromoNotification, ChatConfiguration } from '../../common/con
 import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
 
 class PromoTelemetry extends NullTelemetryServiceShape {
 	readonly events: string[] = [];
@@ -95,6 +99,7 @@ suite('ChatStatusPromo', () => {
 		instantiation.stub(IAgentHostEnablementService, {
 			enabled: constObservable(options.hostEnabled ?? false), managedSandboxEnforced: constObservable(false),
 		});
+		instantiation.stub(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		instantiation.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
 			override getManagedSettingValue(key: string) { return options.managed && key === 'permissions.deny' ? '["Shell"]' : undefined; }
 		}());
@@ -124,12 +129,14 @@ suite('ChatStatusPromo', () => {
 		sinon.stub(widgets, 'getAllWidgets').callsFake(() => state.widgets);
 		instantiation.stub(IChatWidgetService, widgets);
 		instantiation.stub(IHoverService, options.hoverService ?? new class extends mock<IHoverService>() { override hideHover() { } }());
+		const contextKeys = store.add(new ContextKeyService(configuration));
+		instantiation.stub(IContextKeyService, contextKeys);
 		const promo = store.add(instantiation.createInstance(ChatStatusPromo));
 		let entry: ReturnType<ChatStatusPromo['getEntryProps']>;
 		const update = () => { entry = promo.getEntryProps(state.visible); };
 		store.add(promo.onDidChange(update));
 		update();
-		return { promo, state, models, modelChanged, storage, configuration, treatment, refetch, warn, telemetry, widgets, widgetAdded, viewVisibility, update, get entry() { return entry; } };
+		return { promo, state, models, modelChanged, storage, configuration, treatment, refetch, warn, telemetry, widgets, widgetAdded, contextKeys, viewVisibility, update, get entry() { return entry; } };
 	}
 
 	function chatView(f: ReturnType<typeof fixture>, sessionType?: string, restored: Promise<void> = Promise.resolve()) {
@@ -266,6 +273,13 @@ suite('ChatStatusPromo', () => {
 			seen: f.storage.get('chat.seenPromoIds', StorageScope.APPLICATION),
 			dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION), events: f.telemetry.events,
 		}, { pip: false, sameTooltip: true, seen: '["sale"]', dismissed: undefined, events: ['chatPromoWidgetArmed', 'chatPromoWidgetShown'] });
+	});
+
+	test('withdraws its offer as the Agents view replaces the Chat view, in which trying the model would open, as the Chat view hides', () => {
+		const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup });
+		const offered = !!f.entry;
+		ChatContextKeys.agentsViewActive.bindTo(f.contextKeys).set(true);
+		assert.deepStrictEqual({ offered, replaced: f.entry }, { offered: true, replaced: undefined });
 	});
 
 	test('withdraws a displayed offer without dismissing it', () => {

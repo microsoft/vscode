@@ -30,6 +30,7 @@ import { readCodexSessionModel } from '../../../common/meta/codexSessionModel.js
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../../node/agentHostFileEditCoordinator.js';
 import { buildDefaultChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType } from '../../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
@@ -80,7 +81,7 @@ interface ITestCodexAgent {
 
 function thread(id: string, updatedAt = 1, name = id): Thread {
 	return {
-		id, sessionId: id, extra: null, forkedFromId: null, parentThreadId: null,
+		id, sessionId: id, extra: null, forkedFromId: null, parentThreadId: null, attachedToThreadId: null,
 		preview: id, ephemeral: false, section: null, sectionEnteredAt: null,
 		projectId: null, historyMode: 'paginated', modelProvider: 'openai', model: null,
 		environments: null, originator: null, daybreakEnabled: null,
@@ -173,6 +174,7 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 	instantiation.stub(IFileService, files);
 	instantiation.stub(IAgentConfigurationService, config);
 	instantiation.stub(ISessionDataService, sessionData);
+	instantiation.stub(IAgentHostFileEditCoordinator, store.add(new AgentHostFileEditCoordinator()));
 	instantiation.stub(ICopilotApiService, { models: async () => [] });
 	instantiation.stub(ICodexProxyService, {});
 	instantiation.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
@@ -867,7 +869,7 @@ suite('Codex chat discovery', () => {
 					pluginId: null, scriptPath: null,
 					aggregatedOutput, exitCode: 0, durationMs: 5,
 				},
-				{ type: 'agentMessage', id: 'one-agent', text: answer, phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },
+				{ type: 'agentMessage', id: 'one-agent', text: answer, phase: 'final_answer', memoryCitation: null, delivery: null, questions: null, moderation: null },
 			],
 		});
 		const retainedContent = (turns: readonly import('../../../common/state/sessionState.js').Turn[]) => {

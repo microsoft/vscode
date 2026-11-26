@@ -10,11 +10,11 @@ import { Delayer, Promises, Throttler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as json from '../../../../base/common/json.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, disposeIfDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
-import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor, ExtensionBlockingOrigin } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IGalleryExtension, IExtensionGalleryService, IExtensionManagementService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor, ExtensionBlockingOrigin } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { areSameExtensions, getExtensionBlockedMessage, getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -35,13 +35,13 @@ import { IJSONEditingService } from '../../../services/configuration/common/json
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { MenuId, IMenuService, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { MenuId, IMenuService, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IQuickPickItem, IQuickInputService, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IWorkbenchThemeService, IWorkbenchTheme, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme } from '../../../services/themes/common/workbenchThemeService.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -51,7 +51,7 @@ import { IDialogService, IPromptButton } from '../../../../platform/dialogs/comm
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IActionViewItemOptions, ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { EXTENSIONS_CONFIG, IExtensionsConfigContent } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
-import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -1294,7 +1294,7 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 	}
 }
 
-async function getContextMenuActionsGroups(extension: IExtension | undefined | null, contextKeyService: IContextKeyService, instantiationService: IInstantiationService): Promise<[string, Array<MenuItemAction | SubmenuItemAction>][]> {
+async function getContextMenuActionsGroups(extension: IExtension | undefined | null, contextKeyService: IContextKeyService, instantiationService: IInstantiationService, token: CancellationToken = CancellationToken.None): Promise<[string, Array<MenuItemAction | SubmenuItemAction>][]> {
 	return instantiationService.invokeFunction(async accessor => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
@@ -1313,6 +1313,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['isApplicationScopedExtension', extension.local && extension.local.isApplicationScoped]);
 			cksOverlay.push(['isWorkspaceScopedExtension', extension.isWorkspaceScoped]);
 			cksOverlay.push(['isGalleryExtension', !!extension.identifier.uuid]);
+			cksOverlay.push(['extensionHasGalleryLink', !!extension.url]);
 			if (extension.local) {
 				cksOverlay.push(['extensionSource', extension.local.source]);
 			}
@@ -1358,6 +1359,11 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 
 			cksOverlay.push(['canSetLanguage', extensionsWorkbenchService.canSetLanguage(extension)]);
 			cksOverlay.push(['isActiveLanguagePackExtension', extension.gallery && language === getLocale(extension.gallery)]);
+		}
+
+		// The context key service may have been disposed while the lookups above were pending.
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
 		}
 
 		const actionsGroups = menuService.getMenuActions(MenuId.ExtensionContext, contextKeyService.createOverlay(cksOverlay), { shouldForwardArgs: true });
@@ -1483,15 +1489,39 @@ export class ManageExtensionAction extends DropDownExtensionAction {
 
 export class ExtensionEditorManageExtensionAction extends DropDownExtensionAction {
 
+	private static readonly Class = `${ExtensionAction.ICON_ACTION_CLASS} manage ${ThemeIcon.asClassName(manageExtensionIcon)}`;
+	private static readonly HideClass = `${this.Class} hide`;
+
+	private readonly updateLifetime = this._register(new MutableDisposable<DisposableStore>());
+
 	constructor(
 		private readonly contextKeyService: IContextKeyService,
 		instantiationService: IInstantiationService
 	) {
-		super('extensionEditor.manageExtension', '', `${ExtensionAction.ICON_ACTION_CLASS} manage ${ThemeIcon.asClassName(manageExtensionIcon)}`, true, instantiationService);
+		super('extensionEditor.manageExtension', '', ExtensionEditorManageExtensionAction.Class, true, instantiationService);
 		this.tooltip = localize('manage', "Manage");
+		this._register(MenuRegistry.onDidChangeMenu(e => {
+			if (e.has(MenuId.ExtensionContext)) {
+				this.update();
+			}
+		}));
 	}
 
-	update(): void { }
+	/**
+	 * Hides the action while it has no actions to show for the extension, such as in windows that register none.
+	 */
+	update(): void {
+		// Updating again, or disposing the action with its editor, cancels the pending lookup.
+		const lifetime = this.updateLifetime.value = new DisposableStore();
+		const token = cancelOnDispose(lifetime);
+		getContextMenuActionsGroups(this.extension, this.contextKeyService, this.instantiationService, token).then(actionsGroups => {
+			if (!token.isCancellationRequested) {
+				const hasActions = actionsGroups.some(([, actions]) => actions.length > 0);
+				this.enabled = hasActions;
+				this.class = hasActions ? ExtensionEditorManageExtensionAction.Class : ExtensionEditorManageExtensionAction.HideClass;
+			}
+		}, onUnexpectedError);
+	}
 
 	override async run(): Promise<any> {
 		const actionGroups: IAction[][] = [];
@@ -1923,6 +1953,10 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 			return;
 		}
 		if (!this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
+			return;
+		}
+		if (this.extension.enablementState === EnablementState.DisabledWorkspace) {
+			this.enabled = true;
 			return;
 		}
 		const inspect = this.configurationService.inspect(ChatAIDisabledSettingId);
@@ -3484,6 +3518,42 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 		}
 	}
 }
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.extensions.uninstallExtension',
+	metadata: {
+		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
+		args: [
+			{
+				name: localize('workbench.extensions.uninstallExtension.arg.name', "Id of the extension to uninstall"),
+				schema: {
+					'type': 'string'
+				}
+			}
+		]
+	},
+	handler: async (accessor, id: string) => {
+		if (!id) {
+			throw new Error(localize('id required', "Extension id required."));
+		}
+		const extensionManagementService = accessor.get(IExtensionManagementService);
+		const installed = await extensionManagementService.getInstalled();
+		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+		if (!extensionToUninstall) {
+			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
+		}
+		if (extensionToUninstall.isBuiltin) {
+			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be uninstalled", id));
+		}
+
+		try {
+			await extensionManagementService.uninstall(extensionToUninstall);
+		} catch (e) {
+			onUnexpectedError(e);
+			throw e;
+		}
+	}
+});
 
 CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForLanguage', function (accessor: ServicesAccessor, fileExtension: string) {
 	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);

@@ -85,6 +85,8 @@ export interface ICustomizationMarketplaceEntry {
 	readonly url?: URI;
 	/** Validated original URL for external opening, preserving escaped path separators. */
 	readonly externalUrl?: string;
+	/** Validated original homepage URL, distinct from the source page and publisher URL. */
+	readonly homepage?: string;
 	readonly repository?: URI;
 	readonly readmeUri?: URI;
 	readonly icon?: CustomizationMarketplaceIcon;
@@ -206,6 +208,8 @@ export interface ICustomizationMarketplaceSourceInfo {
 	readonly id: string;
 	readonly displayName?: string;
 	readonly enablementSetting: string;
+	/** Set when the user's GitHub Team provides this source and the organization doesn't manage it. */
+	readonly teamProvided?: boolean;
 	/** Sources without a legacy management surface are unavailable while Marketplace is hidden. */
 	readonly requiresMarketplaceVisibility?: boolean;
 	/** Configuration settings that change the source's availability or query identity. */

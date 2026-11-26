@@ -7,14 +7,14 @@ import assert from 'assert';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IValueWithChangeEvent } from '../../../../base/common/event.js';
+import { Emitter, IValueWithChangeEvent } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { CheckBoxAccessibleState } from '../../../../base/browser/ui/list/listView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
-import { IActionListCloseAnimation, IActionListDelegate, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
+import { IActionListCloseAnimation, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions } from '../../browser/actionList.js';
 import { IActionWidgetService } from '../../browser/actionWidget.js';
 import { ACTION_WIDGET_DROPDOWN_MOTION_CLASS, ActionWidgetDropdown, actionWidgetDropdownCloseAnimation, IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../browser/actionWidgetDropdown.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../actions/browser/actionWidgetDropdownActionViewItem.js';
@@ -36,9 +36,15 @@ class TestActionWidgetService extends mock<IActionWidgetService>() {
 	capturedBadges: (string | undefined)[] = [];
 	capturedLabelIcons: (string | undefined)[] = [];
 	capturedListOptions: IActionListOptions | undefined;
+	capturedItems: readonly IActionListItem<unknown>[] = [];
+	updates: { readonly items: readonly IActionListItem<unknown>[]; readonly options: IActionListUpdateOptions | undefined }[] = [];
 	initialFocusItemId: string | undefined;
 
 	override hide(): void { }
+
+	override updateItems<T>(items: readonly IActionListItem<T>[], _focusItemId?: string, options?: IActionListUpdateOptions): void {
+		this.updates.push({ items, options });
+	}
 
 	override show<T>(
 		_user: string,
@@ -52,6 +58,7 @@ class TestActionWidgetService extends mock<IActionWidgetService>() {
 		listOptions?: IActionListOptions,
 	): void {
 		this.capturedListOptions = listOptions;
+		this.capturedItems = items;
 		this.initialFocusItemId = listOptions?.initialFocusItemId;
 		this.capturedBadges = items.map(item => item.badge);
 		this.capturedLabelIcons = items.map(item => item.labelIcon?.id);
@@ -182,6 +189,64 @@ suite('ActionWidgetDropdown', () => {
 				{ id: 'checked', checked: true, checkedState: true, hideIcon: false, iconId: Codicon.check.id, role: 'menuitemcheckbox' },
 			],
 			initialFocusItemId: 'navigation',
+		});
+	});
+
+	test('passes submenu actions and options through to the action list', () => {
+		const actionWidgetService = new TestActionWidgetService();
+		const child = toAction({ id: 'child', label: 'Child', run: () => { } });
+		const parent: IActionWidgetDropdownAction = {
+			...toAction({ id: 'parent', label: 'Parent', run: () => { } }),
+			submenuActions: [child],
+			submenuOptions: { showFilter: true, filterPlaceholder: 'Filter' },
+		};
+		const dropdown = disposables.add(new ActionWidgetDropdown(
+			mainWindow.document.createElement('div'),
+			{ label: 'Test', actions: [parent, toAction({ id: 'plain', label: 'Plain', run: () => { } })] },
+			actionWidgetService,
+			new MockKeybindingService(),
+			NullTelemetryService,
+		));
+
+		dropdown.show();
+
+		assert.deepStrictEqual(actionWidgetService.capturedItems.map(item => ({ label: item.label, submenuActions: item.submenuActions, submenuOptions: item.submenuOptions })), [
+			{ label: 'Parent', submenuActions: [child], submenuOptions: { showFilter: true, filterPlaceholder: 'Filter' } },
+			{ label: 'Plain', submenuActions: undefined, submenuOptions: undefined },
+		]);
+	});
+
+	test('shows the actions of its provider as they change while it is open, and not once it hides', () => {
+		const actionWidgetService = new TestActionWidgetService();
+		const onDidChangeActions = disposables.add(new Emitter<void>());
+		let label = 'Loading';
+		const dropdown = disposables.add(new ActionWidgetDropdown(
+			mainWindow.document.createElement('div'),
+			{
+				label: 'Test',
+				actionProvider: {
+					getActions: () => [toAction({ id: 'item', label, run: () => { } })],
+					onDidChangeActions: onDidChangeActions.event,
+				},
+			},
+			actionWidgetService,
+			new MockKeybindingService(),
+			NullTelemetryService,
+		));
+
+		dropdown.show();
+		label = 'Loaded';
+		onDidChangeActions.fire();
+		dropdown.hide();
+		label = 'Hidden';
+		onDidChangeActions.fire();
+
+		assert.deepStrictEqual({
+			shown: actionWidgetService.capturedItems.map(item => item.label),
+			updates: actionWidgetService.updates.map(({ items, options }) => ({ labels: items.map(item => item.label), options })),
+		}, {
+			shown: ['Loading'],
+			updates: [{ labels: ['Loaded'], options: { preserveHover: true, preserveScrollPosition: true } }],
 		});
 	});
 

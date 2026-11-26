@@ -14,7 +14,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, autorunSelfDisposable, constObservable, IObservable, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable, constObservable, IObservable, observableFromEvent, observableValue, transaction } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../../../base/common/strings.js';
 import { hasKey, isDefined } from '../../../../../../../base/common/types.js';
@@ -29,6 +29,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IMcpAppResourceContent, McpToolCallUI } from '../../../../../mcp/browser/mcpToolCallUI.js';
 import { McpResourceURI } from '../../../../../mcp/common/mcpTypes.js';
 import { MCP } from '../../../../../mcp/common/modelContextProtocol.js';
@@ -42,6 +43,7 @@ import { IAgentHostCustomizationService } from '../../../agentSessions/agentHost
 import { IAgentHostMcpAppToolProvider, IAgentHostMcpAppToolsService } from '../../../agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IChatWidgetService } from '../../../chat.js';
 import { IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
+import { ChatMcpAppEditorInput } from './chatMcpAppEditor.js';
 import { IMcpAppRenderData } from './chatMcpAppSubPart.js';
 
 /** Storage key for persistent webview origins */
@@ -67,7 +69,7 @@ export interface IMcpAppLayout {
 
 /**
  * Model that owns an MCP App webview and all its state/logic.
- * The overlay is claimed lazily and retains hidden iframe context only while providing tools.
+ * The overlay is claimed lazily and retains hidden iframe context while providing tools or displayed fullscreen.
  */
 export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolProvider {
 	private static readonly heightCache = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, number>();
@@ -83,6 +85,12 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	 */
 	private static readonly _agentHostOrigins = new Map<string, string>();
 
+	/** In-flight agent-host MCP server starts, so apps sharing a server start it once. */
+	private static readonly _pendingServerStarts = new Map<string, Promise<void>>();
+
+	/** Whether this app already started its stopped server after a failed load. */
+	private _didAutoStartServer = false;
+
 	/** Origin store for persistent webview origins per server (local MCP only) */
 	private readonly _originStore: WebviewOriginStore;
 
@@ -93,6 +101,17 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	private _webviewClaimed = false;
 	private _webviewContextAlive = false;
 	private _hiddenRetentionEnabled = true;
+	private _retainContextUntilClaim = false;
+	private readonly _editorInput = this._register(new MutableDisposable<ChatMcpAppEditorInput>());
+	private readonly _editorInputListener = this._register(new MutableDisposable());
+	private readonly _displayMode = observableValue<McpApps.McpUiDisplayMode>(this, 'inline');
+	/** How the app is currently displayed. */
+	public readonly displayMode: IObservable<McpApps.McpUiDisplayMode> = this._displayMode;
+	/** Display modes the current app instance accepts, or `undefined` before it initializes. */
+	private readonly _availableDisplayModes = observableValue<readonly McpApps.McpUiDisplayMode[] | undefined>(this, undefined);
+	/** Whether the current app instance accepts fullscreen, either explicitly or by not declaring any display modes. */
+	public readonly canFullscreen: IObservable<boolean> = this._availableDisplayModes.map(modes => modes?.includes('fullscreen') ?? false);
+	private _appTitle: string | undefined;
 	private readonly _appDisposables = this._register(new DisposableStore());
 	private _hasAttached = false;
 	private _appInitialized = false;
@@ -152,7 +171,8 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 		@IProductService private readonly _productService: IProductService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostCustomizationService agentHostCustomizationService: IAgentHostCustomizationService,
-		@IAgentHostMcpAppToolsService mcpAppToolsService: IAgentHostMcpAppToolsService,
+		@IAgentHostMcpAppToolsService private readonly _mcpAppToolsService: IAgentHostMcpAppToolsService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 
@@ -177,17 +197,19 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 			extension: undefined,
 		}));
 		if (renderData.kind === 'agentHost') {
-			this._register(mcpAppToolsService.registerApp(renderData.sessionResource, this));
+			this._register(this._mcpAppToolsService.registerApp(renderData.sessionResource, this));
 		}
 
 		// Build host context observable
 		this.hostContext = this._mcpToolCallUI.hostContext.map((context, reader) => {
 			const layout = this._layout.read(reader);
+			const displayMode = this._displayMode.read(reader);
 			return {
 				...context,
+				displayMode,
 				containerDimensions: layout ? {
 					width: layout.currentWidth.read(reader),
-					maxHeight: layout.maxHeight.read(reader),
+					...(displayMode === 'fullscreen' ? { height: layout.maxHeight.read(reader) } : { maxHeight: layout.maxHeight.read(reader) }),
 				} : undefined,
 				toolCall: {
 					toolCallId: this.toolInvocation.toolCallId,
@@ -242,14 +264,81 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 		return this._height;
 	}
 
+	/** The title or name provided by the current app instance during initialization. */
+	public get appTitle(): string | undefined {
+		return this._appTitle;
+	}
+
+	/**
+	 * Moves the app into an editor ('fullscreen'), or reveals and focuses that editor if it is already open,
+	 * or closes the editor and returns the app inline ('inline'). Unsupported/undeclared modes leave the mode unchanged.
+	 * Resolves to the resulting display mode.
+	 */
+	public async setDisplayMode(mode: McpApps.McpUiDisplayMode): Promise<McpApps.McpUiDisplayMode> {
+		if (this._disposeCts.token.isCancellationRequested || (mode !== 'inline' && mode !== 'fullscreen')) {
+			return this._displayMode.get();
+		}
+		if (mode === 'inline') {
+			const availableModes = this._availableDisplayModes.get();
+			if (!availableModes?.length || availableModes.includes(mode)) {
+				this._editorInput.value?.dispose();
+			}
+			return this._displayMode.get();
+		}
+
+		let input = this._editorInput.value;
+		const created = !input;
+		if (!input) {
+			if (!this.canFullscreen.get()) {
+				return this._displayMode.get();
+			}
+			const reference = this._mcpAppToolsService.acquire(this.renderData, this.toolInvocation.toolCallId, () => {
+				// The inline view must have acquired this model before it can open an editor.
+				throw new Error('MCP App model must be acquired before opening its editor');
+			});
+			input = this._editorInput.value = new ChatMcpAppEditorInput(reference);
+			this._editorInputListener.value = input.onWillDispose(() => {
+				this._editorInput.clearAndLeak();
+				this._editorInputListener.clear();
+				// Keep the iframe alive until the inline attachment has reclaimed it.
+				this._retainContextUntilClaim = true;
+				this._displayMode.set('inline', undefined);
+			});
+			// Retain the iframe before the inline view detaches so the editor can reclaim it without reloading.
+			this._updateRetention(true);
+			this._displayMode.set('fullscreen', undefined);
+		}
+		try {
+			if (!await this._editorService.openEditor(input, { pinned: true }) && created) {
+				input.dispose();
+			}
+		} catch (error) {
+			if (created) {
+				input.dispose();
+			}
+			this._logService.error('[MCP App] Failed to open app editor', error);
+		}
+		return this._displayMode.get();
+	}
+
+	/** Fires when the app's webview receives focus. */
+	public get onDidFocus(): Event<void> {
+		return this._webview.onDidFocus;
+	}
+
+	/** Focuses the app's webview. */
+	public focus(): void {
+		this._webview.focus();
+	}
+
 	/** Attaches the app to a view without transferring ownership of its webview. */
 	public attach(container: HTMLElement, layout: IMcpAppLayout): IDisposable {
 		const store = new DisposableStore();
 		const attachment = { container, clippingContainer: layout.clippingContainer, visible: false };
 		this._attachment = attachment;
-		this._layout.set(layout, undefined);
+		// Only keep the dimensions: observable loggers walk stored values, and the window exposes cross-origin frames.
+		this._layout.set({ maxHeight: layout.maxHeight, currentWidth: layout.currentWidth }, undefined);
 		const targetWindow = layout.targetWindow;
-		const overlay = this._webview;
 		this._releaseWebview();
 		const observer = this._createIntersectionObserver(entries => {
 			if (this._attachment !== attachment || this._disposeCts.token.isCancellationRequested) {
@@ -257,14 +346,7 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 			}
 			attachment.visible = entries.some(entry => entry.isIntersecting) && container.isConnected && container.checkVisibility();
 			if (attachment.visible) {
-				if (this._overlayWindow && this._overlayWindow !== targetWindow) {
-					this._resetApp();
-				}
-				this._overlayWindow = targetWindow;
-				overlay.claim(this, targetWindow, undefined);
-				this._webviewClaimed = true;
-				this._webviewContextAlive = true;
-				overlay.setAnchorElement(container, this._getClippingContainer(attachment));
+				this._claimWebview(attachment, targetWindow);
 			} else {
 				this._releaseWebview();
 			}
@@ -304,6 +386,19 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 		return attachment.clippingContainer ?? dom.findParentWithClass(attachment.container, 'monaco-scrollable-element') ?? undefined;
 	}
 
+	private _claimWebview(attachment: { readonly container: HTMLElement; readonly clippingContainer?: HTMLElement }, targetWindow: ReturnType<typeof dom.getWindow>): void {
+		if (this._overlayWindow && this._overlayWindow !== targetWindow) {
+			this._resetApp();
+		}
+		this._overlayWindow = targetWindow;
+		this._webview.claim(this, targetWindow, undefined);
+		this._webviewClaimed = true;
+		this._webviewContextAlive = true;
+		this._retainContextUntilClaim = false;
+		this._updateRetention(this._shouldRetainContext());
+		this._webview.setAnchorElement(attachment.container, this._getClippingContainer(attachment));
+	}
+
 	private _releaseWebview(): void {
 		if (!this._webviewClaimed) {
 			return;
@@ -317,7 +412,7 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	}
 
 	private _setTools(tools: readonly MCP.Tool[]): void {
-		if (this._updateRetention(this._hiddenRetentionEnabled && tools.length > 0)) {
+		if (this._updateRetention(this._shouldRetainContext(tools))) {
 			this._resetApp();
 		} else {
 			this._tools.set(tools, undefined);
@@ -327,13 +422,20 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	/** Updates hidden-frame eligibility without interrupting a visible app or disposing its view model. */
 	public setHiddenRetentionEnabled(enabled: boolean): void {
 		this._hiddenRetentionEnabled = enabled;
-		if (this._updateRetention(enabled && this._tools.get().length > 0)) {
+		if (this._updateRetention(this._shouldRetainContext())) {
 			this._resetApp();
 		}
 	}
 
+	private _shouldRetainContext(tools = this._tools.get()): boolean {
+		return (this._hiddenRetentionEnabled && tools.length > 0) || this._displayMode.get() === 'fullscreen';
+	}
+
 	/** Returns whether disabling retention destroyed an already-hidden iframe. */
 	private _updateRetention(retainContextWhenHidden: boolean): boolean {
+		if (!retainContextWhenHidden && (this._editorInput.value || this._retainContextUntilClaim)) {
+			return false;
+		}
 		this._webview.options = { ...this._webview.options, retainContextWhenHidden };
 		if (!retainContextWhenHidden && this._webviewContextAlive && !this._webviewClaimed && this._overlayWindow) {
 			// A released overlay must be reclaimed before release can destroy its retained iframe.
@@ -354,6 +456,24 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 		}
 		this._loadState.set({ status: 'loading' }, undefined);
 		this._loadContent();
+	}
+
+	/**
+	 * Starts the agent-host MCP server that serves this app. A successful
+	 * start changes the server status, which retries the load.
+	 */
+	public startServer(): Promise<void> {
+		const server = this.server.get();
+		if (this.renderData.kind !== 'agentHost' || !server?.enabled || (server.status !== McpServerStatus.Stopped && server.status !== McpServerStatus.Error)) {
+			return Promise.resolve();
+		}
+		const key = `${this.renderData.sessionResource.toString()}\0${server.id}`;
+		let pending = ChatMcpAppModel._pendingServerStarts.get(key);
+		if (!pending) {
+			pending = server.start().finally(() => ChatMcpAppModel._pendingServerStarts.delete(key));
+			ChatMcpAppModel._pendingServerStarts.set(key, pending);
+		}
+		return pending;
 	}
 
 	/**
@@ -388,6 +508,11 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 			if (this.renderData.kind === 'agentHost' && this.renderData.serverName && this.server.get()?.status !== McpServerStatus.Ready) {
 				this._logService.trace('[MCP App] Server unavailable while loading app:', error);
 				this._loadState.set({ status: 'unavailable' }, undefined);
+				// Like local apps, start a stopped server once; a failed server waits for an explicit start.
+				if (!this._didAutoStartServer && this.server.get()?.status === McpServerStatus.Stopped) {
+					this._didAutoStartServer = true;
+					this.startServer().catch(startError => this._logService.warn('[MCP App] Failed to start MCP server:', startError));
+				}
 			} else {
 				this._logService.error('[MCP App] Error loading app:', error);
 				this._loadState.set({ status: 'error', error: error as Error }, undefined);
@@ -563,7 +688,11 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 			})();</script>
 		`;
 
-		return this._prependToHead(html, cspTag + postMessageRehoist);
+		// Webviews pad the body by default, but MCP Apps expect to fill their container edge to edge.
+		// Overriding within the same layer keeps any padding the app sets itself.
+		const resetPadding = '<style>@layer vscode-default { body { padding: 0; } }</style>';
+
+		return this._prependToHead(html, cspTag + resetPadding + postMessageRehoist);
 	}
 
 	private _prependToHead(html: string, content: string): string {
@@ -649,8 +778,7 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 					break;
 
 				case 'ui/request-display-mode':
-					// VS Code only supports inline display mode
-					result = { mode: 'inline' } satisfies McpApps.McpUiRequestDisplayModeResult;
+					result = { mode: await this.setDisplayMode(request.params.mode) } satisfies McpApps.McpUiRequestDisplayModeResult;
 					break;
 
 				case 'ui/notifications/initialized':
@@ -706,6 +834,9 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	 * Handles the ui/initialize request from the MCP App View.
 	 */
 	private async _handleInitialize(params: McpApps.McpUiInitializeRequest['params']): Promise<McpApps.McpUiInitializeResult> {
+		// Apps that don't declare display modes may be switched to any mode the host supports.
+		this._availableDisplayModes.set(params.appCapabilities?.availableDisplayModes ?? ['inline', 'fullscreen'], undefined);
+		this._appTitle = params.appInfo.title ?? params.appInfo.name;
 		this._announcedCapabilities = true;
 		this._appProvidesTools = this.renderData.kind === 'agentHost' && params.appCapabilities?.tools !== undefined;
 
@@ -926,6 +1057,9 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	}
 
 	private _handleSandboxWheel(params: McpApps.CustomSandboxWheelNotification['params']): void {
+		if (this._displayMode.get() === 'fullscreen') {
+			return;
+		}
 		let defaultPrevented = false;
 		const evt: Partial<IMouseWheelEvent> = {
 			wheelDeltaX: params.deltaX,
@@ -1135,8 +1269,12 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 			void pending.error(new CancellationError());
 		}
 		this._pendingRequests.clear();
-		this._updateRetention(false);
-		this._tools.set([], undefined);
+		this._appTitle = undefined;
+		this._updateRetention(this._shouldRetainContext([]));
+		transaction(tx => {
+			this._availableDisplayModes.set(undefined, tx);
+			this._tools.set([], tx);
+		});
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1164,7 +1302,11 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	}
 
 	public override dispose(): void {
+		if (this._disposeCts.token.isCancellationRequested) {
+			return;
+		}
 		this._disposeCts.dispose(true);
+		this._editorInput.clear();
 		this._resetApp();
 		super.dispose();
 	}

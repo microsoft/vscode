@@ -5,7 +5,38 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubAuthorizationContext, isEqualAuthorization } from '../../common/githubTypes.js';
+import { GitHubAuthorizationContext, GitHubRequestError, isEqualAuthorization } from '../../common/githubTypes.js';
+import { RequestError, RequestRateLimitError } from '../../common/types.js';
+
+suite('GitHub request error predicates', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('distinguishes response-size failures from request-size and unrelated errors', () => {
+		const errors = [
+			new RequestError('Response too large', 'responseTooLarge'),
+			new GitHubRequestError('Response too large', 'responseTooLarge'),
+			new GitHubRequestError('Request too large', 'unknown', 413),
+			new Error('Response too large'),
+			{ kind: 'responseTooLarge' },
+			undefined,
+		];
+		assert.deepStrictEqual(errors.map(RequestError.isResponseTooLarge), [true, true, false, false, false, false]);
+	});
+
+	test('recognizes classified rate limits without treating all forbidden errors as rate limits', () => {
+		const errors = [
+			new GitHubRequestError('Too many requests', 'rateLimit', 429),
+			new GitHubRequestError('Secondary rate limit', 'rateLimit', 403),
+			new RequestError('Rate limited', 'rateLimit'),
+			new RequestRateLimitError(1000),
+			new GitHubRequestError('Forbidden', 'authorization', 403),
+			new Error('Rate limited'),
+			{ kind: 'rateLimit', statusCode: 429 },
+			undefined,
+		];
+		assert.deepStrictEqual(errors.map(RequestError.isRateLimited), [true, true, true, true, false, false, false, false]);
+	});
+});
 
 suite('GitHub authorization equality', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

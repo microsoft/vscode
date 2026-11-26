@@ -5,8 +5,9 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
-import { getComparisonKey } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
@@ -93,7 +94,8 @@ export function orderFeedbackItems(items: readonly IAgentFeedback[]): IAgentFeed
 
 /**
  * Client-side, in-memory feedback store used for every non-agent-host
- * provider. State is not persisted and is cleared on session close.
+ * provider. State is not persisted; the service clears a session's items when
+ * the session is deleted.
  */
 export class InMemoryAgentFeedbackItemsBackend extends Disposable implements IAgentFeedbackItemsBackend {
 
@@ -286,6 +288,15 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 	};
 }
 
+/**
+ * Maps an annotation's resource into client space. Feedback on an untitled
+ * buffer has no host counterpart, so {@link feedbackToAnnotation} sends it
+ * unchanged and it must come back unchanged, not as an agent-host URI.
+ */
+function annotationResourceToClient(resource: URI, connection: IAgentConnection): URI {
+	return resource.scheme === Schemas.untitled ? resource : connection.resourceUris.fromAgentHost(resource);
+}
+
 function annotationToFeedback(annotation: Annotation, sessionResource: URI, connection: IAgentConnection): IAgentFeedback | undefined {
 	const entries = annotation.entries ?? [];
 	const meta = readFeedbackMeta(annotation);
@@ -303,7 +314,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 	return {
 		id: annotation.id,
 		text: entryText(entries[0].text),
-		resourceUri: connection.resourceUris.fromAgentHost(URI.parse(annotation.resource)),
+		resourceUri: annotationResourceToClient(URI.parse(annotation.resource), connection),
 		range: fromTextRange(annotation.range),
 		sessionResource,
 		suggestion: meta?.suggestion,
@@ -329,7 +340,7 @@ interface ITrackedChannel {
 
 /**
  * Feedback store backed by the agent host's annotations channel. Feedback
- * items round-trip as {@link Annotation}s on `<session>/annotations`, mutated
+ * items round-trip as {@link Annotation}s on the advertised annotations channel, mutated
  * via the `annotations/set` upsert (and `annotations/removed`) actions, with
  * feedback semantics carried in {@link Annotation._meta}.
  *
@@ -381,7 +392,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 
 		// Release a deleted session's subscription and its cached feedback.
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._releaseChannel(session.resource)));
-		// Rebind held subscriptions to the provider's current connection, and
+		// Rebind held subscriptions to the provider's current connection and resource, and
 		// resume those of visible sessions whose channel became available again.
 		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
 			for (const [key, resource] of this._sessionResourceByKey) {
@@ -422,31 +433,6 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			return orderFeedbackItems(items);
 		}
 		return [];
-	}
-
-	/** Observes annotations only while subscribed, without retaining a session in the backend cache. */
-	getItemsObservable(sessionResource: URI): IObservable<readonly IAgentFeedback[]> {
-		const sessionsChanged = observableSignalFromEvent(this, this._sessionsManagementService.onDidChangeSessions);
-		const channel = derived(this, reader => {
-			sessionsChanged.read(reader);
-			const session = this._sessionsManagementService.getSession(sessionResource);
-			const provider = session && this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
-			const resolved = session && provider?.getFeedbackAnnotationsChannel?.(session.sessionId);
-			if (!resolved) {
-				return undefined;
-			}
-			const ref = reader.delayedStore.add(resolved.connection.getSubscription(StateComponents.Annotations, resolved.annotationsUri, AnnotationsAgentFeedbackItemsBackend.OWNER));
-			return {
-				connection: resolved.connection,
-				subscription: ref.object,
-				changed: observableSignalFromEvent(this, ref.object.onDidChange),
-			};
-		});
-		return derived(this, reader => {
-			const current = channel.read(reader);
-			current?.changed.read(reader);
-			return current ? orderFeedbackItems(this._decode(current, sessionResource)) : [];
-		});
 	}
 
 	hasLoaded(sessionResource: URI): boolean {
@@ -692,10 +678,14 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (existing) {
 			// A remote host can reconnect as a new client, leaving the old connection dead.
 			const current = existing.provider.getFeedbackAnnotationsChannel(existing.sessionId);
-			if (current?.connection === existing.connection) {
+			if (current?.connection === existing.connection && isEqual(current.annotationsUri, existing.annotationsUri)) {
 				return existing;
 			}
 			this._suspendChannel(sessionResource);
+			if (current && !isEqual(current.annotationsUri, existing.annotationsUri)) {
+				this._cacheBySession.delete(key);
+				this._signatureBySession.delete(key);
+			}
 			if (!current) {
 				return undefined;
 			}

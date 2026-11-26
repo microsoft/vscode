@@ -11,6 +11,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { platform, PlatformToString } from '../../../../util/vs/base/common/platform';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { CopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
+import { INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement';
 import { packageJson } from '../../../env/common/packagejson';
 import { ILogService } from '../../../log/common/logService';
 import { UserInfoStore } from '../../node/baseExperimentationService';
@@ -44,13 +45,14 @@ describe('CopilotAssignmentsFilterProvider', () => {
 	it('emits new TAS parameters without legacy headers or Market', () => {
 		const { tokenStore, provider } = createProvider();
 		tokenStore.copilotToken = new CopilotToken(createTestExtendedTokenInfo({
-			token: 'tid=tracking-id;sn=1;fcv1=1',
+			token: 'tid=tracking-id;sn=1;fcv1=1;st=proxima',
 			sku: 'enterprise',
 			organization_list: ['4535c7beffc844b46bb1ed4aa04d759a'],
 			enterprise_list: [42],
 		}));
 
 		expect(Object.fromEntries(provider.getFilters())).toEqual({
+			integratorid: INTEGRATION_ID,
 			vscode_core_platform: PlatformToString(platform),
 			vscode_core_windowkind: 'editor',
 			devdeviceid: 'test-device',
@@ -63,6 +65,7 @@ describe('CopilotAssignmentsFilterProvider', () => {
 			github_core_copilotsku: 'enterprise',
 			github_core_issn: '1',
 			github_core_isfcv1: '1',
+			github_core_isproxima: '1',
 			vscode_core_copilotchatextensionversion: packageJson.version.split('-')[0],
 		});
 
@@ -72,11 +75,11 @@ describe('CopilotAssignmentsFilterProvider', () => {
 		const { tokenStore, provider } = createProvider();
 		const tokens = [
 			new CopilotToken(createTestExtendedTokenInfo({
-				token: 'sn=1;fcv1=1',
+				token: 'sn=1;fcv1=1;st=prod-eu',
 				sku: 'enterprise',
 				organization_list: ['a5db0bcaae94032fe715fb34a5e4bce2'],
 			})),
-			new CopilotToken(createTestExtendedTokenInfo({ token: 'sn=0;fcv1=0', sku: 'pro', organization_list: ['unrecognized-org'] })),
+			new CopilotToken(createTestExtendedTokenInfo({ token: 'sn=0;fcv1=0;st=dotcom', sku: 'pro', organization_list: ['unrecognized-org'] })),
 			new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=test', sku: undefined })),
 			undefined,
 		];
@@ -89,12 +92,13 @@ describe('CopilotAssignmentsFilterProvider', () => {
 				filters.get('github_core_copilotsku'),
 				filters.get('github_core_issn'),
 				filters.get('github_core_isfcv1'),
+				filters.get('github_core_isproxima'),
 			];
 		})).toEqual([
-			['a5db0bcaae94032fe715fb34a5e4bce2', 'enterprise', '1', '1'],
-			[undefined, 'pro', '0', '0'],
-			[undefined, undefined, '0', '0'],
-			[undefined, undefined, '0', '0'],
+			['a5db0bcaae94032fe715fb34a5e4bce2', 'enterprise', '1', '1', '1'],
+			[undefined, 'pro', '0', '0', '0'],
+			[undefined, undefined, '0', '0', '0'],
+			[undefined, undefined, '0', '0', '0'],
 		]);
 	});
 

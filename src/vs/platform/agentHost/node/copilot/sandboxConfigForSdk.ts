@@ -6,7 +6,7 @@
 import { homedir } from 'os';
 import { posix, win32 } from '../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
-import type { URI } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 import { AgentSandboxEnabledValue, type IAgentSandboxMaskedCredentials, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import type { ISessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
@@ -122,8 +122,8 @@ export interface SandboxSeatbeltPolicy {
  * Optional toggles are forwarded only when supplied; absent values use runtime defaults.
  * Credential authentication defaults to enabled and uses the effective Copilot-only preferences.
  *
- * `extraReadonlyPaths` grants read access to session attachments, generated shell
- * init scripts and applied plugin resources, unless a managed read-only list is present.
+ * `extraReadonlyPaths` grants read access to application contents, session attachments,
+ * generated shell init scripts and applied plugin resources, unless a managed read-only list is present.
  *
  * `attachedPaths` grants read-only access to the exact files and folders the
  * user attached to the chat; see {@link resolveAttachedPathGrants}.
@@ -134,6 +134,7 @@ export function buildSandboxConfigForSdk(
 	extraReadonlyPaths?: readonly string[],
 	managedPolicy?: ISessionSandboxPolicy,
 	attachedPaths?: ISandboxAttachedPaths,
+	extensionHome?: URI,
 ): SandboxConfig | undefined {
 	const enabledRaw = sandbox?.[AgentHostSandboxKey.Enabled];
 	if (enabledRaw !== AgentSandboxEnabledValue.On) {
@@ -141,7 +142,7 @@ export function buildSandboxConfigForSdk(
 	}
 
 	const os = toOperatingSystem(platform);
-	const { denied, readonly, readwrite } = resolveUserPaths(sandbox, os);
+	const { denied, readonly, readwrite } = resolveUserPaths(sandbox, os, getExtensionSandboxDefaults(platform, extensionHome), managedPolicy);
 	// User denies win over host-generated read grants; existing read/write grants are preserved.
 	for (const path of managedPolicy?.readonlyPaths !== undefined ? [] : extraReadonlyPaths ?? []) {
 		const p = normalizeSandboxFileSystemPath(path, os);
@@ -243,12 +244,13 @@ export function resolveAttachedPathGrants(
 	sandbox: ISandboxConfigValue | undefined,
 	managedPolicy: ISessionSandboxPolicy | undefined,
 	attachedPaths: ISandboxAttachedPaths | undefined,
+	extensionHome?: URI,
 ): ISandboxAttachedPathGrants {
 	if (sandbox?.[AgentHostSandboxKey.Enabled] !== AgentSandboxEnabledValue.On) {
 		return { granted: [], blocked: [], containsWritable: [] };
 	}
 	const os = toOperatingSystem(platform);
-	return partitionAttachedPaths(os, sandbox, resolveUserPaths(sandbox, os), managedPolicy, attachedPaths);
+	return partitionAttachedPaths(os, sandbox, resolveUserPaths(sandbox, os, getExtensionSandboxDefaults(platform, extensionHome), managedPolicy), managedPolicy, attachedPaths);
 }
 
 interface IResolvedUserPaths {
@@ -261,7 +263,15 @@ function toOperatingSystem(platform: NodeJS.Platform): OperatingSystem {
 	return platform === 'win32' ? OperatingSystem.Windows : platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
 }
 
-function resolveUserPaths(sandbox: ISandboxConfigValue | undefined, os: OperatingSystem): IResolvedUserPaths {
+export function getCopilotExtensionDataDirectory(copilotHome: URI): URI {
+	return URI.joinPath(copilotHome, 'extension-data');
+}
+
+function getExtensionSandboxDefaults(platform: NodeJS.Platform, extensionHome: URI | undefined): string[] {
+	return extensionHome ? [toSandboxFileSystemPath(getCopilotExtensionDataDirectory(extensionHome), platform)] : [];
+}
+
+function resolveUserPaths(sandbox: ISandboxConfigValue | undefined, os: OperatingSystem, extensionReadwritePaths: readonly string[], managedPolicy: ISessionSandboxPolicy | undefined): IResolvedUserPaths {
 	const fs = sandbox?.[AgentHostSandboxKey.UserConfiguredPaths];
 	const denied = new Set((fs?.deniedPaths ?? []).map(path => normalizeSandboxFileSystemPath(path, os)));
 	const readonly = new Set<string>();
@@ -276,6 +286,14 @@ function resolveUserPaths(sandbox: ISandboxConfigValue | undefined, os: Operatin
 		const p = normalizeSandboxFileSystemPath(path, os);
 		if (!denied.has(p) && !readonly.has(p)) {
 			readwrite.add(p);
+		}
+	}
+	if (managedPolicy?.readwritePaths === undefined) {
+		for (const path of extensionReadwritePaths) {
+			const p = normalizeSandboxFileSystemPath(path, os);
+			if (![...denied, ...readonly].some(root => isEqualOrInside(p, root, os) || isEqualOrInside(root, p, os))) {
+				readwrite.add(p);
+			}
 		}
 	}
 	return { denied, readonly, readwrite };

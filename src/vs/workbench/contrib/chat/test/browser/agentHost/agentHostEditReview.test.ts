@@ -36,7 +36,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { ChangesetFile, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ComponentToState, FileEditKind, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetFile, ChangesetFileStatus, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ComponentToState, FileEditKind, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { FileOperation, IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
@@ -545,7 +545,7 @@ suite('AgentHostEditReview', () => {
 		const entry = getEntry('/a.ts');
 		await getChanges(entry);
 		openDiffEditor(entry);
-		host.setWorkingSet([{ ...first, isEditing: true }]);
+		host.setWorkingSet([{ ...first, status: ChangesetFileStatus.Editing }]);
 		const editing = !!entry.isCurrentlyBeingModifiedBy.get();
 
 		enabled.set(false, undefined);
@@ -1078,7 +1078,7 @@ suite('AgentHostEditReview', () => {
 		const describe = async () => ({ beingModified: !!entry.isCurrentlyBeingModifiedBy.get(), waitsForLastEdits: entry.waitsForLastEdits.get(), original: entry.originalModel.getValue(), changes: await getChanges(entry) });
 
 		// The agent starts an edit of the first file.
-		host.setWorkingSet([{ ...a, isEditing: true }, b]);
+		host.setWorkingSet([{ ...a, status: ChangesetFileStatus.Editing }, b]);
 		await settle();
 		const whileWriting = await describe();
 		await review.accept();
@@ -1103,8 +1103,8 @@ suite('AgentHostEditReview', () => {
 		});
 	});
 
-	for (const isEditing of [false, undefined]) {
-		test(`uses the standard editing flag and resumes review when it becomes ${isEditing}`, async () => {
+	for (const status of [0, undefined, 1 << 8]) {
+		test(`uses the standard editing bit and resumes review when status becomes ${status}`, async () => {
 			hostWrites('/a.ts', 'A\n');
 			const file = workingSetFile('/a.ts', 'a\n', 'A\n', 'tc1');
 			host.setWorkingSet([file]);
@@ -1113,9 +1113,9 @@ suite('AgentHostEditReview', () => {
 			await getChanges(entry);
 			const before = !!entry.isCurrentlyBeingModifiedBy.get();
 
-			host.setWorkingSet([{ ...file, isEditing: true }]);
+			host.setWorkingSet([{ ...file, status: ChangesetFileStatus.Editing | (1 << 8) }]);
 			const whileEditing = !!entry.isCurrentlyBeingModifiedBy.get();
-			host.setWorkingSet([{ ...file, isEditing }]);
+			host.setWorkingSet([{ ...file, status }]);
 			await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value ? undefined : true));
 			const after = !!entry.isCurrentlyBeingModifiedBy.get();
 			await review.accept(URI.file('/a.ts'));
@@ -1126,6 +1126,28 @@ suite('AgentHostEditReview', () => {
 		});
 	}
 
+	test('guards legacy isEditing files until an explicit canonical status settles them', async () => {
+		hostWrites('/a.ts', 'A\n');
+		const file = workingSetFile('/a.ts', 'a\n', 'A\n', 'tc1');
+		host.setWorkingSet([file]);
+		await settle();
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+
+		const legacy: ChangesetFile = JSON.parse(JSON.stringify({ ...file, isEditing: true }));
+		host.setWorkingSet([legacy]);
+		const whileEditing = !!entry.isCurrentlyBeingModifiedBy.get();
+		await review.accept(URI.file('/a.ts'));
+		const invokedWhileEditing = [...host.invoked];
+		host.setWorkingSet([JSON.parse(JSON.stringify({ ...legacy, status: 0 }))]);
+		await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value ? undefined : true));
+		await review.accept(URI.file('/a.ts'));
+
+		assert.deepStrictEqual({ whileEditing, invokedWhileEditing, invoked: host.invoked, errors }, {
+			whileEditing: true, invokedWhileEditing: [], invoked: ['keep /a.ts @tc1'], errors: [],
+		});
+	});
+
 	test('marks an edit during recomputation immediately and an earlier diff cannot unlock a later edit', async () => {
 		hostWrites('/a.ts', 'A\nb\n');
 		const initial = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1');
@@ -1134,7 +1156,7 @@ suite('AgentHostEditReview', () => {
 		const entry = getEntry('/a.ts');
 		await getChanges(entry);
 
-		host.setWorkingSet([{ ...initial, isEditing: true }], createOperations(), ChangesetStatus.Recomputing);
+		host.setWorkingSet([{ ...initial, status: ChangesetFileStatus.Editing }], createOperations(), ChangesetStatus.Recomputing);
 		const duringRecomputation = !!entry.isCurrentlyBeingModifiedBy.get();
 		hostWritesWithoutReload('/a.ts', 'A\nB\n');
 		const updated = workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', 'tc2');
@@ -1143,7 +1165,7 @@ suite('AgentHostEditReview', () => {
 		await gate.started.p;
 		const duringDiff = !!entry.isCurrentlyBeingModifiedBy.get();
 
-		host.setWorkingSet([{ ...updated, isEditing: true }], createOperations(), ChangesetStatus.Recomputing);
+		host.setWorkingSet([{ ...updated, status: ChangesetFileStatus.Editing }], createOperations(), ChangesetStatus.Recomputing);
 		diffGate = undefined;
 		gate.release.complete();
 		await settle();
@@ -1283,6 +1305,65 @@ suite('AgentHostEditReview', () => {
 			});
 		});
 	}
+
+	test('keeps reviewing a file whose changes are stashed and restored outside the session', async () => {
+		hostWrites('/a.ts', 'A\nb\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1')]);
+		await waitForEntries('/a.ts');
+		const entry = getEntry('/a.ts');
+		const describe = async () => {
+			await review.resolveEntry(entry.modifiedURI);
+			return { state: entry.state.get(), changes: await getChanges(entry), reviewing: getEntry('/a.ts') === entry };
+		};
+		const shown = await describe();
+
+		// Like `git stash`, which the session doesn't record.
+		hostWrites('/a.ts', 'a\nb\n');
+		const stashed = await describe();
+
+		// Like `git stash pop`.
+		hostWrites('/a.ts', 'A\nb\n');
+		const restored = await describe();
+
+		assert.deepStrictEqual({ shown, stashed, restored, invoked: host.invoked, errors }, {
+			shown: { state: ModifiedFileEntryState.Modified, changes: ['[1,2)'], reviewing: true },
+			stashed: { state: ModifiedFileEntryState.Modified, changes: [], reviewing: true },
+			restored: { state: ModifiedFileEntryState.Modified, changes: ['[1,2)'], reviewing: true },
+			invoked: [],
+			errors: [],
+		});
+	});
+
+	test('keeps reviewing changes after the user undoes and redoes the reload of the agent edit', async () => {
+		const baseline = 'first\nmiddle\nlast\n';
+		const current = 'first\nMIDDLE\nlast\n';
+		const { model, files } = await useRealTextFiles(baseline);
+		// The document is open when the agent writes the file, and reloads it.
+		await files.writeFile(model.resource, VSBuffer.fromString(current));
+		await model.resolve({ forceReadFromFile: true });
+		host.setWorkingSet([workingSetFile('/dirty.ts', baseline, current, 'tc1')]);
+		await waitForEntries('/dirty.ts');
+		const entry = getEntry('/dirty.ts');
+		const describe = async () => {
+			await review.resolveEntry(model.resource);
+			return { state: entry.state.get(), changes: await getChanges(entry), text: model.textEditorModel.getValue() };
+		};
+		const shown = await describe();
+
+		await model.textEditorModel.undo();
+		const afterUndo = await describe();
+
+		await model.textEditorModel.redo();
+		const afterRedo = await describe();
+
+		assert.deepStrictEqual({ shown, afterUndo, afterRedo, invoked: host.invoked, errors }, {
+			shown: { state: ModifiedFileEntryState.Modified, changes: ['[2,3)'], text: current },
+			afterUndo: { state: ModifiedFileEntryState.Modified, changes: [], text: baseline },
+			afterRedo: { state: ModifiedFileEntryState.Modified, changes: ['[2,3)'], text: current },
+			invoked: [],
+			errors: [],
+		});
+	});
 
 	for (const otherAgentEdit of [false, true]) {
 		test(`undo/redo preserves user text adjacent to a removed agent edit (other agent edit: ${otherAgentEdit})`, async () => {
@@ -1482,7 +1563,7 @@ suite('AgentHostEditReview', () => {
 
 			stringDiffCoarse = false;
 			if (replacement) {
-				host.setWorkingSet([{ ...file, isEditing: true }]);
+				host.setWorkingSet([{ ...file, status: ChangesetFileStatus.Editing }]);
 				hostWrites('/a.ts', 'ONE\nMIDDLE\nLAST\n');
 				host.setWorkingSet([workingSetFile('/a.ts', 'ONE\nmiddle\nLAST\n', 'ONE\nMIDDLE\nLAST\n', 'tc2')]);
 			} else {
@@ -1715,7 +1796,7 @@ suite('AgentHostEditReview', () => {
 		await waitForEntries('/dirty.ts');
 		const entry = getEntry('/dirty.ts');
 		await getChanges(entry);
-		host.setWorkingSet([{ ...first, isEditing: true }]);
+		host.setWorkingSet([{ ...first, status: ChangesetFileStatus.Editing }]);
 		await files.writeFile(model.resource, VSBuffer.fromString('FIRST\nmiddle\nLAST\n'));
 		host.setWorkingSet([workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nLAST\n', 'tc2')]);
 		await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value ? undefined : true));
@@ -1796,7 +1877,7 @@ suite('AgentHostEditReview', () => {
 		const entry = getEntry('/a.ts');
 		await getChanges(entry);
 		openDiffEditor(entry);
-		host.setWorkingSet([{ ...file, isEditing: true }]);
+		host.setWorkingSet([{ ...file, status: ChangesetFileStatus.Editing }]);
 		const before = { editing: !!entry.isCurrentlyBeingModifiedBy.get(), waiting: entry.waitsForLastEdits.get() };
 		review.dispose();
 		const after = { editing: !!entry.isCurrentlyBeingModifiedBy.get(), waiting: entry.waitsForLastEdits.get(), originalDisposed: entry.originalModel.isDisposed() };

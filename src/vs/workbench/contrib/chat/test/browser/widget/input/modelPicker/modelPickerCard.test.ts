@@ -1161,6 +1161,25 @@ suite('ModelCard', () => {
 		}, { description: 'A model for careful reasoning.', context: '200K', settings: 0 });
 	});
 
+	test('a warning given as the model\'s tooltip is shown once, as its banner, and HydraFusion keeps its Learn More link', () => {
+		const deprecation = 'This model has a planned deprecation date of 2026-12-14.';
+		const results = [
+			{ id: 'gemini-3.8-flash', modelGroup: undefined },
+			{ id: 'hydrafusion', modelGroup: { id: 'copilotcli' } },
+		].map(({ id, modelGroup }) => {
+			const { card } = createCard({}, { model: createModel({ id, modelGroup, configurationSchema: undefined, tooltip: deprecation, warningText: { model_pending_deprecation: deprecation } }) });
+			return {
+				descriptions: Array.from(card.element.querySelectorAll('.chat-model-card-description'), element => element.textContent?.trim()),
+				learnMore: card.element.querySelector('.chat-model-card-description a')?.getAttribute('href'),
+				warnings: Array.from(card.element.querySelectorAll('.chat-model-hover-warning-text'), element => element.textContent?.trim()),
+			};
+		});
+		assert.deepStrictEqual(results, [
+			{ descriptions: [], learnMore: undefined, warnings: [deprecation] },
+			{ descriptions: ['Learn more'], learnMore: 'https://aka.ms/hydrafusion-blog', warnings: [deprecation] },
+		]);
+	});
+
 	test('routing models retain their descriptive badge without advertising a fixed context window', () => {
 		const result = createCard({}, {
 			model: createModel({
@@ -1234,7 +1253,10 @@ suite('ModelCard', () => {
 	});
 
 	test('configuration is applied before animation completes, then accepted without an extra click', async () => {
-		const result = createCard();
+		let refresh = () => { };
+		// The picker refreshes the card as soon as the change is reported, while the selection still slides.
+		const result = createCard({}, { onDidChangeConfiguration: () => refresh() });
+		refresh = () => result.card.refresh();
 		const group = element(result.card.element, '[role="radiogroup"]');
 		const indicator = element(group, '.monaco-radio-selection');
 		const animation = indicator.animate([{ opacity: 1 }, { opacity: 0.9 }], { duration: 160 });
@@ -1425,6 +1447,21 @@ suite('ModelCard', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ duringAnimation, accepted: result.accepted }, {
 			duringAnimation: { selected: [fast.identifier], accepted: 0 }, accepted: 1,
+		});
+	});
+
+	test('what a kind of model adds follows the card\'s own sections, and is replaced when the card renders again', () => {
+		const events: string[] = [];
+		const { card } = createCard({}, {
+			renderAdditionalSections: container => {
+				container.appendChild(mainWindow.document.createElement('footer')).textContent = 'Routes';
+				events.push('render');
+				return toDisposable(() => events.push('dispose'));
+			},
+		});
+		card.refresh();
+		assert.deepStrictEqual({ last: card.element.lastElementChild?.textContent, count: card.element.querySelectorAll('footer').length, events }, {
+			last: 'Routes', count: 1, events: ['render', 'dispose', 'render'],
 		});
 	});
 });

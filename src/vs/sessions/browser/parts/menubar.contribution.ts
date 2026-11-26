@@ -5,8 +5,26 @@
 
 import { localize } from '../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IsMacNativeContext } from '../../../platform/contextkey/common/contextkeys.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { isLinux, isWeb, isWindows } from '../../../base/common/platform.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
+import { SESSIONS_SHOW_APPLICATION_MENU_SETTING } from './applicationMenu.js';
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'sessions',
+	properties: {
+		[SESSIONS_SHOW_APPLICATION_MENU_SETTING]: {
+			type: 'boolean',
+			default: true,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			included: (isWindows || isLinux) && !isWeb,
+			markdownDescription: localize('sessions.showApplicationMenu', "Controls whether the Agents window shows the application menu as a single button at the start of its title bar on Windows and Linux. Only applies when {0} is {1}.", '`#window.titleBarStyle#`', '`custom`'),
+		},
+	},
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarFileMenu,

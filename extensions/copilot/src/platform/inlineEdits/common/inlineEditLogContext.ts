@@ -10,9 +10,7 @@ import { ErrorUtils } from '../../../util/common/errors';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { ThemeIcon } from '../../../util/vs/base/common/themables';
-import { SerializedLineEdit } from '../../../util/vs/editor/common/core/edits/lineEdit';
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
-import { SerializedEdit } from './dataTypes/editUtils';
 import { FetchCancellationError } from './dataTypes/fetchCancellationError';
 import { LanguageContextResponse, SerializedContextResponse, serializeLanguageContext } from './dataTypes/languageContext';
 import { PromptSectionTokenCounts } from './dataTypes/promptSectionTokens';
@@ -738,7 +736,7 @@ export class InlineEditRequestLogContext {
 
 	private _logs: string[] = [];
 	addLog(content: string): void {
-		this._logs.push(content.replace('\n', '\\n').replace('\t', '\\t').replace('`', '\`') + '\n');
+		this._logs.push(content.replaceAll('\n', '\\n').replaceAll('\t', '\\t').replaceAll('`', '\\`') + '\n');
 		this.fireDidChange();
 	}
 
@@ -813,19 +811,6 @@ function basename(path: string): string {
 	const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
 	if (slash === -1) { return path; }
 	return path.slice(slash + 1);
-}
-
-export interface INextEditProviderTest {
-	// from least recent to most recent
-	recentWorkspaceEdits: { path: string; initialText: string; edit: SerializedEdit }[];
-	recentWorkspaceEditsActiveDocumentIdx?: number; // by default the last document
-	statelessDocuments?: { initialText: string; edit: SerializedLineEdit }[];
-	statelessActiveDocumentIdx?: number; // by default the last document
-	statelessLLMPrompt?: string;
-	statelessLLMResponse?: string;
-	statelessNextEdit?: SerializedLineEdit;
-
-	nextEdit?: SerializedEdit;
 }
 
 export interface ISerializedInlineEditLogContext {

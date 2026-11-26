@@ -34,6 +34,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 // Ensure color registrations are loaded
 import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // ============================================================================
 // Mock helpers
@@ -136,7 +137,7 @@ function createMockWorkspaceContextService(): IWorkspaceContextService {
 	return new class extends mock<IWorkspaceContextService>() {
 		override readonly onDidChangeWorkspaceFolders = Event.None;
 		override getWorkspace(): IWorkspace {
-			return { id: 'test', folders: [] };
+			return testIWorkspace({ id: 'test', folders: [] });
 		}
 	}();
 }
@@ -194,6 +195,7 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
+				override readonly onDidRunOperation = Event.None;
 			}());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IPathService, new class extends mock<IPathService>() {

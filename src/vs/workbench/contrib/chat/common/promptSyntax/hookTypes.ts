@@ -185,6 +185,21 @@ const copilotAgentHookAliases: Record<string, string> = {
 	Notification: 'notification',
 };
 
+/**
+ * Returns whether a hook event name uses the deprecated Local hook format,
+ * that is a capitalised event name such as `PreToolUse` or `Stop`.
+ */
+export function isLocalFormatHookEventName(name: string): boolean {
+	return Object.hasOwn(copilotAgentHookAliases, name);
+}
+
+/**
+ * Capitalised hook event names that mark a hook as using the deprecated Local hook format.
+ */
+export function getLocalFormatHookEventNames(): readonly string[] {
+	return Object.keys(copilotAgentHookAliases);
+}
+
 export function getCanonicalAgentHookName(target: Target, name: string): string | undefined {
 	if (target === Target.GitHubCopilot) {
 		const canonicalName = copilotAgentHookAliases[name] ?? name;

@@ -275,6 +275,22 @@
 	}
 }
 
+.mcp-app-part {
+	position: relative;
+}
+
+/* Sits on the tool's title row, which directly precedes the app, so it adds no height. */
+.mcp-app-part .mcp-app-toolbar {
+	position: absolute;
+	bottom: 100%;
+	right: 0;
+}
+
+/* Match the 20px title row so the icon is vertically centered on it. */
+.mcp-app-part .mcp-app-toolbar .action-label {
+	padding: var(--vscode-spacing-size20);
+}
+
 .mcp-app-part .mcp-app-placeholder {
 	display: flex;
 	align-items: center;

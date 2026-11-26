@@ -49,6 +49,7 @@ export interface IDecoration extends IDisposable {
 	readonly badgeClassName: string;
 	readonly iconClassName: string;
 	readonly isTextBadge: boolean;
+	readonly badgeText?: string;
 }
 
 export interface IDecorationsProvider {

@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import { MAX_TIMEOUT_DELAY } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { BackoffGate } from '../../common/backoff.js';
 import { GitHubRateLimitCoordinator } from '../../common/githubRateLimitCoordinator.js';
-import { schedulerDelay, systemRequestScheduler } from '../../common/scheduler.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
+import { schedulerDelay, systemRequestScheduler } from '../../common/scheduler.js';
+
 
 suite('GitHub system scheduler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,7 +26,7 @@ suite('GitHub system scheduler', () => {
 	test('splits server delays above the native timer maximum into bounded chunks', async () => {
 		let times: readonly number[] = [];
 		await runWithFakedTimers({ onHistory: history => times = history.map(event => event.time) }, async () => {
-			await schedulerDelay(systemRequestScheduler, MAX_TIMEOUT_DELAY + 1_000, new AbortController().signal);
+			await schedulerDelay(systemRequestScheduler, MAX_TIMEOUT_DELAY + 1_000, CancellationToken.None);
 		});
 		assert.deepStrictEqual(times, [MAX_TIMEOUT_DELAY, MAX_TIMEOUT_DELAY + 1_000]);
 	});
@@ -34,7 +36,7 @@ suite('GitHub system scheduler', () => {
 		await runWithFakedTimers({ onHistory: history => times = history.map(event => event.time) }, async () => {
 			const gate = disposables.add(new BackoffGate('identity', { immediateRetries: 1, base: 1, maximum: 10, jitter: 0 }, systemRequestScheduler));
 			gate.fail('credential', MAX_TIMEOUT_DELAY * 2 + 1_000);
-			await gate.wait('credential', new AbortController().signal);
+			await gate.wait('credential', CancellationToken.None);
 		});
 		assert.deepStrictEqual(times, [MAX_TIMEOUT_DELAY, MAX_TIMEOUT_DELAY * 2, MAX_TIMEOUT_DELAY * 2 + 1_000]);
 	});
@@ -48,7 +50,7 @@ suite('GitHub system scheduler', () => {
 				return new Response('{}');
 			}, systemRequestScheduler, false, undefined, { requestTimeout: serverDelay + 1_000 }));
 			transport.rateLimits.updateFromResponse(account, limitedResponse());
-			await transport.rest(account, 'token', { method: 'GET', url: 'https://api.example.test/resource' }, new AbortController().signal);
+			await transport.rest(account, 'token', { method: 'GET', url: 'https://api.example.test/resource' }, CancellationToken.None);
 		});
 		assert.deepStrictEqual({ firstWake, dispatchTimes }, { firstWake: MAX_TIMEOUT_DELAY, dispatchTimes: [serverDelay] });
 	});
@@ -58,10 +60,10 @@ suite('GitHub system scheduler', () => {
 		const coordinator = disposables.add(new GitHubRateLimitCoordinator(systemRequestScheduler));
 		coordinator.updateFromResponse(account, limitedResponse());
 		coordinator.releaseAccount(account);
-		const signal = new AbortController().signal;
-		await schedulerDelay(systemRequestScheduler, MAX_TIMEOUT_DELAY, signal);
+		const cancellationToken = CancellationToken.None;
+		await schedulerDelay(systemRequestScheduler, MAX_TIMEOUT_DELAY, cancellationToken);
 		observations.push({ delay: coordinator.getDelay(account, 'core'), retained: coordinator.getState(account, 'core') !== undefined });
-		await schedulerDelay(systemRequestScheduler, serverDelay - MAX_TIMEOUT_DELAY, signal);
+		await schedulerDelay(systemRequestScheduler, serverDelay - MAX_TIMEOUT_DELAY, cancellationToken);
 		observations.push({ delay: coordinator.getDelay(account, 'core'), retained: coordinator.getState(account, 'core') !== undefined });
 		assert.deepStrictEqual(observations, [{ delay: serverDelay - MAX_TIMEOUT_DELAY, retained: true }, { delay: 0, retained: false }]);
 	}));

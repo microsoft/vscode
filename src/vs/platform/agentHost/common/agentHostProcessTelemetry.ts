@@ -53,6 +53,7 @@ type AgentHostProcessErrorEvent = Omit<AgentHostProcessErrorData, 'exitDiagnosti
 	quitRequested?: boolean;
 	lifecyclePhase?: number;
 	windowCount?: number;
+	agentsWindowConnected?: boolean;
 	osSessionEnd?: string;
 	msSinceOsSessionEnd?: number;
 };
@@ -98,6 +99,7 @@ type AgentHostProcessErrorClassification = {
 	quitRequested?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether VS Code was quitting when the agent host exited.' };
 	lifecyclePhase?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The main process lifecycle phase when the agent host exited.' };
 	windowCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of open windows when the agent host exited.' };
+	agentsWindowConnected?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether an Agents window that requested a connection to the agent host was still open when the agent host exited, to attribute agent host exits to the Agents window.' };
 	osSessionEnd?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Why the most recently observed operating system session end was happening (shutdown, logoff, closeApp, or critical), or none. The session end may have been cancelled; see msSinceOsSessionEnd.' };
 	msSinceOsSessionEnd?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds between the most recently observed operating system session end and the exit.' };
 	owner: 'bryanchen-d';

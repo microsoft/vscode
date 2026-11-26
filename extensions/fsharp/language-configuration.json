@@ -24,7 +24,7 @@
 	"folding": {
 		"offSide": true,
 		"markers": {
-			"start": "^\\s*//\\s*#region\\b|^\\s*\\(\\*\\s*#region(.*)\\*\\)",
+			"start": "^\\s*//\\s*#region\\b|^\\s*\\(\\*\\s*#region\\s*(?<label>.*?)\\s*\\*\\)",
 			"end": "^\\s*//\\s*#endregion\\b|^\\s*\\(\\*\\s*#endregion\\s*\\*\\)"
 		}
 	}

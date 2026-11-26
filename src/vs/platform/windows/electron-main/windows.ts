@@ -33,6 +33,7 @@ export interface IWindowsMainService {
 	readonly onDidMaximizeWindow: Event<ICodeWindow>;
 	readonly onDidUnmaximizeWindow: Event<ICodeWindow>;
 	readonly onDidChangeFullScreen: Event<{ window: ICodeWindow; fullscreen: boolean }>;
+	readonly onDidChangeAlwaysOnTop: Event<{ window: ICodeWindow; alwaysOnTop: boolean }>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: ICodeWindow; readonly x: number; readonly y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
@@ -139,9 +140,12 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	alwaysOnTop?: boolean;
 	frameless?: boolean;
 	transparent?: boolean;
+	noShadow?: boolean;
 	notResizable?: boolean;
 	noBackgroundThrottling?: boolean;
 	backgroundColor?: string;
+	panel?: boolean;
+	opacity?: number;
 }
 
 /**
@@ -281,8 +285,21 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		}
 	}
 
-	if (overrides?.alwaysOnTop) {
+	if (overrides?.alwaysOnTop ?? windowState.alwaysOnTop) {
 		options.alwaysOnTop = true;
+	}
+
+	if (overrides?.panel) {
+		options.fullscreenable = false;
+		if (isMacintosh) {
+			options.type = 'panel';
+		} else {
+			options.skipTaskbar = true;
+		}
+	}
+
+	if (typeof overrides?.opacity === 'number') {
+		options.opacity = overrides.opacity;
 	}
 
 	if (overrides?.frameless) {
@@ -300,6 +317,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	if (overrides?.transparent) {
 		options.transparent = true;
 		options.backgroundColor = undefined!; // transparent requires no background color
+	}
+
+	if (overrides?.noShadow) {
+		options.hasShadow = false;
 	}
 
 	if (overrides?.notResizable) {

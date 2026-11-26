@@ -26,6 +26,7 @@ import { TestDialogService } from '../../../../../../platform/dialogs/test/commo
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ActionType, StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatProvidersConfigKey } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('Agent Host committed configuration identity', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,7 +68,7 @@ suite('Agent Host committed configuration identity', () => {
 				override async refreshResolvedConfig() { }
 			}(),
 			workingDirectoryResolver: new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { override resolve() { return undefined; } }(),
-			workspaceContextService: new class extends mock<IWorkspaceContextService>() { override getWorkspace() { return { id: 'test', folders: [] }; } }(),
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() { override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); } }(),
 			configurationService: new TestConfigurationService(),
 			dialogService: new TestDialogService(),
 			storageService: store.add(new InMemoryStorageService()),
@@ -124,7 +125,7 @@ suite('Agent Host committed configuration identity', () => {
 			connectionsService,
 			provisionalService,
 			workingDirectoryResolver: new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { override resolve() { return undefined; } }(),
-			workspaceContextService: new class extends mock<IWorkspaceContextService>() { override getWorkspace() { return { id: 'test', folders: [] }; } }(),
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() { override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); } }(),
 			configurationService: new TestConfigurationService(),
 		});
 
@@ -190,7 +191,7 @@ suite('Agent Host committed configuration identity', () => {
 			connectionsService,
 			provisionalService,
 			workingDirectoryResolver: new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { override resolve() { return undefined; } }(),
-			workspaceContextService: new class extends mock<IWorkspaceContextService>() { override getWorkspace() { return { id: 'test', folders: [] }; } }(),
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() { override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); } }(),
 			configurationService: new TestConfigurationService(),
 		});
 
@@ -318,7 +319,7 @@ suite('Agent Host committed configuration identity', () => {
 						override resolve(): undefined { return undefined; }
 					}(),
 					workspaceContextService: new class extends mock<IWorkspaceContextService>() {
-						override getWorkspace() { return { id: 'test', folders: [] }; }
+						override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
 					}(),
 					configurationService: new TestConfigurationService() satisfies IConfigurationService,
 				});

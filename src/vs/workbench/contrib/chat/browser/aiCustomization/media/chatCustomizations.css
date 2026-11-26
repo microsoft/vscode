@@ -24,7 +24,16 @@
 	max-width: calc(100vw - 32px);
 }
 
+.monaco-hover.workbench-hover.chat-customizations-hover .markdown-hover .hover-contents {
+	padding-top: var(--vscode-spacing-size80);
+}
+
+.chat-customizations-hover .hover-contents p:first-child {
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
 .chat-customizations-hover .hover-contents p:nth-of-type(2) {
+	margin-top: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 	overflow-wrap: anywhere;
@@ -129,7 +138,12 @@
 }
 
 .chat-customizations-hover .hover-contents hr + p > a {
-	display: inline-block;
+	display: inline-flex;
+	align-items: center;
+}
+
+.monaco-hover.workbench-hover.chat-customizations-hover .markdown-hover .hover-contents hr + p > a > .codicon {
+	margin-bottom: 0;
 }
 
 .chat-customizations-hover .hover-contents hr + p > a:last-child {

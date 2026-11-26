@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ElicitationResult, ElicitationSchema } from '@github/copilot-sdk';
+import type { ElicitationResult, ElicitationSchema } from '@microsoft/copilot-sdk';
 import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { runOnChange } from '../../../../base/common/observable.js';

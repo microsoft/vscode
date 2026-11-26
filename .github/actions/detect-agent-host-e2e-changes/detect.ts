@@ -3,38 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { changedPaths, shouldSkipTestJobs } from '../detect-changes/detect.ts';
-
-interface IChangedFile {
-	readonly filename: string;
-	readonly previous_filename?: string;
-	readonly status?: string;
-	readonly patch?: string;
-}
-
-interface IListFilesParameters {
-	readonly owner: string;
-	readonly repo: string;
-	readonly pull_number: number;
-	readonly per_page: number;
-}
-
-interface IGitHub {
-	readonly paginate: (method: object, parameters: IListFilesParameters) => Promise<readonly IChangedFile[]>;
-	readonly rest: { readonly pulls: { readonly listFiles: object } };
-}
-
-interface IContext {
-	readonly repo: { readonly owner: string; readonly repo: string };
-	readonly issue: { readonly number: number };
-	readonly payload: { readonly pull_request?: { readonly changed_files?: number } };
-}
-
-interface ICore {
-	info(message: string): void;
-	warning(message: string): void;
-	setOutput(name: string, value: string): void;
-}
+import { changedPaths, listChangedFiles, shouldSkipTestJobs, type IChangedFiles, type IContext, type ICore, type IGitHub } from '../detect-changes/detect.ts';
 
 const exactPaths = new Set([
 	'.nvmrc',
@@ -94,17 +63,12 @@ function affectsAgentHostE2E(path: string): boolean {
 }
 
 export async function detectAgentHostE2EChanges(github: IGitHub, context: IContext, core: ICore): Promise<void> {
-	let files: readonly IChangedFile[];
+	let changedFiles: IChangedFiles;
 	try {
-		files = await github.paginate(github.rest.pulls.listFiles, {
-			owner: context.repo.owner,
-			repo: context.repo.repo,
-			pull_number: context.issue.number,
-			per_page: 100,
-		});
+		changedFiles = await listChangedFiles(github, context);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		const reason = `Unable to list pull request files; running the full Agent Host test profile. ${message}`;
+		const reason = `Unable to list the changed files; running the full Agent Host test profile. ${message}`;
 		core.warning(reason);
 		core.setOutput('affected', 'true');
 		core.setOutput('profile', 'full');
@@ -112,19 +76,18 @@ export async function detectAgentHostE2EChanges(github: IGitHub, context: IConte
 		return;
 	}
 
+	const { files, incomplete } = changedFiles;
 	const paths = changedPaths(files);
-	const expectedFileCount = context.payload.pull_request?.changed_files;
-	const incomplete = typeof expectedFileCount === 'number' && files.length < expectedFileCount;
 	const fullProfilePath = paths.find(requiresFullProfile);
-	const affected = incomplete || fullProfilePath !== undefined || paths.some(affectsAgentHostE2E);
-	const profile = incomplete || fullProfilePath !== undefined ? 'full' : 'pr';
-	const reason = incomplete ? 'Changed-file lookup was incomplete'
+	const affected = incomplete !== undefined || fullProfilePath !== undefined || paths.some(affectsAgentHostE2E);
+	const profile = incomplete !== undefined || fullProfilePath !== undefined ? 'full' : 'pr';
+	const reason = incomplete !== undefined ? 'Changed-file lookup was incomplete'
 		: fullProfilePath !== undefined ? `Test, dependency, or infrastructure change: ${fullProfilePath}`
 			: affected ? 'Relevant implementation changes'
 				: 'No changes affect the parallel E2E suites';
 
-	if (incomplete) {
-		core.warning(`GitHub returned ${files.length} of ${expectedFileCount} changed files; running the full Agent Host test profile.`);
+	if (incomplete !== undefined) {
+		core.warning(`GitHub ${incomplete}; running the full Agent Host test profile.`);
 	} else {
 		core.info(affected
 			? 'Agent Host E2E tests may be affected.'

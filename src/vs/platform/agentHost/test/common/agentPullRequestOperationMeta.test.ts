@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createPullRequestChatMeta, createPullRequestDetailsResult, createPullRequestOperationMeta, createPullRequestValidationMeta, readPullRequestChatMeta, readPullRequestDetailsResult, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions, type IPullRequestDetails } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { createPullRequestChatMeta, createPullRequestDetailsResult, createPullRequestOperationMeta, createPullRequestValidationMeta, readPullRequestChatMeta, readPullRequestDetailsResult, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestAutopilotOptions, type IPullRequestContext, type IPullRequestCreateOptions, type IPullRequestDetails } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 
@@ -27,6 +27,8 @@ const details: IPullRequestDetails = {
 	mergeMethods: ['MERGE', 'SQUASH', 'REBASE'],
 	agentMergeAvailable: false,
 };
+
+const autopilot: IPullRequestAutopilotOptions = { addressReviews: true, fixCI: false, resolveConflicts: true, markReady: true, merge: 'ifUnchanged' };
 
 function resultWithData(data: unknown): InvokeChangesetOperationResult {
 	return { followUp: { content: { uri: `data:application/json,${encodeURIComponent(JSON.stringify(data))}`, contentType: 'application/json' } } };
@@ -105,6 +107,10 @@ suite('Agent pull request operation metadata', () => {
 		{ draft: false, agentMerge: true, autoMergeMethod: 'MERGE' },
 		{ draft: false, agentMerge: true, agentMergeOptions: {} },
 		{ draft: false, agentMerge: false, expectedContext: {} },
+		{ draft: false, agentMerge: true, autopilot },
+		{ draft: false, agentMerge: false, autoMergeMethod: 'SQUASH', autopilot },
+		{ draft: false, agentMerge: false, autopilot: { ...autopilot, markReady: undefined } },
+		{ draft: false, agentMerge: false, autopilot: { ...autopilot, merge: 'later' } },
 	]) {
 		test(`rejects invalid chat-only options: ${JSON.stringify(value)}`, () => {
 			assert.throws(() => readPullRequestChatMeta({ _meta: { 'vscode.pullRequest': value } }), isInvalidParamsError);
@@ -165,6 +171,20 @@ suite('Agent pull request operation metadata', () => {
 			assert.throws(() => readPullRequestDetailsResult(resultWithData({ ...details, agentMergeOptions })), /Invalid Agent Merge configuration/);
 		});
 	}
+
+	test('round trips Autopilot rules in preparation and submission', () => {
+		const options: IPullRequestCreateOptions = { title: 'Title', description: '', draft: true, agentMerge: false, autopilot };
+		const prepared: IPullRequestDetails = { ...details, autopilotAvailable: true };
+		assert.deepStrictEqual({
+			submitted: readPullRequestOperationMeta({ _meta: createPullRequestOperationMeta(options) }),
+			chat: readPullRequestChatMeta({ _meta: createPullRequestChatMeta({ draft: true, agentMerge: false, autopilot: { ...autopilot, unsupported: true } as IPullRequestAutopilotOptions }) }),
+			prepared: readPullRequestDetailsResult(createPullRequestDetailsResult(prepared)),
+		}, {
+			submitted: options,
+			chat: { draft: true, agentMerge: false, autopilot },
+			prepared,
+		});
+	});
 
 	test('rejects session configuration when Agent Merge is not selected', () => {
 		assert.throws(() => readPullRequestOperationMeta({
@@ -247,6 +267,7 @@ suite('Agent pull request operation metadata', () => {
 		['non-string repository', { ...details, repository: false }],
 		['non-boolean auto-merge', { ...details, autoMergeAllowed: 'true' }],
 		['non-boolean Agent Merge', { ...details, agentMergeAvailable: 1 }],
+		['non-boolean Autopilot', { ...details, autopilotAvailable: 'true' }],
 		['missing merge methods', { ...details, mergeMethods: undefined }],
 		['non-array merge methods', { ...details, mergeMethods: 'MERGE' }],
 		['unrecognized merge method', { ...details, mergeMethods: ['merge'] }],

@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchRef, tryResolvePrimaryWorktreeRoot, WorktreeAddError } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
@@ -514,6 +514,12 @@ export interface IResolveWorkingDirectoryRequest {
 	readonly prompt?: string;
 	readonly githubToken?: string;
 	/**
+	 * The agent session a detached worktree is created for, used to attribute
+	 * its branch-name model call in telemetry. A detached worktree's
+	 * {@link sessionUri} is its own record, not an agent session.
+	 */
+	readonly ownerSession?: URI;
+	/**
 	 * Receives localized activity labels while the worktree is being created,
 	 * so callers can surface live progress. Only called for sessions that
 	 * selected worktree isolation — though such a session can still fall back
@@ -648,7 +654,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				}
 				return resolved;
 			} catch (error) {
-				const diagnostic = normalizeWorktreeFailureDiagnostic(errorMessage(error));
+				const diagnostic = error instanceof WorktreeAddError ? error.message : normalizeWorktreeFailureDiagnostic(errorMessage(error));
 				const failure = new Error(localize('agentHost.worktreeSessionFailed', "Couldn't create the isolated worktree. This session cannot continue. Start a new session to try again.\n\n{0}", diagnostic ?? errorMessage(error)));
 				this._creationErrors.set(request.sessionId, failure);
 				throw failure;
@@ -981,7 +987,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 */
 	async resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution> {
 		const gitInfo = request.workingDirectory
-			? await this._getGitInfo(request.workingDirectory)
+			? await this._getGitInfo(request.workingDirectory, request.config?.[SessionConfigKey.Isolation] !== 'folder' || getSessionPullRequestUrl(request.config) !== undefined)
 			: undefined;
 
 		const isolationProperty = schemaProperty<'folder' | 'worktree'>({
@@ -1190,16 +1196,17 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			? config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
 
-		// Get the default branch, preferring its upstream ref when available
-		const defaultBranch = await this._gitService.getDefaultBranch2(repositoryRoot);
-		const baseBranch = resolveDefaultBaseBranchName(defaultBranch, selectedBranch);
+		// The base is the default branch, preferring its upstream ref when available, else the selected branch
+		const baseBranch = await resolveDefaultBaseBranchRef(this._gitService, repositoryRoot, selectedBranch);
 
 		const { worktreePath, branchName } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			const worktreesRoot = getWorktreesRoot(repositoryRoot);
 
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
+			const telemetrySession = request.ownerSession ?? (request.sessionUri.scheme === DETACHED_WORKTREE_OWNER_SCHEME ? undefined : request.sessionUri);
 			const newBranchName = await this._branchNameGenerator.generateBranchName({
 				sessionId,
+				agentSessionId: telemetrySession ? AgentSession.id(telemetrySession) : undefined,
 				message: prompt,
 				githubToken,
 				branchPrefix: worktreeBranchPrefix,
@@ -1301,7 +1308,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			? request.config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
 		const branchName = getPullRequestSessionBranchName(pullRequest.number, sessionId, worktreeBranchPrefix);
-		const baseBranch = `${remote.name}/${pullRequest.baseRef}`;
+		const baseBranch = `refs/remotes/${remote.name}/${pullRequest.baseRef}`;
 		const worktreePath = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			try {
 				await this._gitService.fetch(repositoryRoot, toRemoteBranch(remote.name, pullRequest.headRef), { timeout: 60_000 });
@@ -1838,7 +1845,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 					if (canRemove && !await canRemove()) {
 						return 'inUse';
 					}
-					await this._gitService.commitAll(worktree, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"));
+					// This commit only preserves work, so it must not prompt for a signing passphrase in the background.
+					await this._gitService.commit(worktree, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"), { all: true, noVerify: true, signCommit: false });
 				}
 			} else if (!await this._isBranchUpToDateWithRemote(worktree, branchName, key)) {
 				return 'skipped';
@@ -2020,7 +2028,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
 			return undefined;
 		}
-		const baseBranch = (await this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined))?.name;
+		// The base is the default branch's upstream when it has one, like the base a new worktree records.
+		const baseBranch = await resolveDefaultBaseBranchRef(this._gitService, primaryRoot, undefined).catch(() => undefined);
 		return { worktreeRoot, primaryRoot, baseBranch };
 	}
 
@@ -2067,8 +2076,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		} : undefined;
 	}
 
-	private _getGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
-		const key = workingDirectory.toString();
+	private _getGitInfo(workingDirectory: URI, resolveDefaultBranch: boolean): Promise<IIsolationGitInfo | undefined> {
+		const key = JSON.stringify([workingDirectory.toString(), resolveDefaultBranch]);
 		const pending = this._pendingGitInfo.get(key);
 		if (pending) {
 			return pending;
@@ -2076,22 +2085,22 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		// Overlapping callers share one best-effort read, including changes made
 		// while it is in flight. Once settled, the next caller reads Git afresh.
-		const request = this._readGitInfo(workingDirectory)
+		const request = this._readGitInfo(workingDirectory, resolveDefaultBranch)
 			.finally(() => this._pendingGitInfo.delete(key));
 		this._pendingGitInfo.set(key, request);
 
 		return request;
 	}
 
-	private async _readGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
+	private async _readGitInfo(workingDirectory: URI, resolveDefaultBranch: boolean): Promise<IIsolationGitInfo | undefined> {
 		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
 		if (!repositoryRoot) {
 			return undefined;
 		}
 
 		const [headRef, defaultBranch] = await Promise.all([
-			this._gitService.getHEAD(repositoryRoot),
-			this._gitService.getDefaultBranch2(repositoryRoot),
+			this._gitService.getHEAD(repositoryRoot, { nameOnly: !resolveDefaultBranch }),
+			resolveDefaultBranch ? this._gitService.getDefaultBranch2(repositoryRoot) : undefined,
 		]);
 
 		if (!headRef) {

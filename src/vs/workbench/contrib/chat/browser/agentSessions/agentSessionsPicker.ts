@@ -53,7 +53,7 @@ export const deleteButton: IQuickInputButton = {
 	tooltip: localize('deleteSession', "Delete")
 };
 
-export function getSessionDescription(session: IAgentSession): string {
+function getSessionDescription(session: IAgentSession): string {
 	const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
 	const timeAgo = sessionDateFromNow(session.timing.created);
 	const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);

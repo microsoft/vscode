@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -80,6 +81,60 @@ suite('ContextKeyService', () => {
 		child.updateParent(parent1);
 
 		assert.strictEqual(eventFired, false);
+	});
+
+	test('updateParent reports exactly the keys whose value changed', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService({ editor: { fontSize: 12 } })));
+		root.getContextKeyValue('config.editor.fontSize');
+		root.createKey('rootOnly', 1);
+		root.createKey('shadowed', 'root');
+
+		const a = testDisposables.add(root.createScoped(document.createElement('div')));
+		a.createKey('shared', 'a');
+		a.createKey('shadowed', 'a');
+		a.createKey('onlyOld', 1);
+		a.createKey('same', { value: 5 });
+
+		const b = testDisposables.add(a.createScoped(document.createElement('div')));
+		b.createKey('inB', true);
+		b.createKey('ownedByChild', 'b');
+
+		const c = testDisposables.add(root.createScoped(document.createElement('div')));
+		c.createKey('shared', 'c');
+		c.createKey('same', { value: 5 });
+		c.createKey('onlyNew', 'c');
+
+		const child = testDisposables.add(b.createScoped(document.createElement('div')));
+		child.createKey('ownedByChild', 'child');
+
+		const allKeys = ['config.editor.fontSize', 'rootOnly', 'shadowed', 'shared', 'onlyOld', 'same', 'inB', 'ownedByChild', 'onlyNew'];
+		const affectedKeys: string[][] = [];
+		testDisposables.add(child.onDidChangeContext(e => affectedKeys.push(allKeys.filter(key => e.affectsSome(new Set([key]))))));
+
+		child.updateParent(c);
+		child.updateParent(b);
+
+		assert.deepStrictEqual(affectedKeys, [
+			['shadowed', 'shared', 'onlyOld', 'inB', 'onlyNew'],
+			['shadowed', 'shared', 'onlyOld', 'inB', 'onlyNew'],
+		]);
+	});
+
+	test('updateParent does not collect the values of the ancestors that the old and new parent share', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const parent1 = testDisposables.add(root.createScoped(document.createElement('div')));
+		const parent2 = testDisposables.add(root.createScoped(document.createElement('div')));
+		const child = testDisposables.add(parent1.createScoped(document.createElement('div')));
+		parent1.createKey('testA', 1);
+		parent2.createKey('testA', 2);
+
+		const collectAllValues = sinon.spy(root.getContextValuesContainer(root.contextId), 'collectAllValues');
+		try {
+			child.updateParent(parent2);
+			assert.strictEqual(collectAllValues.callCount, 0);
+		} finally {
+			collectAllValues.restore();
+		}
 	});
 
 	test('issue #147732: URIs as context values', () => {

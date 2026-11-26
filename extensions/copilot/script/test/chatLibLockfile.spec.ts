@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { expect, suite, test } from 'vitest';
-import { DependencyKind, lockChatLibDependencies, PnpmLockfile } from '../build/chatLibLockfile';
+import { DependencyKind, lockChatLibDependencies, PnpmLockfile, splitLockfileDocuments } from '../build/chatLibLockfile';
 
 type Importer = PnpmLockfile['importers'][string];
 
@@ -106,6 +106,22 @@ suite('lockChatLibDependencies', () => {
 			'Copilot\'s project in pnpm-lock.yaml doesn\'t lock a version of a that chat-lib can use.',
 			'pnpm-lock.yaml has no entries for b@1.0.0.',
 			'pnpm-lock.yaml has no project other.',
+		]);
+	});
+});
+
+suite('splitLockfileDocuments', () => {
+	test('splits off the documents before the lockfile of the projects', () => {
+		const packageManager = '---\nlockfileVersion: \'9.0\'\n\nimporters:\n\n  .:\n    packageManagerDependencies: {}\n\n---\n';
+		const projects = 'lockfileVersion: \'9.0\'\n\nimporters:\n\n  .:\n    dependencies:\n      a:\n        specifier: \'---\'\n        version: 1.0.0\n';
+		expect([
+			splitLockfileDocuments(packageManager + projects),
+			splitLockfileDocuments((packageManager + projects).replace(/\n/g, '\r\n')),
+			splitLockfileDocuments(projects),
+		]).toEqual([
+			{ leadingDocuments: packageManager, lockfile: projects },
+			{ leadingDocuments: packageManager.replace(/\n/g, '\r\n'), lockfile: projects.replace(/\n/g, '\r\n') },
+			{ leadingDocuments: '', lockfile: projects },
 		]);
 	});
 });

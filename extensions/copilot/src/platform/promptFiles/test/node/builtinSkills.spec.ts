@@ -63,7 +63,17 @@ suite('built-in skills', () => {
 			'open_canvas',
 			'invoke_canvas_action',
 			'extensions_reload',
-			'previously open canvases are rehydrated',
+			'leaves dormant ones stopped',
+			'canvases that were visible are reopened',
+			'<extension-dir>/extension.json',
+			'"version": 1',
+			'"initialization": "module"',
+			'import declaration from \'./extension.json\' with { type: \'json\' };',
+			'never write `null`',
+			'256 KiB',
+			'Keep the extension eager',
+			'`icon` is an optional PNG path relative to the entry point',
+			'Call `await joinSession(...)` and set up its listeners at the module\'s top level',
 		];
 
 		expect(required.filter(anchor => !skill.includes(anchor))).toEqual([]);

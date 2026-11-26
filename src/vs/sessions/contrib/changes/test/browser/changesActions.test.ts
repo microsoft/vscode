@@ -21,7 +21,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
@@ -38,6 +38,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { DesktopLayoutContext, SessionIsCreatedContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,7 +79,7 @@ suite('Changes Actions', () => {
 		assert.deepStrictEqual(opened, [workspaceResource.toString()]);
 	});
 
-	test('only the tab-level Commit action renders its icon and label through the Changes editor', async () => {
+	test('only the Commit action renders its icon and label through the Changes editor, also in its header row', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const actionViewItemService = new NullActionViewItemService();
 		const register = spy(actionViewItemService, 'register');
@@ -87,6 +88,7 @@ suite('Changes Actions', () => {
 		const commandId = 'workbench.contrib.sessions.changesHeaderChangesetOperation.commit';
 		assert.deepStrictEqual(register.getCalls().map(call => [call.args[0], call.args[1]]), [
 			[Menus.SessionsEditorTitle, commandId],
+			[Menus.SessionsEditorHeaderSecondary, commandId],
 		]);
 		const factory = register.firstCall.args[2];
 		stub(actionViewItemService, 'lookUp').callsFake((menu, id) => menu === Menus.SessionsEditorTitle && id === commandId ? factory : undefined);
@@ -459,6 +461,60 @@ suite('Changes Actions', () => {
 		}, {
 			menuActions: 0,
 			commitCommandRegistered: false,
+		});
+	});
+
+	test('the desktop main window shows the Commit of a new session in the header row of the Changes editor', () => {
+		const operations = constObservable<readonly ISessionChangesetOperation[]>([{
+			id: AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID,
+			label: 'Commit',
+			scopes: [SessionChangesetOperationScope.Changeset],
+			status: SessionChangesetOperationStatus.Idle,
+		}]);
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: UNCOMMITTED_CHANGES_CHANGESET_ID,
+			label: 'Uncommitted Changes',
+			isEnabled: constObservable(true),
+			operations,
+		});
+		const chat = upcastPartial<IChat>({ changesets: constObservable([changeset]) });
+		const status = observableValue('test.status', SessionStatus.Untitled);
+		const session = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({
+			resource: URI.parse('test-session:new'),
+			status,
+			workspace: constObservable(undefined),
+			mainChat: constObservable(chat),
+		}));
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		disposables.add(bindChangesetOperations({ session, changes: { changesetObs: constObservable(changeset), changesetOperationsObs: operations } }, contextKeyService));
+		ActiveEditorContext.bindTo(contextKeyService).set(SessionChangesEditor.ID);
+		const desktopLayout = DesktopLayoutContext.bindTo(contextKeyService);
+		const auxiliaryWindow = IsAuxiliaryWindowContext.bindTo(contextKeyService);
+		const created = SessionIsCreatedContext.bindTo(contextKeyService);
+
+		const commitId = `workbench.contrib.sessions.changesHeaderChangesetOperation.${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`;
+		const placementIn = (menu: MenuId) => {
+			const item = MenuRegistry.getMenuItems(menu).filter(isIMenuItem)
+				.find(candidate => candidate.command.id === commitId && contextKeyService.contextMatchesRules(candidate.when));
+			return item ? `${item.group}:${item.order}` : undefined;
+		};
+		const placement = () => ({ tabRow: placementIn(Menus.SessionsEditorTitle), headerRow: placementIn(Menus.SessionsEditorHeaderSecondary) });
+
+		const mobileLayout = placement();
+		desktopLayout.set(true);
+		const newSession = placement();
+		auxiliaryWindow.set(true);
+		const chatWindow = placement();
+		auxiliaryWindow.set(false);
+		status.set(SessionStatus.Completed, undefined);
+		created.set(true);
+		const existingSession = placement();
+
+		assert.deepStrictEqual({ mobileLayout, newSession, chatWindow, existingSession }, {
+			mobileLayout: { tabRow: 'navigation:0', headerRow: undefined },
+			newSession: { tabRow: undefined, headerRow: 'navigation:0' },
+			chatWindow: { tabRow: 'navigation:0', headerRow: undefined },
+			existingSession: { tabRow: 'navigation:0', headerRow: undefined },
 		});
 	});
 });

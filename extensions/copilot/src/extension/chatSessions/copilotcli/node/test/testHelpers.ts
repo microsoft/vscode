@@ -6,13 +6,11 @@
 import type { SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import type { CancellationToken, Uri } from 'vscode';
 import { Event } from '../../../../../util/vs/base/common/event';
-import { Disposable, IDisposable } from '../../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../../util/vs/base/common/uuid';
 import { CLIAgentInfo, CopilotCLIModelInfo, ICopilotCLIAgents, ICopilotCLIModels } from '../copilotCli';
 import { ICopilotCLIImageSupport } from '../copilotCLIImageSupport';
 import { ICopilotCLISkills } from '../copilotCLISkills';
-import { ICopilotCLIMCPHandler } from '../mcpHandler';
 
 export class MockCliSdkSession {
 	public emittedEvents: { event: string; content: string | undefined }[] = [];
@@ -156,13 +154,6 @@ export class NullICopilotCLIImageSupport implements ICopilotCLIImageSupport {
 	}
 	isTrustedImage(_imageUri: URI): boolean {
 		return false;
-	}
-}
-
-export class NullCopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
-	_serviceBrand: undefined;
-	async loadMcpConfig(_resource: URI): Promise<{ mcpConfig: Record<string, NonNullable<SessionOptions['mcpServers']>[string]> | undefined; disposable: IDisposable }> {
-		return { mcpConfig: undefined, disposable: Disposable.None };
 	}
 }
 

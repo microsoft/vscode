@@ -57,7 +57,7 @@
 }
 
 /* Nudge icon position to ensure it looks optically aligned within the button */
-.monaco-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up-compact::before {
+.monaco-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.label-only) > .action-label.codicon-arrow-up-compact::before {
 	display: inline-block;
 	transform: translateY(0.5px);
 }

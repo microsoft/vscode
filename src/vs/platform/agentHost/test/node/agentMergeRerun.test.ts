@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../base/common/observable.js';
@@ -12,33 +13,33 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
 import { IActionsClient, ListWorkflowRunsOptions, WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js';
 import { IChecksClient } from '../../../github/common/core/checks.js';
+import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import { GitHubWorkflowRerunOptions, GitHubWorkflowRun, PullRequestMutationApi, PullRequestMutationResult } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestCheckSuite, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
-import { createTestGitHubService, createTestWorkflowJob, createTestWorkflowRun } from './testGitHubService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentMergeConfigKey, AgentMergeFolderControllerState, agentMergeDisableReasons, readAgentMergeSessionState, withAgentMergeFolderControllerState } from '../../common/agentMerge.js';
-import { parseAgentMergePrompt } from '../../common/agentMergePrompt.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
+import { AgentMergeConfigKey, AgentMergeFolderControllerState, agentMergeDisableReasons, readAgentMergeSessionState, withAgentMergeFolderControllerState } from '../../common/agentMerge.js';
+import { parseAgentMergePrompt } from '../../common/agentMergePrompt.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { buildDefaultChatUri, createErrorResponsePart, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
+import { SessionStatus, buildDefaultChatUri, createErrorResponsePart, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentMergeController } from '../../node/agentMergeController.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
-import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createTestGitHubService, createTestWorkflowJob, createTestWorkflowRun } from './testGitHubService.js';
 
 const ref: PullRequestRef = { host: 'api.github.com', accountId: '1', owner: 'octo', repo: 'repo', number: 1 };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
@@ -68,7 +69,7 @@ suite('Agent Merge workflow reruns', () => {
 		await h.controller.setEnabled(h.session, false);
 		assert.deepStrictEqual({
 			acquired: h.apiAcquisitions, disposed: h.apiDisposals,
-			cancelled: context.signal.aborted, active: h.controller.getTurnContext(h.session) !== undefined,
+			cancelled: context.cancellationToken.isCancellationRequested, active: h.controller.getTurnContext(h.session) !== undefined,
 		}, { acquired: 1, disposed: 1, cancelled: true, active: false });
 	}));
 
@@ -702,9 +703,9 @@ suite('Agent Merge evaluation authorization', () => {
 							break;
 						case 'credentials': {
 							const getCredential = h.client.credentials.getCredential;
-							h.client.credentials.getCredential = async signal => {
+							h.client.credentials.getCredential = async cancellationToken => {
 								await pause();
-								return getCredential(signal);
+								return getCredential(cancellationToken);
 							};
 							break;
 						}
@@ -861,8 +862,8 @@ class RerunTestHarness extends Disposable {
 		this.client = new class extends mock<IGitHubClient>() {
 			override readonly mutations = mutations;
 			override readonly credentials = new class extends mock<IGitHubCredentials>() {
-				override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
-					return { account: ref, token: 'test-token', generation: 1, signal };
+				override async getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential> {
+					return { account: ref, token: 'test-token', generation: 1, cancellationToken };
 				}
 			}();
 			override readonly pullRequests = new class extends mock<IPullRequestResources>() {

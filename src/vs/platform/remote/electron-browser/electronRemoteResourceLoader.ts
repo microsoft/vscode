@@ -10,6 +10,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { getMediaOrTextMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../agentHost/common/agentHostUri.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../files/common/files.js';
 import { IBrowserResourceService } from '../../files/common/browserResourceService.js';
@@ -66,11 +67,13 @@ export class ElectronRemoteResourceLoader extends Disposable {
 
 		let content: IFileContent;
 		try {
-			const actual = uri.with({
-				scheme: Schemas.vscodeRemote,
-				authority,
-				query: '',
-			});
+			const actual = params.get('scheme') === AGENT_HOST_SCHEME
+				? toAgentHostUri(URI.from({ scheme: Schemas.file, path: uri.path }), authority)
+				: uri.with({
+					scheme: Schemas.vscodeRemote,
+					authority,
+					query: '',
+				});
 			content = await this.fileService.readFile(actual);
 		} catch (e) {
 			const str = encodeBase64(VSBuffer.fromString(e.message));

@@ -125,7 +125,9 @@ export class WebviewEditor extends EditorPane {
 		this._visible = visible;
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
-				this.claimWebview(this.input);
+				if (this.input.group === this.group.id) {
+					this.claimWebview(this.input);
+				}
 			} else {
 				this.webview.release(this);
 			}
@@ -209,7 +211,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private setWebviewAnchorElement(webview: IOverlayWebview) {
-		if (!this._element?.isConnected) {
+		if (!this._element?.isConnected || (this.input instanceof WebviewInput && this.input.group !== this.group.id)) {
 			return;
 		}
 

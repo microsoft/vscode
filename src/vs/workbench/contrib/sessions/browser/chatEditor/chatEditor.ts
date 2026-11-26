@@ -53,6 +53,15 @@ export const SESSION_CHAT_VIEW_HOST_OPTIONS: ISessionViewHostOptions = {
 	input: { showPills: true },
 };
 
+/**
+ * How the chat of a chat window shows its session outside the Agents window, such as in an editor window: also with the
+ * session's changes as a working set above its input, as the editor window's chat shows them.
+ */
+export const SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS: ISessionViewHostOptions = {
+	...SESSION_CHAT_VIEW_HOST_OPTIONS,
+	input: { showPills: true, workingSet: true },
+};
+
 /** What a chat editor needs of the window it shows in: how the window lays out its chat, and its main part. */
 export interface IChatEditorWindow {
 	readonly layoutMode: IObservable<ChatWindowLayoutMode>;
@@ -74,6 +83,8 @@ export interface ISessionChatViewHost {
 	readonly composer?: IObservable<IChatEditorComposer | undefined>;
 	/** The window the view shows in, once it shows. */
 	readonly window: IObservable<IChatEditorWindow | undefined>;
+	/** How the view shows the session; {@link SESSION_CHAT_VIEW_HOST_OPTIONS} by default. */
+	readonly hostOptions?: ISessionViewHostOptions;
 	/** Whether its chat is the active one of its window: only that one shows the Session Activity Bar, also beside its window's chat. */
 	readonly active: IObservable<boolean>;
 	/** Called with what the editor shows once it is created, until the returned disposable is disposed. */
@@ -256,11 +267,13 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 	/** Whether the view shows its title, the session header: not while its group shows its tabs, which show its actions. */
 	private readonly _providedTitleVisible = observableValue(this, true);
 
-	/** The title of the session header drags the chat. */
-	get dragHandle(): HTMLElement { return this.sessionView.headerTitleElement; }
+	/** The session header drags the chat. */
+	get dragHandle(): HTMLElement { return this.sessionView.headerElement; }
 
-	/** The actions of the session header, which the tab bar of its group shows while the header hides. */
-	get titleMenu(): IEditorPaneTitleMenu { return this.sessionView.titleMenu; }
+	/** The actions of the session header, which the tab bar of its group shows while the header hides; none without the header. */
+	get titleMenu(): IEditorPaneTitleMenu | undefined { return this._showsHeader ? this.sessionView.titleMenu : undefined; }
+
+	private readonly _showsHeader: boolean;
 
 	private readonly _onDidChange = this._register(new Emitter<{ width: number; height: number } | undefined>());
 	readonly onDidChange: Event<{ width: number; height: number } | undefined> = this._onDidChange.event;
@@ -315,7 +328,9 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 			trackActiveGroup();
 		}));
 		const scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
-		const sessionView = this.sessionView = this._register(scopedInstantiationService.createInstance(ChatEditorContent, SESSION_CHAT_VIEW_HOST_OPTIONS));
+		const hostOptions = host?.hostOptions ?? SESSION_CHAT_VIEW_HOST_OPTIONS;
+		this._showsHeader = hostOptions.showHeader ?? true;
+		const sessionView = this.sessionView = this._register(scopedInstantiationService.createInstance(ChatEditorContent, hostOptions));
 		this.element.appendChild(sessionView.element);
 		// Styled as the active session of the grid is.
 		sessionView.element.classList.add('is-active');

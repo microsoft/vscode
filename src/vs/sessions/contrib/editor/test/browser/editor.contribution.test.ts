@@ -81,7 +81,7 @@ import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDIT
 import '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveAuxiliaryContext, ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { createEditorParts, registerTestEditor, TestEnvironmentService, TestFileEditorInput, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsQuickChatSessionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -94,6 +94,7 @@ import '../../../../browser/media/workbench.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/editorPart.css';
 import { ITestSessionWithChat, stubSessionHostsFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { SESSIONS_FILES_CONTAINER_ID } from '../../../../../workbench/contrib/files/common/files.js';
 
 /** The editor parts of a Files tab of the main window: no part other than the main part. */
 const noOtherEditorParts = upcastPartial<IEditorGroupsService>({ parts: [] });
@@ -1585,12 +1586,21 @@ suite('Sessions - Editor Contribution', () => {
 			.filter(([, id]) => (items.find(item => item.command.id === id)?.command.toggled as ContextKeyExpression | undefined)?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext))
 			.map(([name]) => name);
 		const showing = (editorId: string, editorAreaVisible = true, detailPanelVisible = false) => ({ [ActiveEditorContext.key]: editorId, [MainEditorAreaVisibleContext.key]: editorAreaVisible, [AuxiliaryBarVisibleContext.key]: detailPanelVisible });
+		const restoredFile = (editorId: string, editorAreaVisible = true, detailPanelVisible = true) => ({
+			...showing(editorId, editorAreaVisible, detailPanelVisible),
+			[ActiveAuxiliaryContext.key]: SESSIONS_FILES_CONTAINER_ID,
+		});
 
 		assert.deepStrictEqual({
 			changes: checked(showing(SessionChangesEditorInput.EDITOR_ID)),
 			files: checked(showing(EmptyFileEditorInput.EDITOR_ID)),
 			browser: checked(showing(BrowserEditorInput.EDITOR_ID)),
 			otherEditor: checked(showing('workbench.editors.files.textFileEditor')),
+			restoredTextFile: checked(restoredFile('workbench.editors.files.textFileEditor')),
+			restoredImage: checked(restoredFile('workbench.editor.webview')),
+			restoredDetailsOnly: checked(restoredFile('workbench.editor.webview', false)),
+			hiddenFilesDetails: checked(restoredFile('workbench.editor.webview', true, false)),
+			hiddenRestoredSidePane: checked(restoredFile('workbench.editor.webview', false, false)),
 			detailPanelOnly: checked(showing(EmptyFileEditorInput.EDITOR_ID, false, true)),
 			sidePaneClosed: checked(showing(SessionChangesEditorInput.EDITOR_ID, false)),
 		}, {
@@ -1598,6 +1608,11 @@ suite('Sessions - Editor Contribution', () => {
 			files: ['files'],
 			browser: ['browser'],
 			otherEditor: [],
+			restoredTextFile: ['files'],
+			restoredImage: ['files'],
+			restoredDetailsOnly: ['files'],
+			hiddenFilesDetails: [],
+			hiddenRestoredSidePane: [],
 			detailPanelOnly: ['files'],
 			sidePaneClosed: [],
 		});

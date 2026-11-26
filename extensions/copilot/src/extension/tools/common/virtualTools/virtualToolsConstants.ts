@@ -10,8 +10,6 @@ export const START_GROUPING_AFTER_TOOL_COUNT = HARD_TOOL_LIMIT / 2; // 64, curre
 
 export const START_BUILTIN_GROUPING_AFTER_TOOL_COUNT = 20; // Lower bound above which we trigger built-in tool grouping
 
-/** Re-expand groups until we have at least this many tools. */
-export const EXPAND_UNTIL_COUNT = START_GROUPING_AFTER_TOOL_COUNT;
 /**
  * If we have an opportunity to re-collapse during summarization, do so if the
  * number of tools exceeds this threshold.
@@ -37,14 +35,5 @@ export const TOOLS_AND_GROUPS_LIMIT = HARD_TOOL_LIMIT - NUM_EMBED_MATCHED_TOOLS 
 /** Maximum visible fallback-tree frontier after replacing one collapsed group. */
 export const FALLBACK_TREE_FRONTIER_LIMIT = HARD_TOOL_LIMIT - TOOLS_AND_GROUPS_LIMIT + 1;
 
-/** Max number of times to retrying categorization in the event of failures. */
-export const MAX_CATEGORIZATION_RETRIES = 3;
-
 /** Maximum number of groups to process in a single LLM request for bulk description. */
 export const MAX_GROUPS_PER_CHUNK = 16;
-
-/** Name for the group containing tools that could not be automatically categorized */
-export const UNCATEGORIZED_TOOLS_GROUP_NAME = 'uncategorized_tools';
-
-/** Summary for the group containing tools that could not be automatically categorized */
-export const UNCATEGORIZED_TOOLS_GROUP_SUMMARY = 'Tools that could not be automatically categorized into existing groups.';

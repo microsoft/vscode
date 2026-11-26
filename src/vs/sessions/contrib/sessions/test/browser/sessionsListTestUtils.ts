@@ -27,7 +27,9 @@ import { ISessionAttentionService } from '../../../../../workbench/contrib/sessi
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
+import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
+import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -37,7 +39,7 @@ import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionS
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -59,6 +61,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	}
 	override readonly onDidChangeSessions = Event.None;
 	override readonly onDidDeleteSession = Event.None;
+	override readonly onDidReplaceSession = Event.None;
 	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	override canMoveSessionUnder(_session: ISession): boolean { return false; }
 	sessions: ISession[];
@@ -81,12 +84,15 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.sessions = sessions;
 	}
 
+	/** The sessions a provider's listing scope hides, such as of other folders: lookups find them, the listing does not. */
+	unlistedSessions: ISession[] = [];
+
 	override getSessions(): ISession[] {
 		return this.sessions;
 	}
 
 	override getSession(resource: URI): ISession | undefined {
-		return this.sessions.find(session => session.resource.toString() === resource.toString());
+		return [...this.sessions, ...this.unlistedSessions].find(session => session.resource.toString() === resource.toString());
 	}
 
 	override getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
@@ -117,6 +123,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	override async archiveSession(session: ISession): Promise<void> {
 		this.archived.push(session);
 		this.onDidArchive?.(session);
+	}
+
+	override archiveSessions(sessions: readonly ISession[]): Promise<readonly PromiseSettledResult<void>[]> {
+		return Promise.allSettled(sessions.map(session => this.archiveSession(session)));
 	}
 
 	readonly unarchived: ISession[] = [];
@@ -298,7 +308,7 @@ export interface IListHarnessOptions {
 	readonly shownAutomationSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
-	/** Apply pinSession changes and fire change events, as the real service does. */
+	/** Apply pin and unpin changes and fire change events, as the real service does. */
 	readonly livePins?: boolean;
 	/** The active session, whose open chat the list selects. */
 	readonly activeSession?: IObservable<ITestSessionWithChat | undefined>;
@@ -322,6 +332,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const sectionMemberships = options.sectionMemberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
 	const livePinnedSessionIds = new Set<string>();
+	const liveUnpinnedSessionIds = new Set<string>();
 	const shownAutomationSessionIds = new Set(options.shownAutomationSessionIds);
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
@@ -340,28 +351,41 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const sectionReorders: IListHarness['sectionReorders'] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
-	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation());
+	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation(new class extends mock<IPinnedCanvasService>() { }()));
+	instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane: constObservable(false) });
 	instantiationService.stub(ICommandService, commandService);
-	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+	stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 		readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
 		override readonly slotPanes = testGridPanes(this.gridShown);
 		readonly activeSession = options.activeSession ?? constObservable<ITestSessionWithChat | undefined>(undefined);
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = onDidChangeListModel.event;
-		override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId) || livePinnedSessionIds.has(session.sessionId); }
+		override isSessionPinned(session: ISession): boolean {
+			return !liveUnpinnedSessionIds.has(session.sessionId) && (pinnedSessionIds.has(session.sessionId) || livePinnedSessionIds.has(session.sessionId));
+		}
 		override pinSession(session: ISession): void {
 			pinChanges.push({ sessionId: session.sessionId, pinned: true });
 			if (options.livePins) {
 				livePinnedSessionIds.add(session.sessionId);
+				liveUnpinnedSessionIds.delete(session.sessionId);
 				onDidChangeListModel.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned }] });
 			}
 		}
+		override unpinSession(session: ISession): void {
+			this.unpinSessions([session]);
+		}
 		override unpinSessions(sessions: ISession[]): void {
-			for (const session of sessions) {
-				if (pinnedSessionIds.has(session.sessionId)) {
-					pinChanges.push({ sessionId: session.sessionId, pinned: false });
+			const unpinned = sessions.filter(session => this.isSessionPinned(session));
+			for (const session of unpinned) {
+				pinChanges.push({ sessionId: session.sessionId, pinned: false });
+			}
+			if (options.livePins && unpinned.length > 0) {
+				for (const session of unpinned) {
+					livePinnedSessionIds.delete(session.sessionId);
+					liveUnpinnedSessionIds.add(session.sessionId);
 				}
+				onDidChangeListModel.fire({ changes: unpinned.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned })) });
 			}
 		}
 		override migrateLegacyReadState(): void { }
@@ -434,6 +458,14 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			appearanceChanges.fire({ groupsChanged: false, membershipChanged: new Set() });
 		}
 		override getGroups() { return [...groups]; }
+		override setGroupColor(groupId: string, color: string | undefined): void {
+			const index = groups.findIndex(group => group.id === groupId);
+			if (index < 0) {
+				throw new Error(`Unknown test group: ${groupId}`);
+			}
+			groups[index] = { ...groups[index], color };
+			appearanceChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
+		}
 		override getTree() { return new SessionGroupTree(groups); }
 		override getGroup(groupId: string) { return groups.find(group => group.id === groupId); }
 		override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }

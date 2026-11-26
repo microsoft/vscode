@@ -17,7 +17,7 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../..
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../common/chatLayout.js';
-import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING, DetailsPosition } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING, DetailsPosition, SESSIONS_SIDE_CHATS_IN_SIDE_PANE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
 
@@ -96,6 +96,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 			description: localize('floatingDetails.description', "Show file trees and other details as a compact floating widget instead of reserving editor space in the desktop Agents window. Hover or focus the widget to preview details, and activate its control to pin it open. Toggle Details shows or hides the widget."),
+		},
+		[SESSIONS_SIDE_CHATS_IN_SIDE_PANE_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			markdownDescription: localize('sideChatsInSidePane.description', "Controls whether side chats, such as those started with `/btw`, open as tabs of the side panel in the desktop Agents window. When enabled, side chats are not shown as chat tabs beside their source chat or as nested chats in the Sessions list."),
 		},
 		[SESSIONS_LAYOUT_SCOPE_SETTING]: {
 			type: 'string',

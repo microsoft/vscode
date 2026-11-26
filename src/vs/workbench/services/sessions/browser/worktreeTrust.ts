@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWorktreeUnderRepository } from '../../../../platform/agentHost/common/worktreePaths.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { localize } from '../../../../nls.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { ISessionWorkspace } from '../common/session.js';
 
 /**
@@ -53,4 +54,37 @@ export async function ensureSessionWorktreesTrusted(
 			await workspaceTrustManagementService.setUrisTrust([folder.workingDirectory], true);
 		}
 	}));
+}
+
+/**
+ * Has the user trust every folder that a session of `workspace` works in before it opens, not just the primary one: the
+ * agent, and its tasks, terminals and other tooling, can run against any of the session's working directories. Worktrees
+ * that VS Code created off a trusted repository inherit its trust first (see {@link ensureSessionWorktreesTrusted}).
+ * Shows the workspace-trust dialog for each untrusted folder in turn, and resolves to `false` as soon as the user declines
+ * one. A workspace that does not require trust, such as a virtual or cloud one, or that has not hydrated yet, needs none.
+ */
+export async function requestSessionWorkspaceTrust(
+	workspace: ISessionWorkspace | undefined,
+	remoteHostLabel: () => string | undefined,
+	workspaceTrustManagementService: IWorkspaceTrustManagementService,
+	workspaceTrustRequestService: IWorkspaceTrustRequestService,
+): Promise<boolean> {
+	if (!workspace?.requiresWorkspaceTrust) {
+		return true;
+	}
+	await ensureSessionWorktreesTrusted(workspace, workspaceTrustManagementService);
+	const folders = workspace.folders.map(folder => folder.workingDirectory);
+	const trustInfos = await Promise.all(folders.map(folder => workspaceTrustManagementService.getUriTrustInfo(folder)));
+	const untrustedFolders = folders.filter((_, index) => !trustInfos[index].trusted);
+	for (const folder of untrustedFolders) {
+		const trusted = await workspaceTrustRequestService.requestResourcesTrust({
+			uri: folder,
+			message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+			remoteHostLabel: remoteHostLabel(),
+		});
+		if (!trusted) {
+			return false;
+		}
+	}
+	return true;
 }

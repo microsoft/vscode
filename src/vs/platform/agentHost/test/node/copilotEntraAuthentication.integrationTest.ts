@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type EntraTokenProvider } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type EntraTokenProvider } from '@microsoft/copilot-sdk';
 import { Event } from '../../../../base/common/event.js';
 import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -25,7 +25,6 @@ import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import type { IAgentService } from '../../common/agentService.js';
 import { copilotEntraDiscoveryResource, copilotEntraEmuAudience } from '../../common/copilotEntraAuthentication.js';
 import type { IDevContainerAgentHostMainService } from '../../common/devContainerAgentHost.js';
-import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
@@ -63,7 +62,7 @@ suite('Copilot Entra authentication transport', () => {
 		}();
 		const service = new class extends mock<IAgentService>() {
 			override readonly onMcpNotification = Event.None;
-			override authenticate(...args: Parameters<IAgentService['authenticate']>) { return authentication.authenticate(args[0], [provider], args[1]); }
+			override authenticate(...args: Parameters<IAgentService['authenticate']>) { return authentication.authenticate(args[0], [provider], args[1], args[2]); }
 			override addSubscriber() { }
 			override unsubscribe() { }
 			override async subscribe(resource: URI) {
@@ -106,8 +105,18 @@ suite('Copilot Entra authentication transport', () => {
 			}
 		}
 		const runtime = new CopilotClient({
-			mode: 'empty', baseDirectory: root, connection: RuntimeConnection.forStdio(),
-			useLoggedInUser: false, env, logLevel: 'error', entra: bridge.options,
+			mode: 'empty',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: root,
+				env: env,
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
+			observability: {
+				logLevel: 'error',
+			},
+			entra: bridge.options,
 		});
 		let stopping: ReturnType<CopilotClient['stop']> | undefined;
 		store.add(bridge.onDidRevoke(() => { stopping = runtime.stop(); }));
@@ -117,8 +126,17 @@ suite('Copilot Entra authentication transport', () => {
 			await client.call('initialize', { channel: ROOT_STATE_URI, clientId: 'entra-transport', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] });
 			await runtime.start();
 			session = await runtime.createSession({
-				configDirectory: root, availableTools: [], disabledMcpServers: ['github-mcp-server'],
-				enableConfigDiscovery: false, onPermissionRequest: approveAll,
+				configDirectory: root,
+				tools: {
+					availableTools: [],
+				},
+				mcp: {
+					disabledServers: ['github-mcp-server'],
+				},
+				enableConfigDiscovery: false,
+				permissions: {
+					onRequest: approveAll,
+				},
 			});
 			const accountSession = session;
 			const login = async () => {
@@ -148,7 +166,7 @@ suite('Copilot Entra authentication transport', () => {
 			await client.call('authenticate', {
 				channel: ROOT_STATE_URI, resource: copilotEntraDiscoveryResource, scopes: ['User.Read'],
 				token: 'synthetic-graph-credential', expiresIn: 3600,
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'transport-selected-account' }),
+				accountId: 'transport-selected-account',
 			});
 			const result = await completeWithoutCredential();
 			assert.ok(result, 'Missing resource credentials must complete without waiting for a negative AHP reply');
@@ -184,7 +202,7 @@ suite('Copilot Entra authentication transport', () => {
 			await client.call('authenticate', {
 				channel: ROOT_STATE_URI, resource: copilotEntraDiscoveryResource, scopes: ['User.Read'],
 				token: 'synthetic-reconnected-graph-credential', expiresIn: 3600,
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'transport-selected-account' }),
+				accountId: 'transport-selected-account',
 			});
 			await runtime.start();
 			stopping = undefined;
@@ -209,7 +227,7 @@ suite('Copilot Entra authentication transport', () => {
 			await assert.rejects(reconnected.call('authenticate', {
 				channel: ROOT_STATE_URI, resource: copilotEntraDiscoveryResource, scopes: ['User.Read'],
 				token: 'synthetic-other-account', expiresIn: 3600,
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'another-account' }),
+				accountId: 'another-account',
 			}), /original account/i);
 			assert.deepStrictEqual(await bridge.options.tokenProvider?.({
 				kind: 'identity', clientId: bridge.options.clientId, accountId: 'transport-selected-account', reason: 'renewal',

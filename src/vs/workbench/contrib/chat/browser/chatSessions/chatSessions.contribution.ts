@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sep } from '../../../../../base/common/path.js';
-import { AsyncIterableProducer, DeferredPromise, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, raceCancellation, raceCancellationError, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -16,13 +16,12 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -40,9 +39,8 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId } from '../chat.js';
-import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
+import { IChatViewHostService, IChatViewHostSessionStart } from '../chatViewHost.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
@@ -371,6 +369,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<{ readonly chatSessionType: string }>());
 	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
 
+	private static readonly ITEM_CHANGE_DEBOUNCE_MS = 50;
+
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
 	readonly onDidChangeSessionItems = this._onDidChangeSessionItems.event;
 
@@ -403,8 +403,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeCustomizations = this._register(new Emitter<{ readonly chatSessionType: string }>());
 	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
 
-	private readonly _hasCanDelegateProvidersKey: IContextKey<boolean>;
-
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -416,8 +414,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this._hasCanDelegateProvidersKey = ChatContextKeys.hasCanDelegateProviders.bindTo(this._contextKeyService);
 
 		this._register(extensionPoint.setHandler(extensions => {
 			for (const ext of extensions) {
@@ -594,7 +590,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					}
 				}
 				this._contributionDisposables.deleteAndDispose(contribution.type);
-				this._updateHasCanDelegateProvidersContextKey();
 			}
 		};
 	}
@@ -841,7 +836,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._onDidChangeSessionItems.fire({ removed: Array.from(disposedChatSessions) });
 			}
 		}
-		this._updateHasCanDelegateProvidersContextKey();
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
@@ -923,13 +917,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			.map(entry => this.resolveChatSessionContribution(entry.extension, entry.contribution));
 	}
 
-	private _updateHasCanDelegateProvidersContextKey(): void {
-		const hasCanDelegate = this.getAllChatSessionContributions().filter(c => c.canDelegate);
-		const canDelegateEnabled = hasCanDelegate.length > 0;
-		this._logService.trace(`[ChatSessionsService] hasCanDelegateProvidersAvailable=${canDelegateEnabled} (${hasCanDelegate.map(c => c.type).join(', ')})`);
-		this._hasCanDelegateProvidersKey.set(canDelegateEnabled);
-	}
-
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined {
 		const entry = this._contributions.get(chatSessionType);
 		if (!entry) {
@@ -1005,7 +992,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (contribution.onDidChangeRequiresCopilotSignIn) {
 			disposables.add(contribution.onDidChangeRequiresCopilotSignIn(() => this._onDidChangeAvailability.fire()));
 		}
-		this._updateHasCanDelegateProvidersContextKey();
+		if (contribution.onDidChangeAvailability) {
+			disposables.add(contribution.onDidChangeAvailability(() => this._onDidChangeAvailability.fire()));
+		}
 		this._onDidChangeAvailability.fire();
 
 		return toDisposable(() => {
@@ -1018,7 +1007,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				}
 			}
 			this._contributionDisposables.deleteAndDispose(contribution.type);
-			this._updateHasCanDelegateProvidersContextKey();
 			this._onDidChangeAvailability.fire();
 		});
 	}
@@ -1218,12 +1206,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._itemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(initialRefreshCts.token, 'initial') });
 		this._onDidChangeItemsProviders.fire({ chatSessionType });
 
+		// Controllers may report changes in bursts (e.g. one per session summary update): merge them and notify listeners and
+		// re-count in-progress sessions once per interval instead of once per event.
+		const pendingUpdated = new ResourceMap<IChatSessionItem>();
+		const pendingRemoved = new ResourceSet();
+		const flushScheduler = disposables.add(new RunOnceScheduler(() => {
+			const delta: IChatSessionItemsDelta = {
+				addedOrUpdated: pendingUpdated.size ? Array.from(pendingUpdated.values()) : undefined,
+				removed: pendingRemoved.size ? Array.from(pendingRemoved) : undefined,
+			};
+			pendingUpdated.clear();
+			pendingRemoved.clear();
+			this._onDidChangeSessionItems.fire(delta);
+			this.updateInProgressStatus(chatSessionType);
+		}, ChatSessionsService.ITEM_CHANGE_DEBOUNCE_MS));
+
 		disposables.add(controller.onDidChangeChatSessionItems(e => {
 			for (const sessionResource of e.removed ?? []) {
 				this._disposeSession(sessionResource);
+				pendingUpdated.delete(sessionResource);
+				pendingRemoved.add(sessionResource);
 			}
-			this._onDidChangeSessionItems.fire(e);
-			this.updateInProgressStatus(chatSessionType);
+			for (const item of e.addedOrUpdated ?? []) {
+				pendingRemoved.delete(item.resource);
+				pendingUpdated.set(item.resource, item);
+			}
+			if (!flushScheduler.isScheduled()) {
+				flushScheduler.schedule();
+			}
 		}));
 
 		return {
@@ -1912,7 +1922,6 @@ export type NewChatSessionSendOutcome = 'none' | 'sent' | 'queued' | 'rejected' 
  * session stays open (and its resource is returned) when that request is rejected or fails.
  */
 export async function openChatSessionAndSend(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<{ readonly resource: URI; readonly sendOutcome: NewChatSessionSendOutcome } | undefined> {
-	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
 	const chatSessionService = accessor.get(IChatSessionsService);
 	const logService = accessor.get(ILogService);
@@ -1922,7 +1931,8 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	const toolsService = accessor.get(ILanguageModelToolsService);
 	const importConversationStore = accessor.get(IAgentHostImportConversationStore);
 	const activeClientService = chatSendOptions?.sessionToolIds?.length ? accessor.get(IAgentHostActiveClientService) : undefined;
-	const progressService = accessor.get(IProgressService);
+	const chatViewHostService = accessor.get(IChatViewHostService);
+	const notificationService = accessor.get(INotificationService);
 
 	// Determine resource to open
 	const sessionResource = openOptions.sessionResource ?? getResourceForNewChatSession(openOptions);
@@ -1939,32 +1949,19 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 		importConversationStore.set(sessionResource, chatSendOptions.importConversation);
 	}
 
-	// Open chat session. For a sidebar "Continue in…" migration the transition
-	// spans multiple async phases (load → materializing send → untitled→real
-	// rebind), during which the chat widget is transiently empty. Hold the
-	// sessions list suppressed across the whole transition so it never flashes.
-	let sessionsListSuppression: IDisposable | undefined;
-	let transitionProgress: DeferredPromise<void> | undefined;
+	// Open chat session. In the host of the Chat view's chats, the start spans the
+	// whole transition (load → materializing send → untitled→real rebind) until
+	// it completes below.
+	let hostSessionStart: IChatViewHostSessionStart | undefined;
 	try {
 		openOptions.beforeOpen?.();
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
-				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-				openOptions.beforeOpen?.();
-				if (chatSendOptions?.importConversation) {
-					sessionsListSuppression = view.beginSessionsListSuppression();
-					// Show the chat view's working indicator for the whole transition (the
-					// widget is blank while the backend session materializes) so it does not
-					// look hung. Completed once the migration finishes below.
-					transitionProgress = new DeferredPromise<void>();
-					progressService.withProgress({ location: ChatViewId }, () => transitionProgress!.p);
-				}
-				if (openOptions.type === AgentSessionProviders.Local) {
-					await view.startNewLocalSession();
-				} else {
-					await view.loadSession(sessionResource, 'explicitOverride');
-				}
-				view.focus();
+				hostSessionStart = await chatViewHostService.startSession(sessionResource, {
+					local: openOptions.type === AgentSessionProviders.Local,
+					importingConversation: !!chatSendOptions?.importConversation,
+					beforeOpen: openOptions.beforeOpen,
+				});
 				break;
 			}
 			case ChatSessionPosition.Editor: {
@@ -2008,8 +2005,7 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 		}
 	} catch (e) {
 		activeClientService?.clearSessionTools(sessionResource);
-		sessionsListSuppression?.dispose();
-		transitionProgress?.complete();
+		hostSessionStart?.dispose();
 		if (openOptions.beforeOpen && isCancellationError(e)) {
 			throw e;
 		}
@@ -2039,8 +2035,7 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 				openedSessionResource = newSessionResource;
 				switch (openOptions.position) {
 					case ChatSessionPosition.Sidebar: {
-						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-						await view.loadSession(newSessionResource);
+						await hostSessionStart?.moved(newSessionResource);
 						break;
 					}
 					case ChatSessionPosition.Editor: {
@@ -2066,11 +2061,33 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 		}
 	}
 
-	// The migration transition is complete (session loaded, request sent and any
-	// untitled→real rebind done); allow the sessions list again and stop the
-	// working indicator.
-	sessionsListSuppression?.dispose();
-	transitionProgress?.complete();
+	// The start is complete (session loaded, request sent and any untitled→real
+	// rebind done). A request that did not run, in a session the host does not
+	// show, is put back into a new session's composer when it can be sent again.
+	if (hostSessionStart) {
+		try {
+			const sent = sendOutcome === 'sent' || sendOutcome === 'queued';
+			const shown = await hostSessionStart.complete(openedSessionResource, sent);
+			if (!sent && !shown && chatSendOptions) {
+				importConversationStore.take(sessionResource);
+				// Only a request of a prompt and attachments can be sent again from a composer: one with a copied
+				// conversation, session options or tools would start a different session, so its caller reports it instead
+				const restorable = !chatSendOptions.importConversation && !chatSendOptions.initialSessionOptions && !chatSendOptions.sessionToolIds?.length;
+				const composer = restorable ? await hostSessionStart.createComposer() : undefined;
+				if (composer) {
+					composer.setInput(chatSendOptions.prompt);
+					if (chatSendOptions.attachedContext?.length) {
+						composer.attachmentModel.addContext(...chatSendOptions.attachedContext);
+					}
+					notificationService.warn(localize('chatSessions.requestRestored', "The request could not be sent. It was restored in a new session so you can send it again."));
+				} else {
+					notificationService.error(localize('chatSessions.requestNotSent', "The request could not be sent."));
+				}
+			}
+		} finally {
+			hostSessionStart.dispose();
+		}
+	}
 	return { resource: openedSessionResource, sendOutcome };
 }
 

@@ -186,9 +186,10 @@ export function prepareCloudSandboxPnpm(overrides: Partial<SandboxSetupOptions> 
 	if (!version) {
 		throw new Error('Cloud Sandbox setup: package.json must pin pnpm in its packageManager field.');
 	}
+	// `--pm-on-fail=ignore` reports the pnpm on PATH instead of switching to the pinned version
 	const currentVersion = () => {
 		try {
-			return options.run('pnpm', ['--version'], true).trim();
+			return options.run('pnpm', ['--pm-on-fail=ignore', '--version'], true).trim();
 		} catch {
 			return undefined;
 		}

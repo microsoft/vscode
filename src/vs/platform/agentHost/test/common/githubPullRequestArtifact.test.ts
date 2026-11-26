@@ -12,13 +12,14 @@ import { createPullRequestArtifactSnapshot } from './githubPullRequestArtifactTe
 suite('GitHub pull request artifact rules', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('merge policy labels keep readiness explicit without changing stored consent values', () => {
+	test('merge policy labels keep readiness explicit and distinct from native auto-merge without changing stored consent values', () => {
 		const option = gitHubPullRequestArtifactOptions.find(option => option.id === 'merge');
 		assert.deepStrictEqual(option?.kind === 'enum' ? {
-			label: option.label, defaultValue: option.defaultValue, disabledValue: option.disabledValue, choices: option.choices, actionIds: option.actionIds,
+			label: option.label, defaultValue: option.defaultValue, disabledValue: option.disabledValue, choices: option.choices.map(({ value, label }) => ({ value, label })), actionIds: option.actionIds,
+			separateFromNativeAutoMerge: option.description?.includes('separate from GitHub\'s native auto-merge'),
 		} : undefined, {
-			label: 'Merge Automatically When Ready', defaultValue: 'never', disabledValue: 'never',
-			choices: [{ value: 'never', label: 'Off' }, { value: 'always', label: 'Always' }, { value: 'ifUnchanged', label: 'When No Changes Were Made' }],
+			label: 'Merge Automatically When Ready', defaultValue: 'never', disabledValue: 'never', separateFromNativeAutoMerge: true,
+			choices: [{ value: 'never', label: 'Off' }, { value: 'ifUnchanged', label: 'When Not Changed' }, { value: 'always', label: 'On' }],
 			actionIds: ['merge'],
 		});
 	});

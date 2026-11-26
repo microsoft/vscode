@@ -26,6 +26,15 @@ export const WSL_ADDRESS_PREFIX = 'wsl:';
 export const WslAutoStartSettingId = 'chat.agentHost.wsl.autoStart';
 
 /**
+ * Libraries the server's Node.js needs that musl distributions such as Alpine
+ * don't install by default. Connection errors name the missing ones verbatim.
+ */
+export const WSL_MUSL_SERVER_LIBRARIES: readonly string[] = ['libstdc++.so.6', 'libgcc_s.so.1'];
+
+/** Installs {@link WSL_MUSL_SERVER_LIBRARIES} with Alpine's `apk`; `libstdc++` depends on `libgcc`. */
+export const WSL_INSTALL_SERVER_LIBRARIES_COMMAND = 'apk add --update-cache libstdc++';
+
+/**
  * A WSL distribution discovered via `wsl --list`. Only WSL 2 distros are
  * surfaced — WSL 1 lacks the kernel features needed to host the agent.
  */
@@ -98,8 +107,17 @@ export interface IWSLRemoteAgentHostService {
 	isWSLAvailable(): Promise<boolean>;
 	listDistros(): Promise<IWSLDistro[]>;
 	listRunningDistros(): Promise<string[]>;
+	/** Stops every process in a distribution, like `wsl --terminate`, so its next connection starts it again. */
+	terminateDistro(distro: string): Promise<void>;
 	connect(config: IWSLAgentHostConfig): Promise<IWSLAgentHostConnection>;
-	disconnect(distro: string): Promise<void>;
+	/**
+	 * Disconnect a distro. Forgets the cached distro unless `keepEntry` is set,
+	 * in which case the distro stays cached but marked as disconnected and is
+	 * not dialed until the user connects again.
+	 */
+	disconnect(distro: string, options?: { readonly keepEntry?: boolean }): Promise<void>;
+	/** Whether the user disconnected a cached distro and has not connected it again. */
+	isDisconnected(distro: string): boolean;
 	/** Reconnect a cached distro, optionally as an automatic recovery attempt. */
 	reconnect(distro: string, name: string, userInitiated?: boolean): Promise<IWSLAgentHostConnection>;
 	/**
@@ -136,6 +154,8 @@ export interface IWSLRemoteAgentHostMainService {
 	isWSLAvailable(): Promise<boolean>;
 	listDistros(): Promise<IWSLDistro[]>;
 	listRunningDistros(): Promise<string[]>;
+	/** Closes the distribution's connections, then stops every process in it, like `wsl --terminate`. */
+	terminateDistro(distro: string): Promise<void>;
 	connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult>;
 	disconnect(distro: string): Promise<void>;
 	reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean, expectedConnectionId?: string): Promise<IWSLConnectResult>;

@@ -38,6 +38,7 @@ import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAg
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../../node/agentHostFileEditCoordinator.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
@@ -66,6 +67,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	instantiationService.stub(ISessionDataService, createNullSessionDataService());
+	instantiationService.stub(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
@@ -1225,13 +1227,14 @@ suite('CodexAgent model refresh', () => {
 		const second = agent['_refreshAccount'](client, false);
 		await firstStarted.p;
 		assert.strictEqual(requestIndex, 1);
-		await firstResponse.complete({ account: null, requiresOpenaiAuth: true, workspaceRouting: null });
+		await firstResponse.complete({ account: null, userId: null, requiresOpenaiAuth: true, workspaceRouting: null });
 		await first;
 
 		await secondStarted.p;
 		assert.strictEqual(requestIndex, 2);
 		await secondResponse.complete({
-			account: { type: 'chatgpt', email: 'new@example.com', planType: 'pro' },
+			account: { type: 'chatgpt', email: 'new@example.com', planType: 'pro', workspaceName: null },
+			userId: null,
 			requiresOpenaiAuth: true,
 			workspaceRouting: null,
 		});

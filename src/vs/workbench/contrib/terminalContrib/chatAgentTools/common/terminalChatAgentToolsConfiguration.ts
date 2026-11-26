@@ -286,6 +286,16 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			mode: 'auto'
 		}
 	},
+	[AgentSandboxSettingId.AgentSandboxProfilesEnabled]: {
+		included: false,
+		type: 'boolean',
+		default: false,
+		tags: ['experimental', 'chatPermissions'],
+		experiment: {
+			mode: 'auto'
+		},
+		markdownDescription: localize('agentSandbox.profilesEnabled', "Whether to show sandbox profiles: the **Manage Sandbox Profiles** command and the Sandbox Profile column in Remote Environments. Remote environments keep applying a profile that is already assigned when this is turned off."),
+	},
 	[AgentSandboxSettingId.AgentSandboxEnabled]: {
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveEnabled(undefined, read(COPILOT_SANDBOX_ENABLED_KEY) === true),
 		order: 10,

@@ -9,10 +9,14 @@ import sinon from 'sinon';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentMainService } from '../../../environment/electron-main/environmentMainService.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
+import { IThemeMainService } from '../../../theme/electron-main/themeMainService.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition } from '../../../window/common/window.js';
 import { IWindowState, WindowMode } from '../../../window/electron-main/window.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,7 +24,7 @@ import { NativeParsedArgs } from '../../../environment/common/argv.js';
 import { FocusMode } from '../../../native/common/native.js';
 import { release } from 'os';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
-import { getAuxiliaryWindowRestoreMode, getClaimedAuxiliaryWindowMode, isBackgroundThrottlingAllowed, isHiddenWindowMode } from '../../electron-main/windows.js';
+import { defaultBrowserWindowOptions, getAuxiliaryWindowRestoreMode, getClaimedAuxiliaryWindowMode, isBackgroundThrottlingAllowed, isHiddenWindowMode } from '../../electron-main/windows.js';
 
 const displayBounds = { x: 0, y: 0, width: 1440, height: 900 };
 const workArea = { x: 0, y: 25, width: 1440, height: 875 };
@@ -44,6 +48,33 @@ class TestWindow extends BaseWindow {
 		return false;
 	}
 }
+
+suite('Window options - always on top', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createOptions(alwaysOnTop: boolean | undefined, override?: boolean) {
+		const configurationService = new TestConfigurationService({ window: { titleBarStyle: 'native' } });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IEnvironmentMainService, { appRoot: '', isBuilt: false, args: { _: [] } });
+		instantiationService.stub(IProductService, { nameLong: 'Test' });
+		instantiationService.stub(IThemeMainService, { getBackgroundColor: () => '#000000' });
+
+		return instantiationService.invokeFunction(defaultBrowserWindowOptions, { alwaysOnTop }, { alwaysOnTop: override });
+	}
+
+	test('restores saved always-on-top state while older state defaults to off', () => {
+		assert.deepStrictEqual([true, false, undefined].map(value => !!createOptions(value).alwaysOnTop), [true, false, false]);
+	});
+
+	test('explicit window options take precedence over restored state', () => {
+		assert.deepStrictEqual([
+			!!createOptions(false, true).alwaysOnTop,
+			!!createOptions(true, false).alwaysOnTop
+		], [true, false]);
+	});
+});
 
 suite('BaseWindow - window controls overlay', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

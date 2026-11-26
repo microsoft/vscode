@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/b308b4b3502c8639149e63d74844da51031b5f47",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/122ddbf14fa40d617a8d547140bf8f3114212273",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -73,12 +73,12 @@
 	],
 	"repository": {
 		"dartdoc-codeblock-triple": {
-			"begin": "^\\s*///\\s*(?!\\s*```)",
+			"begin": "^\\s*///\\s*",
 			"end": "$",
 			"contentName": "variable.other.source.dart"
 		},
 		"dartdoc-codeblock-block": {
-			"begin": "^\\s*\\*\\s*(?!(\\s*```|/))",
+			"begin": "^\\s*\\*\\s*",
 			"end": "$",
 			"contentName": "variable.other.source.dart"
 		},
@@ -93,8 +93,8 @@
 					}
 				},
 				{
-					"begin": "^\\s*///\\s*(```)",
-					"end": "^\\s*///\\s*(```)|^(?!\\s*///)",
+					"begin": "^\\s*///\\s*(`{3,})",
+					"end": "^\\s*///\\s*(?=\\1)`*|^(?!\\s*///)",
 					"patterns": [
 						{
 							"include": "#dartdoc-codeblock-triple"
@@ -102,8 +102,8 @@
 					]
 				},
 				{
-					"begin": "^\\s*\\*\\s*(```)",
-					"end": "^\\s*\\*\\s*(```)|^(?=\\s*\\*/)",
+					"begin": "^\\s*\\*\\s*(`{3,})",
+					"end": "^\\s*\\*\\s*(?=\\1)`*|^(?=\\s*\\*/)",
 					"patterns": [
 						{
 							"include": "#dartdoc-codeblock-block"
@@ -115,7 +115,7 @@
 					"name": "variable.other.source.dart"
 				},
 				{
-					"match": "(?:\\*|\\/\\/)\\s{4,}(.*?)(?=($|\\*\\/))",
+					"match": "(?:\\*|\\/\\/)\\s{5,}(.*?)(?=($|\\*\\/))",
 					"captures": {
 						"1": {
 							"name": "variable.other.source.dart"

@@ -38,7 +38,9 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
+import { ChatEditingCustomTextEditorIntegration } from './chatEditingCustomTextEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
+import { CustomEditorInput } from '../../../customEditor/browser/customEditorInput.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -167,7 +169,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._register(this._textModelChangeService.onDidUserEditModel(() => {
 			this._userEditScheduler.schedule();
 			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
-			if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
+			if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent && this._rejectsWhenResetToInitialContent()) {
 				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			}
 		}));
@@ -235,6 +237,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	/** Until the next diff is computed, a user edit applies to the original through `edit`, which turns the original into the document. */
 	protected _mapOriginalToModified(edit: StringEdit): void {
 		this._textModelChangeService.setOriginalToModifiedEdit(edit);
+	}
+
+	/** Whether the entry is rejected once the user's edits return the document to its initial content. */
+	protected _rejectsWhenResetToInitialContent(): boolean {
+		return true;
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
@@ -318,10 +325,13 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	protected _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration {
 		const codeEditor = getCodeEditor(editor.getControl());
-		assertType(codeEditor);
-
 		const diffInfo = this.diffInfo;
 
+		if (!codeEditor && editor.input instanceof CustomEditorInput) {
+			return this._instantiationService.createInstance(ChatEditingCustomTextEditorIntegration, this, editor, diffInfo);
+		}
+
+		assertType(codeEditor);
 		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
 	}
 

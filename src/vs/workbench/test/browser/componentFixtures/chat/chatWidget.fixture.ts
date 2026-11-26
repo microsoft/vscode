@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -183,6 +184,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly inlineAttachments?: boolean;
 	/** Mirrors the `chat.fontSize` and `chat.fontFamily` settings, which `ChatWidget` applies to its container. */
 	readonly chatFont?: { readonly size?: number; readonly family?: string };
+	/** Mirrors the `chat.editor.wordWrap` setting for code blocks. Defaults to `off`. */
+	readonly codeBlockWordWrap?: 'on' | 'off';
 }
 
 export interface IChatWidgetFixtureHandle {
@@ -300,6 +303,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				override readonly onDidRemoveWidget = Event.None;
 				override readonly onDidBackgroundSession = Event.None;
 				override readonly onDidChangeFocusedWidget = Event.None;
+				override readonly onDidChangeWidgetVisibility = Event.None;
 				override readonly onDidChangeFocusedSession = Event.None;
 				override getAllWidgets() { return widgetHolder.current ? [widgetHolder.current] : []; }
 				override getWidgetByInputUri() { return undefined; }
@@ -377,7 +381,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 	configService.setUserConfiguration('chat', {
-		editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'default', lineHeight: 0, wordWrap: 'off' },
+		editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'default', lineHeight: 0, wordWrap: options.codeBlockWordWrap ?? 'off' },
 	});
 	configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
@@ -740,10 +744,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
 
+	const listContainer = dom.$('.interactive-list');
 	const fixtureWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = disposableStore.add(new Emitter<never>()).event;
 		override readonly viewModel = viewModel;
 		override readonly domNode = session;
+		override readonly transcriptDomNode = listContainer;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
@@ -761,7 +767,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	options.decorateInputPart?.(inputPart, instantiationService);
 	inputPart.element.classList.toggle('chat-input-hidden', options.inputVisible === false);
 
-	const listContainer = dom.$('.interactive-list');
 	listContainer.style.flex = options.hostLayoutMode ? '0 0 auto' : '1 1 auto';
 	listContainer.style.minHeight = '0';
 	listContainer.style.position = 'relative';
@@ -1047,6 +1052,51 @@ const ISSUE_309796_MISSING_BACKSLASH: IFixtureMessage[] = [
 			},
 		],
 		responseComplete: false,
+	},
+];
+
+// https://github.com/microsoft/vscode/issues/349335
+const ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH: IFixtureMessage[] = [
+	{
+		user: [
+			'i need to update the status bar button script to install from pnpm for vscode:',
+			'',
+			'```json',
+			'{',
+			'	"text": "",',
+			'	"icon": "rocket",',
+			'	"command": "nvm use default; npm install && npm run watch",',
+			'	"tooltip": "Set up Code OSS for development",',
+			'	"color": "button.background",',
+			'	"alignment": "left",',
+			'	"priority": 85',
+			'},',
+			'```',
+		].join('\n'),
+		assistant: [{ kind: 'markdown', text: 'Replace `npm install` with `pnpm install` in the `command`.' }],
+	},
+];
+
+// https://github.com/microsoft/vscode/issues/349335, each blockquote level narrows the code block. The last token of
+// the long lines must stay visible: scrolled into view without word wrap, or wrapped onto the next line with it.
+const ISSUE_349335_REQUEST_CODE_BLOCK_IN_BLOCKQUOTES: IFixtureMessage[] = [
+	{
+		user: [
+			'my colleague wrote:',
+			'',
+			'> this command fails for me:',
+			'>',
+			'> ```sh',
+			'> nvm use default; npm install && npm run watch --some-long-option LAST_TOKEN',
+			'> ```',
+			'>',
+			'> > and this one too:',
+			'> >',
+			'> > ```sh',
+			'> > nvm use default; npm install && npm run watch --some-long-option LAST_TOKEN',
+			'> > ```',
+		].join('\n'),
+		assistant: [{ kind: 'markdown', text: 'Run `pnpm install` instead of `npm install`.' }],
 	},
 ];
 
@@ -1530,7 +1580,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		const activityLabelSelector = '.chat-tool-chain:not(.chat-used-context-collapsed) .progress-container p, .chat-tool-chain.chat-used-context-collapsed > .chat-used-context-label .monaco-button-mdlabel, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, :scope > .chat-tool-call-with-icon .progress-container p, .chat-working-progress p';
 		if (options.activityRowSpacing) {
 			const labels = [...value.querySelectorAll<HTMLElement>(`${activityLabelSelector}, :scope > .chat-markdown-part > p`)];
-			const labelGaps = labels.slice(1).map((label, index) => getItemGap(labels[index], label));
+			const labelGaps = labels.slice(1).map((label, index) => getItemGap(labels[index].closest('.chat-persistent-reasoning') ?? labels[index], label));
 			if (labelGaps.some(gap => Math.abs(gap - 16) > 0.1)) {
 				throw new Error(`Visible tool summaries, tools, reasoning, markdown, and working rows must share the same item gap; measured ${labelGaps.join(', ')}`);
 			}
@@ -1739,10 +1789,15 @@ interface IVerbosityComparisonOptions {
 	readonly filePillTitle?: boolean;
 	/** Ends the running response with reasoning that has a summary heading. */
 	readonly reasoningLast?: boolean;
+	/** Ends the running response with reasoning that has no summary heading, and a first line longer than the header's row. */
+	readonly unheadedReasoningLast?: boolean;
 }
 
 async function renderPersistentVerbosityComparison(context: ComponentFixtureContext, verbosity: ChatProgressVerbosity, complete: boolean, options: IVerbosityComparisonOptions = {}): Promise<void> {
-	const patchComplete = complete || !!options.reasoningLast;
+	const lastReasoning = options.reasoningLast ? '**Checking the related tests**\nConfirm the tests cover the tool and reasoning paths.'
+		: options.unheadedReasoningLast ? 'The tool and reasoning paths share one renderer, so the related tests should cover both of them before the header changes how it names what the response is doing.\n\nThen update the tests.'
+			: undefined;
+	const patchComplete = complete || lastReasoning !== undefined;
 	const runningPatchMessage = options.filePillTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts?vscodeLinkType=file)'
 		: options.linkedTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts)' : 'Updating the progress renderer...';
 	await renderChatWidget(context, {
@@ -1762,7 +1817,7 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read `src/progress.ts`', complete: true },
 				{ kind: 'tool', toolId: 'search_workspace', displayName: 'Search workspace', invocationMessage: 'Found 12 progress renderer tests', complete: true },
 				{ kind: 'tool', toolId: 'apply_patch', displayName: 'Apply patch', invocationMessage: patchComplete ? 'Updated the progress renderer' : runningPatchMessage, complete: patchComplete },
-				...(options.reasoningLast ? [{ kind: 'thinking' as const, text: '**Checking the related tests**\nConfirm the tests cover the tool and reasoning paths.' }] : []),
+				...(lastReasoning !== undefined ? [{ kind: 'thinking' as const, text: lastReasoning }] : []),
 				...(complete ? [{ kind: 'markdown' as const, text: 'Updated the progress renderer and checked the related tests.' }] : []),
 			],
 			responseComplete: complete,
@@ -2763,14 +2818,15 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 	status.textContent = 'Completed disabled pet observer probe';
 }
 
-async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false): Promise<void> {
+async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false, scheduledWidth?: number): Promise<void> {
 	await renderChatWidget(context, {
+		width: scheduledWidth,
 		messages: [{
 			user: 'Review the current changes',
 			assistant: [{ kind: 'thinking', text: 'Reviewing the workspace changes.' }],
 			responseComplete: false,
 		}],
-		onRendered: ({ model, listWidget }) => {
+		onRendered: ({ model, viewModel, listWidget }) => {
 			const pendingRequest = new ChatRequestModel({
 				session: model,
 				message: makeUserMessage(isSystemInitiated ? 'Check for new system notifications' : 'Summarize the findings'),
@@ -2778,6 +2834,15 @@ async function renderPendingDivider(context: ComponentFixtureContext, kind: Chat
 				isSystemInitiated,
 			});
 			model.addPendingRequest(pendingRequest, kind, { isSystemInitiated });
+			if (scheduledWidth !== undefined) {
+				viewModel.setScheduledRequests([{
+					id: 'scheduled-follow-up',
+					text: 'Check the review feedback tomorrow and summarize any remaining changes.',
+					description: 'Scheduled for Nov 13, 2026, 10:00 AM PST',
+					attachments: ['review-notes.md'],
+					actions: ['Preview', 'Send Now', 'Reschedule...', 'Edit', 'Cancel Schedule'].map(label => toAction({ id: label, label, run: () => { } })),
+				}]);
+			}
 			listWidget.refresh();
 			listWidget.scrollToEnd();
 		},
@@ -2815,6 +2880,13 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	PendingToolApproval: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
 	PendingTerminalApprovalWithIntention: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TERMINAL_APPROVAL_WITH_INTENTION, sideChatSupported: true }) }),
 	PendingMessages: defineThemedFixtureGroup({
+		Scheduled: defineComponentFixture({
+			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering, false, 600),
+		}),
+		ScheduledNarrow: defineComponentFixture({
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering, false, 320),
+		}),
 		Queued: defineComponentFixture({
 			labels: { kind: 'screenshot', blocksCi: true },
 			expectedVisualDescriptions: ['A pending message appears below a sentence-case "Queued" divider while an earlier response is still running.'],
@@ -2848,6 +2920,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			ConversationStreamingLinkedTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { linkedTitle: true }) }),
 			ConversationStreamingFilePillTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { filePillTitle: true }) }),
 			ConversationStreamingReasoning: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { reasoningLast: true }) }),
+			ConversationStreamingUnheadedReasoning: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { unheadedReasoningLast: true }) }),
 			ConversationCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true) }),
 			ConversationExpanded: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true, { expand: true }) }),
 		}),
@@ -3054,6 +3127,15 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	}),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
+		'issue-349335-request-code-block-width': defineComponentFixture({
+			render: ctx => renderChatWidget(ctx, { messages: ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH, width: 400, inputVisible: false }),
+		}),
+		'issue-349335-request-code-block-in-blockquotes': defineComponentFixture({
+			render: ctx => renderChatWidget(ctx, { messages: ISSUE_349335_REQUEST_CODE_BLOCK_IN_BLOCKQUOTES, width: 400, inputVisible: false }),
+		}),
+		'issue-349335-request-code-block-in-blockquotes-word-wrap': defineComponentFixture({
+			render: ctx => renderChatWidget(ctx, { messages: ISSUE_349335_REQUEST_CODE_BLOCK_IN_BLOCKQUOTES, width: 400, inputVisible: false, codeBlockWordWrap: 'on' }),
+		}),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
 	LastResponseContentHover: defineComponentFixture({ render: renderLastResponseHover }),

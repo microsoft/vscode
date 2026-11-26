@@ -16,6 +16,7 @@ export type SessionRecencyEntry = {
 	readonly chatResource: URI | undefined;
 } | {
 	readonly kind: 'newSession';
+	readonly draftId?: string;
 } | {
 	readonly kind: 'canvas';
 	readonly id: string;
@@ -36,7 +37,7 @@ export function getRecencyEntryKey(entry: SessionRecencyEntry): string {
 		case 'session':
 			return JSON.stringify([entry.kind, getComparisonKey(entry.sessionResource), entry.chatResource && getComparisonKey(entry.chatResource)]);
 		case 'newSession':
-			return entry.kind;
+			return entry.draftId === undefined ? entry.kind : JSON.stringify([entry.kind, entry.draftId]);
 		case 'canvas':
 			return `${entry.kind}:${entry.id}`;
 		case 'customView':
@@ -94,6 +95,21 @@ export class SessionsRecencyHistory extends Disposable {
 		let sessionEntries = 0;
 		this._entries = this._entries.filter(candidate => candidate.kind !== 'session' || ++sessionEntries <= SessionsRecencyHistory.MAX_SESSION_ENTRIES);
 
+		this._save();
+		this._bumpVersion(tx);
+	}
+
+	/** Replaces an identity in place without recording a navigation or duplicating a destination. */
+	replace(previous: SessionRecencyEntry, entry: SessionRecencyEntry, tx?: ITransaction): void {
+		const previousKey = getRecencyEntryKey(previous);
+		const key = getRecencyEntryKey(entry);
+		if (previousKey === key || !this._entries.some(candidate => getRecencyEntryKey(candidate) === previousKey)) {
+			return;
+		}
+		this._entries = this._entries.flatMap(candidate => {
+			const candidateKey = getRecencyEntryKey(candidate);
+			return candidateKey === previousKey ? [entry] : candidateKey === key ? [] : [candidate];
+		});
 		this._save();
 		this._bumpVersion(tx);
 	}

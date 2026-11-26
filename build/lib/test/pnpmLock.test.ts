@@ -78,6 +78,35 @@ suite('pnpmLock', () => {
 		]);
 		assert.throws(() => readLockfileImporter(content.replace('\'9.0\'', '\'6.0\''), '.'), /Unsupported pnpm lockfile version: 6.0/);
 		assert.throws(() => readLockfileImporter(content.replace('      ws:\r\n        specifier', '      ws: {specifier: x, version: y}\r\n        specifier'), '.'), /Unsupported line/);
+
+		// The pnpm version that `packageManager` pins comes first, in a document of its own
+		const withPackageManager = [
+			'---',
+			'lockfileVersion: \'9.0\'',
+			'',
+			'importers:',
+			'',
+			'  .:',
+			'    packageManagerDependencies:',
+			'      pnpm:',
+			'        specifier: 12.16.0',
+			'        version: 12.16.0',
+			'',
+			'---',
+			content,
+		].join('\r\n');
+		const parsed = parsePnpmLockfile(withPackageManager);
+		assert.deepStrictEqual([
+			readLockfileImporter(withPackageManager, '.'),
+			readLockfileImporter(withPackageManager, 'extensions/empty'),
+			Object.keys(parsed.importers),
+			parsed.importers['.'].devDependencies,
+		], [
+			readLockfileImporter(content, '.'),
+			{},
+			['.', 'extensions/empty'],
+			{ ts: { specifier: '*', version: '@scope/ts6@6.0.2' } },
+		]);
 	});
 
 	test('importers read without a YAML parser match the parsed lockfiles', () => {

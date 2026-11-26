@@ -1,0 +1,90 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Takes the room left after the title: the title keeps priority, the pill fits in what remains */
+.monaco-workbench .view-title-badge-container {
+	display: flex;
+	align-items: center;
+	flex: 1 1 0;
+	min-width: 0;
+	margin-left: var(--vscode-spacing-size60);
+	container: view-title-badge / inline-size;
+}
+
+.monaco-workbench .view-title-badge-container.hidden,
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header .view-title-badge-container {
+	display: none;
+}
+
+.monaco-workbench .view-title-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	height: 18px;
+	max-width: 100%;
+	padding: 0 var(--vscode-spacing-size60);
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder, transparent));
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: normal;
+	text-transform: none;
+	white-space: nowrap;
+	cursor: default;
+}
+
+.monaco-workbench .view-title-badge > .view-title-badge-icon {
+	flex-shrink: 0;
+	color: inherit;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.monaco-workbench .view-title-badge > .view-title-badge-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* Too little room for a readable label: only the icon, the hover and the accessible name still carry the label */
+@container view-title-badge (max-width: 64px) {
+	.monaco-workbench .view-title-badge {
+		gap: 0;
+		padding: 0 var(--vscode-spacing-size20);
+	}
+
+	.monaco-workbench .view-title-badge > .view-title-badge-label {
+		display: none;
+	}
+}
+
+/* Not even room for the icon: no partial pill */
+@container view-title-badge (max-width: 19px) {
+	.monaco-workbench .view-title-badge {
+		visibility: hidden;
+	}
+}
+
+/* A title that shows tabs hides its label, and with it the badge */
+.monaco-workbench .part > .title:not(.has-composite-bar) > .title-label.has-title-badge {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	min-width: 0;
+}
+
+/* The secondary side bar keeps its title to its content: let it grow into the free room while it has a badge */
+.monaco-workbench .part.auxiliarybar.pane-composite-part > .composite.title > .title-label.has-title-badge {
+	flex: 1 1 auto;
+	max-width: 60%;
+}
+
+.monaco-workbench .part > .title:not(.has-composite-bar) > .title-label.has-title-badge > h2 {
+	min-width: 3ch;
+}

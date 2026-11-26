@@ -24,14 +24,12 @@ use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
 use crate::util::prereqs::skip_requirements_check;
-use regex::Regex;
 use serde::Deserialize;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::fs::remove_file;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -39,10 +37,8 @@ use tokio::process::{Child, Command};
 use tokio::sync::oneshot::Receiver;
 use tokio::time::{interval, timeout};
 
-static LISTENING_PORT_RE: LazyLock<Regex> =
-	LazyLock::new(|| Regex::new(r"Extension host agent listening on (.+)").unwrap());
-static WEB_UI_RE: LazyLock<Regex> =
-	LazyLock::new(|| Regex::new(r"Web UI available at (.+)").unwrap());
+const LISTENING_PREFIX: &str = "Extension host agent listening on ";
+const WEB_UI_PREFIX: &str = "Web UI available at ";
 const AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV: &str = "VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN";
 
 #[derive(Clone, Debug, Default)]
@@ -873,10 +869,7 @@ pub struct WebUiMatcher();
 
 impl ServerOutputMatcher<reqwest::Url> for WebUiMatcher {
 	fn match_line(line: &str) -> Option<reqwest::Url> {
-		WEB_UI_RE.captures(line).and_then(|cap| {
-			cap.get(1)
-				.and_then(|uri| reqwest::Url::parse(uri.as_str()).ok())
-		})
+		server_output_value(line, WEB_UI_PREFIX).and_then(|uri| reqwest::Url::parse(uri).ok())
 	}
 }
 
@@ -890,15 +883,19 @@ impl ServerOutputMatcher<()> for NoOpMatcher {
 }
 
 fn parse_socket_from(text: &str) -> Option<PathBuf> {
-	LISTENING_PORT_RE
-		.captures(text)
-		.and_then(|cap| cap.get(1).map(|path| PathBuf::from(path.as_str())))
+	server_output_value(text, LISTENING_PREFIX).map(PathBuf::from)
 }
 
 fn parse_port_from(text: &str) -> Option<u16> {
-	LISTENING_PORT_RE.captures(text).and_then(|cap| {
-		cap.get(1)
-			.and_then(|path| path.as_str().parse::<u16>().ok())
+	server_output_value(text, LISTENING_PREFIX).and_then(|port| port.parse::<u16>().ok())
+}
+
+fn server_output_value<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
+	text.match_indices(prefix).find_map(|(index, _)| {
+		text[index + prefix.len()..]
+			.split('\n')
+			.next()
+			.filter(|value| !value.is_empty())
 	})
 }
 
@@ -1017,6 +1014,97 @@ async fn get_should_use_breakaway_from_job() -> bool {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use regex::Regex;
+
+	#[test]
+	fn server_output_matches_legacy_regex() {
+		for (prefix, pattern) in [
+			(LISTENING_PREFIX, r"Extension host agent listening on (.+)"),
+			(WEB_UI_PREFIX, r"Web UI available at (.+)"),
+		] {
+			let regex = Regex::new(pattern).unwrap();
+			for leading in [
+				String::new(),
+				"prefix ".to_owned(),
+				format!("{prefix}\n"),
+				format!("{prefix}first\n"),
+			] {
+				for value in [
+					"",
+					"1234",
+					"+1234",
+					"/tmp/用户.sock",
+					"\r",
+					"🦀\0\u{2028}",
+					"\n",
+					" \t",
+				] {
+					for trailing in [
+						String::new(),
+						"\nignored".to_owned(),
+						format!("\n{prefix}next"),
+						format!("{prefix}repeat"),
+					] {
+						let text = format!("{leading}{prefix}{value}{trailing}");
+						let expected = regex
+							.captures(&text)
+							.and_then(|captures| captures.get(1))
+							.map(|value| value.as_str());
+						assert_eq!(server_output_value(&text, prefix), expected, "{text:?}");
+					}
+				}
+			}
+		}
+	}
+
+	#[test]
+	fn test_regex_server_output_matching() {
+		for (line, expected) in [
+			(
+				"prefix Extension host agent listening on 1234\n",
+				Some(1234),
+			),
+			(
+				"Extension host agent listening on \nExtension host agent listening on 5678",
+				Some(5678),
+			),
+			("Extension host agent listening on ", None),
+			("Extension host agent listening on 1234\r", None),
+		] {
+			assert_eq!(parse_port_from(line), expected, "{line:?}");
+		}
+		assert_eq!(
+			parse_socket_from("prefix Extension host agent listening on /tmp/用户.sock\nrest"),
+			Some(PathBuf::from("/tmp/用户.sock")),
+		);
+	}
+
+	#[test]
+	fn test_regex_web_output_matching() {
+		for (line, expected) in [
+			(
+				"Web UI available at https://localhost/λ\nrest",
+				Some("https://localhost/%CE%BB"),
+			),
+			(
+				"Web UI available at \nWeb UI available at http://localhost:9000/",
+				Some("http://localhost:9000/"),
+			),
+			("Web UI available at ", None),
+			(
+				"Web UI available at invalid\nWeb UI available at http://localhost/",
+				None,
+			),
+		] {
+			assert_eq!(
+				WebUiMatcher::match_line(line)
+					.as_ref()
+					.map(|uri| uri.as_str()),
+				expected,
+				"{line:?}"
+			);
+		}
+	}
 
 	#[tokio::test]
 	async fn agent_certificate_command_preserves_exit_code() {

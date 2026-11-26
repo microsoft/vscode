@@ -227,6 +227,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/screenshotTool",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/search",
 			"project": "vscode-workbench"
 		},
@@ -705,6 +709,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/agentsLauncher",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/accountMenu",
 			"project": "vscode-sessions"
 		},
@@ -741,10 +749,6 @@
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/chatEditor",
-			"project": "vscode-sessions"
-		},
-		{
 			"name": "vs/sessions/contrib/chatWindow",
 			"project": "vscode-sessions"
 		},
@@ -770,6 +774,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/files",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/mobile",
 			"project": "vscode-sessions"
 		},
 		{

@@ -6,34 +6,11 @@
 import * as assert from 'assert';
 import {
 	SuggestionStatus,
-	computeCompCharLen,
 	computeCompletionText,
 	countLines,
 } from '../partialSuggestions';
 
 suite('partial acceptance utilities', () => {
-	test('returns the length of the completion text when compType is full', () => {
-		const completionText = 'Hello, World!';
-		const suggestionStatus: SuggestionStatus = {
-			compType: 'full',
-			acceptedLength: completionText.length,
-			acceptedLines: 0,
-		};
-
-		const result = computeCompCharLen(suggestionStatus, completionText);
-
-		assert.strictEqual(result, completionText.length);
-	});
-
-	test('returns the acceptedLength when compType is partial', () => {
-		const acceptedLength = 5;
-		const suggestionStatus: SuggestionStatus = { compType: 'partial', acceptedLength, acceptedLines: 0 };
-
-		const result = computeCompCharLen(suggestionStatus, 'Hello, World!');
-
-		assert.strictEqual(result, acceptedLength);
-	});
-
 	test('returns the full completion text when compType is full', () => {
 		const completionText = 'Hello, World!';
 		const suggestionStatus: SuggestionStatus = {

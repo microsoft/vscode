@@ -47,6 +47,7 @@ class DecorationRule {
 	readonly itemBadgeClassName: string;
 	readonly iconBadgeClassName: string;
 	readonly bubbleBadgeClassName: string;
+	badgeText: string | undefined;
 
 	private _refCounter: number = 0;
 
@@ -82,6 +83,7 @@ class DecorationRule {
 		if (ThemeIcon.isThemeIcon(letter)) {
 			this._createIconCSSRule(letter, getColor(color), element);
 		} else if (letter) {
+			this.badgeText = letter;
 			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${getColor(color)};`, element);
 		}
 	}
@@ -108,7 +110,8 @@ class DecorationRule {
 			this._createIconCSSRule(icon, color, element);
 		} else {
 			if (letters.length) {
-				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${color};`, element);
+				this.badgeText = letters.join(', ');
+				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${this.badgeText}"; color: ${color};`, element);
 			}
 
 			// bubble badge
@@ -208,6 +211,7 @@ class DecorationStyles {
 			iconClassName,
 			strikethrough,
 			isTextBadge,
+			badgeText: isTextBadge ? rule.badgeText : undefined,
 			tooltip,
 			dispose: () => {
 				if (rule?.release()) {

@@ -100,7 +100,7 @@ interface ICustomizationMigrationAgentResult {
 interface ICustomizationMigrationAgentResultEntry {
 	readonly category: CustomizationMigrationType;
 	readonly scope: 'user' | 'workspace';
-	readonly customizationType: 'agent' | 'instructions' | 'skill' | 'mcpServer';
+	readonly customizationType: 'agent' | 'instructions' | 'skill' | 'mcpServer' | 'hook';
 	readonly outcome: 'migrated' | 'skipped' | 'failed';
 	readonly count: number;
 }
@@ -368,7 +368,7 @@ function isValidCustomizationMigrationAgentResult(result: unknown): result is IC
 	const candidate = result as Partial<ICustomizationMigrationAgentResultEntry>;
 	return Object.values(CustomizationMigrationType).includes(candidate.category as CustomizationMigrationType)
 		&& (candidate.scope === 'user' || candidate.scope === 'workspace')
-		&& (candidate.customizationType === 'agent' || candidate.customizationType === 'instructions' || candidate.customizationType === 'skill' || candidate.customizationType === 'mcpServer')
+		&& (candidate.customizationType === 'agent' || candidate.customizationType === 'instructions' || candidate.customizationType === 'skill' || candidate.customizationType === 'mcpServer' || candidate.customizationType === 'hook')
 		&& (candidate.outcome === 'migrated' || candidate.outcome === 'skipped' || candidate.outcome === 'failed')
 		&& Number.isSafeInteger(candidate.count)
 		&& candidate.count !== undefined

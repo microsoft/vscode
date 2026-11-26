@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable, ImmortalReference, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
@@ -272,12 +273,12 @@ export function createFixtureWorkbenchGitHubService(resources: IFixtureGitHubRes
 function upcastGitHubCredentials(): IGitHubClient['credentials'] {
 	return new class extends mock<IGitHubClient['credentials']>() {
 		override readonly onDidInvalidate = Event.None;
-		override async getCredential(signal: AbortSignal) {
+		override async getCredential(cancellationToken: CancellationToken) {
 			return {
 				account: { host: 'api.github.com', accountId: 'fixture' },
 				token: 'fixture',
 				generation: 1,
-				signal,
+				cancellationToken,
 			};
 		}
 	}();

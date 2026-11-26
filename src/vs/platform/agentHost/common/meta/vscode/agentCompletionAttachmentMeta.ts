@@ -3,16 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SimpleMessageAttachment } from '../../state/protocol/state.js';
-
-/**
- * Well-known typed views over a `SimpleMessageAttachment`'s `_meta` bag as
- * produced by the `completions` command, populated by the slash-command and
- * skill completion providers and read by the session handler. Read the bag
- * through {@link readCompletionAttachmentMeta} rather than indexing `_meta`
- * directly. Two variants are distinguished by which discriminating key is
- * present: a slash command (`command`) or a skill (`uri`).
- */
+import { MessageAttachmentKind, type MessageResourceAttachment, type SimpleMessageAttachment } from '../../state/protocol/state.js';
 
 /**
  * A client-side side effect a command completion carries. When present, the
@@ -62,42 +53,9 @@ export interface ICommandCompletionAttachmentMeta {
 	readonly action?: IAgentHostCompletionAction;
 }
 
-/**
- * The `_meta` shape attached to a `completions` result that resolves to a skill.
- */
-export interface ISkillCompletionAttachmentMeta {
-	/** The skill resource URI as a string. */
-	readonly uri: string;
-	/** Optional internal name of the skill. */
-	readonly name?: string;
-	/** Optional human-readable display name (e.g. the slash-command name). */
-	readonly displayName?: string;
-	/** Optional human-readable description of the skill. */
-	readonly description?: string;
-	/**
-	 * Optional hint describing the argument the skill expects (its frontmatter
-	 * `argument-hint`). Rendered as inline placeholder (ghost text) after an
-	 * accepted skill completion, like {@link ICommandCompletionAttachmentMeta.argumentHint}.
-	 */
-	readonly argumentHint?: string;
-}
+export type CompletionAttachmentMeta = { readonly kind: 'command' } & ICommandCompletionAttachmentMeta;
 
-/**
- * A typed, discriminated view over the well-known `completions` attachment
- * `_meta` variants. The `kind` discriminant is computed by
- * {@link readCompletionAttachmentMeta} from which key is present on the wire; it
- * is not itself carried in `_meta`.
- */
-export type CompletionAttachmentMeta =
-	| ({ readonly kind: 'command' } & ICommandCompletionAttachmentMeta)
-	| ({ readonly kind: 'skill' } & ISkillCompletionAttachmentMeta);
-
-/**
- * Reads the well-known `completions` attachment `_meta` keys, classifying the
- * bag into a {@link CompletionAttachmentMeta} variant by its discriminating key
- * (`command` for a slash command, `uri` for a skill). Returns `undefined` when
- * the bag is absent or matches neither variant; wrong-typed keys are dropped.
- */
+/** Reads command completion metadata. Resource skills use standard attachment fields instead. */
 export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment): CompletionAttachmentMeta | undefined {
 	const meta = attachment._meta;
 	if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
@@ -116,17 +74,30 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
 			...(action ? { action } : {}),
 		};
 	}
-	if (typeof meta.uri === 'string') {
-		return {
-			kind: 'skill',
-			uri: meta.uri,
-			...(typeof meta.name === 'string' ? { name: meta.name } : {}),
-			...(typeof meta.displayName === 'string' ? { displayName: meta.displayName } : {}),
-			...(typeof meta.description === 'string' ? { description: meta.description } : {}),
-			...(typeof meta.argumentHint === 'string' ? { argumentHint: meta.argumentHint } : {}),
-		};
-	}
 	return undefined;
+}
+
+/**
+ * Decodes the legacy skill format, deprecated on 2026-11-12, at history and
+ * older VS Code host compatibility boundaries. New skills use Resource fields.
+ */
+export function restoreLegacySkillAttachment(attachment: SimpleMessageAttachment): MessageResourceAttachment | undefined {
+	if (attachment.displayKind !== 'skill' || typeof attachment._meta?.uri !== 'string') {
+		return undefined;
+	}
+	return {
+		type: MessageAttachmentKind.Resource,
+		uri: attachment._meta.uri,
+		label: attachment.label,
+		displayKind: 'skill',
+		...(attachment.range ? { range: attachment.range } : {}),
+		...(attachment._meta ? { _meta: attachment._meta } : {}),
+	};
+}
+
+/** Reads optional presentation text without using metadata to determine attachment identity. */
+export function getCompletionDescription(attachment: { readonly _meta?: Record<string, unknown> }): string | undefined {
+	return typeof attachment._meta?.description === 'string' ? attachment._meta.description : undefined;
 }
 
 /**
@@ -222,27 +193,4 @@ export function getCommandArgumentHint(meta: Record<string, unknown> | undefined
 		return undefined;
 	}
 	return typeof meta.argumentHint === 'string' ? meta.argumentHint : undefined;
-}
-
-/**
- * Serializes a typed {@link ISkillCompletionAttachmentMeta} into the `_meta`
- * record, dropping `undefined` entries. Build a skill completion's `_meta`
- * through this so producers stay in lock-step with
- * {@link readCompletionAttachmentMeta}.
- */
-export function toSkillCompletionAttachmentMeta(meta: ISkillCompletionAttachmentMeta): Record<string, unknown> {
-	const result: Record<string, unknown> = { uri: meta.uri };
-	if (meta.name !== undefined) {
-		result.name = meta.name;
-	}
-	if (meta.displayName !== undefined) {
-		result.displayName = meta.displayName;
-	}
-	if (meta.description !== undefined) {
-		result.description = meta.description;
-	}
-	if (meta.argumentHint !== undefined) {
-		result.argumentHint = meta.argumentHint;
-	}
-	return result;
 }

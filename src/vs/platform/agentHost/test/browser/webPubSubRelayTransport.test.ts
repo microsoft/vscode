@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { IWebPubSubRelayTransportOptions, IWebSocketLike, WebPubSubRelayTransport } from '../../browser/webPubSubRelayTransport.js';
 import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { type ConnectionHandshakeMethod, type ConnectionHandshakeState } from '../../common/connectionDiagnostics.js';
 import { JsonRpcRequest, ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { ChunkEnvelope, DEFAULT_MAX_CHUNK_BYTES, DEFAULT_MAX_SEGMENTS_PER_GROUP, chunk } from '../../common/webPubSub/chunking.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -524,6 +525,64 @@ suite('WebPubSubRelayTransport', () => {
 		})));
 	}));
 
+	test('handshake diagnostics exclude relay control and reset for fallback initialization', async () => {
+		const fake = new FakeWebSocket();
+		const progress: [ConnectionHandshakeMethod, ConnectionHandshakeState][] = [];
+		const transport = createTransport(fake, { onHandshakeProgress: (method, state) => progress.push([method, state]) });
+		await connectHandshake(transport, fake);
+		const beforeHandshake = progress.length;
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: {} });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
+		fake.emit({ type: 'system', event: 'connected' });
+		const afterRelayControl = progress.slice();
+		fake.emitGroupMessage(1, { kind: 'message', generation: 6, data: { jsonrpc: '2.0', id: 99, result: 'private stale response' } });
+		fake.emitGroupMessage(2, { kind: 'message', generation: 6, data: { jsonrpc: '2.0', method: 'private notification' } }, BROADCAST);
+		fake.emitGroupMessage(3, { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: 1, error: { code: -32008, message: 'Not found' } } });
+		transport.send({ jsonrpc: '2.0', id: 2, method: 'initialize', params: {} });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[1]['ackId'], success: true });
+		const segments = chunk({ jsonrpc: '2.0', id: 2, result: { private: 'x'.repeat(1000) } }, { maxChunkBytes: 512 });
+		for (const [index, segment] of segments.entries()) {
+			fake.emitGroupMessage(index + 4, { ...segment, generation: 8 });
+		}
+		assert.deepStrictEqual({ beforeHandshake, afterRelayControl, progress, open: transport.isOpen }, {
+			beforeHandshake: 0,
+			afterRelayControl: [['reconnect', 'waiting']],
+			progress: [
+				['reconnect', 'waiting'], ['reconnect', 'otherMessagesReceived'], ['reconnect', 'responseReceived'],
+				['initialize', 'waiting'], ['initialize', 'chunksReceived'], ['initialize', 'responseReceived'],
+			],
+			open: true,
+		});
+	});
+
+	for (const traffic of ['silence', 'chunks', 'broadcastChunks', 'otherMessages'] as const) {
+		test(`handshake diagnostics preserve ${traffic} through timeout and ignore late data`, () => runWithFakedTimers({}, async () => {
+			const fake = new FakeWebSocket();
+			const progress: [ConnectionHandshakeMethod, ConnectionHandshakeState][] = [];
+			const transport = createTransport(fake, { onHandshakeProgress: (method, state) => progress.push([method, state]) });
+			await connectHandshake(transport, fake);
+			transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: {} });
+			fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
+			await timeout(20_000);
+			if (traffic === 'chunks' || traffic === 'broadcastChunks') {
+				const segments = chunk({ jsonrpc: '2.0', id: 1, result: 'x'.repeat(1000) }, { maxChunkBytes: 512 });
+				for (const [index, segment] of segments.slice(0, -1).entries()) {
+					fake.emitGroupMessage(index + 1, { ...segment, generation: 7 }, traffic === 'broadcastChunks' ? BROADCAST : TO_CLIENT);
+				}
+			} else if (traffic === 'otherMessages') {
+				fake.emitGroupMessage(1, { kind: 'message', generation: 6, data: { jsonrpc: '2.0', id: 99, result: null } });
+			}
+			await timeout(10_000);
+			const openAtHandshakeDeadline = transport.isOpen;
+			await timeout(20_000);
+			fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: 1, result: {} } } });
+			assert.deepStrictEqual({ progress, openAtHandshakeDeadline, open: transport.isOpen, reason: transport.closeReason }, {
+				progress: [['reconnect', 'waiting'], ...(traffic === 'silence' ? [] : [['reconnect', traffic === 'otherMessages' ? 'otherMessagesReceived' : 'chunksReceived']])],
+				openAtHandshakeDeadline: traffic === 'chunks', open: false, reason: 'hostHandshakeTimeout',
+			});
+		}));
+	}
+
 	test('a progressing chunked handshake response keeps recovery alive until reassembly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fake = new FakeWebSocket();
 		const transport = createTransport(fake);
@@ -920,6 +979,19 @@ suite('WebPubSubRelayTransport', () => {
 			jsonrpc: '2.0', id: 1, method: 'authenticate', params: { channel: 'ahp-root://', resource: 'https://api.github.com', token: 'plaintext-test-credential' },
 		}), /Refusing to send plaintext/);
 		assert.deepStrictEqual(socket.sentApplicationPublishes(), []);
+	});
+
+	test('refuses a shell authentication answer before publishing, but still sends its cancellation', async () => {
+		const socket = new FakeWebSocket();
+		const transport = createTransport(socket);
+		await connectHandshake(transport, socket);
+		const params = { chat: 'copilot:/chat', requestId: 'shell-auth' };
+		assert.throws(() => transport.send({
+			jsonrpc: '2.0', id: 1, method: 'vscode/answerShellAuthentication', params: { ...params, answer: 'relay-test-password' },
+		}), /Refusing to send a shell authentication answer/);
+		const cancellation: JsonRpcRequest = { jsonrpc: '2.0', id: 2, method: 'vscode/answerShellAuthentication', params };
+		transport.send(cancellation);
+		assert.deepStrictEqual(socket.sentApplicationPublishes().map(publish => publish['data']), [{ kind: 'message', data: cancellation }]);
 	});
 
 	test('redacts sealed authentication from the WPS transcript without changing wire messages', async () => {

@@ -32,7 +32,7 @@ export interface IPullRequestChecksSource {
 	 * that head yet, as right after a push, since they only read the checks of
 	 * the head they last saw.
 	 */
-	subscribe(owner: string, repo: string, prNumber: number, headSha: string, signal: AbortSignal): Promise<IPullRequestChecksSubscription>;
+	subscribe(owner: string, repo: string, prNumber: number, headSha: string, cancellationToken: CancellationToken): Promise<IPullRequestChecksSubscription>;
 }
 
 export class PullRequestChecksSource implements IPullRequestChecksSource {
@@ -41,12 +41,12 @@ export class PullRequestChecksSource implements IPullRequestChecksSource {
 		@IWorkbenchGitHubService private readonly _gitHubService: IWorkbenchGitHubService,
 	) { }
 
-	async subscribe(owner: string, repo: string, prNumber: number, headSha: string, signal: AbortSignal): Promise<IPullRequestChecksSubscription> {
-		const reference = await this._gitHubService.acquireDefaultAccountClient(signal);
+	async subscribe(owner: string, repo: string, prNumber: number, headSha: string, cancellationToken: CancellationToken): Promise<IPullRequestChecksSubscription> {
+		const reference = await this._gitHubService.acquireDefaultAccountClient(cancellationToken);
 		try {
 			const client = reference.object;
-			const { account } = await client.credentials.getCredential(signal);
-			signal.throwIfAborted();
+			const { account } = await client.credentials.getCredential(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const subscription = client.pullRequests.subscribePullRequest({ ...account, owner, repo, number: prNumber }, {
 				priority: 'background',
 				checks: { required: true, includeOptional: true },

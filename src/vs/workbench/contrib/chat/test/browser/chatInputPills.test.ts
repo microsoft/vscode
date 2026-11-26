@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { Action, SubmenuAction, toAction, type IAction } from '../../../../../base/common/actions.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
@@ -16,12 +17,16 @@ import { IActionListItem } from '../../../../../platform/actionWidget/browser/ac
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { computePullRequestIcon, type ChatPullRequestState } from '../../../../common/chatPullRequest.js';
-import type { IChatPillEntry, IChatPillSection } from '../../../../browser/chatPills.js';
+import { ChatPillsRow, type IChatPillEntry, type IChatPillSection } from '../../../../browser/chatPills.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatInputPills, createChatInputPillSource, StandardChatInputPillSources, type IStandardChatInputPillsData } from '../../browser/chatInputPills.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../browser/sessionPullRequestPill.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
+
+function isOptionsSubmenu(action: IAction): action is SubmenuAction {
+	return action instanceof SubmenuAction && action.id.startsWith('chatInputPills.options.');
+}
 
 suite('StandardChatInputPillSources', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -368,7 +373,7 @@ suite('StandardChatInputPillSources', () => {
 		const pinned = pills.inputPills.getPillElements()[0];
 		const unpin = pinned.closest('.chat-pill-item')?.querySelector<HTMLElement>('.chat-pill-promoted-action');
 		assert.ok(unpin);
-		const contextActions = pills.openContextMenu(pinned).filter(action => ['copy', 'remove'].includes(action.id) || action.id.includes('.unpin.'));
+		const contextActions = pills.openContextMenu(pinned);
 		unpin.click();
 		await timeout(0);
 
@@ -382,9 +387,30 @@ suite('StandardChatInputPillSources', () => {
 			afterClick: pills.labels(),
 		}, {
 			icon: { ariaLabel: 'Unpin Plan', unpin: true, tabIndex: '-1' },
-			contextActions: ['Copy Path', 'Remove Artifact', 'Unpin Plan'],
+			contextActions: ['Copy Path', '', 'Remove Artifact', 'Unpin Plan', '', 'Hide "Artifacts" Pill', 'Show Pills'],
 			afterClick: ['2 Artifacts'],
 		});
+	});
+
+	test('separates a lone entry\'s resource actions from pinning and removing it', () => {
+		const pills = createPills({
+			references: {
+				sections: constObservable([{
+					title: 'References',
+					entries: [{
+						id: 'docs',
+						label: 'Docs',
+						toolbarActions: [toAction({ id: 'copy', label: 'Copy Website URL', run: () => { } })],
+						promotedAction: toAction({ id: 'remove', label: 'Remove "Docs" Reference', run: () => { } }),
+						open: () => { },
+					}],
+				}]),
+			},
+		}, undefined, { pinScope: constObservable('chat:lone-entry') });
+
+		assert.deepStrictEqual(pills.openContextMenu(pills.inputPills.getPillElements()[0]).map(action => action.label), [
+			'Copy Website URL', '', 'Pin Docs', 'Remove "Docs" Reference', '', 'Hide "References" Pill', 'Show Pills',
+		]);
 	});
 
 	test('persists pins per chat scope and restores them when returning to the chat', async () => {
@@ -464,38 +490,38 @@ suite('StandardChatInputPillSources', () => {
 		});
 	});
 
-	test('offers checked pull request options in a separate group below Hide for mouse and keyboard', async () => {
+	test('offers checked pull request options in a separate group above Hide for mouse and keyboard', async () => {
 		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'open')] }]), createPullRequestVisibility());
 		const pills = createPills({
 			pullRequests: data,
 		});
 		const menu = pills.openContextMenu(pills.inputPills.getPillElements()[0]);
-		const submenu = menu[2];
+		const submenu = menu[0];
 		assert.ok(submenu instanceof SubmenuAction);
 		const before = submenu.actions.map(action => ({ label: action.label, checked: action.checked }));
 		await submenu.actions[1].run();
 		const keyboardMenu = pills.openContextMenu(pills.inputPills.getPillElements()[0], true);
-		const keyboardSubmenu = keyboardMenu[2];
+		const keyboardSubmenu = keyboardMenu[0];
 		assert.ok(keyboardSubmenu instanceof SubmenuAction);
 		const after = keyboardSubmenu.actions.map(action => ({ label: action.label, checked: action.checked }));
 		await keyboardSubmenu.actions[0].run();
 
 		assert.deepStrictEqual({
-			order: menu.slice(0, 4).map(action => action.label),
-			keyboardOrder: keyboardMenu.slice(0, 4).map(action => action.label),
+			order: menu.map(action => action.label),
+			keyboardOrder: keyboardMenu.map(action => action.label),
 			before,
 			after,
 			restoredAll: data.getContextMenuActions()[0].checked,
 		}, {
-			order: ['Hide Pull Requests', '', 'Pull Requests Options', ''],
-			keyboardOrder: ['Hide Pull Requests', '', 'Pull Requests Options', ''],
+			order: ['Pull Requests Artifact Options', '', 'Hide "Pull Requests" Pill', 'Show Pills'],
+			keyboardOrder: ['Pull Requests Artifact Options', '', 'Hide "Pull Requests" Pill', 'Show Pills'],
 			before: [{ label: 'Show All', checked: true }, { label: 'Show Open/Draft', checked: false }],
 			after: [{ label: 'Show All', checked: false }, { label: 'Show Open/Draft', checked: true }],
 			restoredAll: true,
 		});
 	});
 
-	test('groups single PR copy and removal with options for mouse and keyboard but not on the toolbar background', async () => {
+	test('separates single PR copy from removal and options for mouse and keyboard but not on the toolbar background', async () => {
 		let removed = 0;
 		let copied = 0;
 		const entry: IChatPullRequestPillEntry = {
@@ -515,14 +541,14 @@ suite('StandardChatInputPillSources', () => {
 		await keyboardMenu.find(action => action.id === 'remove-pr')?.run();
 
 		assert.deepStrictEqual({
-			mouse: mouseMenu.slice(0, 6).map(action => action.label),
-			keyboard: keyboardMenu.slice(0, 6).map(action => action.label),
+			mouse: mouseMenu.map(action => action.label),
+			keyboard: keyboardMenu.map(action => action.label),
 			backgroundActions: backgroundMenu.filter(action => action.id === 'copy-pr' || action.id === 'remove-pr').map(action => action.id),
 			copied,
 			removed,
 		}, {
-			mouse: ['Hide Pull Requests', '', 'Copy Pull Request URL', 'Remove Pull Request Reference from Session', 'Pull Requests Options', ''],
-			keyboard: ['Hide Pull Requests', '', 'Copy Pull Request URL', 'Remove Pull Request Reference from Session', 'Pull Requests Options', ''],
+			mouse: ['Copy Pull Request URL', '', 'Remove Pull Request Reference from Session', 'Pull Requests Artifact Options', '', 'Hide "Pull Requests" Pill', 'Show Pills'],
+			keyboard: ['Copy Pull Request URL', '', 'Remove Pull Request Reference from Session', 'Pull Requests Artifact Options', '', 'Hide "Pull Requests" Pill', 'Show Pills'],
 			backgroundActions: [],
 			copied: 2,
 			removed: 2,
@@ -676,14 +702,14 @@ suite('StandardChatInputPillSources', () => {
 
 		assert.deepStrictEqual({
 			changes: changesMenu.slice(0, 2).map(action => action.label),
-			artifacts: artifactsMenu.filter(action => ['Pin Report', 'Hide Artifacts', 'Artifacts Options'].includes(action.label)).map(action => action.label),
-			references: referencesMenu.filter(action => ['Pin Docs', 'Hide References'].includes(action.label)).map(action => action.label),
-			referencesHaveOptions: referencesMenu.some(action => action instanceof SubmenuAction),
+			artifacts: artifactsMenu.filter(action => ['Pin Report', 'Hide "Artifacts" Pill', 'Artifact Options'].includes(action.label)).map(action => action.label),
+			references: referencesMenu.filter(action => ['Pin Docs', 'Hide "References" Pill'].includes(action.label)).map(action => action.label),
+			referencesHaveOptions: referencesMenu.some(isOptionsSubmenu),
 			invoked,
 		}, {
 			changes: ['Changes Options', ''],
-			artifacts: ['Hide Artifacts', 'Pin Report', 'Artifacts Options'],
-			references: ['Pin Docs', 'Hide References'],
+			artifacts: ['Pin Report', 'Artifact Options', 'Hide "Artifacts" Pill'],
+			references: ['Pin Docs', 'Hide "References" Pill'],
 			referencesHaveOptions: false,
 			invoked: true,
 		});
@@ -755,7 +781,7 @@ suite('StandardChatInputPillSources', () => {
 		});
 		const references = pills.inputPills.getPillElements()[0];
 		const getOptions = (target: HTMLElement, keyboard = false) => pills.openContextMenu(target, keyboard)
-			.filter(action => action instanceof SubmenuAction);
+			.filter(isOptionsSubmenu);
 		const mouse = getOptions(references);
 		const keyboard = getOptions(references, true);
 		const row = pills.inputPills.element.querySelector<HTMLElement>('.chat-pills-row-content');
@@ -773,11 +799,11 @@ suite('StandardChatInputPillSources', () => {
 			restored,
 			cleared: getOptions(pills.inputPills.getPillElements()[0]).map(action => action.label),
 		}, {
-			mouse: ['Pull Requests Options', 'Artifacts Options'],
-			keyboard: ['Pull Requests Options', 'Artifacts Options'],
-			background: ['Pull Requests Options', 'Artifacts Options'],
-			restored: { labels: ['1 Artifact', '1 Reference'], options: ['Pull Requests Options'] },
-			cleared: ['Pull Requests Options'],
+			mouse: ['Pull Requests Artifact Options', 'Artifact Options'],
+			keyboard: ['Pull Requests Artifact Options', 'Artifact Options'],
+			background: ['Pull Requests Artifact Options', 'Artifact Options'],
+			restored: { labels: ['1 Artifact', '1 Reference'], options: ['Pull Requests Artifact Options'] },
+			cleared: ['Pull Requests Artifact Options'],
 		});
 	});
 
@@ -808,27 +834,59 @@ suite('StandardChatInputPillSources', () => {
 		const targets = pills.inputPills.getPillElements();
 		const menus = [false, true].map(keyboard => targets.map(target =>
 			pills.openContextMenu(target, keyboard).map(action => action.label)));
+		const showPills = pills.openContextMenu(targets[1]).find(action => action.id === 'chatInputPills.show');
+		assert.ok(showPills instanceof SubmenuAction);
+		const row = pills.inputPills.element.querySelector<HTMLElement>('.chat-pills-row-content');
+		assert.ok(row);
+		const background = pills.openContextMenu(row).map(action => action.label);
 		const submenu = pills.openContextMenu(targets[1], true).find(action => action.id === 'chatInputPills.options.pullRequests');
 		assert.ok(submenu instanceof SubmenuAction);
 		const checked = submenu.actions.map(action => ({ label: action.label, checked: action.checked }));
 		await submenu.actions[0].run();
 		const restoredOptions = pills.openContextMenu(pills.inputPills.getPillElements()[0])
-			.filter(action => action instanceof SubmenuAction).map(action => action.label);
+			.filter(isOptionsSubmenu).map(action => action.label);
 		const otherKinds = ['Issues', 'Artifacts', 'References', 'Customizations', 'Browsers', 'Subagents'];
 		const toggles = ['Pull Requests', ...otherKinds];
 		const expectedMenus = [
-			['Pull Requests Options', '', ...toggles],
+			['Pull Requests Artifact Options', '', 'Show Pills'],
 			...otherKinds.map(label => [
 				...(['Artifacts', 'References', 'Customizations', 'Subagents'].includes(label) ? ['Pin Item', ''] : []),
-				`Hide ${label}`, '', 'Pull Requests Options', '', ...toggles,
+				'Pull Requests Artifact Options', '', `Hide "${label}" Pill`, 'Show Pills',
 			]),
 		];
 
-		assert.deepStrictEqual({ menus, checked, restoredOptions, restoredPullRequests: pills.labels()[1] }, {
+		assert.deepStrictEqual({ menus, showPills: showPills.actions.map(action => action.label), background, checked, restoredOptions, restoredPullRequests: pills.labels()[1] }, {
 			menus: [expectedMenus, expectedMenus],
+			showPills: toggles,
+			background: ['Pull Requests Artifact Options', '', ...toggles],
 			checked: [{ label: 'Show All', checked: false }, { label: 'Show Open/Draft', checked: true }],
 			restoredOptions: [],
 			restoredPullRequests: '2 Pull Requests',
+		});
+	});
+
+	test('keeps the visibility toggles flat on a pill that offers nothing else', () => {
+		const pills = createPills({
+			changes: {
+				stats: constObservable({ files: 1, insertions: 1, deletions: 0 }),
+				label: constObservable('Changes'),
+				open: () => { },
+			},
+			issues: { sections: constObservable([{ title: 'Issues', entries: [{ id: 'a', label: 'A', open: () => { } }, { id: 'b', label: 'B', open: () => { } }] }]) },
+		});
+		const [changes, issues] = pills.inputPills.getPillElements();
+		const issuesMenu = pills.openContextMenu(issues);
+		const showPills = issuesMenu.at(-1);
+		assert.ok(showPills instanceof SubmenuAction);
+
+		assert.deepStrictEqual({
+			changes: pills.openContextMenu(changes).map(action => action.label),
+			issues: issuesMenu.map(action => action.label),
+			showPills: showPills.actions.map(action => ({ label: action.label, checked: action.checked })),
+		}, {
+			changes: ['Issues'],
+			issues: ['Hide "Issues" Pill', 'Show Pills'],
+			showPills: [{ label: 'Issues', checked: true }],
 		});
 	});
 
@@ -853,7 +911,7 @@ suite('StandardChatInputPillSources', () => {
 			assert.ok(referencesPill);
 
 			assert.deepStrictEqual(
-				pills.openContextMenu(referencesPill).filter(action => action instanceof SubmenuAction).map(action => action.label),
+				pills.openContextMenu(referencesPill).filter(isOptionsSubmenu).map(action => action.label),
 				[],
 			);
 		});
@@ -883,7 +941,7 @@ suite('StandardChatInputPillSources', () => {
 			emptyAfterRestore: pills.inputPills.element.classList.contains('empty'),
 		}, {
 			filtered: { labels: [], visible: true, empty: true },
-			options: 'Pull Requests Options',
+			options: 'Pull Requests Artifact Options',
 			restored: ['#1'],
 			emptyAfterRestore: false,
 		});
@@ -926,6 +984,26 @@ suite('StandardChatInputPillSources', () => {
 		assert.deepStrictEqual({ defaultHidden, userHidden: state() }, {
 			defaultHidden: { visible: false, empty: false, focusable: false },
 			userHidden: { visible: true, empty: true, focusable: true },
+		});
+	});
+
+	test('does not rescan the row when pill data updates without changing the row state', () => {
+		const scanDomNode = sinon.spy(ChatPillsRow.prototype, 'scanDomNode');
+		store.add(toDisposable(() => scanDomNode.restore()));
+		const sections = observableValue<readonly IChatPillSection[]>('artifacts', [{ title: 'Artifacts', entries: [{ id: 'plan', label: 'Plan 0', open: () => { } }] }]);
+		const pills = createPills({ artifacts: { sections } });
+		const initialScans = scanDomNode.callCount;
+
+		for (let index = 1; index <= 5; index++) {
+			sections.set([{ title: 'Artifacts', entries: [{ id: 'plan', label: `Plan ${index}`, open: () => { } }] }], undefined);
+		}
+		const afterUpdates = { visible: pills.inputPills.visible, scans: scanDomNode.callCount - initialScans };
+		sections.set([], undefined);
+
+		assert.deepStrictEqual({ initialScans, afterUpdates, afterRemoved: { visible: pills.inputPills.visible, scans: scanDomNode.callCount - initialScans } }, {
+			initialScans: 2,
+			afterUpdates: { visible: true, scans: 0 },
+			afterRemoved: { visible: false, scans: 1 },
 		});
 	});
 

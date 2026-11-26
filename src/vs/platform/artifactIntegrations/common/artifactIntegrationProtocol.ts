@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Sequencer } from '../../../base/common/async.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IReference, toDisposable } from '../../../base/common/lifecycle.js';
@@ -13,7 +14,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { localize } from '../../../nls.js';
 import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactDetails, ArtifactJsonValue, ArtifactRun, ArtifactSnapshot, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel } from './artifactIntegration.js';
-import { isArtifactActor, isArtifactAuthenticationRequest, isArtifactJsonValue, isArtifactRun, isArtifactSnapshot } from './artifactIntegrationValidation.js';
+import { isArtifactActor, isArtifactAuthenticationRequest, isArtifactIntegrationLabel, isArtifactJsonValue, isArtifactRun, isArtifactSnapshot } from './artifactIntegrationValidation.js';
 import { isArtifactDetails } from './artifactPresentationValidation.js';
 import { hasArtifactAutomationEnabledRules, isArtifactAutomationEnabledRules, isArtifactAutomationNoticeChanges } from './artifactIntegrationNotices.js';
 import { ArtifactAutomationNotice } from './artifactRuntime.js';
@@ -23,7 +24,7 @@ export type ArtifactIntegrationRequest =
 	| { readonly kind: 'release'; readonly subscription: string }
 	| { readonly kind: 'authenticate'; readonly subscription: string; readonly integrationId: string }
 	| { readonly kind: 'configure'; readonly subscription: string; readonly integrationId: string; readonly revision: number; readonly values: Readonly<Record<string, boolean | string>>; readonly actor?: ArtifactActor }
-	| { readonly kind: 'notice'; readonly subscription: string; readonly notice: Pick<ArtifactAutomationNotice, 'kind' | 'content' | 'iconId' | 'changes' | 'enabledRules'> }
+	| { readonly kind: 'notice'; readonly subscription: string; readonly notice: Pick<ArtifactAutomationNotice, 'kind' | 'content' | 'iconId' | 'artifactKind' | 'changes' | 'enabledRules'> }
 	| { readonly kind: 'invoke'; readonly subscription: string; readonly integrationId: string; readonly actionId: string; readonly chat: string; readonly requestId: string; readonly actor?: ArtifactActor; readonly input?: ArtifactJsonValue }
 	| { readonly kind: 'cancel' | 'reconcile'; readonly subscription: string; readonly runId: string }
 	| { readonly kind: 'history'; readonly subscription: string; readonly before?: string; readonly limit?: number }
@@ -73,12 +74,13 @@ export function isArtifactIntegrationRequest(value: unknown): value is ArtifactI
 		case 'cancel': case 'reconcile': return strings(value, 'runId');
 		case 'history': return (value.before === undefined || strings(value, 'before'))
 			&& (value.limit === undefined || (typeof value.limit === 'number' && Number.isSafeInteger(value.limit) && value.limit > 0 && value.limit <= 200));
-		case 'notice': return isRecord(value.notice) && ['enabled', 'changed', 'disabled'].includes(String(value.notice.kind))
+		case 'notice': return isRecord(value.notice) && ['enabled', 'changed', 'disabled', 'status'].includes(String(value.notice.kind))
 			&& strings(value.notice, 'content') && String(value.notice.content).length <= 64_000
 			&& (value.notice.iconId === undefined || (typeof value.notice.iconId === 'string' && /^[a-zA-Z0-9-]+$/.test(value.notice.iconId)))
-			// Older clients send only the rendered content, which hosts post without merging.
+			&& (value.notice.artifactKind === undefined || isArtifactIntegrationLabel(value.notice.artifactKind))
+			// Older clients send only the rendered content, which hosts post without merging. Status notices carry no rule changes.
 			&& (value.notice.changes === undefined ? value.notice.enabledRules === undefined
-				: isArtifactAutomationNoticeChanges(value.notice.changes) && isArtifactAutomationEnabledRules(value.notice.enabledRules)
+				: value.notice.kind !== 'status' && isArtifactAutomationNoticeChanges(value.notice.changes) && isArtifactAutomationEnabledRules(value.notice.enabledRules)
 				&& hasArtifactAutomationEnabledRules(value.notice.changes, value.notice.enabledRules));
 		case 'configure': return strings(value, 'integrationId') && typeof value.revision === 'number' && Number.isSafeInteger(value.revision) && value.revision >= 0
 			&& isRecord(value.values) && Object.entries(value.values).every(([key, item]) => !['__proto__', 'constructor', 'prototype'].includes(key) && (typeof item === 'string' || typeof item === 'boolean'))
@@ -132,8 +134,14 @@ export class ArtifactIntegrationServer extends Disposable implements IArtifactIn
 					}
 					this.artifacts.set(request.subscription, reference.object);
 					store.add(toDisposable(() => this.artifacts.delete(request.subscription)));
+					// Models rebuild their snapshot on every change to their session; only a different snapshot is a new revision.
+					let sent: ArtifactSnapshot | undefined;
 					store.add(autorun(reader => {
 						const snapshot = reference.object.snapshot.read(reader);
+						if (sent !== undefined && structuralEquals(sent, snapshot)) {
+							return;
+						}
+						sent = snapshot;
 						this.updates.fire({ kind: 'artifact', subscription: request.subscription, revision: ++revision, snapshot });
 					}));
 					return { kind: 'artifact', subscription: request.subscription, revision, snapshot: reference.object.snapshot.get() };
@@ -145,8 +153,14 @@ export class ArtifactIntegrationServer extends Disposable implements IArtifactIn
 				}
 				this.details.set(request.subscription, details);
 				store.add(toDisposable(() => this.details.delete(request.subscription)));
+				let sentDetails: ArtifactDetails | undefined;
 				store.add(autorun(reader => {
-					this.updates.fire({ kind: 'details', subscription: request.subscription, revision: ++revision, details: details.details.read(reader), canLoadMore: !!details.loadMore });
+					const value = details.details.read(reader);
+					if (sentDetails !== undefined && structuralEquals(sentDetails, value)) {
+						return;
+					}
+					sentDetails = value;
+					this.updates.fire({ kind: 'details', subscription: request.subscription, revision: ++revision, details: value, canLoadMore: !!details.loadMore });
 				}));
 				return { kind: 'details', subscription: request.subscription, revision, details: details.details.get(), canLoadMore: !!details.loadMore };
 			} catch (error) {
@@ -182,8 +196,8 @@ export class ArtifactIntegrationServer extends Disposable implements IArtifactIn
 					throw new Error('This artifact coordinator does not support client automation notices');
 				}
 				const { session, artifact } = this.requireArtifact(request.subscription).snapshot.get();
-				const { kind, content, iconId, changes, enabledRules } = request.notice;
-				await this.postNotice({ session, artifact, kind, content, iconId, ...(changes ? { changes, enabledRules } : {}) });
+				const { kind, content, iconId, artifactKind, changes, enabledRules } = request.notice;
+				await this.postNotice({ session, artifact, kind, content, iconId, ...(artifactKind ? { artifactKind } : {}), ...(changes ? { changes, enabledRules } : {}) });
 				break;
 			}
 			case 'authenticate': {
@@ -254,8 +268,14 @@ export class ArtifactIntegrationClient extends Disposable implements IArtifactIn
 		const authenticating = observableValue<ReadonlySet<string>>(this, new Set());
 		let revision = -1;
 		const accept = (update: ArtifactIntegrationUpdate) => {
-			if (!store.isDisposed && isArtifactIntegrationUpdate(update) && update.subscription === subscription && update.kind === 'artifact' && update.revision > revision) {
-				revision = update.revision;
+			// Every subscription hears every update, so route on the cheap fields before validating the payload.
+			if (store.isDisposed || !isRecord(update) || update.subscription !== subscription || update.kind !== 'artifact'
+				|| update.revision <= revision || !isArtifactIntegrationUpdate(update)) {
+				return;
+			}
+			revision = update.revision;
+			const current = value.get();
+			if (current === undefined || !structuralEquals(current, update.snapshot)) {
 				value.set(update.snapshot, undefined);
 			}
 		};
@@ -407,8 +427,13 @@ export class ArtifactIntegrationClient extends Disposable implements IArtifactIn
 		const value = observableValue<ArtifactDetails | undefined>(this, undefined);
 		let revision = -1;
 		const accept = (update: ArtifactIntegrationUpdate) => {
-			if (!store.isDisposed && isArtifactIntegrationUpdate(update) && update.subscription === subscription && update.kind === 'details' && update.revision > revision) {
-				revision = update.revision;
+			if (store.isDisposed || !isRecord(update) || update.subscription !== subscription || update.kind !== 'details'
+				|| update.revision <= revision || !isArtifactIntegrationUpdate(update)) {
+				return;
+			}
+			revision = update.revision;
+			const current = value.get();
+			if (current === undefined || !structuralEquals(current, update.details)) {
 				value.set(update.details, undefined);
 			}
 		};

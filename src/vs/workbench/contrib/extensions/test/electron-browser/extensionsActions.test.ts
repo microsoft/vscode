@@ -66,7 +66,7 @@ import { Mutable } from '../../../../../base/common/types.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfileService.js';
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IExtensionFeaturesManagementService } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 
 let instantiationService: TestInstantiationService;
@@ -307,6 +307,43 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 			});
+	});
+
+	test('Uninstall command removes the requested extension through the shared actions module', async () => {
+		const owner = aLocalExtension('plugin-owner');
+		const unrelated = aLocalExtension('unrelated');
+		const uninstalled: ILocalExtension[] = [];
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [unrelated, owner]);
+		instantiationService.stub(IExtensionManagementService, 'uninstall', async (extension: ILocalExtension) => {
+			uninstalled.push(extension);
+		});
+
+		const command = CommandsRegistry.getCommand('workbench.extensions.uninstallExtension');
+		assert.ok(command);
+		await instantiationService.invokeFunction(command.handler, owner.identifier.id.toUpperCase());
+
+		assert.deepStrictEqual(uninstalled, [owner]);
+	});
+
+	test('Uninstall command rejects missing, unknown, and built-in extensions without uninstalling', async () => {
+		const builtin = aLocalExtension('builtin', {}, { type: ExtensionType.System });
+		const uninstalled: ILocalExtension[] = [];
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [builtin]);
+		instantiationService.stub(IExtensionManagementService, 'uninstall', async (extension: ILocalExtension) => {
+			uninstalled.push(extension);
+		});
+
+		const command = CommandsRegistry.getCommand('workbench.extensions.uninstallExtension');
+		assert.ok(command);
+		for (const [id, error] of [
+			['', /Extension id required/],
+			['pub.missing', /not installed/],
+			[builtin.identifier.id, /Built-in extension/],
+		] as const) {
+			await assert.rejects(async () => instantiationService.invokeFunction(command.handler, id), error);
+		}
+
+		assert.deepStrictEqual(uninstalled, []);
 	});
 
 	test('Uninstall action is disabled when there is no extension', () => {
@@ -2663,6 +2700,26 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 		assert.ok(updatedValue, 'updateValue should have been called');
 		assert.strictEqual(updatedValue.key, ChatAIDisabledSettingId);
 		assert.strictEqual(updatedValue.value, false, 'workspace setting should be set to false');
+	});
+
+	test('test enable AI in workspace is enabled after disabling AI in workspace', async () => {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configurationService.setUserConfiguration(ChatAIDisabledSettingId, false);
+
+		const chatExtension = aLocalExtension('copilot-chat', { publisher: 'GitHub' }, { type: ExtensionType.System });
+		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([chatExtension], EnablementState.DisabledWorkspace);
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [chatExtension]);
+
+		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+		await workbenchService.queryLocal();
+		const copilotChat = workbenchService.local.find(e => e.identifier.id === 'github.copilot-chat');
+		assert.ok(copilotChat);
+		assert.strictEqual(copilotChat.enablementState, EnablementState.DisabledWorkspace);
+
+		const testObject: ExtensionsActions.EnableAIFeaturesInWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableAIFeaturesInWorkspaceAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
+		testObject.extension = copilotChat;
+		assert.ok(testObject.enabled);
 	});
 
 });

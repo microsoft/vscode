@@ -14,8 +14,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { localize } from '../../../../../nls.js';
-import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IMenuService, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -45,7 +45,7 @@ import { LayoutSettings, ModernUIEditorTabStyle } from '../../../../services/lay
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { CHAT_PART_OPTIONS } from '../../../../contrib/chatWindow/browser/chatWindow.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/media/editorBorder.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
@@ -672,6 +672,9 @@ function createDensityFixtures() {
 }
 
 function createLayoutFixtures() {
+	const narrowFixedEditors = ['a.ts', 'b.ts', 'c.ts'].map((name, index) => ({
+		resource: file(`/project/${name}`), pinned: true, active: index === 1,
+	}));
 	return {
 		ActionsHidden: defineComponentFixture({
 			render: render(true, { partOptions: { tabActionCloseVisibility: false } }),
@@ -722,6 +725,28 @@ function createLayoutFixtures() {
 			render: render(true, { partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 }, editors: longLabelEditorSpecs(), width: 520 }),
 			expectedVisualDescriptions: ['Fixed-size long labels use equal tab widths, real ellipses, and stable action columns.'],
 		}),
+		FixedWidthMaximum: defineComponentFixture({
+			fileIconTheme: 'none',
+			themes: ['dark'],
+			additionalThemes: ['light2026', 'darkHighContrast'],
+			render: render(true, {
+				editors: narrowFixedEditors,
+				partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 50, tabSizingFixedMaxWidth: 60, editorActionsLocation: 'hidden' },
+				width: 420,
+			}),
+			expectedVisualDescriptions: ['Fixed Connected tabs honor a maximum below 80px while keeping the active Close action inside its tab.'],
+		}),
+		FixedWidthMinimum: defineComponentFixture({
+			fileIconTheme: 'none',
+			themes: ['dark'],
+			additionalThemes: ['light2026', 'darkHighContrast'],
+			render: render(true, {
+				editors: narrowFixedEditors,
+				partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 50, tabSizingFixedMaxWidth: 160, editorActionsLocation: 'hidden' },
+				width: 150,
+			}),
+			expectedVisualDescriptions: ['Fixed Connected tabs shrink to the configured minimum before overflowing a narrow editor group.'],
+		}),
 		LongNamesShrink: defineComponentFixture({
 			render: render(true, { partOptions: { tabSizing: 'shrink' }, editors: longLabelEditorSpecs(), width: 520 }),
 			expectedVisualDescriptions: ['Shrink-sized long labels ellipsize while preserving extensions and action targets.'],
@@ -754,6 +779,46 @@ function createLayoutFixtures() {
 	};
 }
 
+// ============================================================================
+// New tab (+) button
+// ============================================================================
+
+const newTabButtonMenu = MenuId.for('fixture.editorTabs.newTabButton');
+const newTabButtonAction = { id: 'fixture.editorTabs.newUntitledFile', title: localize2('fixture.editorTabs.newUntitledFile', "New Untitled Text File"), icon: Codicon.newFile };
+MenuRegistry.addCommand(newTabButtonAction);
+MenuRegistry.appendMenuItem(newTabButtonMenu, { command: newTabButtonAction, group: 'navigation' });
+
+/**
+ * Wrapped tabs with the new tab (+) button. Fixed-width tabs fill their rows exactly, so that the button would be alone
+ * on the last row; it follows the last tab instead, unless the width does not fit the last tab next to it.
+ */
+function renderNewTabButtonWrapped(modernUI: boolean, editorTabStyle: ModernUIEditorTabStyle | undefined, width: number, expected: 'followsLastTab' | 'ownRow'): (ctx: ComponentFixtureContext) => Promise<void> {
+	return async ctx => {
+		renderEditorTabsFixture(ctx, {
+			modernUI,
+			editorTabStyle,
+			width,
+			partOptions: { wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 },
+			headerMenuIds: { tabsBarAddTab: newTabButtonMenu },
+			editors: manyEditorSpecs(3).slice(0, 4),
+		});
+		let previousLayout: string | undefined;
+		await waitForFixtureCondition(() => {
+			const tabs = Array.from(ctx.container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+			const add = ctx.container.querySelector<HTMLElement>('.tabs-bar-add-tab:not(.hidden)');
+			const strip = ctx.container.querySelector<HTMLElement>('.tabs-and-actions-container.wrapping');
+			if (tabs.length !== 4 || !add || !strip || tabs.some(tab => tab.offsetHeight === 0)) {
+				return false;
+			}
+			const layout = JSON.stringify({ tabs: tabs.map(tab => [tab.offsetLeft, tab.offsetTop, tab.offsetWidth]), add: [add.offsetLeft, add.offsetTop] });
+			const stable = layout === previousLayout;
+			previousLayout = layout;
+			const followsLastTab = tabs.at(-1)!.offsetTop === add.offsetTop;
+			return stable && followsLastTab === (expected === 'followsLastTab');
+		}, `The new tab button did not reach its expected wrapped layout (${expected})`);
+	};
+}
+
 function renderPinnedSeparateRow(): (ctx: ComponentFixtureContext) => void {
 	const editors = defaultEditorSpecs().slice(0, 3).map((spec, index) => ({
 		...spec,
@@ -776,6 +841,22 @@ function renderPinnedSeparateRow(): (ctx: ComponentFixtureContext) => void {
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Density: defineThemedFixtureGroup(createDensityFixtures()),
 	Layout: defineThemedFixtureGroup(createLayoutFixtures()),
+	NewTabButton: defineThemedFixtureGroup({
+		WrappedConnected: defineComponentFixture({
+			render: renderNewTabButtonWrapped(true, ModernUIEditorTabStyle.Connected, 300, 'followsLastTab'),
+			expectedVisualDescriptions: ['When tabs wrap, the new tab (+) button sits right after the last tab on the last row, never alone on a row of its own.'],
+		}),
+		WrappedPill: defineComponentFixture({
+			render: renderNewTabButtonWrapped(true, ModernUIEditorTabStyle.Pill, 300, 'followsLastTab'),
+		}),
+		WrappedLegacy: defineComponentFixture({
+			render: renderNewTabButtonWrapped(false, undefined, 300, 'followsLastTab'),
+		}),
+		WrappedTooNarrow: defineComponentFixture({
+			render: renderNewTabButtonWrapped(true, ModernUIEditorTabStyle.Connected, 170, 'ownRow'),
+			expectedVisualDescriptions: ['When the last tab does not fit next to the new tab (+) button and the editor actions, the button keeps a row of its own without overlapping the actions.'],
+		}),
+	}),
 	ScrollbarPlacement: defineComponentFixture({
 		render: renderTabStyleDensityComparison('default', true),
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
@@ -787,7 +868,7 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Styles: defineThemedFixtureGroup({
 		Connected: defineComponentFixture({
 			render: render(true, {}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'Connected tabs use the dedicated connected strip color while the active tab remains joined to the editor surface.',
 			],

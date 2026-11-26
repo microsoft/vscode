@@ -83,7 +83,7 @@ export class OpenWithEditorPicker {
 		// so that the general default also takes effect for diffs.
 		const persistDefaultAssociation = (editorID: string) => {
 			const associationPattern = defaultRule.associationPattern;
-			this.editorResolverService.setDefaultEditor(resource, editorID, isDiffEditorDefault);
+			this.editorResolverService.setDefaultEditor(resource, editorID, isDiffEditorDefault, { source: 'reopenWithPicker' });
 			if (!isDiffEditorDefault && isDiffEditor) {
 				this.editorResolverService.removeDiffEditorAssociation(resource, associationPattern);
 			}

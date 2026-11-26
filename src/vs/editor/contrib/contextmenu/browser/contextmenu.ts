@@ -96,7 +96,11 @@ export class ContextMenuController implements IEditorContribution {
 			return; // allow native menu on widgets to support right click on input field for example in find
 		}
 		if (e.target.type === MouseTargetType.CONTENT_TEXT && e.target.detail.injectedText) {
-			return; // allow native menu on injected text
+			// Injected text isn't part of the document, so the editor menu doesn't apply.
+			// Inlay hints with a location show their own menu (see InlayHintsController).
+			// The native default is still prevented: on macOS it selects the word under the pointer (#234758).
+			e.event.preventDefault();
+			return;
 		}
 
 		e.event.preventDefault();

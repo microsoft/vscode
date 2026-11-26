@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { normalizeDriveLetter } from '../../../../../base/common/labels.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -31,8 +32,10 @@ import { WorkspaceTrustEditorInput } from '../../../../services/workspaces/brows
 
 class PickerFileDialogService extends TestFileDialogService {
 	nextPick: URI[] | undefined;
+	readonly openDialogOptions: IOpenDialogOptions[] = [];
 
-	override showOpenDialog(_options: IOpenDialogOptions): Promise<URI[] | undefined> {
+	override showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
+		this.openDialogOptions.push(options);
 		return Promise.resolve(this.nextPick);
 	}
 }
@@ -52,8 +55,12 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 	verificationGate: Promise<void> | undefined;
 	completionGate: Promise<void> | undefined;
 	failure: Error | undefined;
+	/** Like the real service, rejects the whole batch before any change when one of its URIs cannot be trusted. */
+	rejects: ((uri: URI) => boolean) | undefined;
+	trustInfoGate: Promise<void> | undefined;
 	autoTrusted: ((uri: URI) => boolean) | undefined;
 	canonicalize: ((uri: URI) => URI) | undefined;
+	readonly calls: URI[][] = [];
 
 	constructor(entries: URI[]) {
 		super();
@@ -65,6 +72,7 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 	}
 
 	override async getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
+		await this.trustInfoGate;
 		const canonical = this.getCanonicalUri(uri);
 		if (this.autoTrusted?.(canonical)) {
 			return { trusted: true, uri: canonical };
@@ -76,8 +84,12 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 	}
 
 	override async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
+		this.calls.push(uris);
 		if (this.failure) {
 			throw this.failure;
+		}
+		if (uris.some(uri => this.rejects?.(uri))) {
+			throw new Error('unverified source');
 		}
 
 		let changed = false;
@@ -369,36 +381,100 @@ suite('WorkspaceTrustedUrisTable', () => {
 		]);
 	});
 
-	test('reveals the added folder in the surrounding scrollable element', async () => {
-		// Mirrors the editor: the table is laid out to fit all rows inside a constrained-height
-		// scrollable body that is scrolled down to the Add Folder button.
-		const content = mainWindow.document.createElement('div');
-		const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
-		const viewport = scrollableElement.getDomNode();
-		// max-height rather than height: the browser test page renders in quirks mode, where the
-		// table's `height: 100%` would otherwise resolve against this constrained ancestor.
-		viewport.style.maxHeight = '200px';
-		content.style.maxHeight = '200px';
-		const spacer = content.appendChild(mainWindow.document.createElement('div'));
-		spacer.style.height = '300px';
-		content.appendChild(container);
-		mainWindow.document.body.appendChild(viewport);
-		store.add(toDisposable(() => viewport.remove()));
-		createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
-		scrollableElement.scanDomNode();
-		scrollableElement.setScrollPosition({ scrollTop: Number.MAX_SAFE_INTEGER });
-		const scrollTopBefore = scrollableElement.getScrollPosition().scrollTop;
+	for (const pick of [['a-first'], ['zz-end', 'a-first']]) {
+		test(`reveals the topmost added folder in the surrounding scrollable element (${pick.join(', ')})`, async () => {
+			// Mirrors the editor: the table is laid out to fit all rows inside a constrained-height
+			// scrollable body that is scrolled down to the Add Folder button.
+			const content = mainWindow.document.createElement('div');
+			const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
+			const viewport = scrollableElement.getDomNode();
+			// max-height rather than height: the browser test page renders in quirks mode, where the
+			// table's `height: 100%` would otherwise resolve against this constrained ancestor.
+			viewport.style.maxHeight = '200px';
+			content.style.maxHeight = '200px';
+			const spacer = content.appendChild(mainWindow.document.createElement('div'));
+			spacer.style.height = '300px';
+			content.appendChild(container);
+			mainWindow.document.body.appendChild(viewport);
+			store.add(toDisposable(() => viewport.remove()));
+			createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
+			scrollableElement.scanDomNode();
+			scrollableElement.setScrollPosition({ scrollTop: Number.MAX_SAFE_INTEGER });
+			const scrollTopBefore = scrollableElement.getScrollPosition().scrollTop;
 
-		await addFolder([folder('a-first')]);
+			await addFolder(pick.map(folder));
 
-		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === 'a-first')!;
-		const rowRect = row.getBoundingClientRect();
-		const viewportRect = viewport.getBoundingClientRect();
+			const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === 'a-first')!;
+			const rowRect = row.getBoundingClientRect();
+			const viewportRect = viewport.getBoundingClientRect();
+			assert.deepStrictEqual({
+				scrolledUp: scrollableElement.getScrollPosition().scrollTop < scrollTopBefore,
+				rowVisible: rowRect.top >= viewportRect.top && rowRect.bottom <= viewportRect.bottom,
+				focused: getState().focused,
+			}, { scrolledUp: true, rowVisible: true, focused: ['a-first'] });
+		});
+	}
+
+	test('trusts every picked folder in one call and focuses the topmost picked row', async () => {
+		const results: { state: ITableState; calls: string[][] }[] = [];
+		for (const pick of [['z-new', 'm-new'], ['z-new', 'b-existing', 'm-new']]) {
+			container.replaceChildren();
+			createTable(['b-existing', 'z-last']);
+			selectRow('z-last');
+			await addFolder(pick.map(folder));
+			results.push({ state: getState(), calls: trustService.calls.map(call => call.map(uri => basename(uri))) });
+		}
+
+		assert.deepStrictEqual(results, [
+			{ state: focusedState(['b-existing', 'm-new', 'z-last', 'z-new'], 'm-new'), calls: [['z-new', 'm-new']] },
+			{ state: focusedState(['b-existing', 'm-new', 'z-last', 'z-new'], 'b-existing'), calls: [['z-new', 'b-existing', 'm-new']] },
+		]);
+	});
+
+	test('focuses the topmost picked row that gets an entry', async () => {
+		createTable(['c-two', 'z-last']);
+		selectRow('z-last');
+		trustService.autoTrusted = uri => uri.path.endsWith('/a-implicit');
+		await addFolder([folder('a-implicit'), folder('m-new')]);
+		assert.deepStrictEqual(getState(), focusedState(['c-two', 'm-new', 'z-last'], 'm-new'));
+	});
+
+	test('trusts none of the picked folders when one of them is rejected', async () => {
+		createTable(['c-two', 'z-last']);
+		selectRow('z-last');
+		trustService.rejects = uri => uri.path.endsWith('/m-bad');
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			await addFolder([folder('a-good'), folder('m-bad')]);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
 		assert.deepStrictEqual({
-			scrolledUp: scrollableElement.getScrollPosition().scrollTop < scrollTopBefore,
-			rowVisible: rowRect.top >= viewportRect.top && rowRect.bottom <= viewportRect.bottom,
-			focused: getState().focused,
-		}, { scrolledUp: true, rowVisible: true, focused: ['a-first'] });
+			trusted: trustService.getTrustedUris().map(uri => basename(uri)),
+			errors: errors.length,
+			selected: getState().selected,
+			addButtonFocused: mainWindow.document.activeElement === getAddButton(),
+		}, { trusted: ['c-two', 'z-last'], errors: 1, selected: ['z-last'], addButtonFocused: true });
+	});
+
+	test('keeps focus on the add button when no picked folder gets an entry', async () => {
+		createTable(['c-two', 'z-last']);
+		selectRow('z-last');
+		trustService.autoTrusted = () => true;
+		await addFolder([folder('a-implicit'), folder('m-implicit')]);
+		assert.deepStrictEqual([getState().rows, getState().selected, mainWindow.document.activeElement === getAddButton()], [['c-two', 'z-last'], ['z-last'], true]);
+	});
+
+	test('add picks several folders while edit picks one', async () => {
+		createTable(['c-two']);
+		await addFolder(undefined);
+		await table.edit({ uri: folder('c-two'), parentOfWorkspaceItem: false }, true);
+		assert.deepStrictEqual(dialogService.openDialogOptions.map(({ canSelectMany, title, openLabel }) => ({ canSelectMany, title, openLabel })), [
+			{ canSelectMany: true, title: 'Select Folders to Trust', openLabel: 'Trust Folders' },
+			{ canSelectMany: false, title: 'Select Folder To Trust', openLabel: 'Trust Folder' },
+		]);
 	});
 
 	test('moves focus only after the addition completes', async () => {
@@ -619,6 +695,25 @@ suite('WorkspaceTrustedUrisTable', () => {
 		const gate = new DeferredPromise<void>();
 		trustService.completionGate = gate.p;
 		await addFolder([folder('m-middle')]);
+		const list = container.querySelector('.monaco-list');
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			table.dispose();
+			gate.complete();
+			await timeout(0);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+		assert.deepStrictEqual([errors, mainWindow.document.activeElement === list], [[], false]);
+	});
+
+	test('does not touch the table when disposed while resolving the added folders', async () => {
+		createTable(['c-two', 'z-last']);
+		const gate = new DeferredPromise<void>();
+		trustService.trustInfoGate = gate.p;
+		await addFolder([folder('m-middle'), folder('a-first')]);
 		const list = container.querySelector('.monaco-list');
 		const errors: unknown[] = [];
 		const previousHandler = errorHandler.getUnexpectedErrorHandler();

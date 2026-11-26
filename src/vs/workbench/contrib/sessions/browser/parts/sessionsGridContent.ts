@@ -173,6 +173,15 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 		this._activeViewPickerVisibility.clear();
 
 		const oldSlots = new Map(this._slots.map(slot => [slot.id, slot]));
+		// Each view that stops showing its session saves the session's layout before any view takes up a session. Otherwise a
+		// session that moves to another view, such as one it is dropped in, restores a layout saved before its chats were last
+		// resized: the view it leaves saves its sizes only once it is disposed, after the other view restored them.
+		const nextSessions = new Map(entries.map(entry => [entry.id, entry.sessionId]));
+		for (const slot of this._slots) {
+			if (!nextSessions.has(slot.id) || nextSessions.get(slot.id) !== slot.boundSessionId) {
+				slot.view.saveLayout();
+			}
+		}
 		const next = entries.map(entry => {
 			const slot = oldSlots.get(entry.id) ?? this._createSlot(entry.id);
 			oldSlots.delete(entry.id);

@@ -34,7 +34,6 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -74,6 +73,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { DefaultChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chat/defaultChatViewFactory.js';
+import { defaultNewSessionPresentation } from '../../../../../workbench/contrib/sessions/browser/chat/defaultNewSessionPresentation.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, getInputOnlyProgressMessage, getInputOnlyResponseState, getInputOnlyResponseText, IInputOnlyStatus, needsConversationForInput, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
 import { SessionsChatViewStateService } from '../../../../../workbench/contrib/sessions/browser/chat/chatViewStateService.js';
@@ -357,16 +357,16 @@ suite('Sessions - Chat View', () => {
 			timelineVisibility: state.timelineVisibility,
 			transcriptBetweenEndpoints: Number.parseFloat(state.transcriptOpacity) > 0.85 && Number.parseFloat(state.transcriptOpacity) < 1,
 		});
-		const resting = { bubbleOpacity: 0, requestTint: 'linear-gradient(color(srgb 0 0 0 / 0), color(srgb 0 0 0 / 0))', pillsOpacity: 0, pillsVisibility: 'hidden', timelineOpacity: 0, timelineVisibility: 'hidden', transcriptOpacity: '0.85' };
+		const resting = { bubbleOpacity: 0, requestTint: 'linear-gradient(color(srgb 0.376471 0.376471 0.376471 / 0.4), color(srgb 0.376471 0.376471 0.376471 / 0.4))', pillsOpacity: 0, pillsVisibility: 'hidden', timelineOpacity: 0, timelineVisibility: 'hidden', transcriptOpacity: '0.85' };
 		const revealed = { bubbleOpacity: 0.75, requestTint: 'linear-gradient(color(srgb 0.376471 0.376471 0.376471 / 0.75), color(srgb 0.376471 0.376471 0.376471 / 0.75))', pillsOpacity: 1, pillsVisibility: 'visible', timelineOpacity: 1, timelineVisibility: 'visible', transcriptOpacity: '1' };
 		const fading = { opacityBetweenEndpoints: true, tintBetweenEndpoints: true, pillsVisibility: 'visible', timelineVisibility: 'visible', transcriptBetweenEndpoints: true };
 		assert.deepStrictEqual({ hidden, durations, halfwayIn: isFading(halfwayIn), visible, halfwayOut: isFading(halfwayOut), fadedOut, reducedMotionVisible, reducedMotionAnimations, reducedMotionHidden }, {
-			hidden: resting, durations: [[100, 100], [100, 100], [100, 100]], halfwayIn: fading, visible: revealed, halfwayOut: fading, fadedOut: resting,
+			hidden: resting, durations: [[100, 100, 100], [100, 100], [100, 100]], halfwayIn: fading, visible: revealed, halfwayOut: fading, fadedOut: resting,
 			reducedMotionVisible: revealed, reducedMotionAnimations: [0, 0, 0], reducedMotionHidden: resting,
 		});
 	});
 
-	test('recesses inactive bubble backgrounds independently of their contents', () => {
+	test('fades inactive request bubbles and recesses response backgrounds independently of their contents', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(96, 96, 96)');
@@ -433,8 +433,8 @@ suite('Sessions - Chat View', () => {
 		group.classList.add('active-group');
 		const restored = readBubbles();
 
-		const tint = 'color(srgb 0 0 0 / 0)';
-		const hoverTint = tint;
+		const tint = 'color(srgb 0.376471 0.376471 0.376471 / 0.4)';
+		const hoverTint = 'color(srgb 0.501961 0.501961 0.501961 / 0.4)';
 		const dimmed = { background: tint, hoverBackground: hoverTint, wallpaperTint: 'none', responseBackgroundOpacity: '0', effectiveResponseBackgroundOpacity: 0, contentOpacity: '1' };
 		const activeWallpaper = { background: 'rgb(16, 16, 16)', hoverBackground: 'rgb(16, 16, 16)', wallpaperTint: 'linear-gradient(rgb(96, 96, 96), rgb(96, 96, 96))', responseBackgroundOpacity: '1', effectiveResponseBackgroundOpacity: 1, contentOpacity: '1' };
 		const revealed = { ...active, background: 'color(srgb 0.376471 0.376471 0.376471 / 0.75)', hoverBackground: 'color(srgb 0.501961 0.501961 0.501961 / 0.75)', responseBackgroundOpacity: '0.75', effectiveResponseBackgroundOpacity: 0.75 };
@@ -2666,8 +2666,7 @@ suite('Sessions - Chat View', () => {
 			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ sessionId: 'session', activeChat: constObservable(activeChat), mainChat: constObservable(activeChat), ...withCreatedStatus(constObservable(false)) }));
 		}();
 		const widget = disposables.add(new NewChatInSessionWidget(
-			{ session: sessionsService.activeSession },
-			new TestConfigurationService(),
+			{ session: sessionsService.activeSession, newSessionPresentation: defaultNewSessionPresentation },
 			instantiationService,
 			new class extends mock<ILogService>() { }(),
 			new class extends mock<INotificationService>() { }(),
@@ -2677,7 +2676,6 @@ suite('Sessions - Chat View', () => {
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
 			disposables.add(new InMemoryStorageService()),
-			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
 			new SessionsChatViewStateService(),
 			upcastPartial<ISessionHost>({}),
@@ -2716,8 +2714,7 @@ suite('Sessions - Chat View', () => {
 					readonly activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 				}();
 				const widget = disposables.add(new NewChatInSessionWidget(
-					{ session: sessionsService.activeSession },
-					new TestConfigurationService(),
+					{ session: sessionsService.activeSession, newSessionPresentation: defaultNewSessionPresentation },
 					instantiationService,
 					new class extends mock<ILogService>() { }(),
 					new class extends mock<INotificationService>() { }(),
@@ -2727,7 +2724,6 @@ suite('Sessions - Chat View', () => {
 					new class extends mock<ISessionsManagementService>() { }(),
 					sessionsService,
 					disposables.add(new InMemoryStorageService()),
-					new TestAccessibilityService(),
 					new class extends mock<IFileService>() { }(),
 					viewStateService,
 					upcastPartial<ISessionHost>({}),
@@ -3221,6 +3217,44 @@ suite('Sessions - Chat View', () => {
 				{ left: '272px', top: '15.2px' },
 				{ left: '272px', top: '15.2px' },
 			],
+		});
+	});
+
+	test('only measures the surface on refresh when it shows codicons', async () => {
+		const clientWidth = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')!;
+		const measureRefreshes = async (background: ISessionsChatBackground | undefined) => {
+			const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+			const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
+			dom.getWindow(workbench).document.body.appendChild(workbench);
+			const store = new DisposableStore();
+			store.add(toDisposable(() => workbench.remove()));
+			const renderer = store.add(new SessionsChatBackgroundRenderer(part, true, () => 0.5));
+			renderer.setBackground(background);
+			await timeout(20);
+			let reads = 0;
+			Object.defineProperty(part, 'clientWidth', { configurable: true, get() { reads++; return clientWidth.get!.call(this); } });
+			dom.append(part, dom.$('.interactive-item-container'));
+			await timeout(20);
+			part.dispatchEvent(new Event('scroll'));
+			await timeout(20);
+			store.dispose();
+			return reads;
+		};
+
+		assert.deepStrictEqual({
+			none: await measureRefreshes(undefined),
+			image: await measureRefreshes({
+				kind: 'image',
+				backgroundImage: 'url("file:///textures/kirby.png")',
+				backgroundRepeat: 'no-repeat',
+				backgroundSize: 'auto',
+				backgroundPosition: 'right bottom',
+			}),
+			measuresCodicons: await measureRefreshes({ kind: 'codicons' }) > 0,
+		}, {
+			none: 0,
+			image: 0,
+			measuresCodicons: true,
 		});
 	});
 

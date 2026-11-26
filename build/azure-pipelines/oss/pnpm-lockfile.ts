@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { load } from 'js-yaml';
+import { load, loadAll } from 'js-yaml';
 
 /**
  * A package recorded in a pnpm lockfile (lockfile version 9).
@@ -69,7 +69,9 @@ function closure(lockfile: Lockfile, roots: Iterable<string>): Set<string> {
  * marked `dev` if only its devDependencies reach it.
  */
 export function readPnpmLockfileImporters(lockPath: string): Map<string, PnpmLockfilePackageEntry[]> {
-	const lockfile = load(fs.readFileSync(lockPath, 'utf8')) as Lockfile;
+	// The lockfile of the projects is the last YAML document: pnpm writes the pnpm version that
+	// `packageManager` pins in a document before it (https://pnpm.io/lockfile).
+	const lockfile = loadAll(fs.readFileSync(lockPath, 'utf8')).at(-1) as Lockfile;
 	const result = new Map<string, PnpmLockfilePackageEntry[]>();
 	for (const [importerId, importer] of Object.entries(lockfile.importers ?? {})) {
 		const rootsOf = (kinds: string[]) => kinds.flatMap(kind => Object.entries(importer[kind] ?? {}).map(([name, { version }]) => snapshotKey(name, version)).filter((key): key is string => !!key));

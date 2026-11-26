@@ -50,11 +50,11 @@ interface ICommentItemActions {
 }
 
 const reviewIcon = registerIcon('agent-feedback-pr-review', Codicon.gitPullRequestComment, nls.localize('agentFeedback.reviewIcon', "Icon for a pull request review comment."));
-const acceptIcon = registerIcon('agent-feedback-accept', Codicon.check, nls.localize('agentFeedback.acceptIcon', "Icon for sharing a comment with the agent."));
-const deleteIcon = registerIcon('agent-feedback-delete', Codicon.trash, nls.localize('agentFeedback.deleteIcon', "Icon for deleting a comment."));
-const editIcon = registerIcon('agent-feedback-edit', Codicon.edit, nls.localize('agentFeedback.editIcon', "Icon for editing a comment."));
+export const acceptIcon = registerIcon('agent-feedback-accept', Codicon.check, nls.localize('agentFeedback.acceptIcon', "Icon for sharing a comment with the agent."));
+export const deleteIcon = registerIcon('agent-feedback-delete', Codicon.trash, nls.localize('agentFeedback.deleteIcon', "Icon for deleting a comment."));
+export const editIcon = registerIcon('agent-feedback-edit', Codicon.edit, nls.localize('agentFeedback.editIcon', "Icon for editing a comment."));
 const replyIcon = registerIcon('agent-feedback-reply', Codicon.commentDiscussion, nls.localize('agentFeedback.replyIcon', "Icon for replying to a comment."));
-const hideIcon = registerIcon('agent-feedback-hide', Codicon.close, nls.localize('agentFeedback.hideIcon', "Icon for hiding a resolved comment."));
+export const hideIcon = registerIcon('agent-feedback-hide', Codicon.close, nls.localize('agentFeedback.hideIcon', "Icon for hiding a resolved comment."));
 const moreIcon = registerIcon('agent-feedback-more', Codicon.toolBarMore, nls.localize('agentFeedback.moreIcon', "Icon for additional comment actions."));
 
 /**

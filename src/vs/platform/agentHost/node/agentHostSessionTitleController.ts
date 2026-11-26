@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableTimeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
 import { isObject } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostTitleGenerationStrategies, type AgentHostTitleGenerationStrategy } from '../common/agentHostSchema.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
-import { SessionServerToolName } from '../common/serverToolNames.js';
-import { ActionType } from '../common/state/sessionActions.js';
-import { isAhpChatChannel, TurnState, type ModelSelection, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { AgentHostTitleGenerationStrategies, type AgentHostTitleGenerationStrategy } from '../common/agentHostSchema.js';
+import { SessionServerToolName } from '../common/serverToolNames.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
+import { ActionType } from '../common/state/sessionActions.js';
+import { TurnState, isAhpChatChannel, type ModelSelection, type URI as ProtocolURI, type Turn } from '../common/state/sessionState.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
-import type { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
-import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import type { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostUtilityModelUnavailableError, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, customChatTitleMetadataKey, customChatTitleSourceMetadataKey } from './shared/persistSessionMetadata.js';
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH = 40;
@@ -756,20 +757,19 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return undefined;
 		}
 
-		const abortController = new AbortController();
-		const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 		try {
 			const titlePromptContent = prompt.gitHubReferenceSource === undefined
 				? prompt.content
-				: await this._appendGitHubContext(prompt.content, prompt.gitHubReferenceSource, abortController.signal, token, prompt.modelContext);
+				: await this._appendGitHubContext(prompt.content, prompt.gitHubReferenceSource, token, prompt.modelContext);
 			if (token.isCancellationRequested) {
 				return undefined;
 			}
 			const rawTitle = await utilityModelService.chatCompletion(prompt.modelContext, {
 				messages: this._buildTitlePrompt(titlePromptContent, prompt),
 				maxTokens: MAX_TITLE_TOKENS,
+				telemetry: { source: 'title' },
 			}, {
-				signal: abortController.signal,
+				cancellationToken: token,
 			});
 			return this._cleanTitle(rawTitle, titlePromptContent);
 		} catch (err) {
@@ -782,8 +782,6 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			}
 			this._logService.warn('[AgentHostSessionTitleController] Failed to generate session title', err);
 			return undefined;
-		} finally {
-			cancellationListener.dispose();
 		}
 	}
 
@@ -795,7 +793,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	 * `promptContent`, whose middle is dropped so the request at its head and
 	 * the response tail both survive.
 	 */
-	private async _appendGitHubContext(promptContent: string, referenceSource: string, cancellationSignal: AbortSignal, token: CancellationToken, context: IAgentHostUtilityModelContext): Promise<string> {
+	private async _appendGitHubContext(promptContent: string, referenceSource: string, token: CancellationToken, context: IAgentHostUtilityModelContext): Promise<string> {
 		const references = this._parseGitHubReferences(referenceSource);
 		const githubToken = this._options.getGitHubToken?.(context.session, context.chat, context.credentialSource);
 		const gitHubService = this._options.gitHubService;
@@ -803,13 +801,15 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return promptContent;
 		}
 
-		const signal = AbortSignal.any([cancellationSignal, AbortSignal.timeout(this._options.gitHubContextRequestTimeout ?? GITHUB_CONTEXT_REQUEST_TIMEOUT)]);
 		const store = new DisposableStore();
+		const timeout = store.add(new CancellationTokenSource());
+		store.add(disposableTimeout(() => timeout.cancel(), this._options.gitHubContextRequestTimeout ?? GITHUB_CONTEXT_REQUEST_TIMEOUT));
+		const requestToken = CancellationToken.any([token, timeout.token], store);
 		try {
-			const client = store.add(gitHubService.acquireRepositoryApiClient(signal, context.credentialSource, context.chat ?? context.session));
+			const client = store.add(gitHubService.acquireRepositoryApiClient(requestToken, context.credentialSource, context.chat ?? context.session));
 			const contexts = await Promise.all(references.map(async reference => {
 				try {
-					const issue = await client.issues.get(reference, reference.number, signal, {
+					const issue = await client.issues.get(reference, reference.number, requestToken, {
 						caller: 'agentHost.sessionTitle',
 						priority: 'background',
 					});

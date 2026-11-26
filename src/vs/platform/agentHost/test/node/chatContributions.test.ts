@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { AhpErrorCodes } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -37,7 +38,7 @@ import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
+import { AH_CHAT_CONFIG_VALUES_DB_KEY, AH_CHAT_MODIFIED_TIME_DB_KEY } from '../../node/agentHostChatRowStore.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -62,6 +63,8 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostPullRequestAutopilotService } from '../../node/agentHostPullRequestAutopilot.js';
+import { nullPullRequestAutopilotService } from './pullRequestAutopilotTestUtils.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -157,19 +160,19 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
 
-	readonly pullRequestAttachments: { readonly sessionKey: string; readonly workingDirectory: string | undefined }[] = [];
+	readonly pullRequestAttachments: string[] = [];
 	readonly pendingPullRequestReconciliations: string[] = [];
 
 	constructor(private readonly _observed: string[] | undefined) { }
 
-	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async refreshSessionGitState(_sessionKey: string): Promise<void> { }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
-	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
+	async resolveSessionBaseBranchRef(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
-	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void> {
-		this.pullRequestAttachments.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
+	async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
+		this.pullRequestAttachments.push(sessionKey);
 		this._observed?.push('githubReferences');
 	}
 	async reconcilePendingRecordedPullRequests(chat: string): Promise<void> {
@@ -363,6 +366,24 @@ class FollowingEnvelopeContribution extends TestContribution {
 
 	onDidDispatchAction(): void {
 		calls.push('followingEnvelope');
+	}
+}
+
+class ThrowingShutdownContribution extends TestContribution {
+	static readonly id = 'throwingShutdown';
+	readonly order = 20;
+
+	onWillShutdown(): void {
+		throw new Error('expected');
+	}
+}
+
+class FollowingShutdownContribution extends TestContribution {
+	static readonly id = 'followingShutdown';
+	readonly order = 21;
+
+	onWillShutdown(): void {
+		calls.push('followingShutdown');
 	}
 }
 
@@ -988,6 +1009,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);
 	services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+	services.set(IAgentHostPullRequestAutopilotService, nullPullRequestAutopilotService);
 	const artifactIntegrationDirectory = disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry())));
 	services.set(IAgentHostArtifactIntegrationDirectory, artifactIntegrationDirectory);
 	const telemetryReporter = new AgentHostTelemetryReporter(new CapturingTelemetryService());
@@ -1243,6 +1265,7 @@ suite('AgentHostChatContributions', () => {
 			}
 		}('test');
 		disposables.add(toDisposable(() => agent.dispose()));
+		const database = new TestSessionDatabase();
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
@@ -1253,6 +1276,7 @@ suite('AgentHostChatContributions', () => {
 				_serviceBrand: undefined,
 				setChatWorkspaceAttached: async (session: URI, chat: URI, attached: boolean) => { workspace.push({ session: session.toString(), chat: chat.toString(), attached }); },
 			} satisfies IAgentHostArchivedChatWorkspaceService],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), createSessionDataService(database))],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1264,12 +1288,19 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction(buildDefaultChatUri(session), session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		await timeout(25);
+		// Each chat's modified time is written in the background through its own database, which can take longer.
+		const modifiedTimes = () => database.setMetadataCalls.filter(call => call.key === AH_CHAT_MODIFIED_TIME_DB_KEY).map(call => JSON.parse(call.value));
+		while (modifiedTimes().length < 3) {
+			await Event.toPromise(database.onDidChangeMetadata);
+		}
 
+		const modifiedTime = Date.parse('2025-01-01T00:00:00.000Z');
 		assert.deepStrictEqual({
 			persisted,
 			workspace,
 			cleared,
 			errors,
+			modifiedTimes: modifiedTimes(),
 			peerRead: !!((stateManager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsRead),
 			failingRead: !!((stateManager.getChatState(failingChat)?.status ?? 0) & SessionStatus.IsRead),
 		}, {
@@ -1287,6 +1318,12 @@ suite('AgentHostChatContributions', () => {
 				{ session, chat: failingChat },
 			],
 			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
+			// The actions here are not reduced, so each chat keeps its creation time.
+			modifiedTimes: [
+				{ chat: peerChat, modifiedTime },
+				{ chat: peerChat, modifiedTime },
+				{ chat: failingChat, modifiedTime },
+			],
 			peerRead: true,
 			failingRead: true,
 		});
@@ -1315,6 +1352,7 @@ suite('AgentHostChatContributions', () => {
 				setArchived: async (_session: URI, chat: URI, archived: boolean) => { persisted.push({ chat: chat.toString(), archived }); },
 			} satisfies IAgentHostPeerChatPersistenceService],
 			[IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), createSessionDataService(new TestSessionDatabase()))],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1710,6 +1748,182 @@ suite('AgentHostChatContributions', () => {
 			actor: queue.admitted[0]?.clientId,
 		}, { sameConnection: true, credential: 'queued-rotated', actor: 'scoped-client' });
 	});
+
+	for (const sourceKind of ['closed connection', 'revoked snapshot'] as const) {
+		test(`queue drain forwards a non-renewable ${sourceKind} to the normal visible failure path`, async () => {
+			const queue = createQueueDrainContributions(disposables);
+			const resource = 'https://api.github.com';
+			queue.agent.getProtectedResources = () => [{ resource }];
+			let usable = true;
+			const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+			await scope.authenticate({ resource, token: 'original' }, [resource]);
+			const credentials = sourceKind === 'closed connection' ? scope : captureCredentialSource({
+				getCredential: () => ({ resource, token: 'original', revision: 1, expiresAt: undefined, isUsable: () => usable }),
+			}, [{ resource }]);
+			queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'running', '2025-01-01T00:00:00.000Z'));
+			const action = queuedMessage('pending', 'pending work');
+			queue.stateManager.dispatchServerAction(queue.chat, action);
+			queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action), credentials });
+			scope.dispose();
+			usable = false;
+			queue.stateManager.dispatchServerAction(queue.chat, chatTurnComplete('active', 1));
+			queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active', reason: { kind: 'success' } });
+			assert.deepStrictEqual({
+				admitted: queue.admitted.length,
+				originalSource: queue.admittedCredentials[0] === credentials,
+				pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages,
+			}, { admitted: 1, originalSource: true, pending: undefined });
+			assert.throws(() => captureCredentialSource(queue.admittedCredentials[0]!, [{ resource }]), { code: AhpErrorCodes.AuthRequired });
+		});
+	}
+
+	for (const kind of [PendingMessageKind.Queued, PendingMessageKind.Steering]) {
+		test(`queue drain preserves disconnected ${kind} work and resumes once with a fresh sponsor`, async () => {
+			const queue = createQueueDrainContributions(disposables);
+			queue.setSteeringReady(false);
+			const resource = 'https://api.github.com';
+			queue.agent.getProtectedResources = () => [{ resource }];
+			const changed = disposables.add(new Emitter<void>());
+			let current: IAgentHostCredentialSource | undefined;
+			const source = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, undefined, undefined, chat => {
+				assert.strictEqual(chat, queue.chat);
+				return { onDidChange: changed.event, resolve: () => current };
+			}));
+			await source.authenticate({ resource, token: 'original' }, [resource]);
+			current = source;
+			queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'running', '2025-01-01T00:00:00.000Z'));
+			const action = { ...queuedMessage('pending', 'pending work'), kind };
+			queue.stateManager.dispatchServerAction(queue.chat, action);
+			queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action, 'original-client'), credentials: source });
+			source.dispose();
+			current = undefined;
+			queue.stateManager.dispatchServerAction(queue.chat, chatTurnComplete('active', 1));
+			queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active', reason: { kind: 'success' } });
+			changed.fire();
+			const waiting = {
+				pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id),
+				active: queue.stateManager.getActiveTurnId(queue.chat),
+				admitted: queue.admitted.length,
+				telemetry: queue.telemetryService.events.length,
+			};
+			const fresh = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+			current = fresh;
+			changed.fire();
+			const beforeAuthentication = queue.admitted.length;
+			await fresh.authenticate({ resource, token: 'fresh' }, [resource]);
+			changed.fire();
+			await fresh.authenticate({ resource, token: 'later-rotation' }, [resource]);
+			fresh.dispose();
+			changed.fire();
+			assert.deepStrictEqual({
+				waiting,
+				beforeAuthentication,
+				admitted: queue.admitted.map(turn => [turn.message.text, turn.clientId]),
+				captured: queue.admittedCredentials[0]?.getCredential({ resource })?.token,
+				pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages,
+				listening: changed.hasListeners(),
+			}, {
+				waiting: { pending: ['pending'], active: undefined, admitted: 0, telemetry: 0 },
+				beforeAuthentication: 0,
+				admitted: [['pending work', 'original-client']],
+				captured: 'fresh',
+				pending: undefined,
+				listening: false,
+			});
+		});
+	}
+
+	test('queue drain waits for the principal resource even when the provider marks it optional', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const resource = 'https://api.github.com';
+		queue.agent.getProtectedResources = () => [{ resource, required: false }];
+		const changed = disposables.add(new Emitter<void>());
+		const principal = { apiOrigin: resource, userId: '123' };
+		const fresh = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, principal));
+		const credentials: IAgentHostCredentialSource = {
+			principal,
+			getCredential: request => fresh.getCredential(request),
+			createQueuedCredentialSource: () => ({ onDidChange: changed.event, resolve: () => fresh }),
+		};
+		const action = queuedMessage('pending', 'pending work');
+		queue.stateManager.dispatchServerAction(queue.chat, action);
+		queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action), credentials });
+		const waiting = queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id);
+		const before = queue.admitted.length;
+		await fresh.authenticate({ resource, token: 'principal-token' }, [resource]);
+		changed.fire();
+		assert.deepStrictEqual({
+			waiting, before, admitted: queue.admitted.length,
+			captured: queue.admittedCredentials[0]?.getCredential({ resource })?.token,
+		}, { waiting: ['pending'], before: 0, admitted: 1, captured: 'principal-token' });
+	});
+
+	for (const outcome of ['cancelled', 'error'] as const) {
+		for (const previouslyWaiting of [false, true]) {
+			test(`queue drain does not retry ${previouslyWaiting ? 'waiting' : 'unstarted'} messages on credential events after ${outcome}`, async () => {
+				const queue = createQueueDrainContributions(disposables);
+				const resource = 'https://api.github.com';
+				queue.agent.getProtectedResources = () => [{ resource }];
+				const changed = disposables.add(new Emitter<void>());
+				let current: IAgentHostCredentialSource | undefined = undefined;
+				const source = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, undefined, undefined,
+					() => ({ onDidChange: changed.event, resolve: () => current })));
+				await source.authenticate({ resource, token: 'live' }, [resource]);
+				queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'running', '2025-01-01T00:00:00.000Z'));
+				const action = queuedMessage('pending', 'pending work');
+				queue.stateManager.dispatchServerAction(queue.chat, action);
+				queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action), credentials: source });
+				if (previouslyWaiting) {
+					queue.stateManager.dispatchServerAction(queue.chat, chatTurnComplete('active', 1));
+					queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active', reason: { kind: 'success' } });
+					queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'new user request', '2025-01-01T00:00:01.000Z'));
+				}
+				const error = { errorType: 'requestFailed', message: 'failed' };
+				queue.stateManager.dispatchServerAction(queue.chat, outcome === 'cancelled'
+					? { type: ActionType.ChatTurnCancelled, turnId: 'active', duration: 1 }
+					: { type: ActionType.ChatError, turnId: 'active', duration: 1, part: { kind: ResponsePartKind.Error, error, resumable: false } });
+				queue.service.turnEnd({
+					session: queue.session, channel: queue.chat, turnId: 'active',
+					reason: outcome === 'cancelled' ? { kind: 'cancelled' } : { kind: 'error', error, resumable: false },
+				});
+				current = source;
+				changed.fire();
+				const paused = {
+					admitted: queue.admitted.length,
+					pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id),
+				};
+				queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('retry', 'new user request', '2025-01-01T00:00:02.000Z'));
+				queue.stateManager.dispatchServerAction(queue.chat, chatTurnComplete('retry', 1));
+				queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'retry', reason: { kind: 'success' } });
+				assert.deepStrictEqual({ paused, admittedAfterUserRequest: queue.admitted.length }, {
+					paused: { admitted: 0, pending: ['pending'] }, admittedAfterUserRequest: 1,
+				});
+			});
+		}
+	}
+
+	for (const cleanup of ['message', 'chat'] as const) {
+		test(`queue drain releases pending credential listeners when the ${cleanup} is removed`, async () => {
+			const queue = createQueueDrainContributions(disposables);
+			const changed = disposables.add(new Emitter<void>());
+			const source = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, undefined, undefined,
+				() => ({ onDidChange: changed.event, resolve: () => undefined })));
+			queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'running', '2025-01-01T00:00:00.000Z'));
+			const action = queuedMessage('pending', 'pending work');
+			queue.stateManager.dispatchServerAction(queue.chat, action);
+			queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action), credentials: source });
+			const before = changed.hasListeners();
+			if (cleanup === 'message') {
+				const remove = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Queued, id: action.id } as const;
+				queue.stateManager.dispatchServerAction(queue.chat, remove);
+				queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, remove));
+			} else {
+				queue.stateManager.removeSession(queue.session);
+			}
+			changed.fire();
+			assert.deepStrictEqual({ before, after: changed.hasListeners(), admitted: queue.admitted.length }, { before: true, after: false, admitted: 0 });
+		});
+	}
 
 	test('queue drain keeps per-message senders across removal and ignores duplicate handoff', () => {
 		const queue = createQueueDrainContributions(disposables);
@@ -2622,12 +2836,8 @@ suite('AgentHostChatContributions', () => {
 			attachments: contributions.gitStateService.pullRequestAttachments,
 			pending: contributions.gitStateService.pendingPullRequestReconciliations,
 		}, {
-			attachments: [
-				{ sessionKey: session, workingDirectory: sessionFolder },
-				{ sessionKey: session, workingDirectory: sessionFolder },
-				{ sessionKey: session, workingDirectory: sessionFolder },
-				{ sessionKey: peerFolderChat, workingDirectory: peerFolder },
-			],
+			// The session reconciles the session folder's pull request; the peer chat reconciles its own folder's.
+			attachments: [session, session, session, peerFolderChat],
 			pending: [],
 		});
 	});
@@ -3516,6 +3726,13 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction('agent-host-chat://test', 'agent-host-session://test', { type: ActionType.ChatQueuedMessagesReordered, order: [] }));
 
 		assert.deepStrictEqual(calls, ['followingEnvelope']);
+	});
+
+	test('isolates a throwing shutdown contribution', () => {
+		const contributions = disposables.add(createContributions(disposables, ThrowingShutdownContribution, FollowingShutdownContribution));
+		contributions.willShutdown();
+
+		assert.deepStrictEqual(calls, ['followingShutdown']);
 	});
 
 	test('passes envelope rejection reasons to contributions', () => {

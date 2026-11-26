@@ -5,7 +5,7 @@
 
 import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, cancelOnDispose } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
@@ -40,21 +40,19 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 		this._currentPick.value = store;
 		const pickToken = cancelOnDispose(store);
 		store.add(token.onCancellationRequested(() => store.dispose()));
-		const controller = new AbortController();
-		store.add(toDisposable(() => controller.abort()));
 		try {
-			const client = store.add(await raceCancellationError(this._gitHubService.acquireDefaultAccountApiClient(controller.signal), pickToken));
+			CancellationToken.throwIfCanceled(token);
+			const client = store.add(await raceCancellationError(this._gitHubService.acquireDefaultAccountApiClient(pickToken), pickToken));
 			// The viewer and their organizations scope every search, so resolve them once per pick.
 			let scope: Promise<string> | undefined;
-			const resolveScope = (signal: AbortSignal) => scope ??= this._resolveSearchScope(client, signal).catch(error => { scope = undefined; throw error; });
+			const resolveScope = (cancellationToken: CancellationToken) => scope ??= this._resolveSearchScope(client, cancellationToken).catch(error => { scope = undefined; throw error; });
 			const picker = store.add(this._instantiationService.createInstance(RepositoryPicker));
 			const selection = await picker.pickRepository(async (query, requestToken) => {
-				const requestController = new AbortController();
-				const listener = requestToken.onCancellationRequested(() => requestController.abort());
+				const requestLifetime = new DisposableStore();
 				try {
-					return await this._searchRepositories(client, query, resolveScope, AbortSignal.any([controller.signal, requestController.signal]));
+					return await this._searchRepositories(client, query, resolveScope, CancellationToken.any([pickToken, requestToken], requestLifetime));
 				} finally {
-					listener.dispose();
+					requestLifetime.dispose();
 				}
 			}, { filterValue: toRepositorySearchTerm }, pickToken);
 			return selection?.repository;
@@ -66,10 +64,10 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 		}
 	}
 
-	private async _searchRepositories(client: IGitHubAccountClient, query: string, resolveScope: (signal: AbortSignal) => Promise<string>, signal: AbortSignal): Promise<readonly string[]> {
+	private async _searchRepositories(client: IGitHubAccountClient, query: string, resolveScope: (cancellationToken: CancellationToken) => Promise<string>, cancellationToken: CancellationToken): Promise<readonly string[]> {
 		const term = toRepositorySearchTerm(query);
 		if (!term) {
-			const repositories = await client.repositories.listForAuthenticatedUser(signal, {
+			const repositories = await client.repositories.listForAuthenticatedUser(cancellationToken, {
 				caller: REQUEST_CALLER,
 				query: {
 					affiliation: 'owner,collaborator,organization_member',
@@ -79,7 +77,7 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 			});
 			return repositories.map(repository => repository.full_name);
 		}
-		const page = await client.search.repositories(`${term} in:name fork:true ${await resolveScope(signal)}`, signal, {
+		const page = await client.search.repositories(`${term} in:name fork:true ${await resolveScope(cancellationToken)}`, cancellationToken, {
 			caller: REQUEST_CALLER,
 			query: { sort: 'updated', per_page: PAGE_SIZE },
 		});
@@ -87,10 +85,10 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 	}
 
 	/** `user:<login> org:<org>...` qualifiers restricting search to repositories the account can reach. */
-	private async _resolveSearchScope(client: IGitHubAccountClient, signal: AbortSignal): Promise<string> {
+	private async _resolveSearchScope(client: IGitHubAccountClient, cancellationToken: CancellationToken): Promise<string> {
 		const [user, organizations] = await Promise.all([
-			client.users.getAuthenticated(signal, { caller: REQUEST_CALLER }),
-			client.organizations.listForAuthenticatedUser(signal, { caller: REQUEST_CALLER, query: { per_page: PAGE_SIZE } }),
+			client.users.getAuthenticated(cancellationToken, { caller: REQUEST_CALLER }),
+			client.organizations.listForAuthenticatedUser(cancellationToken, { caller: REQUEST_CALLER, query: { per_page: PAGE_SIZE } }),
 		]);
 		return [`user:${user.login}`, ...organizations.map(organization => `org:${organization.login}`)].join(' ');
 	}

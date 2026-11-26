@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ISettableObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
+import { ISettableObservable, autorun, derived, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -736,6 +737,55 @@ suite('AgentSessionApprovalModel', () => {
 		const obs1 = approvalModel.getApproval(uri);
 		const obs2 = approvalModel.getApproval(uri);
 		assert.strictEqual(obs1, obs2);
+	});
+
+	test('keeps observed approval identity through model removal and reload', () => {
+		const approvalModel = createModel();
+		const uri = URI.parse('test://session/reloaded');
+		const approval = approvalModel.getApproval(uri);
+		const labels: (string | undefined)[] = [];
+		disposables.add(autorun(reader => labels.push(approval.read(reader)?.label)));
+		for (const command of ['first', 'second']) {
+			const chatModel = addChatModel(URI.parse(uri.toString()));
+			mockModelWithResponse(chatModel, [makeToolInvocationPart({
+				state: makeWaitingState(),
+				toolSpecificData: makeTerminalToolData({ commandLine: { original: command } }),
+			})]);
+			chatModel.requestNeedsInput.set({ title: 'Test' }, undefined);
+			chatModelsObs.set([], undefined);
+		}
+		assert.deepStrictEqual({
+			sameObservable: approvalModel.getApproval(URI.parse(uri.toString())) === approval,
+			labels,
+		}, { sameObservable: true, labels: [undefined, 'first', undefined, 'second', undefined] });
+	});
+
+	test('unused and removed draft approval observables become collectible', async function () {
+		if (typeof globalThis.gc !== 'function') {
+			this.skip();
+		}
+		const approvalModel = createModel();
+		const accepted = addChatModel(URI.parse('test://session/accepted'));
+		mockModelWithResponse(accepted, [makeToolInvocationPart({
+			state: makeWaitingState(),
+			toolSpecificData: makeTerminalToolData({ commandLine: { original: 'accepted' } }),
+		})]);
+		accepted.requestNeedsInput.set({ title: 'Test' }, undefined);
+		const acceptedApproval = approvalModel.getApproval(accepted.sessionResource);
+		const refs = [];
+		for (let i = 0; i < 36; i++) {
+			refs.push(new WeakRef(approvalModel.getApproval(URI.parse(`test://unused/${i}`))));
+			const draft = addChatModel(URI.parse(`test://draft/${i}`));
+			refs.push(new WeakRef(approvalModel.getApproval(draft.sessionResource)));
+			chatModelsObs.set([accepted], undefined);
+		}
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+		assert.deepStrictEqual({
+			retainedDrafts: refs.filter(ref => ref.deref() !== undefined).length,
+			acceptedIdentity: approvalModel.getApproval(accepted.sessionResource) === acceptedApproval,
+			acceptedLabel: acceptedApproval.get()?.label,
+		}, { retainedDrafts: 0, acceptedIdentity: true, acceptedLabel: 'accepted' });
 	});
 
 	test('skips non-toolInvocation parts', () => {

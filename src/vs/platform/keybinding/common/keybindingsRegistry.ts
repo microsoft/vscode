@@ -20,6 +20,8 @@ export interface IKeybindingItem {
 	weight2: number;
 	extensionId: string | null;
 	isBuiltinExtension: boolean;
+	/** See {@link IKeybindingRule.systemWide}. */
+	systemWide?: boolean;
 }
 
 export interface IKeybindings {
@@ -47,6 +49,12 @@ export interface IKeybindingRule extends IKeybindings {
 	 * Keybinding is disabled if expression returns false.
 	 */
 	when?: ContextKeyExpression | null | undefined;
+	/**
+	 * Also registers the keybinding as a system-wide shortcut on desktop, which works while another application is in
+	 * front, for as long as {@link when} holds in a window of VS Code. That window evaluates {@link when} without
+	 * regard to focus, so it should only depend on keys such as settings.
+	 */
+	systemWide?: boolean;
 }
 
 export interface IExtensionKeybindingRule {
@@ -148,7 +156,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		if (actualKb && actualKb.primary) {
 			const kk = decodeKeybinding(actualKb.primary, OS);
 			if (kk) {
-				result.add(this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, 0, rule.when));
+				result.add(this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, 0, rule.when, rule.systemWide));
 			}
 		}
 
@@ -157,7 +165,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 				const k = actualKb.secondary[i];
 				const kk = decodeKeybinding(k, OS);
 				if (kk) {
-					result.add(this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, -i - 1, rule.when));
+					result.add(this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, -i - 1, rule.when, rule.systemWide));
 				}
 			}
 		}
@@ -205,7 +213,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return Array.from(this._keybindingAliases);
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): IDisposable {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined, systemWide: boolean | undefined): IDisposable {
 		const remove = this._coreKeybindings.push({
 			keybinding: keybinding,
 			command: commandId,
@@ -214,7 +222,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			weight1: weight1,
 			weight2: weight2,
 			extensionId: null,
-			isBuiltinExtension: false
+			isBuiltinExtension: false,
+			systemWide
 		});
 		this._cachedMergedKeybindings = null;
 

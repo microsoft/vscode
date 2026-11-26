@@ -9,10 +9,12 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
+import { registerInputDropTarget } from '../../../../../workbench/browser/dnd.js';
 import { IChatWindowOpenOptions, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -155,6 +157,45 @@ suite('Chat Window Session Drop Target', () => {
 		element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer: chatDragData() }));
 		const bounds = element.querySelector<HTMLElement>(overlaySelector)?.getBoundingClientRect();
 		assert.deepStrictEqual(bounds && { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height }, { left: 30, top: 40, width: 400, height: 300 });
+	});
+
+	test('the overlay shows where an input that takes the drag is, and leaves the drag to the input once it moves over it', () => {
+		const { element } = setup();
+		element.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;';
+		const input = $('div');
+		input.style.cssText = 'position:absolute;left:100px;top:200px;width:200px;height:50px;';
+		element.appendChild(input);
+		store.add(registerInputDropTarget(input, { accepts: () => true, getHint: () => 'Drag here to attach' }));
+		const dataTransfer = chatDragData();
+
+		element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX: 200, clientY: 100 }));
+		const overlay = element.querySelector<HTMLElement>(overlaySelector);
+		const hints = [...overlay?.querySelectorAll<HTMLElement>('.input-drop-target-hint') ?? []].map(hint => hint.textContent);
+		overlay?.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer, clientX: 200, clientY: 225 }));
+
+		assert.deepStrictEqual({ hints, overlayOverInput: !!element.querySelector(overlaySelector) }, { hints: ['Drag here to attach'], overlayOverInput: false });
+	});
+
+	test('while the key is held over a chat whose input takes the drag, the overlay leaves the drag to the chat, as the input\'s hint says', () => {
+		const { element } = setup();
+		element.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;';
+		const input = $('div');
+		input.style.cssText = 'position:absolute;left:100px;top:200px;width:200px;height:50px;';
+		element.appendChild(input);
+		store.add(registerInputDropTarget(input, { accepts: () => true, area: element, getHint: modifier => modifier ? `Drag here or hold ${modifier} to attach` : 'Drag here to attach' }));
+		const dataTransfer = chatDragData();
+		const overChat = { bubbles: true, cancelable: true, dataTransfer, clientX: 200, clientY: 100 };
+
+		element.dispatchEvent(new DragEvent('dragenter', overChat));
+		const overlay = element.querySelector<HTMLElement>(overlaySelector);
+		const hints = [...overlay?.querySelectorAll<HTMLElement>('.input-drop-target-hint') ?? []].map(hint => hint.textContent);
+		overlay?.dispatchEvent(new DragEvent('dragover', { ...overChat, shiftKey: true }));
+		const overlayWhileHeld = !!element.querySelector(overlaySelector);
+		element.dispatchEvent(new DragEvent('dragenter', { ...overChat, shiftKey: true }));
+
+		assert.deepStrictEqual({ hints, overlayWhileHeld, overlayOnEnterWhileHeld: !!element.querySelector(overlaySelector) }, {
+			hints: [`Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach`], overlayWhileHeld: false, overlayOnEnterWhileHeld: false,
+		});
 	});
 
 	test('files dragged over the chat show no indicator', () => {

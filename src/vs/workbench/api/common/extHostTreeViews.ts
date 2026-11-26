@@ -944,34 +944,39 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private _createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
 		this._validateTreeItem(extensionTreeItem);
-		const disposableStore = this._register(new DisposableStore());
-		const handle = this._createHandle(element, extensionTreeItem, parent);
-		const icon = this._getLightIconPath(extensionTreeItem);
-		const item: ITreeItem = {
-			handle,
-			parentHandle: parent ? parent.item.handle : undefined,
-			label: toTreeItemLabel(extensionTreeItem.label, this._extension),
-			description: extensionTreeItem.description,
-			resourceUri: extensionTreeItem.resourceUri,
-			tooltip: this._getTooltip(extensionTreeItem.tooltip),
-			command: this._getCommand(disposableStore, extensionTreeItem.command),
-			contextValue: extensionTreeItem.contextValue,
-			icon,
-			iconDark: this._getDarkIconPath(extensionTreeItem) || icon,
-			themeIcon: this._getThemeIcon(extensionTreeItem),
-			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? extHostTypes.TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
-			accessibilityInformation: extensionTreeItem.accessibilityInformation,
-			checkbox: this._getCheckbox(extensionTreeItem),
-		};
+		const disposableStore = new DisposableStore();
+		try {
+			const handle = this._createHandle(element, extensionTreeItem, parent);
+			const icon = this._getLightIconPath(extensionTreeItem);
+			const item: ITreeItem = {
+				handle,
+				parentHandle: parent ? parent.item.handle : undefined,
+				label: toTreeItemLabel(extensionTreeItem.label, this._extension),
+				description: extensionTreeItem.description,
+				resourceUri: extensionTreeItem.resourceUri,
+				tooltip: this._getTooltip(extensionTreeItem.tooltip),
+				command: this._getCommand(disposableStore, extensionTreeItem.command),
+				contextValue: extensionTreeItem.contextValue,
+				icon,
+				iconDark: this._getDarkIconPath(extensionTreeItem) || icon,
+				themeIcon: this._getThemeIcon(extensionTreeItem),
+				collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? extHostTypes.TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
+				accessibilityInformation: extensionTreeItem.accessibilityInformation,
+				checkbox: this._getCheckbox(extensionTreeItem),
+			};
 
-		return {
-			item,
-			extensionItem: extensionTreeItem,
-			parent,
-			children: undefined,
-			disposableStore,
-			dispose(): void { disposableStore.dispose(); }
-		};
+			return {
+				item,
+				extensionItem: extensionTreeItem,
+				parent,
+				children: undefined,
+				disposableStore,
+				dispose(): void { disposableStore.dispose(); }
+			};
+		} catch (err) {
+			disposableStore.dispose();
+			throw err;
+		}
 	}
 
 	private _getThemeIcon(extensionTreeItem: vscode.TreeItem): extHostTypes.ThemeIcon | undefined {
@@ -1100,6 +1105,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private _addAllToClear(): void {
+		this._addTreeToClear(this._roots);
 		this._roots = undefined;
 		this._nodes.forEach(node => {
 			this._nodesToClear.add(node);
@@ -1109,11 +1115,23 @@ class ExtHostTreeView<T> extends Disposable {
 		this._childrenFetchTokens.clear();
 	}
 
+	/**
+	 * Adds the given nodes and all their descendants to the nodes to clear. A node replaced in `_nodes` by a node
+	 * for the same element under another parent is only reachable through its parent's children.
+	 */
+	private _addTreeToClear(nodes: readonly TreeNode[] | undefined): void {
+		for (const node of nodes ?? []) {
+			this._nodesToClear.add(node);
+			this._addTreeToClear(node.children);
+		}
+	}
+
 	private _clearNodes(nodes: TreeNode[]): void {
 		dispose(nodes);
 	}
 
 	private _clearAll(): void {
+		this._addTreeToClear(this._roots);
 		this._roots = undefined;
 		this._elements.clear();
 		dispose(this._nodes.values());
@@ -1124,9 +1142,8 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	override dispose() {
-		super.dispose();
-		this._refreshCancellationSource.dispose();
-
 		this._clearAll();
+		this._refreshCancellationSource.dispose();
+		super.dispose();
 	}
 }

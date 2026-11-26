@@ -13,7 +13,20 @@ import { isDefined } from '../../../../../base/common/types.js';
 
 suite('getSecondaryEdits', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves a common prefix containing a surrogate pair', () => {
+		const textModel = store.add(createTextModel('😀a\n😀a'));
+		const positions = [new Position(1, 4), new Position(2, 4)];
+		const primaryEdit = new TextReplacement(new Range(1, 1, 1, 4), '😀ab');
+		const secondaryEdits = getSecondaryEdits(textModel, positions, primaryEdit);
+		const edit = TextEdit.fromParallelReplacementsUnsorted([primaryEdit, ...secondaryEdits.filter(isDefined)]);
+
+		assert.deepStrictEqual({ secondaryEdits, result: edit.applyToString(textModel.getValue()) }, {
+			secondaryEdits: [new TextReplacement(new Range(2, 4, 2, 4), 'b')],
+			result: '😀ab\n😀ab',
+		});
+	});
 
 	test('basic', async function () {
 

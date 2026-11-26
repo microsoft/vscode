@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { RequestError, RequestContext } from '../../common/types.js';
 import { RequestQueue, RequestQueueOptions } from '../../common/requestQueue.js';
+import { RequestContext, RequestError } from '../../common/types.js';
 import { FakeScheduler } from './fakeScheduler.js';
+
 
 function context(overrides: Partial<RequestContext> = {}): RequestContext {
 	return {
@@ -17,7 +20,7 @@ function context(overrides: Partial<RequestContext> = {}): RequestContext {
 		resource: 'core',
 		priority: 'interactive',
 		deadline: 60_000,
-		signal: new AbortController().signal,
+		cancellationToken: CancellationToken.None,
 		...overrides,
 	};
 }
@@ -324,17 +327,17 @@ suite('RequestQueue', () => {
 		test(`reclaims expired active work after a wall-clock jump (dispatched: ${dispatched})`, async () => {
 			const scheduler = store.add(new FakeScheduler());
 			const queue = store.add(new RequestQueue(scheduler, undefined, { maximumRequests: 1 }));
-			const started = new DeferredPromise<AbortSignal>();
+			const started = new DeferredPromise<CancellationToken>();
 			const release = new DeferredPromise<void>();
-			const active = queue.enqueue(context({ deadline: 100 }), async (signal, onDispatch) => {
+			const active = queue.enqueue(context({ deadline: 100 }), async (cancellationToken, onDispatch) => {
 				if (dispatched) {
 					onDispatch();
 				}
-				await started.complete(signal);
+				await started.complete(cancellationToken);
 				await release.p;
 			});
 			const rejected = assert.rejects(active, { kind: 'timeout', requestDispatched: dispatched });
-			const signal = await started.p;
+			const cancellationToken = await started.p;
 			scheduler.advanceWallClockBy(1_000);
 			let freshDispatched = false;
 			const fresh = queue.enqueue(context({ deadline: 2_000 }), async () => { freshDispatched = true; })
@@ -344,7 +347,7 @@ suite('RequestQueue', () => {
 			scheduler.advanceBy(100);
 			await rejected;
 			await release.complete();
-			assert.deepStrictEqual({ aborted: signal.aborted, dispatchedBeforeTimer, outcome: await fresh, timers: scheduler.pendingCount }, {
+			assert.deepStrictEqual({ aborted: cancellationToken.isCancellationRequested, dispatchedBeforeTimer, outcome: await fresh, timers: scheduler.pendingCount }, {
 				aborted: true, dispatchedBeforeTimer: true, outcome: 'completed', timers: 0,
 			});
 		});
@@ -353,19 +356,19 @@ suite('RequestQueue', () => {
 	test('aborts active requests at their deadline and releases capacity', async () => {
 		const scheduler = store.add(new FakeScheduler());
 		const queue = store.add(new RequestQueue(scheduler));
-		const started = new DeferredPromise<AbortSignal>();
+		const started = new DeferredPromise<CancellationToken>();
 		const release = new DeferredPromise<void>();
-		const active = queue.enqueue(context({ deadline: 10 }), async signal => {
-			await started.complete(signal);
+		const active = queue.enqueue(context({ deadline: 10 }), async cancellationToken => {
+			await started.complete(cancellationToken);
 			await release.p;
 		});
 		const rejected = assert.rejects(active, { kind: 'timeout' });
-		const signal = await started.p;
+		const cancellationToken = await started.p;
 		scheduler.advanceBy(10);
 		await rejected;
 		const value = await queue.enqueue(context(), async () => 'next');
 		await release.complete();
-		assert.deepStrictEqual({ aborted: signal.aborted, value, timers: scheduler.pendingCount }, {
+		assert.deepStrictEqual({ aborted: cancellationToken.isCancellationRequested, value, timers: scheduler.pendingCount }, {
 			aborted: true, value: 'next', timers: 0,
 		});
 	});
@@ -373,19 +376,19 @@ suite('RequestQueue', () => {
 	test('rejects an overdue active result before its delayed deadline timer fires', async () => {
 		const scheduler = store.add(new FakeScheduler());
 		const queue = store.add(new RequestQueue(scheduler));
-		const started = new DeferredPromise<AbortSignal>();
+		const started = new DeferredPromise<CancellationToken>();
 		const release = new DeferredPromise<string>();
-		const pending = queue.enqueue(context({ deadline: 20 }), async (signal, onDispatch) => {
+		const pending = queue.enqueue(context({ deadline: 20 }), async (cancellationToken, onDispatch) => {
 			onDispatch();
-			await started.complete(signal);
+			await started.complete(cancellationToken);
 			return release.p;
 		});
 		const rejected = assert.rejects(pending, { kind: 'timeout', requestDispatched: true });
-		const signal = await started.p;
+		const cancellationToken = await started.p;
 		scheduler.advanceWallClockBy(60);
 		await release.complete('too late');
 		await rejected;
-		assert.deepStrictEqual({ aborted: signal.aborted, timers: scheduler.pendingCount }, { aborted: true, timers: 0 });
+		assert.deepStrictEqual({ aborted: cancellationToken.isCancellationRequested, timers: scheduler.pendingCount }, { aborted: true, timers: 0 });
 	});
 
 	test('rejects an overdue active failure as a timeout before its delayed timer fires', async () => {
@@ -409,25 +412,24 @@ suite('RequestQueue', () => {
 	test('cancels parked work and disposes active and pending work', async () => {
 		const scheduler = store.add(new FakeScheduler());
 		const queue = store.add(new RequestQueue(scheduler, request => request.resource === 'search' ? 1_000 : 0, { maximumAccountConcurrency: 1 }));
-		const controller = new AbortController();
+		const controller = store.add(new CancellationTokenSource());
 		let parkedRan = false;
-		const parked = queue.enqueue(context({ resource: 'search', signal: controller.signal }), async () => { parkedRan = true; });
-		const reason = new Error('cancelled');
-		const rejected = assert.rejects(parked, error => error === reason);
-		controller.abort(reason);
+		const parked = queue.enqueue(context({ resource: 'search', cancellationToken: controller.token }), async () => { parkedRan = true; });
+		const rejected = assert.rejects(parked, isCancellationError);
+		controller.cancel();
 		await rejected;
-		const started = new DeferredPromise<AbortSignal>();
+		const started = new DeferredPromise<CancellationToken>();
 		const release = new DeferredPromise<void>();
-		const active = queue.enqueue(context(), async signal => { await started.complete(signal); await release.p; });
+		const active = queue.enqueue(context(), async cancellationToken => { await started.complete(cancellationToken); await release.p; });
 		const pending = queue.enqueue(context(), async () => { parkedRan = true; });
 		const completed = Promise.allSettled([active, pending]);
-		const signal = await started.p;
+		const cancellationToken = await started.p;
 		queue.dispose();
 		await completed;
 		await release.complete();
 		scheduler.advanceBy(100_000);
 		await assert.rejects(queue.enqueue(context(), async () => { }), /disposed/);
-		assert.deepStrictEqual({ parkedRan, aborted: signal.aborted, timers: scheduler.pendingCount }, {
+		assert.deepStrictEqual({ parkedRan, aborted: cancellationToken.isCancellationRequested, timers: scheduler.pendingCount }, {
 			parkedRan: false, aborted: true, timers: 0,
 		});
 	});

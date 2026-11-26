@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
+import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@microsoft/copilot-sdk';
 import { copilotCliConfigSchema, CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';

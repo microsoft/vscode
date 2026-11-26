@@ -36,7 +36,7 @@ interface MultiLanguageContextProviderParams {
 	mlcpEnableImports: boolean;
 }
 
-export const multiLanguageContextProviderParamsDefault: MultiLanguageContextProviderParams = {
+const multiLanguageContextProviderParamsDefault: MultiLanguageContextProviderParams = {
 	mlcpMaxContextItems: 20,
 	mlcpMaxSymbolMatches: 20,
 	mlcpEnableImports: false,
@@ -81,26 +81,6 @@ function getMultiLanguageContextProviderParamsFromExp(
 		} catch (e) {
 			logger.error(logTarget, 'Failed to parse multiLanguageContextProviderParams', e);
 		}
-	}
-
-	return params;
-}
-
-export function getMultiLanguageContextProviderParamsFromActiveExperiments(
-	activeExperiments: Map<string, string | number | boolean | string[]>
-): MultiLanguageContextProviderParams {
-	const params = { ...multiLanguageContextProviderParamsDefault };
-
-	if (activeExperiments.has('mlcpMaxContextItems')) {
-		params.mlcpMaxContextItems = Number(activeExperiments.get('mlcpMaxContextItems'));
-	}
-
-	if (activeExperiments.has('mlcpMaxSymbolMatches')) {
-		params.mlcpMaxSymbolMatches = Number(activeExperiments.get('mlcpMaxSymbolMatches'));
-	}
-
-	if (activeExperiments.has('mlcpEnableImports')) {
-		params.mlcpEnableImports = String(activeExperiments.get('mlcpEnableImports')) === 'true';
 	}
 
 	return params;

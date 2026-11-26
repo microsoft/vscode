@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
+import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
-import { constObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, observableFromEvent, observableFromEventOpts } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -28,13 +29,27 @@ import { AgentHostStateManager } from '../agentHostStateManager.js';
 
 export const IAgentHostArtifactEventService = createDecorator<AgentHostArtifactEventService>('agentHostArtifactEventService');
 
+/** The entries one agent request recorded, promoted or found already recorded in a chat, once the change is persisted. */
+export interface IAgentHostRecordedArtifacts {
+	readonly session: string;
+	readonly chat: string;
+	readonly turnId: string | undefined;
+	readonly artifactIds: readonly string[];
+}
+
 export class AgentHostArtifactEventService extends Disposable {
 	declare readonly _serviceBrand: undefined;
 	private readonly emitter = this._register(new Emitter<ArtifactChatEvent>());
 	readonly onDidChange = this.emitter.event;
+	private readonly recordings = this._register(new Emitter<IAgentHostRecordedArtifacts>());
+	readonly onDidRecordArtifacts = this.recordings.event;
 
 	accept(event: ArtifactChatEvent): void {
 		this.emitter.fire(event);
+	}
+
+	acceptRecordedArtifacts(recorded: IAgentHostRecordedArtifacts): void {
+		this.recordings.fire(recorded);
 	}
 }
 
@@ -45,10 +60,10 @@ type ArtifactChatNotice = SystemNotificationResponsePart & { readonly content: s
  * them, so that it reads the same as the notices it is later merged into.
  */
 function toNoticePart(notice: ArtifactAutomationNotice): ArtifactChatNotice {
-	const changes = notice.changes && notice.enabledRules
-		? { artifactId: notice.artifact.id, artifactLabel: notice.artifact.label, changes: notice.changes, enabledRules: notice.enabledRules }
+	const changes: IArtifactIntegrationNoticeChanges | undefined = notice.changes && notice.enabledRules
+		? { artifactId: notice.artifact.id, artifactLabel: notice.artifact.label, ...(notice.artifactKind ? { artifactKind: notice.artifactKind } : {}), changes: notice.changes, enabledRules: notice.enabledRules }
 		: undefined;
-	return toNoticeResponsePart(changes ? formatArtifactAutomationNotice(changes.artifactLabel, changes.changes, changes.enabledRules) : notice, notice.iconId, changes);
+	return toNoticeResponsePart(changes ? formatArtifactAutomationNotice(changes.artifactLabel, changes.changes, changes.enabledRules, changes.artifactKind) : notice, notice.iconId, changes);
 }
 
 function toNoticeResponsePart({ kind, content }: Pick<ArtifactAutomationNotice, 'kind' | 'content'>, iconId: string | undefined, changes: IArtifactIntegrationNoticeChanges | undefined): ArtifactChatNotice {
@@ -66,9 +81,10 @@ function mergeNoticeParts(previous: SystemNotificationResponsePart, next: System
 	if (!notices) {
 		return undefined;
 	}
-	const merged = { artifactId: later.artifactId, artifactLabel: later.artifactLabel, ...notices };
+	const artifactKind = later.artifactKind ?? earlier.artifactKind;
+	const merged: IArtifactIntegrationNoticeChanges = { artifactId: later.artifactId, artifactLabel: later.artifactLabel, ...(artifactKind ? { artifactKind } : {}), ...notices };
 	const iconId = readArtifactIntegrationNotice(next)?.iconId ?? readArtifactIntegrationNotice(previous)?.iconId;
-	return toNoticeResponsePart(formatArtifactAutomationNotice(merged.artifactLabel, merged.changes, merged.enabledRules), iconId, merged);
+	return toNoticeResponsePart(formatArtifactAutomationNotice(merged.artifactLabel, merged.changes, merged.enabledRules, merged.artifactKind), iconId, merged);
 }
 
 export interface IAgentHostArtifactCallbacks {
@@ -143,6 +159,10 @@ export class AgentHostArtifactRuntime extends Disposable {
 				}
 			},
 			isOwner: () => !this._store.isDisposed,
+			getAgentName: chat => {
+				const provider = stateManager.getChatState(chat)?.provider ?? stateManager.getSessionState(chat)?.provider;
+				return stateManager.rootState.agents.find(agent => agent.provider === provider)?.displayName;
+			},
 			onDidDeleteSession: callbacks.onDidDeleteSession,
 			acquireSession: async session => {
 				const reference = await this.acquire(session, callbacks, (): ArtifactSessionState => {
@@ -158,7 +178,8 @@ export class AgentHostArtifactRuntime extends Disposable {
 					};
 				});
 				return {
-					object: observableFromEvent(this, stateChanges, () => reference.object()),
+					// `stateChanges` fires for every session, so most values equal the previous one.
+					object: observableFromEventOpts({ owner: this, equalsFn: structuralEquals }, stateChanges, () => reference.object()),
 					dispose: () => reference.dispose(),
 				};
 			},

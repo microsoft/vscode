@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { through } from './streams.ts';
 import { basename } from 'path';
 import File from 'vinyl';
 
@@ -23,8 +23,8 @@ const packageJsonMarkerId = 'BUILD_INSERT_PACKAGE_CONFIGURATION';
 // - a `target` is added in `gulpfile.vscode.win32.js`
 // const productJsonMarkerId = 'BUILD_INSERT_PRODUCT_CONFIGURATION';
 
-export function inlineMeta(result: NodeJS.ReadWriteStream, ctx: IInlineMetaContext): NodeJS.ReadWriteStream {
-	return result.pipe(es.through(function (file: File) {
+export function inlineMeta(result: NodeJS.ReadableStream, ctx: IInlineMetaContext): NodeJS.ReadWriteStream {
+	return result.pipe(through(function (file: File) {
 		if (matchesFile(file, ctx)) {
 			let content = file.contents!.toString();
 			let markerFound = false;

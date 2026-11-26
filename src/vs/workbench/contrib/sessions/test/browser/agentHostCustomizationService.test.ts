@@ -11,6 +11,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { MCP_SERVER_LOGS_META_KEY } from '../../../../../platform/agentHost/common/otlp/mcpServerLogsChannel.js';
+import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationType, McpServerStatus, type AgentCustomization, type Customization, type McpServerCustomization, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService, NullLoggerService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -315,6 +317,48 @@ suite('AgentHostCustomizationService', () => {
 		const [mcpServer] = service.getMcpServers(sessionResource);
 
 		assert.deepStrictEqual({ isClientBundled: mcpServer.isClientBundled }, { isClientBundled: true });
+	});
+
+	test('subscribes revealed MCP server diagnostics on the provider connection', async () => {
+		const operations: string[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly onDidReceiveOtlpLogs = Event.None;
+			override async subscribeStateless(resource: URI): Promise<void> {
+				operations.push(`subscribe:${resource.toString()}`);
+			}
+			override unsubscribe(resource: URI): void {
+				operations.push(`unsubscribe:${resource.toString()}`);
+			}
+		}();
+		const server: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'server',
+			uri: 'file:///workspace/.mcp.json',
+			name: 'Server',
+			state: { kind: McpServerStatus.Ready },
+			_meta: { [MCP_SERVER_LOGS_META_KEY]: 'other-logs://tenant/server/{level}' },
+		};
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = 'agenthost-test';
+			override readonly onDidChangeCustomAgents = Event.None;
+			override readonly onDidChangeCustomizations = Event.None;
+			override getBackendSessionResource(): URI { return URI.parse('other-agent://tenant/conversations/opaque-session'); }
+			override getCustomizations(): Customization[] { return [server]; }
+			override getWorkingDirectory(): string | undefined { return undefined; }
+			override getWorkingDirectories(): readonly string[] { return []; }
+			override mapAgentHostResource(resource: URI): URI { return resource; }
+			override getRootConfig() { return undefined; }
+			override getAgentConnection() { return connection; }
+		};
+		const { service, sessionResource } = createSut(provider);
+
+		await service.showMcpServerLog(sessionResource, service.getMcpServers(sessionResource)[0].id);
+		service.dispose();
+
+		assert.deepStrictEqual(operations, [
+			'subscribe:other-logs://tenant/server/info',
+			'unsubscribe:other-logs://tenant/server/info',
+		]);
 	});
 
 	for (const authority of ['local', 'remote-test']) {

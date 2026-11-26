@@ -6,6 +6,8 @@
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ModelRouterEnabledSettingId } from '../../../../../platform/agentHost/common/modelRouterConfig.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -20,11 +22,13 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
-import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
+import { SessionType } from '../../common/chatSessionsService.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID, MODEL_ROUTERS_EDITOR_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ModelsManagementEditor } from './chatManagementEditor.js';
 import { ModelsManagementEditorInput } from './chatManagementEditorInput.js';
+import { ModelRoutersEditorInput } from './modelRoutersEditorInput.js';
 import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IChatWidgetService } from '../chat.js';
@@ -128,20 +132,36 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 					f1: true,
 				});
 			}
-			async run(accessor: ServicesAccessor, searchQuery?: string, sessionType?: string) {
+			async run(accessor: ServicesAccessor, searchQuery?: string, sessionType?: string, editorId?: string) {
 				const editorService = accessor.get(IEditorService);
+				const configurationService = accessor.get(IConfigurationService);
+				const chatEntitlementService = accessor.get(IChatEntitlementService);
 				// Without an explicit harness, use the one the last focused chat selects models for.
-				const fallbackSessionType = accessor.get(IChatWidgetService).lastFocusedWidget?.input.modelTargetSessionType
+				const modelsSessionType = sessionType ?? accessor.get(IChatWidgetService).lastFocusedWidget?.input.modelTargetSessionType
 					?? accessor.get(ICustomizationHarnessService).activeHarness.get();
 				await ensureChatExtensionEnabled(accessor);
 				const pane = await editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true });
 				if (pane instanceof ModelsManagementEditor) {
-					pane.setSessionType(sessionType ?? fallbackSessionType);
+					pane.setSessionType(modelsSessionType);
 					if (searchQuery) {
 						pane.search(searchQuery);
 					}
 				}
-				return pane;
+
+				// Model routers open as a second editor, beside the models of the agent that reads them and beside
+				// every model, in a window that has an editor for them. A search is for the models.
+				const routers = new ModelRoutersEditorInput();
+				const offersRouters = configurationService.getValue(ModelRouterEnabledSettingId) === true
+					&& !chatEntitlementService.sentiment.hidden
+					&& (modelsSessionType === undefined || modelsSessionType === SessionType.AgentHostCopilot)
+					&& !!Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).getEditorPane(routers);
+				if (!offersRouters) {
+					routers.dispose();
+					return pane;
+				}
+				const showRouters = !searchQuery && editorId === MODEL_ROUTERS_EDITOR_ID;
+				const routersPane = await editorService.openEditor(routers, { pinned: true, inactive: !showRouters });
+				return showRouters ? routersPane : pane;
 			}
 		}));
 

@@ -28,7 +28,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAccess.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
-import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
+import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalCanMaximizeContext, EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
 import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isDiffEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -41,6 +41,7 @@ import { OpenWithEditorPicker } from '../../../services/editor/browser/openWithE
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IUntitledDocumentTelemetryService } from '../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
@@ -49,6 +50,7 @@ import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editor
 import { fillActiveEditorSelection, prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { getGroupTransferVeto, getModalToMainTransferVeto, showEditorTransferVeto, transferToNewWindow } from './editorTransferVeto.js';
+import { getEditorTelemetryId } from './editorTelemetry.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -959,6 +961,7 @@ function registerCloseEditorCommands() {
 		const editorService = accessor.get(IEditorService);
 		const editorResolverService = accessor.get(IEditorResolverService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const untitledDocumentTelemetryService = accessor.get(IUntitledDocumentTelemetryService);
 		const textFileService = accessor.get(ITextFileService);
 		const workingCopyService = accessor.get(IWorkingCopyService);
 		const workingCopyEditorService = accessor.get(IWorkingCopyEditorService);
@@ -1040,8 +1043,9 @@ function registerCloseEditorCommands() {
 					comment: 'Identify how a document is reopened';
 					scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
 					ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
-					from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
-					to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
+					from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the editor the resource is switched from if it is a known editor, \'other\' for any other editor, \'none\' if the editor has no ID' };
+					to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the editor the resource is switched to if it is a known editor, \'other\' for any other editor, \'none\' if the editor has no ID' };
+					untitledDocumentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The untitledDocumentId of the untitledDocument events, if the resource is untitled' };
 				};
 
 				type WorkbenchEditorReopenEvent = {
@@ -1049,13 +1053,15 @@ function registerCloseEditorCommands() {
 					ext: string;
 					from: string;
 					to: string;
+					untitledDocumentId: string | undefined;
 				};
 
 				telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
 					scheme: editorToResolve.resource?.scheme ?? '',
 					ext: editorToResolve.resource ? extname(editorToResolve.resource) : '',
-					from: editor.editorId ?? '',
-					to: resolvedEditor.editor.editorId ?? ''
+					from: getEditorTelemetryId(editor.editorId),
+					to: getEditorTelemetryId(resolvedEditor.editor.editorId),
+					untitledDocumentId: untitledDocumentTelemetryService.getUntitledDocumentId(editorToResolve.resource),
 				});
 			}
 		}
@@ -1602,7 +1608,7 @@ function registerModalEditorCommands(): void {
 				title: localize2('toggleModalEditorMaximized', 'Maximize Modal Editor'),
 				category: Categories.View,
 				f1: true,
-				precondition: EditorPartModalContext,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMaximizeContext),
 				icon: Codicon.screenFull,
 				toggled: {
 					condition: EditorPartModalMaximizedContext,
@@ -1611,7 +1617,8 @@ function registerModalEditorCommands(): void {
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',
-					order: 99
+					order: 99,
+					when: EditorPartModalCanMaximizeContext
 				}
 			});
 		}

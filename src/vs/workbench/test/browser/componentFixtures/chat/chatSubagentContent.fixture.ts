@@ -19,13 +19,11 @@ import { editorBackground, editorForeground } from '../../../../../platform/them
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 import { AgentHostSubagentProgress } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSubagentProgress.js';
-import { toolCallStateToInvocation } from '../../../../contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { rawMarkdownToString, toolCallStateToInvocation } from '../../../../contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ToolCallConfirmationReason, ToolCallStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatListItemRenderer } from '../../../../contrib/chat/browser/widget/chatListRenderer.js';
 import { ChatEditorOptions } from '../../../../contrib/chat/browser/widget/chatOptions.js';
-import { ChatSystemNotificationContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { IChatSubagentToolInvocationData } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
 import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
@@ -41,7 +39,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 
 type FusionFixtureState = 'fusion-routing' | 'fusion-single' | 'fusion-cascade' | 'fusion-critique' | 'fusion-failed' | 'fusion-cancelled' | 'fusion-permission';
 
-async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | 'inline' | 'inline-expanded' | 'nested' | 'nested-unavailable' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
+async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | 'inline' | 'inline-expanded' | 'nested' | 'nested-unavailable' | 'references' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = 620;
 	const instantiationService = createEditorServices(disposableStore, {
@@ -239,7 +237,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			kind: 'subagent',
 			hasStarted: false,
 			description,
-			chatResource: `ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/review-${index}`,
+			chatResource: state === 'references' ? `ahp-chat:/11111111-1111-5111-8111-11111111111${index}` : `ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/review-${index}`,
 			agentName: 'code-review',
 			isChatAvailable: state === 'initializing',
 			isActive: false,
@@ -260,6 +258,37 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	);
 	await normalTool.didExecuteTool(undefined);
 	publisher.publish([normalTool]);
+	if (state === 'references') {
+		for (const [index, invocation] of launches.entries()) {
+			const data = invocation.toolSpecificData;
+			if (data?.kind !== 'subagent' || !data.chatResource || !data.description) {
+				throw new Error('Missing fixture subagent chat');
+			}
+			data.hasStarted = true;
+			data.isChatAvailable = true;
+			invocation.notifyToolSpecificDataChanged();
+			const link = new MarkdownString().appendLink(data.chatResource, data.description).value;
+			publisher.publish([{ kind: 'systemNotification', content: rawMarkdownToString(`${link} completed`, 'local') }]);
+			const read = new ChatToolInvocation(
+				{ invocationMessage: rawMarkdownToString(`Read agent ${link}`, 'local'), pastTenseMessage: rawMarkdownToString(`Read agent ${link}`, 'local'), toolSpecificData: { kind: 'input', rawInput: { agent_id: `review-${index}` } } },
+				{ id: 'read_agent', displayName: 'Read Agent', modelDescription: 'Read Agent', source: ToolDataSource.Internal },
+				`read-${index}`, undefined, {},
+			);
+			await read.didExecuteTool({ content: [], toolResultDetails: { input: '{}', output: [] } });
+			publisher.publish([read]);
+			const write = new ChatToolInvocation(
+				{ invocationMessage: rawMarkdownToString(`Write to agent ${link}`, 'local'), pastTenseMessage: rawMarkdownToString(`Write to agent ${link}`, 'local'), toolSpecificData: { kind: 'input', rawInput: { agent_id: `review-${index}` } } },
+				{ id: 'write_agent', displayName: 'Write to Agent', modelDescription: 'Write to Agent', source: ToolDataSource.Internal },
+				`write-${index}`, undefined, {},
+			);
+			if (index === 0) {
+				await write.didExecuteTool({ content: [], toolResultDetails: { input: '{}', output: [] } });
+			}
+			publisher.publish([write]);
+		}
+		publisher.publish([{ kind: 'markdownContent', content: new MarkdownString('Continuing the review with both agents.') }]);
+		return;
+	}
 	if (state === 'parent-complete') {
 		request.response?.complete();
 	}
@@ -315,27 +344,6 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	}
 }
 
-function renderCompletionNotices(context: ComponentFixtureContext): void {
-	const { container, disposableStore } = context;
-	const instantiationService = createEditorServices(disposableStore, {
-		colorTheme: context.theme,
-		additionalServices: registerChatFixtureServices,
-	});
-	container.classList.add('interactive-session');
-	container.style.width = '620px';
-	container.style.padding = '12px';
-	const transcript = dom.append(container, dom.$('.interactive-item-container'));
-	const renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
-	for (const content of [
-		'Background agent `Renderer reviewer` is complete',
-		'Background agent `History reviewer` completed',
-		'Background agent `Lifecycle reviewer` failed',
-	]) {
-		const part = disposableStore.add(instantiationService.createInstance(ChatSystemNotificationContentPart, { kind: 'systemNotification', content: new MarkdownString(content) }, renderer));
-		transcript.appendChild(part.domNode);
-	}
-}
-
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	FusionRouting: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-routing') }),
 	FusionSingle: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-single') }),
@@ -352,7 +360,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Inline: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'inline') }),
 	InlineExpanded: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'inline-expanded') }),
 	StartedAfterParentComplete: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'parent-complete') }),
-	CompletionNotices: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderCompletionNotices }),
+	CompletionNotices: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'references') }),
 	ThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking') }),
 	ReadOnlyThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking', true) }),
 	CollapsedThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking', false, ThinkingDisplayMode.Collapsed) }),

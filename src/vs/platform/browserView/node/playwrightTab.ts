@@ -14,6 +14,9 @@ import { IPlaywrightActionScope } from './playwrightService.js';
 
 type IAiAriaSnapshotOptions = NonNullable<Parameters<playwright.Locator['ariaSnapshot']>[0]> & { _track?: string };
 
+/** How long an action waits at most for the frames to process its input, see `waitForTriggeredDialogs`. */
+const triggeredDialogWaitMs = 1000;
+
 declare module 'playwright-core' {
 	interface Page {
 		// We defined this here to be able to use the unofficial `_track` option
@@ -30,6 +33,13 @@ export class DialogInterruptedError extends Error {
 	constructor() {
 		super('Action was interrupted by a dialog');
 		this.name = 'DialogInterruptedError';
+	}
+}
+
+/** A reply that lets the page open its next dialog has succeeded: the summary that follows reports that dialog. */
+function ignoreNextDialog(error: unknown): void {
+	if (!(error instanceof DialogInterruptedError)) {
+		throw error;
 	}
 }
 
@@ -99,7 +109,7 @@ export class PlaywrightTab {
 			} else {
 				await dialog.dismiss();
 			}
-		});
+		}).catch(ignoreNextDialog);
 	}
 
 	private _handleFileChooser(chooser: playwright.FileChooser) {
@@ -112,7 +122,7 @@ export class PlaywrightTab {
 		}
 		const chooser = this._fileChooser;
 		this._fileChooser = undefined;
-		await this.safeRunAgainstPage(() => chooser.setFiles(files));
+		await this.safeRunAgainstPage(() => chooser.setFiles(files)).catch(ignoreNextDialog);
 	}
 
 	private async _handleDownload(download: playwright.Download) {
@@ -249,6 +259,32 @@ export class PlaywrightTab {
 		return page.ariaSnapshot(options);
 	}
 
+	/**
+	 * Waits until every frame has processed the input that an action sent, so that a dialog the input opened
+	 * is reported with the action rather than after it.
+	 *
+	 * An action can resolve before the page runs its input's handlers, for example before a click's `onclick`
+	 * calls `alert()`, or before a dialog's reply lets the page continue to its next dialog. A dialog then only
+	 * opens once the action has already been reported as complete. One evaluation per frame runs after that
+	 * input. While a dialog is open or pending, evaluations wait for it (the dialog barrier in the browser view
+	 * debugger), so the race in {@link safeRunAgainstPage} against the dialog opening sees it first. Actions that
+	 * open no dialog pay one parallel round trip per frame. The wait is capped, so a frame that never answers
+	 * doesn't hold the action, and ends once `token` is cancelled.
+	 */
+	private async waitForTriggeredDialogs(token: CancellationToken): Promise<void> {
+		const frames = Promise.all(this.page.frames().map(frame => frame.evaluate(() => undefined).catch(() => undefined)));
+		const deadline = timeout(triggeredDialogWaitMs);
+		// A dialog that opens wins the race in `safeRunAgainstPage` and cancels the action, which ends this wait too.
+		const cancellation = token.onCancellationRequested(() => deadline.cancel());
+		try {
+			await raceCancellablePromises<unknown>([frames, deadline]);
+		} catch {
+			// Cancelled
+		} finally {
+			cancellation.dispose();
+		}
+	}
+
 	private async runAndWaitForCompletion<T>(callback: (token: CancellationToken) => Promise<T>, token = CancellationToken.None): Promise<T> {
 		const requests: playwright.Request[] = [];
 
@@ -268,19 +304,19 @@ export class PlaywrightTab {
 		const requestedNavigation = requests.some(request => request.isNavigationRequest());
 		if (requestedNavigation) {
 			await this.page.mainFrame().waitForLoadState('load', { timeout: 10000 }).catch(() => { });
-			return result;
+		} else {
+			const promises: Promise<unknown>[] = [];
+			for (const request of requests) {
+				if (['document', 'stylesheet', 'script', 'xhr', 'fetch'].includes(request.resourceType())) { promises.push(request.response().then(r => r?.finished()).catch(() => { })); }
+				else { promises.push(request.response().catch(() => { })); }
+			}
+			await raceCancellablePromises<unknown>([
+				Promise.all(promises),
+				timeout(5000) // Don't wait indefinitely for requests to finish
+			]);
 		}
 
-		const promises: Promise<unknown>[] = [];
-		for (const request of requests) {
-			if (['document', 'stylesheet', 'script', 'xhr', 'fetch'].includes(request.resourceType())) { promises.push(request.response().then(r => r?.finished()).catch(() => { })); }
-			else { promises.push(request.response().catch(() => { })); }
-		}
-		await raceCancellablePromises<unknown>([
-			Promise.all(promises),
-			timeout(5000) // Don't wait indefinitely for requests to finish
-		]);
-
+		await this.waitForTriggeredDialogs(token);
 		return result;
 	}
 }

@@ -161,10 +161,12 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		private readonly random: () => number = Math.random,
 	) {
 		super();
-		this.refreshScheduler = this._register(new RunOnceScheduler(
-			() => this.renderCodicons(this.element.clientWidth, this.element.clientHeight),
-			0
-		));
+		this.refreshScheduler = this._register(new RunOnceScheduler(() => {
+			// Reading the element size forces a layout, so only do it when there are codicons to lay out.
+			if (this.background?.kind === 'codicons') {
+				this.renderCodicons(this.element.clientWidth, this.element.clientHeight);
+			}
+		}, 0));
 
 		this.backgroundLayer = $('.sessions-chat-background');
 		this.backgroundLayer.ariaHidden = 'true';

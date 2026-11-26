@@ -27,6 +27,7 @@ import { WebviewThemeDataProvider } from '../../../../webview/browser/themeing.j
 import { IWebviewElement, IWebviewService, WebviewContentPurpose } from '../../../../webview/browser/webview.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IChatLayoutService } from '../../../common/widget/chatLayoutService.js';
+import { getClosedCodeFenceInfo } from '../../../common/widget/codeFence.js';
 import { delegateWebviewScrollToChatWidget } from '../../chatOutputItemRenderer.js';
 import { openChatTurnFile, previewKind } from '../chatTurnPills.js';
 import { IDisposableReference } from './chatCollections.js';
@@ -39,15 +40,7 @@ import { CodeBlockPart, ICodeBlockData } from './codeBlockPart.js';
 import './media/chatHtmlPreviewPart.css';
 
 export function isHtmlPreviewCodeBlock(languageId: string, raw: string | undefined): boolean {
-	if (languageId.toLowerCase() !== 'html-preview' || !raw) {
-		return false;
-	}
-
-	const opening = /^ {0,3}(?<fence>`{3,}|~{3,})/.exec(raw)?.groups?.fence;
-	const closing = /\n {0,3}(?<fence>`{3,}|~{3,}) *(?:\r?\n)*$/.exec(raw)?.groups?.fence;
-	return !!opening && !!closing
-		&& closing.length >= opening.length
-		&& [...closing].every(character => character === opening[0]);
+	return languageId.toLowerCase() === 'html-preview' && getClosedCodeFenceInfo(raw) !== undefined;
 }
 
 export class ChatHtmlPreviewPart extends Disposable {

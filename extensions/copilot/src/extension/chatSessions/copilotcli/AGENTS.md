@@ -279,7 +279,7 @@ Orchestrates the start and end of each chat request turn, coordinating worktree 
 │ - Commit   │ │ - Track   │ │   checkpts  │ │ - Workspace folder   │
 │ - Cleanup  │ │ - Stage   │ │ - Post-turn │ │ - Repo properties    │
 │ - Archive  │ │ - Changes │ │   checkpts  │ │ - Mode instructions  │
-│ - Unarchive│ │ - Clear   │ │ - Multi-root│ │ - Checkpoint refs    │
+│ - Unarchive│ │ - Clear   │ │             │ │ - Checkpoint refs    │
 └────────────┘ └───────────┘ └─────────────┘ └──────────────────────┘
        │          │              │             │
        └──────────┴──────────────┴─────────────┘
@@ -290,8 +290,6 @@ Orchestrates the start and end of each chat request turn, coordinating worktree 
               │                      │
               │ - Init flow          │
               │ - Trust verification │
-              │ - Multi-root batch   │
-              │ - MRU tracking       │
               │ - Isolation mode     │
               └──────────────────────┘
 ```

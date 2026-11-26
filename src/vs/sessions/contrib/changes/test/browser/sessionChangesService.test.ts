@@ -288,7 +288,7 @@ suite('SessionChangesService', () => {
 
 	test('selects the requested changeset before opening the editor', async () => {
 		const selections: object[] = [];
-		const opened: { readonly multiDiffSource: string; readonly preserveFocus: boolean | undefined }[] = [];
+		const opened: { readonly multiDiffSource: string; readonly preserveFocus: boolean | undefined; readonly showFileList: boolean | undefined }[] = [];
 		const editorService = new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const editor = args[0];
@@ -296,6 +296,7 @@ suite('SessionChangesService', () => {
 					opened.push({
 						multiDiffSource: editor.multiDiffSource?.toString() ?? '',
 						preserveFocus: editor.options?.preserveFocus,
+						showFileList: editor.showFileList,
 					});
 				}
 				return undefined;
@@ -344,14 +345,17 @@ suite('SessionChangesService', () => {
 				{
 					multiDiffSource: 'changes-multi-diff-source:?%7B%22sessionResource%22%3A%22agent-host%3Atest-session%22%7D',
 					preserveFocus: true,
+					showFileList: false,
 				},
 				{
 					multiDiffSource: 'changes-multi-diff-source:?%7B%22sessionResource%22%3A%22agent-host%3Atest-session%22%7D',
 					preserveFocus: undefined,
+					showFileList: false,
 				},
 				{
 					multiDiffSource: 'changes-multi-diff-source:?%7B%22sessionResource%22%3A%22agent-host%3Atest-session%22%7D',
 					preserveFocus: undefined,
+					showFileList: false,
 				},
 			],
 		});

@@ -181,6 +181,9 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		const pane = await this.editorService.openEditor({
 			multiDiffSource,
 			label: localize('sessions.changes.title', 'Session Changes'),
+			// The Agents window shows the changed
+			// files of the session in its own way.
+			showFileList: false,
 			options: editorOptions,
 		}, group);
 		await this.expandRevealTarget(pane?.input, editorOptions);

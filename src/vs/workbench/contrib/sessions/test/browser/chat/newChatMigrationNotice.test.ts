@@ -37,6 +37,7 @@ import { ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../..
 import { NewChatMigrationNotice } from '../../../browser/chat/newChatMigrationNotice.js';
 import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, NewSessionBannerPriority, NewSessionBanners } from '../../../common/newSessionBanners.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 
 class TestMigrationService extends mock<ICustomizationMigrationService>() {
 	readonly requests: { resource: URI; token?: CancellationToken; ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] }[] = [];
@@ -129,6 +130,7 @@ suite('NewChatMigrationNotice', () => {
 		instantiation.stub(ILogService, { error: (...args: unknown[]) => { errors.push(args); } });
 		instantiation.stub(IHoverService, new class extends mock<IHoverService>() { }());
 		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() { }());
+		instantiation.stub(IWorkbenchLayoutService, { mainContainer: dom.$('div'), onDidLayoutMainContainer: Event.None });
 		const setCreatedSessions = (count: number) => storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, count, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		setCreatedSessions(createdSessions);
 		const banners = store.add(new NewSessionBanners(storage));
@@ -318,6 +320,7 @@ suite('NewChatMigrationNotice', () => {
 		const pending = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		env.migrations.result = resource => resource.path === '/one' ? pending.p : Promise.resolve(undefined);
 		const notice = env.create();
+		await timeout(0);
 		env.session.set(createSession('two'), undefined);
 		await timeout(0);
 		await pending.complete({
@@ -383,6 +386,7 @@ suite('NewChatMigrationNotice', () => {
 		const earlyResult = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		env.migrations.result = async () => earlyResult.p;
 		env.changed.fire();
+		await timeout(0);
 		loading.set(true, undefined);
 		const whileLoading = snapshot(notice).visible;
 		env.session.set(draft('replacement'), undefined);

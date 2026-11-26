@@ -6,10 +6,11 @@
 import { realpath } from 'fs/promises';
 import { raceTimeout } from '../../base/common/async.js';
 import { Event } from '../../base/common/event.js';
+import { isWindows } from '../../base/common/platform.js';
 import { isObject, isStringArray } from '../../base/common/types.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
-import { IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
 import { reportAgentHostProcessError } from '../../platform/agentHost/common/agentHostProcessTelemetry.js';
 import type { IAgentHostProcessExitEvent } from '../../platform/agentHost/common/agentHostProcessExit.js';
 import { AgentHostLaunchKind } from '../../platform/agentHost/common/agentHostTelemetry.js';
@@ -93,14 +94,16 @@ export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IServerGit
 	if (optionalRoots?.some(root => !roots.includes(root) || projects?.includes(root) || root === defaultDirectory)) {
 		throw new Error('Invalid optional GitHub environment roots');
 	}
+	// Node realpath rejects the extended-prefix drive roots produced by Rust canonicalize.
+	const normalizeDriveRoot = (path: string) => isWindows && /^\\\\\?\\[a-zA-Z]:\\$/.test(path) ? path.slice(4) : path;
 	return {
 		baseUrl: options.baseUrl,
 		accountId: options.accountId,
 		credential: options.credential,
-		roots,
-		...(optionalRoots !== undefined ? { optionalRoots } : {}),
-		...(projects !== undefined ? { projects } : {}),
-		...(defaultDirectory !== undefined ? { defaultDirectory } : {}),
+		roots: roots.map(normalizeDriveRoot),
+		...(optionalRoots !== undefined ? { optionalRoots: optionalRoots.map(normalizeDriveRoot) } : {}),
+		...(projects !== undefined ? { projects: projects.map(normalizeDriveRoot) } : {}),
+		...(defaultDirectory !== undefined ? { defaultDirectory: normalizeDriveRoot(defaultDirectory) } : {}),
 		name,
 		live: true,
 	};
@@ -113,6 +116,7 @@ export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IServerGit
  */
 interface IConnectionTrackerService {
 	readonly onDidChangeConnectionCount: Event<number>;
+	readonly onDidChangeGitHubEnvironmentRegistered: Event<boolean>;
 	waitForConfiguredWebSocketServer(): Promise<void>;
 }
 
@@ -131,11 +135,12 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 	private readonly _connectionStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _startMode: 'eager' | 'lazy';
 
-	/** Lifetime token held while sessions are active or standalone WebSocket clients are connected. */
+	/** Lifetime token held while sessions are active, standalone WebSocket clients are connected, or a client registered a GitHub environment. */
 	private readonly _lifetimeToken = this._register(new MutableDisposable());
 
 	private _hasActiveSessions = false;
 	private _connectionCount = 0;
+	private _githubEnvironmentRegistered = false;
 
 	constructor(
 		private readonly _starter: IAgentHostStarter,
@@ -228,8 +233,14 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		try {
 			await this._trackClientConnections(connection);
 			if (this._options.githubEnvironment) {
+				const options = await this._getGithubEnvironmentOptions(this._options.githubEnvironment);
 				const management = ProxyChannel.toService<IAgentHostManagementService>(connection.client.getChannel(AgentHostIpcChannels.Management));
-				const result = await management.configureMissionControl(await this._getGithubEnvironmentOptions(this._options.githubEnvironment));
+				await management.setHostExecutionCredentials([GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE].map(resource => ({
+					resource: resource.resource,
+					scopes: resource.scopes_supported,
+					token: options.credential,
+				})));
+				const result = await management.configureMissionControl(options);
 				if (result) {
 					throw reviveConnectionDiagnosticError(result.error);
 				}
@@ -277,7 +288,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			}
 			roots.push(root);
 		}
-		return { ...configuration, roots };
+		return { ...configuration, roots, useLocalCredentials: true };
 	}
 
 	private _handleUnexpectedExit(connection: IAgentHostConnection, e: IAgentHostProcessExitEvent): void {
@@ -287,6 +298,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 		this._hasActiveSessions = false;
 		this._connectionCount = 0;
+		this._githubEnvironmentRegistered = false;
 		this._lifetimeToken.clear();
 
 		const willRestart = this._restartCount < Constants.MaxRestarts;
@@ -362,11 +374,15 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			this._connectionCount = count;
 			this._updateLifetimeToken();
 		}));
+		connection.store.add(connectionTracker.onDidChangeGitHubEnvironmentRegistered(registered => {
+			this._githubEnvironmentRegistered = registered;
+			this._updateLifetimeToken();
+		}));
 		await connectionTracker.waitForConfiguredWebSocketServer();
 	}
 
 	private _updateLifetimeToken(): void {
-		if (this._hasActiveSessions || this._connectionCount > 0) {
+		if (this._hasActiveSessions || this._connectionCount > 0 || this._githubEnvironmentRegistered) {
 			this._lifetimeToken.value ??= this._serverLifetimeService.active('AgentHost');
 		} else {
 			this._lifetimeToken.clear();

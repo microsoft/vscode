@@ -361,6 +361,22 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._onDidResize.fire(dimension);
 	}
 
+	/**
+	 * Resolves once the reply has its final content, which can be after {@link display} resolves. Until then, the
+	 * thread can be shorter than it will be.
+	 */
+	async whenReplyInitialized(): Promise<void> {
+		await this._commentReply?.whenInitialized;
+	}
+
+	/**
+	 * Focuses the reply if it was to take focus before the thread was in the document, such as when the thread is shown
+	 * only once its reply is initialized.
+	 */
+	focusReplyIfPending(): void {
+		this._commentReply?.focusIfPending();
+	}
+
 	override dispose() {
 		super.dispose();
 		dispose(this._commentThreadDisposables);

@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { NotebookCellData, NotebookCellKind, NotebookData, NotebookRange, Range } from '../../../../vscodeTypes';
-import { createAlternativeNotebookDocument, createAlternativeNotebookDocumentSnapshot, IAlternativeNotebookDocument, IAlternativeNotebookDocumentSnapshot, toAltNotebookCellChangeEdit, toAltNotebookChangeEdit } from '../../common/alternativeNotebookTextDocument';
+import { createAlternativeNotebookDocument, IAlternativeNotebookDocument, toAltNotebookCellChangeEdit, toAltNotebookChangeEdit } from '../../common/alternativeNotebookTextDocument';
 
 describe('Alternative Notebook (text) Content', () => {
 	const disposables = new DisposableStore();
@@ -21,11 +21,9 @@ describe('Alternative Notebook (text) Content', () => {
 
 	function createNotebook(cells: NotebookCellData[], withMarkdownCells: boolean = false) {
 		const notebook = ExtHostNotebookDocumentData.fromNotebookData(URI.file('notebook.ipynb'), new NotebookData(cells), 'jupyter-notebook');
-		const altDocSnapshot = createAlternativeNotebookDocumentSnapshot(notebook.document, !withMarkdownCells);
 		const altDoc = createAlternativeNotebookDocument(notebook.document, !withMarkdownCells);
 
-		expect(altDocSnapshot.getText()).toBe(altDoc.getText());
-		return { notebookData: notebook, notebook: notebook.document, altDocSnapshot, altDoc };
+		return { notebookData: notebook, notebook: notebook.document, altDoc };
 	}
 	[true, false].forEach(withMarkdownCells => {
 		describe(`Alt Content ${withMarkdownCells ? 'with' : 'without'} Markdown Cells`, () => {
@@ -47,7 +45,7 @@ describe('Alternative Notebook (text) Content', () => {
 			];
 			for (const [name, cells] of cases) {
 				test(name, async () => {
-					const { altDocSnapshot } = createNotebook(cells, withMarkdownCells);
+					const { altDoc: altDocSnapshot } = createNotebook(cells, withMarkdownCells);
 					expect(altDocSnapshot.getText()).toMatchSnapshot();
 				});
 			}
@@ -58,7 +56,7 @@ describe('Alternative Notebook (text) Content', () => {
 					new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\r\nprint("Foo Bar")\r\nprint("Bar Baz")', 'python'),
 					new NotebookCellData(NotebookCellKind.Code, 'print(sys.executable)\nprint(sys.version)', 'python'),
 				];
-				const { altDocSnapshot } = createNotebook(cells, withMarkdownCells);
+				const { altDoc: altDocSnapshot } = createNotebook(cells, withMarkdownCells);
 
 				expect(altDocSnapshot.getText()).toMatchSnapshot();
 
@@ -75,7 +73,7 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\nprint("Foo Bar")\nprint("Bar Baz")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print(sys.executable)\nprint(sys.version)', 'python'),
 			];
-			const { notebook, altDocSnapshot } = createNotebook(cells);
+			const { notebook, altDoc: altDocSnapshot } = createNotebook(cells);
 
 			expect(altDocSnapshot.getText(new OffsetRange(53, 53))).toBe('');
 			expect(altDocSnapshot.fromAltOffsetRange(new OffsetRange(53, 53))).toEqual([[notebook.cellAt(0), new Range(0, 0, 0, 0)]]);
@@ -173,7 +171,7 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\nprint("Foo Bar")\nprint("Bar Baz")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print(sys.executable)\nprint(sys.version)', 'python'),
 			];
-			const { notebook, altDocSnapshot } = createNotebook(cells);
+			const { notebook, altDoc: altDocSnapshot } = createNotebook(cells);
 
 			expect(altDocSnapshot.getText(new OffsetRange(53, 53))).toBe('');
 			expect(altDocSnapshot.fromAltOffsetRange(new OffsetRange(53, 53))).toEqual([[notebook.cellAt(2), new Range(0, 0, 0, 0)]]);
@@ -271,7 +269,7 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\nprint("Foo Bar")\nprint("Bar Baz")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print(sys.executable)\nprint(sys.version)', 'python'),
 			];
-			const { notebook, altDocSnapshot } = createNotebook(cells, true);
+			const { notebook, altDoc: altDocSnapshot } = createNotebook(cells, true);
 
 			expect(altDocSnapshot.getText(new OffsetRange(59, 59))).toBe('');
 			expect(altDocSnapshot.fromAltOffsetRange(new OffsetRange(59, 59))).toEqual([[notebook.cellAt(0), new Range(0, 0, 0, 0)]]);
@@ -381,7 +379,7 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\r\nprint("Foo Bar")\r\nprint("Bar Baz")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print(sys.executable)\nprint(sys.version)', 'python'),
 			];
-			const { notebook, altDocSnapshot } = createNotebook(cells);
+			const { notebook, altDoc: altDocSnapshot } = createNotebook(cells);
 
 
 			expect(altDocSnapshot.getText(new OffsetRange(53, 59))).toBe('import');
@@ -457,21 +455,19 @@ describe('Alternative Notebook (text) Content', () => {
 			const cells = [
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: TextDocumentChangeEvent): string {
-				const newDoc = altDocSnapshot.withCellChanges(e.document, e.contentChanges);
-				const edit = toAltNotebookCellChangeEdit(altDocSnapshot, e.document, e.contentChanges);
-				const updatedAltText = newDoc.getText();
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookCellChangeEdit(altDoc, e.document, e.contentChanges);
 				altDoc.applyCellChanges(e.document, e.contentChanges);
+				const updatedAltText = altDoc.getText();
 
 				// Verify the alt text is updated correctly
-				expect(updatedAltText).toBe(edit!.apply(altDocSnapshot.getText()));
-				expect(updatedAltText).toBe(altDoc.getText());
+				expect(updatedAltText).toBe(edit.apply(originalText));
 
 				return updatedAltText;
 			}
@@ -500,21 +496,19 @@ describe('Alternative Notebook (text) Content', () => {
 			const cells = [
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\r\nprint("Foo Bar")\r\nprint("Bar Baz")\r\nprint("Something Else")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: TextDocumentChangeEvent): string {
-				const newDoc = altDocSnapshot.withCellChanges(e.document, e.contentChanges);
-				const edit = toAltNotebookCellChangeEdit(altDocSnapshot, e.document, e.contentChanges);
-				const updatedAltText = newDoc.getText();
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookCellChangeEdit(altDoc, e.document, e.contentChanges);
 				altDoc.applyCellChanges(e.document, e.contentChanges);
+				const updatedAltText = altDoc.getText();
 
 				// Verify the alt text is updated correctly
-				expect(updatedAltText).toBe(edit!.apply(altDocSnapshot.getText()));
-				expect(updatedAltText).toBe(altDoc.getText());
+				expect(updatedAltText).toBe(edit.apply(originalText));
 				return updatedAltText;
 			}
 			const cases: [name: string, contentChanges: TextDocumentContentChangeEvent[]][] = [
@@ -549,21 +543,20 @@ describe('Alternative Notebook (text) Content', () => {
 			const cells = [
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\nprint("Foo Bar")\nprint("Bar Baz")\nprint("Something Else")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: TextDocumentChangeEvent): string {
-				const newDoc = altDocSnapshot.withCellChanges(e.document, e.contentChanges);
-				const edit = toAltNotebookCellChangeEdit(altDocSnapshot, e.document, e.contentChanges);
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookCellChangeEdit(altDoc, e.document, e.contentChanges);
 				altDoc.applyCellChanges(e.document, e.contentChanges);
 
-				const updatedAltText = newDoc.getText();
+				const updatedAltText = altDoc.getText();
 
 				// Verify the alt text is updated correctly
-				expect(updatedAltText).toBe(edit!.apply(altDocSnapshot.getText()));
+				expect(updatedAltText).toBe(edit.apply(originalText));
 
 				return updatedAltText;
 			}
@@ -601,21 +594,19 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Bar Baz")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\nprint("Foo Bar2")\nprint("Bar Baz2")\nprint("Something Else")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: TextDocumentChangeEvent): string {
-				const newDoc = altDocSnapshot.withCellChanges(e.document, e.contentChanges);
-				const edit = toAltNotebookCellChangeEdit(altDocSnapshot, e.document, e.contentChanges);
-				const updatedAltText = newDoc.getText();
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookCellChangeEdit(altDoc, e.document, e.contentChanges);
 				altDoc.applyCellChanges(e.document, e.contentChanges);
+				const updatedAltText = altDoc.getText();
 
 				// Verify the alt text is updated correctly
-				expect(updatedAltText).toBe(edit!.apply(altDocSnapshot.getText()));
-				expect(updatedAltText).toBe(altDoc.getText());
+				expect(updatedAltText).toBe(edit.apply(originalText));
 
 				return updatedAltText;
 			}
@@ -775,23 +766,20 @@ describe('Alternative Notebook (text) Content', () => {
 			const cells = [
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: NotebookDocumentContentChange[]): string {
-				const originalText = altDocSnapshot.getText();
-				const newDoc = altDocSnapshot.withNotebookChanges(e);
-				const edit = toAltNotebookChangeEdit(altDocSnapshot, e);
-				const updatedAltText = newDoc.getText();
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookChangeEdit(altDoc, e);
 				altDoc.applyNotebookChanges(e);
+				const updatedAltText = altDoc.getText();
 				if (edit) {
 					// Verify the edit is generated correctly
 					expect(edit.apply(originalText)).toBe(updatedAltText);
 				}
-				expect(altDoc.getText()).toBe(updatedAltText);
 				return updatedAltText;
 			}
 			test(`remove cell`, async () => {
@@ -847,23 +835,20 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\r\nprint("Foo Bar")\r\nprint("Bar Baz")\r\nprint("Something Else")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: NotebookDocumentContentChange[]): string {
-				const originalText = altDocSnapshot.getText();
-				const newDoc = altDocSnapshot.withNotebookChanges(e);
-				const edit = toAltNotebookChangeEdit(altDocSnapshot, e);
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookChangeEdit(altDoc, e);
 				altDoc.applyNotebookChanges(e);
-				const updatedAltText = newDoc.getText();
+				const updatedAltText = altDoc.getText();
 				if (edit) {
 					// Verify the edit is generated correctly
 					expect(edit.apply(originalText)).toBe(updatedAltText);
 				}
-				expect(altDoc.getText()).toBe(updatedAltText);
 				return updatedAltText;
 			}
 			test(`remove first cell`, async () => {

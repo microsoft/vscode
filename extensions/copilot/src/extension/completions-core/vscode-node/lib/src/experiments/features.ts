@@ -34,7 +34,6 @@ export class Features implements ICompletionsFeaturesService {
 	declare _serviceBrand: undefined;
 
 	private readonly includeNeighboringFilesDefault: Map<string, boolean>;
-	private readonly excludeRelatedFilesDefault: Map<string, boolean>;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -42,7 +41,6 @@ export class Features implements ICompletionsFeaturesService {
 		@ICompletionsCopilotTokenManager private readonly copilotTokenManager: ICompletionsCopilotTokenManager,
 	) {
 		this.includeNeighboringFilesDefault = new Map<string, boolean>();
-		this.excludeRelatedFilesDefault = new Map<string, boolean>();
 	}
 
 	/**
@@ -238,10 +236,6 @@ export class Features implements ICompletionsFeaturesService {
 		return chat?.includeNeighboringFiles ?? this.includeNeighboringFilesDefault.get(languageId) ?? false;
 	}
 
-	setExcludeRelatedFilesDefault(languageId: string, exclude: boolean): void {
-		this.excludeRelatedFilesDefault.set(languageId, exclude);
-	}
-
 	excludeRelatedFiles(languageId: string, telemetryWithExp: TelemetryWithExp): boolean {
 		const client = (
 			(telemetryWithExp.filtersAndExp.exp.variables[ExpTreatmentVariables.ExcludeRelatedFiles] as boolean) ??
@@ -251,7 +245,7 @@ export class Features implements ICompletionsFeaturesService {
 			return true;
 		}
 		const chat = this.getContextProviderExpSettings(languageId);
-		return chat?.excludeRelatedFiles ?? this.excludeRelatedFilesDefault.get(languageId) ?? false;
+		return chat?.excludeRelatedFiles ?? false;
 	}
 
 	getContextProviderExpSettings(languageId: string): ContextProviderExpSettings | undefined {
@@ -298,20 +292,6 @@ export class Features implements ICompletionsFeaturesService {
 		);
 	}
 
-	stableContextPercent(telemetryWithExp: TelemetryWithExp): number {
-		return (
-			(telemetryWithExp.filtersAndExp.exp.variables[ExpTreatmentVariables.StableContextPercent] as number) ??
-			DEFAULT_PROMPT_ALLOCATION_PERCENT.stableContext
-		);
-	}
-
-	volatileContextPercent(telemetryWithExp: TelemetryWithExp): number {
-		return (
-			(telemetryWithExp.filtersAndExp.exp.variables[ExpTreatmentVariables.VolatileContextPercent] as number) ??
-			DEFAULT_PROMPT_ALLOCATION_PERCENT.volatileContext
-		);
-	}
-
 	/** Custom parameters for language specific Context Providers. */
 	cppContextProviderParams(telemetryWithExp: TelemetryWithExp): string | undefined {
 		const cppContextProviderParams = telemetryWithExp.filtersAndExp.exp.variables[
@@ -325,13 +305,6 @@ export class Features implements ICompletionsFeaturesService {
 			ExpTreatmentVariables.CSharpContextProviderParams
 		] as string;
 		return csharpContextProviderParams;
-	}
-
-	javaContextProviderParams(telemetryWithExp: TelemetryWithExp): string | undefined {
-		const javaContextProviderParams = telemetryWithExp.filtersAndExp.exp.variables[
-			ExpTreatmentVariables.JavaContextProviderParams
-		] as string;
-		return javaContextProviderParams;
 	}
 
 	multiLanguageContextProviderParams(telemetryWithExp: TelemetryWithExp): string | undefined {
@@ -352,16 +325,6 @@ export class Features implements ICompletionsFeaturesService {
 		return telemetryWithExp.filtersAndExp.exp.variables[ExpTreatmentVariables.CompletionsDebounce] as
 			| number
 			| undefined;
-	}
-
-	enableElectronFetcher(telemetryWithExp: TelemetryWithExp): boolean {
-		return (
-			(telemetryWithExp.filtersAndExp.exp.variables[ExpTreatmentVariables.ElectronFetcher] as boolean) ?? false
-		);
-	}
-
-	enableFetchFetcher(telemetryWithExp: TelemetryWithExp): boolean {
-		return (telemetryWithExp.filtersAndExp.exp.variables[ExpTreatmentVariables.FetchFetcher] as boolean) ?? false;
 	}
 
 	asyncCompletionsTimeout(telemetryWithExp: TelemetryWithExp): number {

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { constObservable } from '../../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -28,6 +29,7 @@ import { MovedChatEditorRetargeter, retargetMovedChatEditors } from '../../../..
 import { ChatEditorInput } from '../../../../browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { ILocalChatAvailabilityService } from '../../../../common/localChatAvailability.js';
 
 suite('retargetMovedChatEditors', () => {
 
@@ -51,6 +53,7 @@ suite('retargetMovedChatEditors', () => {
 			upcastPartial<IProgressService>({}),
 			new NullManagedSettingsService(),
 			policyGate,
+			upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 		));
 	}
 

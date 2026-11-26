@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionDropTarget.css';
-import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../../base/common/types.js';
@@ -13,21 +13,40 @@ import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.
 import { activeContrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
-import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag } from '../dnd.js';
+import { DraggedSessionIdentifier, getSessionChatDragData, isSessionChatDrag } from '../dnd.js';
+import { InputDropTargetHints, isInputDropTarget, isPassThroughToInputDrag, PASS_THROUGH_MODIFIER_LABEL, registerPassThroughDropTarget } from '../../../../browser/dnd.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsService, SessionGridDirection } from '../sessionsService.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 
-/** Side of a target view where a dragged session can be dropped. */
-type DropSide = SessionGridDirection;
+/** Where a dragged session drops on a target view: beside it on a side, or in its middle, `'center'`, in place of what it shows. */
+type DropSide = SessionGridDirection | 'center';
 
-export function getSessionDropDirection(x: number, y: number, width: number, height: number): SessionGridDirection {
+/** Fraction of a view's width and height, from each of its edges, where a drop opens beside the view rather than in it. */
+const EDGE_THRESHOLD = 0.25;
+
+/** The edge of a view of `width` by `height` nearest to `x`, `y`, and its distance relative to the view's size. */
+function getNearestEdge(x: number, y: number, width: number, height: number): { readonly direction: SessionGridDirection; readonly distance: number } {
 	const horizontal = x / Math.max(1, width);
 	const vertical = y / Math.max(1, height);
-	const edge = Math.min(horizontal, 1 - horizontal, vertical, 1 - vertical);
-	return edge === horizontal ? 'left' : edge === 1 - horizontal ? 'right' : edge === vertical ? 'up' : 'down';
+	const distance = Math.min(horizontal, 1 - horizontal, vertical, 1 - vertical);
+	const direction = distance === horizontal ? 'left' : distance === 1 - horizontal ? 'right' : distance === vertical ? 'up' : 'down';
+	return { direction, distance };
+}
+
+export function getSessionDropDirection(x: number, y: number, width: number, height: number): SessionGridDirection {
+	return getNearestEdge(x, y, width, height).direction;
+}
+
+/**
+ * Where a drop at `x`, `y` in a view of `width` by `height` opens: in the view, `'center'`, in its middle; else beside it, on
+ * the side of the nearest edge within {@link EDGE_THRESHOLD} of it.
+ */
+export function getSessionDropZone(x: number, y: number, width: number, height: number): DropSide {
+	const edge = getNearestEdge(x, y, width, height);
+	return edge.distance > EDGE_THRESHOLD ? 'center' : edge.direction;
 }
 
 /**
@@ -44,6 +63,7 @@ class SessionDropOverlay extends Themable {
 
 	private _container: HTMLElement | undefined;
 	private _overlay: HTMLElement | undefined;
+	private _inputHints: InputDropTargetHints | undefined;
 
 	private _currentSide: DropSide | undefined;
 
@@ -73,7 +93,6 @@ class SessionDropOverlay extends Themable {
 
 	private _create(event: DragEvent): void {
 		const container = this._container = $('div', { id: SessionDropOverlay.OVERLAY_ID });
-		container.style.clipPath = getChatReferenceDropClipPath(this._targetElement, event);
 
 		this._targetElement.appendChild(container);
 		this._targetElement.classList.add('dragged-over');
@@ -84,6 +103,9 @@ class SessionDropOverlay extends Themable {
 
 		this._overlay = $('.session-drop-overlay-indicator');
 		container.appendChild(this._overlay);
+
+		this._inputHints = this._register(new InputDropTargetHints(this._targetElement, container, PASS_THROUGH_MODIFIER_LABEL));
+		this._inputHints.update(event);
 
 		this._registerListeners(container);
 		this.updateStyles();
@@ -104,13 +126,20 @@ class SessionDropOverlay extends Themable {
 	private _registerListeners(container: HTMLElement): void {
 		this._register(new DragAndDropObserver(container, {
 			onDragOver: e => {
+				// An input that takes the drag takes it once the drag moves over it, and so does the chat around it while the
+				// key that lets drags through is held: the overlay, which covers them until then, goes away.
+				if ((isHTMLElement(e.target) && isInputDropTarget(e.target, e, this._targetElement)) || isPassThroughToInputDrag(e, this._targetElement)) {
+					this.dispose();
+					return;
+				}
+
 				if (!this._sessionTransfer.hasData(DraggedSessionIdentifier.prototype) && !isSessionChatDrag(e)) {
 					this._hideOverlay();
 					return;
 				}
 
-				container.style.clipPath = getChatReferenceDropClipPath(this._targetElement, e);
-				this._positionOverlay(e.clientX, e.clientY);
+				this._inputHints?.update(e);
+				this._positionOverlay(e);
 
 				if (this._cleanupOverlayScheduler.isScheduled()) {
 					this._cleanupOverlayScheduler.cancel();
@@ -123,7 +152,7 @@ class SessionDropOverlay extends Themable {
 			onDrop: e => {
 				EventHelper.stop(e, true);
 
-				this._positionOverlay(e.clientX, e.clientY);
+				this._positionOverlay(e);
 				const side = this._currentSide;
 				this.dispose();
 
@@ -144,6 +173,10 @@ class SessionDropOverlay extends Themable {
 	}
 
 	private _handleDrop(side: DropSide, event: DragEvent): void {
+		if (side === 'center') {
+			this._openInView();
+			return;
+		}
 		const chat = getSessionChatDragData(event);
 		if (chat) {
 			void this._sessionsService.moveChatToGrid(chat.sessionId, URI.parse(chat.resource), this._targetGridSlotId, side).catch(onUnexpectedError);
@@ -161,13 +194,10 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
-		if (data.length === 1) {
-			const draft = this._sessionsService.slotPanes.get().map(pane => pane.session.get()).find(session => session?.sessionId === data[0].sessionId);
-			// Provider drafts can be visible before they appear in the session list.
-			if (draft && !isSessionCreated(draft)) {
-				this._sessionsService.insertAt(draft, this.targetSessionId, side, true, this._targetGridSlotId);
-				return;
-			}
+		const draft = data.length === 1 ? this._findDraft(data[0].sessionId) : undefined;
+		if (draft) {
+			this._sessionsService.insertAt(draft, this.targetSessionId, side, true, this._targetGridSlotId);
+			return;
 		}
 
 		// Resolve all dragged sessions (preserving drag order), skipping the
@@ -190,11 +220,44 @@ class SessionDropOverlay extends Themable {
 		void this._sessionsService.openSessionsAt(sessions, this.targetSessionId, side, { referenceSlotId: this._targetGridSlotId, forceMainChat: true }).catch(onUnexpectedError);
 	}
 
-	private _positionOverlay(clientX: number, clientY: number): void {
-		const rect = this._targetElement.getBoundingClientRect();
-		const side = getSessionDropDirection(clientX - rect.left, clientY - rect.top, rect.width, rect.height);
+	/**
+	 * Whether a drop in the middle of the target view opens the drag in the view, in place of what it shows: one created
+	 * session, dropped on the slot of a session or of the new session. Chats, several sessions, drafts and the new session
+	 * only open beside a view, as does anything dropped on a chat's own pane.
+	 */
+	private _opensInView(event: DragEvent): boolean {
+		if (this._targetIsChat || isSessionChatDrag(event)) {
+			return false;
+		}
+		const data = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype);
+		return data?.length === 1 && !!data[0].resource && !this._findDraft(data[0].sessionId);
+	}
 
-		if (side === 'left') {
+	/** The dragged session opens in the target view, in place of what it shows, as its main chat (see {@link _opensInView}). */
+	private _openInView(): void {
+		const dragged = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.[0];
+		this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
+		const session = dragged?.resource && this._sessionsManagementService.getSession(dragged.resource);
+		if (session) {
+			void this._sessionsService.openSessionInSlot(session, this.targetSessionId, { forceMainChat: true }).catch(onUnexpectedError);
+		}
+	}
+
+	/** The draft a slot of the grid shows as `sessionId`: provider drafts can be visible before they appear in the session list. */
+	private _findDraft(sessionId: string | undefined): ISession | undefined {
+		const session = this._sessionsService.slotPanes.get().map(pane => pane.session.get()).find(session => session?.sessionId === sessionId);
+		return session && !isSessionCreated(session) ? session : undefined;
+	}
+
+	private _positionOverlay(event: DragEvent): void {
+		const rect = this._targetElement.getBoundingClientRect();
+		const x = event.clientX - rect.left;
+		const y = event.clientY - rect.top;
+		const side = this._opensInView(event) ? getSessionDropZone(x, y, rect.width, rect.height) : getSessionDropDirection(x, y, rect.width, rect.height);
+
+		if (side === 'center') {
+			this._doPositionOverlay({ left: '0', width: '100%' });
+		} else if (side === 'left') {
 			this._doPositionOverlay({ left: '0', width: '50%' });
 		} else if (side === 'right') {
 			this._doPositionOverlay({ left: '50%', width: '50%' });
@@ -243,11 +306,14 @@ class SessionDropOverlay extends Themable {
 
 /**
  * Drop target for the sessions grid. Listens for drag events over the part's
- * content area, displays a half-pane overlay on whichever session view is
- * being hovered, and calls into {@link ISessionsService} to insert
- * or move the dragged session next to the target.
+ * content area, displays an overlay on whichever session view is being
+ * hovered, and calls into {@link ISessionsService} to open the dragged session
+ * in the target, or to insert or move it next to the target.
  *
- * The nearest normalized edge selects a split; the center never merges sessions.
+ * In the middle of a view, one dragged session opens in the view, in place of
+ * what it shows, as an editor dropped in the middle of an editor group opens in
+ * that group; near an edge, or for drags that only open beside a view, the
+ * nearest normalized edge selects a split.
  */
 export class SessionDropTarget extends Themable {
 
@@ -276,6 +342,9 @@ export class SessionDropTarget extends Themable {
 	}
 
 	private _registerListeners(): void {
+		// While the key is held, the drags let through reach the chats under the overlays, which attach them, as in a chat editor
+		this._register(registerPassThroughDropTarget(this._container, e => isPassThroughToInputDrag(e, this._container)));
+
 		this._register(addDisposableListener(this._container, EventType.DRAG_ENTER, e => this._onDragEnter(e)));
 		this._register(addDisposableListener(this._container, EventType.DRAG_LEAVE, () => this._onDragLeave()));
 		for (const target of [this._container, getWindow(this._container)]) {
@@ -285,7 +354,9 @@ export class SessionDropTarget extends Themable {
 
 	private _onDragEnter(event: DragEvent): void {
 		this._counter++;
-		if (isChatReferenceInputDrop(event)) {
+		// An input under the drag that takes it, such as a chat input that attaches the dragged session's chat, takes it here,
+		// and so does the chat around such an input while the key that lets drags through is held.
+		if ((isHTMLElement(event.target) && isInputDropTarget(event.target, event)) || isPassThroughToInputDrag(event, this._container)) {
 			this._disposeOverlay();
 			this._updateContainer(false);
 			return;

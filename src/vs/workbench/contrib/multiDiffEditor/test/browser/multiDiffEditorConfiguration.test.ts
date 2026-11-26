@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -17,7 +17,6 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import {
 	defaultMultiDiffEditorExperimentalVariant,
 	getWorkbenchMultiDiffEditorVariant,
-	multiDiffEditorExperimentalFileListSetting,
 	multiDiffEditorExperimentalVariantSetting,
 	observableMultiDiffEditorFileListViewMode,
 	observableMultiDiffEditorFileListPosition,
@@ -31,7 +30,6 @@ import {
 // Capture registration before configuration-registry tests clear the shared registry.
 const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 const registeredVariantSetting = configurationProperties[multiDiffEditorExperimentalVariantSetting];
-const registeredFileListSetting = configurationProperties[multiDiffEditorExperimentalFileListSetting];
 const registeredLineNumberSetting = configurationProperties['diffEditor.hideOriginalLineNumbers'];
 
 suite('MultiDiffEditorConfiguration', () => {
@@ -63,22 +61,6 @@ suite('MultiDiffEditorConfiguration', () => {
 			experiment: { mode: 'auto' },
 		});
 		assert.strictEqual(defaultMultiDiffEditorExperimentalVariant, 'noCards');
-	});
-
-	test('registers the experimental file list setting as opt-in', () => {
-		const property = registeredFileListSetting;
-
-		assert.deepStrictEqual({
-			type: property.type,
-			default: property.default,
-			scope: property.scope,
-			isExperimental: property.tags?.includes('experimental'),
-		}, {
-			type: 'boolean',
-			default: false,
-			scope: ConfigurationScope.WINDOW,
-			isExperimental: true,
-		});
 	});
 
 	test('registers original line number visibility as an inheritable setting', () => {
@@ -125,32 +107,25 @@ suite('MultiDiffEditorConfiguration', () => {
 		assert.deepStrictEqual(values, ['cards', 'noCards']);
 	});
 
-	test('shows the file list while the setting is on and the shared toggle has not hidden it', async () => {
-		const configurationService = new TestConfigurationService({
-			[multiDiffEditorExperimentalFileListSetting]: true,
-		});
+	test('shows the file list while the editor offers it and the shared toggle has not hidden it', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const store = disposables.add(new DisposableStore());
-		const firstEditor = observableMultiDiffEditorFileListVisible(store, configurationService, storageService, store);
-		const secondEditor = observableMultiDiffEditorFileListVisible(store, configurationService, storageService, store);
+		const available = observableValue('available', true);
+		const firstEditor = observableMultiDiffEditorFileListVisible(store, available, storageService, store);
+		const secondEditor = observableMultiDiffEditorFileListVisible(store, constObservable(true), storageService, store);
 		const values = { firstEditor: [] as boolean[], secondEditor: [] as boolean[] };
 		disposables.add(autorun(reader => values.firstEditor.push(firstEditor.read(reader))));
 		disposables.add(autorun(reader => values.secondEditor.push(secondEditor.read(reader))));
 
 		toggleMultiDiffEditorFileList(storageService);
 		toggleMultiDiffEditorFileList(storageService);
-		await configurationService.setUserConfiguration(multiDiffEditorExperimentalFileListSetting, false);
-		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-			override affectsConfiguration(configuration: string): boolean {
-				return configuration === multiDiffEditorExperimentalFileListSetting;
-			}
-		}());
+		available.set(false, undefined);
 		toggleMultiDiffEditorFileList(storageService);
 		toggleMultiDiffEditorFileList(storageService);
 
 		assert.deepStrictEqual(values, {
 			firstEditor: [true, false, true, false],
-			secondEditor: [true, false, true, false],
+			secondEditor: [true, false, true, false, true],
 		});
 	});
 

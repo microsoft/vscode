@@ -5,16 +5,17 @@
 
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionPullRequestAgentMergeOptions, SessionPullRequestMergeMethod } from './pullRequestCreation.js';
+import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestAutopilotOptions, SessionPullRequestMergeMethod } from './pullRequestCreation.js';
 
 export type CreatePullRequestAction = 'create' | 'sendToChat';
-export type CreatePullRequestMergeMode = 'manual' | 'agent' | 'auto';
+export type CreatePullRequestMergeMode = 'manual' | 'agent' | 'autopilot' | 'auto';
 
 export interface ICreatePullRequestPreferences {
 	readonly draft?: boolean;
 	readonly mergeMode?: CreatePullRequestMergeMode;
 	readonly mergeMethod?: SessionPullRequestMergeMethod;
 	readonly agentMergeOptions?: ISessionPullRequestAgentMergeOptions;
+	readonly autopilotOptions?: ISessionPullRequestAutopilotOptions;
 	readonly primaryAction?: CreatePullRequestAction;
 }
 
@@ -48,9 +49,10 @@ export class CreatePullRequestPreferences {
 			return {};
 		}
 		const agent = stored.agentMergeOptions;
+		const autopilot = stored.autopilotOptions;
 		return {
 			...(typeof stored.draft === 'boolean' ? { draft: stored.draft } : {}),
-			...(stored.mergeMode === 'manual' || stored.mergeMode === 'agent' || stored.mergeMode === 'auto' ? { mergeMode: stored.mergeMode } : {}),
+			...(stored.mergeMode === 'manual' || stored.mergeMode === 'agent' || stored.mergeMode === 'autopilot' || stored.mergeMode === 'auto' ? { mergeMode: stored.mergeMode } : {}),
 			...(stored.mergeMethod === 'MERGE' || stored.mergeMethod === 'SQUASH' || stored.mergeMethod === 'REBASE' ? { mergeMethod: stored.mergeMethod } : {}),
 			...(stored.primaryAction === 'create' || stored.primaryAction === 'sendToChat' ? { primaryAction: stored.primaryAction } : {}),
 			...(agent && typeof agent.addressReviews === 'boolean' && typeof agent.fixCI === 'boolean' && typeof agent.resolveConflicts === 'boolean'
@@ -60,6 +62,16 @@ export class CreatePullRequestPreferences {
 					fixCI: agent.fixCI,
 					resolveConflicts: agent.resolveConflicts,
 					mergePullRequest: agent.mergePullRequest,
+				},
+			} : {}),
+			...(autopilot && typeof autopilot.addressReviews === 'boolean' && typeof autopilot.fixCI === 'boolean' && typeof autopilot.resolveConflicts === 'boolean'
+				&& typeof autopilot.markReady === 'boolean' && (autopilot.merge === 'never' || autopilot.merge === 'ifUnchanged' || autopilot.merge === 'always') ? {
+				autopilotOptions: {
+					addressReviews: autopilot.addressReviews,
+					fixCI: autopilot.fixCI,
+					resolveConflicts: autopilot.resolveConflicts,
+					markReady: autopilot.markReady,
+					merge: autopilot.merge,
 				},
 			} : {}),
 		};

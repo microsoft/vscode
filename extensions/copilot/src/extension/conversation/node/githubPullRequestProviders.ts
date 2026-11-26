@@ -10,8 +10,8 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IReviewService } from '../../../platform/review/common/reviewService';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { Extension, Uri } from '../../../vscodeTypes';
-import { API, RepositoryDescription } from '../../githubPullRequest';
+import { Extension } from '../../../vscodeTypes';
+import { API } from '../../githubPullRequest';
 import { GitHubPullRequestTitleAndDescriptionGenerator } from '../../prompt/node/githubPullRequestTitleAndDescriptionGenerator';
 import { GitHubPullRequestReviewerCommentsProvider } from '../../review/node/githubPullRequestReviewerCommentsProvider';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -118,32 +118,6 @@ export class GitHubPullRequestProviders implements Disposable {
 			this.logService.info('Successfully registered GitHub PR reviewer comments provider.');
 		} catch (e) {
 			// Catch errors in case there's a breaking API change.
-		}
-	}
-
-	public async getRepositoryDescription(uri: Uri): Promise<RepositoryDescription | undefined> {
-		try {
-			// Wait for gitHubExtensionApi to be initialized if not already
-			if (!this.gitHubExtensionApi) {
-				// Try to get and activate the extension if possible
-				const githubPRExtension = this.getExtension();
-				if (githubPRExtension) {
-					const extension = await githubPRExtension.activate();
-					this.gitHubExtensionApi = extension;
-				} else {
-					this.logService.warn('GitHub.vscode-pull-request-github extension API is not available.');
-					return undefined;
-				}
-			}
-
-			if (!this.gitHubExtensionApi.getRepositoryDescription) {
-				return undefined;
-			}
-
-			return await this.gitHubExtensionApi.getRepositoryDescription(uri);
-		} catch (error) {
-			this.logService.error('Failed to get repository description from GitHub.vscode-pull-request-github extension.', error);
-			return undefined;
 		}
 	}
 }

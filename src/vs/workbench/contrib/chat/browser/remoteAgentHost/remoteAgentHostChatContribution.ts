@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { CancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, getEntryAddress, getWorkspaceRemoteAgentHostAddresses } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, getEntryAddress, getWorkspaceRemoteAgentHostAddresses } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -236,9 +237,23 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
+	/**
+	 * The hosts an editor window shows: those its workspace lists in `chat.workspaceRemoteAgentHosts`, and those its
+	 * extensions register, which it connects to alike.
+	 */
+	private _editorWindowHostAddresses(): ReadonlySet<string> {
+		const addresses = new Set(getWorkspaceRemoteAgentHostAddresses(this._configurationService));
+		for (const entry of this._remoteAgentHostService.configuredEntries) {
+			if (entry.connection.type === RemoteAgentHostEntryType.Extension) {
+				addresses.add(normalizeRemoteAgentHostAddress(entry.connection.address));
+			}
+		}
+		return addresses;
+	}
+
 	private _reconcileConnections(): void {
-		const workspaceHosts = getWorkspaceRemoteAgentHostAddresses(this._configurationService);
-		const currentConnections = this._remoteAgentHostService.connections.filter(connection => this._isSessionsWindow || isCloudSandboxConnectionAddress(connection.address) || workspaceHosts.has(connection.address));
+		const editorWindowHosts = this._isSessionsWindow ? undefined : this._editorWindowHostAddresses();
+		const currentConnections = this._remoteAgentHostService.connections.filter(connection => !editorWindowHosts || isCloudSandboxConnectionAddress(connection.address) || editorWindowHosts.has(connection.address));
 		const connectedAddresses = new Set(
 			currentConnections
 				.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status) && c.clientId !== undefined)
@@ -498,6 +513,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			syncedUri => this._activeClientService.getOrigin(syncedUri)
 		));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
+		// Only the Copilot runtime runs the hooks declared in custom agent files.
+		itemProvider.setListsCustomAgentHooks(agent.provider === 'copilotcli');
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		const modelCatalogueStatus = observableFromEvent(this, connection.rootState.onDidChange, () =>
 			readAgentModelCatalogStatus(connection.rootState.value, agent.provider));
@@ -603,11 +620,21 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private async _authenticateWithConnection(address: string, connection: IAgentConnection, agents: readonly AgentInfo[]): Promise<void> {
 		const connState = this._connections.get(address);
 		const authTokenCache = connState?.authTokenCache;
+		const startedResources = agents.flatMap(agent => agent.protectedResources ?? []);
+		// The host may replace its resources while the round waits; the change that replaced them started a round for the new list.
+		// An absent or failed root state is not a replacement, so no successor would settle for it.
+		const isCurrent = () => {
+			const rootState = connection.rootState.value;
+			return this._connections.get(address) === connState
+				&& (!rootState || rootState instanceof Error
+					|| equals(startedResources, rootState.agents.flatMap(agent => agent.protectedResources ?? [])));
+		};
 		try {
 			const testToken = this._getScenarioAutomationToken();
 			if (testToken !== undefined) {
 				await authenticateAgentProtectedResourcesWithToken(agents, testToken, {
 					authTokenCache,
+					isCurrent,
 					authenticate: this._authenticateCallback(address, connection),
 				});
 				return;
@@ -615,12 +642,15 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache,
 				logPrefix: '[RemoteAgentHost]',
+				isCurrent,
 				authenticate: this._authenticateCallback(address, connection),
 			});
 		} catch (err) {
-			this._logService.error('[RemoteAgentHost] Failed to authenticate with connection', err);
+			if (!isCancellationError(err)) {
+				this._logService.error('[RemoteAgentHost] Failed to authenticate with connection', err);
+			}
 		} finally {
-			if (connState && this._connections.get(address) === connState) {
+			if (connState && isCurrent()) {
 				connState.authenticationPending.set(false, undefined);
 			}
 		}
@@ -661,7 +691,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				return true;
 			} : undefined,
 			authenticate: this._authenticateCallback(address, connection, reason),
-		}))
+		}, reason))
 			.catch(err => {
 				this._logService.error(`[RemoteAgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
 			})

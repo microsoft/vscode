@@ -4,10 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as event from '../../../../../base/common/event.js';
+import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import type { ChatAttachmentModel } from './chatAttachmentModel.js';
+import type { IImageCarouselMarkUp } from '../../../imageCarousel/browser/imageCarouselTypes.js';
+
+/** Entry-owned editing of an image still attached to its input, including its carousel preview. */
+export interface IChatImageAttachmentEditor {
+	edit(attachmentModel: ChatAttachmentModel, attachment: IChatRequestVariableEntry): Promise<void>;
+	createMarkUp(container: HTMLElement, attachmentModel: ChatAttachmentModel, attachmentId: string): IImageCarouselMarkUp;
+}
 
 /**
  * Interface for a contributed attachment widget instance.
@@ -18,6 +27,14 @@ export interface IChatAttachmentWidgetInstance extends IDisposable {
 	readonly onDidOpen: event.Event<void>;
 	/** Optional label element, used for applying warning styles on omitted attachments. */
 	readonly label?: { readonly element: HTMLElement };
+	/** Creates the detail preview used by the input editor's keyboard hover. */
+	getPreviewHoverContent?(): HTMLElement | undefined;
+	/** Whether the attachment provides a delayed reference preview. Activation still navigates. */
+	readonly supportsPreview?: boolean;
+	/** Shared pointer hover, also revealed when the editor gives the reference keyboard focus. */
+	readonly previewHover?: IManagedHover;
+	/** Fires when account changes or widget disposal invalidate displayed preview details. */
+	readonly onDidChangePreview?: event.Event<void>;
 	/**
 	 * The name that the widget shows for the attachment, when it differs from
 	 * the attachment's name and can change, as the title of a linked session does.
@@ -41,6 +58,7 @@ export const IChatAttachmentWidgetRegistry = createDecorator<IChatAttachmentWidg
 
 export interface IChatAttachmentWidgetRegistry {
 	readonly _serviceBrand: undefined;
+	readonly imageEditor?: IChatImageAttachmentEditor;
 
 	/**
 	 * Register a widget factory for a specific attachment kind.

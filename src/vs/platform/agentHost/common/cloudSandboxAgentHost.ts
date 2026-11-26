@@ -340,6 +340,10 @@ export interface IMissionControlEnvironment {
 	readonly status: string;
 	readonly kind: string;
 	readonly name: string;
+	/** Service-reported heartbeat time, not the client's discovery time. */
+	readonly lastHeartbeatAt?: number;
+	/** Host session count at the last heartbeat, not a current activity measurement. */
+	readonly reportedSessionCount?: number;
 }
 
 /** Identifies which sandbox environment/session credentials are being minted for. */

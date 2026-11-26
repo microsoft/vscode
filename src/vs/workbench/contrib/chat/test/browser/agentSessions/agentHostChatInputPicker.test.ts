@@ -54,7 +54,7 @@ import { IChatAcceptInputOptions, IChatWidget } from '../../../browser/chat.js';
 import { IChatRequestModel } from '../../../common/model/chatModel.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { TestStorageService, TestWorkspaceTrustManagementService } from '../../../../../test/common/workbenchTestServices.js';
-import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, RemoteNameContext, WorkbenchStateContext } from '../../../../../common/contextkeys.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -71,7 +71,8 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import { AgentHostChatInputPicker, getAgentHostSandboxSettingId, getConfigPickerAccessibleTriggerLabel, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, isGenericConfigPickerProperty, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IChatSessionOptionsChangeEvent, IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
-import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostFolderPickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { ChatAgentHostFolderChipVisible } from '../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -81,6 +82,7 @@ import { resetShownWarnings } from '../../../common/chatPermissionWarnings.js';
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import '../../../browser/agentSessions/agentHost/media/agentHostChatInputPicker.css';
 import '../../../browser/widget/media/chat.css';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -294,7 +296,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			},
 		});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
-		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
+		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => (testIWorkspace({ id: 'test', folders: [] })) });
 		instantiationService.set(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		const resolvedRefreshes: Record<string, unknown>[] = [];
@@ -393,6 +395,25 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			disabled: visible(false, false, SessionType.CloudSandbox),
 			local: visible(true, false, SessionType.Local),
 		}, { cloud: [OpenAgentHostModePickerAction.ID, OpenAgentHostAutoApprovePickerAction.ID], sessions: [], disabled: [], local: [] });
+	});
+
+	test('the folder chip of worktree support shows for a local agent host chat in a local single-folder window, not for a remote agent host chat', () => {
+		const worktreeItem = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem)
+			.find(item => item.command.id === OpenAgentHostFolderPickerAction.ID && item.when?.keys().includes(`config.${ChatConfiguration.EditorWindowEnableWorktree}`));
+		const visible = (type: string) => {
+			const context = new Context(0, null);
+			context.setValue(ChatContextKeys.enabled.key, true);
+			context.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
+			context.setValue(ChatContextKeys.chatSessionType.key, type);
+			context.setValue(`config.${ChatConfiguration.EditorWindowEnableWorktree}`, true);
+			context.setValue(WorkbenchStateContext.key, 'folder');
+			context.setValue(RemoteNameContext.key, '');
+			context.setValue(IsSessionsWindowContext.key, false);
+			// As the chat input sets it while the chip offers more than the folder
+			context.setValue(ChatAgentHostFolderChipVisible.key, true);
+			return !!worktreeItem?.when?.evaluate(context);
+		};
+		assert.deepStrictEqual({ local: visible('agent-host-copilot'), remote: visible('remote-localhost__8081-copilot') }, { local: true, remote: false });
 	});
 
 	test('cloud drafts reuse the combined picker without an agent host connection', async () => {
@@ -1096,12 +1117,16 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const withoutMetadata = permissionPicker['_getSandboxStandaloneToggle']()!.disabled;
 		await sandboxReady();
 		await permissionPicker['_showPicker'](dom.$('div'));
-		const staleToggle = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
+		const initialRow = actionWidget.items.find(item => item.standaloneToggle)!;
+		const staleToggle = initialRow.standaloneToggle!;
+		assert.strictEqual(initialRow.hover?.content, staleToggle.title);
 		state._meta = withSessionSandboxPolicy(undefined, { enabled: true, allowBypass: false });
 		permissionPicker['_sandboxConfigChanged'].trigger(undefined);
 		staleToggle.onChange(true);
-		const required = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
+		const requiredRow = actionWidget.items.find(item => item.standaloneToggle)!;
+		const required = requiredRow.standaloneToggle!;
 		const enforced = { checked: required.checked, disabled: required.disabled, title: required.title };
+		assert.strictEqual(requiredRow.hover?.content, required.title);
 		state._meta = withSessionSandboxPolicy(undefined, { enabled: false });
 		permissionPicker['_sandboxConfigChanged'].trigger(undefined);
 		const removed = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;

@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import type { VSBuffer } from '../../../../base/common/buffer.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { ChannelClient, ChannelServer, ProxyChannel, type IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { LoadEstimator } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
@@ -29,7 +31,7 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWo
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
-import { addSSHRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectionInfo } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, removeSSHRemoteAgentHostEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, JsonRpcErrorCodes, ProtocolError, ReconnectResultType, isJsonRpcRequest, type JsonRpcRequest, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { IRemoteAgentHostLocationPreferenceService, type RemoteAgentHostLocationPreference } from '../../common/remoteAgentHostLocationPreference.js';
@@ -38,6 +40,8 @@ import { SSHHostKeyTrustService } from '../../browser/sshHostKeyTrustService.js'
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import {
 	SSHAuthMethod,
+	SSHAuthenticationFailedError,
+	SSH_REMOTE_AGENT_HOST_CHANNEL,
 	computeSSHConnectionKey,
 	type ISSHAgentHostConfig,
 	type ISSHConnectProgress,
@@ -57,7 +61,7 @@ import { ISSHRelayClientFactory, SSHRelayClientFactory, SSHRemoteAgentHostServic
 import { AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import { EditorWindowRemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { IAgentHostResourceService } from '../../common/agentHostResourceService.js';
-import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 
 /**
  * In-renderer mock of the shared-process SSH service. Exposes the same
@@ -318,10 +322,16 @@ class LifecycleSSHMainService extends Disposable implements ISSHRemoteAgentHostM
 	sessionStartCount = 0;
 	sessionCloseCount = 0;
 	selectedEndpoint: string | undefined;
+	nextConnectError: Error | undefined;
 	nextReconnectError: Error | undefined;
 
 	async connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		this.connectCalls.push({ config, expectedConnectionId });
+		const error = this.nextConnectError;
+		this.nextConnectError = undefined;
+		if (error) {
+			throw error;
+		}
 		this.relayGeneration++;
 		return this._acquireRelay(config, config.sshConfigHost);
 	}
@@ -464,6 +474,10 @@ class MockRemoteAgentHostService extends Disposable {
 		return toDisposable(() => this._factories.delete(factory.kind));
 	}
 
+	getFactory(kind: RemoteAgentHostEntryType): IRemoteAgentHostConnectionFactory | undefined {
+		return this._factories.get(kind);
+	}
+
 	reconnect(address: string, userInitiated = true): void {
 		if (this._pendingConnections.has(address)) {
 			return;
@@ -599,13 +613,16 @@ class TestConfigurationService {
 	private _entries: readonly IRawRemoteAgentHostEntry[] = [];
 	updateValueCalls = 0;
 
-	constructor(private _remoteAgentHostsEnabled = true) { }
+	constructor(private _remoteAgentHostsEnabled = true, private readonly _autoConnect = false) { }
 	getValue(key?: string): unknown {
 		if (key === RemoteAgentHostsEnabledSettingId) {
 			return this._remoteAgentHostsEnabled;
 		}
 		if (key === RemoteAgentHostsSettingId) {
 			return this._entries;
+		}
+		if (key === RemoteAgentHostAutoConnectSettingId) {
+			return this._autoConnect;
 		}
 		return undefined;
 	}
@@ -852,6 +869,81 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 			stored: [],
 			disconnectCalls: ['ssh:remote.example'],
 		});
+	});
+
+	test('disconnect keeping the entry stops dialing it until cleared, then dials it as user-initiated', async () => {
+		const connectPromise = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await connectPromise;
+		const factory = remoteAgentHostService.getFactory(RemoteAgentHostEntryType.SSH)!;
+		const snapshot = () => ({
+			connectable: factory.entries.get().map(getEntryAddress),
+			disconnected: service.disconnectedEntries.get().map(getEntryAddress),
+			stored: readSSHRemoteAgentHostEntries(sshStorageService).map(getEntryAddress),
+		});
+
+		await service.disconnect('ssh:remote.example', { keepEntry: true });
+		const afterDisconnect = snapshot();
+		service.clearDisconnected('ssh:remote.example');
+		const entry = factory.entries.get()[0];
+
+		assert.deepStrictEqual({
+			afterDisconnect,
+			afterClear: snapshot(),
+			pendingInitiation: factory.getPendingConnectionInitiation?.(entry),
+			disconnectCalls: mainService.disconnectCalls,
+		}, {
+			afterDisconnect: { connectable: [], disconnected: ['ssh:remote.example'], stored: ['ssh:remote.example'] },
+			afterClear: { connectable: ['ssh:remote.example'], disconnected: [], stored: ['ssh:remote.example'] },
+			pendingInitiation: true,
+			disconnectCalls: ['ssh:remote.example'],
+		});
+	});
+
+	test('disconnect flags and removes a legacy entry by its saved address while tearing down its SSH key', async () => {
+		addSSHRemoteAgentHostEntry(sshStorageService, {
+			name: 'Legacy',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:1234', sshConfigHost: 'host', hostName: 'host.example' },
+		});
+		const factory = remoteAgentHostService.getFactory(RemoteAgentHostEntryType.SSH)!;
+		const snapshot = () => ({
+			connectable: factory.entries.get().map(getEntryAddress),
+			disconnected: service.disconnectedEntries.get().map(getEntryAddress),
+			stored: readSSHRemoteAgentHostEntries(sshStorageService).map(getEntryAddress),
+		});
+
+		await service.disconnect('ssh:host', { keepEntry: true });
+		const afterDisconnect = snapshot();
+		service.clearDisconnected('ssh:host');
+		const afterClear = snapshot();
+		await service.disconnect('ssh:host');
+
+		assert.deepStrictEqual({ afterDisconnect, afterClear, afterRemove: snapshot(), disconnectCalls: mainService.disconnectCalls }, {
+			afterDisconnect: { connectable: [], disconnected: ['localhost:1234'], stored: ['localhost:1234'] },
+			afterClear: { connectable: ['localhost:1234'], disconnected: [], stored: ['localhost:1234'] },
+			afterRemove: { connectable: [], disconnected: [], stored: [] },
+			disconnectCalls: ['ssh:host', 'ssh:host'],
+		});
+	});
+
+	test('forgetting a disconnected legacy entry before tearing down its SSH key clears its disconnected flag', async () => {
+		const legacy: IRemoteAgentHostEntry = {
+			name: 'Legacy',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:1234', sshConfigHost: 'host', hostName: 'host.example' },
+		};
+		addSSHRemoteAgentHostEntry(sshStorageService, legacy);
+		const factory = remoteAgentHostService.getFactory(RemoteAgentHostEntryType.SSH)!;
+		await service.disconnect('ssh:host', { keepEntry: true });
+
+		// The Remotes editor removes the saved entry first, so the SSH key no longer resolves to it.
+		removeSSHRemoteAgentHostEntry(sshStorageService, 'localhost:1234');
+		await service.disconnect('ssh:host');
+		addSSHRemoteAgentHostEntry(sshStorageService, legacy);
+
+		assert.deepStrictEqual({
+			connectable: factory.entries.get().map(getEntryAddress),
+			disconnected: service.disconnectedEntries.get().map(getEntryAddress),
+		}, { connectable: ['localhost:1234'], disconnected: [] });
 	});
 
 	test('connect threads the stored location preference for the stable connection key into the main-process config', async () => {
@@ -2126,6 +2218,8 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 	let transports: SSHLifecycleProtocolTransport[];
 
 	setup(() => {
+		// Keep the process-wide load estimator's interval outside virtual time.
+		LoadEstimator.getInstance();
 		instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService();
 		mainService = disposables.add(new LifecycleSSHMainService());
@@ -2185,11 +2279,20 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		}
 	}
 
-	function createIsolatedRenderer(): { remoteAgentHostService: EditorWindowRemoteAgentHostService; service: SSHRemoteAgentHostService } {
+	function createIPCChannel(): IChannel {
+		const toClient = disposables.add(new Emitter<VSBuffer>());
+		const toServer = disposables.add(new Emitter<VSBuffer>());
+		const client = disposables.add(new ChannelClient({ onMessage: toClient.event, send: buffer => toServer.fire(buffer) }));
+		const server = disposables.add(new ChannelServer({ onMessage: toServer.event, send: buffer => toClient.fire(buffer) }, undefined));
+		server.registerChannel(SSH_REMOTE_AGENT_HOST_CHANNEL, ProxyChannel.fromService(mainService, disposables.add(new DisposableStore())));
+		return client.getChannel(SSH_REMOTE_AGENT_HOST_CHANNEL);
+	}
+
+	function createIsolatedRenderer(autoConnect = false, channel = asChannel(mainService)): { remoteAgentHostService: EditorWindowRemoteAgentHostService; service: SSHRemoteAgentHostService } {
 		const rendererInstantiationService = disposables.add(new TestInstantiationService());
 		const rendererStorageService = disposables.add(new InMemoryStorageService());
 		rendererInstantiationService.stub(ILogService, new NullLogService());
-		rendererInstantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		rendererInstantiationService.stub(IConfigurationService, new TestConfigurationService(true, autoConnect) as Partial<IConfigurationService>);
 		rendererInstantiationService.stub(IDefaultAccountService, { policyData: null, onDidChangePolicyData: Event.None });
 		rendererInstantiationService.stub(IStorageService, rendererStorageService);
 		rendererInstantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
@@ -2208,7 +2311,7 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		});
 		rendererInstantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() { });
 		rendererInstantiationService.stub(ISharedProcessService, {
-			getChannel: () => asChannel(mainService),
+			getChannel: () => channel,
 		} as Partial<ISharedProcessService>);
 		rendererInstantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		rendererInstantiationService.stub(INotificationService, new CapturingNotificationService() as Partial<INotificationService>);
@@ -2225,6 +2328,97 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 			service: disposables.add(rendererInstantiationService.createInstance(SSHRemoteAgentHostService)),
 		};
 	}
+
+	for (const sshConfigHost of [undefined, config.sshConfigHost]) {
+		test(`authentication rejection across IPC stops retries until an explicit connection (${sshConfigHost ?? 'manual host'})`, () => runWithFakedTimers({}, async () => {
+			const renderer = createIsolatedRenderer(true, createIPCChannel());
+			const connectionConfig = { ...config, sshConfigHost };
+			const address = computeSSHConnectionKey(connectionConfig);
+			mainService.nextConnectError = new SSHAuthenticationFailedError('Credentials rejected');
+
+			await assert.rejects(renderer.service.connect(connectionConfig), /Credentials rejected/);
+			await timeout(180_000);
+			const afterFailure = {
+				connects: mainService.connectCalls.length,
+				reconnects: mainService.reconnectCalls.length,
+				status: renderer.remoteAgentHostService.connections[0].status,
+				error: renderer.remoteAgentHostService.connections[0].lastConnectionError,
+			};
+			await renderer.service.connect(connectionConfig);
+
+			assert.deepStrictEqual({
+				afterFailure,
+				connects: mainService.connectCalls.length,
+				status: renderer.remoteAgentHostService.connections.find(connection => connection.address === address)?.status,
+				error: renderer.remoteAgentHostService.connections[0].lastConnectionError,
+			}, {
+				afterFailure: {
+					connects: 1,
+					reconnects: 0,
+					status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.SSHAuthenticationFailed),
+					error: 'Credentials rejected',
+				},
+				connects: 2,
+				status: RemoteAgentHostConnectionStatus.connected,
+				error: undefined,
+			});
+			renderer.remoteAgentHostService.dispose();
+		}));
+	}
+
+	test('a DNS failure across IPC remains retryable', () => runWithFakedTimers({}, async () => {
+		const renderer = createIsolatedRenderer(true, createIPCChannel());
+		mainService.nextConnectError = new Error('getaddrinfo ENOTFOUND remote.example');
+		await assert.rejects(renderer.service.connect(config), /ENOTFOUND/);
+		await renderer.remoteAgentHostService.waitForConnection(computeSSHConnectionKey(config));
+
+		assert.deepStrictEqual({
+			connects: mainService.connectCalls.length,
+			reconnects: mainService.reconnectCalls.length,
+			status: renderer.remoteAgentHostService.connections[0].status,
+		}, {
+			connects: 1,
+			reconnects: 1,
+			status: RemoteAgentHostConnectionStatus.connected,
+		});
+		renderer.remoteAgentHostService.dispose();
+	}));
+
+	test('authentication rejection during relay recovery stops inner and outer retries until explicit reconnect', () => runWithFakedTimers({}, async () => {
+		const renderer = createIsolatedRenderer(true, createIPCChannel());
+		await renderer.service.connect(config);
+		mainService.nextReconnectError = new SSHAuthenticationFailedError('Credentials expired');
+		const disconnected = Event.toPromise(Event.filter(renderer.remoteAgentHostService.onDidChangeConnections, () =>
+			renderer.remoteAgentHostService.connections[0]?.status.kind === 'disconnected'));
+		mainService.fireRelayClose('ssh:remote.example:1');
+		await disconnected;
+		await timeout(180_000);
+		const afterFailure = {
+			connects: mainService.connectCalls.length,
+			reconnects: mainService.reconnectCalls.length,
+			status: renderer.remoteAgentHostService.connections[0].status,
+			error: renderer.remoteAgentHostService.connections[0].lastConnectionError,
+		};
+		await renderer.service.reconnect(config.sshConfigHost!, config.name, true);
+
+		assert.deepStrictEqual({
+			afterFailure,
+			reconnects: mainService.reconnectCalls.length,
+			status: renderer.remoteAgentHostService.connections[0].status,
+			error: renderer.remoteAgentHostService.connections[0].lastConnectionError,
+		}, {
+			afterFailure: {
+				connects: 1,
+				reconnects: 1,
+				status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.SSHAuthenticationFailed),
+				error: 'SSH authentication failed. Check your username, key, or SSH agent, then reconnect.',
+			},
+			reconnects: 2,
+			status: RemoteAgentHostConnectionStatus.connected,
+			error: undefined,
+		});
+		renderer.remoteAgentHostService.dispose();
+	}));
 
 	test('acquires an independent relay lease before creating the first protocol client', async () => {
 		const retained = await mainService.connect(config);

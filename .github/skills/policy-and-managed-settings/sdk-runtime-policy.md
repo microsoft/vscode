@@ -28,6 +28,8 @@ Temporary managed-only controls (per-key MDM > server > file):
 - `vscode.temporaryAllowLocalHarness: false` prohibits Local and disables Claude/Codex, using the flow above. Only effective boolean `false` acts.
 - `vscode.temporaryDefaultToLocalHarness: true` projects to policy-only `chat.temporaryDefaultToLocalHarness`: keeps Local available and suppresses Copilot-default/preference rollout and managed-policy routing. Explicit choices and existing chats are unchanged; runtime rules still apply to Copilot sessions. `temporaryAllowLocalHarness: false` wins.
 
+`vscode.allowedHarnesses` (whole list, MDM > server > file) permits the named third-party harnesses (`claude`, `codex`) despite managed-settings presence; a present list denies the unnamed ones. It grants no enforcement: those harnesses still ignore runtime managed settings. `temporaryAllowLocalHarness: false` wins. See [github-managed-settings.md](./github-managed-settings.md#permitting-claude-and-codex-vscodeallowedharnesses).
+
 `ChatEditorPreferCopilotHarness` is a preference, not a lock: `false` does not prohibit Copilot.
 
 ## Approval modes

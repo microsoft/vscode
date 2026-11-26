@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationOverrides, IConfigurationValue, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickTree, IQuickTreeItem, IQuickTreeItemButtonEvent, QuickInputHideReason } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { LanguageModelToolsConfirmationService } from '../../../browser/tools/languageModelToolsConfirmationService.js';
 import { ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { computeCombinationKey, ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef } from '../../../common/tools/languageModelToolsConfirmationService.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { computeCombinationKey, ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef, IToolPreApprovalStore } from '../../../common/tools/languageModelToolsConfirmationService.js';
+import { IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 
 class PolicyTestConfigurationService extends TestConfigurationService {
 	policyRestricted = false;
@@ -71,6 +76,327 @@ suite('LanguageModelToolsConfirmationService', () => {
 			},
 		};
 	}
+
+	test('manage actions that close the picker do not reopen it', async () => {
+		const onDidAccept = store.add(new Emitter<void>());
+		const onDidHide = store.add(new Emitter<IQuickInputHideEvent>());
+		let items: IQuickTreeItem[] = [];
+		let shown = 0;
+		const quickTree = upcastPartial<IQuickTree<IQuickTreeItem>>({
+			get itemTree() { return items; },
+			get activeItems() { return items[0].children!.filter(item => item.label === 'More Options...'); },
+			buttons: [],
+			onDidChangeCheckboxState: Event.None,
+			onDidHide: onDidHide.event,
+			onDidTriggerItemButton: Event.None,
+			onDidTriggerButton: Event.None,
+			onDidAccept: onDidAccept.event,
+			setItemTree: value => { items = value; },
+			isCollapsed: () => true,
+			show: () => { shown++; },
+			hide: () => onDidHide.fire({ reason: QuickInputHideReason.Other }),
+			dispose: () => { },
+		});
+		instantiationService.stub(IQuickInputService, { createQuickTree: <T extends IQuickTreeItem>() => quickTree as IQuickTree<T> });
+		service = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
+		let opened = 0;
+		store.add(service.registerConfirmationContribution('fetch', {
+			canUseDefaultApprovals: false,
+			getManageActions: () => [{ label: 'More Options...', pickable: false, closesPicker: true, onDidOpen: () => { opened++; } }],
+		}));
+		service.manageConfirmationPreferences([{ id: 'fetch', source: ToolDataSource.Internal, displayName: 'Fetch', modelDescription: '' }]);
+		onDidAccept.fire();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ opened, shown }, { opened: 1, shown: 1 });
+	});
+
+	test('manage external pre-approvals without reading or changing stored approvals', async () => {
+		const onDidChangeCheckboxState = store.add(new Emitter<IQuickTreeItem>());
+		const onDidHide = store.add(new Emitter<IQuickInputHideEvent>());
+		let items: IQuickTreeItem[] = [];
+		const focused: string[] = [];
+		const quickTree = upcastPartial<IQuickTree<IQuickTreeItem>>({
+			get itemTree() { return items; },
+			buttons: [],
+			busy: false,
+			onDidChangeCheckboxState: onDidChangeCheckboxState.event,
+			onDidHide: onDidHide.event,
+			onDidTriggerItemButton: Event.None,
+			onDidAccept: Event.None,
+			setItemTree: value => { items = value; },
+			isCollapsed: () => true,
+			expand: item => { focused.push(item.label); },
+			reveal: item => { focused.push(item.label); },
+			show: () => { },
+			dispose: () => { },
+		});
+		instantiationService.stub(IQuickInputService, { createQuickTree: <T extends IQuickTreeItem>() => quickTree as IQuickTree<T> });
+		service = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
+		const ref = createMcpToolRef('mcpTool', 'server', 'Test Server');
+		await service.getPreConfirmActions(ref).find(action => action.scope === 'workspace')!.select();
+		const combinationRef = await createCombinationRef(ref.toolId, {}, 'Allow this combination');
+		await service.getPreConfirmActions(combinationRef).find(action => action.scope === 'workspace')!.select();
+		await service.getPostConfirmActions(ref).find(action => action.scope === 'workspace')!.select();
+		const tool: IToolData = { id: ref.toolId, source: ref.source, displayName: 'Tool', modelDescription: '', canRequestPreApproval: true, canRequestPostApproval: true };
+		let serverApproved = false;
+		let toolApproved = false;
+		const writes: [string, boolean][] = [];
+		const discoveredTools = observableValue<readonly IToolData[]>('discoveredTools', []);
+		const isDiscovering = observableValue('isDiscovering', true);
+		const preApprovalStore: IToolPreApprovalStore = {
+			discoveredTools,
+			isDiscovering,
+			placeholder: 'Host approvals',
+			servers: [{ id: 'empty', label: 'Empty Server' }, { id: 'server', label: 'Test Server' }],
+			isServerApproved: () => serverApproved,
+			setServerApproved: (id, approved) => { serverApproved = approved; writes.push([id, approved]); },
+			isToolApproved: () => toolApproved,
+			setToolApproved: (tool, approved) => { toolApproved = approved; writes.push([tool.id, approved]); },
+		};
+		store.add(service.registerConfirmationContribution('fetch', {
+			getManageActions: () => [{ label: 'Configure URLs' }],
+		}));
+		service.manageConfirmationPreferences([
+			{ id: 'fetch', source: ToolDataSource.Internal, displayName: 'Fetch', modelDescription: '', canRequestPreApproval: true },
+		], { preApprovalStore, focusToolId: tool.id });
+
+		const snapshot = (entries: readonly IQuickTreeItem[]): object[] => entries.map(item => ({
+			id: item.id,
+			label: item.label,
+			type: (item as IQuickTreeItem & { type?: string }).type,
+			checked: item.checked,
+			pickable: item.pickable,
+			children: item.children ? snapshot(item.children) : [],
+		}));
+		const initial = { items: snapshot(items), busy: quickTree.busy, fetchCollapsed: items.find(item => item.id === 'tool/fetch')?.collapsed };
+		transaction(tx => {
+			discoveredTools.set([tool], tx);
+			isDiscovering.set(false, tx);
+		});
+		const discovered = { items: snapshot(items), busy: quickTree.busy };
+		const server = items.find(item => item.label === 'Test Server')!;
+		const toolItem = server.children!.find(item => item.label === 'Tool')!;
+		onDidChangeCheckboxState.fire({ ...toolItem, checked: true });
+		onDidChangeCheckboxState.fire({ ...toolItem, checked: false });
+		const itemsAfterToggle = snapshot(items);
+		const storedPreApproval = service.getPreConfirmAction(ref);
+		onDidChangeCheckboxState.fire({ ...server, checked: true });
+		onDidChangeCheckboxState.fire({ ...server, checked: false });
+		const serverPre = items.find(item => item.label === 'Test Server')!.children![0];
+		onDidChangeCheckboxState.fire({ ...serverPre, checked: true });
+		configurationService.policyRestricted = true;
+		onDidChangeCheckboxState.fire({ ...server, checked: false });
+		configurationService.policyRestricted = false;
+		onDidHide.fire({ reason: QuickInputHideReason.Other });
+
+		assert.deepStrictEqual({ initial, discovered, itemsAfterToggle, focused, writes, storedPreApproval, storedPostApproval: service.getPostConfirmAction(ref), buttons: quickTree.buttons, placeholder: quickTree.placeholder }, {
+			initial: {
+				items: [
+					{
+						id: 'server/empty', label: 'Empty Server', type: 'server', checked: false, pickable: false, children: [
+							{ id: 'server-pre/empty', label: 'Run any tool without approval', type: 'server-pre', checked: false, pickable: undefined, children: [] },
+						]
+					},
+					{
+						id: 'server/server', label: 'Test Server', type: 'server', checked: false, pickable: false, children: [
+							{ id: 'server-pre/server', label: 'Run any tool without approval', type: 'server-pre', checked: false, pickable: undefined, children: [] },
+						]
+					},
+					{
+						id: 'tool/fetch', label: 'Fetch', type: 'tool', checked: false, pickable: false, children: [
+							{ id: 'manage/fetch/Configure URLs', label: 'Configure URLs', type: 'manage', checked: undefined, pickable: undefined, children: [] },
+						]
+					},
+				],
+				busy: true,
+				fetchCollapsed: true,
+			},
+			discovered: {
+				items: [
+					{
+						id: 'server/empty', label: 'Empty Server', type: 'server', checked: false, pickable: false, children: [
+							{ id: 'server-pre/empty', label: 'Run any tool without approval', type: 'server-pre', checked: false, pickable: undefined, children: [] },
+						]
+					},
+					{
+						id: 'server/server', label: 'Test Server', type: 'server', checked: false, pickable: false, children: [
+							{ id: 'server-pre/server', label: 'Run any tool without approval', type: 'server-pre', checked: false, pickable: undefined, children: [] },
+							{ id: 'tool/mcpTool', label: 'Tool', type: 'tool', checked: false, pickable: undefined, children: [] },
+						]
+					},
+					{
+						id: 'tool/fetch', label: 'Fetch', type: 'tool', checked: false, pickable: false, children: [
+							{ id: 'manage/fetch/Configure URLs', label: 'Configure URLs', type: 'manage', checked: undefined, pickable: undefined, children: [] },
+						]
+					},
+				],
+				busy: false,
+			},
+			itemsAfterToggle: discovered.items,
+			focused: ['Test Server', 'Tool'],
+			writes: [['mcpTool', true], ['mcpTool', false], ['server', true], ['server', false], ['server', true]],
+			storedPreApproval: { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' },
+			storedPostApproval: { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' },
+			buttons: [],
+			placeholder: 'Host approvals',
+		});
+	});
+
+	test('retains unchecked contribution rows until rechecked or deleted', async () => {
+		const onDidChangeCheckboxState = store.add(new Emitter<IQuickTreeItem>());
+		const onDidTriggerItemButton = store.add(new Emitter<IQuickTreeItemButtonEvent<IQuickTreeItem>>());
+		const onDidHide = store.add(new Emitter<IQuickInputHideEvent>());
+		const onDidSetItemTree = store.add(new Emitter<void>());
+		let items: IQuickTreeItem[] = [];
+		const quickTree = upcastPartial<IQuickTree<IQuickTreeItem>>({
+			get itemTree() { return items; },
+			onDidChangeCheckboxState: onDidChangeCheckboxState.event,
+			onDidTriggerItemButton: onDidTriggerItemButton.event,
+			onDidHide: onDidHide.event,
+			onDidAccept: Event.None,
+			setItemTree: value => { items = value; onDidSetItemTree.fire(); },
+			show: () => { },
+			dispose: () => { },
+		});
+		instantiationService.stub(IQuickInputService, { createQuickTree: <T extends IQuickTreeItem>() => quickTree as IQuickTree<T> });
+		service = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
+		const deleteButton = { tooltip: 'Delete' };
+		let rows = ['first', 'second'];
+		store.add(service.registerConfirmationContribution('testTool', {
+			canUseDefaultApprovals: false,
+			getManageActions: () => [
+				...rows.map(label => ({
+					id: label === 'first' ? 'row/first' : undefined,
+					label,
+					checked: true,
+					buttons: [deleteButton],
+					onDidChangeChecked: async (checked: boolean) => {
+						await Promise.resolve();
+						rows = checked ? [...rows, label] : rows.filter(row => row !== label);
+					},
+					onDidTriggerItemButton: async () => {
+						await Promise.resolve();
+						rows = rows.filter(row => row !== label);
+					},
+				})),
+				{ label: 'Add Row...', pickable: false },
+			],
+		}));
+		const tools: IToolData[] = [{ id: 'testTool', source: ToolDataSource.Internal, displayName: 'Tool', modelDescription: '' }];
+		service.manageConfirmationPreferences(tools, { defaultScope: 'session' });
+
+		const snapshot = () => items[0].children!.map(item => [item.id, item.label, item.checked]);
+		const changeChecked = async (label: string, checked: boolean) => {
+			const updated = Event.toPromise(onDidSetItemTree.event);
+			onDidChangeCheckboxState.fire({ ...items[0].children!.find(item => item.label === label)!, checked });
+			await updated;
+		};
+		const remove = async (label: string) => {
+			const updated = Event.toPromise(onDidSetItemTree.event);
+			onDidTriggerItemButton.fire({ item: items[0].children!.find(item => item.label === label)!, button: deleteButton });
+			await updated;
+		};
+		const initial = snapshot();
+		await changeChecked('first', false);
+		const unchecked = snapshot();
+		await changeChecked('second', false);
+		const bothUnchecked = snapshot();
+		await changeChecked('second', true);
+		await changeChecked('first', true);
+		const restored = snapshot();
+		await remove('second');
+		await changeChecked('first', false);
+		await remove('first');
+		const deleted = snapshot();
+		onDidHide.fire({ reason: QuickInputHideReason.Other });
+
+		assert.deepStrictEqual({ initial, unchecked, bothUnchecked, restored, deleted, rows }, {
+			initial: [
+				['manage/testTool/row/first', 'first', true],
+				['manage/testTool/second', 'second', true],
+				['manage/testTool/Add Row...', 'Add Row...', undefined],
+			],
+			unchecked: [
+				['manage/testTool/row/first', 'first', false],
+				['manage/testTool/second', 'second', true],
+				['manage/testTool/Add Row...', 'Add Row...', undefined],
+			],
+			bothUnchecked: [
+				['manage/testTool/row/first', 'first', false],
+				['manage/testTool/second', 'second', false],
+				['manage/testTool/Add Row...', 'Add Row...', undefined],
+			],
+			restored: [
+				['manage/testTool/second', 'second', true],
+				['manage/testTool/row/first', 'first', true],
+				['manage/testTool/Add Row...', 'Add Row...', undefined],
+			],
+			deleted: [['manage/testTool/Add Row...', 'Add Row...', undefined]],
+			rows: [],
+		});
+	});
+
+	test('serializes contribution checkbox and button handlers before they read settings', async () => {
+		const onDidChangeCheckboxState = store.add(new Emitter<IQuickTreeItem>());
+		const onDidTriggerItemButton = store.add(new Emitter<IQuickTreeItemButtonEvent<IQuickTreeItem>>());
+		const onDidHide = store.add(new Emitter<IQuickInputHideEvent>());
+		const firstStarted = new DeferredPromise<void>();
+		const writeReady = new DeferredPromise<void>();
+		const rebuilt = new DeferredPromise<void>();
+		let items: IQuickTreeItem[] = [];
+		let rebuilds = 0;
+		const quickTree = upcastPartial<IQuickTree<IQuickTreeItem>>({
+			get itemTree() { return items; },
+			onDidChangeCheckboxState: onDidChangeCheckboxState.event,
+			onDidTriggerItemButton: onDidTriggerItemButton.event,
+			onDidHide: onDidHide.event,
+			onDidAccept: Event.None,
+			setItemTree: value => {
+				items = value;
+				if (++rebuilds === 3) {
+					void rebuilt.complete();
+				}
+			},
+			show: () => { },
+			dispose: () => { },
+		});
+		instantiationService.stub(IQuickInputService, { createQuickTree: <T extends IQuickTreeItem>() => quickTree as IQuickTree<T> });
+		service = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
+		let approvals: string[] = [];
+		const started: string[] = [];
+		const update = async (label: string) => {
+			const current = approvals;
+			started.push(label);
+			if (label === 'first') {
+				void firstStarted.complete();
+			}
+			await writeReady.p;
+			approvals = [...current, label];
+		};
+		const deleteButton = { tooltip: 'Delete' };
+		store.add(service.registerConfirmationContribution('testTool', {
+			canUseDefaultApprovals: false,
+			getManageActions: () => [
+				{ label: 'first', checked: false, onDidChangeChecked: () => update('first') },
+				{ label: 'second', buttons: [deleteButton], onDidTriggerItemButton: () => update('second') },
+			],
+		}));
+		service.manageConfirmationPreferences([{ id: 'testTool', source: ToolDataSource.Internal, displayName: 'Tool', modelDescription: '' }], { defaultScope: 'session' });
+		onDidChangeCheckboxState.fire({ ...items[0].children![0], checked: true });
+		onDidTriggerItemButton.fire({ item: items[0].children![1], button: deleteButton });
+		await firstStarted.p;
+		const beforeWrite = { started: [...started], approvals };
+		await writeReady.complete();
+		await rebuilt.p;
+		onDidHide.fire({ reason: QuickInputHideReason.Other });
+
+		assert.deepStrictEqual({ beforeWrite, started, approvals }, {
+			beforeWrite: { started: ['first'], approvals: [] },
+			started: ['first', 'second'],
+			approvals: ['first', 'second'],
+		});
+	});
 
 	test('getPreConfirmAction returns undefined by default', () => {
 		const ref = createToolRef('testTool');

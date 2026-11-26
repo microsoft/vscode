@@ -12,9 +12,11 @@ import type { Mutable } from '../../../../base/common/types.js';
  * restart the running server if a newer build is available.
  *
  * Servers advertise this method through {@link UnsupportedProtocolVersionErrorMeta.vscodeUpgradeMethod}
- * in the `_meta` payload of an `UnsupportedProtocolVersion` error so the
- * client can offer an "Update server" action without hard-coding the method
- * name on the renderer side.
+ * in the `_meta` payload of an `UnsupportedProtocolVersion` error, and through
+ * the `vscode.upgradeMethod` capability in the `initialize` result `_meta`
+ * (see `common/meta/agentHostUpgradeMeta.ts`), so the client can offer an
+ * "Update server" action without hard-coding the method name on the
+ * renderer side.
  */
 export const VSCODE_UPGRADE_METHOD = '_vscodeUpgrade' as const;
 

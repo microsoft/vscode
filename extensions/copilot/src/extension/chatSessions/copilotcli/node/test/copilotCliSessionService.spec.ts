@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionOptions } from '@github/copilot/sdk';
-import { mkdir, mkdtemp, rm, writeFile as writeNodeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile as writeNodeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatContext, ChatCustomAgent, ChatParticipantToolToken, Uri } from 'vscode';
 import { CancellationToken } from 'vscode-languageserver-protocol';
@@ -211,7 +212,7 @@ describe('CopilotCLISessionService', () => {
 						deleteSession: vi.fn(async () => { }),
 					};
 				}
-				return disposables.add(new CopilotCLISession(workspaceInfo, agentName, sdkSession, [], undefined, logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new MockGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any, new NullTelemetryService()));
+				return disposables.add(new CopilotCLISession(workspaceInfo, agentName, sdkSession, undefined, logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new MockGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any, new NullTelemetryService()));
 			}
 		} as unknown as IInstantiationService;
 		configurationService = accessor.get(IConfigurationService);
@@ -693,13 +694,38 @@ describe('CopilotCLISessionService', () => {
 	});
 
 	describe('CopilotCLISessionService.getAllSessions', () => {
-		it('filters Agent Host sessions without per-session stats', async () => {
+		async function writeAgentHostMetadata(userDataPath: string, sessionId: string, workingDirectory?: string): Promise<void> {
+			const directory = join(userDataPath, 'agentSessionData', sessionId);
+			await mkdir(directory, { recursive: true });
+			const db = new DatabaseSync(join(directory, 'session.db'));
+			try {
+				db.exec('CREATE TABLE IF NOT EXISTS session_metadata (key TEXT, value TEXT, turn_id TEXT)');
+				if (workingDirectory !== undefined) {
+					db.prepare('INSERT INTO session_metadata (key, value, turn_id) VALUES (?, ?, NULL)').run('copilot.workingDirectory', workingDirectory);
+				}
+			} finally {
+				db.close();
+			}
+		}
+
+		it('filters committed Agent Host sessions without treating empty databases as ownership', async () => {
+			tempStateHome = await mkdtemp(join(tmpdir(), 'copilot-cli-ownership-'));
 			const fileSystem = new TrackingFileSystemService();
-			const globalStorageUri = URI.file('/user-data/User/globalStorage/github.copilot-chat');
-			fileSystem.mockDirectory(URI.file('/user-data/agentSessionData'), [
+			const globalStorageUri = URI.file(join(tempStateHome, 'User', 'globalStorage', 'github.copilot-chat'));
+			fileSystem.mockDirectory(URI.file(join(tempStateHome, 'agentSessionData')), [
 				['legacy-owned', FileType.Directory],
+				['deferred-adoption', FileType.Directory],
+				['empty-cwd', FileType.Directory],
+				['missing-db', FileType.Directory],
+				['corrupt-db', FileType.Directory],
 				['not-a-session', FileType.File],
 			]);
+			await writeAgentHostMetadata(tempStateHome, 'legacy-owned', URI.file('/workspace').toString());
+			await writeAgentHostMetadata(tempStateHome, 'deferred-adoption');
+			await writeAgentHostMetadata(tempStateHome, 'empty-cwd', '');
+			await mkdir(join(tempStateHome, 'agentSessionData', 'missing-db'), { recursive: true });
+			await mkdir(join(tempStateHome, 'agentSessionData', 'corrupt-db'), { recursive: true });
+			await writeNodeFile(join(tempStateHome, 'agentSessionData', 'corrupt-db', 'session.db'), 'not sqlite');
 			const filteredService = disposables.add(createSessionService({
 				extensionContext: new TestExtensionContext(globalStorageUri),
 				fileSystem,
@@ -708,6 +734,10 @@ describe('CopilotCLISessionService', () => {
 			const sessions = [
 				{ id: 'agent-host', clientName: 'vscode-agent-host' },
 				{ id: 'legacy:owned', clientName: 'vscode' },
+				{ id: 'deferred-adoption', clientName: 'vscode' },
+				{ id: 'empty-cwd', clientName: 'vscode' },
+				{ id: 'missing-db', clientName: 'vscode' },
+				{ id: 'corrupt-db', clientName: 'vscode' },
 				{ id: 'extension-host', clientName: 'vscode' },
 				{ id: 'standalone', clientName: 'copilot-cli' },
 			];
@@ -728,13 +758,13 @@ describe('CopilotCLISessionService', () => {
 				agentHostDataStats: fileSystem.statPaths.filter(path => path.includes('agentSessionData')),
 				detailsRead: filteredManager.enrichedSessionIds,
 			}).toEqual({
-				sessionIds: ['extension-host', 'standalone'],
+				sessionIds: ['deferred-adoption', 'empty-cwd', 'missing-db', 'corrupt-db', 'extension-host', 'standalone'],
 				targetedAgentHostItem: undefined,
 				readDirectoryCallCount: 1,
 				agentHostDataStats: [],
-				// `legacy:owned` is dropped by its agent host data folder before any read.
-				detailsRead: ['agent-host', 'extension-host', 'standalone'],
+				detailsRead: ['agent-host', 'deferred-adoption', 'empty-cwd', 'missing-db', 'corrupt-db', 'extension-host', 'standalone'],
 			});
+			await expect(stat(join(tempStateHome, 'agentSessionData', 'missing-db', 'session.db'))).rejects.toMatchObject({ code: 'ENOENT' });
 		});
 
 		it('lists ids only and reads details just for sessions VS Code created', async () => {
@@ -816,9 +846,10 @@ describe('CopilotCLISessionService', () => {
 		});
 
 		it('drops a session once the agent host adopts it, even with cached details', async () => {
+			tempStateHome = await mkdtemp(join(tmpdir(), 'copilot-cli-ownership-'));
 			const fileSystem = new TrackingFileSystemService();
 			const adoptingService = disposables.add(createSessionService({
-				extensionContext: new TestExtensionContext(URI.file('/user-data/User/globalStorage/github.copilot-chat')),
+				extensionContext: new TestExtensionContext(URI.file(join(tempStateHome, 'User', 'globalStorage', 'github.copilot-chat'))),
 				fileSystem,
 			}));
 			const adoptingManager = await adoptingService.getSessionManager() as unknown as MockCliSdkSessionManager;
@@ -828,14 +859,30 @@ describe('CopilotCLISessionService', () => {
 			adoptingManager.sessions.set(sdkSession.sessionId, sdkSession);
 
 			const beforeAdoption = await adoptingService.getAllSessions(CancellationToken.None);
-			fileSystem.mockDirectory(URI.file('/user-data/agentSessionData'), [['legacy-session', FileType.Directory]]);
+			fileSystem.mockDirectory(URI.file(join(tempStateHome, 'agentSessionData')), [['legacy-session', FileType.Directory]]);
+			await writeAgentHostMetadata(tempStateHome, 'legacy-session');
+			const deferredAdoption = await adoptingService.getAllSessions(CancellationToken.None);
+			const writer = new DatabaseSync(join(tempStateHome, 'agentSessionData', 'legacy-session', 'session.db'));
+			let uncommittedAdoption: readonly ICopilotCLISessionItem[];
+			try {
+				writer.exec('PRAGMA journal_mode = WAL; BEGIN IMMEDIATE');
+				writer.prepare('INSERT INTO session_metadata (key, value, turn_id) VALUES (?, ?, NULL)').run('copilot.workingDirectory', URI.file('/workspace').toString());
+				uncommittedAdoption = await adoptingService.getAllSessions(CancellationToken.None);
+				writer.exec('COMMIT');
+			} finally {
+				writer.close();
+			}
 			const afterAdoption = await adoptingService.getAllSessions(CancellationToken.None);
 
 			expect({
 				beforeAdoption: beforeAdoption.map(item => item.id),
+				deferredAdoption: deferredAdoption.map(item => item.id),
+				uncommittedAdoption: uncommittedAdoption.map(item => item.id),
 				afterAdoption: afterAdoption.map(item => item.id),
 			}).toEqual({
 				beforeAdoption: ['legacy-session'],
+				deferredAdoption: ['legacy-session'],
+				uncommittedAdoption: ['legacy-session'],
 				afterAdoption: [],
 			});
 		});

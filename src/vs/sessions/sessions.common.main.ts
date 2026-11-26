@@ -67,6 +67,7 @@ import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
 import '../platform/mcp/common/mcpResourceScannerService.js';
 import '../workbench/services/workspaces/common/editSessionIdentityService.js';
+import '../workbench/services/workspaces/common/workspaceFolderLocationService.js';
 import '../workbench/services/extensions/browser/extensionUrlHandler.js';
 import '../workbench/services/keybinding/common/keybindingEditing.js';
 import '../workbench/services/decorations/browser/decorationsService.js';
@@ -236,6 +237,7 @@ import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution
 import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import '../workbench/contrib/chatWindow/browser/chatWindow.contribution.js';
 import '../workbench/contrib/imageCarousel/browser/imageCarousel.contribution.js';
+import '../workbench/contrib/screenshotTool/browser/screenshotTool.contribution.js';
 
 // Voice Mode (voice UI actions, settings and context keys)
 import '../workbench/contrib/agentsVoice/browser/agentsVoice.contribution.js';
@@ -474,7 +476,7 @@ import './browser/parts/sessionsPartContent.registration.js';
 import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsWindowUsageService.js';
 import './services/sessions/browser/sessionsServices.registration.js';
-import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
+import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.registration.js';
 import './services/mcp/browser/mcpWorkspaceInstallTargetService.js';
 import './services/customView/browser/customViewService.registration.js';
 import './services/activity/common/sessionActivityBarActivityService.registration.js';
@@ -488,6 +490,9 @@ import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/sharedChatInputComposer.contribution.js';
 import './contrib/chat/browser/requestOriginProvider.contribution.js';
 import './contrib/chat/browser/sideChatProvider.contribution.js';
+import './contrib/chat/browser/sideChatPane.contribution.js';
+import './contrib/chat/browser/newSideChatAction.js';
+import './contrib/chat/browser/sideChatActivityBar.contribution.js';
 import './contrib/chatWindow/browser/chatWindow.contribution.js';
 import './contrib/sessionComparison/browser/sessionComparison.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';

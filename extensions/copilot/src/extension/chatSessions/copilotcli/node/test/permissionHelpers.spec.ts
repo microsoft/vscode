@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CancellationToken, ChatParticipantToolToken } from 'vscode';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { CancellationTokenSource } from '../../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
+import { extUriBiasedIgnorePathCase } from '../../../../../util/vs/base/common/resources';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelTextPart, LanguageModelToolResult2 } from '../../../../../vscodeTypes';
@@ -312,7 +316,7 @@ describe('CopilotCLI permissionHelpers', () => {
 		}
 
 		function makeWorkspaceService(folders: URI[]): IWorkspaceService {
-			return { getWorkspaceFolder: (resource: URI) => folders.find(f => resource.fsPath.startsWith(f.fsPath)) } as unknown as IWorkspaceService;
+			return { getWorkspaceFolder: (resource: URI) => folders.find(folder => extUriBiasedIgnorePathCase.isEqualOrParent(resource, folder)) } as unknown as IWorkspaceService;
 		}
 
 		function makeToolsService(response: string): IToolsService {
@@ -373,6 +377,73 @@ describe('CopilotCLI permissionHelpers', () => {
 			);
 			expect(result.kind).toBe('approve-once');
 			expect(toolsService.invokeTool).toHaveBeenCalled();
+		});
+
+		it('requires confirmation when a workspace link resolves outside the workspace', async () => {
+			const tempRoot = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-cli-read-symlink-')));
+			const workspaceRoot = path.join(tempRoot, 'workspace');
+			const outsideRoot = path.join(tempRoot, 'outside');
+			fs.mkdirSync(workspaceRoot);
+			fs.mkdirSync(outsideRoot);
+			try {
+				const outsideSecret = path.join(outsideRoot, 'secret.txt');
+				fs.writeFileSync(outsideSecret, 'outside secret');
+				const insideFile = path.join(workspaceRoot, 'notes.txt');
+				fs.writeFileSync(insideFile, 'inside');
+				const workspaceLink = path.join(workspaceRoot, 'linked-outside');
+				fs.symlinkSync(outsideRoot, workspaceLink, process.platform === 'win32' ? 'junction' : 'dir');
+				const symlinkedSecret = path.join(workspaceLink, 'secret.txt');
+				const missingThroughLink = path.join(workspaceLink, 'missing.txt');
+				const linkedWorkspace = path.join(tempRoot, 'linked-workspace');
+				fs.symlinkSync(workspaceRoot, linkedWorkspace, process.platform === 'win32' ? 'junction' : 'dir');
+
+				const toolsService = makeToolsService('no');
+				const read = (target: string, workspace = workspaceRoot) => handleReadPermission(
+					'session-1',
+					{ kind: 'read', path: target, intention: 'Read file' } as any,
+					undefined,
+					[],
+					makeImageSupport(false),
+					makeWorkspaceInfo(URI.file(workspace)),
+					makeWorkspaceService([URI.file(workspace)]),
+					toolsService,
+					undefined as unknown as ChatParticipantToolToken,
+					logService,
+					token,
+				);
+
+				const direct = await read(outsideSecret);
+				const linked = await read(symlinkedSecret);
+				const missing = await read(missingThroughLink);
+				const inside = await read(insideFile);
+				const throughWorkspaceLink = await read(path.join(linkedWorkspace, 'notes.txt'), linkedWorkspace);
+				const prompts = (toolsService.invokeTool as ReturnType<typeof vi.fn>).mock.calls.map(call => call[1].input.message as string);
+				const mentionsPath = (message: string | undefined, target: string) => !!message && message.toLowerCase().includes(target.toLowerCase());
+
+				expect({
+					resolvedSecret: fs.realpathSync(symlinkedSecret),
+					direct: direct.kind,
+					linked: linked.kind,
+					missing: missing.kind,
+					inside: inside.kind,
+					throughWorkspaceLink: throughWorkspaceLink.kind,
+					linkedPromptMentionsOutside: mentionsPath(prompts[1], fs.realpathSync(outsideSecret)),
+					missingPromptMentionsOutside: mentionsPath(prompts[2], fs.realpathSync(outsideRoot)),
+					promptCount: prompts.length,
+				}).toEqual({
+					resolvedSecret: fs.realpathSync(outsideSecret),
+					direct: 'denied-interactively-by-user',
+					linked: 'denied-interactively-by-user',
+					missing: 'denied-interactively-by-user',
+					inside: 'approve-once',
+					throughWorkspaceLink: 'approve-once',
+					linkedPromptMentionsOutside: true,
+					missingPromptMentionsOutside: true,
+					promptCount: 3,
+				});
+			} finally {
+				fs.rmSync(tempRoot, { recursive: true, force: true });
+			}
 		});
 
 		it('denies when confirmation tool returns non-"yes"', async () => {
@@ -506,6 +577,142 @@ describe('CopilotCLI permissionHelpers', () => {
 				undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
 			expect(result.kind).toBe('denied-interactively-by-user');
+		});
+
+		it('requires confirmation when a write resolves outside its trusted folder', async () => {
+			const tempRoot = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-cli-write-symlink-')));
+			const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+			const makeDir = (...segments: string[]) => {
+				const dir = path.join(tempRoot, ...segments);
+				fs.mkdirSync(dir, { recursive: true });
+				return dir;
+			};
+			const workspaceRoot = makeDir('workspace');
+			const outsideRoot = makeDir('outside');
+			const worktreeRoot = makeDir('worktree');
+			const sessionRoot = makeDir('copilot-home', 'session-state', 'session-1');
+			const previousCopilotHome = process.env.COPILOT_HOME;
+			process.env.COPILOT_HOME = path.join(tempRoot, 'copilot-home');
+			try {
+				const outsideScript = path.join(outsideRoot, 'script.sh');
+				const insideFile = path.join(workspaceRoot, 'notes.txt');
+				fs.writeFileSync(outsideScript, 'echo outside');
+				fs.writeFileSync(insideFile, 'inside');
+				fs.symlinkSync(outsideRoot, path.join(workspaceRoot, 'linked-outside'), linkType);
+				fs.symlinkSync(outsideRoot, path.join(worktreeRoot, 'linked-outside'), linkType);
+				fs.symlinkSync(workspaceRoot, path.join(worktreeRoot, 'linked-workspace'), linkType);
+				fs.symlinkSync(outsideRoot, path.join(sessionRoot, 'linked-outside'), linkType);
+				fs.symlinkSync(workspaceRoot, path.join(tempRoot, 'linked-workspace'), linkType);
+				// A dangling link: writing through it creates its missing target outside the workspace.
+				fs.symlinkSync(path.join(outsideRoot, 'missing'), path.join(workspaceRoot, 'linked-missing'), linkType);
+				const nestedWorkingDirectory = makeDir('workspace', 'subdir');
+				fs.symlinkSync(workspaceRoot, path.join(nestedWorkingDirectory, 'linked-root'), linkType);
+
+				const workspace = URI.file(workspaceRoot);
+				const linkedWorkspace = URI.file(path.join(tempRoot, 'linked-workspace'));
+				const foldersService = (...folders: URI[]) => ({
+					getWorkspaceFolder: (resource: URI) => folders.find(folder => extUriBiasedIgnorePathCase.isEqualOrParent(resource, folder)),
+				}) as unknown as IWorkspaceService;
+				const inWorkspace = makeWorkspaceInfo({ folder: workspace });
+				const isolated = makeWorkspaceInfo({
+					folder: workspace,
+					repository: workspace,
+					worktree: URI.file(worktreeRoot),
+					worktreeProperties: { autoCommit: true, baseCommit: 'abc', branchName: 'test', repositoryPath: workspaceRoot, worktreePath: worktreeRoot, version: 1 },
+				});
+				const toolsService = makeToolsService('no');
+				const invokeTool = toolsService.invokeTool as ReturnType<typeof vi.fn>;
+				// Reports whether the write was approved, or prompted and (if expected) named the resolved target.
+				const write = async (fileName: string, info: IWorkspaceInfo, service: IWorkspaceService, resolvedTarget?: string) => {
+					const promptsBefore = invokeTool.mock.calls.length;
+					const result = await handleWritePermission(
+						'session-1', { kind: 'write', fileName, diff: '', intention: 'Edit file' } as any, undefined, undefined, undefined, editTracker,
+						info, service, instaService, toolsService,
+						undefined as unknown as ChatParticipantToolToken, logService, token,
+					);
+					if (invokeTool.mock.calls.length === promptsBefore) {
+						return result.kind;
+					}
+					const message = String(invokeTool.mock.calls.at(-1)![1].input.message).toLowerCase();
+					const expectedTarget = resolvedTarget && (fs.existsSync(resolvedTarget) ? fs.realpathSync(resolvedTarget) : resolvedTarget);
+					return expectedTarget && message.includes(expectedTarget.toLowerCase()) ? 'prompted with resolved target' : 'prompted';
+				};
+
+				expect({
+					insideWorkspace: await write(insideFile, inWorkspace, foldersService(workspace)),
+					protectedInsideWorkspace: await write(path.join(workspaceRoot, '.vscode', 'settings.json'), inWorkspace, foldersService(workspace)),
+					throughLinkedWorkspace: await write(path.join(linkedWorkspace.fsPath, 'notes.txt'), makeWorkspaceInfo({ folder: linkedWorkspace }), foldersService(linkedWorkspace)),
+					workspaceLinkOutside: await write(path.join(workspaceRoot, 'linked-outside', 'script.sh'), inWorkspace, foldersService(workspace), outsideScript),
+					noWorkingDirectoryLinkOutside: await write(path.join(workspaceRoot, 'linked-outside', 'script.sh'), makeWorkspaceInfo(), foldersService(workspace), outsideScript),
+					isolatedLinkOutside: await write(path.join(worktreeRoot, 'linked-outside', 'script.sh'), isolated, foldersService(workspace), outsideScript),
+					isolatedLinkIntoWorkspace: await write(path.join(worktreeRoot, 'linked-workspace', 'notes.txt'), isolated, foldersService(workspace), insideFile),
+					sessionState: await write(path.join(sessionRoot, 'plan.md'), inWorkspace, foldersService(workspace)),
+					sessionStateLinkOutside: await write(path.join(sessionRoot, 'linked-outside', 'script.sh'), inWorkspace, foldersService(workspace), outsideScript),
+					danglingLinkOutside: await write(path.join(workspaceRoot, 'linked-missing', 'new.sh'), inWorkspace, foldersService(workspace), path.join(outsideRoot, 'missing', 'new.sh')),
+					danglingLinkItselfOutside: await write(path.join(workspaceRoot, 'linked-missing'), inWorkspace, foldersService(workspace), path.join(outsideRoot, 'missing')),
+					nestedWorkingDirectoryLinkIntoWorkspace: await write(
+						path.join(nestedWorkingDirectory, 'linked-root', '.vscode', 'settings.json'),
+						makeWorkspaceInfo({ folder: URI.file(nestedWorkingDirectory) }),
+						foldersService(workspace),
+						path.join(workspaceRoot, '.vscode', 'settings.json'),
+					),
+				}).toEqual({
+					insideWorkspace: 'approve-once',
+					protectedInsideWorkspace: 'prompted',
+					throughLinkedWorkspace: 'approve-once',
+					workspaceLinkOutside: 'prompted with resolved target',
+					noWorkingDirectoryLinkOutside: 'prompted with resolved target',
+					isolatedLinkOutside: 'prompted with resolved target',
+					isolatedLinkIntoWorkspace: 'prompted with resolved target',
+					sessionState: 'approve-once',
+					sessionStateLinkOutside: 'prompted with resolved target',
+					danglingLinkOutside: 'prompted with resolved target',
+					danglingLinkItselfOutside: 'prompted with resolved target',
+					nestedWorkingDirectoryLinkIntoWorkspace: 'prompted with resolved target',
+				});
+			} finally {
+				if (previousCopilotHome === undefined) {
+					delete process.env.COPILOT_HOME;
+				} else {
+					process.env.COPILOT_HOME = previousCopilotHome;
+				}
+				fs.rmSync(tempRoot, { recursive: true, force: true });
+			}
+		});
+
+		it('approves and tracks a write through a workspace link when the user confirms', async () => {
+			const tempRoot = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-cli-write-symlink-')));
+			const workspaceRoot = path.join(tempRoot, 'workspace');
+			const outsideRoot = path.join(tempRoot, 'outside');
+			fs.mkdirSync(workspaceRoot);
+			fs.mkdirSync(outsideRoot);
+			try {
+				fs.symlinkSync(outsideRoot, path.join(workspaceRoot, 'linked-outside'), process.platform === 'win32' ? 'junction' : 'dir');
+				const symlinkedScript = path.join(workspaceRoot, 'linked-outside', 'script.sh');
+				const workspace = URI.file(workspaceRoot);
+				const toolsService = makeToolsService('yes');
+				const toolCall = { toolName: 'str_replace_editor', toolCallId: 'edit-1', arguments: { command: 'str_replace', path: symlinkedScript } } as any;
+
+				const result = await handleWritePermission(
+					'session-1', { kind: 'write', fileName: symlinkedScript, diff: '', intention: 'Edit script' } as any, toolCall, undefined, {} as any, editTracker,
+					makeWorkspaceInfo({ folder: workspace }),
+					{ getWorkspaceFolder: (resource: URI) => extUriBiasedIgnorePathCase.isEqualOrParent(resource, workspace) ? workspace : undefined } as unknown as IWorkspaceService,
+					instaService, toolsService,
+					undefined as unknown as ChatParticipantToolToken, logService, token,
+				);
+
+				expect({
+					result: result.kind,
+					prompts: (toolsService.invokeTool as ReturnType<typeof vi.fn>).mock.calls.length,
+					trackedEdits: (editTracker.trackEdit as ReturnType<typeof vi.fn>).mock.calls.map(call => call[0]),
+				}).toEqual({
+					result: 'approve-once',
+					prompts: 1,
+					trackedEdits: ['edit-1'],
+				});
+			} finally {
+				fs.rmSync(tempRoot, { recursive: true, force: true });
+			}
 		});
 
 		it('auto-approves when no file can be determined (no fileName, no toolCall)', async () => {

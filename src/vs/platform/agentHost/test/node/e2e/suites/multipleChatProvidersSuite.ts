@@ -157,7 +157,7 @@ export function defineMultipleChatProvidersTests(context: IAgentHostE2ETestConte
 			version: PROTOCOL_VERSION,
 			off: Object.hasOwn(off, 'multipleChatProviders'),
 			on: on.multipleChatProviders,
-		}, { version: '1.1.0', off: false, on: {} });
+		}, { version: PROTOCOL_VERSION, off: false, on: {} });
 	});
 
 	conformanceTest(context, 'createChat rejects a provider while the setting is off', async function () {

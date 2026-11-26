@@ -51,6 +51,11 @@ interface ISessionSettingsContext extends IAgentHostSettingsContext {
 	readonly sessionId: string;
 }
 
+/** All of the provider's sessions, including those outside its listing scope when it reports them. */
+function getAllSessionsOf(provider: IAgentHostSessionsProvider): readonly ISession[] {
+	return provider.getAllSessions?.() ?? provider.getSessions();
+}
+
 function parseSessionSettingsUri(uri: URI): ISessionSettingsContext | undefined {
 	if (uri.scheme !== AGENT_SESSION_SETTINGS_SCHEME) {
 		return undefined;
@@ -154,7 +159,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractSessionsAgen
 	}
 
 	protected _ensureSchemaRegistered(provider: IAgentHostSessionsProvider, ctx: ISessionSettingsContext): void {
-		const session = provider.getSessions().find(s => s.sessionId === ctx.sessionId);
+		const session = getAllSessionsOf(provider).find(s => s.sessionId === ctx.sessionId);
 		if (session) {
 			this._schemaRegistrar.ensureRegistered(session);
 		}
@@ -206,7 +211,8 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 	}
 
 	protected _targetsForProvider(provider: IAgentHostSessionsProvider): readonly ISession[] {
-		return provider.getSessions();
+		// Also the sessions outside its listing scope, whose schemas are registered as they are read
+		return getAllSessionsOf(provider);
 	}
 
 	protected _observeProvider(
@@ -216,12 +222,13 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 	): IDisposable {
 		const store = new DisposableStore();
 		store.add(provider.onDidChangeSessionConfig(sessionId => {
-			const session = provider.getSessions().find(s => s.sessionId === sessionId);
+			const session = getAllSessionsOf(provider).find(s => s.sessionId === sessionId);
 			if (session) {
 				onChanged(session);
 			}
 		}));
-		store.add(provider.onDidChangeSessions(e => {
+		// Also the removals outside its listing scope, whose schemas are registered too
+		store.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(e => {
 			for (const removed of e.removed) {
 				onRemoved(removed);
 			}

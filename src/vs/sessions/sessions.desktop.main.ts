@@ -28,7 +28,7 @@ registerOpenAgentsWindowCommand();
 // Per-session layout controller (desktop / web desktop layout).
 import './contrib/layout/browser/sessions.layout.contribution.js';
 import './contrib/canvases/electron-browser/sessionCanvases.contribution.js';
-import './contrib/sessionInputBanners/electron-browser/sessionDiskSpace.contribution.js';
+import '../workbench/contrib/sessions/electron-browser/sessionDiskSpace.contribution.js';
 
 //#endregion
 
@@ -150,6 +150,9 @@ import '../workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 // Debug
 import '../workbench/contrib/debug/electron-browser/extensionHostDebugService.js';
 
+// Workspaces
+import '../workbench/contrib/workspaces/electron-browser/workspaces.contribution.js';
+
 // Extension devtools
 import '../workbench/contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js';
 
@@ -159,6 +162,9 @@ import '../workbench/contrib/extensions/electron-browser/extensions.contribution
 
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
+
+// Screenshot Tool
+import '../workbench/contrib/screenshotTool/electron-browser/screenshotTool.contribution.js';
 
 // Surveys
 import '../workbench/contrib/surveys/browser/survey.contribution.js';
@@ -234,6 +240,9 @@ import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExpor
 // Computer Use setup: drag Copilot Computer Use into System Settings
 import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelperApp.contribution.js';
 
+// Chat: attach a screenshot of the window of another app
+import '../workbench/contrib/chat/electron-browser/actions/chatAppWindowScreenshotActions.js';
+
 //#endregion
 
 
@@ -242,6 +251,7 @@ import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelp
 import './electron-browser/sessions.desktop.contribution.js';
 import './contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.js';
 import './contrib/openAgentsWindow/electron-browser/openAgentsWindowKeybindingTip.js';
+import './contrib/agentsLauncher/electron-browser/agentsLauncher.contribution.js';
 
 // Remote Agent Host
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';
@@ -254,7 +264,7 @@ import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution
 import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/sshAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/webSocketAgentHost.contribution.js';
-import './contrib/providers/remoteAgentHost/browser/devContainerAgentHostService.contribution.js';
+import '../workbench/contrib/sessions/providers/remoteAgentHost/browser/devContainerAgentHostService.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/remoteWorkspaceHandoffService.js';
 import './contrib/providers/remoteAgentHost/electron-browser/devContainerAgentHostConnector.contribution.js';
 import './contrib/providers/remoteAgentHost/electron-browser/remotes.contribution.js';

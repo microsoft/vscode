@@ -18,6 +18,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { withChatPillHoverLabel, type IChatPillAction, type IChatPillSection } from '../../../browser/chatPills.js';
 import { getCanvasInstanceLabels, ICanvasContext, REVEAL_CANVAS_COMMAND_ID } from '../common/canvas.js';
+import { acquireCanvasIconClasses } from './canvasIcons.js';
 import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../common/canvasReference.js';
 
 /**
@@ -65,7 +66,7 @@ export class CanvasesPillControl extends Disposable {
 				return {
 					id: getCanvasReferenceKey(reference),
 					label,
-					icon: Codicon.preview,
+					...(canvas.icon ? { iconClasses: reader.store.add(acquireCanvasIconClasses(canvas.icon)).classes } : { icon: Codicon.preview }),
 					ariaLabel: localize('canvasesPill.open', "Open canvas {0}", label),
 					...(closeAction ? { promotedAction: closeAction } : {}),
 					open: () => this.revealCanvas(reference, label),

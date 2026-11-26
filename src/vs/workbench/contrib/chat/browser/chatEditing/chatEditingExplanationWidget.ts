@@ -20,8 +20,7 @@ import { overviewRulerRangeHighlight } from '../../../../../editor/common/core/e
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
 import { OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { themeColorFromId } from '../../../../../platform/theme/common/themeService.js';
-import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 import * as nls from '../../../../../nls.js';
 import { IExplanationDiffInfo, IChangeExplanation as IChangeExplanationModel, IChatEditingExplanationModelManager } from './chatEditingExplanationModelManager.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -134,7 +133,6 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 		private _changes: readonly (LineRangeMapping | DetailedLineRangeMapping)[],
 		diffInfo: IExplanationDiffInfo,
 		private readonly _chatWidgetService: IChatWidgetService,
-		private readonly _viewsService: IViewsService,
 		private readonly _chatSessionResource?: URI,
 	) {
 		super();
@@ -355,8 +353,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 				if (this._chatSessionResource) {
 					chatWidget = await this._chatWidgetService.openSession(this._chatSessionResource);
 				} else {
-					await this._viewsService.openView(ChatViewId, true);
-					chatWidget = this._chatWidgetService.lastFocusedWidget;
+					chatWidget = await this._chatWidgetService.revealChatView(false);
 				}
 				if (chatWidget) {
 					chatWidget.attachmentModel.addContext(
@@ -550,7 +547,6 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _chatWidgetService: IChatWidgetService,
-		private readonly _viewsService: IViewsService,
 		modelManager: IChatEditingExplanationModelManager,
 		private readonly _modelUri: URI,
 	) {
@@ -615,7 +611,6 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 				group,
 				diffInfo,
 				this._chatWidgetService,
-				this._viewsService,
 				chatSessionResource,
 			);
 			this._widgets.push(widget);

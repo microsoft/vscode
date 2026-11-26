@@ -152,7 +152,6 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.27)',
 		'libc.so.6(GLIBC_2.28)',
 		'libc.so.6(GLIBC_2.4)',
-		'libc.so.6(GLIBC_2.5)',
 		'libc.so.6(GLIBC_2.6)',
 		'libc.so.6(GLIBC_2.7)',
 		'libc.so.6(GLIBC_2.8)',

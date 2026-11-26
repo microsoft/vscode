@@ -203,6 +203,15 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('it opens on its checked item, scrolling only where that item is out of view, so the items above it in view still show', () => {
+		const checked: IActionListItem<ITestActionItem> = { kind: ActionListItemKind.Action, label: 'current', item: { id: 'current', checked: true } };
+		// More items than its height shows, as a picker of many choices has
+		const widget = createActionListWidget(disposables, { items: [action('first'), separator(), checked, ...Array.from({ length: 30 }, (_, index) => action(`other-${index}`))] });
+		const row = (index: number) => widget.domNode.querySelector<HTMLElement>(`.monaco-list-row[data-index="${index}"]`);
+
+		assert.deepStrictEqual({ firstShows: !!row(0), focused: row(2)?.classList.contains('focused') }, { firstShows: true, focused: true });
+	});
+
 	test('the footer name is independently keyboard-operable without selecting a row', () => {
 		let renames = 0;
 		let selections = 0;
@@ -669,14 +678,22 @@ suite('ActionListWidget', () => {
 			widget.focus();
 			widget.focusNext();
 			const states = [outline()];
+			rows[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			rows[0].classList.add('hovered');
 			rows[0].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 			states.push(outline());
 			widget.focusNext();
 			states.push(outline());
+			rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			rows[0].classList.remove('hovered');
+			rows[1].classList.add('hovered');
 			rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
 			states.push(outline());
 			widget.focusPrevious();
 			states.push(outline());
+			rows[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			rows[1].classList.remove('hovered');
+			rows[0].classList.add('hovered');
 			rows[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 			states.push(outline());
 			dispatchKeyDown(filterAsCombobox ? widget.filterInput! : widget.domNode.querySelector<HTMLElement>('.monaco-list')!, { key: 'Shift', keyCode: 16 });
@@ -699,7 +716,7 @@ suite('ActionListWidget', () => {
 		});
 	}
 
-	test('preserves high contrast outlines during pointer navigation', () => {
+	test('uses dashed high contrast hover and solid keyboard focus outlines', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [action('first'), action('second')],
 			listOptions: { showFilter: false },
@@ -707,11 +724,74 @@ suite('ActionListWidget', () => {
 		widget.domNode.classList.add('action-widget');
 		widget.domNode.style.setProperty('--vscode-menu-selectionBorder', '#f38518');
 		widget.domNode.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		widget.domNode.style.setProperty('--vscode-strokeThickness', '1px');
 		widget.focus();
+		widget.focusNext();
+		const keyboardRow = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.focused')!;
+		const readOutline = (row: HTMLElement) => {
+			const style = mainWindow.getComputedStyle(row);
+			return {
+				color: style.outlineColor,
+				offset: style.outlineOffset,
+				style: style.outlineStyle,
+				width: style.outlineWidth,
+			};
+		};
+		const keyboard = readOutline(keyboardRow);
 		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.classList.add('hovered');
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 
-		assert.strictEqual(mainWindow.getComputedStyle(row).outlineColor, 'rgb(243, 133, 24)');
+		assert.deepStrictEqual({
+			keyboard,
+			pointer: readOutline(row),
+		}, {
+			keyboard: { color: 'rgb(243, 133, 24)', offset: '-1px', style: 'solid', width: '1px' },
+			pointer: { color: 'rgb(243, 133, 24)', offset: '-1px', style: 'dashed', width: '1px' },
+		});
+	});
+
+	test('filtered high contrast lists stay solid until pointer navigation occurs', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('second')],
+			listOptions: { showFilter: true, focusFilterOnOpen: true, filterAsCombobox: true },
+		});
+		widget.domNode.classList.add('action-widget');
+		widget.domNode.style.setProperty('--vscode-menu-selectionBorder', '#f38518');
+		widget.domNode.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		widget.domNode.style.setProperty('--vscode-strokeThickness', '1px');
+		const readOutline = () => {
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.focused')!;
+			const style = mainWindow.getComputedStyle(row);
+			return { style: style.outlineStyle, color: style.outlineColor };
+		};
+
+		widget.focus();
+		const initial = readOutline();
+		widget.domNode.querySelector<HTMLElement>('.monaco-list')!
+			.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		const deadSpace = readOutline();
+		widget.filterInput!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		const filterPointer = readOutline();
+		const focusedRow = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.focused')!;
+		focusedRow.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		focusedRow.classList.add('hovered');
+		focusedRow.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		const pointer = readOutline();
+		focusedRow.classList.remove('hovered');
+		const pointerAway = readOutline();
+		dispatchKeyDown(widget.filterInput!, { key: 'Shift', keyCode: 16 });
+		const keyboard = readOutline();
+
+		assert.deepStrictEqual({ initial, deadSpace, filterPointer, pointer, pointerAway, keyboard }, {
+			initial: { style: 'solid', color: 'rgb(243, 133, 24)' },
+			deadSpace: { style: 'solid', color: 'rgb(243, 133, 24)' },
+			filterPointer: { style: 'solid', color: 'rgb(243, 133, 24)' },
+			pointer: { style: 'dashed', color: 'rgb(243, 133, 24)' },
+			pointerAway: { style: 'solid', color: 'rgb(243, 133, 24)' },
+			keyboard: { style: 'solid', color: 'rgb(243, 133, 24)' },
+		});
 	});
 
 	test('the first click selects its row without prior pointer movement', () => {
@@ -813,6 +893,25 @@ suite('ActionListWidget', () => {
 			assert.deepStrictEqual({ selected, opened, keyboardFocused, retained, elapsed, closedOnCompletion: panel.style.display === 'none' }, {
 				selected: [], opened: true, keyboardFocused: true, retained: true, elapsed: true, closedOnCompletion: true,
 			});
+		});
+	}
+
+	for (const zoom of [1, 1.25]) {
+		test(`fractional hover content fits its panel at ${zoom} zoom`, () => {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('details'), hover: { content: 'Details about this action', expandable: true } }],
+				listOptions: { showFilter: false },
+			});
+			widget.domNode.style.zoom = String(zoom);
+			widget.domNode.style.fontFamily = 'monospace';
+			widget.domNode.style.letterSpacing = '0.01px';
+			widget.domNode.style.setProperty('--vscode-editorHoverWidget-border', 'transparent');
+			widget.focus();
+			widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			const paragraph = widget.domNode.querySelector('.action-list-submenu-hover-header p')!;
+			const range = document.createRange();
+			range.selectNodeContents(paragraph);
+			assert.strictEqual(range.getClientRects().length, 1);
 		});
 	}
 
@@ -950,6 +1049,93 @@ suite('ActionListWidget', () => {
 		await timeout(500);
 		assert.notStrictEqual(panel.style.display, 'none');
 	}));
+
+	test('only a submenu button or the keyboard opens its submenu, which takes focus and stays open as the pointer moves until the button closes it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('details'), hover: { content: 'Details' } }, {
+				...action('branch'),
+				submenuActions: [toAction({ id: 'main', label: 'main', run: () => { } })],
+				submenuOptions: { showFilter: true, focusFilterOnOpen: true },
+				submenuButton: { icon: Codicon.edit, label: 'Change Base Branch' },
+			}, action('plain')],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		const button = rows[1].querySelector<HTMLElement>('.action-list-submenu-indicator')!;
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const snapshot = () => ({
+			submenu: panel.style.display === 'none' ? null : panel.querySelector('.monaco-list-row .title')?.textContent ?? null,
+			filterFocused: document.activeElement === panel.querySelector('.action-list-filter-input'),
+		});
+		const hover = async (target: HTMLElement) => {
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			target.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+			await timeout(600);
+		};
+
+		const icon = { pen: button.classList.contains('codicon-edit'), chevron: button.classList.contains('codicon-chevron-right') };
+		widget.focusNext();
+		const focused = snapshot();
+		await hover(rows[1]);
+		const hoveredRow = snapshot();
+		await hover(button);
+		const hoveredButton = snapshot();
+		button.click();
+		const clicked = snapshot();
+		await hover(rows[0]);
+		await hover(rows[2]);
+		panel.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(600);
+		const hoveredOthers = snapshot();
+		button.click();
+		const clickedAgain = snapshot();
+		widget.focusPrevious();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const arrowRight = snapshot();
+
+		assert.deepStrictEqual({ icon, focused, hoveredRow, hoveredButton, clicked, hoveredOthers, clickedAgain, arrowRight }, {
+			icon: { pen: true, chevron: false },
+			focused: { submenu: null, filterFocused: false },
+			hoveredRow: { submenu: null, filterFocused: false },
+			hoveredButton: { submenu: null, filterFocused: false },
+			clicked: { submenu: 'main', filterFocused: true },
+			hoveredOthers: { submenu: 'main', filterFocused: true },
+			clickedAgain: { submenu: null, filterFocused: false },
+			arrowRight: { submenu: 'main', filterFocused: true },
+		});
+	}));
+
+	test('ArrowLeft moves the caret in the filter of a submenu, and returns to the list once the caret is at its start', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('branch'),
+				submenuActions: [toAction({ id: 'main', label: 'main', run: () => selected.push('main') })],
+				submenuOptions: { showFilter: true, focusFilterOnOpen: true },
+			}],
+			listOptions: { showFilter: false },
+			onSelect: item => selected.push(item.id),
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const filter = panel.querySelector<HTMLInputElement>('.action-list-filter-input')!;
+		const isOpen = () => panel.style.display !== 'none';
+		const press = (key: string) => filter.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+
+		filter.value = 'ma';
+		filter.setSelectionRange(2, 2);
+		press('ArrowLeft');
+		const whileEditing = { open: isOpen(), selected: [...selected] };
+		filter.setSelectionRange(0, 0);
+		press('ArrowLeft');
+
+		assert.deepStrictEqual({ whileEditing, atStart: { open: isOpen(), selected } }, {
+			whileEditing: { open: true, selected: [] },
+			atStart: { open: false, selected: [] },
+		});
+	});
 
 	for (const { name, preserveHover, remove, expected } of [
 		{ name: 'preserves pending hover through replacement', preserveHover: true, remove: false, expected: 'Updated details' },
@@ -1320,6 +1506,101 @@ suite('ActionListWidget', () => {
 			submenuAnimated: true,
 			nestedAnimated: true,
 		});
+	});
+
+	test('disabled submenu actions render disabled and cannot be selected', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('parent'),
+				submenuActions: [
+					new SubmenuAction('group', 'Group', [toAction({ id: 'grouped', label: 'Grouped', enabled: false, run: () => selected.push('grouped') })]),
+					toAction({ id: 'ungrouped', label: 'Ungrouped', enabled: false, run: () => selected.push('ungrouped') }),
+				],
+			}],
+			listOptions: { showFilter: false },
+			onSelect: item => selected.push(item.id),
+		});
+
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.action-list-submenu-panel .monaco-list-row.action'));
+		for (const row of rows) {
+			row.click();
+		}
+
+		assert.deepStrictEqual({
+			rows: rows.map(row => ({ label: row.querySelector('.title')?.textContent, ariaDisabled: row.getAttribute('aria-disabled') })),
+			selected,
+		}, {
+			rows: [{ label: 'Grouped', ariaDisabled: 'true' }, { label: 'Ungrouped', ariaDisabled: 'true' }],
+			selected: [],
+		});
+	});
+
+	test('a submenu shows at most the visible items its options allow, and scrolls to the others', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('parent'),
+				submenuActions: Array.from({ length: 20 }, (_, i) => toAction({ id: `child${i}`, label: `Child ${i}`, run: () => { } })),
+				submenuOptions: { maxVisibleItems: 5 },
+			}],
+			listOptions: { showFilter: false },
+		});
+
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList')!;
+		const rowHeight = parseFloat(submenu.querySelector<HTMLElement>('.monaco-list-row')!.style.height);
+
+		assert.deepStrictEqual({ visibleRows: parseFloat(submenu.style.height) / rowHeight }, { visibleRows: 5 });
+	});
+
+	test('a submenu can align its top with the popup that holds its row', () => {
+		const panelOffset = (alignToParentTop: boolean) => {
+			const widget = createActionListWidget(disposables, {
+				items: [action('first'), action('second'), {
+					...action('branch'),
+					hover: alignToParentTop ? { alignToParentTop } : undefined,
+					submenuActions: Array.from({ length: 8 }, (_, i) => toAction({ id: `branch${i}`, label: `Branch ${i}`, run: () => { } })),
+				}],
+				listOptions: { showFilter: false },
+			});
+			const popup = document.createElement('div');
+			popup.className = 'action-widget';
+			popup.style.paddingTop = '20px';
+			document.body.appendChild(popup);
+			disposables.add({ dispose: () => popup.remove() });
+			popup.appendChild(widget.domNode);
+			widget.focus();
+			widget.focusNext();
+			widget.focusNext();
+			widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			return Math.round(panel.getBoundingClientRect().top - popup.getBoundingClientRect().top);
+		};
+
+		const aligned = panelOffset(true);
+		const centeredOnRow = panelOffset(false);
+
+		assert.deepStrictEqual({ aligned, centeredOnRowAligned: centeredOnRow === 0 }, { aligned: 0, centeredOnRowAligned: false });
+	});
+
+	test('a submenu button keeps no room for itself in the other rows, unlike a chevron', () => {
+		const otherRowIndicator = (submenuButton: boolean) => {
+			const widget = createActionListWidget(disposables, {
+				items: [{
+					...action('branch'),
+					submenuActions: [toAction({ id: 'main', label: 'main', run: () => { } })],
+					submenuButton: submenuButton ? { icon: Codicon.edit, label: 'Change Base Branch' } : undefined,
+				}, action('plain')],
+				listOptions: { showFilter: false },
+			});
+			const indicator = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1].querySelector<HTMLElement>('.action-list-submenu-indicator')!;
+			return indicator.style.display === 'none' ? 'none' : indicator.style.visibility === 'hidden' ? 'reserved' : 'shown';
+		};
+
+		assert.deepStrictEqual({ chevron: otherRowIndicator(false), button: otherRowIndicator(true) }, { chevron: 'reserved', button: 'none' });
 	});
 
 	test('Escape from a submenu hides the action list', () => {
@@ -3749,6 +4030,9 @@ suite('ActionListWidget', () => {
 			}],
 			listOptions: { showFilter: false, submenuHoverDelay: 0 },
 		});
+		widget.domNode.classList.add('action-widget');
+		widget.domNode.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		widget.domNode.style.setProperty('--vscode-strokeThickness', '1px');
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
 
@@ -3759,10 +4043,12 @@ suite('ActionListWidget', () => {
 			display: panel.style.display,
 			label: panel.querySelector('.title')?.textContent,
 			expanded: row.getAttribute('aria-expanded'),
+			outline: mainWindow.getComputedStyle(row).outlineStyle,
 		}, {
 			display: '',
 			label: 'Manual',
 			expanded: 'true',
+			outline: 'solid',
 		});
 	});
 
@@ -3935,7 +4221,7 @@ suite('ActionListWidget', () => {
 			content.style.height = '100px';
 			await settleLayout();
 
-			const expected = { rowVisible: true, centeredOnRow: true, expanded: 'true', focused: 'active' };
+			const expected = { rowVisible: true, centeredOnRow: true, expanded: null, focused: 'active' };
 			assert.deepStrictEqual({ before, after: measure() }, { before: expected, after: expected });
 		});
 	}
@@ -4602,6 +4888,39 @@ suite('ActionListWidget', () => {
 		widget.focus();
 
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'match-first');
+	});
+
+	test('action item icons remain decorative when hidden and shown again', () => {
+		const item: IActionListItem<ITestActionItem> = {
+			...action('branch-item'),
+			group: { title: 'Branches', icon: Codicon.gitBranch },
+			submenuActions: [toAction({ id: 'action', label: 'Action', run: () => { } })],
+		};
+		const widget = createActionListWidget(disposables, {
+			items: [item],
+			listOptions: { showFilter: false },
+		});
+
+		const readIcons = () => {
+			const icon = widget.domNode.querySelector<HTMLElement>('.monaco-list-row > .codicon:not(.action-list-submenu-indicator)');
+			const submenuIndicator = widget.domNode.querySelector<HTMLElement>('.monaco-list-row .action-list-submenu-indicator');
+			return {
+				icon: icon?.getAttribute('aria-hidden'),
+				iconDisplay: icon?.style.display,
+				submenuIndicator: submenuIndicator?.getAttribute('aria-hidden'),
+			};
+		};
+
+		const visible = readIcons();
+		widget.updateItems([{ ...item, hideIcon: true }]);
+		const hidden = readIcons();
+		widget.updateItems([{ ...item, hideIcon: false }]);
+
+		assert.deepStrictEqual({ visible, hidden, shownAgain: readIcons() }, {
+			visible: { icon: 'true', iconDisplay: '', submenuIndicator: 'true' },
+			hidden: { icon: 'true', iconDisplay: 'none', submenuIndicator: 'true' },
+			shownAgain: { icon: 'true', iconDisplay: '', submenuIndicator: 'true' },
+		});
 	});
 
 });

@@ -15,6 +15,7 @@ import {
 	TUNNEL_STEP_TIMEOUT_MS,
 	TunnelAgentHostConnector,
 	deriveConnectionToken,
+	parseTunnelInfo,
 	type ITunnelAgentHostConnectorLogService,
 	type ITunnelDescriptor,
 	type ITunnelRelayClient,
@@ -190,6 +191,13 @@ function createConnector(tunnel: ITunnelDescriptor, relayClient: FakeRelayClient
 
 suite('TunnelAgentHostConnector', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves missing or invalid tunnel status instead of reporting an offline host', () => {
+		const statuses: ITunnelDescriptor['status'][] = [undefined, {}, { hostConnectionCount: {} }, { hostConnectionCount: -1 }, { hostConnectionCount: NaN }, { hostConnectionCount: Infinity }, { hostConnectionCount: { current: 0.5 } }, { hostConnectionCount: 0 }, { hostConnectionCount: { current: 0 } }, { hostConnectionCount: 1 }, { hostConnectionCount: { current: 2 } }];
+		assert.deepStrictEqual(statuses.map(status => parseTunnelInfo({
+			tunnelId: 'test', clusterId: 'cluster', labels: ['protocolv6'], status,
+		})?.hostConnectionCount), [undefined, undefined, undefined, undefined, undefined, undefined, undefined, 0, 0, 1, 2]);
+	});
 
 	test('derives the same base64url tokens as Node crypto, including a leading dash', async () => {
 		const inputs = ['tunnel-1', 'hello', 'leading-dash-58'];

@@ -12,20 +12,23 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IOverlayWidget } from '../../../../../editor/browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ScrollType } from '../../../../../editor/common/editorCommon.js';
 import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ICodeReviewService, IPRReviewState, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 import { AgentFeedbackEditorWidgetContribution } from '../../browser/agentFeedbackEditorWidgetContribution.js';
-import { IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { IAgentFeedbackChangeEvent, IAgentFeedbackNavigationChangeEvent, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 
 suite('AgentFeedbackEditorWidgetContribution', () => {
@@ -39,7 +42,7 @@ suite('AgentFeedbackEditorWidgetContribution', () => {
 
 	test('keeps grouped navigation visible without remeasuring previews on editor scroll', () => {
 		const session = URI.parse('test://session/grouped-navigation');
-		const navigation = store.add(new Emitter<URI>());
+		const navigation = store.add(new Emitter<IAgentFeedbackNavigationChangeEvent>());
 		let activeIdx = -1;
 		let feedback: readonly IAgentFeedback[] = [];
 		const services = new ServiceCollection();
@@ -100,7 +103,7 @@ suite('AgentFeedbackEditorWidgetContribution', () => {
 				contribution = disposables.add(instantiationService.createInstance(AgentFeedbackEditorWidgetContribution, editor));
 				const navigate = (index: number) => {
 					activeIdx = index;
-					navigation.fire(session);
+					navigation.fire({ sessionResource: session, reveal: true });
 					editor.render();
 					const widget = container.querySelector<HTMLElement>('.agent-feedback-widget')!;
 					const card = widget.querySelector<HTMLElement>('.agent-feedback-widget-item.focused')!;
@@ -141,6 +144,168 @@ suite('AgentFeedbackEditorWidgetContribution', () => {
 		});
 		const visible = { codeVisible: true, stackVisible: true, cardVisible: true };
 		assert.deepStrictEqual({ states, firstAnchorAboveViewport, offscreenGroupHidden, previewMutations }, { states: [visible, visible], firstAnchorAboveViewport: true, offscreenGroupHidden: true, previewMutations: 0 });
+	});
+
+	test('does not reveal or focus a passive anchor on initialization, rebuild or navigation change', () => {
+		const session = URI.parse('test://session/passive-navigation');
+		const navigation = store.add(new Emitter<IAgentFeedbackNavigationChangeEvent>());
+		const changes = store.add(new Emitter<IAgentFeedbackChangeEvent>());
+		let activeIdx = -1;
+		let reveal = true;
+		let feedback: readonly IAgentFeedback[] = [];
+		const services = new ServiceCollection();
+		services.set(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
+			override readonly onDidChangeFeedback = changes.event;
+			override readonly onDidChangeFeedbackVisibility = Event.None;
+			override readonly onDidChangeFeedbackScope = Event.None;
+			override readonly onDidChangeNavigation = navigation.event;
+			override getFeedbackSessionResource(): URI { return session; }
+			override getFeedback(): readonly IAgentFeedback[] { return feedback; }
+			override getVisibleResolvedFeedbackIds(): ReadonlySet<string> { return new Set(); }
+			override isAgentHostSession(): boolean { return true; }
+			override hasLoadedFeedback(): boolean { return true; }
+			override getChatChanges() { return []; }
+			override getNavigationBearing() { return { activeIdx, totalCount: feedback.length, reveal }; }
+		});
+		const prState = constObservable<IPRReviewState>({ kind: PRReviewStateKind.None });
+		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() {
+			override getPRReviewState() { return prState; }
+		});
+		services.set(IContextMenuService, new class extends mock<IContextMenuService>() { }());
+		services.set(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+			override readonly currentDefaultAccount = null;
+		});
+		services.set(IMarkdownRendererService, new SyncDescriptor(MarkdownRendererService));
+		const states: Record<string, { scrolled: boolean; focused: boolean }> = {};
+		const lines = Array.from({ length: 80 }, (_, index) => `Line ${index + 1}`);
+		withTestCodeEditor(lines, { serviceCollection: services }, (testEditor, _viewModel, instantiationService) => {
+			const disposables = store.add(new DisposableStore());
+			const container = append(mainWindow.document.body, $('div'));
+			container.style.width = '760px';
+			container.style.height = '420px';
+			const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {
+				dimension: { width: 760, height: 420 },
+				fontSize: 13,
+				lineHeight: 20,
+				minimap: { enabled: false },
+				scrollBeyondLastLine: false,
+				smoothScrolling: false,
+			}, { contributions: [] }));
+			editor.setModel(testEditor.getModel());
+			editor.render();
+			feedback = Array.from({ length: 10 }, (_, index) => ({
+				id: `feedback-${index}`,
+				text: 'Comment',
+				sessionResource: session,
+				resourceUri: editor.getModel()!.uri,
+				range: { startLineNumber: 2 + index * 8, startColumn: 1, endLineNumber: 2 + index * 8, endColumn: 1 },
+				kind: AgentFeedbackKind.UserReview,
+				state: AgentFeedbackState.Accepted,
+			}));
+			const record = (name: string) => {
+				editor.render();
+				states[name] = {
+					scrolled: editor.getScrollTop() > 0,
+					focused: container.querySelector('.agent-feedback-widget-item.focused') !== null,
+				};
+			};
+			let contribution: AgentFeedbackEditorWidgetContribution | undefined;
+			try {
+				// The anchor was set passively before this editor's contribution was created.
+				activeIdx = 9;
+				reveal = false;
+				contribution = disposables.add(instantiationService.createInstance(AgentFeedbackEditorWidgetContribution, editor));
+				record('initialization');
+				changes.fire({ sessionResource: session, feedbackItems: feedback });
+				record('rebuild');
+				navigation.fire({ sessionResource: session, reveal: false });
+				record('passiveNavigation');
+				reveal = true;
+				navigation.fire({ sessionResource: session, reveal: true });
+				record('revealedNavigation');
+			} finally {
+				contribution?.dispose();
+				disposables.dispose();
+				container.remove();
+			}
+		});
+		const passive = { scrolled: false, focused: false };
+		assert.deepStrictEqual(states, {
+			initialization: passive,
+			rebuild: passive,
+			passiveNavigation: passive,
+			revealedNavigation: { scrolled: true, focused: true },
+		});
+	});
+
+	test('hides its widgets while the editor comment widget is enabled and restores them afterwards', () => {
+		const session = URI.parse('test://session/editor-comments-setting');
+		let feedback: readonly IAgentFeedback[] = [];
+		const configurationService = new TestConfigurationService({ [AGENTS_WINDOW_EDITOR_COMMENTS_SETTING]: false });
+		const services = new ServiceCollection();
+		services.set(IConfigurationService, configurationService);
+		services.set(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
+			override readonly onDidChangeFeedback = Event.None;
+			override readonly onDidChangeFeedbackVisibility = Event.None;
+			override readonly onDidChangeFeedbackScope = Event.None;
+			override readonly onDidChangeNavigation = Event.None;
+			override getFeedbackSessionResource(): URI { return session; }
+			override getFeedback(): readonly IAgentFeedback[] { return feedback; }
+			override getVisibleResolvedFeedbackIds(): ReadonlySet<string> { return new Set(); }
+			override isAgentHostSession(): boolean { return true; }
+			override hasLoadedFeedback(): boolean { return true; }
+			override getChatChanges() { return []; }
+			override getNavigationBearing() { return { activeIdx: -1, totalCount: feedback.length }; }
+		});
+		const prState = constObservable<IPRReviewState>({ kind: PRReviewStateKind.None });
+		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() {
+			override getPRReviewState() { return prState; }
+		});
+		services.set(IContextMenuService, new class extends mock<IContextMenuService>() { }());
+		services.set(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+			override readonly currentDefaultAccount = null;
+		});
+		services.set(IMarkdownRendererService, new SyncDescriptor(MarkdownRendererService));
+
+		withTestCodeEditor(['first line', 'second line'], { serviceCollection: services, envConfig: { outerWidth: 760, outerHeight: 420 } }, (editor, _viewModel, instantiationService) => {
+			const disposables = store.add(new DisposableStore());
+			const sandbox = sinon.createSandbox();
+			disposables.add(toDisposable(() => sandbox.restore()));
+			const container = append(mainWindow.document.body, $('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const widgetIds = new Set<string>();
+			sandbox.stub(editor, 'addOverlayWidget').callsFake(widget => {
+				widgetIds.add(widget.getId());
+				append(container, widget.getDomNode());
+			});
+			sandbox.stub(editor, 'removeOverlayWidget').callsFake(widget => {
+				widget.getDomNode().remove();
+				widgetIds.delete(widget.getId());
+			});
+			feedback = [{
+				id: 'feedback-1', text: 'Please change this', sessionResource: session,
+				resourceUri: editor.getModel()!.uri,
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted,
+			}];
+			const setEditorComments = (enabled: boolean) => {
+				configurationService.setUserConfiguration(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === AGENTS_WINDOW_EDITOR_COMMENTS_SETTING }));
+			};
+			try {
+				disposables.add(instantiationService.createInstance(AgentFeedbackEditorWidgetContribution, editor));
+				const disabled = widgetIds.size;
+				setEditorComments(true);
+				const enabled = widgetIds.size;
+				setEditorComments(false);
+
+				assert.deepStrictEqual({ disabled, enabled, disabledAgain: widgetIds.size }, { disabled: 1, enabled: 0, disabledAgain: 1 });
+			} finally {
+				disposables.dispose();
+			}
+		});
 	});
 
 	for (const readonlyState of [AgentFeedbackState.Submitted, AgentFeedbackState.Resolved]) {

@@ -1,9 +1,8 @@
 # CI build pipeline.
 #
-# Runs the stages of the CI builds of the product build (product-build.yml):
-# the quality checks, and the CI test jobs of Windows, Linux and macOS. For the
-# time being both pipelines run for every CI build. Keep the stages in sync
-# with the VSCODE_CIBUILD path of product-build.yml.
+# Runs the CI builds of main and release/* commits: the quality checks, and the
+# CI test jobs of Windows, Linux and macOS. The product build (product-build.yml)
+# runs the same test jobs for its x64 (macOS: arm64) builds.
 #
 # It never signs or publishes anything, so it uses the unofficial 1ES template
 # with the SDL tools disabled, and its expanded YAML must not reference the
@@ -137,6 +136,7 @@ extends:
           - template: build/azure-pipelines/product-quality-checks.yml@self
             parameters:
               VSCODE_PRIVILEGED_CONNECTIONS: false
+              VSCODE_CHECK_MOBILE_BOUNDARY: true
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
         - stage: Windows
@@ -218,6 +218,7 @@ extends:
                   - smoke-electron
                   - smoke-wsl-kerberos-proxy
                   - smoke-wsl-basic-proxy
+                  - smoke-wsl-basic-pac-proxy
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true

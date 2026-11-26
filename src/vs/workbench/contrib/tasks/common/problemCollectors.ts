@@ -352,6 +352,15 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 		this.reportMarkers();
 		this.cleanAllMarkers();
 	}
+
+	/**
+	 * Resolves once the lines passed to `processLine` so far have been
+	 * processed. Lines are processed asynchronously, one after the other.
+	 */
+	protected linesProcessed(): Promise<void> {
+		const ignore = () => { };
+		return this.tail ? this.tail.then(ignore, ignore) : Promise.resolve();
+	}
 }
 
 export const enum ProblemHandlingStrategy {
@@ -598,10 +607,17 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		}
 	}
 
-	public override done(): void {
+	/**
+	 * Reports the markers and cleans up the markers of the previous run. A
+	 * background task can exit right after printing its output, before its last
+	 * lines have been processed, so this waits for them first. The returned
+	 * promise resolves once the markers have been reported.
+	 */
+	public override async done(): Promise<void> {
 		[...this.applyToByOwner.keys()].forEach(owner => {
 			this.recordResourcesToClean(owner);
 		});
+		await this.linesProcessed();
 		super.done();
 	}
 

@@ -1,5 +1,5 @@
 # Compiles the built-in Copilot extension in a platform Compile job, into
-# .build/extensions/copilot, with the files of its VSIX (see
+# .build/extensions/copilot, with the files that its .vscodeignore selects (see
 # packageCopilotExtensionStream in build/lib/extensions.ts). Packaging the client
 # and the server then replaces its native files with those of the target platform.
 # Runs after ../common/mixin-vscode-capi.yml, which checks out and installs

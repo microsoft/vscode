@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiRequestOptions } from '../client/request.js';
 import { JsonValue } from '../client/types.js';
 
 /** A Copilot model's advertised limits and features. */
 export interface ModelCapabilities {
+	/** The model family advertised by the service. */
+	readonly family?: string;
 	/** Token limits advertised for the model. */
 	readonly limits?: {
 		/** Maximum combined context size. */
@@ -21,6 +24,8 @@ export interface ModelCapabilities {
 	readonly supports?: {
 		/** Whether image input is supported. */
 		readonly vision?: boolean;
+		/** Whether tool calls are supported. */
+		readonly tool_calls?: boolean;
 		/** Supported reasoning-effort values in their advertised order. */
 		readonly reasoning_effort?: readonly string[];
 	};
@@ -32,6 +37,8 @@ export interface Model {
 	readonly id: string;
 	/** The human-readable model name. */
 	readonly name: string;
+	/** The version advertised by the service. */
+	readonly version?: string;
 	/** Whether Copilot exposes the model in its picker. */
 	readonly model_picker_enabled?: boolean;
 	/** The account's policy for this model. */
@@ -60,5 +67,5 @@ export interface ListModelsResponse {
 /** Model discovery through the approved Copilot API endpoint. */
 export interface IModelsClient {
 	/** GET /agents/swe/models: read the cloud agent catalog without UI filtering or normalization. */
-	list(signal: AbortSignal, options?: ApiRequestOptions): Promise<ListModelsResponse>;
+	list(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ListModelsResponse>;
 }

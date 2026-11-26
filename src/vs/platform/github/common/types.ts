@@ -3,8 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellableFetch } from '../../../base/parts/request/common/fetch.js';
+
+
 /** Host-supplied fetch implementation for one request attempt and its response body. */
-export type RequestFetch = typeof globalThis.fetch;
+export type RequestFetch = CancellableFetch;
 
 /** Fixed API domains for request attribution, independent of callers and quota identities. */
 export const gitHubRequestDomains = [
@@ -75,7 +79,7 @@ export interface RequestContext {
 	readonly resource: string;
 	readonly priority: RequestPriority;
 	readonly deadline: number;
-	readonly signal: AbortSignal;
+	readonly cancellationToken: CancellationToken;
 	readonly owner?: object;
 }
 
@@ -98,6 +102,14 @@ export class RequestError extends Error {
 
 	public static isForbidden(error: unknown): boolean {
 		return error instanceof RequestError && error.statusCode === 403;
+	}
+
+	public static isResponseTooLarge(error: unknown): boolean {
+		return error instanceof RequestError && error.kind === 'responseTooLarge';
+	}
+
+	public static isRateLimited(error: unknown): boolean {
+		return error instanceof RequestError && error.kind === 'rateLimit';
 	}
 }
 

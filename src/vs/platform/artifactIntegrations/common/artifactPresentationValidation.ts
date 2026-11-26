@@ -42,13 +42,17 @@ function isPart(value: unknown): boolean {
 		&& (value.description === undefined || typeof value.description === 'string');
 }
 
+function isMain(value: unknown): boolean {
+	return isPart(value) && isRecord(value) && (value.pillLabel === undefined || strings(value, 'pillLabel'));
+}
+
 export function isArtifactActionAvailability(value: unknown): boolean {
 	return isRecord(value) && typeof value.enabled === 'boolean' && (value.disabledReason === undefined || typeof value.disabledReason === 'string');
 }
 
 export function isArtifactContributionView(value: unknown): value is ArtifactContributionView {
 	return isRecord(value) && isArtifactAvailability(value.availability)
-		&& (value.main === undefined || isPart(value.main))
+		&& (value.main === undefined || isMain(value.main))
 		&& (value.groupId === undefined || (typeof value.groupId === 'string' && value.groupId.length > 0))
 		&& (value.group === undefined || (isRecord(value.group) && isArtifactIcon(value.group.icon) && typeof value.group.priority === 'number' && Number.isFinite(value.group.priority)))
 		&& Array.isArray(value.sections) && value.sections.every(section => isRecord(section) && strings(section, 'id') && isPart(section))
@@ -107,6 +111,7 @@ export function isArtifactRequestPresentation(value: unknown): value is Artifact
 	return isRecord(value) && value.version === 1 && strings(value, 'integrationLabel')
 		&& (value.source === 'manual' || value.source === 'automation')
 		&& isRecord(value.action) && strings(value.action, 'label', 'iconId')
+		&& (value.action.activityLabel === undefined || strings(value.action, 'activityLabel'))
 		&& isRecord(value.artifact) && strings(value.artifact, 'resource', 'label')
 		&& (value.artifact.description === undefined || typeof value.artifact.description === 'string')
 		&& (value.artifact.icon === undefined || isArtifactIcon(value.artifact.icon))

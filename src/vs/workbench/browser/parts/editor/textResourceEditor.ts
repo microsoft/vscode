@@ -213,7 +213,9 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 			}
 
 			const opts = this.modelService.getCreationOptions(textModel.getLanguageId(), textModel.uri, textModel.isForSimpleWidget);
-			textModel.detectIndentation(opts.insertSpaces, opts.tabSize);
+			if (opts.detectIndentation) {
+				textModel.detectIndentation(opts.insertSpaces, opts.tabSize);
+			}
 		}
 	}
 }

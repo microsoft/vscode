@@ -109,6 +109,15 @@ pnpm run test-node --workers 4
 pnpm run test-browser --browser chromium --workers 4
 ```
 
+#### `--isolate` - Run every test file alone
+
+Runs every test file of the run (`--run`, `--runList`, `--runGlob` or all) alone in a fresh window, as many at once as `--workers` allows, and fails when a file fails alone. A run of several files loads all of them before running any, so a test file can pass there only because another one registers what it reads (for example, a test file that imports a `*.contribution.ts`). In pull requests, the Linux Electron unit test job runs the selected test files that the pull request adds, changes or renames this way. Electron runner only; `--tfs` results are not written.
+
+```bash
+./scripts/test.sh --isolate --run src/vs/sessions/contrib/chatWindow/test/browser/chatEditor.test.ts
+./scripts/test.sh --isolate --workers 4 --runList .build/affected-tests.txt
+```
+
 ### Integration tests
 
 Integration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details.

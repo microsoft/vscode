@@ -7,7 +7,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IServerChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 
-/** Delivers sandbox support facts without buffering, so they arrive before a rejected connect RPC disposes its listeners. */
+/** Delivers sandbox support and user state facts without buffering, so they arrive before a rejected connect RPC disposes its listeners. */
 export function createDevContainerAgentHostChannel(service: IDevContainerAgentHostMainService, store: DisposableStore): IServerChannel {
-	return ProxyChannel.fromService(service, store, { unbufferedEvents: ['onDidChangeSandboxSupport'] });
+	return ProxyChannel.fromService(service, store, { unbufferedEvents: ['onDidChangeSandboxSupport', 'onDidReportUserState'] });
 }

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { numberSegment, repositoryPath, withQuery } from '../client/routing.js';
 import { parse } from '../client/schema.js';
@@ -14,7 +15,7 @@ import { CoreClient, parseCheckConclusion, parseCheckStatus } from './coreClient
 export class ActionsClient implements IActionsClient {
 	constructor(private readonly _client: CoreClient) { }
 
-	async listRuns(repository: RepositoryRef, signal: AbortSignal, options?: ListWorkflowRunsOptions): Promise<WorkflowRunsPage> {
+	async listRuns(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListWorkflowRunsOptions): Promise<WorkflowRunsPage> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -25,7 +26,7 @@ export class ActionsClient implements IActionsClient {
 				expectedStatus: 200,
 				options: requestOptions
 			},
-			signal,
+			cancellationToken,
 			parseRuns,
 			pages => ({
 				...pages[pages.length - 1],
@@ -34,7 +35,7 @@ export class ActionsClient implements IActionsClient {
 		);
 	}
 
-	async getRun(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: GetWorkflowRunOptions): Promise<WorkflowRun> {
+	async getRun(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: GetWorkflowRunOptions): Promise<WorkflowRun> {
 		const { attempt, ...requestOptions } = options ?? {};
 		return this._client.request({
 			domain: 'actions',
@@ -43,10 +44,10 @@ export class ActionsClient implements IActionsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseRun);
+		}, cancellationToken, parseRun);
 	}
 
-	async listJobs(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: ListWorkflowJobsOptions): Promise<WorkflowJobsPage> {
+	async listJobs(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: ListWorkflowJobsOptions): Promise<WorkflowJobsPage> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -57,7 +58,7 @@ export class ActionsClient implements IActionsClient {
 				expectedStatus: 200,
 				options: requestOptions
 			},
-			signal,
+			cancellationToken,
 			parseJobs,
 			pages => ({
 				...pages[pages.length - 1],
@@ -66,7 +67,7 @@ export class ActionsClient implements IActionsClient {
 		);
 	}
 
-	async listJobsForAttempt(repository: RepositoryRef, runId: number, attempt: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<WorkflowJobsPage> {
+	async listJobsForAttempt(repository: RepositoryRef, runId: number, attempt: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<WorkflowJobsPage> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -77,7 +78,7 @@ export class ActionsClient implements IActionsClient {
 				expectedStatus: 200,
 				options: requestOptions
 			},
-			signal,
+			cancellationToken,
 			parseJobs,
 			pages => ({
 				...pages[pages.length - 1],
@@ -86,7 +87,7 @@ export class ActionsClient implements IActionsClient {
 		);
 	}
 
-	async getJob(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<WorkflowJob> {
+	async getJob(repository: RepositoryRef, jobId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<WorkflowJob> {
 		return this._client.request({
 			domain: 'actions',
 			method: 'GET',
@@ -94,11 +95,11 @@ export class ActionsClient implements IActionsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseJob);
+		}, cancellationToken, parseJob);
 	}
 
 	/** Unsupported by browser Fetch, which hides the status and headers of manual redirects. */
-	async getJobLogRedirect(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<DownloadRedirect> {
+	async getJobLogRedirect(repository: RepositoryRef, jobId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<DownloadRedirect> {
 		const url = await this._client.request({
 			domain: 'actions',
 			method: 'GET',
@@ -108,12 +109,12 @@ export class ActionsClient implements IActionsClient {
 			redirect: 'manual',
 			responseBody: 'text',
 			options
-		}, signal, parse.nonEmptyString);
+		}, cancellationToken, parse.nonEmptyString);
 		return { url };
 	}
 
 	/** Unsupported by browser Fetch, which hides the status and headers of manual redirects. */
-	async getRunLogRedirect(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<DownloadRedirect> {
+	async getRunLogRedirect(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<DownloadRedirect> {
 		const url = await this._client.request({
 			domain: 'actions',
 			method: 'GET',
@@ -123,11 +124,11 @@ export class ActionsClient implements IActionsClient {
 			redirect: 'manual',
 			responseBody: 'text',
 			options
-		}, signal, parse.nonEmptyString);
+		}, cancellationToken, parse.nonEmptyString);
 		return { url };
 	}
 
-	async rerun(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: RerunOptions): Promise<void> {
+	async rerun(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: RerunOptions): Promise<void> {
 		const { enableDebugLogging, ...requestOptions } = options ?? {};
 		return this._client.request({
 			domain: 'actions',
@@ -138,10 +139,10 @@ export class ActionsClient implements IActionsClient {
 			expectedStatus: 201,
 			responseBody: 'none',
 			options: requestOptions
-		}, signal);
+		}, cancellationToken);
 	}
 
-	async rerunFailedJobs(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: RerunOptions): Promise<void> {
+	async rerunFailedJobs(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: RerunOptions): Promise<void> {
 		const { enableDebugLogging, ...requestOptions } = options ?? {};
 		return this._client.request({
 			domain: 'actions',
@@ -152,10 +153,10 @@ export class ActionsClient implements IActionsClient {
 			expectedStatus: 201,
 			responseBody: 'none',
 			options: requestOptions
-		}, signal);
+		}, cancellationToken);
 	}
 
-	async rerunJob(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: RerunOptions): Promise<void> {
+	async rerunJob(repository: RepositoryRef, jobId: number, cancellationToken: CancellationToken, options?: RerunOptions): Promise<void> {
 		const { enableDebugLogging, ...requestOptions } = options ?? {};
 		return this._client.request({
 			domain: 'actions',
@@ -166,10 +167,10 @@ export class ActionsClient implements IActionsClient {
 			expectedStatus: 201,
 			responseBody: 'none',
 			options: requestOptions
-		}, signal);
+		}, cancellationToken);
 	}
 
-	async cancel(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+	async cancel(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
 			domain: 'actions',
 			method: 'POST',
@@ -178,7 +179,7 @@ export class ActionsClient implements IActionsClient {
 			expectedStatus: 202,
 			responseBody: 'none',
 			options
-		}, signal);
+		}, cancellationToken);
 	}
 }
 

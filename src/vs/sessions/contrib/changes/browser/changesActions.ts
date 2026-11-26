@@ -19,7 +19,7 @@ import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../pl
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -43,6 +43,7 @@ import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder 
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
 import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
+import { DesktopLayoutContext, SessionIsCreatedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
 	const change = changes.find(change => isChangesFileResource(change, resource));
@@ -415,6 +416,14 @@ function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unkn
 
 const CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sessions.changesetOperation.';
 const CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sessions.changesHeaderChangesetOperation.';
+const CHANGES_HEADER_COMMIT_ACTION_ID = `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`;
+
+/**
+ * Whether the desktop main window shows the Commit of a new session's uncommitted changes in the header row of its
+ * Changes editor, beside the changeset picker, instead of in its tab row. That row stays visible above the docked
+ * Details, also while the editor content is hidden.
+ */
+const commitInEditorHeader = ContextKeyExpr.and(DesktopLayoutContext, IsAuxiliaryWindowContext.toNegated(), SessionIsCreatedContext.negate())!;
 
 function registerChangesetOperationAction({ key, kind, operation, order }: IChangesetOperationEntry): IDisposable {
 	const shown = listHas(SessionChangesetOperationsContext, key);
@@ -457,6 +466,7 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 			}
 		});
 	}
+	const shownInChangesEditor = ContextKeyExpr.and(ActiveEditorContext.isEqualTo(SessionChangesEditor.ID), shown);
 	return registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -466,11 +476,21 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 				icon: operation.icon,
 				precondition,
 				f1: false,
-				menu: {
+				menu: operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID ? [{
 					id: Menus.SessionsEditorTitle,
 					group: 'navigation',
 					order,
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(SessionChangesEditor.ID), shown),
+					when: ContextKeyExpr.and(shownInChangesEditor, commitInEditorHeader.negate()),
+				}, {
+					id: Menus.SessionsEditorHeaderSecondary,
+					group: 'navigation',
+					order,
+					when: ContextKeyExpr.and(shownInChangesEditor, commitInEditorHeader),
+				}] : {
+					id: Menus.SessionsEditorTitle,
+					group: 'navigation',
+					order,
+					when: shownInChangesEditor,
 				}
 			});
 		}
@@ -551,7 +571,10 @@ class CommitActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-/** Renders the Commit operation in the title of the Changes editor with its label, in every window. */
+/**
+ * Renders the Commit operation with its label in the title of the Changes editor, in every window, and in the header
+ * row of the desktop main window's Changes editor that shows it on the new session page.
+ */
 export class ChangesHeaderChangesetOperationsActionContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.sessions.changesHeaderChangesetOperationsAction';
 
@@ -559,11 +582,13 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
-		this._register(actionViewItemService.register(Menus.SessionsEditorTitle, `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
-			return action instanceof MenuItemAction
-				? instantiationService.createInstance(CommitActionViewItem, action, options)
-				: undefined;
-		}));
+		for (const menu of [Menus.SessionsEditorTitle, Menus.SessionsEditorHeaderSecondary]) {
+			this._register(actionViewItemService.register(menu, CHANGES_HEADER_COMMIT_ACTION_ID, (action, options, instantiationService) => {
+				return action instanceof MenuItemAction
+					? instantiationService.createInstance(CommitActionViewItem, action, options)
+					: undefined;
+			}));
+		}
 	}
 }
 

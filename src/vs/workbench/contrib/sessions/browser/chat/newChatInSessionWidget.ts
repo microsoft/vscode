@@ -10,12 +10,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { Event } from '../../../../../base/common/event.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -36,21 +33,19 @@ import { raceCancellation, raceTimeout } from '../../../../../base/common/async.
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING } from '../../common/chatConstants.js';
-import { getStoredSessionOptionsExpanded, SessionOptionsRow } from './sessionOptionsRow.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
-import { IChatViewOptions } from '../parts/chatView.js';
+import { INewSessionViewOptions } from '../parts/chatView.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeLane } from '../../../chat/browser/widget/input/chatInputNoticeHost.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../chat/browser/widget/input/chatInputNoticeWidget.js';
 import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../chat/browser/widget/input/chatInputStack.js';
 import { shownChatOf } from '../../../../services/sessions/common/sessionPane.js';
+import { IChatWidget } from '../../../chat/browser/chat.js';
 
 // #region --- New Chat In Session Widget ---
 
 const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
-const STORAGE_KEY_SESSION_OPTIONS_EXPANDED = 'sessions.nestedSession.sessionOptionsExpanded';
 /** How long a send waits for a check of the session folder before keeping it, e.g. while a remote host reconnects. */
 const FOLDER_EXISTS_TIMEOUT_MS = 2000;
 
@@ -98,13 +93,6 @@ export class NewChatInSessionWidget extends Disposable {
 	 * be another one, which this composer must neither bind to nor send to.
 	 */
 	private readonly _chat = observableValue<IChat | undefined>(this, undefined);
-	private readonly _screenReaderOptimized: IObservable<boolean>;
-	private readonly _collapsedSessionOptionsShowIcons: IObservable<boolean>;
-	/**
-	 * Whether the session options are shown. Starts from the user's New Session choice, but a choice
-	 * made here is kept apart: New Session applies its options default until the user chooses there.
-	 */
-	private readonly _sessionOptionsExpanded: ISettableObservable<boolean>;
 	private readonly _workspaceSupport: IObservable<INestedChatWorkspaceSupport | undefined>;
 	private readonly _workspaceControls: NestedChatWorkspaceControls;
 	/**
@@ -114,8 +102,7 @@ export class NewChatInSessionWidget extends Disposable {
 	private _appliedWorkspace: { readonly chat: URI; readonly workspace: INestedChatWorkspace } | undefined;
 
 	constructor(
-		_options: IChatViewOptions & { readonly inputVisible?: IObservable<boolean>; readonly petHostPreferred?: IObservable<boolean> },
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		private readonly options: INewSessionViewOptions & { readonly inputVisible?: IObservable<boolean>; readonly petHostPreferred?: IObservable<boolean> },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -125,28 +112,15 @@ export class NewChatInSessionWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IFileService private readonly fileService: IFileService,
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 		@ISessionHost private readonly sessionHost: ISessionHost,
 	) {
 		super();
 
-		this._screenReaderOptimized = observableFromEvent(
-			this,
-			this.accessibilityService.onDidChangeScreenReaderOptimized,
-			() => this.accessibilityService.isScreenReaderOptimized(),
-		);
-		this._collapsedSessionOptionsShowIcons = observableFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING)),
-			() => this.configurationService.getValue<boolean>(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
-		);
-		this._sessionOptionsExpanded = observableValue(this, this._getInitialSessionOptionsExpanded());
-
 		// The session of the pane that hosts the composer.
-		this._session = _options.session ?? constObservable(undefined);
-		this._paneChat = shownChatOf(this._session, _options.chat);
+		this._session = options.session ?? constObservable(undefined);
+		this._paneChat = shownChatOf(this._session, options.chat);
 
 		// Read per session, folder or host capability change, never per keystroke.
 		this._workspaceSupport = derived(reader => {
@@ -212,17 +186,18 @@ export class NewChatInSessionWidget extends Disposable {
 		});
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(SharedChatInputComposer, {
-			inputEditorOptions: _options.inputEditorOptions,
+			inputEditorOptions: options.inputEditorOptions,
+			separateSessionControls: options.newSessionPresentation.separateSessionControls,
 			session: this._session,
 			chat: this._chat,
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
-			inputVisible: _options.inputVisible,
-			hostVisible: _options.hostVisible,
+			inputVisible: options.inputVisible,
+			hostVisible: options.hostVisible,
 			canSendRequest,
 			loading: constObservable(false),
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
-			petHostPreferred: _options.petHostPreferred,
-			renderChatPet: _options.renderChatPet,
+			petHostPreferred: options.petHostPreferred,
+			renderChatPet: options.renderChatPet,
 			getChatPetPlatformElements: () => this._workspaceControls.getChatPetPlatformElements(),
 			onDidChangeChatPetPlatform: this._workspaceControls.onDidChangeChatPetPlatform,
 			renderRepositoryControls: (container, hoverDelegate) => this._workspaceControls.renderRepositoryControls(container, hoverDelegate),
@@ -281,6 +256,8 @@ export class NewChatInSessionWidget extends Disposable {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget.new-chat-in-session'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+		const presentation = this._register(this.options.newSessionPresentation.create(true, this.instantiationService));
+		presentation.render(chatWidgetContainer, chatWidgetContent);
 
 		// The New Session options row: the folder picker, then the session options (isolation and
 		// branch, and the harness picker where the session offers its chats more than one harness)
@@ -290,38 +267,30 @@ export class NewChatInSessionWidget extends Disposable {
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		const row = dom.append(workspacePickerContainer, dom.$('.sessions-workspace-category-picker'));
 		this._workspaceControls.renderFolderPicker(row, this._newChatInput.pickerHoverDelegate);
-		const sessionOptionsRow = this._register(new SessionOptionsRow(row, workspacePickerContainer, {
-			user: 'NewChatInSessionWidget.sessionOptions',
+		const workspacePresentation = this._register(presentation.renderWorkspaceOptions(workspacePickerContainer, row, {
 			hoverDelegate: this._newChatInput.pickerHoverDelegate,
-			screenReaderOptimized: this._screenReaderOptimized,
-			expanded: this._sessionOptionsExpanded,
-			collapsedShowIcons: this._collapsedSessionOptionsShowIcons,
+			getRepositoryControlId: element => this._newChatInput.getRepositoryControlId(element),
 			// The harness picker shows only where the session offers its chats more than one harness: without
 			// it or a worktree to offer, the tray is empty.
 			hasDetails: derived(reader => this._workspaceControls.offersWorktree.read(reader) || harnessPicker.isVisible.read(reader)),
-			setExpanded: expanded => {
-				this._sessionOptionsExpanded.set(expanded, undefined);
-				this.storageService.store(STORAGE_KEY_SESSION_OPTIONS_EXPANDED, expanded, StorageScope.PROFILE, StorageTarget.USER);
-			},
 		}));
 		// Like New Session, the harness picker follows the repository controls in the session options.
-		harnessPicker.render(sessionOptionsRow.details, {
+		harnessPicker.render(workspacePresentation.sessionTypePickerHost, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
 			hoverDelegate: this._newChatInput.pickerHoverDelegate,
 		});
-		const harnessSlot = sessionOptionsRow.details.lastElementChild;
+		const harnessSlot = workspacePresentation.sessionTypePickerHost.lastElementChild;
 		if (harnessSlot) {
-			sessionOptionsRow.repositoryControlsHost.after(harnessSlot);
+			workspacePresentation.repositoryControlsHost?.after(harnessSlot);
 		}
 		this._register(autorun(reader => {
 			workspacePickerContainer.hidden = !this._workspaceSupport.read(reader) && !harnessPicker.isVisible.read(reader);
-			sessionOptionsRow.layout();
+			workspacePresentation.layout?.();
 		}));
 
 		this._newChatInput.render(chatWidgetContent, parent);
-		chatWidgetContent.classList.add('experimental-new-session-composer');
-		this._newChatInput.placeRepositoryControls(sessionOptionsRow.repositoryControlsHost);
-		sessionOptionsRow.layout();
+		this._newChatInput.placeRepositoryControls(workspacePresentation.repositoryControlsHost);
+		workspacePresentation.layout?.();
 		// Rendered after the composer: the tip docks inside the composer's stack,
 		// so the pet stands on it rather than on the composer boundary.
 		this._renderSubSessionTip();
@@ -446,12 +415,6 @@ export class NewChatInSessionWidget extends Disposable {
 		this._tipDisposable.value = store;
 	}
 
-	private _getInitialSessionOptionsExpanded(): boolean {
-		return this.storageService.getBoolean(STORAGE_KEY_SESSION_OPTIONS_EXPANDED, StorageScope.PROFILE)
-			?? getStoredSessionOptionsExpanded(this.storageService)
-			?? true;
-	}
-
 	/** Recent folders of the session's provider, and a local folder dialog when it runs on this computer. */
 	private _getFolderSources(): INestedChatFolderSources {
 		const session = this._session.get();
@@ -571,6 +534,10 @@ export class NewChatInSessionWidget extends Disposable {
 			}
 			return false;
 		}
+	}
+
+	get chatWidget(): IChatWidget | undefined {
+		return this._newChatInput.widget;
 	}
 
 	layout(height: number, width: number): void {

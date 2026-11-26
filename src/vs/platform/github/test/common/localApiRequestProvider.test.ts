@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { CancellationError } from '../../../../base/common/errors.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -15,7 +16,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { LocalApiRequestProvider } from '../../common/client/localApiRequestProvider.js';
 import { PaginationLimitError } from '../../common/client/pagination.js';
 import { ApiRequest, BufferedApiRequestProvider, PaginationOptions, parseRequest } from '../../common/client/request.js';
-import { parse, SchemaError } from '../../common/client/schema.js';
+import { SchemaError, parse } from '../../common/client/schema.js';
 import { ContentClient } from '../../common/content/contentClient.js';
 import { ActionsClient } from '../../common/core/actionsClient.js';
 import { ChecksClient } from '../../common/core/checksClient.js';
@@ -30,13 +31,14 @@ import { IGitHubCredentials } from '../../common/githubCredentialService.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubTransport, GitHubTransportOptions } from '../../common/githubTransport.js';
 import { GitHubRequestError, IGitHubCredentialProvider, MissingCommitError } from '../../common/githubTypes.js';
-import { gitHubRequestDomains, RequestFetch, RequestPriority } from '../../common/types.js';
+import { RequestFetch, RequestPriority, gitHubRequestDomains } from '../../common/types.js';
 import { getGitHubClientInternals } from './githubClientTestUtils.js';
+
 
 suite('LocalApiRequestProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const apiBaseUri = 'https://api.github.com';
-	const signal = () => new AbortController().signal;
+	const cancellationToken = () => CancellationToken.None;
 	const parseValue = parse.object({ value: parse.integer });
 	const read: ApiRequest & { readonly responseBody?: 'json' | 'text' } = {
 		method: 'GET', path: '/repos/o/r', expectedStatus: 200,
@@ -79,9 +81,9 @@ suite('LocalApiRequestProvider', () => {
 		target: 'rest' | 'graphql' = 'rest',
 	): LocalApiRequestProvider {
 		const service = store.add(new GitHubService({
-			fetch: (input, init) => new URL(String(input)).pathname === '/user'
+			fetch: (input, init, fetchToken, fetchLifetime) => new URL(String(input)).pathname === '/user'
 				? Promise.resolve(Response.json({ id: 101 }))
-				: fetch(input, init),
+				: fetch(input, init, fetchToken, fetchLifetime),
 			credentialProvider: { onDidChange: Event.None, getToken, invalidateToken },
 		}, new NullLogService(), NullTelemetryService));
 		const client = store.add(service.acquireClient({
@@ -104,7 +106,7 @@ suite('LocalApiRequestProvider', () => {
 			const provider = authenticatedRequest ? authenticated(fetch) : anonymous(fetch);
 			const values: number[] = [];
 			for (const noCache of [true, undefined, false, true, undefined]) {
-				values.push((await provider.request({ ...read, options: { noCache } }, signal(), parseValue)).data.value);
+				values.push((await provider.request({ ...read, options: { noCache } }, cancellationToken(), parseValue)).data.value);
 			}
 			assert.deepStrictEqual({ values, validators }, {
 				values: [1, 2, 2, 3, 2], validators: [null, null, '"2"', null, '"2"'],
@@ -130,7 +132,7 @@ suite('LocalApiRequestProvider', () => {
 			};
 			const client = new ContentClient(authenticatedRequest ? authenticated(fetch) : anonymous(fetch));
 			const shas = Array.from({ length: 20 }, (_, index) => index.toString(16).padStart(40, '0'));
-			const requests = shas.map(sha => client.getBlob({ owner: 'o', repo: 'r' }, sha, signal(), { caller: 'pluginGit.blob' }));
+			const requests = shas.map(sha => client.getBlob({ owner: 'o', repo: 'r' }, sha, cancellationToken(), { caller: 'pluginGit.blob' }));
 			await timeout(0);
 			const beforeRelease = active;
 			await release.complete();
@@ -150,7 +152,7 @@ suite('LocalApiRequestProvider', () => {
 			return Response.json({ value: 1 }, { headers: { etag: '"shared"' } });
 		});
 		const noCache: ApiRequest = { ...read, options: { noCache: true } };
-		const pending = [noCache, noCache, read].map(request => provider.request(request, signal(), parseValue));
+		const pending = [noCache, noCache, read].map(request => provider.request(request, cancellationToken(), parseValue));
 		await timeout(0);
 		const beforeRelease = calls;
 		await release.complete();
@@ -178,7 +180,7 @@ suite('LocalApiRequestProvider', () => {
 				return new Response(scenario.body, { status: scenario.status, headers: { 'X-GitHub-Request-Id': 'commit-lookup' } });
 			});
 			const client = new PullRequestsClient(new CoreClient(provider, provider));
-			await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'missing', signal()), error => {
+			await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'missing', cancellationToken()), error => {
 				assert.ok(error instanceof GitHubRequestError);
 				assert.deepStrictEqual({
 					name: error.name,
@@ -202,7 +204,7 @@ suite('LocalApiRequestProvider', () => {
 			? Response.json([], { headers: { Link: '<https://api.github.com/repos/o/r/commits/head/pulls?page=2>; rel="next"' } })
 			: Response.json({ message: 'No commit found for SHA: head' }, { status: 422 }));
 		const client = new PullRequestsClient(new CoreClient(provider, provider));
-		await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'head', signal(), {
+		await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'head', cancellationToken(), {
 			maxPages: 2, pageLimitBehavior: 'returnPartial',
 		}), MissingCommitError);
 		assert.strictEqual(calls, 2);
@@ -218,11 +220,11 @@ suite('LocalApiRequestProvider', () => {
 			const provider = authenticatedRequest ? authenticated(fetch) : anonymous(fetch);
 			const core = new CoreClient(provider, provider);
 			const repository = { owner: 'o', repo: 'r' };
-			await assert.rejects(new RepositoriesClient(core).getCommit(repository, 'head', signal()), MissingCommitError);
-			await assert.rejects(new PullRequestsClient(core).listForCommit(repository, 'head', signal()), MissingCommitError);
-			await assert.rejects(new ChecksClient(core).listRuns(repository, 'head', signal()), MissingCommitError);
-			await assert.rejects(new ChecksClient(core).listSuites(repository, 'head', signal()), MissingCommitError);
-			await assert.rejects(new ContentClient(provider).resolveRef({ owner: 'o', repo: 'r' }, 'head', signal()), MissingCommitError);
+			await assert.rejects(new RepositoriesClient(core).getCommit(repository, 'head', cancellationToken()), MissingCommitError);
+			await assert.rejects(new PullRequestsClient(core).listForCommit(repository, 'head', cancellationToken()), MissingCommitError);
+			await assert.rejects(new ChecksClient(core).listRuns(repository, 'head', cancellationToken()), MissingCommitError);
+			await assert.rejects(new ChecksClient(core).listSuites(repository, 'head', cancellationToken()), MissingCommitError);
+			await assert.rejects(new ContentClient(provider).resolveRef({ owner: 'o', repo: 'r' }, 'head', cancellationToken()), MissingCommitError);
 			assert.deepStrictEqual(requests, [
 				'/repos/o/r/commits/head', '/repos/o/r/commits/head/pulls',
 				'/repos/o/r/commits/head/check-runs', '/repos/o/r/commits/head/check-suites', '/repos/o/r/commits/head',
@@ -238,10 +240,10 @@ suite('LocalApiRequestProvider', () => {
 		});
 		await assert.rejects(provider.request({
 			method: 'POST', path: '/repos/o/r/check-suites', body: { head_sha: 'head' }, expectedStatus: 201,
-		}, signal(), parseValue), MissingCommitError);
+		}, cancellationToken(), parseValue), MissingCommitError);
 		await assert.rejects(provider.request({
 			method: 'GET', path: '/gists/id/head', expectedStatus: 200,
-		}, signal(), parseValue), MissingCommitError);
+		}, cancellationToken(), parseValue), MissingCommitError);
 		assert.deepStrictEqual(requests, ['POST /repos/o/r/check-suites', 'GET /gists/id/head']);
 	});
 
@@ -253,7 +255,7 @@ suite('LocalApiRequestProvider', () => {
 			protected override async execute(): Promise<never> { throw original; }
 		}();
 		const client = new PullRequestsClient(new CoreClient(provider, provider));
-		await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'missing', signal()), error => {
+		await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'missing', cancellationToken()), error => {
 			assert.ok(error instanceof MissingCommitError);
 			assert.deepStrictEqual({
 				message: error.message, kind: error.kind, statusCode: error.statusCode, statusText: error.statusText,
@@ -266,7 +268,7 @@ suite('LocalApiRequestProvider', () => {
 			});
 			return true;
 		});
-		await assert.rejects(provider.requestText(read, signal()), error => error === original);
+		await assert.rejects(provider.requestText(read, cancellationToken()), error => error === original);
 	});
 
 	test('typed requests leave cancellation, unrelated failures and classified errors unchanged', async () => {
@@ -280,7 +282,7 @@ suite('LocalApiRequestProvider', () => {
 				protected override async execute(): Promise<never> { throw failure; }
 			}();
 			const client = new PullRequestsClient(new CoreClient(provider, provider));
-			await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'head', signal()), error => error === failure);
+			await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'head', cancellationToken()), error => error === failure);
 		}
 	});
 
@@ -296,8 +298,8 @@ suite('LocalApiRequestProvider', () => {
 				? new Response(commitSha)
 				: Response.json({ total_count: 0, incomplete_results: false, items: [] });
 		});
-		const content = await new ContentClient(provider).resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
-		const search = await new SearchClient(new CoreClient(provider, provider)).issues('repo:o/r', signal());
+		const content = await new ContentClient(provider).resolveRef({ owner: 'o', repo: 'r' }, 'main', cancellationToken());
+		const search = await new SearchClient(new CoreClient(provider, provider)).issues('repo:o/r', cancellationToken());
 
 		assert.deepStrictEqual({ content, search, requests }, {
 			content: commitSha,
@@ -321,7 +323,7 @@ suite('LocalApiRequestProvider', () => {
 		const response = await provider.request({
 			method: 'POST', path: '/gists', expectedStatus: [201],
 			body: { toJSON() { serializations++; return { description: 'unchanged\r\ntext' }; } },
-		}, signal(), parseValue);
+		}, cancellationToken(), parseValue);
 
 		assert.deepStrictEqual({ serializations, body, authenticatedRequest, response }, {
 			serializations: 1, body: '{"description":"unchanged\\r\\ntext"}', authenticatedRequest: true,
@@ -337,7 +339,7 @@ suite('LocalApiRequestProvider', () => {
 			body = init?.body;
 			return new Response(responseText, { status: 201 });
 		});
-		const response = await provider.requestText({ method: 'POST', path: '/gists', expectedStatus: [201] }, signal(), bodyText);
+		const response = await provider.requestText({ method: 'POST', path: '/gists', expectedStatus: [201] }, cancellationToken(), bodyText);
 		assert.deepStrictEqual({ body, response }, { body: bodyText, response: { data: responseText, status: 201 } });
 	});
 
@@ -348,8 +350,8 @@ suite('LocalApiRequestProvider', () => {
 		});
 		const client = new ActionsClient(new CoreClient(provider, provider));
 		assert.deepStrictEqual([
-			await client.getJobLogRedirect({ owner: 'o', repo: 'r' }, 42, signal()),
-			await client.getRunLogRedirect({ owner: 'o', repo: 'r' }, 42, signal()),
+			await client.getJobLogRedirect({ owner: 'o', repo: 'r' }, 42, cancellationToken()),
+			await client.getRunLogRedirect({ owner: 'o', repo: 'r' }, 42, cancellationToken()),
 		], [
 			{ url: 'https://objects.example.test/job.log?signature=opaque' },
 			{ url: 'https://objects.example.test/job.log?signature=opaque' },
@@ -364,7 +366,7 @@ suite('LocalApiRequestProvider', () => {
 			}));
 			const client = new ActionsClient(new CoreClient(provider, provider));
 			for (const method of ['getJobLogRedirect', 'getRunLogRedirect'] as const) {
-				await assert.rejects(client[method]({ owner: 'o', repo: 'r' }, 42, signal()), {
+				await assert.rejects(client[method]({ owner: 'o', repo: 'r' }, 42, cancellationToken()), {
 					kind: location === undefined || location === 'https://[invalid' ? 'malformedResponse' : 'authorization',
 					statusCode: 302,
 				});
@@ -381,8 +383,8 @@ suite('LocalApiRequestProvider', () => {
 				: Response.json({ value: 1 }, { status: 202, headers: { etag: '"first"' } });
 		});
 		const request = { ...read, expectedStatus: [200, 202] };
-		const first = await provider.request(request, signal(), parseValue);
-		const second = await provider.request(request, signal(), parseValue);
+		const first = await provider.request(request, cancellationToken(), parseValue);
+		const second = await provider.request(request, cancellationToken(), parseValue);
 		assert.deepStrictEqual({ first, second, validators }, {
 			first: { data: { value: 1 }, status: 202 }, second: { data: { value: 1 }, status: 202 },
 			validators: [null, '"first"'],
@@ -391,7 +393,7 @@ suite('LocalApiRequestProvider', () => {
 
 	test('preserves empty text instead of treating it as an absent JSON body', async () => {
 		const provider = anonymous(async () => new Response(''));
-		assert.deepStrictEqual(await provider.request({ ...read, responseBody: 'text' }, signal(), parse.string), {
+		assert.deepStrictEqual(await provider.request({ ...read, responseBody: 'text' }, cancellationToken(), parse.string), {
 			data: '', status: 200,
 		});
 	});
@@ -401,7 +403,7 @@ suite('LocalApiRequestProvider', () => {
 			const provider = anonymous(async () => new Response(null, { status }));
 			assert.deepStrictEqual(await provider.request({
 				method, path: read.path, expectedStatus: status, responseBody: 'none',
-			}, signal()), { data: undefined, status });
+			}, cancellationToken()), { data: undefined, status });
 		});
 	}
 
@@ -411,7 +413,7 @@ suite('LocalApiRequestProvider', () => {
 		const provider = authenticated(async () => new Response(stream, { status: 202 }));
 		const response = await provider.request({
 			method: 'POST', path: '/repos/o/r/actions/runs/1/cancel', expectedStatus: [202], responseBody: 'none',
-		}, signal());
+		}, cancellationToken());
 		assert.deepStrictEqual({ response, cancelled, locked: stream.locked }, {
 			response: { data: undefined, status: 202 }, cancelled: true, locked: false,
 		});
@@ -419,8 +421,8 @@ suite('LocalApiRequestProvider', () => {
 
 	test('rejects authenticated operations and mutations on an anonymous provider', async () => {
 		const provider = anonymous(async () => assert.fail('No fetch expected'));
-		await assert.rejects(provider.request({ ...read, authentication: 'required' }, signal(), parseValue), { kind: 'authentication' });
-		await assert.rejects(provider.request({ ...read, method: 'POST', body: {} }, signal(), parseValue), { kind: 'authentication' });
+		await assert.rejects(provider.request({ ...read, authentication: 'required' }, cancellationToken(), parseValue), { kind: 'authentication' });
+		await assert.rejects(provider.request({ ...read, method: 'POST', body: {} }, cancellationToken(), parseValue), { kind: 'authentication' });
 	});
 
 	test('rejects invalid API and raw-content endpoints before dispatch', () => {
@@ -441,9 +443,9 @@ suite('LocalApiRequestProvider', () => {
 			return Response.json({ value: 1 });
 		}));
 		const provider = new LocalApiRequestProvider('https://enterprise.example.test/api/v3/', transport);
-		await provider.request(read, signal(), parseValue);
+		await provider.request(read, cancellationToken(), parseValue);
 		for (const path of ['/../outside', '/%2e%2e/outside', '//other.example.test/endpoint', '/repos/o/r#fragment', 'https://other.example.test', '/../../outside', '/%2e%2e/%2e%2e/outside', '/repos\\owner']) {
-			await assert.rejects(provider.request({ ...read, path }, signal(), parseValue));
+			await assert.rejects(provider.request({ ...read, path }, cancellationToken(), parseValue));
 		}
 		assert.deepStrictEqual(requests, ['https://enterprise.example.test/api/v3/repos/o/r']);
 	});
@@ -457,8 +459,8 @@ suite('LocalApiRequestProvider', () => {
 				return new Response(null, { status: 302, headers: { location } });
 			}));
 			const provider = new LocalApiRequestProvider(`${baseUri}///`, transport);
-			await assert.rejects(provider.request({ ...read, path: '/old' }, signal(), parseValue), { kind: 'authorization' });
-			await assert.rejects(provider.request({ ...read, path: '/old' }, signal(), parseValue), { kind: 'authorization' });
+			await assert.rejects(provider.request({ ...read, path: '/old' }, cancellationToken(), parseValue), { kind: 'authorization' });
+			await assert.rejects(provider.request({ ...read, path: '/old' }, cancellationToken(), parseValue), { kind: 'authorization' });
 			assert.deepStrictEqual(requests, [`${baseUri}/old`, `${baseUri}/old`]);
 		});
 	}
@@ -474,8 +476,8 @@ suite('LocalApiRequestProvider', () => {
 				: etag ? new Response(null, { status: 304 }) : Response.json({ value: 1 }, { headers: { etag: '"public"' } });
 		}));
 		const provider = new LocalApiRequestProvider('https://enterprise.example.test/ignored/../api/v3///', transport);
-		await provider.request({ ...read, path: '/old' }, signal(), parseValue);
-		const reused = await provider.request({ ...read, path: '/old' }, signal(), parseValue);
+		await provider.request({ ...read, path: '/old' }, cancellationToken(), parseValue);
+		const reused = await provider.request({ ...read, path: '/old' }, cancellationToken(), parseValue);
 		assert.deepStrictEqual({ requests, reused }, {
 			requests: [
 				{ url: `${baseUri}/old`, etag: null, credentialless: true },
@@ -496,8 +498,8 @@ suite('LocalApiRequestProvider', () => {
 					: new Response(null, { status: 307, headers: { location: '/outside' } });
 		}));
 		const provider = new LocalApiRequestProvider(baseUri, transport);
-		await provider.request({ ...read, path: '/old' }, signal(), parseValue);
-		await assert.rejects(provider.request({ ...read, path: '/old' }, signal(), parseValue), { kind: 'authorization' });
+		await provider.request({ ...read, path: '/old' }, cancellationToken(), parseValue);
+		await assert.rejects(provider.request({ ...read, path: '/old' }, cancellationToken(), parseValue), { kind: 'authorization' });
 		assert.deepStrictEqual(requests, [`${baseUri}/old`, `${baseUri}/renamed`, `${baseUri}/renamed`]);
 	});
 
@@ -511,7 +513,7 @@ suite('LocalApiRequestProvider', () => {
 		const results: string[] = [];
 		for (const baseUri of ['https://RAW.GITHUBUSERCONTENT.COM///', 'https://enterprise.example.test/raw///']) {
 			const provider = new LocalApiRequestProvider(baseUri, transport, undefined, 'rawContent');
-			results.push((await provider.request({ method: 'GET', path, expectedStatus: 200, responseBody: 'text' }, signal(), parse.string)).data);
+			results.push((await provider.request({ method: 'GET', path, expectedStatus: 200, responseBody: 'text' }, cancellationToken(), parse.string)).data);
 		}
 		assert.deepStrictEqual({ results, requests }, {
 			results: ['contents', 'contents'],
@@ -521,7 +523,7 @@ suite('LocalApiRequestProvider', () => {
 
 	test('raw file reads require a raw-content provider', async () => {
 		const content = new ContentClient(anonymous(async () => assert.fail('No fetch expected')));
-		await assert.rejects(content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'file.txt', signal()), { kind: 'validation' });
+		await assert.rejects(content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'file.txt', cancellationToken()), { kind: 'validation' });
 	});
 
 	test('extra raw request options cannot override the URL, response limit, or timeout', async () => {
@@ -541,9 +543,9 @@ suite('LocalApiRequestProvider', () => {
 		};
 		const provider = new LocalApiRequestProvider(baseUri, transport, undefined, 'rawContent');
 		const request: ApiRequest = { method: 'GET', path, expectedStatus: 200, responseBody: 'text', options };
-		const result = await provider.request(request, signal(), parse.string);
+		const result = await provider.request(request, cancellationToken(), parse.string);
 		oversized = true;
-		await assert.rejects(provider.request(request, signal(), parse.string), { kind: 'responseTooLarge' });
+		await assert.rejects(provider.request(request, cancellationToken(), parse.string), { kind: 'responseTooLarge' });
 		assert.deepStrictEqual({ contents: result.data, requests }, {
 			contents: 'contents', requests: [`${baseUri}${path}`, `${baseUri}${path}`],
 		});
@@ -551,14 +553,14 @@ suite('LocalApiRequestProvider', () => {
 
 	test('rejects GET bodies before fetching', async () => {
 		const provider = anonymous(async () => assert.fail('No fetch expected'));
-		await assert.rejects(provider.request({ ...read, body: {} }, signal(), parseValue), { kind: 'validation' });
+		await assert.rejects(provider.request({ ...read, body: {} }, cancellationToken(), parseValue), { kind: 'validation' });
 	});
 
 	test('rejects unexpected statuses and invalid JSON without retrying', async () => {
 		for (const response of [() => new Response('{}', { status: 202 }), () => new Response('{')]) {
 			let attempts = 0;
 			const provider = anonymous(async () => { attempts++; return response(); });
-			await assert.rejects(provider.request(read, signal(), parseValue), { kind: 'malformedResponse' });
+			await assert.rejects(provider.request(read, cancellationToken(), parseValue), { kind: 'malformedResponse' });
 			assert.strictEqual(attempts, 1);
 		}
 	});
@@ -566,9 +568,9 @@ suite('LocalApiRequestProvider', () => {
 	test('surfaces schema failures and enforces bounded text responses', async () => {
 		const invalid = anonymous(async () => Response.json({ value: 'not a number' }));
 		const oversized = anonymous(async () => new Response('12345'), { maximumResponseBytes: 4 });
-		await assert.rejects(invalid.request(read, signal(), parseValue), SchemaError);
-		await assert.rejects(invalid.request(read, signal(), undefined), { kind: 'malformedResponse', statusCode: 200 });
-		await assert.rejects(oversized.request({ ...read, responseBody: 'text' }, signal(), parse.string), { kind: 'responseTooLarge' });
+		await assert.rejects(invalid.request(read, cancellationToken(), parseValue), SchemaError);
+		await assert.rejects(invalid.request(read, cancellationToken(), undefined), { kind: 'malformedResponse', statusCode: 200 });
+		await assert.rejects(oversized.request({ ...read, responseBody: 'text' }, cancellationToken(), parse.string), { kind: 'responseTooLarge' });
 	});
 
 	test('does not replay an authenticated mutation after a body failure', async () => {
@@ -577,7 +579,7 @@ suite('LocalApiRequestProvider', () => {
 			attempts++;
 			return new Response(new ReadableStream<Uint8Array>({ start: controller => controller.error(new Error('body failed')) }));
 		});
-		await assert.rejects(provider.request({ ...read, method: 'POST', body: {} }, signal(), parseValue), { kind: 'network' });
+		await assert.rejects(provider.request({ ...read, method: 'POST', body: {} }, cancellationToken(), parseValue), { kind: 'network' });
 		assert.strictEqual(attempts, 1);
 	});
 
@@ -585,21 +587,20 @@ suite('LocalApiRequestProvider', () => {
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<Response>();
 		let attempts = 0;
-		let networkSignal: AbortSignal | undefined;
-		const provider = anonymous(async (_input, init) => {
+		let networkSignal: CancellationToken | undefined;
+		const provider = anonymous(async (_input, init, fetchToken) => {
 			attempts++;
-			networkSignal = init?.signal ?? undefined;
+			networkSignal = fetchToken ?? undefined;
 			void started.complete();
 			return release.p;
 		});
-		const controller = new AbortController();
-		const reason = new Error('caller cancelled');
-		const first = assert.rejects(provider.request(read, controller.signal, parseValue), error => error === reason);
+		const controller = store.add(new CancellationTokenSource());
+		const first = assert.rejects(provider.request(read, controller.token, parseValue), isCancellationError);
 		await started.p;
-		const second = provider.request(read, signal(), parseValue);
-		controller.abort(reason);
+		const second = provider.request(read, cancellationToken(), parseValue);
+		controller.cancel();
 		await first;
-		const peerAborted = networkSignal?.aborted;
+		const peerAborted = networkSignal?.isCancellationRequested;
 		await release.complete(Response.json({ value: 1 }));
 		assert.deepStrictEqual({ attempts, peerAborted, response: await second }, {
 			attempts: 1, peerAborted: false, response: { data: { value: 1 }, status: 200 },
@@ -609,11 +610,10 @@ suite('LocalApiRequestProvider', () => {
 	test('honors cancellation and expired deadlines before credential resolution', async () => {
 		let credentials = 0;
 		const provider = authenticated(async () => assert.fail('No fetch expected'), () => { credentials++; return 'test-token'; });
-		const controller = new AbortController();
-		const reason = new Error('already cancelled');
-		controller.abort(reason);
-		await assert.rejects(provider.request(read, controller.signal, parseValue), error => error === reason);
-		await assert.rejects(provider.request({ ...read, options: { deadline: Date.now() - 1 } }, signal(), parseValue), {
+		const controller = store.add(new CancellationTokenSource());
+		controller.cancel();
+		await assert.rejects(provider.request(read, controller.token, parseValue), isCancellationError);
+		await assert.rejects(provider.request({ ...read, options: { deadline: Date.now() - 1 } }, cancellationToken(), parseValue), {
 			kind: 'timeout', requestDispatched: false,
 		});
 		assert.strictEqual(credentials, 0);
@@ -621,16 +621,16 @@ suite('LocalApiRequestProvider', () => {
 
 	test('bounds stalled credential resolution by the caller deadline', () => runWithFakedTimers({}, async () => {
 		const token = new DeferredPromise<string>();
-		let credentialSignal: AbortSignal | undefined;
-		const provider = authenticated(async () => assert.fail('No fetch expected'), (_context, signal) => {
-			credentialSignal = signal;
+		let credentialSignal: CancellationToken | undefined;
+		const provider = authenticated(async () => assert.fail('No fetch expected'), (_context, cancellationToken) => {
+			credentialSignal = cancellationToken;
 			return token.p;
 		});
-		await assert.rejects(provider.request({ ...read, options: { deadline: Date.now() + 10 } }, signal(), parseValue), {
+		await assert.rejects(provider.request({ ...read, options: { deadline: Date.now() + 10 } }, cancellationToken(), parseValue), {
 			kind: 'timeout', requestDispatched: false,
 		});
 		await token.complete('late-token');
-		assert.strictEqual(credentialSignal?.aborted, true);
+		assert.strictEqual(credentialSignal?.isCancellationRequested, true);
 	}));
 
 	test('retains dispatch evidence when an authenticated mutation times out', () => runWithFakedTimers({}, async () => {
@@ -642,7 +642,7 @@ suite('LocalApiRequestProvider', () => {
 		});
 		const rejected = assert.rejects(provider.request({
 			...read, method: 'POST', body: {}, options: { deadline: Date.now() + 10 },
-		}, signal(), parseValue), { kind: 'timeout', requestDispatched: true });
+		}, cancellationToken(), parseValue), { kind: 'timeout', requestDispatched: true });
 		await started.p;
 		await rejected;
 		await release.complete(Response.json({ value: 1 }));
@@ -655,9 +655,9 @@ suite('LocalApiRequestProvider', () => {
 			validators.push(new Headers(init?.headers).get('If-None-Match'));
 			return Response.json({ value: validators.length }, { headers: { etag: `"${validators.length}"` } });
 		}, () => token);
-		const first = await provider.request(read, signal(), parseValue);
+		const first = await provider.request(read, cancellationToken(), parseValue);
 		token = 'second-token';
-		const second = await provider.request(read, signal(), parseValue);
+		const second = await provider.request(read, cancellationToken(), parseValue);
 		assert.deepStrictEqual({ first, second, validators }, {
 			first: { data: { value: 1 }, status: 200 }, second: { data: { value: 2 }, status: 200 },
 			validators: [null, null],
@@ -671,7 +671,7 @@ suite('LocalApiRequestProvider', () => {
 			attempts++;
 			return Response.json({ message: 'Bad credentials' }, { status: 401 });
 		}, undefined, () => { invalidations++; });
-		await assert.rejects(provider.request({ ...read, method: 'POST', body: {} }, signal(), parseValue), { kind: 'authentication' });
+		await assert.rejects(provider.request({ ...read, method: 'POST', body: {} }, cancellationToken(), parseValue), { kind: 'authentication' });
 		assert.deepStrictEqual({ attempts, invalidations }, { attempts: 1, invalidations: 1 });
 	});
 
@@ -679,11 +679,11 @@ suite('LocalApiRequestProvider', () => {
 		const transport = store.add(new GitHubTransport(async () => assert.fail('No fetch expected')));
 		const credentials = new class extends mock<IGitHubCredentials>() {
 			override async getCredential() {
-				return { token: 'test-token', account: { host: 'other.example.test', accountId: '101' }, generation: 1, signal: signal() };
+				return { token: 'test-token', account: { host: 'other.example.test', accountId: '101' }, generation: 1, cancellationToken: cancellationToken() };
 			}
 		}();
 		const provider = new LocalApiRequestProvider(apiBaseUri, transport, credentials);
-		await assert.rejects(provider.request(read, signal(), parseValue), { kind: 'authorization' });
+		await assert.rejects(provider.request(read, cancellationToken(), parseValue), { kind: 'authorization' });
 	});
 
 	suite('Core domain results', () => {
@@ -711,7 +711,7 @@ suite('LocalApiRequestProvider', () => {
 					});
 				});
 				const client = new UsersClient(new CoreClient(provider, provider));
-				const request = client.listEmails(signal(), { ...options, query: { page: 3, per_page: 1 } });
+				const request = client.listEmails(cancellationToken(), { ...options, query: { page: 3, per_page: 1 } });
 				if (options.maxPages === 1 && options.pageLimitBehavior !== 'returnPartial') {
 					await assert.rejects(request, PaginationLimitError);
 					assert.deepStrictEqual(urls, [`${apiBaseUri}/user/emails?page=3&per_page=1`]);
@@ -740,7 +740,7 @@ suite('LocalApiRequestProvider', () => {
 			const provider = new LocalApiRequestProvider(apiBase, transport);
 			const client = new RepositoriesClient(new CoreClient(provider, provider));
 			assert.deepStrictEqual({
-				branches: await client.listBranches(ref, signal(), { maxPages: 2 }),
+				branches: await client.listBranches(ref, cancellationToken(), { maxPages: 2 }),
 				urls,
 			}, {
 				branches: [branch, branch],
@@ -767,7 +767,7 @@ suite('LocalApiRequestProvider', () => {
 				}));
 				const provider = new LocalApiRequestProvider(base, transport);
 				const client = new RepositoriesClient(new CoreClient(provider, provider));
-				await assert.rejects(client.listForOrganization('o', signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
+				await assert.rejects(client.listForOrganization('o', cancellationToken(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
 				assert.ok(calls <= 2);
 			}
 		});
@@ -776,7 +776,7 @@ suite('LocalApiRequestProvider', () => {
 			const provider = authenticated(async () => assert.fail('No request expected'));
 			const client = new UsersClient(new CoreClient(provider, provider));
 			for (const maxPages of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
-				await assert.rejects(client.listEmails(signal(), { maxPages }), { kind: 'validation' });
+				await assert.rejects(client.listEmails(cancellationToken(), { maxPages }), { kind: 'validation' });
 			}
 		});
 
@@ -788,7 +788,7 @@ suite('LocalApiRequestProvider', () => {
 					return Response.json([], { headers: { link } });
 				});
 				const client = new UsersClient(new CoreClient(provider, provider));
-				await assert.rejects(client.listEmails(signal(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
+				await assert.rejects(client.listEmails(cancellationToken(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
 				assert.strictEqual(calls, 1);
 			}
 		});
@@ -803,7 +803,7 @@ suite('LocalApiRequestProvider', () => {
 					return failure === 'http' ? Response.json({ message: 'Denied' }, { status: 403 }) : Response.json([{}]);
 				});
 				const client = new UsersClient(new CoreClient(provider, provider));
-				await assert.rejects(client.listEmails(signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }),
+				await assert.rejects(client.listEmails(cancellationToken(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }),
 					failure === 'http' ? { kind: 'authorization' } : SchemaError);
 				assert.strictEqual(calls, 2);
 			}
@@ -817,24 +817,23 @@ suite('LocalApiRequestProvider', () => {
 				return Response.json([], { headers: { link: `<?page=${calls + 1}>; rel="next"` } });
 			});
 			const client = new UsersClient(new CoreClient(provider, provider));
-			await assert.rejects(client.listEmails(signal(), {
+			await assert.rejects(client.listEmails(cancellationToken(), {
 				deadline: Date.now() + 10, maxPages: 3, pageLimitBehavior: 'returnPartial',
 			}), { kind: 'timeout' });
 			assert.strictEqual(calls, 2);
 		}));
 
 		test('cancellation during collection rejects rather than returning earlier pages', async () => {
-			const controller = new AbortController();
-			const reason = new Error('Cancelled');
+			const controller = store.add(new CancellationTokenSource());
 			let calls = 0;
 			const provider = authenticated(async () => {
 				if (++calls === 2) {
-					controller.abort(reason);
+					controller.cancel();
 				}
 				return Response.json([], { headers: { link: '<?page=2>; rel="next"' } });
 			});
 			const client = new UsersClient(new CoreClient(provider, provider));
-			await assert.rejects(client.listEmails(controller.signal, { maxPages: 3, pageLimitBehavior: 'returnPartial' }), error => error === reason);
+			await assert.rejects(client.listEmails(controller.token, { maxPages: 3, pageLimitBehavior: 'returnPartial' }), isCancellationError);
 			assert.strictEqual(calls, 2);
 		});
 
@@ -845,7 +844,7 @@ suite('LocalApiRequestProvider', () => {
 				items: [{ ...item, id: ++calls }], total_count: calls === 1 ? 2 : 3, incomplete_results: calls === 1,
 			}, { headers: calls === 1 ? { link: '<?page=2>; rel="next"' } : {} }));
 			const client = new SearchClient(new CoreClient(provider, provider));
-			const result = await client.repositories('repo', signal(), { maxPages: 2 });
+			const result = await client.repositories('repo', cancellationToken(), { maxPages: 2 });
 			assert.deepStrictEqual({
 				ids: result.items.map(item => item.id), total: result.total_count, incomplete: result.incomplete_results, calls,
 			}, { ids: [1, 2], total: 3, incomplete: true, calls: 2 });
@@ -876,8 +875,8 @@ suite('LocalApiRequestProvider', () => {
 			});
 			const client = new RepositoriesClient(new CoreClient(provider, provider));
 			assert.deepStrictEqual({
-				commit: await client.getCommit(ref, 'sha', signal(), { maxPages: 2 }),
-				comparison: await client.compare(ref, 'base', 'head', signal(), { maxPages: 2 }),
+				commit: await client.getCommit(ref, 'sha', cancellationToken(), { maxPages: 2 }),
+				comparison: await client.compare(ref, 'base', 'head', cancellationToken(), { maxPages: 2 }),
 			}, {
 				commit: { ...commit, files: [file, { ...file, filename: 'b.ts' }] },
 				comparison: { ...comparison, files: [file], commits: [{ ...commit, sha: 'first' }, { ...commit, sha: 'second' }] },
@@ -891,17 +890,17 @@ suite('LocalApiRequestProvider', () => {
 			));
 			const client = new RepositoriesClient(new CoreClient(provider, provider));
 			assert.deepStrictEqual({
-				repository: await client.get(ref, signal()),
-				repositories: await client.listForAuthenticatedUser(signal()),
-				fork: await client.fork(ref, {}, signal()),
+				repository: await client.get(ref, cancellationToken()),
+				repositories: await client.listForAuthenticatedUser(cancellationToken()),
+				fork: await client.fork(ref, {}, cancellationToken()),
 			}, { repository, repositories: [repository], fork: repository });
 		});
 
 		test('validates HTTP status before returning a direct domain value', async () => {
 			const provider = authenticated(async () => Response.json(repository, { status: 201 }));
 			const client = new RepositoriesClient(new CoreClient(provider, provider));
-			await assert.rejects(client.get(ref, signal()), { kind: 'malformedResponse', statusCode: 201 });
-			await assert.rejects(client.fork(ref, {}, signal()), { kind: 'malformedResponse', statusCode: 201 });
+			await assert.rejects(client.get(ref, cancellationToken()), { kind: 'malformedResponse', statusCode: 201 });
+			await assert.rejects(client.fork(ref, {}, cancellationToken()), { kind: 'malformedResponse', statusCode: 201 });
 		});
 
 		test('preserves missing and null submission times on pending reviews', async () => {
@@ -912,7 +911,7 @@ suite('LocalApiRequestProvider', () => {
 			for (const expected of [review, { ...review, submitted_at: null }]) {
 				const provider = authenticated(async () => Response.json([expected]));
 				const client = new ReviewsClient(new CoreClient(provider, provider));
-				assert.deepStrictEqual(await client.list(ref, 1, signal()), [expected]);
+				assert.deepStrictEqual(await client.list(ref, 1, cancellationToken()), [expected]);
 			}
 		});
 
@@ -927,12 +926,12 @@ suite('LocalApiRequestProvider', () => {
 			const provider = anonymous(async () => Response.json({ ...page, items: [{ ...issue, updated_at: updatedAt }] }));
 			const client = new SearchClient(new CoreClient(provider, provider));
 			assert.deepStrictEqual([
-				await client.issues('repo:o/r', signal(), { query: { page: 2, per_page: 100 } }),
-				await client.issuesAndPullRequests('repo:o/r', signal()),
+				await client.issues('repo:o/r', cancellationToken(), { query: { page: 2, per_page: 100 } }),
+				await client.issuesAndPullRequests('repo:o/r', cancellationToken()),
 			], [page, page]);
 			for (const invalid of [undefined, null, 42, 'not-a-date', '2026-10-14T01:00:00']) {
 				updatedAt = invalid;
-				await assert.rejects(client.issues('repo:o/r', signal()), SchemaError);
+				await assert.rejects(client.issues('repo:o/r', cancellationToken()), SchemaError);
 			}
 		});
 
@@ -940,7 +939,7 @@ suite('LocalApiRequestProvider', () => {
 			const diff = 'diff --git a/a.txt b/a.txt\n+line\n';
 			const provider = authenticated(async () => new Response(diff));
 			const client = new PullRequestsClient(new CoreClient(provider, provider));
-			assert.strictEqual(await client.getDiff(ref, 1, 'diff', signal()), diff);
+			assert.strictEqual(await client.getDiff(ref, 1, 'diff', cancellationToken()), diff);
 		});
 
 		test('unwraps JSON, text, and bodyless responses while preserving domain fields', async () => {
@@ -949,10 +948,10 @@ suite('LocalApiRequestProvider', () => {
 			const client = new CoreClient(provider, provider);
 			const parser = parse.object({ data: parse.strings, status: parse.string });
 			assert.deepStrictEqual([
-				await client.request(read, signal(), parser),
-				await client.request({ ...read, responseBody: 'json' }, signal(), parser),
-				await client.request({ ...read, responseBody: 'text' }, signal(), parse.string),
-				await client.request({ ...read, method: 'HEAD', responseBody: 'none' }, signal()),
+				await client.request(read, cancellationToken(), parser),
+				await client.request({ ...read, responseBody: 'json' }, cancellationToken(), parser),
+				await client.request({ ...read, responseBody: 'text' }, cancellationToken(), parse.string),
+				await client.request({ ...read, method: 'HEAD', responseBody: 'none' }, cancellationToken()),
 			], [value, value, JSON.stringify(value), undefined]);
 		});
 
@@ -961,7 +960,7 @@ suite('LocalApiRequestProvider', () => {
 				const reaction = { id: 1, node_id: 'REA_1', user: null, content: '+1', created_at: '2026-01-01T00:00:00Z' };
 				const provider = authenticated(async () => Response.json(reaction, { status }));
 				const client = new IssuesClient(new CoreClient(provider, provider));
-				assert.deepStrictEqual(await client.createReaction(ref, { kind: 'issue', number: 1 }, '+1', signal()), reaction);
+				assert.deepStrictEqual(await client.createReaction(ref, { kind: 'issue', number: 1 }, '+1', cancellationToken()), reaction);
 			});
 		}
 	});
@@ -986,7 +985,7 @@ suite('LocalApiRequestProvider', () => {
 				return Response.json({ data: { viewer: { login: 'viewer' } } });
 			});
 			const core = new CoreClient(provider, provider);
-			const result = await core.graphql('other', query, { toJSON() { serializations++; return { name: 'value\n"quoted"' }; } }, signal(), parseViewer);
+			const result = await core.graphql('other', query, { toJSON() { serializations++; return { name: 'value\n"quoted"' }; } }, cancellationToken(), parseViewer);
 			assert.deepStrictEqual({ result, serializations, requests }, {
 				result: { viewer: { login: 'viewer' } }, serializations: 1,
 				requests: [{ url: `${apiBaseUri}/graphql`, body: JSON.stringify({ query, variables: { name: 'value\n"quoted"' } }), method: 'POST', authorization: true }],
@@ -998,7 +997,7 @@ suite('LocalApiRequestProvider', () => {
 			const responseText = ' {\n "data" : { "viewer" : { "login" : "viewer" } }, "errors" : [] \n} ';
 			const bodies: RequestInit['body'][] = [];
 			const provider = graphql(async (_input, init) => { bodies.push(init?.body); return new Response(responseText); });
-			assert.deepStrictEqual({ result: await provider.requestText(request, signal(), bodyText), bodies }, {
+			assert.deepStrictEqual({ result: await provider.requestText(request, cancellationToken(), bodyText), bodies }, {
 				result: { data: responseText, status: 200 }, bodies: [bodyText],
 			});
 		});
@@ -1012,7 +1011,7 @@ suite('LocalApiRequestProvider', () => {
 				let parses = 0;
 				let calls = 0;
 				const provider = graphql(async () => { calls++; return new Response(responseBody, { headers: { 'X-GitHub-Request-Id': 'graphql-request' } }); });
-				await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, signal(), value => {
+				await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, cancellationToken(), value => {
 					parses++;
 					return parseViewer(value);
 				}), (error: unknown) => {
@@ -1029,14 +1028,14 @@ suite('LocalApiRequestProvider', () => {
 		test('classifies errors-only schema responses using extension codes', async () => {
 			const errors = [{ message: 'Unknown field', extensions: { code: 'undefinedField' } }];
 			const provider = graphql(async () => Response.json({ errors }));
-			await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, signal(), parseViewer), {
+			await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, cancellationToken(), parseViewer), {
 				kind: 'schema', statusCode: 200, graphQLErrors: errors,
 			});
 		});
 
 		test('preserves explicitly null data when the domain parser permits it', async () => {
 			const provider = graphql(async () => Response.json({ data: null }));
-			assert.deepStrictEqual(await new CoreClient(provider, provider).graphql('other', query, {}, signal(), parse.nullable(parseViewer)), null);
+			assert.deepStrictEqual(await new CoreClient(provider, provider).graphql('other', query, {}, cancellationToken(), parse.nullable(parseViewer)), null);
 		});
 
 		for (const body of [
@@ -1047,7 +1046,7 @@ suite('LocalApiRequestProvider', () => {
 			test(`rejects malformed GraphQL envelopes without retry: ${body}`, async () => {
 				let calls = 0;
 				const provider = graphql(async () => { calls++; return new Response(body); });
-				await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, signal(), parseViewer), { kind: 'malformedResponse', statusCode: 200 });
+				await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, cancellationToken(), parseViewer), { kind: 'malformedResponse', statusCode: 200 });
 				assert.strictEqual(calls, 1);
 			});
 		}
@@ -1056,8 +1055,8 @@ suite('LocalApiRequestProvider', () => {
 			let calls = 0;
 			const provider = graphql(async () => Response.json({ data: {} }, { status: ++calls === 1 ? 200 : 202 }));
 			const core = new CoreClient(provider, provider);
-			await assert.rejects(core.graphql('other', query, {}, signal(), parseViewer), error => error instanceof SchemaError);
-			await assert.rejects(core.graphql('other', query, {}, signal(), parseViewer), { kind: 'malformedResponse', statusCode: 202 });
+			await assert.rejects(core.graphql('other', query, {}, cancellationToken(), parseViewer), error => error instanceof SchemaError);
+			await assert.rejects(core.graphql('other', query, {}, cancellationToken(), parseViewer), { kind: 'malformedResponse', statusCode: 202 });
 			assert.strictEqual(calls, 2);
 		});
 
@@ -1077,7 +1076,7 @@ suite('LocalApiRequestProvider', () => {
 							}
 							return Response.json({ data: { viewer: { login: 'viewer' } } });
 						});
-						const result = new CoreClient(provider, provider).graphql('other', operation, {}, signal(), parseViewer);
+						const result = new CoreClient(provider, provider).graphql('other', operation, {}, cancellationToken(), parseViewer);
 						if (operation === mutation) {
 							await assert.rejects(result, { kind: 'network' });
 						} else {
@@ -1093,7 +1092,7 @@ suite('LocalApiRequestProvider', () => {
 			let calls = 0;
 			const provider = graphql(async () => { calls++; return Response.json({ data: {} }); });
 			const core = new CoreClient(provider, provider);
-			await Promise.all([core.graphql('other', mutation, {}, signal(), parse.object({})), core.graphql('other', mutation, {}, signal(), parse.object({}))]);
+			await Promise.all([core.graphql('other', mutation, {}, cancellationToken(), parse.object({})), core.graphql('other', mutation, {}, cancellationToken(), parse.object({}))]);
 			assert.strictEqual(calls, 2);
 		});
 
@@ -1104,9 +1103,9 @@ suite('LocalApiRequestProvider', () => {
 				{ path: '/other' }, { path: '/?query=x' }, { method: 'GET' }, { method: 'PATCH' },
 				{ responseBody: 'text' }, { responseBody: 'none' }, { redirect: 'manual' }, { accept: 'application/vnd.github.diff' },
 			] satisfies Partial<ApiRequest>[]) {
-				await assert.rejects(provider.requestText({ ...request, ...override }, signal(), JSON.stringify({ query })), { kind: 'validation' });
+				await assert.rejects(provider.requestText({ ...request, ...override }, cancellationToken(), JSON.stringify({ query })), { kind: 'validation' });
 			}
-			await assert.rejects(provider.requestText(request, signal()), { kind: 'validation' });
+			await assert.rejects(provider.requestText(request, cancellationToken()), { kind: 'validation' });
 			assert.strictEqual(calls, 0);
 		});
 
@@ -1118,7 +1117,7 @@ suite('LocalApiRequestProvider', () => {
 				JSON.stringify({ query: `${query}\n${mutation}`, operationName: 'Update' }),
 				JSON.stringify({ query, extensions: { persistedQuery: { sha256Hash: 'untrusted' } } }),
 			]) {
-				await assert.rejects(provider.requestText(request, signal(), bodyText), { kind: 'validation' });
+				await assert.rejects(provider.requestText(request, cancellationToken(), bodyText), { kind: 'validation' });
 			}
 			assert.strictEqual(calls, 0);
 		});
@@ -1126,9 +1125,9 @@ suite('LocalApiRequestProvider', () => {
 		test('requires credentials even when request metadata says authentication is optional', async () => {
 			const transport = store.add(new GitHubTransport(async () => assert.fail('No anonymous GraphQL dispatch')));
 			const provider = new LocalApiRequestProvider(`${apiBaseUri}/graphql`, transport, undefined, 'graphql');
-			await assert.rejects(provider.requestText({ ...request, authentication: 'optional' }, signal(), JSON.stringify({ query })), { kind: 'authentication' });
+			await assert.rejects(provider.requestText({ ...request, authentication: 'optional' }, cancellationToken(), JSON.stringify({ query })), { kind: 'authentication' });
 			const client = new SearchClient(new CoreClient(provider, provider));
-			await assert.rejects(client.pullRequests('repo:o/r', signal()), { kind: 'authentication' });
+			await assert.rejects(client.pullRequests('repo:o/r', cancellationToken()), { kind: 'authentication' });
 		});
 	});
 });

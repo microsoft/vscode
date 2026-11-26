@@ -30,6 +30,7 @@ use crate::tunnels::user_data_path::resolve_user_data_path;
 use crate::update_service::Platform;
 use crate::util::command::{kill_tree, DetachFromParent};
 use crate::util::errors::{wrap, AnyError, CodeError};
+use crate::util::file_lock::{FileLock, Lock};
 use crate::util::http::ReqwestSimpleHttp;
 use crate::util::prereqs::PreReqChecker;
 
@@ -60,7 +61,8 @@ const SUPERVISOR_READY_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 ///   endpoint registry and either prints info about the live supervisor
 ///   (`Reuse`), or starts a new supervisor (`SpawnFresh`) — daemonized by
 ///   default, or run inline in this process when `--foreground` is set.
-///   GitHub environments skip registry reuse and always start their own supervisor.
+///   GitHub environments start a dedicated supervisor, with one owner per
+///   server data directory.
 ///
 /// * **Supervisor** (when [`SUPERVISOR_ENV`] is set): binds the public TCP
 ///   listener, publishes a registry entry recording this process's PID +
@@ -72,6 +74,8 @@ pub async fn agent_host(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 		return run_supervisor(ctx, args).await;
 	}
 	if args.github_environment {
+		// Avoid prompting on duplicates; the supervisor rechecks and holds the lock.
+		drop(acquire_github_environment_lock(&args)?);
 		legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 		if !args.foreground {
 			let credential = github_environment_credential(&ctx).await?;
@@ -229,6 +233,11 @@ async fn start_supervisor(ctx: CommandContext, args: AgentHostArgs) -> Result<i3
 /// an [`AgentHostSidecar`] on the user's chosen `--host`/`--port`,
 /// prints the readiness banner / sentinel, then services connections until killed.
 async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
+	let _github_environment_lock = if args.github_environment {
+		Some(acquire_github_environment_lock(&args)?)
+	} else {
+		None
+	};
 	let started = Instant::now();
 	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
 	let instance_id = uuid::Uuid::new_v4().to_string();
@@ -444,6 +453,63 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	sidecar.shutdown().await;
 
 	Ok(0)
+}
+
+fn acquire_github_environment_lock(args: &AgentHostArgs) -> Result<FileLock, AnyError> {
+	// Match server.main.ts: the backend's data directory owns the MC identity,
+	// independently of the CLI credential cache and endpoint registry.
+	let server_data_dir = args
+		.server_data_dir
+		.as_deref()
+		.filter(|path| !path.is_empty())
+		.map(PathBuf::from)
+		.or_else(|| {
+			std::env::var_os("VSCODE_AGENT_FOLDER")
+				.filter(|path| !path.is_empty())
+				.map(PathBuf::from)
+		})
+		.or_else(|| dirs::home_dir().map(|home| home.join(constants::SERVER_DATA_PARENT_DIR)))
+		.ok_or_else(|| {
+			wrap(
+				"",
+				"Could not resolve the GitHub environment server data directory",
+			)
+		})?;
+	let user_data_dir = server_data_dir.join("data");
+	let mut builder = fs::DirBuilder::new();
+	builder.recursive(true);
+	#[cfg(unix)]
+	{
+		use std::os::unix::fs::DirBuilderExt;
+		builder.mode(0o700);
+	}
+	builder.create(&user_data_dir).map_err(|error| {
+		wrap(
+			error,
+			"Could not create the GitHub environment data directory",
+		)
+	})?;
+	let file = fs::OpenOptions::new()
+		.read(true)
+		.write(true)
+		.create(true)
+		.truncate(false)
+		.open(user_data_dir.join("agent-host-github-environment.lock"))
+		.map_err(|error| wrap(error, "Could not open the GitHub environment lock"))?;
+	match FileLock::acquire(file)? {
+		Lock::Acquired(lock) => Ok(lock),
+		Lock::AlreadyLocked(_) => Err(wrap(
+			"",
+			format!(
+				"A GitHub environment is already starting or running for {}. \
+				 Stop the existing host with `{application_name} agent kill`, \
+				 or use a different --server-data-dir.",
+				server_data_dir.display(),
+				application_name = constants::APPLICATION_NAME,
+			),
+		)
+		.into()),
+	}
 }
 
 fn github_environment_auth(paths: &LauncherPaths, log: &log::Logger) -> Auth {
@@ -1144,6 +1210,80 @@ mod tests {
 	use crate::async_pipe::{get_socket_name, listen_socket_rw_stream};
 	use std::fs;
 	use tokio::net::TcpListener;
+
+	#[tokio::test]
+	async fn github_environment_rejects_duplicate_start_before_authentication() {
+		let dir = tempfile::tempdir().unwrap();
+		let mut args = AgentHostArgs {
+			github_environment: true,
+			server_data_dir: Some(dir.path().join("server").to_string_lossy().into_owned()),
+			user_data_dir: Some(dir.path().join("registry").to_string_lossy().into_owned()),
+			..Default::default()
+		};
+		let _owner = acquire_github_environment_lock(&args).unwrap();
+		for foreground in [false, true] {
+			args.foreground = foreground;
+			for supervisor in [false, true] {
+				let ctx = CommandContext {
+					log: log::Logger::test(),
+					paths: LauncherPaths::new_without_replacements(dir.path().join("cli")),
+					args: Default::default(),
+					http: reqwest::Client::new(),
+				};
+				let error = if supervisor {
+					run_supervisor(ctx, args.clone()).await
+				} else {
+					agent_host(ctx, args.clone()).await
+				}
+				.unwrap_err();
+				assert!(
+					error.to_string().contains("already starting or running"),
+					"{error}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	#[cfg(unix)]
+	fn github_environment_lock_keeps_new_server_data_private() {
+		use std::os::unix::fs::PermissionsExt;
+
+		let dir = tempfile::tempdir().unwrap();
+		let server_data_dir = dir.path().join("server");
+		let args = AgentHostArgs {
+			server_data_dir: Some(server_data_dir.to_string_lossy().into_owned()),
+			..Default::default()
+		};
+		let _owner = acquire_github_environment_lock(&args).unwrap();
+		assert_eq!(
+			[server_data_dir.clone(), server_data_dir.join("data")]
+				.map(|path| fs::metadata(path).unwrap().permissions().mode() & 0o777),
+			[0o700, 0o700]
+		);
+	}
+
+	#[test]
+	fn github_environment_lock_releases_and_is_scoped_to_server_data() {
+		let dir = tempfile::tempdir().unwrap();
+		let args = AgentHostArgs {
+			server_data_dir: Some(dir.path().join("server").to_string_lossy().into_owned()),
+			..Default::default()
+		};
+		let owner = acquire_github_environment_lock(&args).unwrap();
+		let other = AgentHostArgs {
+			server_data_dir: Some(
+				dir.path()
+					.join("other-server")
+					.to_string_lossy()
+					.into_owned(),
+			),
+			..Default::default()
+		};
+		let _other_owner = acquire_github_environment_lock(&other).unwrap();
+		drop(owner);
+		assert!(acquire_github_environment_lock(&args).is_ok());
+	}
 
 	#[tokio::test]
 	async fn github_environment_background_rejects_missing_persisted_credential() {

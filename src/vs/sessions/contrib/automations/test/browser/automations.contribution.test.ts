@@ -14,7 +14,10 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../browser/automationsEditorInput.js';
+import '../../../sessions/browser/views/sessionsViewActions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -87,9 +90,9 @@ suite('Automations Contribution', () => {
 			startedAt: '2026-01-01T00:00:00.000Z',
 		};
 
-		function setup(automations: readonly IAutomationDescriptor[] = [automation]) {
+		function setup(automations: readonly IAutomationDescriptor[] = [automation], modal?: boolean) {
 			const instantiationService = store.add(new TestInstantiationService());
-			const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true });
+			const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true, [AUTOMATIONS_MODAL_SETTING]: modal });
 			const catalogue = observableValue<readonly IAutomationDescriptor[]>('automations', automations);
 			const catalogueState = observableValue<AutomationCatalogueState>('catalogueState', 'ready');
 			const runnable = new Set(automations.map(item => item.id));
@@ -105,6 +108,7 @@ suite('Automations Contribution', () => {
 				pickerDisposed: false,
 				openedSessions: [] as { resource: URI; options: IOpenSessionOptions | undefined }[],
 				openedViews: [] as string[],
+				openedModals: 0,
 				openSession: async () => { },
 				select: (items: IQuickPickItem[]): IQuickPickItem | undefined => items[0],
 				refreshCalls: 0,
@@ -204,7 +208,19 @@ suite('Automations Contribution', () => {
 			}));
 			instantiationService.stub(ICustomViewService, upcastPartial<ICustomViewService>({
 				showCustomView: id => { state.openedViews.push(id); },
+				hideCustomView: () => { },
 			}));
+			instantiationService.stub(ICommandService, {
+				executeCommand: async (id, ...args) => { await instantiationService.invokeFunction(CommandsRegistry.getCommand(id)!.handler, ...args); return undefined; },
+			});
+			instantiationService.stub(IEditorService, {
+				openEditor: async input => {
+					assert.ok(input instanceof AutomationsEditorInput);
+					store.add(input);
+					state.openedModals++;
+					return undefined;
+				},
+			});
 			const run = () => instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler);
 			const accept = (item: IQuickPickItem) => {
 				picker.selectedItems = [item];
@@ -370,16 +386,26 @@ suite('Automations Contribution', () => {
 			});
 		}
 
-		test('opens Automations when an accepted request has no correlated run', async () => {
-			const { state, run } = setup();
-			await run();
-			await state.choices[0].run();
-			assert.deepStrictEqual({
-				labels: state.choices.map(choice => choice.label),
-				sessions: state.openedSessions,
-				views: state.openedViews,
-			}, { labels: ['Show Automations'], sessions: [], views: [AUTOMATIONS_CUSTOM_VIEW_ID] });
-		});
+		for (const kind of ['accepted', 'queued'] as const) {
+			test(`opens Automations for ${kind} requests without owning a session`, async () => {
+				const { state, run } = setup();
+				state.dispatch = kind === 'queued' ? { kind, run: { ...automationRun, status: 'completed', sessionResource: undefined } } : { kind };
+				await run();
+				await state.choices[0].run();
+				assert.deepStrictEqual({
+					labels: state.choices.map(choice => choice.label),
+					sessions: state.openedSessions,
+					views: state.openedViews,
+				}, { labels: ['Show Automations'], sessions: [], views: [AUTOMATIONS_CUSTOM_VIEW_ID] });
+			});
+			test(`opens the modal for ${kind} requests when opted in`, async () => {
+				const { state, run } = setup([automation], true);
+				state.dispatch = kind === 'queued' ? { kind, run: { ...automationRun, status: 'completed', sessionResource: undefined } } : { kind };
+				await run();
+				await state.choices[0].run();
+				assert.deepStrictEqual({ modals: state.openedModals, views: state.openedViews, sessions: state.openedSessions }, { modals: 1, views: [], sessions: [] });
+			});
+		}
 
 		test('dismisses the notification after exactly ten seconds', async () => {
 			const clock = useFakeTimers();

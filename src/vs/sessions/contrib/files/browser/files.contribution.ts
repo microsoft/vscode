@@ -20,7 +20,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
-import { SESSIONS_FILES_VIEW_ID } from '../../../../workbench/contrib/files/common/files.js';
+import { SESSIONS_FILES_CONTAINER_ID, SESSIONS_FILES_VIEW_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ActiveEditorContext, IsSessionsWindowContext, ResourceContextKey, WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
@@ -34,8 +34,6 @@ import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/bro
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-
-export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 
 const filesViewIcon = registerIcon('sessions-files-view-icon', Codicon.files, localize2('sessionsFilesViewIcon', 'View icon of the files view in the sessions window.').value);
 

@@ -9,31 +9,12 @@
  */
 
 
-import { ConfigurationTarget, l10n, Uri, window, workspace, WorkspaceFolder } from 'vscode';
+import { ConfigurationTarget, Uri, window, workspace, WorkspaceFolder } from 'vscode';
 import { ConfigurationKeyValuePairs, ConfigurationMigration, ConfigurationMigrationRegistry, ConfigurationValue } from '../../../platform/configuration/common/configurationService';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import { DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IExtensionContribution } from '../../common/contributions';
 
-
-interface IConfigurationNode {
-	id: string;
-	title: string;
-	type: string;
-	order?: number;
-
-}
-
-export const applicationConfigurationNodeBase = Object.freeze<IConfigurationNode>({
-	'id': 'application',
-	'order': 100,
-	'title': l10n.t("Application"),
-	'type': 'object'
-});
-
-export const Extensions = {
-	ConfigurationMigration: 'base.contributions.configuration.migration'
-};
 
 export class ConfigurationMigrationContribution implements IExtensionContribution {
 	private readonly _disposables = new DisposableStore();

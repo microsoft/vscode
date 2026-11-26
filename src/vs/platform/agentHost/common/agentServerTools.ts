@@ -23,6 +23,12 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	 * sessions defer the tool and other providers keep their SDK defaults.
 	 */
 	readonly deferLoading?: boolean;
+	/**
+	 * The input schema to advertise instead of `inputSchema` while the tool is deferred behind tool search, for text
+	 * that only helps once the agent has loaded the tool, such as a model catalog. A provider that loads the tool on
+	 * every request uses `inputSchema`. Never published to clients.
+	 */
+	readonly deferredInputSchema?: ToolDefinition['inputSchema'];
 }
 
 /**
@@ -86,9 +92,10 @@ export interface IAgentServerToolHost {
 	/**
 	 * Executes a server tool for the exact chat that invoked it, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.
+	 * `toolCallId` identifies the call in the chat's state, when the provider knows it.
 	 *
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, toolCallId?: string): string | Promise<string>;
 }

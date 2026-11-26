@@ -30,8 +30,11 @@ import { OtlpEmitterLogger, OtlpLogEmitter } from '../common/otlp/otlpLogEmitter
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { parseShutdownTimeoutArg, shutdownAgentHostBeforeDispose } from './agentHostShutdown.js';
+import { flushAgentHostTelemetry } from './agentHostTelemetryService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { createAgentHostRuntime } from './agentHostBootstrap.js';
+import { AgentHostKeepAwake } from './agentHostKeepAwake.js';
+import { AgentHostPowerSaveBlocker } from './agentHostPowerSaveBlocker.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
@@ -56,6 +59,7 @@ import { resolveServerUrls } from './serverUrls.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { localProcessPathStyle } from '../common/agentHostPathStyle.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -216,6 +220,7 @@ async function main(): Promise<void> {
 	});
 	disposables.add(runtime);
 	const { agentService, instantiationService } = runtime;
+	disposables.add(instantiationService.createInstance(AgentHostKeepAwake, allowOnBattery => new AgentHostPowerSaveBlocker(allowOnBattery, logService)));
 	const runtimeServices = instantiationService.invokeFunction(accessor => ({
 		configurationService: accessor.get(IAgentConfigurationService),
 		fileService: accessor.get(IFileService),
@@ -336,6 +341,7 @@ async function main(): Promise<void> {
 		wsServer,
 		{
 			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
+			environment: { pathStyle: localProcessPathStyle },
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: completions.triggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
@@ -398,10 +404,11 @@ async function main(): Promise<void> {
 		wsServer.dispose();
 		// Providers such as Claude finish writing their transcripts during
 		// shutdown, so drain them before waiting for persistence to go idle.
+		// Telemetry is flushed then too, so it includes what providers report while stopping.
 		await shutdownAgentHostBeforeDispose(
 			() => protocolHandler.whenIdle(),
 			() => agentService.shutdown(),
-			() => [sessionDataService.whenIdle(), customizationEnablementService.whenIdle()],
+			() => [sessionDataService.whenIdle(), customizationEnablementService.whenIdle(), flushAgentHostTelemetry(runtimeServices.telemetryService, logService)],
 			options.shutdownTimeoutMs,
 			logService,
 		);

@@ -305,6 +305,8 @@ export class ToolBar extends Disposable {
 	 */
 	relayout(): void {
 		if (this.options.responsiveBehavior?.enabled) {
+			// What the items need can change too, such as a trailing separator that is hidden or shown
+			this.reserveResponsiveMinWidth();
 			const width = this.getAvailableWidth();
 			this.updateActions(width);
 		}
@@ -342,30 +344,7 @@ export class ToolBar extends Disposable {
 			this.hiddenActions.length = 0;
 
 			// Set the minimum width
-			if (this.options.responsiveBehavior.minItems !== undefined) {
-				const itemCount = this.options.responsiveBehavior.minItems;
-				const requiredActions = this.overflowFromStart
-					? this.originalPrimaryActions.slice(Math.max(0, this.originalPrimaryActions.length - itemCount))
-					: this.originalPrimaryActions.slice(0, itemCount);
-				const primaryActionsMinWidth = requiredActions.reduce((total, action) => total + this.getActionMinWidth(action), 0);
-
-				// Account for overflow menu
-				let overflowWidth = 0;
-				if (
-					this.originalSecondaryActions.length > 0 ||
-					itemCount < this.originalPrimaryActions.length
-				) {
-					overflowWidth = ACTION_MIN_WIDTH + ACTION_PADDING;
-				}
-
-				const separatorWidth = this.options.trailingSeparator && !this.actionBar.isEmpty() ? this.actionBar.getWidth(this.actionBar.length() - 1) + ACTION_PADDING : 0;
-				this.minItemsWidth = primaryActionsMinWidth + overflowWidth + separatorWidth;
-				this.reserveMinWidth(this.minItemsWidth);
-			} else {
-				const minimumActionWidth = this.originalPrimaryActions.length > 0 ? this.getActionMinWidth(this.originalPrimaryActions[0]) : ACTION_MIN_WIDTH + ACTION_PADDING;
-				this.minItemsWidth = 0;
-				this.reserveMinWidth(minimumActionWidth);
-			}
+			this.reserveResponsiveMinWidth();
 
 			// Update toolbar actions to fit with container width
 			this.updateActions(this.getAvailableWidth());
@@ -374,6 +353,49 @@ export class ToolBar extends Disposable {
 
 	isEmpty(): boolean {
 		return this.actionBar.isEmpty();
+	}
+
+	private reserveResponsiveMinWidth(): void {
+		if (!this.options.responsiveBehavior?.enabled) {
+			return;
+		}
+		if (this.options.responsiveBehavior.minItems !== undefined) {
+			const itemCount = this.options.responsiveBehavior.minItems;
+			const requiredActions = this.overflowFromStart
+				? this.originalPrimaryActions.slice(Math.max(0, this.originalPrimaryActions.length - itemCount))
+				: this.originalPrimaryActions.slice(0, itemCount);
+			const primaryActionsMinWidth = requiredActions.reduce((total, action) => total + this.getActionMinWidth(action), 0);
+
+			// Account for overflow menu
+			let overflowWidth = 0;
+			if (
+				this.originalSecondaryActions.length > 0 ||
+				itemCount < this.originalPrimaryActions.length
+			) {
+				overflowWidth = ACTION_MIN_WIDTH + ACTION_PADDING;
+			}
+
+			const separatorWidth = this.getTrailingSeparatorWidth();
+			this.minItemsWidth = primaryActionsMinWidth + overflowWidth + separatorWidth;
+			this.reserveMinWidth(this.minItemsWidth);
+		} else {
+			const minimumActionWidth = this.originalPrimaryActions.length > 0 ? this.getActionMinWidth(this.originalPrimaryActions[0]) : ACTION_MIN_WIDTH + ACTION_PADDING;
+			this.minItemsWidth = 0;
+			this.reserveMinWidth(minimumActionWidth);
+		}
+	}
+
+	/** The width of the trailing separator, which takes none while hidden, such as by its container's styles. */
+	private getTrailingSeparatorWidth(): number {
+		if (!this.options.trailingSeparator || this.actionBar.isEmpty()) {
+			return 0;
+		}
+		const index = this.actionBar.length() - 1;
+		const element = this.getItemElement(index);
+		if (element && DOM.getWindow(element).getComputedStyle(element).display === 'none') {
+			return 0;
+		}
+		return this.actionBar.getWidth(index) + ACTION_PADDING;
 	}
 
 	private get overflowFromStart(): boolean {

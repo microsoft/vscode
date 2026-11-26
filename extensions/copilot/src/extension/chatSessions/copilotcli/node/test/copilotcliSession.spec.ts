@@ -281,7 +281,6 @@ describe('CopilotCLISession', () => {
 			sessionWorkspaceInfo,
 			sessionAgentName,
 			sdkSession as unknown as Session,
-			[],
 			sandboxConfig as any,
 			logger,
 			workspaceService,
@@ -1388,7 +1387,7 @@ describe('CopilotCLISession', () => {
 		};
 		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
 		Object.defineProperty(session, '_missionControlApiClient', {
-			value: { submitEvents: vi.fn(async () => true), deleteSession: vi.fn(async () => undefined) },
+			value: { submitEvents: vi.fn(async () => true) },
 			configurable: true,
 		});
 
@@ -1780,7 +1779,6 @@ describe('CopilotCLISession', () => {
 	it('announces remote control disabled to Mission Control before detaching locally', async () => {
 		const session = await createSession();
 		const submitEvents = vi.fn(async () => true);
-		const deleteSession = vi.fn(async () => undefined);
 		const pendingRequest = vi.fn();
 		const mcEventListenerDispose = vi.fn();
 		const remoteState = {
@@ -1799,7 +1797,7 @@ describe('CopilotCLISession', () => {
 		};
 		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
 		Object.defineProperty(session, '_missionControlApiClient', {
-			value: { submitEvents, deleteSession },
+			value: { submitEvents },
 			configurable: true,
 		});
 
@@ -1815,7 +1813,6 @@ describe('CopilotCLISession', () => {
 			]),
 			[],
 		);
-		expect(deleteSession).not.toHaveBeenCalled();
 	});
 
 	it('immediately pushes invocation messages for non-permission-requiring tools like MCP', async () => {

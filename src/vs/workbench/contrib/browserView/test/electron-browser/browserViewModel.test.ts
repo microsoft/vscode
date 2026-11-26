@@ -22,6 +22,29 @@ import { IBrowserZoomService } from '../../common/browserZoomService.js';
 suite('BrowserViewModel', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	const initialState: IBrowserViewState = {
+		url: '',
+		title: '',
+		canGoBack: false,
+		canGoForward: false,
+		loading: false,
+		focused: false,
+		visible: false,
+		isDevToolsOpen: false,
+		lastScreenshot: undefined,
+		lastFavicon: undefined,
+		lastError: undefined,
+		certificateError: undefined,
+		session: { scope: BrowserViewStorageScope.Global },
+		storageKeys: {},
+		permissions: { origins: {} },
+		browserZoomIndex: browserZoomDefaultIndex,
+		elementSelectionState: { active: false, options: {} },
+		isAreaSelectionActive: false,
+		device: undefined,
+		audiences: [],
+	};
+
 	test('blocks sharing reported parser-differential authorities with the agent', async () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
@@ -45,28 +68,6 @@ suite('BrowserViewModel', () => {
 			onDidChangeZoom: Event.None,
 			getEffectiveZoomIndex: () => browserZoomDefaultIndex,
 		});
-		const initialState: IBrowserViewState = {
-			url: '',
-			title: '',
-			canGoBack: false,
-			canGoForward: false,
-			loading: false,
-			focused: false,
-			visible: false,
-			isDevToolsOpen: false,
-			lastScreenshot: undefined,
-			lastFavicon: undefined,
-			lastError: undefined,
-			certificateError: undefined,
-			session: { scope: BrowserViewStorageScope.Global },
-			storageKeys: {},
-			permissions: { origins: {} },
-			browserZoomIndex: browserZoomDefaultIndex,
-			elementSelectionState: { active: false, options: {} },
-			isAreaSelectionActive: false,
-			device: undefined,
-			audiences: [],
-		};
 		const urls = [
 			'http://a@b@127.0.0.1:3000/private',
 			'http://a%40b@127.0.0.1:3000/private',
@@ -101,6 +102,59 @@ suite('BrowserViewModel', () => {
 		}, {
 			results: urls.map(() => undefined),
 			infoCalls: urls.length,
+		});
+	});
+
+	test('reflects main-process favicon state after navigation and renderer recreation', () => {
+		const url = 'http://127.0.0.1:8123/';
+		const favicon = 'data:image/svg+xml;base64,original';
+		const failedUrl = 'http://favicon-recovery-test.invalid/';
+		const error = { url: failedUrl, errorCode: -105, errorDescription: 'ERR_NAME_NOT_RESOLVED' };
+		const createModel = (state: IBrowserViewState) => {
+			const events = createBrowserViewEventEmitters(disposables.add(new DisposableStore()));
+			const model = disposables.add(new BrowserViewModel(
+				'favicon-recovery',
+				{ windowId: 1 },
+				{ type: 'user' },
+				undefined,
+				state,
+				upcastPartial<IBrowserViewService>({
+					destroyBrowserView: async () => { },
+					setBrowserZoomIndex: async () => { },
+				}),
+				events,
+				upcastPartial<IBrowserViewWorkbenchService>({ isSharingAvailable: true, onDidChangeSharingAvailable: Event.None }),
+				NullTelemetryService,
+				upcastPartial<IDialogService>({}),
+				upcastPartial<IStorageService>({}),
+				upcastPartial<IBrowserZoomService>({ onDidChangeZoom: Event.None, getEffectiveZoomIndex: () => browserZoomDefaultIndex }),
+				disposables.add(new AgentNetworkFilterService(new TestConfigurationService())),
+				new NullLogService(),
+			));
+			return { model, events };
+		};
+		const original = createModel({ ...initialState, url, lastFavicon: favicon });
+		original.events.onDidChangeFavicon.fire({ favicon: undefined });
+		original.events.onDidChangeLoadingState.fire({ loading: false, error });
+		original.events.onDidNavigate.fire({ url: failedUrl, title: '', canGoBack: true, canGoForward: false, certificateError: undefined });
+		const failed = original.model.favicon;
+		original.model.dispose();
+
+		const recreated = createModel({ ...initialState, url: failedUrl, lastError: error });
+		const recreatedFailed = recreated.model.favicon;
+		recreated.events.onDidChangeLoadingState.fire({ loading: true });
+		recreated.events.onDidChangeFavicon.fire({ favicon });
+		recreated.events.onDidNavigate.fire({ url, title: 'Original page', canGoBack: false, canGoForward: true, certificateError: undefined });
+		recreated.events.onDidChangeLoadingState.fire({ loading: false });
+		const recovered = recreated.model.favicon;
+		recreated.model.dispose();
+
+		const recreatedRecovered = createModel({ ...initialState, url, lastFavicon: favicon }).model.favicon;
+		assert.deepStrictEqual({ failed, recreatedFailed, recovered, recreatedRecovered }, {
+			failed: undefined,
+			recreatedFailed: undefined,
+			recovered: favicon,
+			recreatedRecovered: favicon,
 		});
 	});
 });

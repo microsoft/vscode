@@ -50,7 +50,7 @@ import { ITerminalProfileResolverService } from '../../terminal/common/terminal.
 import { CommandString, ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, InstancePolicy, ITaskConfig, ITaskEvent, ITaskIdentifier, ITaskInactiveEvent, ITaskProcessEndedEvent, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RerunAllRunningTasksCommandId, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from '../common/tasks.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext, TasksAvailableContext } from '../common/taskService.js';
-import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
+import { assertTaskWorkspaceTrust, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
 
 import * as TaskConfig from '../common/taskConfiguration.js';
@@ -72,6 +72,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWillRemoveFoldersEvent, IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -298,9 +299,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@IWorkspaceEditingService workspaceEditingService: IWorkspaceEditingService
 	) {
 		super();
+		this._register(workspaceEditingService.onWillRemoveFolders(evt => this._vetoRemoveFolders(evt)));
 		this._whenTaskSystemReady = Event.toPromise(Event.filter(this.onDidChangeTaskSystemInfo, () => this.hasTaskSystemInfo), this._store);
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
@@ -1090,6 +1093,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve(false);
 		}
 		return this._taskSystem.isActive();
+	}
+
+	private _vetoRemoveFolders(evt: IWillRemoveFoldersEvent): void {
+		const runningInFolders = async () => (await this.getActiveTasks()).filter(task => {
+			const folder = task.getWorkspaceFolder();
+			return folder && evt.folders.some(removed => resources.isEqual(removed, folder.uri));
+		});
+		evt.veto(
+			runningInFolders().then(tasks => tasks.map(task => nls.localize('taskRunningRemovingFolder', "The task '{0}' is running.", task._label))),
+			async () => {
+				const results = await Promise.all((await runningInFolders()).map(task => this.terminate(task)));
+				if (results.some(result => !result.success)) {
+					throw new Error(nls.localize('taskNotTerminated', "A running task could not be terminated."));
+				}
+			});
 	}
 
 	public async getActiveTasks(): Promise<Task[]> {
@@ -2087,6 +2105,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				? await this.getTask(taskFolder, taskIdentifier, false, taskType) : task) ?? task;
 		}
 		await ProblemMatcherRegistry.onReady();
+		assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
 		const executeResult = runSource === TaskRunSource.Reconnect ? this._getTaskSystem().reconnect(taskToRun, resolver) : this._getTaskSystem().run(taskToRun, resolver);
 		if (executeResult) {
 			return this._handleExecuteResult(executeResult, runSource);
@@ -2289,7 +2308,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 				}
 				return undefined;
-			}
+			},
+			this._workspaceTrustManagementService
 		);
 	}
 

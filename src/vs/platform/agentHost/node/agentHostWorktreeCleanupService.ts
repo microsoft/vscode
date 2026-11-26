@@ -17,6 +17,7 @@ import { AgentSession } from '../common/agent.js';
 import { type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AGENT_BRANCH_PREFIX, getWorktreesRoot, isAgentWorktreeBranch, isWorktreeUnderRepository } from '../common/worktreePaths.js';
+import { decodeAgentHostCatalogPayloadData } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { coOwnedWorktreeRemovalOwner, type IPendingWorktreeRemoval, type IWorktreeCoOwner, type IWorktreeCoOwnerState, type IWorktreeRemovalRequest, type WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { parseSessionWorkingDirectories, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
@@ -389,13 +390,26 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			throw new Error('Only existing sessions can prepare worktree cleanup.');
 		}
 		const values = (await this._database.readSessionStateValues([session.toString()], [SESSION_WORKING_DIRECTORIES_KEY])).get(session.toString())?.values;
+		let directories = parseSessionWorkingDirectories(values?.get(SESSION_WORKING_DIRECTORIES_KEY));
+		if (directories === undefined) {
+			// Initial workspace roots can live only in the catalog until the session changes workspace.
+			const catalog = await this._database.getSessionV2(session.toString());
+			if (catalog) {
+				const decoded = decodeAgentHostCatalogPayloadData(catalog.payload);
+				if (decoded.ok) {
+					directories = decoded.value.workingDirectories;
+				} else {
+					this._logService.warn(`[AgentHostWorktreeCleanup] Ignoring ${decoded.reason} catalog roots for session ${session.toString()} (payload version ${catalog.payloadVersion}): ${decoded.error}`);
+				}
+			}
+		}
 		const recorded = await this._worktree.readSessionWorktreeForRemoval(session);
 		const recordedFolders = [
 			...await this._recordedWorktreeFolders(session, recorded),
 			...(await this._database.listWorktreeCoOwnersOfSession(session.toString())).map(owner => URI.parse(owner.worktreePath)),
 		];
 		const unrecorded: IRecordedWorktree[] = [];
-		for (const directory of parseSessionWorkingDirectories(values?.get(SESSION_WORKING_DIRECTORIES_KEY)) ?? []) {
+		for (const directory of directories ?? []) {
 			const folder = URI.parse(directory);
 			if (folder.scheme !== Schemas.file || recordedFolders.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(folder, root))) {
 				continue;

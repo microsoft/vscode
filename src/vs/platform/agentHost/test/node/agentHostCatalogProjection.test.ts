@@ -128,6 +128,12 @@ suite('AgentHostCatalogProjection', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('preserves scheduled chat purpose without its Automation catalogue', () => {
+		const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/removed', run: 'ahp-automation-run:/pruned', purpose: 'scheduledChat' } as const;
+		const decoded = decodeAgentHostCatalogPayload(encode({ ...createData(), origin }).payload);
+		assert.deepStrictEqual(decoded.ok && decoded.value.data.origin, origin);
+	});
+
 	test('round trips creating-client identity through the validated catalog', () => {
 		const initiator = { name: 'github/cli', title: 'Copilot CLI', version: '1.0' };
 		const data = createData();

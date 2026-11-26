@@ -281,22 +281,15 @@ export class CopilotToken {
 	isSn(): boolean {
 		return this.tokenMap.get('sn') === '1';
 	}
-}
 
-/**
- * Details of the user's telemetry consent status we get from the server during token retrieval.
- *
- * `unconfigured` is a transitional state for pre-GA that indicates the user is in the Technical Preview
- * and needs to be asked about telemetry consent client-side. It can be removed post-GA as the server
- * will never return it again.
- *
- * `enabled` indicates that they agreed to full telemetry.
- *
- * `disabled` indicates that they opted out of full telemetry so we can only send the core messages
- * that users cannot opt-out of.
- *
- */
-export type UserTelemetryChoice = 'enabled' | 'disabled';
+	/**
+	 * Whether the token stamp identifies a Proxima (data-residency) deployment
+	 */
+	isProxima(): boolean {
+		const stamp = this.tokenMap.get('st');
+		return !!stamp && stamp !== 'dotcom';
+	}
+}
 
 /**
  * A notification we get from the server during token retrieval. Needs to be presented to the user.
@@ -515,10 +508,6 @@ export function validateTokenEnvelope(obj: unknown): TokenValidationResult {
 	};
 }
 
-export function isTokenEnvelope(obj: unknown): obj is TokenEnvelope {
-	return validateTokenEnvelope(obj).valid;
-}
-
 export function isErrorEnvelope(obj: unknown): obj is ErrorEnvelope {
 	return errorEnvelopeValidator.validate(obj).error === undefined;
 }
@@ -529,12 +518,6 @@ export function isStandardErrorEnvelope(obj: unknown): obj is StandardErrorEnvel
 
 //#endregion
 
-
-/**
- * Combined response type from the /copilot_internal/v2/token endpoint.
- * Can be either a success (TokenEnvelope) or error (ErrorEnvelope) response.
- */
-export type CopilotTokenResponse = TokenEnvelope | ErrorEnvelope | StandardErrorEnvelope;
 
 /**
  * A server response containing the user info for the copilot user from the /copilot_internal/user endpoint
@@ -631,17 +614,6 @@ export const enum TokenErrorNotificationId {
 	AccessRevoked = 'access_revoked',
 	ServerError = 'server_error'
 }
-
-/**
- * Notification IDs that appear in user_notification on success responses.
- */
-export type SuccessNotificationId =
-	| 'subscription_trial_ending'
-	| 'subscription_trial_ended'
-	| 'subscription_ending'
-	| 'free_over_limits'
-	| 'codespaces_demo_welcome'
-	| `copilot_seat_added_${number}`;
 
 export type TokenError = {
 	reason: TokenErrorReason;

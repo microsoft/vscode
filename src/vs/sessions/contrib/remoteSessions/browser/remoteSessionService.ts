@@ -27,10 +27,11 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { LocalDevContainerEnvironmentHost } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionType, SessionTypeAuthRequirement } from '../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, remoteSessionHostRejections } from '../common/remoteSessions.js';
+import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionDestination, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionService, IRemoteSessionWorkspace, remoteSessionHostRejections } from '../common/remoteSessions.js';
 import { assertRemoteSessionSource, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 
@@ -49,6 +50,14 @@ type RemoteSessionsProvider = IAgentHostSessionsProvider & { readonly remoteAddr
 
 const maxRemoteSessionCreations = 500;
 const maxRemoteSessionDepth = 10;
+
+/**
+ * Labels a directory on its host without formatting it for this client: its path, or `//authority/path` for a UNC
+ * directory. A URI path never starts with `//` without an authority, so the label identifies the directory.
+ */
+function getDirectoryLabel(directory: URI): string {
+	return directory.authority ? `//${directory.authority}${directory.path}` : directory.path;
+}
 
 export class RemoteSessionService implements IRemoteSessionService {
 	declare readonly _serviceBrand: undefined;
@@ -74,6 +83,47 @@ export class RemoteSessionService implements IRemoteSessionService {
 	listHosts(): readonly IRemoteSessionHost[] {
 		this.checkEnabled();
 		return this.remoteProviders().map(provider => this.describeHost(provider));
+	}
+
+	getHostRejections(hostId: string, workspace: IRemoteSessionWorkspace): readonly string[] {
+		this.checkEnabled();
+		const provider = this.remoteProviders().find(provider => provider.id === hostId);
+		if (!provider) {
+			return [localize('remoteSessions.hostUnavailable', "The host is not available in this Agents window.")];
+		}
+		return this.getCandidate(provider, { prompt: '', hostId, requirements: {}, workspace }).reasons;
+	}
+
+	getRequestedDestination(options: ICreateRemoteSessionOptions): IRemoteSessionDestination {
+		const providers = this.remoteProviders();
+		const requested = options.workspace?.uri;
+		const pinnedBy = options.hostId ?? (requested?.scheme === AGENT_HOST_SCHEME ? requested.authority : undefined);
+		const provider = options.hostId !== undefined
+			? providers.find(provider => provider.id === options.hostId)
+			: requested?.scheme === AGENT_HOST_SCHEME ? providers.find(provider => agentHostAuthority(provider.remoteAddress) === requested.authority) : undefined;
+		let workspace: string | undefined;
+		if (requested?.scheme === AGENT_HOST_SCHEME) {
+			// Only the host's own connection decodes its URIs; creation fails for a URI of another host or an unavailable one.
+			const uris = provider && requested.authority === agentHostAuthority(provider.remoteAddress)
+				? this.connectionsService.getConnectionByAddress(provider.remoteAddress)?.resourceUris : undefined;
+			workspace = uris ? getDirectoryLabel(uris.toAgentHost(requested)) : requested.path;
+		} else if (requested) {
+			workspace = getDirectoryLabel(requested);
+		}
+		return { host: provider && this.getHostName(provider, providers), pinnedBy, workspace };
+	}
+
+	private getHostName(provider: RemoteSessionsProvider, providers: readonly RemoteSessionsProvider[]): IRemoteSessionHostName {
+		const containerHost = provider.devContainerEnvironmentHost;
+		if (containerHost === undefined) {
+			return { label: provider.label };
+		}
+		return {
+			label: provider.label,
+			containerHost: containerHost === LocalDevContainerEnvironmentHost
+				? localize('remoteSessions.thisComputer', "This Computer")
+				: providers.find(host => host.remoteAddress === containerHost)?.label ?? containerHost,
+		};
 	}
 
 	createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken): Promise<ICreatedRemoteSession> {

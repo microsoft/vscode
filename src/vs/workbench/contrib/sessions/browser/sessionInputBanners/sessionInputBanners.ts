@@ -38,7 +38,7 @@ export class SessionInputBanners extends Disposable {
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
-		this.model = this._register(new SessionInputBannerModel(undefined, sessionHost, sessionsProvidersService, configurationService,
+		this.model = this._register(new SessionInputBannerModel(sessionHost, sessionsProvidersService, configurationService,
 			gitHubService, feedbackService, commandService, storageService, logService, chatWidgetService));
 		const widget = this._register(instantiationService.createInstance(SessionInputBannerWidget, []));
 		this.domNode.appendChild(widget.domNode);

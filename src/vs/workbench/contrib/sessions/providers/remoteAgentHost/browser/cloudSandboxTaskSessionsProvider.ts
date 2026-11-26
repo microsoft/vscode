@@ -39,6 +39,15 @@ interface ITaskActions {
 	delete(taskId: string): Promise<void>;
 }
 
+/** The resource of the environment session a task is bound to, which the task's row lists as its previous identity. */
+function cloudSandboxTaskAlias(task: ICloudSandboxTask): URI | undefined {
+	if (!task.environmentId || !task.sessionId) {
+		return undefined;
+	}
+	const authority = agentHostAuthority(cloudSandboxAddress(task.environmentId));
+	return URI.from({ scheme: remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER), path: `/${task.sessionId}` });
+}
+
 export function createCloudSandboxTaskSession(task: ICloudSandboxTask) {
 	const summary = observableValue('cloudTaskSummary', task);
 	const runtime = observableValue<ISession | undefined>('cloudTaskRuntime', undefined);
@@ -114,11 +123,11 @@ export function createCloudSandboxTaskSession(task: ICloudSandboxTask) {
 		sessionId: `${CLOUD_SANDBOX_TASK_PROVIDER_ID}:${resource.toString()}`,
 		get previousIdentities() {
 			const task = summary.get();
-			if (!task.environmentId || !task.sessionId) {
+			const previous = cloudSandboxTaskAlias(task);
+			if (!previous || !task.environmentId) {
 				return undefined;
 			}
 			const authority = agentHostAuthority(cloudSandboxAddress(task.environmentId));
-			const previous = URI.from({ scheme: remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER), path: `/${task.sessionId}` });
 			return [{ resource: previous, sessionId: `agenthost-${authority}:${previous.toString()}` }];
 		},
 		resource, providerId: CLOUD_SANDBOX_TASK_PROVIDER_ID, sessionType: CLOUD_SANDBOX_AGENT_PROVIDER, harness: 'copilot', environment: 'cloud',
@@ -153,7 +162,23 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 	private readonly _providers = new Map<string, CloudSandboxSessionsProvider>();
 	private readonly _providerListeners = this._register(new DisposableMap<CloudSandboxSessionsProvider, DisposableStore>());
 	private readonly _runtimeSessions = new Map<string, ISession>();
+	/** The IDs of the tasks bound to an environment session, by that session's resource: the alias each row lists as its previous identity. */
+	private readonly _tasksByAlias = new ResourceMap<Set<string>>();
+	/** The IDs of runtime sessions by their resource. */
+	private readonly _runtimeSessionsByResource = new ResourceMap<string>();
 	private readonly _runtimeOwners = new Map<string, CloudSandboxSessionsProvider>();
+	/**
+	 * Runtime sessions taken in from a replacement before their runtime reported them added, which it still reports as added.
+	 * An ID leaves as that add, or a removal of the session, such as as its runtime detaches, is taken in, or as the catalog
+	 * is cleared.
+	 */
+	private readonly _takenInByReplacement = new Set<string>();
+	/**
+	 * The tasks whose rows a replacement listed, such as a pending task whose session rebinds to it, before their runtime
+	 * reported the session added: that add still reports the task's row as added. A task leaves as that add is taken in, as
+	 * the task is removed, or as the catalog is cleared.
+	 */
+	private readonly _deferredTaskAdds = new Set<string>();
 	private readonly _pendingTasks = new Map<string, ICloudSandboxTask>();
 	private readonly _runtimeChatMoves = this._register(new Emitter<IChatMovedEvent>());
 	override readonly onDidMoveChat = this._runtimeChatMoves.event;
@@ -173,15 +198,53 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 	}
 	resolveWorkspace(): ISessionWorkspace | undefined { return undefined; }
 
-	override getSessions(): ISession[] {
+	override getAllSessions(): ISession[] {
 		return [
 			...[...this._tasks.values()].map(entry => entry.session),
 			...[...this._runtimeSessions.values()].filter(session => session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME),
 		];
 	}
 
+	override getSession(resource: URI): ISession | undefined {
+		if (resource.scheme === CLOUD_SANDBOX_TASK_SCHEME) {
+			const session = this._tasks.get(resource.path.slice(1))?.session;
+			return session && isEqual(session.resource, resource) ? session : undefined;
+		}
+		// The resource of a task's bound runtime session finds the task first, as tasks come first in `getAllSessions`.
+		const taskIds = this._tasksByAlias.get(resource);
+		if (taskIds?.size) {
+			const taskId = taskIds.size === 1 ? taskIds.values().next().value! : [...this._tasks.keys()].find(id => taskIds.has(id))!;
+			return this._tasks.get(taskId)?.session;
+		}
+		const sessionId = this._runtimeSessionsByResource.get(resource);
+		return sessionId !== undefined ? this._runtimeSessions.get(sessionId) : undefined;
+	}
+
+	private _setTaskAlias(taskId: string, previous: ICloudSandboxTask | undefined, task: ICloudSandboxTask | undefined): void {
+		const from = previous && cloudSandboxTaskAlias(previous);
+		const to = task && cloudSandboxTaskAlias(task);
+		if (from && to && isEqual(from, to)) {
+			return;
+		}
+		if (from) {
+			const taskIds = this._tasksByAlias.get(from);
+			taskIds?.delete(taskId);
+			if (taskIds?.size === 0) {
+				this._tasksByAlias.delete(from);
+			}
+		}
+		if (to) {
+			let taskIds = this._tasksByAlias.get(to);
+			if (!taskIds) {
+				taskIds = new Set();
+				this._tasksByAlias.set(to, taskIds);
+			}
+			taskIds.add(taskId);
+		}
+	}
+
 	override getSessionByResource(resource: URI): ISession | undefined {
-		return this.getSessions().find(session => isEqual(session.resource, resource) || session.previousIdentities?.some(previous => isEqual(previous.resource, resource)));
+		return this.getSession(resource);
 	}
 
 	async resolveSessionResource(resource: URI): Promise<URI | undefined> {
@@ -211,6 +274,8 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 				}
 				const entry = this._tasks.get(task.taskId);
 				if (entry) {
+					// Rebind the alias before observers of the summary look the task up by it
+					this._setTaskAlias(task.taskId, entry.summary.get(), task);
 					entry.summary.set(task, tx);
 					changed.push(entry.session);
 				} else {
@@ -229,6 +294,7 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 					entry.read.set(isRead ?? false, tx);
 					entry.pendingRead.value = savedRead;
 					this._tasks.set(task.taskId, entry);
+					this._setTaskAlias(task.taskId, undefined, task);
 					added.push(entry.session);
 				}
 			}
@@ -244,7 +310,9 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 			const entry = this._tasks.get(taskId);
 			if (entry) {
 				removed.push(entry.session);
+				this._setTaskAlias(taskId, entry.summary.get(), undefined);
 				this._tasks.delete(taskId);
+				this._deferredTaskAdds.delete(taskId);
 				const provider = this._providers.get(taskId);
 				this._providers.delete(taskId);
 				this._pendingTasks.delete(taskId);
@@ -275,10 +343,12 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 				to: { ...event.to, session: this._publicSession(event.to.session) },
 			})));
 			store.add(provider.onDidReplaceSession(event => {
-				const from = this._publicSession(event.from);
-				const to = this._publicSession(event.to);
-				if (from !== to) {
-					this._onDidReplaceSession.fire({ from, to });
+				if (this._publicSession(event.from) !== this._publicSession(event.to)) {
+					// Take the replacement in first, as its runtime reports it only after the replacement: who learns of it, and
+					// the listing scope, find the replacement listed in place of the session it replaced, as the catalog lists
+					// it, such as the row of a task the replacement lists
+					this._acceptRuntimeReplacement(provider, event.from, event.to);
+					this._replaceSession({ from: this._publicSession(event.from), to: this._publicSession(event.to) });
 				}
 			}));
 			store.add(provider.onDidInvokeChangesetOperation(event => this._onDidInvokeChangesetOperation.fire({
@@ -308,13 +378,31 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 			? this._tasks.get(session.resource.path.slice(1))?.session ?? session : session;
 	}
 
-	private _acceptRuntimeSessions(provider: CloudSandboxSessionsProvider, event: ISessionChangeEvent, announce = true): void {
+	private _acceptRuntimeReplacement(provider: CloudSandboxSessionsProvider, from: ISession, to: ISession): void {
+		const known = this._runtimeSessions.get(to.sessionId) === to;
+		const { added } = this._acceptRuntimeSessions(provider, { added: [to], removed: [from], changed: [] }, false);
+		if (!known && this._runtimeSessions.get(to.sessionId) === to) {
+			this._takenInByReplacement.add(to.sessionId);
+		}
+		for (const session of added) {
+			if (session.resource.scheme === CLOUD_SANDBOX_TASK_SCHEME) {
+				this._deferredTaskAdds.add(session.resource.path.slice(1));
+			}
+		}
+	}
+
+	private _acceptRuntimeSessions(provider: CloudSandboxSessionsProvider, event: ISessionChangeEvent, announce = true): ISessionChangeEvent {
 		const added: ISession[] = [];
 		const removed: ISession[] = [];
 		const changed = new Set<ISession>();
 		transaction(tx => {
 			for (const session of event.removed) {
-				this._runtimeSessions.delete(session.sessionId);
+				if (this._runtimeSessions.get(session.sessionId) !== session && this._takenInByReplacement.has(session.sessionId)) {
+					// The session that replaced it was taken in under the same ID
+					continue;
+				}
+				this._takenInByReplacement.delete(session.sessionId);
+				this._deleteRuntimeSession(session.sessionId);
 				this._runtimeOwners.delete(session.sessionId);
 				const taskId = session.resource.scheme === CLOUD_SANDBOX_TASK_SCHEME ? session.resource.path.slice(1) : undefined;
 				const entry = taskId ? this._tasks.get(taskId) : undefined;
@@ -331,8 +419,10 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 				if (provider.isSessionWithheld(session.resource)) {
 					continue;
 				}
-				const wasKnown = this._runtimeSessions.has(session.sessionId);
+				const wasKnown = this._runtimeSessions.has(session.sessionId) && !this._takenInByReplacement.delete(session.sessionId);
+				this._deleteRuntimeSession(session.sessionId);
 				this._runtimeSessions.set(session.sessionId, session);
+				this._runtimeSessionsByResource.set(session.resource, session.sessionId);
 				this._runtimeOwners.set(session.sessionId, provider);
 				if (session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME) {
 					if (wasKnown) {
@@ -360,14 +450,28 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 					entry.runtime.set(session, tx);
 					this._storageService.store(this._readStateKey(taskId), session.isRead.get(), StorageScope.PROFILE, StorageTarget.MACHINE);
 					if (!added.includes(entry.session)) {
-						changed.add(entry.session);
+						if (this._deferredTaskAdds.delete(taskId)) {
+							added.push(entry.session);
+						} else {
+							changed.add(entry.session);
+						}
 					}
 				}
 			}
 		});
+		const result = { added, removed, changed: [...changed] };
 		if (announce && (added.length || removed.length || changed.size)) {
-			this._onDidChangeSessions.fire({ added, removed, changed: [...changed] });
+			this._onDidChangeSessions.fire(result);
 		}
+		return result;
+	}
+
+	private _deleteRuntimeSession(sessionId: string): void {
+		const session = this._runtimeSessions.get(sessionId);
+		if (session && this._runtimeSessionsByResource.get(session.resource) === sessionId) {
+			this._runtimeSessionsByResource.delete(session.resource);
+		}
+		this._runtimeSessions.delete(sessionId);
 	}
 
 	detach(provider: CloudSandboxSessionsProvider): void {
@@ -382,12 +486,17 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 	}
 
 	clear(): void {
-		const removed = this.getSessions();
+		// Also those its listing scope hides: what listens to every session reports them removed too
+		const removed = this.getAllSessions();
 		this._tasks.clear();
 		this._providers.clear();
 		this._runtimeSessions.clear();
+		this._runtimeSessionsByResource.clear();
+		this._tasksByAlias.clear();
 		this._runtimeOwners.clear();
 		this._pendingTasks.clear();
+		this._takenInByReplacement.clear();
+		this._deferredTaskAdds.clear();
 		this._providerListeners.clearAndDisposeAll();
 		if (removed.length) {
 			this._onDidChangeSessions.fire({ added: [], changed: [], removed });

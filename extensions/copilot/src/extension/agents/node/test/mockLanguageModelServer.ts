@@ -15,7 +15,5 @@ export class MockLanguageModelServer extends LanguageModelServer {
 	override async start(): Promise<void> {
 	}
 
-	setMockConfig(cfg: ILanguageModelServerConfig) { this._cfg = cfg; }
-
 	override getConfig(): ILanguageModelServerConfig { return this._cfg; }
 }

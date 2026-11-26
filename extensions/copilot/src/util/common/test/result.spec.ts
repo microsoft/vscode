@@ -35,42 +35,6 @@ describe('Result', () => {
 		});
 	});
 
-	describe('Result.tryWith', () => {
-		it('returns ok when the function succeeds', () => {
-			const r = Result.tryWith(() => 10 + 5);
-			expect(r.isOk()).toBe(true);
-			if (r.isOk()) {
-				expect(r.val).toBe(15);
-			}
-		});
-
-		it('returns error when the function throws', () => {
-			const r = Result.tryWith(() => { throw new Error('boom'); });
-			expect(r.isError()).toBe(true);
-			if (r.isError()) {
-				expect(r.err.message).toBe('boom');
-			}
-		});
-	});
-
-	describe('Result.tryWithAsync', () => {
-		it('returns ok when the async function resolves', async () => {
-			const r = await Result.tryWithAsync(async () => 99);
-			expect(r.isOk()).toBe(true);
-			if (r.isOk()) {
-				expect(r.val).toBe(99);
-			}
-		});
-
-		it('returns error when the async function rejects', async () => {
-			const r = await Result.tryWithAsync(async () => { throw new Error('async boom'); });
-			expect(r.isError()).toBe(true);
-			if (r.isError()) {
-				expect(r.err.message).toBe('async boom');
-			}
-		});
-	});
-
 	describe('map', () => {
 		it('transforms the value of an ok result', () => {
 			const r = Result.ok(3).map(x => x * 2);

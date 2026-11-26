@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { nativeImage, screen, WebContentsView, webContents } from 'electron';
+import { randomUUID } from 'crypto';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { Schemas } from '../../../base/common/network.js';
+import { BrowserViewCaptureGate } from '../common/browserViewCaptureGate.js';
 import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction, BROWSER_REMOTE_FILE_SCHEMES, getBrowserViewPathComparer, getBrowserViewAuthenticationOrigin } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -25,6 +28,10 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { BrowserViewReportedFocus } from '../common/browserViewFocus.js';
 import { URI } from '../../../base/common/uri.js';
+import { BrowserViewFavicon } from './browserViewFavicon.js';
+import { BrowserViewDialogs } from './browserViewDialogs.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { getPermissionOrigin } from './browserSessionPermissions.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -38,11 +45,12 @@ enum NewPageLocation {
  */
 export class BrowserView extends Disposable {
 	private readonly _view: WebContentsView;
+	private readonly _dialogProbeToken = randomUUID();
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 	presentation = BrowserViewPresentation.Listed;
 
 	private _lastScreenshot: VSBuffer | undefined = undefined;
-	private _lastFavicon: string | undefined = undefined;
+	private readonly _favicon: BrowserViewFavicon;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
@@ -58,6 +66,7 @@ export class BrowserView extends Disposable {
 	readonly debugger: BrowserViewDebugger;
 	readonly emulator: BrowserViewEmulator;
 	readonly inspector: BrowserViewInspector;
+	readonly dialogs = this._register(new BrowserViewDialogs());
 
 	private _ownerWindow: ICodeWindow;
 	private _owner: IBrowserViewOwner;
@@ -70,6 +79,7 @@ export class BrowserView extends Disposable {
 
 	private _wantsVisibility = false;
 	private _hasBeenLaidOut = false;
+	private readonly _captureGate = this._register(new BrowserViewCaptureGate());
 
 	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
 	private readonly _consoleLogs: string[] = [];
@@ -119,6 +129,8 @@ export class BrowserView extends Disposable {
 	private readonly _onDidRequestPermission = this._register(new Emitter<IBrowserViewPermissionRequestEvent>());
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent> = this._onDidRequestPermission.event;
 
+	readonly onDidChangeDialog = this.dialogs.onDidChangeDialog;
+
 	private readonly _onDidChangePermissions = this._register(new Emitter<ISerializedBrowserPermissionsSnapshot>());
 	readonly onDidChangePermissions: Event<ISerializedBrowserPermissionsSnapshot> = this._onDidChangePermissions.event;
 
@@ -167,6 +179,13 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		this._favicon = new BrowserViewFavicon(this._view.webContents.getURL(), favicon => this._onDidChangeFavicon.fire({ favicon }));
+		this._updateBackgroundThrottling();
+		this._register(this.onDidChangeAudiences(() => this._updateBackgroundThrottling()));
+		this._register(this.onDidChangeOwner(() => this._updateBackgroundThrottling()));
+		// Electron only keeps a never-shown view rendering if the setting is applied once its frame exists,
+		// so re-apply it whenever a new document is ready (this also covers renderer swaps on navigation).
+		this._view.webContents.on('dom-ready', () => this._updateBackgroundThrottling());
 		if (this.session.network) {
 			this._view.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
 		}
@@ -194,7 +213,7 @@ export class BrowserView extends Disposable {
 		this._ownerWindow.win?.contentView.addChildView(this._view);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
-			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture(), this.session.network !== undefined);
+			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture(), this.session.network !== undefined, !this._ownerWindow.config?.isSessionsWindow);
 			if (action !== 'integrated') {
 				if (consumeUserGesture) {
 					this._lastUserGestureTimestamp = -Infinity;
@@ -256,6 +275,7 @@ export class BrowserView extends Disposable {
 		});
 
 		this.debugger = new BrowserViewDebugger(this);
+		this._registerDialogs();
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
 
@@ -310,6 +330,7 @@ export class BrowserView extends Disposable {
 
 	private setupEventListeners(): void {
 		const webContents = this._view.webContents;
+		let navigationOrigin: string | undefined;
 
 		// DevTools state events
 		webContents.on('devtools-opened', () => {
@@ -346,9 +367,10 @@ export class BrowserView extends Disposable {
 				}
 
 				try {
-					this._lastFavicon = await this._faviconRequestCache.get(url)!;
-					this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
-					this._currentHistoryHandle?.update({ favicon: this._lastFavicon });
+					const favicon = await this._faviconRequestCache.get(url)!;
+					if (this._favicon.update(favicon)) {
+						this._currentHistoryHandle?.update({ favicon });
+					}
 					// On success, stop searching
 					return;
 				} catch (e) {
@@ -357,9 +379,7 @@ export class BrowserView extends Disposable {
 			}
 
 			// If we searched all favicons and none worked, clear the favicon
-			if (this._lastFavicon) {
-				this._lastFavicon = undefined;
-				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
+			if (this._favicon.value && this._favicon.update(undefined)) {
 				this._currentHistoryHandle?.update({ favicon: null });
 			}
 		});
@@ -367,12 +387,6 @@ export class BrowserView extends Disposable {
 			if (this._redirectPinnedNavigation(event.url)) {
 				event.preventDefault();
 				return;
-			}
-			// URL.parse (vs `new URL`) tolerates about:/blob:/empty strings without throwing.
-			const host = URL.parse(event.url)?.host;
-			const currHost = URL.parse(this.webContents.getURL())?.host;
-			if (host !== currHost) {
-				this._lastFavicon = undefined;
 			}
 		});
 		webContents.on('will-redirect', event => {
@@ -388,6 +402,7 @@ export class BrowserView extends Disposable {
 		});
 
 		const fireNavigationEvent = (url: string) => {
+			this._favicon.didNavigate(url);
 			this._onDidNavigate.fire({
 				url,
 				title: webContents.getTitle(),
@@ -411,7 +426,10 @@ export class BrowserView extends Disposable {
 				fireLoadingEvent(true);
 			}
 		});
-		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
+		webContents.on('did-stop-loading', () => {
+			navigationOrigin = undefined;
+			fireLoadingEvent(false);
+		});
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
 			if (isMainFrame) {
 				// Ignore ERR_ABORTED (-3) which is the expected error when user stops a page load.
@@ -428,6 +446,7 @@ export class BrowserView extends Disposable {
 					certificateError: errorCode <= -200 && errorCode >= -220 ? this.session.trust.getCertificateError(validatedURL) : undefined
 				};
 
+				this._favicon.didFailLoad(validatedURL);
 				fireLoadingEvent(false);
 				this._onDidNavigate.fire({
 					url: validatedURL,
@@ -442,7 +461,7 @@ export class BrowserView extends Disposable {
 
 		this.session.trust.installCertErrorHandler(webContents);
 
-		webContents.on('login', (event, _details, authInfo, callback) => {
+		webContents.on('login', (event, details, authInfo, callback) => {
 			// Automatically supply proxy auth credentials for the tunnel proxy.
 			if (this.session.remote.proxy) {
 				const { username, password } = this.session.remote.proxy.credentials;
@@ -452,9 +471,23 @@ export class BrowserView extends Disposable {
 					callback(username, password);
 				}
 			}
+			if (authInfo.isProxy) {
+				return;
+			}
+			event.preventDefault();
+			const origin = getBrowserViewAuthenticationOrigin(details.url, webContents.mainFrame.origin, navigationOrigin);
+			if (!origin) {
+				callback();
+				return;
+			}
+			this.dialogs.request({ type: 'login', origin }, response => {
+				callback(response.accept ? response.username : undefined, response.accept ? response.password : undefined);
+			});
 		});
 
 		webContents.on('render-process-gone', (_event, details) => {
+			navigationOrigin = undefined;
+			this.dialogs.settleAll();
 			this._lastError = {
 				url: webContents.getURL(),
 				errorCode: details.exitCode,
@@ -465,6 +498,17 @@ export class BrowserView extends Disposable {
 		});
 
 		// Navigation events (when URL actually changes)
+		webContents.on('did-start-navigation', event => {
+			if (event.isMainFrame && !event.isSameDocument) {
+				this.dialogs.settleAll();
+				navigationOrigin = URL.parse(event.url)?.origin;
+			}
+		});
+		webContents.on('did-redirect-navigation', event => {
+			if (event.isMainFrame) {
+				navigationOrigin = URL.parse(event.url)?.origin;
+			}
+		});
 		webContents.on('did-navigate', (_, url) => fireNavigationEvent(url));
 		webContents.on('did-navigate-in-page', (_, url, isMainFrame) => {
 			// Ignore subframe (iframe) navigations: they must not rewrite the
@@ -636,7 +680,7 @@ export class BrowserView extends Disposable {
 		this._currentHistoryHandle = this.session.history.add(
 			url,
 			webContents.getTitle(),
-			this._lastFavicon,
+			this._favicon.value,
 			userInitiated,
 		);
 	}
@@ -671,19 +715,74 @@ export class BrowserView extends Disposable {
 			visible: this._view.getVisible(),
 			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
-			lastFavicon: this._lastFavicon,
+			lastFavicon: this._favicon.value,
 			lastError: this._lastError,
 			certificateError: this.session.trust.getCertificateError(url),
 			session: this.session.options,
 			sandboxSessionId: this.session.sandboxSessionId,
 			storageKeys: { ...this.session.history.storageKeys, ...this.session.permissions.storageKeys },
 			permissions: this.session.permissions.serialize(),
+			pendingDialog: this.dialogs.pendingDialog,
 			browserZoomIndex: this._browserZoomIndex,
 			elementSelectionState: this.inspector.elementSelectionState,
 			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
 			device: this.emulator.device,
 			audiences: [...this._audiences]
 		};
+	}
+
+	private _registerDialogs(): void {
+		const contents = this.webContents;
+		// Replace Electron's native message boxes with the same per-tab queue as sign-in.
+		contents.removeAllListeners('-run-dialog');
+		contents.removeAllListeners('-cancel-dialogs');
+		contents.ipc.on('vscode:browserView:dialogProbe', event => {
+			event.returnValue = this._dialogProbeToken;
+		});
+		(contents as NodeJS.EventEmitter).on('-run-dialog', (info: { frame: Electron.WebFrameMain; dialogType: 'alert' | 'confirm' | 'prompt'; messageText: string; defaultPromptText?: string }, callback: (accept: boolean, text: string) => void) => {
+			if (info.dialogType === 'confirm' && info.messageText === this._dialogProbeToken) {
+				callback(true, '');
+				return;
+			}
+			void this.debugger.enableFrameEvents().catch(error => this.logService.error('Failed to watch browser dialog frame', error));
+			const isValid = () => !info.frame.isDestroyed() && !info.frame.detached;
+			this.dialogs.request({
+				type: info.dialogType, origin: getPermissionOrigin(info.frame.url, info.frame.origin), message: info.messageText, defaultPrompt: info.defaultPromptText,
+			}, response => {
+				if (isValid()) {
+					callback(response.accept, response.promptText ?? '');
+				}
+			}, isValid);
+		});
+		(contents as NodeJS.EventEmitter).on('-cancel-dialogs', () => this.dialogs.settleJavaScriptDialogs());
+		// CDP reports detachment before Electron marks the WebFrameMain as disposed.
+		const cancelDetachedDialogs = this._register(new RunOnceScheduler(() => this.dialogs.cancelInvalid(), 0));
+		this._register(this.debugger.onDidDetachFrame(() => cancelDetachedDialogs.schedule()));
+		contents.ipc.on('vscode:browserView:prompt', (event, message, defaultPrompt) => {
+			const frame = event.senderFrame;
+			if (!frame || typeof message !== 'string' || typeof defaultPrompt !== 'string') {
+				event.returnValue = null;
+				return;
+			}
+			void this.debugger.enableFrameEvents().catch(error => this.logService.error('Failed to watch browser dialog frame', error));
+			this.dialogs.request({ type: 'prompt', origin: getPermissionOrigin(frame.url, frame.origin), message, defaultPrompt }, response => {
+				event.returnValue = response.accept ? response.promptText ?? '' : null;
+			}, () => !frame.isDestroyed() && !frame.detached);
+		});
+		this._register(this.debugger.registerCommandInterceptor((method, params, session) => {
+			if (session?.targetId !== this.debugger.targetId) {
+				return undefined;
+			}
+			if (method === 'Page.handleJavaScriptDialog') {
+				const pending = this.dialogs.pendingDialog;
+				if (!pending || pending.type === 'login') {
+					return undefined;
+				}
+				const response = params as { accept: boolean; promptText?: string };
+				return this.dialogs.respond(pending.requestId, response) ? Promise.resolve({}) : Promise.reject(new Error('The dialog is no longer pending'));
+			}
+			return undefined;
+		}));
 	}
 
 	get audiences(): readonly IBrowserViewAudience[] {
@@ -703,6 +802,15 @@ export class BrowserView extends Disposable {
 				this._onDidChangeAudiences.fire([...this._audiences]);
 			}
 		}
+	}
+
+	/**
+	 * Views shared with agents must keep rendering while hidden so that rAF-based
+	 * automation (e.g. Playwright's stability checks) doesn't stall. Other views stay throttled.
+	 */
+	private _updateBackgroundThrottling(): void {
+		const sharedWithAgent = this._owner.type === 'agent' || this._audiences.some(audience => audience.type === 'agent');
+		this._view.webContents.setBackgroundThrottling(!sharedWithAgent);
 	}
 
 	setAudiences(audiences: readonly IBrowserViewAudience[]): void {
@@ -725,6 +833,10 @@ export class BrowserView extends Disposable {
 	 * Update the layout bounds of this view
 	 */
 	layout(bounds: IBrowserViewBounds): void {
+		this._captureGate.applyChange(() => this._layout(bounds));
+	}
+
+	private _layout(bounds: IBrowserViewBounds): void {
 		if (this._currentWindow?.win?.id !== bounds.windowId) {
 			const newWindow = this._windowById(bounds.windowId);
 			if (newWindow) {
@@ -760,10 +872,20 @@ export class BrowserView extends Disposable {
 		this._view.webContents.setZoomFactor(browserZoomFactor);
 	}
 
+	/** Whether the view was last asked to be shown with {@link setVisible}. */
+	isVisible(): boolean {
+		return this._wantsVisibility;
+	}
+
 	/**
 	 * Set the visibility of this view
 	 */
 	setVisible(visible: boolean): void {
+		// Hiding can't wait for a full-page screenshot: the page would cover what the workbench hides it for, like a menu.
+		this._captureGate.applyChange(() => this._setVisible(visible), visible);
+	}
+
+	private _setVisible(visible: boolean): void {
 		if (this._wantsVisibility === visible) {
 			return;
 		}
@@ -792,6 +914,10 @@ export class BrowserView extends Disposable {
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
+		url = remoteUrlToFileUrl(this.session.network, url);
+		if (this._isUnservedRemoteFileUrl(url)) {
+			return;
+		}
 		if (this._redirectPinnedNavigation(url)) {
 			return;
 		}
@@ -802,8 +928,14 @@ export class BrowserView extends Disposable {
 		await this._view.webContents.loadURL(url);
 	}
 
+	/** Without a network a remote resource's `file:` URL would be read from this machine's disk, so it isn't loaded. */
+	private _isUnservedRemoteFileUrl(url: string): boolean {
+		const scheme = this.associatedResource?.scheme;
+		return !this.session.network && BROWSER_REMOTE_FILE_SCHEMES.includes(scheme!) && url.startsWith(`${Schemas.file}:`);
+	}
+
 	private _redirectPinnedNavigation(url: string): boolean {
-		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url)) {
+		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url, this.session.network, getBrowserViewPathComparer(this.session.isPathCaseSensitive))) {
 			return false;
 		}
 
@@ -869,6 +1001,11 @@ export class BrowserView extends Disposable {
 	 * Capture a screenshot of this view
 	 */
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
+		const fullPage = !!options?.fullPage && !options.screenRect && !options.pageRect;
+		return this._captureGate.capture(fullPage, () => this._captureScreenshot(fullPage, options));
+	}
+
+	private async _captureScreenshot(fullPage: boolean, options: IBrowserViewCaptureScreenshotOptions | undefined): Promise<VSBuffer> {
 		if (!this._view.getVisible()) {
 			// This ensures the webContents rendering pipeline is ready so background tabs can be captured too.
 			this._view.setVisible(true);
@@ -878,7 +1015,7 @@ export class BrowserView extends Disposable {
 		const quality = options?.quality ?? 80;
 		const format = options?.format ?? 'jpeg';
 
-		if (options?.fullPage && !options.screenRect && !options.pageRect) {
+		if (fullPage) {
 			return this._captureFullPageScreenshot(format, quality);
 		}
 
@@ -943,9 +1080,16 @@ export class BrowserView extends Disposable {
 		}
 		try {
 			// The frontend marks its dock side on <body>; it has none while undocked.
-			const dockSide = await devTools.executeJavaScript(
-				`['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked'`
-			) as BrowserViewDevToolsDockSide | 'undocked';
+			const { dockSide, pageOrigin } = await devTools.executeJavaScript(`(() => {
+				const dockSide = ['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked';
+				// DeviceModeView hosts the InspectedPagePlaceholder as its direct child.
+				const pageRect = document.querySelector('.device-mode-view > .vbox')?.getBoundingClientRect();
+				const pageOrigin = pageRect && {
+					x: Math.round(pageRect.x * devicePixelRatio),
+					y: Math.round(pageRect.y * devicePixelRatio)
+				};
+				return { dockSide, pageOrigin };
+			})()`) as { dockSide: BrowserViewDevToolsDockSide | 'undocked'; pageOrigin?: { x: number; y: number } };
 			if (dockSide === 'undocked') {
 				return pageImage;
 			}
@@ -958,7 +1102,8 @@ export class BrowserView extends Disposable {
 			const composed = composeDevToolsScreenshot(
 				{ data: pageImage.toBitmap(), ...pageSize },
 				{ data: devToolsImage.toBitmap(), ...devToolsSize },
-				dockSide
+				dockSide,
+				pageOrigin
 			);
 			return nativeImage.createFromBitmap(Buffer.from(composed.data.buffer, composed.data.byteOffset, composed.data.byteLength), { width: composed.width, height: composed.height });
 		} catch (error) {
@@ -998,8 +1143,6 @@ export class BrowserView extends Disposable {
 				// In theory, `clip` defaults to the full area when not explicitly passed, but in practice it doesn't work when
 				// the zoom level isn't 100, because it doesn't multiply the width and height by zoomFactor like we do here.
 				// Setting the clip explicitly, we can multiply by zoomFactor and thus work around this Chromium bug.
-				// Note that even with this workaround, we often see that the page isn't fully captured and might repeat
-				// visual content from the top at the bottom, instead of showing the bottom of the page.
 				// - Another sidenote: Currently the scrollbar width isn't accounted for. If a scrollbar exists, we should add the
 				//   vertical scrollbar's width and horizontal scrollbar's height to the clip dimensions, since the image is currently
 				//   clipped by that amount (this also happens when no clip parameter is provided; ideally it should be fixed upstream
@@ -1144,6 +1287,7 @@ export class BrowserView extends Disposable {
 			return;
 		}
 		this._isDisposed = true;
+		this.dialogs.settleAll();
 
 		// Dispose debugger. This detaches debug sessions first.
 		this.debugger.dispose();

@@ -647,7 +647,7 @@ interface ILightWeightDecoration {
 
 suite('deltaDecorations', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function decoration(id: string, startLineNumber: number, startColumn: number, endLineNumber: number, endColum: number): ILightWeightDecoration {
 		return {
@@ -837,6 +837,28 @@ suite('deltaDecorations', () => {
 		assert.deepStrictEqual(actualDecoration!.hoverMessage, { value: 'hello2' });
 
 		model.dispose();
+	});
+
+	test('hover copy content survives decoration updates and can be cleared', () => {
+		const model = store.add(createTextModel('Hello world!'));
+		const options = { description: 'test', hoverMessage: { value: 'Follow link' } };
+		const [id] = model.deltaDecorations([], [{
+			range: new Range(1, 1, 1, 5),
+			options: { ...options, hoverMessageCopyContent: 'https://example.com' }
+		}]);
+		const copyContents = [model.getDecorationOptions(id)?.hoverMessageCopyContent];
+
+		model.changeDecorations(accessor => {
+			accessor.changeDecorationOptions(id, { ...options, hoverMessageCopyContent: '' });
+		});
+		copyContents.push(model.getDecorationOptions(id)?.hoverMessageCopyContent);
+
+		model.changeDecorations(accessor => {
+			accessor.changeDecorationOptions(id, options);
+		});
+		copyContents.push(model.getDecorationOptions(id)?.hoverMessageCopyContent);
+
+		assert.deepStrictEqual(copyContents, ['https://example.com', '', undefined]);
 	});
 
 	test('model doesn\'t get confused with individual tracked ranges', () => {

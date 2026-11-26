@@ -61,8 +61,14 @@ export function getPinnedPnpmVersion(root: string = path.join(import.meta.dirnam
  * Checks the package manager that runs an install script, from `npm_config_user_agent`. Returns an
  * error message, or `undefined` if the package manager is fine (or unknown, for example when the
  * script runs directly with Node.js).
+ *
+ * pnpm switches to the version that `packageManager` pins (`pmOnFail: download` in
+ * pnpm-workspace.yaml), so another pnpm only runs the script when it didn't switch: when
+ * `pmOnFail` (`pnpm_config_pm_on_fail`, passed as `pmOnFail`, or `--pm-on-fail`) turned switching
+ * off, or when it is too old to switch. A newer release of the pinned major version is accepted,
+ * for example to try it with `--pm-on-fail=ignore`.
  */
-export function checkPackageManager(userAgent: string | undefined, pinnedVersion: string | undefined): string | undefined {
+export function checkPackageManager(userAgent: string | undefined, pinnedVersion: string | undefined, pmOnFail?: string): string | undefined {
 	if (!userAgent) {
 		return undefined;
 	}
@@ -74,7 +80,12 @@ export function checkPackageManager(userAgent: string | undefined, pinnedVersion
 	const pinned = (pinnedVersion ?? '12.0.0').split('.').map(Number);
 	const older = version[0] === pinned[0] && (version[1] < pinned[1] || (version[1] === pinned[1] && version[2] < pinned[2]));
 	if (version[0] !== pinned[0] || older) {
-		return `This repository uses pnpm ${pinnedVersion ?? '12'} (\`packageManager\` in package.json) or a newer pnpm ${pinned[0]} release. Currently using pnpm ${version.join('.')}.`;
+		const required = pinnedVersion ?? '12';
+		const overridden = pmOnFail !== undefined && pmOnFail !== 'download';
+		return [
+			`This repository uses pnpm ${required} (\`packageManager\` in package.json), but pnpm ${version.join('.')} didn't switch to it: ${overridden ? `pnpm_config_pm_on_fail is set to ${pmOnFail}` : 'switching is turned off with `--pm-on-fail`, or this pnpm is too old to switch'}.`,
+			`${overridden ? 'Unset pnpm_config_pm_on_fail' : 'Run pnpm without `--pm-on-fail`'}, or install pnpm ${required} with \`pnpm self-update ${required}\` (\`npm install -g pnpm@${required}\` if you installed pnpm with npm).`,
+		].join('\n');
 	}
 	return undefined;
 }

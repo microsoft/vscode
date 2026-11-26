@@ -33,6 +33,7 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  */
 export const VIEW_ID = 'workbench.explorer.fileView';
 
+export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 export const SESSIONS_FILES_VIEW_ID = 'sessions.files.explorer';
 
 /**

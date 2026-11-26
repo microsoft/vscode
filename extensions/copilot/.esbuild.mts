@@ -5,7 +5,7 @@
 
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
-import { copyFile, mkdir, readdir, rename } from 'fs/promises';
+import { copyFile, mkdir, readdir, rename, rm } from 'fs/promises';
 import { glob } from 'glob';
 import * as path from 'path';
 
@@ -291,6 +291,8 @@ async function moveSourceMapsToSeparateDir(): Promise<void> {
 		'./node_modules/@vscode/copilot-typescript-server-plugin/dist',
 	];
 
+	// Start from an empty folder, so that it only holds the source maps of this build.
+	await rm(sourceMapOutDir, { recursive: true, force: true });
 	await mkdir(sourceMapOutDir, { recursive: true });
 
 	for (const dir of outputDirs) {

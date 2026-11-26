@@ -133,7 +133,7 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 			let x: number | undefined;
 			let y: number | undefined;
 
-			let zoom = getZoomFactor(targetWindow);
+			const zoom = getZoomFactor(targetWindow);
 			if (dom.isHTMLElement(anchor)) {
 				const clientRect = anchor.getBoundingClientRect();
 				const elementPosition = { left: clientRect.left, top: clientRect.top, width: clientRect.width, height: clientRect.height };
@@ -143,12 +143,6 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 				const vw = win.innerWidth;
 				const vh = win.innerHeight;
 				const isClipped = clientRect.left < 0 || clientRect.top < 0 || clientRect.right > vw || clientRect.bottom > vh;
-
-				// When drawing context menus, we adjust the pixel position for native menus using zoom level
-				// In areas where zoom is applied to the element or its ancestors, we need to adjust accordingly
-				// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
-				// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Coordinate Multiplier: 1.5 * 1.0 / 1.5 = 1.0
-				zoom *= dom.getDomNodeZoomLevel(anchor);
 
 				if (isClipped) {
 					// Element is partially out of viewport: always place at bottom-right visible corner

@@ -5,14 +5,16 @@
 
 import { AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
 import { isVisibleOnboardingTarget, registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -20,10 +22,13 @@ import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardin
 import { IOnboardingScenario } from '../../../onboarding/common/onboardingScenario.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
+import { CustomAgentUsage } from '../../common/customAgentUsage.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { isModeConsideredBuiltIn } from '../widget/input/modePickerActionItem.js';
 
 export const AGENT_PICKER_SPOTLIGHT_ID = 'chat.onboarding.agentPickerInAttachContext';
+
+const CUSTOM_AGENT_RECENCY_MS = 7 * 24 * 60 * 60 * 1000;
 
 export class AgentPickerSpotlight extends Disposable {
 	static readonly ID = 'workbench.contrib.agentPickerSpotlight';
@@ -32,6 +37,7 @@ export class AgentPickerSpotlight extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IProductService productService: IProductService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 		const enabled = observableConfigValue(ChatConfiguration.AgentsPickerInAttachContextMenu, false, configurationService);
@@ -57,17 +63,33 @@ export class AgentPickerSpotlight extends Disposable {
 				return widget.domNode.ownerDocument === mainWindow.document && widget.visible && widget.inputPart.isAgentPickerInAttachContextMenu;
 			});
 		});
-		this._register(registerAgentPickerSpotlight(eligibleChats, productService));
+		this._register(registerAgentPickerSpotlight(eligibleChats, productService, storageService));
 	}
 }
 
-/** Shares the tip and shown-once state for composers with custom agents in either window. */
-export function registerAgentPickerSpotlight(chats: IObservable<readonly IChatWidget[]>, productService: IProductService): IDisposable {
+/** Shares the tip and shown-once state in either window, gated on custom agent use in the past seven days. */
+export function registerAgentPickerSpotlight(chats: IObservable<readonly IChatWidget[]>, productService: IProductService, storageService: IStorageService): IDisposable {
 	const store = new DisposableStore();
+	const usage = new CustomAgentUsage(storageService);
+	const lastUsed = observableFromEvent(store, usage.onDidChangeLastUsed(store), () => usage.lastUsed);
+	const hasRecentUse = observableValue(store, false);
+	store.add(autorun(reader => {
+		const timestamp = lastUsed.read(reader);
+		const now = Date.now();
+		const remaining = timestamp === undefined ? 0 : timestamp + CUSTOM_AGENT_RECENCY_MS - now;
+		const recent = timestamp !== undefined && timestamp <= now && remaining > 0;
+		hasRecentUse.set(recent, undefined);
+		if (recent) {
+			disposableTimeout(() => hasRecentUse.set(false, undefined), remaining, reader.store);
+		}
+	}));
 	const modesChanged = derived(store, reader => observableSignalFromEvent(store, Event.any(
 		...chats.read(reader).map(widget => widget.inputPart.currentChatModesObs.read(reader).onDidChange),
 	)));
 	const eligibleChats = derived(store, reader => {
+		if (!hasRecentUse.read(reader)) {
+			return [];
+		}
 		modesChanged.read(reader).read(reader);
 		return chats.read(reader).filter(widget => widget.inputPart.currentChatModesObs.read(reader).custom
 			.some(mode => !isModeConsideredBuiltIn(mode, productService)));

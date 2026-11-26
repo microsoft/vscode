@@ -382,6 +382,12 @@ const newCommands: ApiCommand[] = [
 			return undefined;
 		})
 	),
+	// --- structural diff
+	new ApiCommand(
+		'vscode.executeStructuralDiffProvider', '_executeStructuralDiffProvider', 'Execute structural diff provider.',
+		[ApiCommandArgument.Uri.with('original', 'Uri of the original text document'), ApiCommandArgument.Uri.with('modified', 'Uri of the modified text document')],
+		new ApiCommandResult<languages.StructuralDiffResult | undefined, vscode.StructuralDiffResult | undefined>('A promise that resolves to a StructuralDiffResult, or undefined when no provider supplies a result.', result => result ? typeConverters.StructuralDiff.to(result) : undefined)
+	),
 
 	// --- notebooks
 	new ApiCommand(

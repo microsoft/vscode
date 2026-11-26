@@ -46,7 +46,7 @@ suite('workspace images', () => {
 		const jobs: readonly (readonly [workflow: string, job: string])[] = [
 			['pr-workspace-images.yml', 'windows'],
 			['pr-linux-test.yml', 'electron-unit-electron'],
-			['pr-win32-test.yml', 'electron-unit'],
+			['pr-win32-test.yml', 'electron-unit-electron'],
 			...['compile', 'monaco-editor', 'copilot-check-test-cache', 'copilot-linux-tests', 'copilot-windows-tests', 'chat-lib-linux-tests', 'chat-lib-windows-tests'].map(job => ['pr.yml', job] as const),
 			['component-fixtures.yml', 'playwright'],
 			['component-fixtures.yml', 'screenshots'],
@@ -133,7 +133,7 @@ suite('workspace images', () => {
 		}
 	});
 
-	// Only the CI test jobs of product-build.yml start from images, and the image jobs only run in CI
+	// Only the CI test jobs of product-build-ci.yml start from images, and the image jobs only run in CI
 	// builds. The Windows smoke tests, like the WSL smoke test job of pull requests, don't: WSL cannot
 	// open folders on a volume that is mounted in a folder.
 	test('Azure Pipelines CI test jobs start from images, except the Windows smoke tests', () => {
@@ -170,15 +170,8 @@ suite('workspace images', () => {
 			...jobs.map(job => [`darwin ${job}`, image('darwin', job)]),
 		]);
 		assert.deepEqual(observed, [
-			{
-				file: 'product-build.yml',
-				imageJobs: [
-					{ template: 'product-build-win32-workspace-image.yml@self', ci: true },
-					{ template: 'product-build-linux-workspace-image.yml@self', ci: true },
-					{ template: 'product-build-darwin-workspace-image.yml@self', ci: true },
-				],
-				testJobs: testJobs((platform, job) => platform === 'win32' && job === 'Smoke' ? 'none' : 'use'),
-			},
+			// The product build has no CI test jobs
+			{ file: 'product-build.yml', imageJobs: [], testJobs: {} },
 			{ file: 'product-build-template.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
 			{ file: 'product-build-ado-ci.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
 			{

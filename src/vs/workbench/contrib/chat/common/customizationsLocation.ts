@@ -9,12 +9,12 @@ export type ChatCustomizationsLocation = 'auto' | 'sidebar' | 'sessionsHeader' |
 
 export const ChatCustomizationsLocationContext = new RawContextKey<Exclude<ChatCustomizationsLocation, 'auto'>>('chatCustomizationsLocation', 'chatToolbar');
 
-export function resolveChatCustomizationsLocation(location: ChatCustomizationsLocation, isSessionsWindow: boolean, separateNavigation: boolean): Exclude<ChatCustomizationsLocation, 'auto'> {
+export function resolveChatCustomizationsLocation(location: ChatCustomizationsLocation, isSessionsWindow: boolean, navigationIncludesCustomizations: boolean): Exclude<ChatCustomizationsLocation, 'auto'> {
 	if (!isSessionsWindow) {
 		return location === 'chatInput' ? 'chatInput' : 'chatToolbar';
 	}
 	if (location === 'auto') {
-		return separateNavigation ? 'sessionsHeader' : 'sidebar';
+		return navigationIncludesCustomizations ? 'sessionsHeader' : 'sidebar';
 	}
 	return location;
 }

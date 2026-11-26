@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatRequestViewModel } from '../common/model/chatViewModel.js';
+import { localize } from '../../../../nls.js';
+import { IChatRequestViewModel, IChatScheduledRequest } from '../common/model/chatViewModel.js';
 import { getAgentMergeRequestLabel } from './widget/chatContentParts/chatAgentMergeContentPart.js';
 import { getArtifactRequestAccessibleText, getArtifactRequestLabel, getArtifactRequestPresentation } from './widget/chatContentParts/chatArtifactActionContentPart.js';
+import { getScheduledRequestAbsoluteTimeLabel, getScheduledRequestTimeLabel } from './widget/chatScheduledRequestTime.js';
 
 /**
  * Display text for the timeline, transcript find and screen readers, with Agent Merge
@@ -32,4 +34,17 @@ export function stripSystemNotificationWrapper(text: string): string {
 export function getChatRequestAccessibleText(item: IChatRequestViewModel): string {
 	const artifactRequest = getArtifactRequestPresentation(item);
 	return artifactRequest ? getArtifactRequestAccessibleText(artifactRequest) : getChatRequestText(item);
+}
+
+export function getChatScheduledRequestAccessibleText(item: IChatScheduledRequest): string {
+	const time = item.editing
+		? localize('scheduledEditing', "Editing")
+		: item.runAt
+			? localize('scheduledTime', "{0}, {1}", getScheduledRequestTimeLabel(item.runAt), getScheduledRequestAbsoluteTimeLabel(item.runAt))
+			: item.description;
+	const parts = [time, item.text];
+	if (item.attachments.length) {
+		parts.push(localize('scheduledAttachments', "Attachments: {0}", item.attachments.join(', ')));
+	}
+	return parts.join('\n');
 }

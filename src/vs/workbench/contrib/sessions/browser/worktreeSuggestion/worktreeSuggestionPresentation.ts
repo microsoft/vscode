@@ -63,11 +63,11 @@ export function getUseWorktreeLabel(): string {
 	return localize('worktreeSuggestion.useWorktree', "Use Worktree");
 }
 
-/** Heads the uncommitted files listed among the options of a picker, e.g. "5 Uncommitted Files". */
-export function getUncommittedFilesSectionLabel(count: number): string {
+/** Heads the uncommitted files listed among the options of a picker, e.g. "5 Modified Files". */
+export function getModifiedFilesSectionLabel(count: number): string {
 	return count === 1
-		? localize('worktreeSuggestion.uncommittedFilesSectionSingular', "1 Uncommitted File")
-		: localize('worktreeSuggestion.uncommittedFilesSectionPlural', "{0} Uncommitted Files", count);
+		? localize('worktreeSuggestion.modifiedFilesSectionSingular', "1 Modified File")
+		: localize('worktreeSuggestion.modifiedFilesSectionPlural', "{0} Modified Files", count);
 }
 
 /** Stands for the uncommitted files a list leaves out, e.g. "2 more". */

@@ -2,6 +2,8 @@
 
 This directory contains the VS Code-facing wrappers around the Agent Host Protocol (AHP) state model. Read this before modifying protocol types.
 
+Before adding or changing protocol constructs or `_meta`, follow the [protocol constructs before `_meta` rules](../../../../../../.github/instructions/agent-host-interoperability.instructions.md#protocol-constructs-before-_meta). Existing protocol constructs must be used instead of metadata where possible; unmet requirements should be raised upstream, and optional metadata must tolerate alternate hosts and UIs that omit or ignore it.
+
 ## Overview
 
 - `sessionState.ts`, `sessionActions.ts`, `sessionReducers.ts`, and `sessionProtocol.ts` are VS Code-facing wrappers and re-exports.
@@ -25,13 +27,11 @@ The generated protocol includes the Changesets model:
 3. If VS Code consumers need short aliases or type guards, update the wrapper files in this directory after the sync.
 4. Compile. The generated registry catches missing action/notification version map entries.
 
-### Current targeted backport
+### Current targeted backports
 
-The generated copy intentionally carries the optional `CreateChatParams.title` on top of the `.ahp-version` source commit `6eec1b91`. Until the recorded pin advances to an AHP commit containing this field, preserve or reapply this generated delta when syncing. Neither titles nor initial messages require an additional capability; source-based creation still uses the existing `fork` and `sideChat` capabilities.
+The generated copy uses the `.ahp-version` source commit `1928cd4e` plus one targeted source backport: optional `AuthenticateParams.idToken`. The field matches the merged [microsoft/agent-host-protocol#631](https://github.com/microsoft/agent-host-protocol/pull/631) at `c6388ccce7c78066f8f9982fcaef0e62bd20bd01`. Preserve this delta when syncing until the recorded pin includes it. The older `CreateChatParams.title`, deprecated `SessionChatSummary.archived`, and `ChatIsReadChanged` compatibility deltas are already present in this pin.
 
-A reproducible sync from `6eec1b91` must also retain the existing VS Code-only
-compatibility deltas: deprecated `SessionChatSummary.archived` and
-`ChatIsReadChanged` introduced in `0.10.0`.
+For a narrow sync, set `AHP_PROTOCOL_REPO` to an isolated protocol source worktree at the recorded pin with those source backports applied, then run the normal sync script. Do not copy unrelated upstream changes or edit generated files to recover the existing deltas.
 
 ### Initial-message transport delta
 

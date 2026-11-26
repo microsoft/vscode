@@ -14,19 +14,25 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { DevContainerHandoffEnabledSettingId } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 
 export const RemoteSessionToolsEnabledSettingId = 'chat.remoteSessions.tools.enabled';
 
 export const remoteSessionToolsWhen = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
-	ContextKeyExpr.equals(`config.${RemoteSessionToolsEnabledSettingId}`, true),
+	ContextKeyExpr.or(
+		ContextKeyExpr.equals(`config.${RemoteSessionToolsEnabledSettingId}`, true),
+		// Agents that continue work in a Dev Container start and contact its session with these tools.
+		ContextKeyExpr.equals(`config.${DevContainerHandoffEnabledSettingId}`, true),
+	),
 );
 
 export function areRemoteSessionToolsEnabled(configurationService: IConfigurationService): boolean {
 	return !configurationService.getValue<boolean>('chat.disableAIFeatures')
 		&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true
-		&& configurationService.getValue<boolean>(RemoteSessionToolsEnabledSettingId) === true;
+		&& (configurationService.getValue<boolean>(RemoteSessionToolsEnabledSettingId) === true
+			|| configurationService.getValue<boolean>(DevContainerHandoffEnabledSettingId) === true);
 }
 
 export interface IRemoteSessionRequirements {
@@ -89,11 +95,38 @@ export interface ICreatedRemoteSession {
 	readonly status: 'started';
 }
 
+/** A host named for people, as in the Environment picker. */
+export interface IRemoteSessionHostName {
+	readonly label: string;
+	/** For a Dev Container environment, the name of the host that runs the container. */
+	readonly containerHost?: string;
+}
+
+/** Where `createSession` would start the session, for people to approve. */
+export interface IRemoteSessionDestination {
+	/** The host that the options pin, by `hostId` or by an Agent Host workspace URI, if it is available in this window. */
+	readonly host?: IRemoteSessionHostName;
+	/** The host ID or workspace authority that pins the host, also when that host is not available; undefined when placement selects it. */
+	readonly pinnedBy?: string;
+	/**
+	 * A lossless label of the workspace directory on its host: its path, prefixed with `//authority` when it has one,
+	 * decoded through the pinned host's connection, so it names the directory that creation inspects.
+	 */
+	readonly workspace?: string;
+}
+
 export const IRemoteSessionService = createDecorator<IRemoteSessionService>('remoteSessionService');
 
 export interface IRemoteSessionService {
 	readonly _serviceBrand: undefined;
 	listHosts(): readonly IRemoteSessionHost[];
+	/**
+	 * Why `createSession` would not start a session in the workspace on the host now, apart from the
+	 * workspace's existence and trust; empty when it would.
+	 */
+	getHostRejections(hostId: string, workspace: IRemoteSessionWorkspace): readonly string[];
+	/** Describes where `createSession` would start the session with the options, for its approval. */
+	getRequestedDestination(options: ICreateRemoteSessionOptions): IRemoteSessionDestination;
 	createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken): Promise<ICreatedRemoteSession>;
 }
 

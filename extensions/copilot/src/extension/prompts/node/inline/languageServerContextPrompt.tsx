@@ -10,8 +10,6 @@ import { TextDocumentSnapshot } from '../../../../platform/editing/common/textDo
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
 import { ContextKind, ILanguageContextService, KnownSources, SnippetContext, type RequestContext } from '../../../../platform/languageServer/common/languageContextService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
-import { Iterable } from '../../../../util/vs/base/common/iterator';
-import { TelemetryData } from '../../../prompt/node/intents';
 import { Tag } from '../base/tag';
 import { CodeBlock, Uri as UriElement, UriMode } from '../panel/safeElements';
 
@@ -38,15 +36,6 @@ export type LanguageServerContextProps = PromptElementProps<{
 	source?: KnownSources | string;
 }>;
 
-
-export class LanguageServerContextStats extends TelemetryData {
-	constructor(
-		readonly snippetCounts: number,
-		readonly totalCharLength: number,
-	) {
-		super();
-	}
-}
 
 export class LanguageServerContextPrompt extends PromptElement<LanguageServerContextProps> {
 
@@ -135,10 +124,6 @@ export class LanguageServerContextPrompt extends PromptElement<LanguageServerCon
 					</>;
 				})
 			}
-			<meta value={new LanguageServerContextStats(
-				validItems.length,
-				Iterable.reduce(validItems.values(), (t, item) => t + item.value.length, 0))
-			} />
 		</Tag>;
 	}
 }

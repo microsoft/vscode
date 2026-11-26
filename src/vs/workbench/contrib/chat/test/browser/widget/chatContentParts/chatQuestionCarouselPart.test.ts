@@ -7,6 +7,7 @@ import assert from 'assert';
 import { isSafari } from '../../../../../../../base/browser/browser.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -45,6 +46,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 	let widget: ChatQuestionCarouselPart;
 	let submittedAnswers: Map<string, IChatQuestionAnswerValue> | undefined | null = null;
+	let submittedByUser: boolean | undefined;
 	let codeEditorService: ICodeEditorService;
 
 	/** Returns the answer editors rendered under the given root, in DOM order. */
@@ -77,8 +79,9 @@ suite('ChatQuestionCarouselPart', () => {
 		codeEditorService = instantiationService.get(ICodeEditorService);
 		const options: IChatQuestionCarouselOptions = {
 			...optionsOverrides,
-			onSubmit: (answers) => {
+			onSubmit: (answers, byUser) => {
 				submittedAnswers = answers;
+				submittedByUser = byUser;
 				onSubmit?.();
 			}
 		};
@@ -92,6 +95,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 	teardown(() => {
 		submittedAnswers = null;
+		submittedByUser = undefined;
 	});
 
 	suite('Basic Rendering', () => {
@@ -177,6 +181,99 @@ suite('ChatQuestionCarouselPart', () => {
 			const message = widget.domNode.querySelector('.chat-question-message');
 			assert.ok(message, 'message element should exist');
 			assert.ok(message?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
+		});
+
+		for (const newline of ['\n', '\r\n']) {
+			for (const markdown of [false, true]) {
+				test(`preserves ${newline === '\n' ? 'LF' : 'CRLF'} line breaks in ${markdown ? 'markdown' : 'string'} messages`, () => {
+					const message = ['Findings:', '\u2022 First finding', '\u2022 Second finding'].join(newline);
+					const content = (prefix: string) => markdown ? new MarkdownString(`${prefix}${message}`) : `${prefix}${message}`;
+					const carousel = createMockCarousel([{
+						id: 'q1',
+						type: 'text',
+						title: 'Question',
+						message: content('Question '),
+						detailedMessage: content('Detailed '),
+					}]);
+					carousel.message = content('Carousel ');
+					createWidget(carousel);
+
+					assert.deepStrictEqual(
+						['.chat-question-carousel-message', '.chat-question-message', '.chat-question-detailed-message'].map(selector => ({
+							breaks: widget.domNode.querySelectorAll(`${selector} br`).length,
+							paragraphs: widget.domNode.querySelectorAll(`${selector} p`).length,
+						})),
+						Array.from({ length: 3 }, () => ({ breaks: 2, paragraphs: 1 })),
+					);
+				});
+			}
+		}
+
+		test('preserves markdown lists and code blocks when rendering message line breaks', () => {
+			const message = 'First line\nSecond line\n\n- First item\n- Second item\n\n```text\nfirst code line\nsecond code line\n```';
+			const codeBlocks: string[] = [];
+			const carousel = createMockCarousel([{
+				id: 'q1',
+				type: 'text',
+				title: 'Question',
+				message: `Question ${message}`,
+				detailedMessage: `Detailed ${message}`,
+			}]);
+			carousel.message = `Carousel ${message}`;
+			createWidget(carousel, undefined, mainWindow.document.body, instantiationService => {
+				instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer({
+					renderCodeBlock: async (_language, value) => {
+						codeBlocks.push(value);
+						return mainWindow.document.createElement('span');
+					},
+				});
+			});
+
+			assert.deepStrictEqual({
+				messages: ['.chat-question-carousel-message', '.chat-question-message', '.chat-question-detailed-message'].map(selector => {
+					const element = widget.domNode.querySelector(selector)!;
+					return {
+						breaks: element.querySelectorAll('br').length,
+						items: [...element.querySelectorAll('li')].map(item => item.textContent),
+					};
+				}),
+				codeBlocks,
+			}, {
+				messages: Array.from({ length: 3 }, () => ({
+					breaks: 1,
+					items: ['First item', 'Second item'],
+				})),
+				codeBlocks: Array<string>(3).fill('first code line\nsecond code line'),
+			});
+		});
+
+		test('separates carousel message paragraphs without adding outer or nested paragraph margins', () => {
+			const container = mainWindow.document.createElement('div');
+			container.className = 'interactive-session';
+			container.style.setProperty('--vscode-spacing-size160', '16px');
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const carousel = createMockCarousel([{ id: 'q1', type: 'text', title: 'Question' }]);
+			carousel.message = 'First section\n\nSecond section\n\n> First quoted paragraph\n>\n> Second quoted paragraph\n\nFinal section';
+			createWidget(carousel, undefined, container);
+
+			const paragraphs = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-question-carousel-message p')];
+			assert.deepStrictEqual({
+				margins: paragraphs.map(paragraph => {
+					const style = getWindow(paragraph).getComputedStyle(paragraph);
+					return { top: style.marginTop, bottom: style.marginBottom };
+				}),
+				paragraphGap: paragraphs[1].getBoundingClientRect().top - paragraphs[0].getBoundingClientRect().bottom,
+			}, {
+				margins: [
+					{ top: '0px', bottom: '16px' },
+					{ top: '0px', bottom: '16px' },
+					{ top: '0px', bottom: '0px' },
+					{ top: '0px', bottom: '0px' },
+					{ top: '0px', bottom: '0px' },
+				],
+				paragraphGap: 16,
+			});
 		});
 
 		for (const { name, question, expectedDetail } of [
@@ -559,7 +656,7 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel, undefined, container);
 		}
 
-		for (const longContent of ['carousel message', 'question message', 'description']) {
+		for (const longContent of ['carousel message', 'question message', 'detailed message', 'description']) {
 			test(`scrolls a long ${longContent} in the single body below the pinned title`, async () => {
 				const longText = 'Review the deployment requirements before choosing an option. '.repeat(80);
 				const carousel = createMockCarousel([{
@@ -567,6 +664,7 @@ suite('ChatQuestionCarouselPart', () => {
 					type: 'singleSelect',
 					title: 'Choose a deployment strategy',
 					message: longContent === 'question message' ? longText : undefined,
+					detailedMessage: longContent === 'detailed message' ? longText : undefined,
 					description: longContent === 'description' ? longText : undefined,
 					options: Array.from({ length: 20 }, (_, index) => ({
 						id: `option-${index}`,
@@ -708,6 +806,46 @@ suite('ChatQuestionCarouselPart', () => {
 				options: [{ label: 'Yes', selected: false }, { label: 'No', selected: true }],
 				hasFreeform: false,
 				submitted: { selectedValue: 'false', freeformValue: undefined },
+			});
+		});
+
+		test('renders the context and note as plain text around the description and answer', () => {
+			const context = 'Command:\nsudo -A tee "$(whoami)" <<\'EOF\'\n\n# Heading\n[link](https://example.com) $(lock) <b>bold</b>\nEOF';
+			createWidget(createMockCarousel([{ id: 'q1', type: 'text', title: 'sudo needs a password', context, description: 'Password:', note: { icon: Codicon.lock, text: 'Your answer goes only to sudo.' } }]));
+			const body = widget.domNode.querySelector('.chat-question-body-scrollable')!;
+			const contextElement = body.querySelector('.chat-question-context');
+			const note = body.querySelector('.chat-question-note');
+
+			assert.deepStrictEqual({
+				context: contextElement?.textContent,
+				contextElements: contextElement?.childElementCount,
+				note: note?.textContent,
+				noteIcon: [...note?.querySelectorAll('.codicon') ?? []].map(icon => ({ lock: icon.classList.contains('codicon-lock'), ariaHidden: icon.getAttribute('aria-hidden') })),
+				order: [...body.querySelectorAll('.chat-question-description, .chat-question-note, .chat-question-answers')].map(element => element.classList.contains('chat-question-context') ? 'context' : element.className),
+			}, {
+				context,
+				contextElements: 0,
+				note: 'Your answer goes only to sudo.',
+				noteIcon: [{ lock: true, ariaHidden: 'true' }],
+				order: ['context', 'chat-question-description', 'chat-question-note', 'chat-question-answers'],
+			});
+		});
+
+		test('password questions use a masked input whose answer only submitting passes on', () => {
+			const carousel = new ChatQuestionCarouselData([{ id: 'secret', type: 'text', title: 'Password', required: true, password: true, defaultValue: 'prefilled' }], true);
+			createWidget(carousel);
+			const input = widget.domNode.querySelector<HTMLInputElement>('.chat-question-answers input')!;
+			const rendered = { type: input.type, value: input.value, autocomplete: input.autocomplete, answerEditors: getAnswerEditors().length };
+			input.value = 'private-password';
+			input.dispatchEvent(new Event('input'));
+			const drafts = carousel.draftAnswers;
+			getFooterButtons()[0].click();
+
+			assert.deepStrictEqual({ rendered, drafts, submitted: submittedAnswers?.get('secret'), shown: widget.domNode.textContent?.includes('private-password') }, {
+				rendered: { type: 'password', value: '', autocomplete: 'off', answerEditors: 0 },
+				drafts: {},
+				submitted: 'private-password',
+				shown: false,
 			});
 		});
 
@@ -1017,6 +1155,30 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(result, true, 'skip() should return true when allowSkip is true');
 			assert.ok(submittedAnswers instanceof Map, 'Skip should call onSubmit with a Map');
 			assert.strictEqual(submittedAnswers?.get('q1'), 'default answer', 'Skip should return default values');
+		});
+
+		test('only the person\'s own submission or dismissal is reported as theirs', () => {
+			const outcomes: { answers: unknown; byUser: boolean | undefined }[] = [];
+			const settle = (act: () => void) => {
+				createWidget(createMockCarousel([{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default answer' }], true));
+				act();
+				outcomes.push({ answers: submittedAnswers && [...submittedAnswers], byUser: submittedByUser });
+			};
+
+			settle(() => widget.domNode.querySelector<HTMLElement>('.chat-question-submit-button')!.click());
+			settle(() => widget.domNode.querySelector<HTMLElement>('.chat-question-close')!.click());
+			settle(() => widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })));
+			// Defaults submitted when another message is sent, and a dismissal made for the person.
+			settle(() => widget.skip());
+			settle(() => widget.ignore());
+
+			assert.deepStrictEqual(outcomes, [
+				{ answers: [['q1', 'default answer']], byUser: true },
+				{ answers: undefined, byUser: true },
+				{ answers: undefined, byUser: true },
+				{ answers: [['q1', 'default answer']], byUser: undefined },
+				{ answers: undefined, byUser: false },
+			]);
 		});
 
 		test('skip fails when allowSkip is false', () => {

@@ -33,13 +33,14 @@ suite('DecisionsModelRouterPicker', () => {
 			model: first.model,
 			firstContext: first.context,
 			firstQuestions: first.questions.map(q => q.name),
-			followUpTurns: followUp.context.kind === 'json' ? (followUp.context.value as { recentTurns: unknown }).recentTurns : undefined,
+			followUpContext: JSON.stringify(followUp.context),
 			followUpQuestions: followUp.questions.map(q => q.name),
 		}, {
 			model: 'gpt-6-luna-decisions',
 			firstContext: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nplan the migration' },
 			firstQuestions: ['model', 'effort'],
-			followUpTurns: [{ prompt: 'earlier', response: 'done' }],
+			// Absent facts are left out, and the rest keep the order the follow-up lists them in.
+			followUpContext: '{"kind":"json","value":{"request":"plan the migration","currentModel":"opus","recentTurns":[{"prompt":"earlier","response":"done"}],"turns":1,"lastTurnState":"complete","lastTurnToolCalls":0,"lastTurnFailedToolCalls":0}}',
 			followUpQuestions: ['model', 'effort'],
 		});
 	});
@@ -68,7 +69,7 @@ suite('DecisionsModelRouterPicker', () => {
 		});
 	});
 
-	test('keeps each fact to one bounded line, and drops the facts before cutting the message when the request is too large', () => {
+	test('keeps each fact to one bounded line, and drops the facts before cutting the message when the request is too large', async () => {
 		const bounded = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', situation: [`Attached: 1 image\n- Plan mode${' x'.repeat(1000)}`, '  ', ...Array.from({ length: 12 }, (_, index) => `Fact ${index}`)] }));
 		const boundedLines = bounded.context.kind === 'text' ? bounded.context.text.split('\n').filter(line => line.startsWith('- ')) : [];
 
@@ -80,17 +81,23 @@ suite('DecisionsModelRouterPicker', () => {
 		// With no text, the attachment was all there was to go by, so there is nothing left to ask about.
 		assert.throws(() => buildModelRouterDecisionsRequest(pickRequest({ text: '', guidance, situation: ['Attached: 1 image', 'Workspace: shop-checkout'] })), ModelRouterPickerError);
 		assert.throws(() => buildModelRouterDecisionsRequest(pickRequest({ text: ' ' })), ModelRouterPickerError);
+		// A pick says which facts the decision was told, for the log.
+		const toldWith = async (request: IModelRouterPickRequest) => (await new DecisionsModelRouterPicker(async () => ({ model: 'gpt-6-luna-decisions', answers: [] })).pick(request)).facts;
 
 		assert.deepStrictEqual({
 			boundedLines: boundedLines.map(line => line.length <= modelRouterRequestLimits.situationLine + 2 ? line.slice(0, 40) : 'too long'),
 			tightContext: tight.context,
 			tightExplained: tight.questions.map(question => question.instructions.includes('facts about it')),
 			tightFits: serializedBytes(tight) <= modelRouterRequestLimits.request,
+			told: await toldWith(pickRequest({ text: 'fix this', situation: ['Attached: 1 image', '  ', `Workspace:${' x'.repeat(1000)}`] })),
+			tightTold: await toldWith(pickRequest({ text: 'fix this', guidance, situation: ['Attached: 1 image', 'Workspace: shop-checkout'] })),
 		}, {
 			boundedLines: ['- Attached: 1 image - Plan mode x x x x ', ...Array.from({ length: 7 }, (_, index) => `- Fact ${index}`)],
 			tightContext: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nfix this' },
 			tightExplained: [false, false],
 			tightFits: true,
+			told: ['Attached: 1 image', `Workspace:${' x'.repeat(1000)}`.slice(0, modelRouterRequestLimits.situationLine)],
+			tightTold: undefined,
 		});
 	});
 
@@ -110,14 +117,17 @@ suite('DecisionsModelRouterPicker', () => {
 		assert.strictEqual(truncateToEscapedBytes('ab\uD83D\uDE00', 4), 'ab', 'never splits a surrogate pair');
 	});
 
-	test('tells the effort question that a follow-up carries the earlier turns\' work', () => {
-		const effortOf = (request: IAgentDecisionsRequest) => request.questions.find(q => q.name === 'effort')?.instructions ?? '';
+	test('tells a follow-up\'s questions how to read it: a message about the last reply keeps the route, and effort goes by the work the earlier turns carry over', () => {
+		const notes = (request: IAgentDecisionsRequest) => request.questions.map(q => [q.name, q.instructions.includes('This is a follow-up'), q.instructions.includes('pick currentModel')]);
 		const first = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix it' }));
 		const followUp = buildModelRouterDecisionsRequest(pickRequest({
 			text: 'fix it',
 			followUp: { currentModel: 'opus', currentEffort: undefined, recentTurns: [{ prompt: 'why does this crash?', response: 'It unwraps an empty line.' }], turns: 1, lastTurnState: 'complete', lastTurnToolCalls: 3, lastTurnFailedToolCalls: 0 },
 		}));
-		assert.deepStrictEqual([effortOf(first).includes('This is a follow-up'), effortOf(followUp).includes('This is a follow-up')], [false, true]);
+		assert.deepStrictEqual([notes(first), notes(followUp)], [
+			[['model', false, false], ['effort', false, false]],
+			[['model', true, true], ['effort', true, false]],
+		]);
 	});
 
 	test('maps answers to a pick, and a tie to no pick', async () => {

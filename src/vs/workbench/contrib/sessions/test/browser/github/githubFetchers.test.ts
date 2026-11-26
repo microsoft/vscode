@@ -47,7 +47,7 @@ class MockApiClient extends mock<GitHubApiClient>() {
 			compare: (repository, base, head, _signal, options) => this.respond('repositories.compare', repository, base, head, options),
 		}),
 		users: upcastPartial<IGitHubAccountClient['users']>({
-			getAuthenticated: () => this.respond('users.getAuthenticated'),
+			getAuthenticated: (_signal, options) => this.respond('users.getAuthenticated', options),
 		}),
 		organizations: upcastPartial<IGitHubAccountClient['organizations']>({
 			listForAuthenticatedUser: (_signal, options) => this.respond('organizations.listForAuthenticatedUser', options),
@@ -68,9 +68,9 @@ class MockApiClient extends mock<GitHubApiClient>() {
 			listThreads: (id, _signal, options) => this.respond('reviews.listThreads', id, options),
 			listThreadSummaries: (id, _signal, options) => this.respond('reviews.listThreadSummaries', id, options),
 			listThreadComments: (id, _signal, options) => this.respond('reviews.listThreadComments', id, options),
-			create: (repository, number, request) => this.respond('reviews.create', repository, number, request),
-			createThread: request => this.respond('reviews.createThread', request),
-			resolveThread: id => this.respond('reviews.resolveThread', id),
+			create: (repository, number, request, _signal, options) => this.respond('reviews.create', repository, number, request, options),
+			createThread: (request, _signal, options) => this.respond('reviews.createThread', request, options),
+			resolveThread: (id, _signal, options) => this.respond('reviews.resolveThread', id, options),
 		}),
 		issues: upcastPartial<IGitHubAccountClient['issues']>({
 			listComments: (repository, number, _signal, options) => this.respond('issues.listComments', repository, number, options),
@@ -78,11 +78,11 @@ class MockApiClient extends mock<GitHubApiClient>() {
 		}),
 		checks: upcastPartial<IGitHubAccountClient['checks']>({
 			listRuns: (repository, ref, _signal, options) => this.respond('checks.listRuns', repository, ref, options),
-			getRun: (repository, id) => this.respond('checks.getRun', repository, id),
+			getRun: (repository, id, _signal, options) => this.respond('checks.getRun', repository, id, options),
 			listAnnotations: (repository, id, _signal, options) => this.respond('checks.listAnnotations', repository, id, options),
 		}),
 		actions: upcastPartial<IGitHubAccountClient['actions']>({
-			rerunFailedJobs: (repository, id) => this.respond('actions.rerunFailedJobs', repository, id),
+			rerunFailedJobs: (repository, id, _signal, options) => this.respond('actions.rerunFailedJobs', repository, id, options),
 		}),
 	});
 
@@ -115,12 +115,12 @@ class MockApiClient extends mock<GitHubApiClient>() {
 		return response as T;
 	}
 
-	override async withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>, token = CancellationToken.None): Promise<T> {
+	override async withClient<T>(task: (client: IGitHubAccountClient, cancellationToken: CancellationToken) => Promise<T>, token = CancellationToken.None): Promise<T> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		this.tokens.push(token);
-		return task(this.account, new AbortController().signal);
+		return task(this.account, CancellationToken.None);
 	}
 }
 
@@ -139,12 +139,13 @@ suite('GitHubRecentUserWorkFetcher', () => {
 		await fetcher.getPullRequestReviewThreads('o', 'r', 1, CancellationToken.None, options);
 		mockApi.setNextResponse({ 1: 0 });
 		await fetcher.getIssuesWithLinkedPullRequests('o', 'r', [1], CancellationToken.None, options);
+		const expectedOptions = { ...options, caller: 'githubRecentUserWorkFetcher' };
 		assert.deepStrictEqual(mockApi.calls.map(call => ({ method: call.method, options: call.args.at(-1) })), [
-			{ method: 'search.issues', options: { ...options, query: { per_page: 5, sort: 'updated', order: 'desc' } } },
-			{ method: 'search.pullRequests', options: { ...options, query: { first: 5 } } },
-			{ method: 'pullRequests.get', options },
-			{ method: 'reviews.listThreadSummaries', options: { ...options, query: { first: 100 }, maxPages: 100 } },
-			{ method: 'issues.getClosingPullRequestCounts', options },
+			{ method: 'search.issues', options: { ...expectedOptions, query: { per_page: 5, sort: 'updated', order: 'desc' } } },
+			{ method: 'search.pullRequests', options: { ...expectedOptions, query: { first: 5 } } },
+			{ method: 'pullRequests.get', options: expectedOptions },
+			{ method: 'reviews.listThreadSummaries', options: { ...expectedOptions, query: { first: 100 }, maxPages: 100 } },
+			{ method: 'issues.getClosingPullRequestCounts', options: expectedOptions },
 		]);
 	});
 
@@ -166,7 +167,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 				{ number: 1, title: 'First issue', url: 'https://github.com/o/r/issues/1', updatedAt: '2026-08-07T10:00:00Z' },
 				{ number: 2, title: 'Second issue', url: 'https://github.com/o/r/issues/2', updatedAt: '2026-08-07T11:00:00Z' },
 			],
-			calls: [{ method: 'search.issues', args: ['repo:o/r is:open assignee:@me', { query: { per_page: 5, sort: 'updated', order: 'desc' } }] }],
+			calls: [{ method: 'search.issues', args: ['repo:o/r is:open assignee:@me', { caller: 'githubRecentUserWorkFetcher', query: { per_page: 5, sort: 'updated', order: 'desc' } }] }],
 		});
 	});
 
@@ -198,7 +199,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 				statusCheckRollupState: 'FAILURE',
 				latestCommitAt: '2026-08-07T09:00:00Z',
 			}],
-			calls: [{ method: 'search.pullRequests', args: ['repo:o/r is:open author:@me sort:updated-desc', { query: { first: 5 } }] }],
+			calls: [{ method: 'search.pullRequests', args: ['repo:o/r is:open author:@me sort:updated-desc', { caller: 'githubRecentUserWorkFetcher', query: { first: 5 } }] }],
 		});
 	});
 
@@ -216,8 +217,8 @@ suite('GitHubRecentUserWorkFetcher', () => {
 		}, {
 			reviewThreads: [{ isResolved: false, latestCommentAt: '2026-08-07T10:00:00Z' }],
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'o', repo: 'r' }, 3] },
-				{ method: 'reviews.listThreadSummaries', args: ['PR_3', { query: { first: 100 }, maxPages: 100 }] },
+				{ method: 'pullRequests.get', args: [{ owner: 'o', repo: 'r' }, 3, { caller: 'githubRecentUserWorkFetcher' }] },
+				{ method: 'reviews.listThreadSummaries', args: ['PR_3', { caller: 'githubRecentUserWorkFetcher', query: { first: 100 }, maxPages: 100 }] },
 			],
 		});
 	});
@@ -240,7 +241,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 			calls: mockApi.calls,
 		}, {
 			linkedIssues: [1],
-			calls: [{ method: 'issues.getClosingPullRequestCounts', args: [{ owner: 'o', repo: 'r' }, [1, 2]] }],
+			calls: [{ method: 'issues.getClosingPullRequestCounts', args: [{ owner: 'o', repo: 'r' }, [1, 2], { caller: 'githubRecentUserWorkFetcher' }] }],
 		});
 	});
 });
@@ -280,7 +281,7 @@ suite('GitHubRepositoryFetcher', () => {
 				{ owner: 'owner', name: 'recent', fullName: 'owner/recent', defaultBranch: 'main', isPrivate: true, description: '' },
 				{ owner: 'owner', name: 'older', fullName: 'owner/older', defaultBranch: 'main', isPrivate: false, description: 'Older repository' },
 			],
-			calls: [{ method: 'repositories.listForAuthenticatedUser', args: [{ query: { per_page: 100, sort: 'updated', affiliation: 'owner,collaborator,organization_member' } }] }],
+			calls: [{ method: 'repositories.listForAuthenticatedUser', args: [{ caller: 'githubRepositoryFetcher', query: { per_page: 100, sort: 'updated', affiliation: 'owner,collaborator,organization_member' } }] }],
 			tokens: [token],
 		});
 	});
@@ -300,9 +301,9 @@ suite('GitHubRepositoryFetcher', () => {
 		}, {
 			repositories: [{ owner: 'owner', name: 'repo', fullName: 'owner/repo', defaultBranch: 'main', isPrivate: true, description: '' }],
 			calls: [
-				{ method: 'users.getAuthenticated', args: [] },
-				{ method: 'organizations.listForAuthenticatedUser', args: [{ query: { per_page: 100 } }] },
-				{ method: 'search.repositories', args: ['repo language:TypeScript in:name fork:true user:owner org:microsoft', { query: { sort: 'updated', per_page: 100 } }] },
+				{ method: 'users.getAuthenticated', args: [{ caller: 'githubRepositoryFetcher' }] },
+				{ method: 'organizations.listForAuthenticatedUser', args: [{ caller: 'githubRepositoryFetcher', query: { per_page: 100 } }] },
+				{ method: 'search.repositories', args: ['repo language:TypeScript in:name fork:true user:owner org:microsoft', { caller: 'githubRepositoryFetcher', query: { sort: 'updated', per_page: 100 } }] },
 			],
 			tokens: [token],
 		});
@@ -389,9 +390,9 @@ suite('GitHubPullRequestContextFetcher', () => {
 				}],
 			},
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'owner', repo: 'repo' }, 42] },
+				{ method: 'pullRequests.get', args: [{ owner: 'owner', repo: 'repo' }, 42, { caller: 'githubPullRequestContextFetcher' }] },
 				...['pullRequests.listFiles', 'issues.listComments', 'reviews.listComments'].map(method => ({
-					method, args: [{ owner: 'owner', repo: 'repo' }, 42, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+					method, args: [{ owner: 'owner', repo: 'repo' }, 42, { caller: 'githubPullRequestContextFetcher', query: { page: 1, per_page: 100 }, maxPages: 100 }],
 				})),
 			],
 		});
@@ -427,8 +428,8 @@ suite('GitHubPRFetcher', () => {
 				pullRequests: new PullRequestsClient(new CoreClient(provider, provider)),
 			});
 			const api = new class extends mock<GitHubApiClient>() {
-				override withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>): Promise<T> {
-					return task(accountClient, new AbortController().signal);
+				override withClient<T>(task: (client: IGitHubAccountClient, cancellationToken: CancellationToken) => Promise<T>): Promise<T> {
+					return task(accountClient, CancellationToken.None);
 				}
 			}();
 			const result = await new GitHubPRFetcher(api).getPullRequest('owner', 'repo', 1);
@@ -543,9 +544,9 @@ suite('GitHubPRFetcher', () => {
 				{ id: 'thread-b', comments: [{ id: 200, inReplyToId: undefined }] },
 			],
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'owner', repo: 'repo' }, 1, { priority: 'background' }] },
-				{ method: 'reviews.listThreads', args: ['PR_1', { priority: 'background', query: { first: 100, commentsFirst: 100 }, maxPages: 100 }] },
-				{ method: 'reviews.listThreadComments', args: ['thread-a', { priority: 'background', query: { first: 100, after: 'comment-100' }, maxPages: 99 }] },
+				{ method: 'pullRequests.get', args: [{ owner: 'owner', repo: 'repo' }, 1, { caller: 'githubPRFetcher', priority: 'background' }] },
+				{ method: 'reviews.listThreads', args: ['PR_1', { caller: 'githubPRFetcher', priority: 'background', query: { first: 100, commentsFirst: 100 }, maxPages: 100 }] },
+				{ method: 'reviews.listThreadComments', args: ['thread-a', { caller: 'githubPRFetcher', priority: 'background', query: { first: 100, after: 'comment-100' }, maxPages: 99 }] },
 			],
 		});
 	});
@@ -586,7 +587,7 @@ suite('GitHubPRFetcher', () => {
 		mockApi.setNextResponse({ id: 'thread-a', isResolved: true });
 
 		await fetcher.resolveThread('owner', 'repo', 'thread-a');
-		assert.deepStrictEqual(mockApi.calls, [{ method: 'reviews.resolveThread', args: ['thread-a'] }]);
+		assert.deepStrictEqual(mockApi.calls, [{ method: 'reviews.resolveThread', args: ['thread-a', { caller: 'githubPRFetcher' }] }]);
 	});
 
 	test('postPullRequestReviewComment sends a line comment against the head commit', async () => {
@@ -612,7 +613,7 @@ suite('GitHubPRFetcher', () => {
 					start_line: 10,
 					start_side: 'RIGHT',
 				}],
-			}],
+			}, { caller: 'githubPRFetcher' }],
 		}]);
 	});
 
@@ -641,7 +642,7 @@ suite('GitHubPRFetcher', () => {
 				side: 'RIGHT',
 				startLine: 10,
 				startSide: 'RIGHT',
-			}],
+			}, { caller: 'githubPRFetcher' }],
 		}]);
 	});
 
@@ -657,7 +658,7 @@ suite('GitHubPRFetcher', () => {
 			{ id: 2, nodeId: 'PRR_2', author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
 		]);
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'reviews.list', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+			method: 'reviews.list', args: [{ owner: 'owner', repo: 'repo' }, 1, { caller: 'githubPRFetcher', query: { page: 1, per_page: 100 }, maxPages: 100 }],
 		}]);
 	});
 
@@ -693,7 +694,7 @@ suite('GitHubPRFetcher', () => {
 				submittedAt: undefined,
 			},
 			calls: [{
-				method: 'reviews.list', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'reviews.list', args: [{ owner: 'owner', repo: 'repo' }, 1, { caller: 'githubPRFetcher', query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -731,7 +732,7 @@ suite('GitHubPRFetcher', () => {
 				patch: '@@ -1 +1 @@\n-old\n+new',
 			},
 			calls: [{
-				method: 'pullRequests.listFiles', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'pullRequests.listFiles', args: [{ owner: 'owner', repo: 'repo' }, 1, { caller: 'githubPRFetcher', query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -771,14 +772,14 @@ suite('GitHubPRFetcher', () => {
 			},
 			calls: [
 				{ method: 'pullRequests.get' },
-				{ method: 'repositories.compare', args: [{ owner: 'owner', repo: 'repo' }, 'base-tip', 'head-sha', { query: { per_page: 1 } }] },
+				{ method: 'repositories.compare', args: [{ owner: 'owner', repo: 'repo' }, 'base-tip', 'head-sha', { caller: 'githubPRFetcher', query: { per_page: 1 } }] },
 				{ method: 'pullRequests.listFiles' },
 				{ method: 'pullRequests.get' },
 			],
 			mutableRequestOptions: [
-				{ noCache: true },
-				{ noCache: true, query: { page: 1, per_page: 100 }, maxPages: 100 },
-				{ noCache: true },
+				{ caller: 'githubPRFetcher', noCache: true },
+				{ caller: 'githubPRFetcher', noCache: true, query: { page: 1, per_page: 100 }, maxPages: 100 },
+				{ caller: 'githubPRFetcher', noCache: true },
 			],
 		});
 	});
@@ -879,7 +880,7 @@ suite('GitHubPullRequestsFetcher', () => {
 			hasNextPage: true,
 		});
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'pullRequests.listConnection', args: [{ owner: 'microsoft', repo: 'vscode' }, { query: { first: 100, after: undefined } }],
+			method: 'pullRequests.listConnection', args: [{ owner: 'microsoft', repo: 'vscode' }, { caller: 'githubPullRequestsFetcher', query: { first: 100, after: undefined } }],
 		}]);
 	});
 
@@ -906,8 +907,8 @@ suite('GitHubPullRequestsFetcher', () => {
 				{ number: 9, reviewRequestedFromViewer: false, assignedToViewer: true },
 			],
 			calls: [
-				{ method: 'search.pullRequests', args: ['repo:microsoft/vscode is:open review-requested:@me sort:updated-desc', { query: { first: 100 } }] },
-				{ method: 'search.pullRequests', args: ['repo:microsoft/vscode is:open assignee:@me sort:updated-desc', { query: { first: 100 } }] },
+				{ method: 'search.pullRequests', args: ['repo:microsoft/vscode is:open review-requested:@me sort:updated-desc', { caller: 'githubPullRequestsFetcher', query: { first: 100 } }] },
+				{ method: 'search.pullRequests', args: ['repo:microsoft/vscode is:open assignee:@me sort:updated-desc', { caller: 'githubPullRequestsFetcher', query: { first: 100 } }] },
 			],
 		});
 	});
@@ -933,7 +934,7 @@ suite('GitHubPRCIFetcher', () => {
 		await fetcher.getCheckRuns('o', 'r', 'head', CancellationToken.None, { priority: 'visible' });
 		assert.deepStrictEqual(mockApi.calls, [{
 			method: 'checks.listRuns',
-			args: [{ owner: 'o', repo: 'r' }, 'head', { priority: 'visible', query: { page: 1, per_page: 100 }, maxPages: 100 }],
+			args: [{ owner: 'o', repo: 'r' }, 'head', { caller: 'githubPRCIFetcher', priority: 'visible', query: { page: 1, per_page: 100 }, maxPages: 100 }],
 		}]);
 	});
 
@@ -966,7 +967,7 @@ suite('GitHubPRCIFetcher', () => {
 				detailsUrl: undefined,
 			}],
 			calls: [{
-				method: 'checks.listRuns', args: [{ owner: 'owner', repo: 'repo' }, 'abc123', { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'checks.listRuns', args: [{ owner: 'owner', repo: 'repo' }, 'abc123', { caller: 'githubPRCIFetcher', query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -981,8 +982,8 @@ suite('GitHubPRCIFetcher', () => {
 		assert.deepStrictEqual({ result, calls: mockApi.calls }, {
 			result: '[failure] src/a.ts:10 (TS2345) type error\n[warning] src/b.ts:5-8 unused var',
 			calls: [
-				{ method: 'checks.getRun', args: [{ owner: 'owner', repo: 'repo' }, 1] },
-				{ method: 'checks.listAnnotations', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }] },
+				{ method: 'checks.getRun', args: [{ owner: 'owner', repo: 'repo' }, 1, { caller: 'githubPRCIFetcher' }] },
+				{ method: 'checks.listAnnotations', args: [{ owner: 'owner', repo: 'repo' }, 1, { caller: 'githubPRCIFetcher', query: { page: 1, per_page: 100 }, maxPages: 100 }] },
 			],
 		});
 	});
@@ -993,7 +994,7 @@ suite('GitHubPRCIFetcher', () => {
 		await fetcher.rerunFailedJobs('myOwner', 'myRepo', 12345);
 
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'actions.rerunFailedJobs', args: [{ owner: 'myOwner', repo: 'myRepo' }, 12345],
+			method: 'actions.rerunFailedJobs', args: [{ owner: 'myOwner', repo: 'myRepo' }, 12345, { caller: 'githubPRCIFetcher' }],
 		}]);
 	});
 });
@@ -1026,7 +1027,7 @@ suite('PullRequestChecksSource', () => {
 			}
 		}();
 
-		const checks = await new PullRequestChecksSource(gitHubService).subscribe('o', 'r', 1, 'after-push', new AbortController().signal);
+		const checks = await new PullRequestChecksSource(gitHubService).subscribe('o', 'r', 1, 'after-push', CancellationToken.None);
 		await checks.refresh(false);
 		await checks.refresh(true);
 		checks.dispose();

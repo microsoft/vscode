@@ -13,12 +13,14 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { traceConnectionOperation, type IRemoteConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostPendingConnection, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
@@ -28,6 +30,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputHideReason } 
 import { IRemoteTunnelService } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
+import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ConnectionDiagnosticsService } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsService.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
@@ -99,12 +102,23 @@ suite('ConnectionDiagnosticsService', () => {
 		instantiation.stub(IProductService, { version: '1.139.0', commit: 'test-commit' });
 		const files = createInMemoryFileService(store, 'test');
 		const logFile = URI.parse('test:/window.log');
+		const sharedLogFile = URI.parse('test:/logs/sharedprocess.log');
 		instantiation.stub(IFileService, files);
-		instantiation.stub(IWorkbenchEnvironmentService, { logFile });
+		instantiation.stub(IWorkbenchEnvironmentService, { logFile, logsHome: URI.parse('test:/logs') });
+		instantiation.stub(IPathService, new TestPathService(URI.file('/home/dev')));
+		const sharing = new class extends mock<IRemoteGitHubEnvironmentSharingService>() {
+			confirm = true;
+			readonly confirmations: string[] = [];
+			override async confirmDisconnect(address: string, name: string): Promise<boolean> {
+				this.confirmations.push(`${address}/${name}`);
+				return this.confirm;
+			}
+		}();
+		instantiation.stub(IRemoteGitHubEnvironmentSharingService, sharing);
 		const service = store.add(instantiation.createInstance(class extends ConnectionDiagnosticsService {
 			protected override get isWebPlatform(): boolean { return web; }
 		}));
-		return { service, remote, tunnels, changes, pendingChanges, configuration, instantiation, filter, files, logFile };
+		return { service, remote, tunnels, changes, pendingChanges, configuration, instantiation, filter, files, logFile, sharedLogFile, sharing };
 	}
 
 	function values(snapshot: IConnectionDiagnosticsSnapshot, title: string): Record<string, string> {
@@ -232,19 +246,23 @@ suite('ConnectionDiagnosticsService', () => {
 	});
 
 	test('manages selectable and hidden hosts from current state', async () => {
-		const { service, remote, filter, tunnels } = createService();
+		const { service, remote, filter, tunnels, sharing } = createService();
 		remote.connections = [{ address: 'tunnel:mock', name: 'Mock host', status: RemoteAgentHostConnectionStatus.connected }];
 		filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected }];
 		tunnels.suppressed.add('mock');
 		tunnels.dismissed.add('hidden');
 
 		const before = service.getHostManagementState();
+		sharing.confirm = false;
+		await service.runHostAction('host', 'disconnect');
+		sharing.confirm = true;
 		await service.runHostAction('host', 'disconnect');
 		await service.runHostAction('host', 'reconnect');
 		await service.runHostAction('tunnel:hidden', 'restore');
 
 		assert.deepStrictEqual({
 			before,
+			confirmations: sharing.confirmations,
 			filterDisconnects: filter.disconnects,
 			tunnelDisconnects: tunnels.disconnects,
 			reconnects: filter.reconnects,
@@ -276,6 +294,7 @@ suite('ConnectionDiagnosticsService', () => {
 				}],
 				isDiscovering: false,
 			},
+			confirmations: ['tunnel:mock/Mock host', 'tunnel:mock/Mock host'],
 			filterDisconnects: ['host'],
 			tunnelDisconnects: [],
 			reconnects: ['host'],
@@ -539,24 +558,40 @@ suite('ConnectionDiagnosticsService', () => {
 			title: section.title,
 			collapsed: section.collapsed,
 			messages: values(snapshot, section.title).Messages,
-			copied: snapshot.text.includes(`Messages: ${prefix}[RemoteAgentHost] Connected to test-host`),
+			copied: snapshot.text.includes(`Messages: [Window] ${prefix}[RemoteAgentHost] Connected to test-host`),
 			excludesPayload: !snapshot.text.includes('private payload'),
 			refreshed: values(refreshed, section.title).Messages,
 		}, {
-			title: 'Connection-related Window log excerpt',
+			title: 'Connection log excerpt',
 			collapsed: true,
-			messages: `${prefix}[RemoteAgentHost] Connected to test-host`,
+			messages: `[Window] ${prefix}[RemoteAgentHost] Connected to test-host`,
 			copied: true,
 			excludesPayload: true,
-			refreshed: `${prefix}[RemoteAgentHost] Reconnecting to test-host`,
+			refreshed: `[Window] ${prefix}[RemoteAgentHost] Reconnecting to test-host`,
+		});
+	});
+
+	test('desktop snapshots add the SSH, WSL, tunnel and Dev Container lines of the Shared log, which the web has not', async () => {
+		const read = async (web: boolean) => {
+			const { service, files, logFile, sharedLogFile } = createService(web);
+			await files.writeFile(logFile, VSBuffer.fromString('2026-09-16 12:00:01.000 [info] [RemoteAgentHost] Connecting to ssh:build'));
+			await files.writeFile(sharedLogFile, VSBuffer.fromString('2026-09-16 12:00:02.000 [error] [SSHRemoteAgentHost] Failed to read SSH key file /home/dev/.ssh/id_rsa'));
+			return values(await service.getSnapshot(), 'Connection log excerpt').Messages;
+		};
+		assert.deepStrictEqual({ desktop: await read(false), web: await read(true) }, {
+			desktop: [
+				'[Window] 2026-09-16 12:00:01.000 [info] [RemoteAgentHost] Connecting to ssh:build',
+				'[Shared] 2026-09-16 12:00:02.000 [error] [SSHRemoteAgentHost] Failed to read SSH key file ~/.ssh/id_rsa',
+			].join('\n'),
+			web: '[Window] 2026-09-16 12:00:01.000 [info] [RemoteAgentHost] Connecting to ssh:build',
 		});
 	});
 
 	test('missing Window logs are reported in the snapshot and exported text', async () => {
 		const { service } = createService();
 		const snapshot = await service.getSnapshot();
-		const error = values(snapshot, 'Connection-related Window log excerpt')['Log collection failed'];
-		assert.ok(error && snapshot.text.includes(`Log collection failed: ${error}`));
+		const error = values(snapshot, 'Connection log excerpt')['Window log collection failed'];
+		assert.ok(error && snapshot.text.includes(`Window log collection failed: ${error}`));
 	});
 
 	test('puts client information last and collapsed without excluding it from exported text', async () => {
@@ -571,7 +606,7 @@ suite('ConnectionDiagnosticsService', () => {
 			exported: client.entries.every(entry => snapshot.text.includes(`${entry.label}: ${entry.value}`)),
 			containsRecommendation: /possible issue|No issue identified|Explicitly connect|Check protocol compatibility/.test(snapshot.text),
 		}, {
-			titles: ['Tunnel discovery successful with 1 tunnel', 'Mock host - no connection, not selectable', 'Recent activity logs', 'Connection and discovery stages', 'Connection-related Window log excerpt', 'This client'],
+			titles: ['Tunnel discovery successful with 1 tunnel', 'Mock host - no connection, not selectable', 'Recent activity logs', 'Connection and discovery stages', 'Connection log excerpt', 'This client'],
 			collapsed: true,
 			exported: true,
 			containsRecommendation: false,

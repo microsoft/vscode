@@ -290,12 +290,94 @@
 	overflow: hidden;
 }
 
+.scm-view .scm-structural-change > .scm-structural-change-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size160);
+	margin-right: var(--vscode-spacing-size60);
+}
+
+.scm-view .scm-structural-change > .name {
+	min-width: 0;
+}
+
+.scm-view .scm-structural-change > .scm-structural-change-metadata {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size60);
+	margin-left: var(--vscode-spacing-size60);
+}
+
+.scm-view .scm-structural-change-annotation {
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+	opacity: 0.7;
+}
+
+.scm-view .scm-structural-change-status.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.scm-view .scm-structural-change-status.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.scm-view .scm-structural-change-status.modified,
+.scm-view .scm-structural-change-status.renamed {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+/* Like the file badges in iconlabel.css, status letters are dimmed and use the selection foreground in a focused list. */
+.scm-view .scm-structural-change-status {
+	opacity: 0.75;
+}
+
+.scm-view .monaco-list:focus .monaco-list-row.selected .scm-structural-change-status {
+	color: inherit;
+}
+
+/*
+ * Center the final status letter and count digit on the trailing control column.
+ * See https://github.com/microsoft/vscode/issues/346073
+ */
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
-.scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label::after {
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .monaco-decoration-badge-content,
+.scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label::after,
+.scm-view .scm-structural-change-status,
+.scm-view .monaco-list-row .resource-group > .count {
 	margin-right: 3px;
 }
 
-.scm-view .monaco-list-row .resource > .name > .monaco-icon-label.monaco-decoration-text-badge::after {
+.scm-view .monaco-list-row .resource-group > .count > .monaco-count-badge {
+	position: relative;
+	isolation: isolate;
+	min-width: 0;
+	padding-inline: calc((var(--vscode-spacing-size160) - 1ch) / 2);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Keep the minimum badge circular without shifting its centered text. */
+.scm-view .monaco-list-row .resource-group > .count > .monaco-count-badge::before {
+	content: '';
+	position: absolute;
+	z-index: -1;
+	top: 0;
+	left: 50%;
+	transform: translateX(-50%);
+	height: 100%;
+	min-width: 100%;
+	aspect-ratio: 1;
+	border-radius: inherit;
+	background-color: var(--vscode-badge-background);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label.monaco-decoration-text-badge::after,
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .monaco-decoration-badge-content,
+.scm-view .scm-structural-change-status {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -304,6 +386,7 @@
 	min-width: var(--vscode-spacing-size160);
 	height: var(--vscode-spacing-size160);
 	margin-block: auto;
+	white-space: nowrap;
 	font-size: var(--vscode-fontSize-label2);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
@@ -408,6 +491,99 @@
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-input-background);
 	border-radius: 4px;
+}
+
+/* Repository notice: a neutral card above the input, bordered like the input, with its
+	close action at the top right and its action at the bottom right */
+.scm-view .scm-repository-notice-container {
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size40) 11px;
+}
+
+.scm-view .scm-repository-notice {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	grid-template-areas:
+		"icon message dismiss"
+		"action action action";
+	column-gap: var(--vscode-spacing-size80);
+	row-gap: var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+	line-height: 18px;
+	white-space: normal;
+}
+
+/* One line tall, so the icon centers on the first line of the message */
+.scm-view .scm-repository-notice-icon {
+	grid-area: icon;
+	display: flex;
+	align-items: center;
+	height: 1lh;
+	color: var(--vscode-icon-foreground);
+}
+
+.scm-view .scm-repository-notice-message {
+	grid-area: message;
+	min-width: 0;
+	overflow-wrap: break-word;
+}
+
+.scm-view .scm-repository-notice-message p {
+	margin: 0;
+}
+
+.scm-view .scm-repository-notice-message strong {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.scm-view .scm-repository-notice-dismiss {
+	grid-area: dismiss;
+	align-self: start;
+	margin-right: calc(-1 * var(--vscode-spacing-size40));
+}
+
+/* A compact close button, one line tall so it lines up with the first line of the message */
+.scm-view .scm-repository-notice-dismiss .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: 1lh;
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+}
+
+.scm-view .scm-repository-notice-dismiss .action-label:hover {
+	color: var(--vscode-foreground);
+}
+
+/* `.monaco-workbench .codicon` sizes the glyph directly, so this out-ranks it. The glyph is the button itself, so it keeps the line height of the message to stay one line tall */
+.monaco-workbench .scm-view .scm-repository-notice-dismiss .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: inherit;
+	color: inherit;
+}
+
+.scm-view .scm-repository-notice-action {
+	grid-area: action;
+	justify-self: end;
+}
+
+.scm-view .scm-repository-notice-action .monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size100);
+	white-space: nowrap;
+}
+
+.monaco-workbench.hc-black .scm-view .scm-repository-notice,
+.monaco-workbench.hc-light .scm-view .scm-repository-notice {
+	border-color: var(--vscode-contrastBorder);
+	background-color: transparent;
 }
 
 .scm-view .button-container {
@@ -653,10 +829,17 @@
 	margin: 4px 0;
 }
 
-.monaco-hover.history-item-hover .history-item-hover-container div:nth-of-type(3):nth-last-of-type(2) > p {
+.monaco-hover.history-item-hover .history-item-hover-container > .history-item-hover-references > p {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 4px;
+}
+
+.monaco-hover.history-item-hover .history-item-hover-container > .history-item-hover-references > p > span {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-hover.history-item-hover .history-item-hover-container span:not(.codicon) {

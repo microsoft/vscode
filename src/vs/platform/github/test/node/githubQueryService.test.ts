@@ -4,28 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { hasKey } from '../../../../base/common/types.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../base/common/observable.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { GitHubRepositoryRef } from '../../common/githubQueryService.js';
-import { GitHubHostCapabilities } from '../../common/githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../common/githubCredentialService.js';
 import { IGitHubCapabilities } from '../../common/githubHostCapabilitiesService.js';
+import { GitHubRepositoryRef } from '../../common/githubQueryService.js';
 import { GitHubEntityPollingPolicy, GitHubQueryService } from '../../common/githubQueryServiceImpl.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
+import { GitHubHostCapabilities } from '../../common/githubTypes.js';
 import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import {
+	ProgrammableGitHubServer,
 	gitHubGraphQLResponse,
 	gitHubGraphQLStep,
 	gitHubJsonResponse,
 	gitHubRestStep,
-	ProgrammableGitHubServer,
 } from './programmableGitHubServer.js';
+
 
 const policy: GitHubEntityPollingPolicy = {
 	dormantGrace: 20,
@@ -39,6 +43,7 @@ const policy: GitHubEntityPollingPolicy = {
 const availableCapabilities: GitHubHostCapabilities = {
 	graphql: true,
 	mergeQueue: true,
+	mergeQueueRemovals: true,
 	reviewThreads: true,
 	checkContextRequiredness: true,
 };
@@ -68,19 +73,19 @@ class TestCredentialService implements IGitHubCredentials, IDisposable {
 
 	private readonly _onDidInvalidate = new Emitter<GitHubCredentialInvalidation>();
 	readonly onDidInvalidate = this._onDidInvalidate.event;
-	private readonly _controller = new AbortController();
+	private readonly _controller = new CancellationTokenSource();
 
 	constructor(private readonly _account: { readonly host: string; readonly accountId: string }) { }
 
-	getCredential(signal: AbortSignal): Promise<GitHubCredential> {
-		if (signal.aborted) {
-			return Promise.reject(signal.reason);
+	getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential> {
+		if (cancellationToken.isCancellationRequested) {
+			return Promise.reject(new CancellationError());
 		}
 		return Promise.resolve({
 			account: this._account,
 			token: 'token',
 			generation: 1,
-			signal: this._controller.signal,
+			cancellationToken: this._controller.token,
 		});
 	}
 
@@ -91,14 +96,14 @@ class TestCredentialService implements IGitHubCredentials, IDisposable {
 			account: this._account,
 			token: 'token',
 			generation: 1,
-			signal: this._controller.signal,
+			cancellationToken: this._controller.token,
 		};
-		this._controller.abort(new Error('invalidated'));
+		this._controller.cancel();
 		this._onDidInvalidate.fire({ credential, reason: 'account' });
 	}
 
 	dispose(): void {
-		this._controller.abort(new Error('disposed'));
+		this._controller.cancel();
 		this._onDidInvalidate.dispose();
 	}
 }
@@ -121,6 +126,7 @@ suite('GitHubQueryService', () => {
 		readonly clock: FakeScheduler;
 		readonly credentials: TestCredentialService;
 		readonly service: GitHubQueryService;
+		readonly transport: GitHubTransport;
 	} {
 		const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
 		const ref = { ...account, owner: 'octo', repo: 'repo' };
@@ -137,7 +143,7 @@ suite('GitHubQueryService', () => {
 			capabilityService,
 			new NullLogService(),
 		));
-		return { account, ref, clock, credentials, service };
+		return { account, ref, clock, credentials, service, transport };
 	}
 
 	function graphQLRepository(): object {
@@ -173,11 +179,17 @@ suite('GitHubQueryService', () => {
 					'query HydrateGitHubResources($owner0: String!, $repo0: String!) { r0: repository(owner: $owner0, name: $repo0) { nameWithOwner primaryLanguage { name } stargazerCount } rateLimit { limit remaining used resetAt } }'),
 				response: gitHubGraphQLResponse({ r0: graphQLRepository() }),
 			}));
-			const { ref, service } = setup(server);
+			const { ref, service, transport } = setup(server);
+			const request = spy(transport, 'graphql');
+			disposables.add(toDisposable(() => request.restore()));
 			const subscription = disposables.add(service.subscribeRepository(ref, { priority: 'visible' }));
-			await service.hydrateResources([{ kind: 'repository', ref }], signal());
-			assert.deepStrictEqual(subscription.resource.state.get().value, {
-				nameWithOwner: 'octo/repo', language: 'TypeScript', stars: 42,
+			await service.hydrateResources([{ kind: 'repository', ref }], cancellationToken());
+			assert.deepStrictEqual({
+				repository: subscription.resource.state.get().value,
+				requests: request.getCalls().map(call => ({ priority: call.args[6], caller: call.args[7]?.caller })),
+			}, {
+				repository: { nameWithOwner: 'octo/repo', language: 'TypeScript', stars: 42 },
+				requests: [{ priority: 'interactive', caller: 'github.query' }],
 			});
 			server.assertSatisfied();
 		});
@@ -210,11 +222,11 @@ suite('GitHubQueryService', () => {
 			await service.hydrateResources([
 				{ kind: 'repository', ref: repositoryRef },
 				{ kind: 'issue', ref: issueRef },
-			], signal());
+			], cancellationToken());
 			await service.hydrateResources([
 				{ kind: 'repository', ref: repositoryRef },
 				{ kind: 'issue', ref: issueRef },
-			], signal());
+			], cancellationToken());
 
 			assert.deepStrictEqual({
 				repository: repository.resource.state.get().value,
@@ -257,7 +269,7 @@ suite('GitHubQueryService', () => {
 			const { ref, service } = setup(server);
 			const issueRef = { ...ref, number: 7 };
 			const subscription = disposables.add(service.subscribeIssue(issueRef, { priority: 'visible' }));
-			await service.hydrateResources([{ kind: 'issue', ref: issueRef }], signal());
+			await service.hydrateResources([{ kind: 'issue', ref: issueRef }], cancellationToken());
 			assert.deepStrictEqual({
 				authorIdOnNode: query?.replace(/\s+/g, ' ').includes('author { login ... on Node { id } }'),
 				author: subscription.resource.state.get().value?.author,
@@ -283,7 +295,7 @@ suite('GitHubQueryService', () => {
 				);
 				const { ref, clock, service } = setup(server);
 				const repository = disposables.add(service.subscribeRepository(ref, { priority: 'visible' }));
-				const hydration = service.hydrateResources([{ kind: 'repository', ref }], signal());
+				const hydration = service.hydrateResources([{ kind: 'repository', ref }], cancellationToken());
 				if (failure === 'batch') {
 					await assert.rejects(hydration, { kind: 'authorization' });
 				} else {
@@ -316,7 +328,7 @@ suite('GitHubQueryService', () => {
 			const issueRef = { ...ref, number: 7 };
 			const repository = disposables.add(service.subscribeRepository(ref, { priority: 'visible' }));
 			const issue = disposables.add(service.subscribeIssue(issueRef, { priority: 'visible' }));
-			await service.hydrateResources([{ kind: 'repository', ref }, { kind: 'issue', ref: issueRef }], signal());
+			await service.hydrateResources([{ kind: 'repository', ref }, { kind: 'issue', ref: issueRef }], cancellationToken());
 			assert.deepStrictEqual({
 				states: [repository.resource.state.get(), issue.resource.state.get()].map(state => ({
 					status: state.status, complete: state.complete, error: state.error?.kind, value: state.value,
@@ -387,7 +399,7 @@ suite('GitHubQueryService', () => {
 			const { account, service } = setup(server);
 			const ref = { ...account, owner: 'octo', repo: 'repo', number: 7 };
 			const issue = disposables.add(service.subscribeIssue(ref, { priority: 'visible' }));
-			const hydration = service.hydrateResources([{ kind: 'issue', ref }], signal());
+			const hydration = service.hydrateResources([{ kind: 'issue', ref }], cancellationToken());
 			await hydrationStarted.p;
 
 			const refresh = issue.refresh();
@@ -624,12 +636,13 @@ suite('GitHubQueryService', () => {
 			const unavailable: GitHubHostCapabilities = {
 				graphql: false,
 				mergeQueue: false,
+				mergeQueueRemovals: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
 			};
 			const disabled = setup(server, unavailable);
 			await assert.rejects(
-				() => disabled.service.hydrateResources([{ kind: 'repository', ref: disabled.ref }], signal()),
+				() => disabled.service.hydrateResources([{ kind: 'repository', ref: disabled.ref }], cancellationToken()),
 				error => error instanceof Error && error.message.includes('GraphQL is unavailable'),
 			);
 			assert.strictEqual(server.requests.length, 0);
@@ -640,11 +653,11 @@ suite('GitHubQueryService', () => {
 			}));
 			const enabled = setup(server);
 			await assert.rejects(
-				() => enabled.service.hydrateResources([{ kind: 'repository', ref: enabled.ref }], signal()),
+				() => enabled.service.hydrateResources([{ kind: 'repository', ref: enabled.ref }], cancellationToken()),
 				error => error instanceof Error && error.message.includes('Unknown field'),
 			);
 			await assert.rejects(
-				() => enabled.service.hydrateResources([{ kind: 'repository', ref: enabled.ref }], signal()),
+				() => enabled.service.hydrateResources([{ kind: 'repository', ref: enabled.ref }], cancellationToken()),
 				error => error instanceof Error && error.message.includes('unsupported'),
 			);
 
@@ -663,7 +676,7 @@ suite('GitHubQueryService', () => {
 				}));
 				const { service, ref } = setup(server);
 
-				await assert.rejects(() => service.hydrateResources([{ kind: 'repository', ref }], signal()), {
+				await assert.rejects(() => service.hydrateResources([{ kind: 'repository', ref }], cancellationToken()), {
 					name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors,
 				});
 				server.assertSatisfied();
@@ -690,10 +703,10 @@ suite('GitHubQueryService', () => {
 			const transientQuery = setup(server);
 			const queryRepository = disposables.add(transientQuery.service.subscribeRepository(transientQuery.ref, { priority: 'background' }));
 			await assert.rejects(
-				() => transientQuery.service.hydrateResources([{ kind: 'repository', ref: transientQuery.ref }], signal()),
+				() => transientQuery.service.hydrateResources([{ kind: 'repository', ref: transientQuery.ref }], cancellationToken()),
 				error => error instanceof Error && error.message.includes('Something went wrong'),
 			);
-			await transientQuery.service.hydrateResources([{ kind: 'repository', ref: transientQuery.ref }], signal());
+			await transientQuery.service.hydrateResources([{ kind: 'repository', ref: transientQuery.ref }], cancellationToken());
 
 			const transientCapabilities = setup(server, new SequencedCapabilitiesService([
 				{ ...availableCapabilities, graphql: false },
@@ -701,10 +714,10 @@ suite('GitHubQueryService', () => {
 			]));
 			const capabilitiesRepository = disposables.add(transientCapabilities.service.subscribeRepository(transientCapabilities.ref, { priority: 'background' }));
 			await assert.rejects(
-				() => transientCapabilities.service.hydrateResources([{ kind: 'repository', ref: transientCapabilities.ref }], signal()),
+				() => transientCapabilities.service.hydrateResources([{ kind: 'repository', ref: transientCapabilities.ref }], cancellationToken()),
 				error => error instanceof Error && error.message.includes('GraphQL is unavailable'),
 			);
-			await transientCapabilities.service.hydrateResources([{ kind: 'repository', ref: transientCapabilities.ref }], signal());
+			await transientCapabilities.service.hydrateResources([{ kind: 'repository', ref: transientCapabilities.ref }], cancellationToken());
 
 			assert.deepStrictEqual({
 				queryRepository: queryRepository.resource.state.get().value?.nameWithOwner,
@@ -785,8 +798,8 @@ suite('GitHubQueryService', () => {
 	});
 });
 
-function signal(): AbortSignal {
-	return new AbortController().signal;
+function cancellationToken(): CancellationToken {
+	return CancellationToken.None;
 }
 
 function repositoryResponse(nameWithOwner: string): object {

@@ -11,6 +11,8 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { getConnectionDiagnosticError } from '../../common/connectionDiagnostics.js';
+import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 
 suite('Mission Control sealed authentication', () => {
@@ -379,6 +381,29 @@ suite('Mission Control sealed authentication', () => {
 	test('refuses failed identity validation and non-user principals', async () => {
 		await assert.rejects(resolveMissionControlOwner(async () => new Response('', { status: 401 }), resource, 'test'), /401/);
 		await assert.rejects(resolveMissionControlOwner(async () => Response.json({ id: 123, type: 'Bot' }), resource, 'test'), /user identity/);
+	});
+
+	test('identity failures keep their HTTP status, rate limits and response validity for connection telemetry', async () => {
+		const responses = [
+			new Response('', { status: 401 }),
+			new Response('', { status: 403 }),
+			new Response('', { status: 403, headers: { 'Retry-After': '10' } }),
+			new Response('', { status: 403, headers: { 'X-RateLimit-Remaining': '0' } }),
+			new Response('', { status: 503 }),
+			new Response('not json'),
+		];
+		const errors = await Promise.all(responses.map(response => resolveMissionControlOwner(async () => response, resource, 'test').then(
+			() => undefined,
+			error => getConnectionTelemetryError(getConnectionDiagnosticError(error)),
+		)));
+		assert.deepStrictEqual(errors, [
+			{ errorCategory: 'authentication', errorCode: JsonRpcErrorCodes.InvalidParams, statusCode: 401 },
+			{ errorCategory: 'authorization', errorCode: JsonRpcErrorCodes.InvalidParams, statusCode: 403 },
+			{ errorCategory: 'throttled', errorCode: JsonRpcErrorCodes.InternalError, statusCode: 403 },
+			{ errorCategory: 'throttled', errorCode: JsonRpcErrorCodes.InternalError, statusCode: 403 },
+			{ errorCategory: 'httpServer', errorCode: JsonRpcErrorCodes.InternalError, statusCode: 503 },
+			{ errorCategory: 'invalidResponse' },
+		]);
 	});
 
 	for (const { status, headers, code } of [
