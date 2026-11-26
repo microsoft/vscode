@@ -119,6 +119,7 @@ import { createSessionComparisonHarness } from '../sessionComparisonConfiguratio
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { SessionsView, SessionsViewId } from '../views/sessionsView.js';
 import { SessionsGrouping } from '../views/sessionsListCommon.js';
+import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
 
 // #region --- New Chat Widget ---
 
@@ -368,6 +369,10 @@ export class NewChatWidget extends Disposable {
 		this._preserveCustomView = options.preserveCustomView === true;
 		this._draftHost = options.newSessionDraft;
 		this._inEditorWindowHost = !this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key);
+		if (this._inEditorWindowHost) {
+			// The settings of the composer, which only the Agents window registers itself
+			this._register(registerSessionsListConfiguration());
+		}
 		const workbenchScope = observableFromEvent(this, workspaceContextService.onDidChangeWorkbenchScope, () => workspaceContextService.getWorkbenchScope());
 		this._composesForAllSessions = derived(this, reader => composesForAllSessions({ inEditorWindow: this._inEditorWindowHost, inChatArea: !!this._draftHost, workbenchScope: workbenchScope.read(reader) }));
 		this._detached = this._preserveCustomView || !!this._draftHost;
