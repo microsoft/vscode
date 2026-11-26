@@ -3510,7 +3510,7 @@ export class ChatPetWidget extends Disposable {
 				|| subagentPetTop < movement.top - overlay.top - SUBAGENT_PET_BOUNDARY_EPSILON
 				|| subagentPetTop + size > bottom + SUBAGENT_PET_BOUNDARY_EPSILON;
 			let invalidPlacement = false;
-			if (checkPlacement) {
+			if (checkPlacement && !outsideBounds) {
 				const overlaps = subagentPets.some(other => other !== subagentPet && !other.isRespawning()
 					&& subagentPetLeft < other.left + size - SUBAGENT_PET_BOUNDARY_EPSILON && subagentPetLeft + size > other.left + SUBAGENT_PET_BOUNDARY_EPSILON
 					&& subagentPetTop < other.top + size - SUBAGENT_PET_BOUNDARY_EPSILON && subagentPetTop + size > other.top + SUBAGENT_PET_BOUNDARY_EPSILON);
