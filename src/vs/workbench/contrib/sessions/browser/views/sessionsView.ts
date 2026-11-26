@@ -9,8 +9,8 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { getOrSet } from '../../../../../base/common/map.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { getOrSet, ResourceSet } from '../../../../../base/common/map.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
@@ -42,7 +42,7 @@ import { SessionsGrouping, SessionsSorting } from './sessionsListCommon.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { WorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
+import { IWorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
 import { getSessionsInScope } from '../sessionScope.js';
 import { ISessionsWorkbenchScopeService } from './sessionsWorkbenchScope.js';
 import { getSessionFilterActionId, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
@@ -370,6 +370,7 @@ export class SessionsView extends ViewPane {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ISessionsListUndoService private readonly undoService: ISessionsListUndoService,
 		@ISessionsWorkbenchScopeService private readonly workbenchScopeService: ISessionsWorkbenchScopeService,
+		@IWorkspaceFolderRepositories private readonly workspaceFolderRepositories: IWorkspaceFolderRepositories,
 	) {
 		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.headerInTitle = !!options.headerInTitle;
@@ -445,11 +446,11 @@ export class SessionsView extends ViewPane {
 	}
 
 	private createControls(parent: HTMLElement): void {
-		const barEnabled = derived(this, reader => this.workbenchScopeService.enabled.read(reader) && !this.chatEntitlementService.sentimentObs.read(reader).hidden);
+		const barEnabled = this.workbenchScopeService.barShown;
 		const inventoryChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
-		const repositories = this.scoped ? this._register(this.instantiationService.createInstance(WorkspaceFolderRepositories, constObservable(false))) : undefined;
+		const repositories = this.workspaceFolderRepositories;
 		const sessionScope = derived(this, reader => {
-			if (!this.scoped?.read(reader) || barEnabled.read(reader) || !repositories) {
+			if (!this.scoped?.read(reader) || barEnabled.read(reader)) {
 				return undefined;
 			}
 			inventoryChanged.read(reader);
@@ -458,21 +459,22 @@ export class SessionsView extends ViewPane {
 		});
 		const pendingSessionScope = derived(this, reader => {
 			const scope = sessionScope.read(reader);
-			if (!scope || !repositories) {
+			if (!scope) {
 				return undefined;
 			}
-			const folders = [...repositories.folders.read(reader)];
+			const extUri = this.uriIdentityService.extUri;
+			const folders = new ResourceSet(repositories.folders.read(reader), uri => extUri.getComparisonKey(uri));
 			for (const session of this.sessionsManagementService.getSessions()) {
 				if (scope.has(session.sessionId)) {
 					const folder = session.mainChat.read(reader).workspace.read(reader)?.folders[0];
 					if (folder) {
-						folders.push(folder.workingDirectory);
+						folders.add(folder.workingDirectory);
 					}
 				}
 			}
 			return (item: IPendingSessionItem) => {
 				const folderUri = item.folderUri;
-				return item.isQuickChat !== true && !!folderUri && folders.some(folder => this.uriIdentityService.extUri.isEqualOrParent(folderUri, folder));
+				return item.isQuickChat !== true && !!folderUri && [...folders].some(folder => extUri.isEqualOrParent(folderUri, folder));
 			};
 		});
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
@@ -594,9 +596,10 @@ export class SessionsView extends ViewPane {
 			sessionsControl.onDidUpdate,
 			this.scopedContextKeyService.onDidChangeContext,
 		));
+		// The bar offers the workspaces of the sessions the list includes, before the bar's own pick narrows them
 		const scopeSessions = derived(this, reader => {
 			scopeChanged.read(reader);
-			return this.sessionsManagementService.getSessions();
+			return this.sessionsManagementService.getSessions().filter(session => sessionsControl.isSessionInInventory(session, reader));
 		});
 		const scopeEnvironments = derived(this, reader => {
 			scopeChanged.read(reader);
@@ -615,7 +618,7 @@ export class SessionsView extends ViewPane {
 		this._register(autorun(reader => {
 			scopeChanged.read(reader);
 			const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden;
-			inboxScope.setVisible((this.grouping === SessionsGrouping.Inbox || this.workbenchScopeService.enabled.read(reader)) && !hidden && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled));
+			inboxScope.setVisible(barEnabled.read(reader) || (this.grouping === SessionsGrouping.Inbox && !hidden && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled)));
 		}));
 		let scopeHeight = -1;
 		const scopeResizeObserver = this._register(new DOM.DisposableResizeObserver('SessionsView.inboxScope', entries => {

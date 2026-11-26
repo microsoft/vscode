@@ -22,6 +22,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../../common/chatConstants.js';
+import { IWorkspaceFolderRepositories, WorkspaceFolderRepositories } from '../../../browser/workspaceFolderRepositories.js';
 
 suite('EditorWindowSessionsProvidersService', () => {
 
@@ -41,6 +42,7 @@ suite('EditorWindowSessionsProvidersService', () => {
 			getWorkbenchState: () => WorkbenchState.FOLDER,
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.parse('vscode-remote://host/work/repo'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.parse('vscode-remote://host/work/repo') })] }),
 		}));
+		instantiationService.stub(IWorkspaceFolderRepositories, store.add(instantiationService.createInstance(WorkspaceFolderRepositories)));
 		return store.add(instantiationService.createInstance(EditorWindowSessionsProvidersService));
 	}
 

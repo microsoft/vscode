@@ -5549,9 +5549,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Whether the list includes the session before its source filters apply. */
 	isSessionListed(session: ISession, reader?: IReader): boolean {
-		return this._sessionsListModelService.isSessionListed(session, reader)
-			&& (this.options.sessionScope?.read(reader)?.has(session.sessionId) ?? true)
+		return this.isSessionInInventory(session, reader)
 			&& (!this.options.scopeBar?.read(reader) || this.filters.matchesInboxScope(session, reader));
+	}
+
+	/** Whether the list includes the session before its workspaces filter bar and its source filters apply. */
+	isSessionInInventory(session: ISession, reader?: IReader): boolean {
+		return this._sessionsListModelService.isSessionListed(session, reader)
+			&& (this.options.sessionScope?.read(reader)?.has(session.sessionId) ?? true);
 	}
 
 	getRenderedSessionGroup(session: ISession): ISessionGroup | undefined {

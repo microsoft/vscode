@@ -4,29 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { derived } from '../../../../../base/common/observable.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISessionsListingScope, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsProvidersService } from '../sessionsProvidersService.js';
-import { WorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
+import { IWorkspaceFolderRepositories, WorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
 import { IChatViewSessionsListService } from '../../../chat/common/chatViewSessionsListService.js';
 
 /**
  * The sessions providers of an editor window: every provider and session backend that registers lists only the sessions
  * of the window's folders and of their repositories (see {@link WorkspaceFolderRepositories}), whoever registers it, such
  * as the local agent host's or Copilot Cloud's. Lookups still find every session. A provider without a listing scope
- * lists every session.
+ * lists every session. While the window's new Sessions list scopes the sessions itself, the providers list every session.
  */
 export class EditorWindowSessionsProvidersService extends SessionsProvidersService {
 
-	private _listingScope: WorkspaceFolderRepositories | undefined;
+	private readonly _listingScope: ISessionsListingScope;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IChatViewSessionsListService private readonly _chatViewSessionsListService: IChatViewSessionsListService,
+		@IWorkspaceFolderRepositories repositories: IWorkspaceFolderRepositories,
+		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
 	) {
 		super(lifecycleService);
+		const listsAll = chatViewSessionsListService.listsAllSessions;
+		this._listingScope = {
+			folders: derived(this, reader => listsAll.read(reader) ? [] : repositories.folders.read(reader)),
+			gitHubRepositories: derived(this, reader => listsAll.read(reader) ? [] : repositories.gitHubRepositories.read(reader)),
+		};
 	}
 
 	override registerProvider(provider: ISessionsProvider): IDisposable {
@@ -41,11 +46,6 @@ export class EditorWindowSessionsProvidersService extends SessionsProvidersServi
 
 	/** Scopes the listing of `provider` before it registers, so that no consumer sees it list another session. */
 	private _applyListingScope(provider: ISessionsProvider): void {
-		provider.setListingScope?.(this._getListingScope());
-	}
-
-	private _getListingScope(): ISessionsListingScope {
-		this._listingScope ??= this._register(this._instantiationService.createInstance(WorkspaceFolderRepositories, this._chatViewSessionsListService.listsAllSessions));
-		return this._listingScope;
+		provider.setListingScope?.(this._listingScope);
 	}
 }

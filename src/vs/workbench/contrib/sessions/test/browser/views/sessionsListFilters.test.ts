@@ -404,6 +404,35 @@ suite('SessionsListFilters', () => {
 		});
 	});
 
+	test('each window keeps its own workspace pick while sharing the profile\'s other filters', () => {
+		const firstWindow = store.add(new InMemoryStorageService());
+		const secondWindow = store.add(new InMemoryStorageService());
+		const shareProfile = (from: InMemoryStorageService, to: InMemoryStorageService) => {
+			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
+				for (const key of from.keys(StorageScope.PROFILE, target)) {
+					to.store(key, from.get(key, StorageScope.PROFILE), StorageScope.PROFILE, target);
+				}
+			}
+		};
+		const first = createFilters(firstWindow);
+		first.setExcluded({ kind: 'environment', id: 'local' }, true);
+		first.setInboxWorkspace({ environment: 'local', resource: 'file:///first', label: 'first' });
+		shareProfile(firstWindow, secondWindow);
+		const secondOpened = createFilters(secondWindow);
+		const opened = { scope: secondOpened.inboxScope, excluded: secondOpened.isExcluded({ kind: 'environment', id: 'local' }) };
+		secondOpened.setInboxWorkspace({ environment: 'local', resource: 'file:///second', label: 'second' });
+		shareProfile(secondWindow, firstWindow);
+		assert.deepStrictEqual({
+			opened,
+			first: createFilters(firstWindow).inboxScope.workspace,
+			second: createFilters(secondWindow).inboxScope.workspace,
+		}, {
+			opened: { scope: {}, excluded: true },
+			first: { environment: 'local', resource: 'file:///first', label: 'first' },
+			second: { environment: 'local', resource: 'file:///second', label: 'second' },
+		});
+	});
+
 	test('No Workspace excludes hydrating sessions and workspace options react to metadata', () => {
 		const filters = createFilters();
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);

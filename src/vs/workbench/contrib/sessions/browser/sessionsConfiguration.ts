@@ -19,7 +19,7 @@ export const sessionsListConfigurationProperties = {
 	[SESSIONS_LIST_WORKSPACES_FILTER_SETTING]: {
 		type: 'boolean',
 		tags: ['experimental'],
-		description: localize('sessions.list.workspacesFilter.enabled', "Shows the workspace and environment filters in every Sessions list grouping. Picking a workspace filters the list and scopes the window to it; All Workspaces clears the scope. The selection is shared with Inbox and remembered."),
+		description: localize('sessions.list.workspacesFilter.enabled', "Shows the workspace and environment filters in every Sessions list grouping, in the Agents window and in all editor windows, including windows without a folder. Picking a workspace filters the list and scopes the window to it; All Workspaces shows the sessions of all workspaces and scopes the window to all of them. Each window remembers its own selection, which Inbox shares."),
 		default: false,
 	},
 	[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: {

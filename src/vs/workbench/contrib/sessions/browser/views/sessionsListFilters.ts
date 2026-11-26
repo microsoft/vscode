@@ -297,6 +297,7 @@ export class SessionsWorktreeOpener extends Disposable {
 
 export class SessionsListFilters extends Disposable implements ISessionsListResettableState {
 	private static readonly STORAGE_KEY = 'sessionsListControl.filters';
+	/** Stored per window, so that each window keeps its own workspace and environment pick. */
 	private static readonly INBOX_SCOPE_STORAGE_KEY = 'sessionsListControl.inboxScope';
 	private static readonly WORKTREE_STORAGE_KEY = 'sessionsListControl.worktree';
 	/** Retired: a filter that listed every automation run, now the `always` value of {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING}. */
@@ -338,7 +339,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		}
 		this._worktree = storageService.get(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE) || undefined;
 		this._inboxScope = this.readInboxScope(logService);
-		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, this._store)(e => {
+		this._register(storageService.onDidChangeValue(StorageScope.WORKSPACE, SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, this._store)(e => {
 			if (!e.external) {
 				const scope = this.readInboxScope(logService);
 				if (JSON.stringify(scope) !== JSON.stringify(this._inboxScope)) {
@@ -351,7 +352,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	}
 
 	private readInboxScope(logService: ILogService): IInboxScope {
-		const scope = this.storageService.get(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.PROFILE);
+		const scope = this.storageService.get(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (scope !== undefined) {
 			try {
 				const value: unknown = JSON.parse(scope);
@@ -527,9 +528,9 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 
 	private save(): void {
 		if (this.hasInboxScope) {
-			this.storageService.store(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, JSON.stringify(this._inboxScope), StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.store(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, JSON.stringify(this._inboxScope), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
-			this.storageService.remove(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.PROFILE);
+			this.storageService.remove(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 		if (this._worktree === undefined) {
 			this.storageService.remove(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE);

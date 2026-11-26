@@ -5,17 +5,21 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { extUriIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkbenchMode, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IEditableWorkspaceContextService } from '../../../../../services/configuration/common/configuration.js';
+import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../../common/chatConstants.js';
 import { SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
 import { SessionsWorkbenchScopeService } from '../../../browser/views/sessionsWorkbenchScope.js';
@@ -23,7 +27,7 @@ import { SessionsWorkbenchScopeService } from '../../../browser/views/sessionsWo
 suite('SessionsWorkbenchScope', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createScope() {
+	function createScope({ chatEnabled = true, hidden = false } = {}) {
 		const folder = URI.file('/work/repo');
 		let scope: URI | undefined = folder;
 		const workspace = new class extends mock<IEditableWorkspaceContextService>() {
@@ -40,10 +44,13 @@ suite('SessionsWorkbenchScope', () => {
 		const configuration = new TestConfigurationService({ [SESSIONS_LIST_WORKSPACES_FILTER_SETTING]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const identity = upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase });
-		const service = store.add(new SessionsWorkbenchScopeService(workspace, configuration, identity));
+		const contextKeyService = new MockContextKeyService();
+		contextKeyService.createKey(ChatContextKeys.enabled.key, chatEnabled);
+		const sentiment = observableValue<IChatSentiment>('sentiment', { hidden });
+		const service = store.add(new SessionsWorkbenchScopeService(workspace, configuration, identity, contextKeyService, upcastPartial<IChatEntitlementService>({ sentimentObs: sentiment })));
 		const storage = store.add(new InMemoryStorageService());
 		const filters = () => store.add(new SessionsListFilters(storage, store.add(new NullLogService()), configuration, identity));
-		return { service, workspace, configuration, filters };
+		return { service, workspace, configuration, filters, sentiment };
 	}
 
 	test('one window scope follows all registered lists and releases its override on disable or last disposal', async () => {
@@ -72,6 +79,25 @@ suite('SessionsWorkbenchScope', () => {
 			scopes: [undefined, 'file:///other', 'file:///other', 'file:///work/repo', 'file:///other', 'file:///work/repo'],
 			options: ['file:///work/repo'],
 		});
+	});
+
+	test('a bar scopes the window only while AI features are neither disabled nor hidden', () => {
+		const pick = { environment: 'local', resource: 'file:///other', label: 'other' };
+		const disabled = createScope({ chatEnabled: false });
+		const disabledFilters = disabled.filters();
+		disabledFilters.setInboxWorkspace(pick);
+		store.add(disabled.service.registerScopeBar(disabledFilters));
+		const hidden = createScope({ hidden: true });
+		const hiddenFilters = hidden.filters();
+		hiddenFilters.setInboxWorkspace(pick);
+		store.add(hidden.service.registerScopeBar(hiddenFilters));
+		const whileHidden = hidden.workspace.getWorkbenchScope()?.toString();
+		hidden.sentiment.set({ hidden: false }, undefined);
+		assert.deepStrictEqual({
+			disabled: disabled.workspace.getWorkbenchScope()?.toString(),
+			whileHidden,
+			shown: hidden.workspace.getWorkbenchScope()?.toString(),
+		}, { disabled: 'file:///work/repo', whileHidden: 'file:///work/repo', shown: 'file:///other' });
 	});
 
 	test('disposing the bar does not clear another component later window scope', () => {

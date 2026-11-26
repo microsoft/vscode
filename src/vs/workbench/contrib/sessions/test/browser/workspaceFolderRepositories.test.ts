@@ -55,7 +55,7 @@ suite('WorkspaceFolderRepositories', () => {
 			onDidChangeWorkspaceFolders: store.add(new Emitter<IWorkspaceFoldersChangeEvent>()).event,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(folder => upcastPartial<IWorkspaceFolder>({ uri: URI.file(folder) })) }),
 		}));
-		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories, constObservable(false)));
+		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
 		await timeout(0);
 		return { repositories: scope.repositories.get().map(uri => uri.path), gitHubRepositories: scope.gitHubRepositories.get(), warnings: warnings.length };
 	}
@@ -108,7 +108,7 @@ suite('WorkspaceFolderRepositories', () => {
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
-		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories, constObservable(false)));
+		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
 		const settled = () => timeout(0);
 		const changeFolders = (next: URI[]) => {
 			folders = next;
@@ -210,7 +210,7 @@ suite('WorkspaceFolderRepositories', () => {
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
-		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories, constObservable(false)));
+		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
 		const settled = () => timeout(0);
 		const snapshot = () => ({ repositories: scope.repositories.get().map(uri => uri.path), gitHub: scope.gitHubRepositories.get(), configReads: reads.filter(path => path.endsWith('/config')).sort(), warnings: warnings.length });
 
@@ -247,7 +247,7 @@ suite('WorkspaceFolderRepositories', () => {
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
-		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories, constObservable(false)));
+		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
 		const settled = () => timeout(0);
 		const published = () => repositories.repositories.get().map(uri => uri.path);
 
@@ -283,7 +283,7 @@ suite('WorkspaceFolderRepositories', () => {
 			getWorkbenchState: () => state,
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: state === WorkbenchState.FOLDER ? repository : URI.file('/work/repo.code-workspace'), folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }),
 		}));
-		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories, constObservable(false)));
+		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
 		const sessionOf = (id: string, workingDirectory: string, root: string): ISession => ({ ...buildTestSession({ id, title: id }).session, workspace: constObservable<ISessionWorkspace | undefined>({ ...buildTestWorkspace(id), folders: [{ root: URI.file(root), workingDirectory: URI.file(workingDirectory), name: id, description: undefined, gitRepository: undefined }] }) });
 		const sessions = [sessionOf('main', '/work/repo', '/work/repo'), sessionOf('sibling', '/work/trees/other', '/work/repo'), sessionOf('followed', '/work/trees/feature', '/work/repo'), sessionOf('elsewhere', '/elsewhere', '/elsewhere')];
 		const filter = store.add(new SessionsListingScopeFilter(scope, () => sessions, Event.None));
