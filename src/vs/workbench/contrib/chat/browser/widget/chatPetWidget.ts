@@ -3505,15 +3505,23 @@ export class ChatPetWidget extends Disposable {
 		for (const subagentPet of subagentPets) {
 			const subagentPetLeft = subagentPet.left;
 			const subagentPetTop = subagentPet.top;
-			const overlaps = checkPlacement && subagentPets.some(other => other !== subagentPet && !other.isRespawning()
-				&& subagentPetLeft < other.left + size - SUBAGENT_PET_BOUNDARY_EPSILON && subagentPetLeft + size > other.left + SUBAGENT_PET_BOUNDARY_EPSILON
-				&& subagentPetTop < other.top + size - SUBAGENT_PET_BOUNDARY_EPSILON && subagentPetTop + size > other.top + SUBAGENT_PET_BOUNDARY_EPSILON);
-			const landing = checkPlacement ? getChatPetFallTarget(overlay.left + subagentPetLeft, overlay.top + subagentPetTop - POSITION_EPSILON, size, size, platforms, floor) : undefined;
-			const supported = !landing || Math.abs(landing.top - overlay.top - subagentPetTop) <= SUBAGENT_PET_BOUNDARY_EPSILON
-				|| subagentPets.some(other => other !== subagentPet && !other.isRespawning()
-					&& subagentPetLeft < other.left + size && subagentPetLeft + size > other.left
-					&& Math.abs(subagentPetTop + size - other.top) <= SUBAGENT_PET_BOUNDARY_EPSILON);
-			if (overlaps || !supported || subagentPetLeft < left - SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetLeft + size > right + SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetTop < movement.top - overlay.top - SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetTop + size > bottom + SUBAGENT_PET_BOUNDARY_EPSILON) {
+			const outsideBounds = subagentPetLeft < left - SUBAGENT_PET_BOUNDARY_EPSILON
+				|| subagentPetLeft + size > right + SUBAGENT_PET_BOUNDARY_EPSILON
+				|| subagentPetTop < movement.top - overlay.top - SUBAGENT_PET_BOUNDARY_EPSILON
+				|| subagentPetTop + size > bottom + SUBAGENT_PET_BOUNDARY_EPSILON;
+			let invalidPlacement = false;
+			if (checkPlacement) {
+				const overlaps = subagentPets.some(other => other !== subagentPet && !other.isRespawning()
+					&& subagentPetLeft < other.left + size - SUBAGENT_PET_BOUNDARY_EPSILON && subagentPetLeft + size > other.left + SUBAGENT_PET_BOUNDARY_EPSILON
+					&& subagentPetTop < other.top + size - SUBAGENT_PET_BOUNDARY_EPSILON && subagentPetTop + size > other.top + SUBAGENT_PET_BOUNDARY_EPSILON);
+				const landing = getChatPetFallTarget(overlay.left + subagentPetLeft, overlay.top + subagentPetTop - POSITION_EPSILON, size, size, platforms, floor);
+				const supported = Math.abs(landing.top - overlay.top - subagentPetTop) <= SUBAGENT_PET_BOUNDARY_EPSILON
+					|| subagentPets.some(other => other !== subagentPet && !other.isRespawning()
+						&& subagentPetLeft < other.left + size && subagentPetLeft + size > other.left
+						&& Math.abs(subagentPetTop + size - other.top) <= SUBAGENT_PET_BOUNDARY_EPSILON);
+				invalidPlacement = overlaps || !supported;
+			}
+			if (outsideBounds || invalidPlacement) {
 				displaced = true;
 				subagentPet.fallTo(movement.bottom - overlay.top - size, true);
 			}

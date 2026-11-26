@@ -3222,7 +3222,7 @@ suite('ChatPetWidget', () => {
 		assert.ok(overlay.querySelector('.chat-subagent-pet-despawning img')?.getAttribute('src')?.includes('buddy-respawn-'));
 		modelValue.set(undefined, undefined);
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 0);
-		await timeout(900);
+		await waitForPetAnimation(() => !overlay.querySelector('.chat-subagent-pet-despawning'));
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet-despawning').length, 0);
 	});
 
@@ -3446,7 +3446,9 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	test('subagent pets keep their initial size when crowded and resized', async () => {
+	test('subagent pets keep their initial size when crowded and resized', () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		disposables.add(toDisposable(() => clock.restore()));
 		const { widget, firstHost, overlay, firstParent, root, layout } = createHostTransitionHarness(true);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		const tools = Array.from({ length: 100 }, (_, index) => createSubagentTool(`subagent-${index}`));
@@ -3460,7 +3462,7 @@ suite('ChatPetWidget', () => {
 			root.style.height = '64px';
 			firstParent.style.top = '32px';
 			layout();
-			await timeout(50);
+			clock.tick(16);
 			assert.ok(subagentPets.every(subagentPet => Math.abs(subagentPet.getBoundingClientRect().width - initialSize) < 0.1));
 		}
 	});
@@ -3589,8 +3591,8 @@ suite('ChatPetWidget', () => {
 				const bounds = firstParent.getBoundingClientRect();
 				return [{ left: bounds.left, right: bounds.right, top: bounds.top - (promptVisible ? 60 : 0), isDefault: true }];
 			} });
-			await timeout(1_300);
 			const subagentPets = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
+			await waitForPetAnimation(() => subagentPets.every(subagentPet => subagentPet.getAnimations().length === 0 && subagentPet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-') === true));
 			promptVisible = true;
 			platformChanged.fire();
 			assert.ok(subagentPets.every(subagentPet => Math.abs(Number.parseFloat(subagentPet.style.top) + 24 + overlay.getBoundingClientRect().top - root.getBoundingClientRect().bottom) < 0.1));
@@ -3623,7 +3625,7 @@ suite('ChatPetWidget', () => {
 		assert.ok(image.getAttribute('src')?.includes('buddy-respawn-'));
 		tool.toolSpecificData = { kind: 'subagent', isActive: false };
 		changed.fire({ reason: 'other' });
-		await timeout(1_000);
+		await waitForPetAnimation(() => !overlay.querySelector('.chat-subagent-pet, .chat-subagent-pet-despawning'));
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet, .chat-subagent-pet-despawning').length, 0);
 	});
 
