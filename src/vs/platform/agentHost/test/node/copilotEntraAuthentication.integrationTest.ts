@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type EntraTokenProvider } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type EntraTokenProvider } from '@microsoft/copilot-sdk';
 import { Event } from '../../../../base/common/event.js';
 import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -105,8 +105,18 @@ suite('Copilot Entra authentication transport', () => {
 			}
 		}
 		const runtime = new CopilotClient({
-			mode: 'empty', baseDirectory: root, connection: RuntimeConnection.forStdio(),
-			useLoggedInUser: false, env, logLevel: 'error', entra: bridge.options,
+			mode: 'empty',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: root,
+				env: env,
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
+			observability: {
+				logLevel: 'error',
+			},
+			entra: bridge.options,
 		});
 		let stopping: ReturnType<CopilotClient['stop']> | undefined;
 		store.add(bridge.onDidRevoke(() => { stopping = runtime.stop(); }));
@@ -116,8 +126,17 @@ suite('Copilot Entra authentication transport', () => {
 			await client.call('initialize', { channel: ROOT_STATE_URI, clientId: 'entra-transport', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] });
 			await runtime.start();
 			session = await runtime.createSession({
-				configDirectory: root, availableTools: [], disabledMcpServers: ['github-mcp-server'],
-				enableConfigDiscovery: false, onPermissionRequest: approveAll,
+				configDirectory: root,
+				tools: {
+					availableTools: [],
+				},
+				mcp: {
+					disabledServers: ['github-mcp-server'],
+				},
+				enableConfigDiscovery: false,
+				permissions: {
+					onRequest: approveAll,
+				},
 			});
 			const accountSession = session;
 			const login = async () => {

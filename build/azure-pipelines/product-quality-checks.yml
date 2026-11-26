@@ -14,11 +14,14 @@ parameters:
 jobs:
   - job: Quality
     displayName: Quality Checks
-    # Leave enough time for NOTICE retries and the fallback path to finish.
-    timeoutInMinutes: 30
+    # Leave enough time for Component Detection, NOTICE retries and the fallback path to finish.
+    timeoutInMinutes: 35
     variables:
       - name: skipComponentGovernanceDetection
         value: true
+      # Component Detection hits the pipeline-wide 600 second timeout on this repository.
+      - name: ComponentDetection.Timeout
+        value: 900
       - name: Codeql.SkipTaskAutoInjection
         value: true
       - name: CG_NOTICE_CACHE_BRANCH
@@ -88,6 +91,8 @@ jobs:
           VSCODE_ARCH: x64
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Download vscode sysroots
+
+      - template: ./linux/steps/restore-chromium-build-files.yml@self
 
       - script: |
           set -e
@@ -400,7 +405,7 @@ jobs:
       - script: rm -rf .oss-build-out ThirdPartyNotices.generated.txt
         displayName: Remove NOTICE intermediates
 
-      - script: pnpm exec npm-run-all2 -lp core-ci hygiene oxlint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+      - script: pnpm exec npm-run-all2 -lp core-ci hygiene oxlint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check typecheck-test-unit test-build-scripts
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile & Hygiene

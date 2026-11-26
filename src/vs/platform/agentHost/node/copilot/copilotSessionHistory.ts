@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, SessionEvent } from '@github/copilot-sdk';
+import type { CopilotClient, SessionEvent } from '@microsoft/copilot-sdk';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';

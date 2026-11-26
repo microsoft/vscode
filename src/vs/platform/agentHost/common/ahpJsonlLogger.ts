@@ -428,6 +428,16 @@ function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number):
 	});
 }
 
+/** Returns an `authenticate` request with its access token and ID Token redacted, or `undefined` when there is nothing to redact. */
+function redactAuthenticationRequest(message: Record<string, unknown>): Record<string, unknown> | undefined {
+	const params = message.params;
+	if (message.method !== 'authenticate' || !isRecord(params)) {
+		return undefined;
+	}
+	const secrets = ['token', 'idToken'].filter(field => params[field] !== undefined && params[field] !== '<redacted>' && params[field] !== '[REDACTED]');
+	return secrets.length ? { ...message, params: { ...params, ...Object.fromEntries(secrets.map(field => [field, '<redacted>'])) } } : undefined;
+}
+
 /**
  * JSON.stringify replacer that converts URI values to their canonical string
  * form. `URI.prototype.toJSON()` runs before this replacer is invoked and
@@ -455,9 +465,9 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 		if (isRecord(value.result) && Array.isArray(value.result.certificates)) {
 			return { ...value, result: { ...value.result, certificates: '<redacted>' } };
 		}
-		if (value.method === 'authenticate' && isRecord(value.params) && value.params.token !== undefined
-			&& value.params.token !== '<redacted>' && value.params.token !== '[REDACTED]') {
-			return { ...value, params: { ...value.params, token: '<redacted>' } };
+		const redactedAuthentication = redactAuthenticationRequest(value);
+		if (redactedAuthentication) {
+			return redactedAuthentication;
 		}
 		if (value.method === RegisterGitHubEnvironmentExtensionMethod && isRecord(value.params) && value.params.credential !== undefined
 			&& value.params.credential !== '<redacted>') {

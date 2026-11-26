@@ -18,7 +18,7 @@ import { testWorkspace } from '../../../../../../platform/workspace/test/common/
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import '../../../browser/aiCustomization/aiCustomizationManagement.contribution.js';
+import { AICustomizationManagementActionsContribution, AICustomizationManagementEditorInputSerializer } from '../../../browser/aiCustomization/aiCustomizationManagement.contribution.js';
 import {
 	AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY,
 	AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY,
@@ -45,6 +45,9 @@ import { AICustomizationWorkspaceService } from '../../../browser/aiCustomizatio
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { resolveWorkspaceTargetDirectory } from '../../../browser/aiCustomization/customizationCreatorService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { IWorkbenchExtensionManagementService } from '../../../../../services/extensionManagement/common/extensionManagement.js';
 
 suite('AI customization management contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,6 +62,68 @@ suite('AI customization management contribution', () => {
 
 	test('Marketplace is not registered as a separate management section', () => {
 		assert.strictEqual(aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.Marketplace), undefined);
+	});
+
+	test('phone entry points reject before constructing a desktop customization editor', async () => {
+		const instantiationService = workbenchInstantiationService({}, store);
+		const container = mainWindow.document.createElement('div');
+		container.classList.add('phone-layout');
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ mainContainer: container }));
+		instantiationService.stub(IWorkbenchExtensionManagementService, upcastPartial<IWorkbenchExtensionManagementService>({
+			onProfileAwareDidInstallExtensions: Event.None,
+			onProfileAwareDidUninstallExtension: Event.None,
+			onDidChangeProfile: Event.None,
+			getInstalled: async () => [],
+		}));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
+		instantiationService.stub(ICustomizationHarnessService, upcastPartial<ICustomizationHarnessService>({
+			getActiveDescriptor: () => ({ id: 'vscode', label: 'VS Code', icon: Codicon.copilot }),
+		}));
+		instantiationService.stub(IAICustomizationWorkspaceService, upcastPartial<IAICustomizationWorkspaceService>({
+			activeProjectLabel: constObservable(undefined),
+		}));
+		let opened = 0;
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			openEditor: async input => {
+				if (input instanceof AICustomizationManagementEditorInput) {
+					store.add(input);
+				}
+				opened++;
+				return undefined;
+			},
+		}));
+		store.add(instantiationService.createInstance(AICustomizationManagementActionsContribution));
+		for (const id of [
+			AICustomizationManagementCommands.OpenEditor,
+			AICustomizationManagementCommands.OpenMarketplace,
+			AICustomizationManagementCommands.ShowPlugin,
+			AICustomizationManagementCommands.GenerateDebugReport,
+		]) {
+			await assert.rejects(
+				async () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor)),
+				/not available in the phone layout/,
+				id,
+			);
+		}
+		assert.strictEqual(opened, 0);
+	});
+
+	test('restoring customizations skips the unsupported phone presentation but retains desktop restoration', () => {
+		const instantiationService = workbenchInstantiationService({}, store);
+		const container = mainWindow.document.createElement('div');
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ mainContainer: container }));
+		const serializer = instantiationService.createInstance(AICustomizationManagementEditorInputSerializer);
+		container.classList.add('phone-layout');
+		const phone = serializer.deserialize(instantiationService);
+		if (phone) {
+			store.add(phone);
+		}
+		container.classList.remove('phone-layout');
+		const desktop = serializer.deserialize(instantiationService);
+		if (desktop) {
+			store.add(desktop);
+		}
+		assert.deepStrictEqual({ phone: !!phone, desktop: desktop instanceof AICustomizationManagementEditorInput }, { phone: false, desktop: true });
 	});
 
 	test('an explicit sessionResource uses its workspace in a different project or an empty editor window', async () => {

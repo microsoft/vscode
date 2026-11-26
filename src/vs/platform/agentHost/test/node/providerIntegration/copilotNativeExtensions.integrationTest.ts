@@ -13,7 +13,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AgentSession, fixedChatOwnerRef, type IAgentChatContext } from '../../../common/agent.js';
-import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { AgentHostCanvasesEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
 import type { ToolCallPendingConfirmationState } from '../../../common/state/protocol/channels-chat/state.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
@@ -136,7 +136,10 @@ suite('Agent Host Provider Integration — Copilot native extensions', function 
 
 	/** Starts a chat in `workspace` whose first turn has completed, so its runtime discovered the workspace's extensions. */
 	async function startChat(name: string, workspace: string) {
-		const copilot = createLocalEndpointCopilotAgent(store, directory, `http://127.0.0.1:${(server.address() as { port: number }).port}`, { [AgentHostCanvasesEnabledConfigKey]: true });
+		const copilot = createLocalEndpointCopilotAgent(store, directory, `http://127.0.0.1:${(server.address() as { port: number }).port}`, {
+			[AgentHostCanvasesEnabledConfigKey]: true,
+			[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] },
+		});
 		agent = copilot;
 		await copilot.authenticate(resource, 'legacy-l', 7200);
 		const session = AgentSession.uri('copilotcli', name);
@@ -190,19 +193,19 @@ suite('Agent Host Provider Integration — Copilot native extensions', function 
 		}), 'utf8');
 		await writeFile(join(extensionDirectory, 'extension.mjs'), `
 import { appendFileSync } from 'node:fs';
-import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
 import declaration from './extension.json' with { type: 'json' };
 appendFileSync(${JSON.stringify(launchLog)}, \`\${process.pid}\\n\`);
 const labels = [];
 await joinSession({
-	canvases: declaration.canvases.map(canvas => createCanvas({
+	canvases: { definitions: declaration.canvases.map(canvas => createCanvas({
 		...canvas,
 		actions: canvas.actions.map(action => ({ ...action, handler: ({ instanceId, input }) => {
 			labels.push(input.label);
 			return { instanceId, labels };
 		} })),
 		open: ({ instanceId }) => ({ url: \`http://127.0.0.1:43119/\${instanceId}\` }),
-	})),
+	})) },
 });
 `, 'utf8');
 		const launches = async () => existsSync(launchLog) ? (await readFile(launchLog, 'utf8')).split('\n').filter(Boolean).length : 0;
@@ -257,22 +260,22 @@ await joinSession({
 			tools: [{ name: 'lazy_lookup', title: 'Look Up Inventory', description: 'Looks up an inventory item.', parameters }],
 		}), 'utf8');
 		await writeFile(join(lazyDirectory, 'extension.mjs'), `
-import { joinSession } from '@github/copilot-sdk/extension';
+import { joinSession } from '@microsoft/copilot-sdk/extension';
 import declaration from './extension.json' with { type: 'json' };
 await joinSession({
-	tools: declaration.tools.map(tool => ({ ...tool, handler: ({ item }) => \`lazy found \${item}\` })),
+	tools: { definitions: declaration.tools.map(tool => ({ ...tool, handler: ({ item }) => \`lazy found \${item}\` })) },
 });
 `, 'utf8');
 		await writeFile(join(eagerDirectory, 'extension.mjs'), `
-import { joinSession } from '@github/copilot-sdk/extension';
+import { joinSession } from '@microsoft/copilot-sdk/extension';
 await joinSession({
-	tools: [{
+	tools: { definitions: [{
 		name: 'eager_lookup',
 		title: 'Look Up Orders',
 		description: 'Looks up an order.',
 		parameters: ${JSON.stringify(parameters)},
 		handler: ({ item }) => \`eager found \${item}\`,
-	}],
+	}] },
 });
 `, 'utf8');
 

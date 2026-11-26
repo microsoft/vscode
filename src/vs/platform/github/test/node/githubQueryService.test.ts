@@ -43,6 +43,7 @@ const policy: GitHubEntityPollingPolicy = {
 const availableCapabilities: GitHubHostCapabilities = {
 	graphql: true,
 	mergeQueue: true,
+	mergeQueueRemovals: true,
 	reviewThreads: true,
 	checkContextRequiredness: true,
 };
@@ -635,6 +636,7 @@ suite('GitHubQueryService', () => {
 			const unavailable: GitHubHostCapabilities = {
 				graphql: false,
 				mergeQueue: false,
+				mergeQueueRemovals: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
 			};

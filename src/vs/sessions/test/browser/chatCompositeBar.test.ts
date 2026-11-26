@@ -34,7 +34,8 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../workbench/
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { getSessionChatDragData, isSessionChatDrag, registerSessionChatDragEndHandler } from '../../../workbench/contrib/sessions/browser/dnd.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../workbench/common/chatSessionCommands.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsPartService } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
@@ -1253,7 +1254,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('runs the shared Close and read state commands from chat tab menus', async () => {
+	test('runs the shared Close and the sessions list\'s read state commands from chat tab menus, which every window with chat tabs registers, not the agent sessions\' Mark as Unread', async () => {
 		const { commandService, container, contextMenuService, session, tabs } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
 
@@ -1262,11 +1263,11 @@ suite('Sessions - ChatCompositeBar', () => {
 			tab.dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
 			await contextMenuService.delegate?.getActions().find(action => action.id === id)?.run();
 		};
-		await run(tabs[0], MARK_SESSION_UNREAD_COMMAND_ID);
+		await run(tabs[0], SESSIONS_LIST_MARK_UNREAD_COMMAND_ID);
 		await run(tabs[1], CLOSE_CHAT_COMMAND_ID);
 
 		assert.deepStrictEqual(commandService.calls, [
-			{ commandId: MARK_SESSION_UNREAD_COMMAND_ID, args: [{ session, chat: session.visibleChatTabs.get()[0] }] },
+			{ commandId: SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, args: [{ session, chat: session.visibleChatTabs.get()[0] }] },
 			{ commandId: CLOSE_CHAT_COMMAND_ID, args: [session, session.visibleChatTabs.get()[1], testPaneContext] },
 		]);
 	});

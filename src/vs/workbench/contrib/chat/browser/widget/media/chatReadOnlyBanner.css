@@ -40,6 +40,46 @@
 	white-space: nowrap;
 }
 
+/* Inline action (e.g. "Restore" for an archived session), styled as a link. */
+.chat-readonly-banner-action {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+}
+
+.chat-readonly-banner-action[hidden] {
+	display: none;
+}
+
+.chat-readonly-banner-action .monaco-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.chat-readonly-banner-action .monaco-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.chat-readonly-banner-action .monaco-link:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/*
+ * Announced by the banner's live region; the visible text is aria-hidden so a
+ * ticking countdown does not queue an utterance per update.
+ */
+.chat-readonly-banner-announcement {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
 .hc-black .chat-readonly-banner,
 .hc-light .chat-readonly-banner {
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);

@@ -31,6 +31,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { EditorsOrder } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -50,7 +51,7 @@ import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IDataBreakp
 import { Source } from '../common/debugSource.js';
 import { DebugStorage, IChosenEnvironment } from '../common/debugStorage.js';
 import { DebugTelemetry } from '../common/debugTelemetry.js';
-import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from '../common/debugUtils.js';
+import { getExtensionHostDebugSession, saveAllBeforeDebugStart, stopSessionsAndWaitForEnd } from '../common/debugUtils.js';
 import { ViewModel } from '../common/debugViewModel.js';
 import { DisassemblyViewInput } from '../common/disassemblyViewInput.js';
 import { AdapterManager } from './debugAdapterManager.js';
@@ -67,6 +68,7 @@ export class DebugService implements IDebugService {
 	private readonly _onDidNewSession: Emitter<IDebugSession>;
 	private readonly _onWillNewSession: Emitter<IDebugSession>;
 	private readonly _onDidEndSession: Emitter<{ session: IDebugSession; restart: boolean }>;
+	private readonly endedSessions = new WeakSet<IDebugSession>();
 	private readonly restartingSessions = new Set<IDebugSession>();
 	private debugStorage: DebugStorage;
 	private model: DebugModel;
@@ -114,6 +116,7 @@ export class DebugService implements IDebugService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITestService private readonly testService: ITestService,
+		@IWorkspaceEditingService workspaceEditingService: IWorkspaceEditingService,
 	) {
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
@@ -211,6 +214,24 @@ export class DebugService implements IDebugService {
 				this.model.getSessions().length > 0,
 				nls.localize('active debug session', 'A debug session is still running that would terminate.'),
 			);
+		}));
+
+		this.disposables.add(this.onDidEndSession(e => {
+			if (e.restart) {
+				this.endedSessions.delete(e.session);
+			} else {
+				this.endedSessions.add(e.session);
+			}
+		}));
+
+		this.disposables.add(workspaceEditingService.onWillRemoveFolders(evt => {
+			const sessions = this.model.getSessions().filter(session => session.root && evt.folders.some(folder => this.uriIdentityService.extUri.isEqual(folder, session.root!.uri)));
+			if (sessions.length > 0) {
+				evt.veto(nls.localize('active debug session removing folder', 'A debug session is running.'), async () => {
+					// Terminating resolves before the sessions end, so wait for them, including their post-debug tasks
+					await stopSessionsAndWaitForEnd(sessions, session => this.stopSession(session), this.onDidEndSession, session => this.endedSessions.has(session));
+				});
+			}
 		}));
 
 		this.initContextKeys(contextKeyService);

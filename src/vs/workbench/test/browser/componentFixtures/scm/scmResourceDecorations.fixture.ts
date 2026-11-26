@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append } from '../../../../../base/browser/dom.js';
+import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -16,6 +17,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { StructuralDiffClassification, SymbolKind } from '../../../../../editor/common/languages.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
+import { getCountBadgeStyle } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { UnthemedProductIconTheme } from '../../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -81,7 +83,7 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'Six Source Control resource rows show modified, untracked, deleted, renamed, read-only, and contains-changes states. The M, U, D, and R text decorations use the same text size, each is centered in an equal-width box, and their centers form one vertical column. The deleted filename is struck through and each decoration retains its Git theme color. The read-only lock and bubbled-child glyph retain their existing icon size and weight instead of using the text-badge typography.',
+			'Six Source Control resource rows show modified, untracked, deleted, renamed, read-only, and contains-changes states. The M, U, D, and R text decorations use the same text size and share a centerline. The deleted filename is struck through and each decoration retains its Git theme color. The read-only lock and bubbled-child glyph retain their existing icon size and weight instead of using the text-badge typography.',
 		],
 		render: context => renderResourceDecorations(context, fixtureResources, 280),
 	}),
@@ -89,7 +91,7 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'Five file rows each have an indented structural child. Single M, A, D, and R status letters on file and structural rows use the same text size and dimmed opacity, each is centered in an equal-width box, and their centers form one vertical column. The wider 5, M diagnostic badge ends at the same right edge and extends to the left, so its M sits slightly right of that column. Implementation annotations stay before the M on structural rows, while renames have R without an annotation. Filenames, symbol icons, and theme colors are preserved.',
+			'The single-digit Changes count is centered within a circular badge, and its final digit and the final letters on all file and structural rows share the trailing control centerline. The diagnostic count in 5, M extends to the left of the centered M. Implementation annotations stay before the status letters. Filenames, symbol icons, and theme colors are preserved.',
 		],
 		render: context => renderResourceDecorations(context, mixedFixtureResources, 360),
 	}),
@@ -97,7 +99,7 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'A narrow Source Control list shows files and indented structural children. Single M, A, D, and R status letters remain fully visible, each centered in an equal-width box, and their centers form one vertical column. The 5, M diagnostic badge retains its count, ends at the same right edge, and extends to the left. Long file and symbol names truncate with ellipses before the annotations and badges.',
+			'A narrow Source Control list shows a centered, circular Changes count, files, and indented structural children. The final count digit and status letters stay centered on the trailing control column, including the M in 5, M. Long file and symbol names truncate with ellipses before the annotations and badges.',
 		],
 		render: context => renderResourceDecorations(context, mixedFixtureResources, 220),
 	}),
@@ -168,13 +170,18 @@ function renderResourceDecorations({ container, disposableStore, theme, fileIcon
 		contents.style.paddingLeft = nested ? 'var(--vscode-spacing-size160)' : '';
 		return contents;
 	};
+	if (treeRows) {
+		const group = append(createRow(false), $('.resource-group'));
+		append(group, $('.name')).textContent = 'Changes';
+		disposableStore.add(new CountBadge(append(group, $('.count')), { count: resources.length }, getCountBadgeStyle({ badgeBackground: undefined, badgeBorder: undefined })));
+	}
 	for (const fixtureResource of resources) {
 		const resource = append(createRow(false), $('.resource'));
 		const name = append(resource, $('.name'));
 		const label = resourceLabels.create(name);
 		label.setFile(fixtureResource.resource, {
 			fileKind: fixtureResource.fileKind,
-			fileDecorations: { colors: false, badges: true },
+			fileDecorations: { colors: false, badges: true, alignBadgeLastCharacter: true },
 			hidePath: true,
 		});
 		if (fixtureResource.structuralChange) {

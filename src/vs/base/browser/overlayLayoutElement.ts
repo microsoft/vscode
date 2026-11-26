@@ -162,7 +162,7 @@ function getOrCreateAnchorName(element: HTMLElement): string {
 /**
  * Positions an element over another element anywhere in the dom using absolute positioning.
  *
- * This is useful for cases where a dom node cannot be re-parented without losing its state, such as a iframe.
+ * This is useful for cases where reparenting with appendChild would lose state, such as an iframe.
  *
  * Call {@link setAnchorElement} each time the layout is recalculated. When the
  * same anchor element is passed again the call is a no-op (the browser keeps them in sync).
@@ -254,6 +254,12 @@ export class OverlayLayoutElement implements IDisposable {
 			readonly clippingContainer?: HTMLElement;
 		},
 	): void {
+		const parent = this._root.parentElement;
+		if (parent && typeof parent.moveBefore === 'function' && this._root.isConnected && (this._root.compareDocumentPosition(anchorElement) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+			// CSS anchors must precede the overlay; moveBefore preserves iframe state.
+			parent.moveBefore(this._root, null);
+		}
+
 		if (this._currentAnchor?.element !== anchorElement) {
 			const name = getOrCreateAnchorName(anchorElement);
 			this.content.style.setProperty('position-anchor', name);

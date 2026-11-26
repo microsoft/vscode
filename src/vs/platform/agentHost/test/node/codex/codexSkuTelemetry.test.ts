@@ -25,6 +25,7 @@ import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../../node/agentHostFileEditCoordinator.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService } from '../../../node/agentHostAuthenticationService.js';
 import { AgentHostClientConnectionService } from '../../../node/agentHostClientConnectionService.js';
@@ -74,6 +75,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostGitHubEndpointService, endpoints);
 	instantiationService.stub(ISessionDataService, createNullSessionDataService());
+	instantiationService.stub(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
 	instantiationService.stub(ICodexProxyService, disposables.add(new CodexProxyService(undefined, logService, apiService)));
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);

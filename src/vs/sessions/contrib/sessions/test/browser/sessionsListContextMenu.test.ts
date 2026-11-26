@@ -45,7 +45,8 @@ import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../.
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
@@ -212,6 +213,36 @@ suite('Sessions list context menus', () => {
 				menuDisposed: true,
 			});
 		}
+	});
+
+	test('the menu of a session, also from the keyboard, does not reach a context menu of the view the list is in; one of empty space does', () => {
+		const { container, contextMenuService } = createList(false, true);
+		const reachedView: string[] = [];
+		const onViewContextMenu = (e: MouseEvent) => reachedView.push((e.target as HTMLElement).classList.contains('session-item') ? 'session' : 'empty');
+		container.addEventListener('contextmenu', onViewContextMenu);
+		const shown = () => {
+			const ids = contextMenuService.delegate?.getActions().map(action => action.id) ?? [];
+			contextMenuService.delegate?.onHide?.(false);
+			contextMenuService.delegate = undefined;
+			return ids;
+		};
+		const sessionRow = container.querySelector<HTMLElement>('.session-item')!;
+
+		dispatchContextMenu(sessionRow);
+		const session = shown();
+		selectRow(sessionRow);
+		const tree = container.querySelector<HTMLElement>('.monaco-list')!;
+		tree.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'F10', keyCode: 121, shiftKey: true }));
+		tree.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'F10', keyCode: 121, shiftKey: true }));
+		const keyboard = shown();
+		dispatchContextMenu(container.querySelector<HTMLElement>('.monaco-list-rows')!);
+		container.removeEventListener('contextmenu', onViewContextMenu);
+
+		assert.deepStrictEqual({ session, keyboard, reachedView }, {
+			session: ['extension.action', 'vs.actions.separator', 'sessions.addToGroupSubmenu', 'sessions.createGroup'],
+			keyboard: ['extension.action', 'vs.actions.separator', 'sessions.addToGroupSubmenu', 'sessions.createGroup'],
+			reachedView: ['empty'],
+		});
 	});
 
 	test('inbox does not offer unsupported group creation in empty space or category menus', () => {
@@ -1106,8 +1137,8 @@ suite('Sessions list context menus', () => {
 			chat: describe(Menus.SessionChatItemContext, MOVE_CHAT_TO_SESSION_ACTION_ID, { ...base, 'sessionChatItem.canMove': true, 'sessionChatItem.hasMoveDestination': true }, 'sessionChatItem.hasMoveDestination'),
 			session: { ...describe(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID, { ...base, 'sessionItem.hasMoveDestination': true }, 'sessionItem.hasMoveDestination'), multiSelection: { shown: !!item(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID)?.when?.evaluate({ getValue: <T>(key: string) => ({ ...base, 'sessionItem.hasMoveDestination': true, 'sessionItem.isMultiSelection': true } as Record<string, unknown>)[key] as T }), enabled: !!item(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID)?.command.precondition?.evaluate({ getValue: <T>(key: string) => ({ 'sessionItem.isMultiSelection': true } as Record<string, unknown>)[key] as T }) } },
 		}, {
-			chat: { title: 'Move to Session...', group: '1_move', order: 2, enabled: true, settingOff: false, aiDisabled: false, noDestination: false },
-			session: { title: 'Move to Session...', group: '1_move', order: 1, enabled: true, settingOff: false, aiDisabled: false, noDestination: false, multiSelection: { shown: true, enabled: false } },
+			chat: { title: 'Move to Session...', group: '2_organize', order: 3, enabled: true, settingOff: false, aiDisabled: false, noDestination: false },
+			session: { title: 'Move to Session...', group: '2_organize', order: 3, enabled: true, settingOff: false, aiDisabled: false, noDestination: false, multiSelection: { shown: true, enabled: false } },
 		});
 	});
 
@@ -1201,7 +1232,7 @@ suite('Sessions list context menus', () => {
 		}, {
 			title: 'Move to New Session',
 			group: '2_organize',
-			order: 3,
+			order: 4,
 			shown: { enabled: true, settingOff: false, aiDisabled: false, notMovable: false },
 			results: [true, false, false, false],
 			events: [

@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, SessionEventPayload, SkillInvokedData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, SessionEventPayload, SkillInvokedData } from '@microsoft/copilot-sdk';
 import { assertNever } from '../../../../base/common/assert.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, escapeUntrustedMarkdown, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownLinkText, escapeMarkdownSyntaxTokens, escapeUntrustedMarkdown, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
 import { escapeIcons } from '../../../../base/common/iconLabels.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import { AgentPermissionKind } from '../../common/agent.js';
+import { TOOL_NOT_FOUND_ERROR_CODE } from '../../common/agentHostTelemetry.js';
 import { copilotCliToolInputContract, type ToolKind, type ViewedResourceType } from '../../common/meta/agentToolCallMeta.js';
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
-import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
+import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResult } from '../../common/state/protocol/state.js';
 import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import type { ISessionPathDisplay } from '../../common/sessionPathDisplay.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -29,7 +30,7 @@ import { COMPUTER_USE_ACTIVATION_TOOL_NAME } from './copilotComputerUseActivatio
 // =============================================================================
 // Copilot CLI built-in tool interfaces
 //
-// The Copilot CLI (via @github/copilot-sdk) exposes these built-in tools. Tool names
+// The Copilot CLI (via @microsoft/copilot-sdk) exposes these built-in tools. Tool names
 // and parameter shapes are not typed in the SDK -- they come from the CLI server
 // as plain strings. These interfaces are derived from observing the CLI's actual
 // tool events and the Copilot Chat extension's CLI display table.
@@ -141,6 +142,21 @@ export function getViewedResourceType(toolName: string, toolTelemetry: unknown):
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * The error of a failed tool call. The runtime reports a call naming a tool the
+ * session does not offer with the generic `failure` code and marks it only in
+ * its tool telemetry, so this gives that call its own code.
+ */
+export function getSdkToolCallError(data: Pick<SessionEventPayload<'tool.execution_complete'>['data'], 'success' | 'error' | 'toolTelemetry'>): ToolCallResult['error'] {
+	if (data.success || !data.error) {
+		return data.error;
+	}
+	const properties = isObject(data.toolTelemetry) ? (data.toolTelemetry as Record<string, unknown>).properties : undefined;
+	return isObject(properties) && (properties as Record<string, unknown>).failure_reason === 'not_found'
+		? { ...data.error, code: TOOL_NOT_FOUND_ERROR_CODE }
+		: data.error;
 }
 
 /**
@@ -281,16 +297,24 @@ interface ICopilotLongRunningSearchToolArgs {
 }
 
 export type ToolAgentNameResolver = (agentId: string) => string | undefined;
+export type ToolAgentChatResolver = (agentId: string) => string | undefined;
+
+export function formatSubagentChatLink(name: string, chat: string): string {
+	return new MarkdownString().appendLink(chat, escapeMarkdownLinkText(name)).value;
+}
 
 /**
  * Resolves SDK agent ids to their subagent chat titles for presentation without changing invocation arguments.
  * Unknown ids and blank titles fall back to the raw id.
  */
-function getAgentLabel(agentId: unknown, resolveAgentName: ToolAgentNameResolver | undefined): string | undefined {
+function formatAgentLabel(agentId: unknown, resolveAgentName: ToolAgentNameResolver | undefined, resolveAgentChat: ToolAgentChatResolver | undefined): string | undefined {
 	if (typeof agentId !== 'string' || agentId.length === 0) {
 		return undefined;
 	}
-	return resolveAgentName?.(agentId)?.trim() || agentId;
+	const name = resolveAgentName?.(agentId)?.trim();
+	const chat = name ? resolveAgentChat?.(agentId) : undefined;
+	const label = name || agentId;
+	return chat ? formatSubagentChatLink(label, chat) : appendEscapedMarkdownInlineCode(label);
 }
 
 /**
@@ -756,7 +780,7 @@ export function getToolDisplayName(toolName: string, metadata?: Pick<AssistantMe
 	}
 }
 
-export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
+export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, resolveAgentChat?: ToolAgentChatResolver): StringOrMarkdown {
 	const serverDisplay = getServerToolDisplay(toolName, parameters)?.invocationMessage;
 	if (serverDisplay !== undefined) {
 		return serverDisplay;
@@ -916,25 +940,26 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.ListAgents:
 			return localize('toolInvoke.listAgents', "List agents");
 		case CopilotToolName.ReadAgent: {
-			const agentLabel = getAgentLabel(parameters?.agent_id, resolveAgentName);
+			const agentLabel = formatAgentLabel(parameters?.agent_id, resolveAgentName, resolveAgentChat);
 			if (agentLabel) {
-				return md(localize('toolInvoke.readAgent', "Read agent {0}", appendEscapedMarkdownInlineCode(agentLabel)));
+				return md(localize('toolInvoke.readAgent', "Read agent {0}", agentLabel));
 			}
 			return localize('toolInvoke.readAgentGeneric', "Read agent");
 		}
 		case CopilotToolName.WriteAgent: {
-			const agentLabel = getAgentLabel(parameters?.agent_id, resolveAgentName);
-			if (agentLabel) {
-				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentLabel)));
+			const formatAgent = (agentId: unknown) => formatAgentLabel(agentId, resolveAgentName, resolveAgentChat);
+			const agent = formatAgent(parameters?.agent_id);
+			if (agent) {
+				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", agent));
 			}
 			const agentLabels = Array.isArray(parameters?.agent_ids)
-				? parameters.agent_ids.map(agentId => getAgentLabel(agentId, resolveAgentName)).filter(label => label !== undefined)
+				? parameters.agent_ids.map(formatAgent).filter(label => label !== undefined)
 				: [];
 			if (agentLabels.length === 1) {
-				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentLabels[0])));
+				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", agentLabels[0]));
 			}
 			if (agentLabels.length > 1) {
-				return md(localize('toolInvoke.writeAgents', "Write to agents {0}", agentLabels.map(label => appendEscapedMarkdownInlineCode(label)).join(', ')));
+				return md(localize('toolInvoke.writeAgents', "Write to agents {0}", agentLabels.join(', ')));
 			}
 			if (parameters?.scope === 'children') {
 				return localize('toolInvoke.writeChildAgents', "Write to child agents");
@@ -952,7 +977,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 /**
  * Returns the progressively refined message shown while Copilot generates tool input.
  */
-export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
+export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, resolveAgentChat?: ToolAgentChatResolver): StringOrMarkdown {
 	const objectParameters = parameters !== null && typeof parameters === 'object' && !Array.isArray(parameters)
 		? parameters as Record<string, unknown>
 		: undefined;
@@ -993,7 +1018,7 @@ export function getStreamingInvocationMessage(toolName: string, displayName: str
 			return getStreamingPatchMessage(getEditFilePaths(parameters), streamingToolTextLineCount(patch), resolvePath);
 		}
 		default:
-			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath, resolveAgentName);
+			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath, resolveAgentName, resolveAgentChat);
 	}
 }
 
@@ -1013,7 +1038,7 @@ export function getSdkImageGenerationMetadata(data: unknown, toolUsage?: unknown
 	return parseImageGenerationToolMetadata({ requestedModel, usage: toolUsage });
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, imageGeneration?: IImageGenerationToolMetadata): StringOrMarkdown {
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, imageGeneration?: IImageGenerationToolMetadata, resolveAgentChat?: ToolAgentChatResolver): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
 	}
@@ -1065,7 +1090,7 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.Task:
 			return localize('toolComplete.task', "Delegated task");
 		default:
-			return getInvocationMessage(toolName, displayName, parameters, resolvePath, resolveAgentName);
+			return getInvocationMessage(toolName, displayName, parameters, resolvePath, resolveAgentName, resolveAgentChat);
 	}
 }
 
@@ -1493,11 +1518,12 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 		}
 		case 'mcp': {
 			const title = request.toolTitle?.trim() || toolName || localize('copilot.permission.mcp.defaultTool', "MCP Tool");
+			const serverLabel = request.serverDisplayName?.trim() || serverName;
 			return {
-				confirmationTitle: serverName
-					? localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverName)
+				confirmationTitle: serverLabel
+					? localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverLabel)
 					: localize('copilot.permission.default.title', "Allow tool call?"),
-				invocationMessage: serverName ? localize('copilot.permission.mcp.invocation', "{0}: {1}", serverName, title) : title,
+				invocationMessage: serverLabel ? localize('copilot.permission.mcp.invocation', "{0}: {1}", serverLabel, title) : title,
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
 				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: path,

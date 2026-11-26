@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -12,6 +14,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { AgentHostPullRequestOperationId } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -23,7 +26,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -52,8 +55,9 @@ suite('ChangesActionsBar', () => {
 						: arg;
 	}
 
-	function createBar(providerId: string, getActionsOptions: Map<MenuId, IMenuActionOptions | undefined> = new Map(), { isMainWindowSession = false, operations = [] as ISessionChangesetOperation[], artifactIntegrationsEnabled = false, toolbar = [] as [string, Array<MenuItemAction | SubmenuItemAction>][] } = {}) {
+	function createBar(providerId: string, getActionsOptions: Map<MenuId, IMenuActionOptions | undefined> = new Map(), { isMainWindowSession = false, operations = [] as ISessionChangesetOperation[], artifactIntegrationsEnabled = false, toolbar = [] as [string, Array<MenuItemAction | SubmenuItemAction>][], invokeOperation = (_operationId: string): Promise<void> => Promise.resolve() } = {}) {
 		const menus: MenuId[] = [];
+		const errors: (NotificationMessage | NotificationMessage[])[] = [];
 		const toolbarArgs: unknown[] = [];
 		const shownMenus: (readonly IAction[])[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
@@ -74,7 +78,7 @@ suite('ChangesActionsBar', () => {
 		instantiationService.stub(IChatPetService, upcastPartial<IChatPetService>({}));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
-		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({}));
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: message => { errors.push(message instanceof Error ? message.message : message); } }));
 		instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({ onDidLayoutContainer: Event.None, mainContainer: document.createElement('div'), getContainer: () => document.createElement('div') }));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		// A created session whose folder, a worktree, is not the mounted workspace: that of the main window's session.
@@ -96,14 +100,14 @@ suite('ChangesActionsBar', () => {
 			changes: upcastPartial<IChangesSessionObservables>({
 				stateObs: constObservable(undefined),
 				resourceObs: constObservable(undefined),
-				changesetObs: constObservable(operations.length > 0 ? upcastPartial<ISessionChangeset>({ id: 'branch', operations: constObservable(operations) }) : undefined),
+				changesetObs: constObservable(operations.length > 0 ? upcastPartial<ISessionChangeset>({ id: 'branch', operations: constObservable(operations), invokeOperation }) : undefined),
 				changesetOperationsObs: constObservable(operations),
 				loadingObs: constObservable(false),
 			}),
 		};
 		const container = document.createElement('div');
 		store.add(instantiationService.createInstance(ChangesActionsBar, container, source, new Set<string>()));
-		return { menus, session, container, toolbarArgs, shownMenus };
+		return { menus, session, container, toolbarArgs, shownMenus, errors };
 	}
 
 	test('renders the git variant for a non-agent-host source session', () => {
@@ -163,6 +167,21 @@ suite('ChangesActionsBar', () => {
 			button: container.querySelector('.monaco-button')?.textContent,
 			dropdown: shownMenus.map(actions => actions.map(action => action instanceof Separator ? '---' : action.label)),
 		}, { button: 'Merge Changes', dropdown: [['---', 'Submit Feedback (3)', 'Fix Checks']] });
+	});
+
+	test('shows the error of an operation that fails, such as Merge Changes that the agent host rejects for uncommitted changes in the parent repository, instead of dropping it, but not a cancellation', async () => {
+		const operations = [upcastPartial<ISessionChangesetOperation>({ id: 'merge', label: 'Merge Changes', scopes: [SessionChangesetOperationScope.Changeset] })];
+		const errorsOfClick = async (error: Error) => {
+			const { container, errors } = createBar('local-agent-host', new Map(), { operations, invokeOperation: () => Promise.reject(error) });
+			container.querySelector<HTMLElement>('.monaco-button')?.click();
+			await timeout(0);
+			return errors;
+		};
+
+		assert.deepStrictEqual({
+			rejected: await errorsOfClick(new ProtocolError(-32602, 'Commit or stash the changes in the parent repository before merging into \'main\'.')),
+			cancelled: await errorsOfClick(new CancellationError()),
+		}, { rejected: ['Commit or stash the changes in the parent repository before merging into \'main\'.'], cancelled: [] });
 	});
 
 	test('the actions of its operations dropdown, such as Agent Merge, act on the session of the bar, such as that of a chat window, not on the active session', () => {

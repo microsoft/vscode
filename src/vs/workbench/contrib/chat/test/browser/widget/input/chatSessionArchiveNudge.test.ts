@@ -177,24 +177,23 @@ suite('ChatSessionArchiveNudge', () => {
 		});
 	});
 
-	test('shows confetti when marking a merged pull request session as done', async () => {
+	test('starts confetti and its signal on click without waiting for archive completion', async () => {
 		const pending = new DeferredPromise<void>();
 		const { archive, configurationService, playedSignals } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 
 		archive.click();
-		const animationBeforeArchive = document.body.querySelector('.animation-overlay');
+		const particlesWhilePending = !!document.body.querySelector('.animation-confetti-particle');
+		const signalsWhilePending = [...playedSignals];
+		archive.click();
 		await pending.complete();
-		const animation = document.body.querySelector('.animation-overlay');
-		animation?.remove();
+		const animations = document.body.querySelectorAll('.animation-overlay');
+		animations.forEach(animation => animation.remove());
 
-		assert.deepStrictEqual({
-			animationBeforeArchive,
-			animationAfterArchive: !!animation,
-			playedSignals,
-		}, {
-			animationBeforeArchive: null,
-			animationAfterArchive: true,
+		assert.deepStrictEqual({ particlesWhilePending, signalsWhilePending, animations: animations.length, playedSignals }, {
+			particlesWhilePending: true,
+			signalsWhilePending: [AccessibilitySignal.confetti],
+			animations: 1,
 			playedSignals: [AccessibilitySignal.confetti],
 		});
 	});
@@ -212,20 +211,17 @@ suite('ChatSessionArchiveNudge', () => {
 		archive.style.cssText = 'position: fixed; left: 120px; top: 80px; width: 48px; height: 24px; box-sizing: border-box;';
 
 		archive.click();
-		const animationBeforeCompletion = document.querySelector('.animation-overlay');
 		await completion.complete();
 
 		const overlay = document.querySelector<HTMLElement>('.animation-overlay');
 		store.add(toDisposable(() => overlay?.remove()));
 		const particle = overlay?.querySelector<HTMLElement>('.animation-confetti-particle');
 		assert.deepStrictEqual({
-			animationBeforeCompletion,
 			buttonConnected: archive.isConnected,
 			bounds: overlay && [overlay.style.left, overlay.style.top, overlay.style.width, overlay.style.height],
 			particleOrigin: particle && [particle.style.left, particle.style.top],
 			inheritsWorkbenchTheme: overlay?.parentElement === container,
 		}, {
-			animationBeforeCompletion: null,
 			buttonConnected: false,
 			bounds: ['120px', '80px', '48px', '24px'],
 			particleOrigin: ['24px', '12px'],
@@ -599,11 +595,13 @@ suite('ChatSessionArchiveNudge', () => {
 		archive.click();
 		await pending.error(new Error('Worktree cleanup failed'));
 
-		assert.deepStrictEqual({ errors, button: archive.textContent, disabled: archive.getAttribute('aria-disabled'), animation: document.body.querySelector('.animation-overlay') }, {
+		const animations = document.body.querySelectorAll('.animation-overlay');
+		animations.forEach(animation => animation.remove());
+		assert.deepStrictEqual({ errors, button: archive.textContent, disabled: archive.getAttribute('aria-disabled'), animations: animations.length }, {
 			errors: ['Unable to mark the session as done: Worktree cleanup failed'],
 			button: 'Mark as Done',
 			disabled: 'false',
-			animation: null,
+			animations: 1,
 		});
 	});
 

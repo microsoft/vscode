@@ -27,7 +27,3 @@ export function toExternalPosition(position: Position): vscode.Position {
 export function toInternalTextEdit(range: vscode.Range, newText: string): TextReplacement {
 	return new TextReplacement(toInternalRange(range), newText);
 }
-
-export function toExternalTextEdit(edit: TextReplacement): vscode.TextEdit {
-	return new vscode.TextEdit(toExternalRange(edit.range), edit.text);
-}

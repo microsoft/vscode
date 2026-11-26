@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { $ } from '../../../../../../../base/browser/dom.js';
-import { retry } from '../../../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -14,17 +14,22 @@ import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMark
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatProgressContentPart } from '../../../../browser/widget/chatContentParts/chatProgressContentPart.js';
+import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
+import { rawMarkdownToString } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatAutomationConfiguredResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatAutomationConfiguredResultSubPart.js';
 import { ChatSessionTargetResultPillSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionTargetResultPillSubPart.js';
 import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -36,6 +41,8 @@ import { hasToolInvocationError, isAskQuestionsToolInvocation, isMcpToolInvocati
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IChatAutomationConfiguredData, IChatSessionTargetData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { ILanguageModelsService } from '../../../../common/languageModels.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../common/constants.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
@@ -609,6 +616,87 @@ suite('ChatToolProgressSubPart', () => {
 			flag: true,
 			details: true,
 			terminal: true,
+		});
+	});
+
+	function stubSubagentNavigation() {
+		const calls: { command: string; args: unknown[] }[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(command: string, ...args: unknown[]): Promise<R | undefined> {
+				calls.push({ command, args });
+				return undefined;
+			}
+		}());
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		instantiationService.stub(ILanguageModelsService, {
+			lookupLanguageModel: () => undefined,
+			getLanguageModelIds: () => [],
+			onDidChangeLanguageModels: Event.None,
+		});
+		return calls;
+	}
+
+	test('renders read and write recipients through the agent host adapter as navigable pills', async () => {
+		const calls = stubSubagentNavigation();
+		const context = createRenderContext();
+		const renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+		const chats = ['ahp-chat:/11111111-1111-5111-8111-111111111111', 'ahp-chat:/22222222-2222-5222-8222-222222222222'];
+		const part = disposables.add(instantiationService.createInstance(
+			ChatProgressContentPart,
+			{ content: rawMarkdownToString(`Write to agents [Renderer](${chats[0]}), [History](${chats[1]})`, 'local') },
+			renderer, context, false, true, undefined, undefined, false, undefined,
+		));
+		const host = mainWindow.document.body.appendChild($('.interactive-item-container'));
+		host.appendChild($('.value')).appendChild(part.domNode);
+		disposables.add(toDisposable(() => host.remove()));
+		const initialPills = part.domNode.querySelectorAll<HTMLElement>('.chat-subagent-pill-content');
+		assert.deepStrictEqual(Array.from(initialPills, pill => pill.querySelector('.chat-subagent-pill-label')?.textContent), ['Renderer', 'History']);
+		initialPills[0].click();
+		part.updateMessage(rawMarkdownToString(`Read agent [History](${chats[1]})`, 'remote-host'));
+		const updatedPills = part.domNode.querySelectorAll<HTMLElement>('.chat-subagent-pill-content');
+		assert.strictEqual(updatedPills.length, 1);
+		updatedPills[0].focus();
+		assert.strictEqual(mainWindow.document.activeElement, updatedPills[0]);
+		updatedPills[0].dispatchEvent(new mainWindow.KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		for (const type of ['keydown', 'keyup']) {
+			updatedPills[0].dispatchEvent(new mainWindow.KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true }));
+		}
+		await timeout(0);
+		assert.deepStrictEqual(calls, ['Renderer', 'History'].map((title, index) => ({
+			command: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
+			args: [{ chatResource: chats[index], parentSessionResource: context.element.sessionResource.toString(), title }],
+		})));
+	});
+
+	test('opens read and write agent links in collapsible tool titles without expanding the tool', async () => {
+		const calls = stubSubagentNavigation();
+		const chatResource = 'ahp-chat:/11111111-1111-5111-8111-111111111111';
+		const renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+		const rendered = [];
+		for (const [toolId, verb] of [['read_agent', 'Read agent'], ['write_agent', 'Write to agent']]) {
+			const part = renderToolInvocation({
+				...createSerializedToolInvocation({
+					isComplete: true,
+					toolId,
+					invocationMessage: rawMarkdownToString(`${verb} [Renderer](${chatResource})`, 'local'),
+				}),
+				resultDetails: { input: '{}', output: [] },
+			}, renderer);
+			const pill = part.domNode.querySelector<HTMLElement>('.chat-query-title-part .chat-subagent-pill-content');
+			assert.ok(pill, `${verb} must render its child-chat link as a pill`);
+			pill.click();
+			rendered.push({
+				title: pill.querySelector('.chat-subagent-pill-label')?.textContent,
+				expanded: part.domNode.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
+			});
+		}
+		await timeout(0);
+		assert.deepStrictEqual({ rendered, calls }, {
+			rendered: Array(2).fill({ title: 'Renderer', expanded: 'false' }),
+			calls: Array(2).fill({
+				command: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
+				args: [{ chatResource, parentSessionResource: createRenderContext().element.sessionResource.toString(), title: 'Renderer' }],
+			}),
 		});
 	});
 

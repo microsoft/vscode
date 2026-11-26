@@ -190,6 +190,27 @@ export interface PullRequestChecks {
 	readonly expectedSuitesComplete: boolean;
 }
 
+/** GitHub's `MergeQueueEntryState`. */
+export type PullRequestMergeQueueEntryState = 'QUEUED' | 'AWAITING_CHECKS' | 'MERGEABLE' | 'UNMERGEABLE' | 'LOCKED';
+
+/** Why and how a pull request last left its merge queue without merging, while nothing was pushed to it since. */
+export interface PullRequestMergeQueueRemoval {
+	/** The node ID of GitHub's `RemovedFromMergeQueueEvent`, which identifies this removal. */
+	readonly id: string;
+	/** GitHub's reason, such as `failed_checks`, `merge_conflict` or `manual`. */
+	readonly reason: string;
+	readonly removedAt: string;
+	/** The login of the person or app that removed it, when it was removed by hand. */
+	readonly removedBy?: string;
+	/** The commit the merge queue tested the pull request in, combined with the base branch and the pull requests ahead of it. */
+	readonly mergeGroupSha?: string;
+	/**
+	 * The checks that failed on {@link mergeGroupSha} when it was removed because checks failed. Some run only in the merge
+	 * queue, so they are not among the pull request's own checks. `undefined` when they were not or could not be read.
+	 */
+	readonly failedChecks?: readonly PullRequestCheck[];
+}
+
 export interface PullRequestMergeability {
 	readonly headSha: string;
 	readonly baseSha: string;
@@ -202,6 +223,14 @@ export interface PullRequestMergeability {
 	readonly allowedMergeMethods: readonly PullRequestMergeMethod[];
 	readonly autoMergeEnabled: boolean;
 	readonly mergeQueueEntryId?: string;
+	/** The state of the pull request's merge queue entry, when it is queued and the host reports it. */
+	readonly mergeQueueEntryState?: PullRequestMergeQueueEntryState;
+	/** The 1-based position of the pull request's entry in its merge queue. */
+	readonly mergeQueuePosition?: number;
+	/** GitHub's estimate, in seconds, of how long the queued pull request takes to merge. */
+	readonly mergeQueueEstimatedTimeToMerge?: number;
+	/** The pull request's last removal from its merge queue, when it is not queued and its head has not changed since. */
+	readonly mergeQueueRemoval?: PullRequestMergeQueueRemoval;
 	readonly mergeQueueRequired: boolean;
 	readonly queueRequirementKnown: boolean;
 }

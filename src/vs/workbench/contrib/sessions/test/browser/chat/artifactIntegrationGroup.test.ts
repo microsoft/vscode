@@ -31,7 +31,7 @@ import { ArtifactIntegrationGroup, getArtifactGroupRowActions, getArtifactIntegr
 import { ArtifactIntegrationPillSources, collapseArtifactIntegrationAliases, getArtifactIntegrationAliasKey, getArtifactIntegrationGroupId, getArtifactIntegrationGroupKey, IArtifactIntegrationPillItem, layoutArtifactIntegrationPills } from '../../../browser/chat/artifactIntegrationPillSources.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from '../../../browser/chat/artifactIntegrationPresentation.js';
 
-function snapshot(id: string, changes: { readonly group?: { readonly icon: string; readonly color?: string; readonly priority: number }; readonly groupLabel?: string; readonly sections?: readonly { readonly id: string; readonly label: string; readonly icon: string }[]; readonly automation?: boolean; readonly integrationId?: string } = {}): ArtifactSnapshot {
+function snapshot(id: string, changes: { readonly group?: { readonly icon: string; readonly color?: string; readonly priority: number }; readonly groupLabel?: string; readonly sections?: readonly { readonly id: string; readonly label: string; readonly icon: string }[]; readonly automation?: boolean; readonly integrationId?: string; readonly label?: string; readonly description?: string } = {}): ArtifactSnapshot {
 	const integrationId = changes.integrationId ?? 'experiments';
 	const contribution: ArtifactContributionSnapshot = {
 		integrationId, label: 'Experiment', ...(changes.groupLabel ? { groupLabel: changes.groupLabel } : {}),
@@ -40,7 +40,7 @@ function snapshot(id: string, changes: { readonly group?: { readonly icon: strin
 		configuration: { revision: 0, values: { analyze: !!changes.automation }, generations: {}, disablements: {} },
 		view: {
 			availability: { kind: 'available' },
-			main: { icon: { id: 'beaker', colorId: 'charts.green' }, label: `#${id}`, description: `Experiment ${id} is running`, detailsId: 'main' },
+			main: { icon: { id: 'beaker', colorId: 'charts.green' }, label: changes.label ?? `#${id}`, description: changes.description ?? `Experiment ${id} is running`, detailsId: 'main' },
 			groupId: 'experiments',
 			...(changes.group ? { group: { icon: { id: changes.group.icon, colorId: changes.group.color }, priority: changes.group.priority } } : {}),
 			sections: (changes.sections ?? []).map(section => ({ id: section.id, label: section.label, icon: { id: section.icon }, description: `${section.label} for ${id}`, detailsId: section.id })),
@@ -285,6 +285,28 @@ suite('Artifact Integration Groups', () => {
 				focused: 'Open #1',
 			},
 		});
+	});
+
+	test('leads a row\'s hover with its full label while the row truncates it, unless the description contains it', () => {
+		const f = fixture();
+		const long = 'Marking one file reviewed runs many git processes and resolves the same context and working tree several times per click';
+		f.members.set([
+			...f.members.get(),
+			f.member(snapshot('3', { groupLabel: 'Experiments', label: long })),
+			f.member(snapshot('4', { groupLabel: 'Experiments', label: long, description: `Proposed: ${long}` })),
+		], undefined);
+		f.button().click();
+		const hover = (row: HTMLElement) => {
+			const options = f.hovers.get(row.querySelector<HTMLElement>('.artifact-group-row-main')!)!;
+			const content = (typeof options === 'function' ? options() : options).content;
+			return isHTMLElement(content) ? [...content.children].map(child => child.textContent) : content;
+		};
+		assert.deepStrictEqual(f.rows().map(hover), [
+			'Experiment 1 is running',
+			'Experiment 2 is running',
+			[long, 'Experiment 3 is running'],
+			`Proposed: ${long}`,
+		]);
 	});
 
 	test('navigates rows and controls with the keyboard, opens the artifact or a status list, and returns focus on Escape', () => {

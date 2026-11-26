@@ -179,10 +179,10 @@ export class ChatResourceContributionEntries extends Disposable {
 				return resource ? [{ contribution, resource }] : [];
 			}) : [];
 		});
-		// A resource of a scheme that no file system provides does not exist: its extension has not made it exist.
+		// A resource that its extension has not made exist, or whose scheme no file system provides, is not listed.
 		const withExistence = mapObservableArrayCached(this, candidates, (candidate, store) => ({
 			...candidate,
-			exists: observeChatResourceExists(fileService, candidate.resource, store, false),
+			exists: observeChatResourceExists(fileService, candidate.resource, store),
 		}), candidate => `${getContributedChatResourceEntryId(candidate.contribution)}\u0000${candidate.resource.toString()}`);
 		this._existing = derived(this, reader => withExistence.read(reader).filter(candidate => candidate.exists.read(reader)));
 		this.sections = derived(this, reader => {

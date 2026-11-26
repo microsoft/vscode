@@ -39,6 +39,11 @@
 .agents-launcher .chat-view {
 	box-sizing: border-box;
 	overflow: auto;
+	/*
+	 * The native scrollbar is unthemed. It would show at the composer's maximum height. Where the window is resized to the
+	 * composer, it would also flash as the composer grows, until the window catches up a frame or two later.
+	 */
+	scrollbar-width: none;
 	/* The picker row above the input pads itself: a smaller inset above it matches the sides and bottom. */
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) var(--vscode-spacing-size120);
 }

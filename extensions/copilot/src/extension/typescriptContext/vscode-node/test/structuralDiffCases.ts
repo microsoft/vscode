@@ -287,14 +287,32 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		]);
 	});
 
-	test('does not merge duplicate declarations and overloads by name', async () => {
+	test('matches same-named siblings, such as overloads, at their unchanged starts', async () => {
 		const original = 'function overloaded(value: string): void;\nfunction overloaded(value: number): void;\nfunction overloaded(value: string | number) {}';
-		const modified = original.replace('value: number', 'value: boolean');
-		const result = await compute(original, modified, [{
-			originalRange: rangeOf(original, 'value: number'), modifiedRange: rangeOf(modified, 'value: boolean'),
+		const modified = `function overloaded(value: boolean): void;\n${original.replace('value: number', 'value: bigint')}`;
+		const result = await compute(original, modified, [
+			{ originalRange: new vscode.Range(0, 0, 0, 0), modifiedRange: new vscode.Range(0, 0, 1, 0) },
+			{ originalRange: rangeOf(original, 'number'), modifiedRange: rangeOf(modified, 'bigint') },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified), [{
+			path: ['overloaded'], original: undefined, modified: 'overloaded', kind: vscode.SymbolKind.Function, originalChanges: [],
+			modifiedChanges: [[0, vscode.StructuralDiffClassification.Declaration, 'function overloaded(value: boolean): void;', []]],
+		}, {
+			path: ['overloaded'], original: 'overloaded', modified: 'overloaded', kind: vscode.SymbolKind.Function,
+			originalChanges: [[1, vscode.StructuralDiffClassification.Header, 'number', []]],
+			modifiedChanges: [[1, vscode.StructuralDiffClassification.Header, 'bigint', []]],
 		}]);
-		assert.deepStrictEqual(result.root.children.map(node => [node.originalItem?.name, node.modifiedItem?.name]), [
-			[undefined, 'overloaded'], ['overloaded', undefined],
+	});
+
+	test('matches tests at their unchanged starts even if a title changes to the old title of another test', async () => {
+		const original = 'test("alpha", () => { check(1); });\ntest("bravo", () => { check(2); });';
+		const modified = 'test("bravo", () => { check(1); });\ntest("charl", () => { check(2); });';
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, 'alpha'), modifiedRange: rangeOf(modified, 'bravo') },
+			{ originalRange: rangeOf(original, 'bravo'), modifiedRange: rangeOf(modified, 'charl') },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.original, node.modified]), [
+			['alpha', 'bravo'], ['bravo', 'charl'],
 		]);
 	});
 
@@ -308,6 +326,183 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			[['Example'], vscode.SymbolKind.Module],
 			[['Example', 'options'], vscode.SymbolKind.Object],
 			[['Example', 'options', 'calculate'], vscode.SymbolKind.Function],
+		]);
+	});
+
+	test('lists neither the variables nor the nested functions of functions, methods and accessors', async () => {
+		const original = [
+			'function toStored(layout: Layout) {',
+			'\tconst { name, contribution } = layout;',
+			'\tconst settings = contribution.settings;',
+			'\treturn { name, settings: { ...settings, value: 1 } };',
+			'}',
+			'class Store {',
+			'\tload() { const value = 1; return () => { const nested = value; }; }',
+			'\tget size() { const count = 1; return count; }',
+			'}',
+			'const handler = () => { const local = 1; };',
+		].join('\n');
+		const modified = original.replaceAll('1', '2');
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
+			[['toStored'], vscode.SymbolKind.Function],
+			[['Store'], vscode.SymbolKind.Class],
+			[['Store', 'load'], vscode.SymbolKind.Method],
+			[['Store', 'size'], vscode.SymbolKind.Property],
+			[['handler'], vscode.SymbolKind.Function],
+		]);
+	});
+
+	test('lists the types that functions, methods, tests and suites declare, but not their classes or the types of nested functions', async () => {
+		const original = [
+			'function load() {',
+			'\tinterface Options { size: number; }',
+			'\tif (enabled) { type Mode = "fast" | "slow"; }',
+			'\tclass Local { size = 1; }',
+			'\tconst helper = () => { interface Hidden { size: number; } };',
+			'}',
+			'class Store {',
+			'\tconstructor() { enum State { Idle = 1 } }',
+			'\tsave() { type Entry = { size: number }; }',
+			'}',
+			'const handler = () => { interface Event { size: number; } };',
+			'suite("Layout", () => {',
+			'\tinterface Saved { size: number; }',
+			'\tfunction create() { interface Config { size: number; } }',
+			'\tsetup(() => { interface Fixture { size: number; } });',
+			'\ttest("restores", () => { type Restored = { size: number }; });',
+			'});',
+		].join('\n');
+		const modified = original.replaceAll('number', 'string').replaceAll('1', '2');
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
+			[['load'], vscode.SymbolKind.Function],
+			[['load', 'Options'], vscode.SymbolKind.Interface],
+			[['load', 'Options', 'size'], vscode.SymbolKind.Property],
+			[['load', 'Mode'], vscode.SymbolKind.Variable],
+			[['Store'], vscode.SymbolKind.Class],
+			[['Store', 'constructor'], vscode.SymbolKind.Constructor],
+			[['Store', 'constructor', 'State'], vscode.SymbolKind.Enum],
+			[['Store', 'constructor', 'State', 'Idle'], vscode.SymbolKind.EnumMember],
+			[['Store', 'save'], vscode.SymbolKind.Method],
+			[['Store', 'save', 'Entry'], vscode.SymbolKind.Variable],
+			[['Store', 'save', 'Entry', 'size'], vscode.SymbolKind.Property],
+			[['handler'], vscode.SymbolKind.Function],
+			[['handler', 'Event'], vscode.SymbolKind.Interface],
+			[['handler', 'Event', 'size'], vscode.SymbolKind.Property],
+			[['Layout'], vscode.SymbolKind.Class],
+			[['Layout', 'Saved'], vscode.SymbolKind.Interface],
+			[['Layout', 'Saved', 'size'], vscode.SymbolKind.Property],
+			[['Layout', 'restores'], vscode.SymbolKind.Method],
+			[['Layout', 'restores', 'Restored'], vscode.SymbolKind.Variable],
+			[['Layout', 'restores', 'Restored', 'size'], vscode.SymbolKind.Property],
+		]);
+	});
+
+	test('attributes changes in a local type to the type instead of the suite or test that declares it', async () => {
+		const original = [
+			'suite("Layout", () => {',
+			'\tinterface Saved { stored: number; }',
+			'\tfunction create() { return 1; }',
+			'\ttest("restores", () => { type Restored = { size: number }; check(1); });',
+			'});',
+		].join('\n');
+		const modified = original.replaceAll('number', 'string').replaceAll('1', '2');
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, 'number'), modifiedRange: rangeOf(modified, 'string') },
+			{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') },
+			{ originalRange: rangeOf(original, 'number', original.indexOf('Restored')), modifiedRange: rangeOf(modified, 'string', modified.indexOf('Restored')) },
+			{ originalRange: rangeOf(original, '1', original.indexOf('check')), modifiedRange: rangeOf(modified, '2', modified.indexOf('check')) },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.modifiedChanges.map(change => [change[1], change[2]])]), [
+			[['Layout'], [[vscode.StructuralDiffClassification.Implementation, '2']]],
+			[['Layout', 'Saved'], []],
+			[['Layout', 'Saved', 'stored'], [[vscode.StructuralDiffClassification.Header, 'string']]],
+			[['Layout', 'restores'], [[vscode.StructuralDiffClassification.Implementation, '2']]],
+			[['Layout', 'restores', 'Restored'], []],
+			[['Layout', 'restores', 'Restored', 'size'], [[vscode.StructuralDiffClassification.Header, 'string']]],
+		]);
+	});
+
+	test('names functions after the targets they are assigned to', async () => {
+		const original = 'export default () => 1;\nmodule.exports.helper = function () { return 1; };\nmodule.exports["foo bar"] = () => 1;';
+		const modified = original.replaceAll('1', '2');
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
+			[['default'], vscode.SymbolKind.Function],
+			[['Top-Level Code'], vscode.SymbolKind.Module],
+			[['Top-Level Code', 'module.exports.helper'], vscode.SymbolKind.Function],
+			[['Top-Level Code', 'module.exports["foo bar"]'], vscode.SymbolKind.Function],
+		]);
+	});
+
+	test('lists the calls in top-level code by the called function and its string and name arguments', async () => {
+		const lines = [
+			'registerAction2(class extends Action2 { run() { return 1; } });',
+			'registerAction2(class extends Action2 { run() { return 1; } });',
+			'registerAction2(class SaveAction extends Action2 { run() { return 1; } });',
+			'CommandsRegistry.registerCommand("old.command", handler);',
+			'if (isWeb) { const config = load(1); }',
+		];
+		const original = lines.join('\n');
+		const modified = [lines[0], lines[1].replace('1', '2'), lines[2].replace('1', '2'), lines[3].replace('old', 'new'), lines[4].replace('1', '2')].join('\n');
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, 'return 1', original.indexOf('\n')), modifiedRange: rangeOf(modified, 'return 2') },
+			{ originalRange: rangeOf(original, 'return 1', original.indexOf('SaveAction')), modifiedRange: rangeOf(modified, 'return 2', modified.indexOf('SaveAction')) },
+			{ originalRange: rangeOf(original, 'old'), modifiedRange: rangeOf(modified, 'new') },
+			{ originalRange: rangeOf(original, '1', original.indexOf('load')), modifiedRange: rangeOf(modified, '2', modified.indexOf('load')) },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.original, node.modified, node.kind, node.modifiedChanges.map(change => [change[1], change[2]])]), [
+			['Top-Level Code', 'Top-Level Code', vscode.SymbolKind.Module, []],
+			['registerAction2()', 'registerAction2()', vscode.SymbolKind.Function, [[vscode.StructuralDiffClassification.Implementation, 'return 2']]],
+			['registerAction2(SaveAction)', 'registerAction2(SaveAction)', vscode.SymbolKind.Function, [[vscode.StructuralDiffClassification.Implementation, 'return 2']]],
+			['CommandsRegistry.registerCommand("old.command", handler)', 'CommandsRegistry.registerCommand("new.command", handler)', vscode.SymbolKind.Function, [[vscode.StructuralDiffClassification.Implementation, 'new']]],
+			['config', 'config', vscode.SymbolKind.Variable, [[vscode.StructuralDiffClassification.Implementation, '2']]],
+		]);
+	});
+
+	test('groups the statements that are not declarations as top-level code', async () => {
+		const original = [
+			'registerSingleton(IOldService, OldService);',
+			'if (isWeb) {',
+			'\tconst delay = 1;',
+			'\tregisterAction2(DownloadAction);',
+			'}',
+			'counter++;',
+		].join('\n');
+		const modified = original.replace('isWeb', 'isNative').replace('delay = 1', 'delay = 2').replace('Download', 'Upload').replace('++', '--');
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, 'isWeb'), modifiedRange: rangeOf(modified, 'isNative') },
+			{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') },
+			{ originalRange: rangeOf(original, 'Download'), modifiedRange: rangeOf(modified, 'Upload') },
+			{ originalRange: rangeOf(original, '++'), modifiedRange: rangeOf(modified, '--') },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified), [{
+			path: ['Top-Level Code'], original: 'Top-Level Code', modified: 'Top-Level Code', kind: vscode.SymbolKind.Module,
+			originalChanges: [[0, vscode.StructuralDiffClassification.Implementation, 'isWeb', []], [3, vscode.StructuralDiffClassification.Implementation, '++', []]],
+			modifiedChanges: [[0, vscode.StructuralDiffClassification.Implementation, 'isNative', []], [3, vscode.StructuralDiffClassification.Implementation, '--', []]],
+		}, {
+			path: ['Top-Level Code', 'registerAction2(UploadAction)'], original: 'registerAction2(DownloadAction)', modified: 'registerAction2(UploadAction)', kind: vscode.SymbolKind.Function,
+			originalChanges: [[2, vscode.StructuralDiffClassification.Implementation, 'Download', []]],
+			modifiedChanges: [[2, vscode.StructuralDiffClassification.Implementation, 'Upload', []]],
+		}, {
+			path: ['delay'], original: 'delay', modified: 'delay', kind: vscode.SymbolKind.Variable,
+			originalChanges: [[1, vscode.StructuralDiffClassification.Implementation, '1', []]],
+			modifiedChanges: [[1, vscode.StructuralDiffClassification.Implementation, '2', []]],
+		}]);
+	});
+
+	test('classifies the callbacks of chained calls and the body of an immediately called function as implementation', async () => {
+		const original = '(function () {\n\tconst value = 1;\n})();\nload().then(() => {\n\tconsole.log(1);\n}).catch(error => report(error));';
+		const modified = original.replaceAll('1', '2');
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') },
+			{ originalRange: rangeOf(original, '1', original.indexOf('log')), modifiedRange: rangeOf(modified, '2', modified.indexOf('log')) },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind, node.modifiedChanges.map(change => [change[1], change[2]])]), [
+			[['Top-Level Code'], vscode.SymbolKind.Module, []],
+			[['Top-Level Code', '<function>()'], vscode.SymbolKind.Function, [[vscode.StructuralDiffClassification.Implementation, '2']]],
+			[['Top-Level Code', 'catch()'], vscode.SymbolKind.Function, [[vscode.StructuralDiffClassification.Implementation, '2']]],
 		]);
 	});
 
@@ -468,16 +663,14 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		});
 	});
 
-	test('groups declarations within an export statement under Exports', async () => {
-		const original = [
-			'export { value };',
-			'function between() { return 1; }',
-			'export default { calculate() { return 1; } };',
-		].join('\n');
-		const modified = original.replaceAll('return 1', 'return 2');
+	test('lists a value exported as the default as an item named default', async () => {
+		const original = 'export { value };\nexport default { calculate() { return 1; } };';
+		const modified = original.replace('value', 'other').replace('return 1', 'return 2');
 		const result = await compute(original, modified);
-		assert.deepStrictEqual(summarize(result, original, modified).map(node => node.path), [
-			['Exports'], ['Exports', 'calculate'], ['between'],
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
+			[['Exports'], vscode.SymbolKind.Module],
+			[['default'], vscode.SymbolKind.Object],
+			[['default', 'calculate'], vscode.SymbolKind.Method],
 		]);
 	});
 
@@ -518,16 +711,108 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		]);
 	});
 
-	test('tags test callbacks without tagging unrelated code in the same change', async () => {
-		const original = 'const setup = 1;\ntest("works", () => { expect(setup).toBe(1); });';
+	test('lists suites and tests by their titles without their hooks and helpers', async () => {
+		const original = [
+			'suite("Calculator", () => {',
+			'\tconst value = 1;',
+			'\tsetup(() => reset(1));',
+			'\ttest("adds", () => { assert(value + 1); });',
+			'\tfor (const input of inputs) {',
+			'\t\ttest(`handles ${input}`, () => { assert(input + 1); });',
+			'\t}',
+			'\t(isWindows ? suite.skip : suite)("on Windows", function () {',
+			'\t\ttest("uses backslashes", () => { assert(1); }).timeout(1);',
+			'\t});',
+			'\tsuite("concise", () => suite("nested", () => test("inner", () => assert(1))));',
+			'});',
+		].join('\n');
 		const modified = original.replaceAll('1', '2');
 		const result = await compute(original, modified);
-		assert.deepStrictEqual(result.root.modifiedChanges.map(change => [modifiedText(change.range, modified), change.tags]), [
-			['\n', []],
-			['test("works", ', []],
-			['() => { expect(setup).toBe(2); }', [vscode.StructuralDiffTag.Test]],
-			[');', []],
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind, [...new Set(node.modifiedChanges.flatMap(change => change[3] ?? []))]]), [
+			[['Calculator'], vscode.SymbolKind.Class, [vscode.StructuralDiffTag.Test]],
+			[['Calculator', 'adds'], vscode.SymbolKind.Method, [vscode.StructuralDiffTag.Test]],
+			[['Calculator', 'handles ${input}'], vscode.SymbolKind.Method, [vscode.StructuralDiffTag.Test]],
+			[['Calculator', 'on Windows'], vscode.SymbolKind.Class, [vscode.StructuralDiffTag.Test]],
+			[['Calculator', 'on Windows', 'uses backslashes'], vscode.SymbolKind.Method, [vscode.StructuralDiffTag.Test]],
+			[['Calculator', 'concise'], vscode.SymbolKind.Class, [vscode.StructuralDiffTag.Test]],
+			[['Calculator', 'concise', 'nested'], vscode.SymbolKind.Class, [vscode.StructuralDiffTag.Test]],
+			[['Calculator', 'concise', 'nested', 'inner'], vscode.SymbolKind.Method, [vscode.StructuralDiffTag.Test]],
 		]);
+	});
+
+	test('lists Playwright suites without their titled hooks, and suites registered within parentheses or after void', async () => {
+		const original = [
+			'test.describe("Carousel", () => {',
+			'\ttest.beforeEach(async ({ page }) => { await page.goto("/1"); });',
+			'\ttest.afterEach("reset state", async () => { reset(1); });',
+			'\ttest("advances", async () => { expect(1); });',
+			'});',
+			'test.describe.skip("Skipped", () => {',
+			'\ttest("waits", () => { expect(1); });',
+			'});',
+			'void suite("Voided", () => {',
+			'\ttest("works", () => { assert(1); });',
+			'});',
+			'(describe("Wrapped", () => {',
+			'\tit("works", () => { assert(1); });',
+			'}));',
+		].join('\n');
+		const modified = original.replaceAll('1', '2');
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
+			[['Carousel'], vscode.SymbolKind.Class],
+			[['Carousel', 'advances'], vscode.SymbolKind.Method],
+			[['Skipped'], vscode.SymbolKind.Class],
+			[['Skipped', 'waits'], vscode.SymbolKind.Method],
+			[['Voided'], vscode.SymbolKind.Class],
+			[['Voided', 'works'], vscode.SymbolKind.Method],
+			[['Wrapped'], vscode.SymbolKind.Class],
+			[['Wrapped', 'works'], vscode.SymbolKind.Method],
+		]);
+	});
+
+	test('lists the tests of suites that wrappers such as flakySuite register', async () => {
+		const original = [
+			'flakySuite("Network", () => {',
+			'\tensureNoDisposablesAreLeakedInTestSuite();',
+			'\ttest("connects", () => { assert(1); });',
+			'});',
+		].join('\n');
+		const modified = original.replace('1', '2');
+		const result = await compute(original, modified, [{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') }]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
+			[['Network'], vscode.SymbolKind.Class],
+			[['Network', 'connects'], vscode.SymbolKind.Method],
+		]);
+	});
+
+	test('classifies the arguments after a test callback and those of calls chained to the test as its implementation', async () => {
+		const original = [
+			'test("waits", () => { run(); }).timeout(1000);',
+			'test("limits", () => { run(); }, 1000);',
+			'test("reports", () => { run(); }).then(undefined, error => report(error, 1));',
+		].join('\n');
+		const modified = original.replaceAll('1000', '2000').replace('error, 1', 'error, 2');
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') },
+			{ originalRange: rangeOf(original, '1', original.indexOf('limits')), modifiedRange: rangeOf(modified, '2', modified.indexOf('limits')) },
+			{ originalRange: rangeOf(original, '1', original.indexOf('error,')), modifiedRange: rangeOf(modified, '2', modified.indexOf('error,')) },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.modifiedChanges.map(change => change[1])]), [
+			[['waits'], [vscode.StructuralDiffClassification.Implementation]],
+			[['limits'], [vscode.StructuralDiffClassification.Implementation]],
+			[['reports'], [vscode.StructuralDiffClassification.Implementation]],
+		]);
+	});
+
+	test('tags test callbacks within functions without tagging unrelated code in the same change', async () => {
+		const original = 'function define() {\n\tconst setup = 1;\n\ttest("works", () => { expect(setup).toBe(1); });\n}';
+		const modified = original.replaceAll('1', '2');
+		const result = await compute(original, modified);
+		assert.deepStrictEqual({
+			items: summarize(result, original, modified).map(node => node.path),
+			tagged: result.root.children[0].modifiedChanges.filter(change => change.tags?.includes(vscode.StructuralDiffTag.Test)).map(change => modifiedText(change.range, modified)),
+		}, { items: [['define']], tagged: ['() => { expect(setup).toBe(2); }'] });
 	});
 
 	test('tags named test functions and test files', async () => {
@@ -578,7 +863,6 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			[['Fields'], vscode.SymbolKind.Class],
 			[['Fields', 'field'], vscode.SymbolKind.Function],
 			[['Fields', 'static'], vscode.SymbolKind.Method],
-			[['Fields', 'static', 'initial'], vscode.SymbolKind.Variable],
 		]);
 	});
 
@@ -598,11 +882,74 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		assert.deepStrictEqual(result.root.children.map(node => node.modifiedItem?.name), ['emoji', 'first', 'second']);
 	});
 
+	test('includes doc comments in items without classifying them as declarations', async () => {
+		const original = '/** Old doc. */\nfunction documented() {}\nclass Container {\n\t/** Old doc. */\n\tmember() {}\n}';
+		const modified = original.replaceAll('Old', 'New');
+		const changed = await compute(original, modified, [
+			{ originalRange: rangeOf(original, 'Old'), modifiedRange: rangeOf(modified, 'New') },
+			{ originalRange: rangeOf(original, 'Old', original.indexOf('class')), modifiedRange: rangeOf(modified, 'New', modified.indexOf('class')) },
+		]);
+		const addedText = '/** Doc. */\nfunction added() {}';
+		const added = await compute('', addedText);
+		assert.deepStrictEqual({ changed: summarize(changed, original, modified), added: summarize(added, '', addedText) }, {
+			changed: [{
+				path: ['documented'], original: 'documented', modified: 'documented', kind: vscode.SymbolKind.Function,
+				originalChanges: [[0, vscode.StructuralDiffClassification.Other, 'Old', []]],
+				modifiedChanges: [[0, vscode.StructuralDiffClassification.Other, 'New', []]],
+			}, {
+				path: ['Container'], original: 'Container', modified: 'Container', kind: vscode.SymbolKind.Class, originalChanges: [], modifiedChanges: [],
+			}, {
+				path: ['Container', 'member'], original: 'member', modified: 'member', kind: vscode.SymbolKind.Method,
+				originalChanges: [[1, vscode.StructuralDiffClassification.Other, 'Old', []]],
+				modifiedChanges: [[1, vscode.StructuralDiffClassification.Other, 'New', []]],
+			}],
+			added: [{
+				path: ['added'], original: undefined, modified: 'added', kind: vscode.SymbolKind.Function, originalChanges: [],
+				modifiedChanges: [[0, vscode.StructuralDiffClassification.Declaration, addedText, []]],
+			}],
+		});
+	});
+
+	test('does not include the comments before doc comments in items', async () => {
+		const original = '/* Copyright 2025 */\n\n/** Doc. */\nexport function first() { return 1; } // old note\n\n/** Helper. */\nfunction compute() { return 1; }\n';
+		const modified = original.replace('2025', '2026').replace('old', 'new').replace('function compute() { return 1; }', 'export const settings = new Map<string, number>();');
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, '2025'), modifiedRange: rangeOf(modified, '2026') },
+			{ originalRange: rangeOf(original, 'old'), modifiedRange: rangeOf(modified, 'new') },
+			{ originalRange: rangeOf(original, 'function compute() { return 1; }'), modifiedRange: rangeOf(modified, 'export const settings = new Map<string, number>();') },
+		]);
+		assert.deepStrictEqual({
+			root: [result.root.originalChanges, result.root.modifiedChanges].map(changes => changes.map(change => [change.textChangeIndex, change.classification])),
+			nodes: summarize(result, original, modified),
+		}, {
+			root: [
+				[[0, vscode.StructuralDiffClassification.Other], [1, vscode.StructuralDiffClassification.Other]],
+				[[0, vscode.StructuralDiffClassification.Other], [1, vscode.StructuralDiffClassification.Other]],
+			],
+			nodes: [{
+				path: ['settings'], original: undefined, modified: 'settings', kind: vscode.SymbolKind.Variable, originalChanges: [],
+				modifiedChanges: [[2, vscode.StructuralDiffClassification.Declaration, 'export const settings = new Map<string, number>();', []]],
+			}, {
+				path: ['compute'], original: 'compute', modified: undefined, kind: vscode.SymbolKind.Function, modifiedChanges: [],
+				originalChanges: [[2, vscode.StructuralDiffClassification.Declaration, 'function compute() { return 1; }', []]],
+			}],
+		});
+	});
+
 	test('classifies file-level comments as other syntax', async () => {
 		const original = '// old comment\n';
 		const modified = '// new comment\n';
 		const result = await compute(original, modified);
 		assert.deepStrictEqual(result.root.modifiedChanges.map(change => [change.classification, modifiedText(change.range, modified)]), [[vscode.StructuralDiffClassification.Other, modified]]);
+	});
+
+	test('omits the selection range of an item whose name is missing because of a syntax error', async () => {
+		const modified = 'if (x) = y;';
+		const result = await compute('if (x) {}', modified);
+		assert.deepStrictEqual(flatten(result.root).slice(1).map(node => [node.modifiedItem?.name, node.modifiedItem?.selectionRange]), [
+			['Top-Level Code', rangeOf(modified, modified)],
+			['', undefined],
+		]);
 	});
 }
 

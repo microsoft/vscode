@@ -12,6 +12,7 @@ import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { FileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 import { IConnectionDiagnosticError } from './connectionDiagnostics.js';
+import { CategorizedConnectionError, type CategorizedConnectionErrorCode } from './connectionTelemetry.js';
 
 export const AgentHostRemoteConnectionsSettingId = 'chat.agentHost.remoteConnections';
 export const AgentHostDefaultCloneDirectorySettingId = 'chat.agentHost.defaultCloneDirectory';
@@ -31,11 +32,13 @@ export const MissionControlUseLocalCredentialsSettingId = 'chat.agentHost.experi
 export const MissionControlUseLocalCredentialsConfigKey = 'missionControlUseLocalCredentials';
 /** Logical identity for host-side Mission Control wire logs, including failed handshakes. */
 export const MISSION_CONTROL_AHP_LOG_ID = 'mission-control';
-export const MissionControlOwnerMismatchErrorCode = 'MissionControlOwnerMismatch';
+export const MissionControlOwnerMismatchErrorCode = 'MissionControlOwnerMismatch' satisfies CategorizedConnectionErrorCode;
 export type AgentHostRemoteConnectionsBackend = 'devTunnel' | 'githubEnvironment' | 'missionControl';
 
-export class MissionControlOwnerMismatchError extends Error {
-	readonly code = MissionControlOwnerMismatchErrorCode;
+export class MissionControlOwnerMismatchError extends CategorizedConnectionError {
+	constructor(message: string) {
+		super(MissionControlOwnerMismatchErrorCode, message);
+	}
 }
 
 export function isGitHubEnvironmentBackend(backend: AgentHostRemoteConnectionsBackend): boolean {
@@ -133,6 +136,7 @@ export interface IRemoteGitHubEnvironmentSharingService {
 	confirmDisconnect(address: string, name: string): Promise<boolean>;
 	/**
 	 * Called when the user keeps sharing a remote on disconnect, before the remote disconnects, so that its sessions can continue through its GitHub environment.
+	 * The environment has been discovered by then, unless discovering it timed out.
 	 */
 	registerKeepSharingHandler(handler: (address: string, environmentId: string) => void): IDisposable;
 }

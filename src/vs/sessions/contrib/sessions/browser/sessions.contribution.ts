@@ -17,13 +17,16 @@ import { SessionsAccountTelemetryContribution } from './sessionsAccountTelemetry
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
+import { AutomationHistoryActionsContribution } from '../../automations/browser/automationRunHistory.js';
+import '../../automations/browser/automationsEditor.js';
 import './views/sessionsViewActions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { getEnabledViewContainerContextKey } from '../../../../workbench/common/contextkeys.js';
 import { ChatViewContainerId, ChatViewOpenKeybindings } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListStateMigrationContribution } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsListStateMigrationContribution } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import { SessionsListToolsContribution } from './sessionsListTools.js';
 import './sessionDetailsAction.js';
@@ -145,6 +148,7 @@ export const sessionsConfiguration = {
 		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING],
 		[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING],
 		[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING],
+		[SESSIONS_LIST_CANVASES_SECTION_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_CANVASES_SECTION_SETTING],
 		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INDENT_ITEMS_SETTING],
 		[SESSIONS_CHAT_TABS_SETTING]: {
 			type: 'string',
@@ -178,6 +182,7 @@ export const sessionsConfiguration = {
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(sessionsConfiguration);
 
+registerWorkbenchContribution2(AutomationHistoryActionsContribution.ID, AutomationHistoryActionsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);

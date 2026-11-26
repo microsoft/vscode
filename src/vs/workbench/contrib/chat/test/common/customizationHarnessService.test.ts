@@ -334,7 +334,7 @@ suite('CustomizationHarnessService', () => {
 	});
 
 	suite('getSlashCommands', () => {
-		function createSlashCommandService(uri: URI, promptsService: IPromptsService): CustomizationHarnessServiceBase {
+		function createSlashCommandService(uri: URI, promptsService: IPromptsService, argumentHint?: string): CustomizationHarnessServiceBase {
 			const testSessionType = 'test-session-type';
 			const emitter = new Emitter<void>();
 			store.add(emitter);
@@ -345,7 +345,7 @@ suite('CustomizationHarnessService', () => {
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async () => [
-						{ uri, type: PromptsType.skill, source: 'local', name: 'init', enabled: true, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri, type: PromptsType.skill, source: 'local', name: 'init', argumentHint, enabled: true, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
 					],
 				},
 			}], testSessionType, promptsService);
@@ -436,6 +436,57 @@ suite('CustomizationHarnessService', () => {
 				assert.deepStrictEqual(commands.map(command => ({ name: command.name, type: command.type, userInvocable: command.userInvocable, sessionTypes: command.sessionTypes })), [
 					{ name: 'review', type: PromptsType.skill, userInvocable: true, sessionTypes: undefined },
 				]);
+			}
+		});
+
+		test('preserves argumentHint when resolving built-in or provider-backed slash commands', async () => {
+			const promptsService = new MockPromptsService();
+			const builtInUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/init' });
+			const service = createSlashCommandService(toAgentHostUri(builtInUri, 'remote'), promptsService, 'Describe a task');
+
+			const command = await service.resolvePromptSlashCommand('init', URI.parse('test-session-type://session'), CancellationToken.None);
+
+			assert.strictEqual(command?.name, 'init');
+			assert.strictEqual(command?.argumentHint, 'Describe a task');
+		});
+
+		test('resolves file-backed argumentHint with header precedence and provider fallback', async () => {
+			const fileUri = URI.file('/workspace/.test/skills/init/SKILL.md');
+
+			// Case 1: header-only hint
+			{
+				const promptsService = new class extends MockPromptsService {
+					override async parseNew(): Promise<any> {
+						return { uri: fileUri, header: { argumentHint: 'Header hint' } };
+					}
+				};
+				const service = createSlashCommandService(fileUri, promptsService, undefined);
+				const command = await service.resolvePromptSlashCommand('init', URI.parse('test-session-type://session'), CancellationToken.None);
+				assert.strictEqual(command?.argumentHint, 'Header hint');
+			}
+
+			// Case 2: header precedence over provider hint
+			{
+				const promptsService = new class extends MockPromptsService {
+					override async parseNew(): Promise<any> {
+						return { uri: fileUri, header: { argumentHint: 'Header hint' } };
+					}
+				};
+				const service = createSlashCommandService(fileUri, promptsService, 'Provider hint');
+				const command = await service.resolvePromptSlashCommand('init', URI.parse('test-session-type://session'), CancellationToken.None);
+				assert.strictEqual(command?.argumentHint, 'Header hint');
+			}
+
+			// Case 3: provider fallback when header has no hint
+			{
+				const promptsService = new class extends MockPromptsService {
+					override async parseNew(): Promise<any> {
+						return { uri: fileUri, header: {} };
+					}
+				};
+				const service = createSlashCommandService(fileUri, promptsService, 'Provider hint');
+				const command = await service.resolvePromptSlashCommand('init', URI.parse('test-session-type://session'), CancellationToken.None);
+				assert.strictEqual(command?.argumentHint, 'Provider hint');
 			}
 		});
 

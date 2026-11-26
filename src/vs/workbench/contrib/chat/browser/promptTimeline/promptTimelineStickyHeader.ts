@@ -60,11 +60,13 @@ export class PromptTimelineStickyHeader extends Disposable {
 	}
 
 	/** Names the pinned prompt (1-based index within all prompts). */
-	update(text: string, index: number, total: number): void {
+	update(text: string, index: number, total: number | undefined): void {
 		const label = text || localize('promptTimeline.emptyPrompt', "(empty prompt)");
-		this._count.textContent = localize('promptTimeline.stickyCount', "{0}/{1}", index, total);
+		this._count.textContent = total === undefined ? '' : localize('promptTimeline.stickyCount', "{0}/{1}", index, total);
 		this._labelButton.title = label;
-		this._labelButton.setAttribute('aria-label', localize('promptTimeline.stickyLabel', "Go to prompt {0} of {1}: {2}", index, total, label));
+		this._labelButton.setAttribute('aria-label', total === undefined
+			? localize('promptTimeline.stickyPartialLabel', "Go to prompt: {0}", label)
+			: localize('promptTimeline.stickyLabel', "Go to prompt {0} of {1}: {2}", index, total, label));
 
 		if (label !== this._currentLabel || index !== this._lastIndex) {
 			// Step direction from the previous prompt drives which way the label rolls.

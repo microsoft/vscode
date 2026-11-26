@@ -362,6 +362,7 @@ suite('Combined mode and permissions picker', () => {
 		service.focusNext(); // Assisted permissions
 		service.focusNext();
 		const allowAll = readFocusedRow();
+		assert.deepStrictEqual(['Assisted permissions', 'Allow all'].map(label => getRow(popup, label).ariaExpanded), [null, null]);
 		service.acceptSelected();
 		service.focusNext();
 		const sandbox = readFocusedRow();

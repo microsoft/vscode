@@ -527,7 +527,7 @@ suite('Agents frosted glass styles', () => {
 	});
 
 	test('uses the solid Agents panel color for the automation dialog with glass enabled', () => {
-		const { root, quickInput, dialog } = createOverlays();
+		const { root, quickInput, dialog, dialogShadow } = createOverlays();
 		dialog.classList.add('automation-dialog');
 		const titlebar = append(dialog, 'automation-titlebar');
 		const sticky = append(quickInput, 'monaco-tree-sticky-container');
@@ -544,7 +544,7 @@ suite('Agents frosted glass styles', () => {
 			titlebar: readColor(titlebar).rgba,
 			sticky: readColor(sticky).rgba,
 			dialog: readColor(dialog).rgba,
-			dialogTint: readColor(dialog, '::before').rgba,
+			dialogTint: readColor(dialogShadow, '::before').rgba,
 		}, {
 			solidDialog: panel,
 			titlebar: new RGBA(0, 0, 0, 0),

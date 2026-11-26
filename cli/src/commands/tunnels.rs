@@ -353,7 +353,7 @@ pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Resul
 	dt.rename_tunnel(&rename_args.name).await?;
 	ctx.log.result(format!(
 		"Successfully renamed this tunnel to {}",
-		&rename_args.name
+		rename_args.name
 	));
 
 	Ok(0)

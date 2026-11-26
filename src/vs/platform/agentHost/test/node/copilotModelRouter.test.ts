@@ -107,13 +107,25 @@ suite('CopilotModelRouter', () => {
 		});
 	});
 
-	test('the switch policy stays on near ties and holds in long chats', () => {
+	test('the switch policy stays on near ties and right after a switch', () => {
 		const pick: IModelRouterPick = { model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 } };
 		assert.deepStrictEqual([
-			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: undefined, switches: 0 }),
-			decideModelRouterSwitch({ currentModel: 'opus', pick: { ...pick, probabilities: { haiku: 0.6, opus: 0.5 } }, turnsSinceSwitch: undefined, switches: 0 }),
-			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: 1, switches: 1 }),
-		], ['switch', 'stay', 'stay']);
+			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: undefined }),
+			decideModelRouterSwitch({ currentModel: 'opus', pick: { ...pick, probabilities: { haiku: 0.6, opus: 0.5 } }, turnsSinceSwitch: undefined }),
+			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: 1 }),
+			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: 2 }),
+		], ['switch', 'stay', 'stay', 'switch']);
+	});
+
+	test('a chat that has moved many times still moves, once it has stayed put for two turns', async () => {
+		const picker = new FakePicker({ model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 } });
+		const moved = () => routedTurn({ router: 'daily', chosenModel: 'opus', switchedFrom: 'haiku' });
+		const stayed = () => routedTurn({ router: 'daily', chosenModel: 'opus', kept: true });
+		const route = async (previousTurns: Turn[]) => (await resolve({ file: routerFile('switching: auto\n'), previousTurns, picker, text: 'rename this variable' })).selection?.id;
+		assert.deepStrictEqual({
+			rightAfterAMove: await route([moved(), moved(), moved(), moved(), stayed()]),
+			twoTurnsLater: await route([moved(), moved(), moved(), moved(), stayed(), stayed()]),
+		}, { rightAfterAMove: 'opus', twoTurnsLater: 'haiku' });
 	});
 
 	test('switching to this router, from another router or a hand-picked model, routes afresh', async () => {
@@ -280,7 +292,8 @@ suite('CopilotModelRouter', () => {
 		const moved = await engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'fix the crash', models, previousTurns: [routedTurn({ router: 'daily', chosenModel: 'opus', routeName: 'feature' })], picker });
 		assert.deepStrictEqual({ routed: moved.routed, notices: moved.notices }, {
 			routed: { router: 'daily', chosenModel: 'opus', routeName: 'bug-fix', switchedFrom: 'opus', preference: 'Fixing.' },
-			notices: ['This request fits another route, so the model router daily moved this chat to its bug-fix route on OPUS.'],
+			// The routing itself says the chat moved, so there is no notice to repeat it.
+			notices: [],
 		});
 	});
 

@@ -11,9 +11,11 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 export const ILocalChatAvailabilityService = createDecorator<ILocalChatAvailabilityService>('localChatAvailabilityService');
 
 /**
- * Whether new local chats are offered, apart from what the settings say: a feature that shows only the chats of sessions,
- * such as a sessions list of the Chat view that does not list local chats, hides them while it shows. It leaves the
- * settings as the user has them.
+ * Whether local chats are offered and shown, apart from what the settings say: a feature that shows only the chats of
+ * sessions, such as opening the Chat view's chats in the chat part, hides them while it is on. Then no new chat is local,
+ * also not as a fallback once no other session type is available or one fails to start, which reports an error instead;
+ * and sessions lists do not list local chats. It leaves the settings as the user has them. Virtual workspaces and the
+ * managed policy that keeps local chat the default are exceptions (see `isEditorLocalAgentEnabled`).
  */
 export interface ILocalChatAvailabilityService {
 	readonly _serviceBrand: undefined;

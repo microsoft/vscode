@@ -304,6 +304,8 @@
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list-container {
 	height: 100%;
+	box-sizing: border-box;
+	padding-top: var(--vscode-spacing-size40);
 	overflow: hidden;
 	position: relative;
 	display: flex;

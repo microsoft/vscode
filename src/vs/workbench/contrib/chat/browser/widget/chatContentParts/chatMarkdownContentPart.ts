@@ -47,6 +47,7 @@ import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/commo
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
+import type { MarkedExtension, Tokens } from '../../../../../../base/common/marked/marked.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '../../../common/widget/annotations.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
@@ -80,6 +81,9 @@ import { IChatOutputPartStateCache, IOutputPartState } from './chatOutputPartSta
 import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
+
+/** Horizontal padding and border of a blockquote, see `.rendered-markdown blockquote` in chat.css. */
+const BLOCKQUOTE_HORIZONTAL_INSET = 10 + 16 + 5;
 
 export interface IChatMarkdownContentPartOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
@@ -262,11 +266,39 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			// comes from the renderer: not for Markdown with raw HTML, nor trusted Markdown with raw spans.
 			const content = this.markdown.content;
 			const renderMath = enableMath && !content.supportHtml && !(content.isTrusted && /<span/i.test(content.value));
-			const markedExtensions = renderMath
+			const hasMath = renderMath && content.value.includes('$');
+			const markedExtensions: MarkedExtension[] = hasMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
 					throwOnError: false
 				})])
 				: [];
+			if (hasMath && markedExtensions.length === 0) {
+				MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
+					.then(() => {
+						if (!store.isDisposed) {
+							this.renderMarkdown();
+						}
+					})
+					.catch(e => console.error('Failed to load MarkedKatexSupport extension:', e));
+			}
+
+			// Request code blocks are sized from the row width, so count the blockquotes they are rendered in
+			let blockquoteDepth = 0;
+			if (isRequestVM(element)) {
+				markedExtensions.push({
+					extensions: [{
+						name: 'blockquote',
+						renderer(token) {
+							blockquoteDepth++;
+							try {
+								return this.parser.renderer.blockquote(token as Tokens.Blockquote);
+							} finally {
+								blockquoteDepth--;
+							}
+						},
+					}],
+				});
+			}
 
 			// Enables github-flavored-markdown + line breaks with single newlines
 			// (which matches typical expectations but isn't "proper" in markdown)
@@ -354,6 +386,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					};
 					if (hideToolbar !== undefined) {
 						renderOptions.hideToolbar = hideToolbar;
+					}
+					if (blockquoteDepth) {
+						renderOptions.reserveWidth = (renderOptions.reserveWidth ?? 0) + blockquoteDepth * BLOCKQUOTE_HORIZONTAL_INSET;
 					}
 					const codeBlockInfo: ICodeBlockData = { languageId, text: codeBlockText, codeBlockIndex: globalIndex, element, parentContextKeyService: contextKeyService, vulns, codemapperUri, renderOptions, chatSessionResource: element.sessionResource };
 					const baseCodeBlockInfo = {
@@ -534,6 +569,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			}
 
 			store.add(wrapTablesWithScrollable(this.domNode, layoutParticipants));
+			this.domNode.classList.toggle('chat-markdown-has-code-block', this.allRefs.some(ref => ref.object instanceof CodeBlockPart));
 			dispose(reusableOutputCodeBlockRefs.values());
 			dispose(reusableHtmlPreviewRefs.values());
 			dispose(reusableNativeComponentsRefs.values());
@@ -549,17 +585,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		// this is important when a markdown part first appears (e.g.
 		// after thinking content) and already contains visible content.
 		this._incrementalMorpher?.seed(markdown.content.value, /* animateInitial */ true);
-
-		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
-			// KaTeX not yet loaded - load it and re-render when ready
-			MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
-				.then(() => {
-					this.renderMarkdown();
-				})
-				.catch(e => {
-					console.error('Failed to load MarkedKatexSupport extension:', e);
-				});
-		}
 	}
 
 	override dispose(): void {

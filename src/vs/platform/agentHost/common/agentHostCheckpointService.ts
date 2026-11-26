@@ -107,7 +107,7 @@ export interface IAgentHostCheckpointService {
 	discardChatTurnStartCheckpoints(sessionUri: URI, chatUri: URI): Promise<void>;
 
 	/**
-	 * Returns the `{ parent, current }` checkpoint refs for a turn, or
+	 * Returns the `{ parent, current }` checkpoint refs after queued captures settle, or
 	 * `undefined` when either is missing. Used by the changeset service
 	 * to decide whether to take the git-diff fast path for per-turn diffs.
 	 * `chat` is the chat the turn belongs to, whose own database holds the

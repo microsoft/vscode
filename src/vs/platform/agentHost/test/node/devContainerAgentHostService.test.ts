@@ -26,12 +26,15 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
+import { devContainerEnvironmentImage, IDevContainerEnvironmentSource } from '../../common/devContainerEnvironments.js';
+import { IPreparedDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
 import { IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, IDevContainerShellExec, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
+import { getDevContainerSecurityOptions, IDevContainerSecurityOptions } from '../../node/devContainerState.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
@@ -121,6 +124,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		{ Type: 'volume', Source: '/volumes/vscode', Destination: '/vscode', Name: 'vscode' },
 	];
 	containerMountsError: Error | undefined;
+	/** The container's `HostConfig` from `docker inspect`. */
+	containerHostConfig: unknown;
 	/** States of existing containers, see `docker ps --format {{.State}}`. */
 	existingContainerStates: readonly string[] = [];
 	/** Docker volumes and their labels. */
@@ -300,6 +305,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			return Promise.reject(this.containerMountsError);
 		}
 		return Promise.resolve(this.containerMounts);
+	}
+
+	protected override async _getContainerSecurityOptions(): Promise<IDevContainerSecurityOptions> {
+		return getDevContainerSecurityOptions(this.containerHostConfig);
 	}
 
 	protected override async _prepareSandboxConfiguration(configuration: Promise<string>, workspaceFolder: string, directory: string, token: CancellationToken): Promise<IDevContainerSandboxConfiguration> {
@@ -1264,10 +1273,15 @@ suite('Dev Container Agent Host Main Service', () => {
 			{
 				name: 'script', setup: service => {
 					service.containerMounts = [...service.containerMounts, stateMount];
-					service.linkStateResult = { stdout: 'vscode-state:step:volume\nvscode-state:step:stateFolder\nvscode-state:step:statePath\n', stderr: `mkdir: cannot create directory '/home/node/.cache': Permission denied\n`, code: 1 };
+					service.containerHostConfig = { CapDrop: ['ALL'], CapAdd: ['DAC_OVERRIDE', 'FOWNER'], Privileged: false, UsernsMode: '', ReadonlyRootfs: false, Runtime: 'runc' };
+					service.linkStateResult = { stdout: 'vscode-state:step:capabilities\nvscode-state:uid:root\nvscode-state:capEff:000000000000000a\nvscode-state:step:volume\nvscode-state:step:stateFolder\nvscode-state:stateOwner:user\nvscode-state:step:statePath\n', stderr: `mkdir: cannot create directory '/home/node/.cache': Permission denied\n`, code: 1 };
 				}
 			},
 			{ name: 'homeNotFound', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:home\nvscode-state:noHome\n', code: 0 }; } },
+			{ name: 'missingCapabilities', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:capabilities\nvscode-state:uid:root\nvscode-state:capEff:00000000a80425fa\nvscode-state:missing:CAP_CHOWN\nvscode-state:skipped:missingCapabilities\n', code: 0 }; } },
+			{ name: 'homeCapabilities', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:capabilities\nvscode-state:uid:root\nvscode-state:capEff:00000000a80425f9\nvscode-state:step:home\nvscode-state:missing:CAP_DAC_OVERRIDE\nvscode-state:missing:CAP_DAC_READ_SEARCH\nvscode-state:skipped:missingCapabilities\n', code: 0 }; } },
+			{ name: 'readOnlyRootfs', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:rootfs\nvscode-state:skipped:readOnlyRootfs\n', code: 0 }; } },
+			{ name: 'untrustedState', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:stateFolder\nvscode-state:stateOwner:root\nvscode-state:volumeOwner:other\nvscode-state:skipped:untrustedState\n', code: 0 }; } },
 			{ name: 'userCommands', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.userCommandsExitCode = 1; } },
 		];
 		const results: Record<string, { connected: boolean; reports: Omit<IDevContainerAgentHostUserStateReport, 'connectionId'>[] }> = {};
@@ -1290,8 +1304,12 @@ suite('Dev Container Agent Host Main Service', () => {
 			upRun: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'run', errorMessage: 'devcontainer up failed' }] },
 			upExitCode: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'An error occurred setting up the container.\nCommand failed: docker run <args>\nError response from daemon: invalid mount config.' }] },
 			inspect: { connected: true, reports: [added, up, { stage: 'link', outcome: 'failed', reason: 'inspect', step: undefined, exitCode: undefined, target: undefined, errorMessage: 'inspect failed' }, succeeded] },
-			script: { connected: true, reports: [added, up, { stage: 'link', outcome: 'failed', reason: 'script', step: 'statePath', exitCode: 1, target: 'workspaces', ...progress, errorMessage: `Cannot link user state (exit 1): mkdir: cannot create directory '~/.cache': Permission denied` }, succeeded] },
+			script: { connected: true, reports: [added, up, { stage: 'link', outcome: 'failed', reason: 'script', step: 'statePath', exitCode: 1, target: 'workspaces', ...progress, scriptUser: 'root', capChown: false, capDacOverride: true, capDacReadSearch: false, capFowner: true, stateOwner: 'user', capDropChown: true, privileged: false, usernsMode: false, readonlyRootfs: false, runtime: 'runc', errorMessage: `Cannot link user state (exit 1): mkdir: cannot create directory '~/.cache': Permission denied` }, succeeded] },
 			homeNotFound: { connected: true, reports: [added, up, { stage: 'link', outcome: 'homeNotFound', target: 'workspaces', ...progress }, succeeded] },
+			missingCapabilities: { connected: true, reports: [added, up, { stage: 'link', outcome: 'missingCapabilities', step: 'capabilities', target: 'workspaces', ...progress, scriptUser: 'root', capChown: false, capDacOverride: true, capDacReadSearch: false, capFowner: true }, succeeded] },
+			homeCapabilities: { connected: true, reports: [added, up, { stage: 'link', outcome: 'missingCapabilities', step: 'home', target: 'workspaces', ...progress, scriptUser: 'root', capChown: true, capDacOverride: false, capDacReadSearch: false, capFowner: true }, succeeded] },
+			readOnlyRootfs: { connected: true, reports: [added, up, { stage: 'link', outcome: 'readOnlyRootfs', step: 'rootfs', target: 'workspaces', ...progress }, succeeded] },
+			untrustedState: { connected: true, reports: [added, up, { stage: 'link', outcome: 'untrustedState', step: 'stateFolder', target: 'workspaces', ...progress, stateOwner: 'root', volumeOwner: 'other' }, succeeded] },
 			userCommands: { connected: false, reports: [added, up, { stage: 'link', outcome: 'linked', target: 'workspaces', ...progress }, { stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'postCreateCommand from devcontainer.json failed with exit code 1.\nnpm ERR! Your cache folder contains root-owned files: ~/.npm, run: sudo chown -R <user> ~/.npm' }] },
 		});
 	});
@@ -1671,6 +1689,20 @@ suite('Dev Container Agent Host Main Service', () => {
 			command.startsWith(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(NullTelemetryService.sessionId)} `)
 		));
 		assert.ok(service.relayCommand?.includes(`agent relay ${shellEscape('spawned-instance')}`));
+	});
+
+	test('closing the relays of an environment that another client deletes tells their clients', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override async _prepareEnvironment(_connectionId: string, source: IDevContainerEnvironmentSource, _token: CancellationToken, onContainerStarted: (containerId: string) => void): Promise<IPreparedDevContainerEnvironment> {
+				onContainerStarted('container');
+				return { containerId: 'container', remoteWorkspaceFolder: `/workspaces/${source.environmentId}`, cliArgs: [] };
+			}
+		}());
+		const closed: string[] = [];
+		store.add(service.onDidRelayClose(connectionId => closed.push(connectionId)));
+		await service.connect({ connectionId: 'other-window', name: 'Dev Container', environmentId: 'environment', image: devContainerEnvironmentImage });
+		await service.removeContainer({ environmentId: 'environment' });
+		assert.deepStrictEqual({ closed, relayDisposed: service.relay.disposed }, { closed: ['other-window'], relayDisposed: true });
 	});
 
 	test('stops and removes the container after disconnecting its relay', async () => {

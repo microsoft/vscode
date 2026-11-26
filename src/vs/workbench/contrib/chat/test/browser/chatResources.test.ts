@@ -12,12 +12,35 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { observeChatResourceExists } from '../../browser/chatResources/chatResourceExistence.js';
 import { ChatResourceContributionEntries, IChatResourceContribution, IChatResourceSessionIds, resolveChatResourceTemplate } from '../../browser/chatResources/chatResourceContributions.js';
 import { getShownChatResource } from '../../browser/chatResources/chatResourcesControl.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from '../../browser/chatResources/chatResourceSizing.js';
 
 suite('ChatResources', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a resource exists as its file system says, also one whose file system registers later, and only then', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('chat-status', store.add(new InMemoryFileSystemProvider())));
+		await fileService.writeFile(URI.parse('chat-status:/status.md'), VSBuffer.fromString('# Status'));
+		const observe = (uri: string) => observeChatResourceExists(fileService, URI.parse(uri), store.add(new DisposableStore()));
+		const existing = observe('chat-status:/status.md');
+		const missing = observe('chat-status:/missing.md');
+		const appLink = observe('app-link:/a.cdp.link');
+		await waitForState(existing, value => value);
+		const beforeRegistration = appLink.get();
+		// Like an extension that registers its file system after activating.
+		const appLinks = store.add(new InMemoryFileSystemProvider());
+		await appLinks.writeFile(URI.parse('app-link:/a.cdp.link'), VSBuffer.fromString('{}').buffer, { create: true, overwrite: true, unlock: false, atomic: false });
+		store.add(fileService.registerProvider('app-link', appLinks));
+		await waitForState(appLink, value => value);
+
+		assert.deepStrictEqual({ existing: existing.get(), missing: missing.get(), beforeRegistration, afterRegistration: appLink.get() }, {
+			existing: true, missing: false, beforeRegistration: false, afterRegistration: true,
+		});
+	});
 
 	test('resolves resource templates with the chat\'s and the agent\'s session id', () => {
 		const ids: IChatResourceSessionIds = { chatSessionId: 'chat 1', agentSessionId: 'cli-42' };

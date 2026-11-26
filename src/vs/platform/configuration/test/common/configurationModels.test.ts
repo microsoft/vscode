@@ -1289,6 +1289,43 @@ suite('Configuration', () => {
 		assert.strictEqual(testObject.getValue('a', {}, undefined), 2);
 	});
 
+	test('Test update value for a resource in a folder after reading it', () => {
+		const testObject = new TestConfiguration(toConfigurationModel({ 'a': 1 }), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
+		const folder = URI.file('folder');
+		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: folder })]);
+		testObject.updateFolderConfiguration(folder, toConfigurationModel({ 'b': 2 }));
+		const resource = URI.joinPath(folder, 'file.txt');
+
+		const valueBeforeUpdate = testObject.getValue('a', { resource }, workspace);
+		testObject.updateValue('a', 3);
+
+		assert.deepStrictEqual({ valueBeforeUpdate, valueAfterUpdate: testObject.getValue('a', { resource }, workspace) }, { valueBeforeUpdate: 1, valueAfterUpdate: 3 });
+	});
+
+	test('Test policy-applied configuration is reused and refreshed after configuration and policy updates', () => {
+		const testObject = new TestConfiguration(toConfigurationModel({ 'a': 1, 'b': 1 }), toConfigurationModel({ 'a': 10 }), ConfigurationModel.createEmptyModel(new NullLogService()), toConfigurationModel({ 'a': 2, 'b': 2 }));
+		// Reading the whole configuration goes through the policy-applied model, including non-policy keys.
+		const read = () => testObject.getValue(undefined, {}, undefined);
+
+		const initial = read();
+		const reused = read() === initial;
+		testObject.updateLocalUserConfiguration(toConfigurationModel({ 'a': 3, 'b': 3 }));
+		const afterUserUpdate = read();
+		testObject.updateValue('b', 4);
+		const afterMemoryUpdate = read();
+		testObject.compareAndUpdatePolicyConfiguration(toConfigurationModel({ 'a': 20, 'b': 30 }));
+		const afterPolicyUpdate = read();
+
+		assert.deepStrictEqual({ initial, reused, afterUserUpdate, afterMemoryUpdate, afterPolicyUpdate, policyValue: testObject.inspect('a', {}, undefined).policyValue }, {
+			initial: { a: 10, b: 2 },
+			reused: true,
+			afterUserUpdate: { a: 10, b: 3 },
+			afterMemoryUpdate: { a: 10, b: 4 },
+			afterPolicyUpdate: { a: 20, b: 30 },
+			policyValue: 20,
+		});
+	});
+
 	test('Test compare and update default configuration', () => {
 		const testObject = new TestConfiguration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
 		testObject.updateDefaultConfiguration(toConfigurationModel({

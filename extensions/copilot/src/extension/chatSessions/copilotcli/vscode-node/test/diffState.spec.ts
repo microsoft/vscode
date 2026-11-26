@@ -116,27 +116,6 @@ describe('diffState', () => {
 		});
 	});
 
-	describe('hasActiveDiffs', () => {
-		it('should return false when no diffs are registered', () => {
-			expect(diffState.hasActiveDiffs()).toBe(false);
-		});
-
-		it('should return true when diffs are registered', () => {
-			const diff = createMockDiff('Test Diff 3');
-			diffState.register(diff);
-			expect(diffState.hasActiveDiffs()).toBe(true);
-		});
-
-		it('should return false after all diffs are unregistered', () => {
-			const diff = createMockDiff('Test Diff 3');
-			diffState.register(diff);
-			expect(diffState.hasActiveDiffs()).toBe(true);
-
-			diffState.unregister(diff.diffId);
-			expect(diffState.hasActiveDiffs()).toBe(false);
-		});
-	});
-
 	describe('edge cases', () => {
 		it('should handle multiple diffs for the same original file', () => {
 			const diff1: ActiveDiff = {

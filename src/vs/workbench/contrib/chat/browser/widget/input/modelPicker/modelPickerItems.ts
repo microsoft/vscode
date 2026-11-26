@@ -70,7 +70,11 @@ export function createManageModelsAction(commandService: ICommandService, sessio
 	};
 }
 
+/** The row that starts a new model router. It runs a command, where the rows around it are choices of a model. */
+export const NEW_MODEL_ROUTER_ACTION_ID = 'chat.modelPicker.newRouter';
+
 export function getModelPickerAccessibilityProvider(isSearch = false, multiple = false) {
+	const isCommand = (element: IActionListItem<IActionWidgetDropdownAction>) => !!element.isSectionToggle || element.item?.id === NEW_MODEL_ROUTER_ACTION_ID;
 	return {
 		getAriaLabel(element: IActionListItem<IActionWidgetDropdownAction>) {
 			if (element.kind !== ActionListItemKind.Action) {
@@ -81,7 +85,7 @@ export function getModelPickerAccessibilityProvider(isSearch = false, multiple =
 			return [element.label, element.badge, ...(element.additionalBadges?.map(badge => badge.label) ?? []), description, currentModel].filter((part): part is string => !!part).join(', ');
 		},
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
-			if (isSearch || element.isSectionToggle) {
+			if (isSearch || isCommand(element)) {
 				return undefined;
 			}
 			return element.kind === ActionListItemKind.Action ? !!element.item?.checked : undefined;
@@ -90,7 +94,7 @@ export function getModelPickerAccessibilityProvider(isSearch = false, multiple =
 			if (isSearch) {
 				return element.kind === ActionListItemKind.Action ? 'option' : 'separator';
 			}
-			if (element.isSectionToggle) {
+			if (isCommand(element)) {
 				return 'menuitem';
 			}
 			switch (element.kind) {

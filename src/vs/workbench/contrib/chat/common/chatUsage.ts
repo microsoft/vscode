@@ -68,6 +68,19 @@ export function aggregateChatUsage(usages: readonly (IChatUsage | undefined)[]):
 	} : undefined;
 }
 
+/** Output tokens per second of the latest model call, or `undefined` when the provider did not time it. */
+export function getLatestModelCallTokensPerSecond(usage: IChatUsage | undefined): number | undefined {
+	const durationMs = usage?.latestModelCall?.duration;
+	const outputTokens = usage?.latestModelCall?.outputTokens ?? usage?.completionTokens;
+	return isPositive(durationMs) && isPositive(outputTokens)
+		? outputTokens * 1000 / durationMs
+		: undefined;
+}
+
+function isPositive(value: number | undefined): value is number {
+	return value !== undefined && Number.isFinite(value) && value > 0;
+}
+
 function isValidModelTotal(total: IChatUsageModelSummary): boolean {
 	return !!total.model
 		&& isTokenCount(total.inputTokens)

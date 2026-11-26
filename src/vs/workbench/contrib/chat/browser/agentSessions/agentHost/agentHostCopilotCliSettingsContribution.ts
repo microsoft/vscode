@@ -93,7 +93,6 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 			},
 			{
 				key: CopilotCliConfigKey.SecurityReviewSecretDetection,
-				// The agent host also requires an internal account per session; root config is shared across windows.
 				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
 					&& this._configurationService.getValue<boolean>(CopilotSecurityReviewSecretDetectionEnabledSettingId) === true,
 				registerTriggers: (store, push) => {

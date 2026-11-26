@@ -234,8 +234,12 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 	readonly label = localize('agentFeedback.commentControllerLabel', "Agent Feedback");
 	readonly owner = AGENT_FEEDBACK_COMMENT_CONTROLLER_ID;
 	readonly features = {};
-	readonly activeComment = undefined;
 	readonly contextValue = AGENT_FEEDBACK_COMMENT_CONTROLLER_ID;
+
+	private _activeComment: { thread: CommentThread; comment?: Comment } | undefined;
+	get activeComment(): { thread: CommentThread; comment?: Comment } | undefined {
+		return this._activeComment;
+	}
 
 	private readonly _commentThreads = this._register(new DisposableMap<string, AgentFeedbackCommentThread>());
 	private readonly _templates = this._register(new DisposableMap<string, AgentFeedbackCommentThread>());
@@ -366,7 +370,8 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 		return Promise.resolve();
 	}
 
-	setActiveCommentAndThread(_commentInfo: { thread: CommentThread; comment?: Comment } | undefined): Promise<void> {
+	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment?: Comment } | undefined): Promise<void> {
+		this._activeComment = commentInfo;
 		return Promise.resolve();
 	}
 

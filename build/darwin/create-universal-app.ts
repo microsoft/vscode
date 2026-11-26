@@ -23,10 +23,10 @@ const nodeModulesBases = [
 export const singleArchFiles = `{${[
 	'**/@github/copilot-darwin-*',
 	'**/@github/copilot-darwin-*/**',
-	'**/@github/copilot-sdk-darwin-*',
-	'**/@github/copilot-sdk-darwin-*/**',
-	'**/@github/copilot-sdk-darwin-*/plugins/*/.*',
-	'**/@github/copilot-sdk-darwin-*/plugins/*/.plugin/**',
+	'**/@microsoft/copilot-sdk-darwin-*',
+	'**/@microsoft/copilot-sdk-darwin-*/**',
+	'**/@microsoft/copilot-sdk-darwin-*/plugins/*/.*',
+	'**/@microsoft/copilot-sdk-darwin-*/plugins/*/.plugin/**',
 	'**/@github/copilot/prebuilds/darwin-*',
 	'**/@github/copilot/prebuilds/darwin-*/**',
 	'**/@github/copilot/tgrep/bin/darwin-*',
@@ -51,12 +51,12 @@ const x64ArchFiles = `{${[
 	'**/extensions/microsoft-authentication/dist/libmsalruntime.dylib',
 	'**/extensions/microsoft-authentication/dist/msal-node-runtime.node',
 	'**/node_modules/@github/copilot-darwin-*/**',
-	'**/node_modules/@github/copilot-sdk-darwin-*/**',
+	'**/node_modules/@microsoft/copilot-sdk-darwin-*/**',
 	'**/node_modules/@github/copilot/prebuilds/darwin-*/*',
 	'**/node_modules/@github/copilot/tgrep/bin/darwin-*/*',
 	'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*',
 	'**/node_modules.asar.unpacked/@github/copilot-darwin-*/**',
-	'**/node_modules.asar.unpacked/@github/copilot-sdk-darwin-*/**',
+	'**/node_modules.asar.unpacked/@microsoft/copilot-sdk-darwin-*/**',
 	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*',
 	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/*',
 	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/*',
@@ -115,8 +115,8 @@ async function main(buildDir?: string) {
 		for (const base of nodeModulesBases) {
 			// @github/copilot-{platform} packages (e.g. copilot-darwin-x64)
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', `copilot-${plat}`));
-			// @github/copilot-sdk-{platform} packages
-			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', `copilot-sdk-${plat}`));
+			// @microsoft/copilot-sdk-{platform} packages
+			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@microsoft', `copilot-sdk-${plat}`));
 			// @vscode/os-proxy-resolver-{platform} packages
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@vscode', `os-proxy-resolver-${plat}`));
 			// @github/copilot/prebuilds/{platform} (pty.node, spawn-helper)
@@ -148,10 +148,10 @@ async function main(buildDir?: string) {
 		'**/node_modules/@github/copilot-darwin-arm64/**',
 		'**/node_modules.asar.unpacked/@github/copilot-darwin-x64/**',
 		'**/node_modules.asar.unpacked/@github/copilot-darwin-arm64/**',
-		'**/node_modules/@github/copilot-sdk-darwin-x64/**',
-		'**/node_modules/@github/copilot-sdk-darwin-arm64/**',
-		'**/node_modules.asar.unpacked/@github/copilot-sdk-darwin-x64/**',
-		'**/node_modules.asar.unpacked/@github/copilot-sdk-darwin-arm64/**',
+		'**/node_modules/@microsoft/copilot-sdk-darwin-x64/**',
+		'**/node_modules/@microsoft/copilot-sdk-darwin-arm64/**',
+		'**/node_modules.asar.unpacked/@microsoft/copilot-sdk-darwin-x64/**',
+		'**/node_modules.asar.unpacked/@microsoft/copilot-sdk-darwin-arm64/**',
 		'**/node_modules/@vscode/os-proxy-resolver-darwin-x64/**',
 		'**/node_modules/@vscode/os-proxy-resolver-darwin-arm64/**',
 		'**/node_modules.asar.unpacked/@vscode/os-proxy-resolver-darwin-x64/**',

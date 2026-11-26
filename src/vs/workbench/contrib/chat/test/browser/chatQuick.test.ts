@@ -50,7 +50,7 @@ import { ILocalChatAvailabilityService } from '../../common/localChatAvailabilit
 suite('Quick Chat session routing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createQuickChat(settings: Record<string, boolean> = {}, managedSettings = new NullManagedSettingsService()) {
+	function createQuickChat(settings: Record<string, boolean> = {}, managedSettings = new NullManagedSettingsService(), localHidden = false) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
@@ -96,7 +96,7 @@ suite('Quick Chat session routing', () => {
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IAgentHostEnablementService, { enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
-		instantiationService.stub(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
+		instantiationService.stub(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(localHidden) }));
 		instantiationService.stub(IManagedSettingsService, managedSettings);
 		instantiationService.stub(IAccountPolicyGateService, { gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
@@ -474,6 +474,23 @@ suite('Quick Chat session routing', () => {
 		fixture.setAcquisition(async () => undefined);
 		await assert.rejects(fixture.modelHost.updateModel(), /Could not start the selected chat session/);
 		assert.deepStrictEqual({ local: fixture.localCalls, bound: fixture.boundModels }, { local: [], bound: [] });
+	});
+
+	test('while Local chats are hidden, no other agent available reports failure instead of creating Local; otherwise Local is the fallback', async () => {
+		const settings = { [ChatConfiguration.DefaultToCopilotHarness]: false, [ChatConfiguration.EditorPreferCopilotHarness]: false, [ChatConfiguration.EditorLocalAgentEnabled]: false };
+		const hidden = createQuickChat(settings, undefined, true);
+		hidden.setAcquisition(async () => undefined);
+		await assert.rejects(hidden.modelHost.updateModel(), /Could not start the selected chat session/);
+		const shown = createQuickChat(settings);
+		await shown.modelHost.updateModel();
+
+		assert.deepStrictEqual({
+			hidden: { acquired: hidden.acquired.map(({ type }) => type), local: hidden.localCalls.length },
+			shown: { acquired: shown.acquired.map(({ type }) => type), local: shown.localCalls.length },
+		}, {
+			hidden: { acquired: [SessionType.AgentHostCopilot], local: 0 },
+			shown: { acquired: [], local: 1 },
+		});
 	});
 
 	test('disposal cancels acquisition and releases a late reference', async () => {

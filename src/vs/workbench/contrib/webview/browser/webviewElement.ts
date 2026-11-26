@@ -432,6 +432,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
 
 		const allowRules = ['cross-origin-isolated', 'autoplay'];
+		if (options.allowFullscreen) {
+			allowRules.push('fullscreen');
+		}
 		const supportedFeatures = (element as HTMLIFrameElement & { featurePolicy?: { features(): string[] } }).featurePolicy?.features();
 		if (supportedFeatures?.includes('local-network-access')) {
 			allowRules.push('local-network-access');
@@ -734,6 +737,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				allowScripts: allowScripts,
 				allowForms: this._content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
 				includeHorizontalScrollbarInContentHeight: this._options.includeHorizontalScrollbarInContentHeight,
+				allowFullscreen: !!this._options.allowFullscreen,
 			},
 			state: this._content.state,
 			cspSource: webviewGenericCspSource,

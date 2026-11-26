@@ -144,11 +144,6 @@ export class Turn {
 		return this._responseInfo?.chatResult?.metadata;
 	}
 
-	get renderedUserMessage(): string | Raw.ChatCompletionContentPart[] | undefined {
-		const metadata = this.resultMetadata;
-		return metadata?.renderedUserMessage;
-	}
-
 	// TODO@roblourens Tracking result data in "agent as chat participant" is difficult and will be replaced in the future.
 	// This is likely a Turn from Ask mode that does not have tool call rounds.
 	// Use consistent instances so we can save state on them.
@@ -249,10 +244,6 @@ export function normalizeSummariesOnRounds(turns: readonly Turn[]): void {
 			}
 		}
 	}
-}
-
-export interface IConversationState {
-	readonly turns: Turn[];
 }
 
 /** Returns the history boundary of the user task continued by a system notification. */

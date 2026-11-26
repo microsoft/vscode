@@ -975,7 +975,7 @@ export class AgentMergeController extends Disposable {
 		}
 
 		const gitStateKey = runtime.folderKey === this._sessionFolderKey(state) ? session : chat;
-		const lookupFailure = await this._gitStateService.attachSessionGitHubPullRequest(gitStateKey, this._workingDirectoryForFolder(session, runtime.folderKey)) || undefined;
+		const lookupFailure = await this._gitStateService.attachSessionGitHubPullRequest(gitStateKey) || undefined;
 		if (!this._isCurrentEvaluation(key, runtime, agentMerge, chat, configuration)) {
 			return;
 		}
@@ -1335,7 +1335,7 @@ export class AgentMergeController extends Disposable {
 		}
 		this._logService.debug(`[AgentMergeController] Refreshing git state before resolving the branch: session=${runtime.session}, folder=${runtime.folderKey}, hasTarget=${targetBranchName !== undefined}`);
 		const gitStateKey = runtime.folderKey === this._sessionFolderKey(state) ? runtime.session : chat;
-		await this._gitStateService.refreshSessionGitState(gitStateKey, this._workingDirectoryForFolder(runtime.session, runtime.folderKey));
+		await this._gitStateService.refreshSessionGitState(gitStateKey);
 		if (!this._isCurrentRuntime(key, runtime)) {
 			return undefined;
 		}
@@ -1953,16 +1953,20 @@ export class AgentMergeController extends Disposable {
 	}
 
 	/**
-	 * Asks the client for a credential that can read the bound pull request,
-	 * naming the organization to authorize when GitHub reports SAML enforcement.
+	 * Asks the client for a credential that can read the bound pull request.
+	 * A SAML enforcement refusal is only logged, naming the organization to
+	 * authorize, since signing in again would not grant the access.
 	 */
 	private _requestGitHubAuthorization(session: string, kind: 'authentication' | 'authorization', message: string): void {
-		this._stateManager.emitAuthRequired({
-			resource: this._gitHubEndpointService.getRepoResource(),
-			reason: AuthRequiredReason.Required,
-		});
+		const singleSignOn = isSamlEnforcementError(message);
+		if (!singleSignOn) {
+			this._stateManager.emitAuthRequired({
+				resource: this._gitHubEndpointService.getRepoResource(),
+				reason: AuthRequiredReason.Required,
+			});
+		}
 		const organization = this._organizationForSession(session);
-		const remedy = isSamlEnforcementError(message) && organization
+		const remedy = singleSignOn && organization
 			? `; the credential must be SSO-authorized for ${organization}`
 			: '';
 		this._logService.warn(`[AgentMergeController] GitHub refused the credential (${kind})${remedy}: session=${session}`);

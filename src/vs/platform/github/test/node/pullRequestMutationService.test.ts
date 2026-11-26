@@ -147,7 +147,7 @@ suite('PullRequestMutationService', () => {
 		const credentials = disposables.add(new TestCredentialService(account));
 		const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler, true));
 		const query = new PullRequestQueryService(transport, {
-			getCapabilities: async () => ({ graphql: true, reviewThreads: true, mergeQueue: false, checkContextRequiredness: false }),
+			getCapabilities: async () => ({ graphql: true, reviewThreads: true, mergeQueue: false, mergeQueueRemovals: false, checkContextRequiredness: false }),
 		}, server.createEndpointService());
 		const resources = disposables.add(new PullRequestResourceService(scheduler, undefined, credentials, query, new NullLogService()));
 		const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));

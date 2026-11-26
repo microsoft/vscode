@@ -7,10 +7,13 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { createModelRouterModelMeta } from '../../../../../../platform/agentHost/common/modelRouter.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, withAgentModelRouterRoutesMeta, withAgentModelRouterSwitchingMeta, type IAgentModelAutoTierPromotion, type IAgentModelRouterRoute } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -51,6 +54,33 @@ suite('AgentHostLanguageModelProvider', () => {
 			{ keys: undefined, default: 'high', readOnly: true, managed: undefined },
 		]);
 	});
+	for (const kind of agentHostConnectionKinds) {
+		test(`a model router's row carries its file, its routes and whether it switches, and a host that sends only its file still gets a router row: ${kind.name}`, async () => {
+			const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli', undefined, uri => kind.resourceUris.fromAgentHost(uri)));
+			const file = URI.file('/routers/daily.model-router.yaml');
+			// As it arrives over the wire.
+			const wire = (meta: Record<string, unknown> | undefined) => JSON.parse(JSON.stringify(meta));
+			const routes: IAgentModelRouterRoute[] = [{ name: 'build', model: 'Claude Opus 5.5', effort: 'high', contextTokens: 1_000_000 }, { model: 'Claude Haiku 5.5' }];
+			const row = createModelRouterModelMeta('A router.', file);
+			provider.updateModels([
+				// A router is one by what its row carries, not by how this host names it.
+				makeModel('opaque-router-id', wire(withAgentModelRouterSwitchingMeta(withAgentModelRouterRoutesMeta(row, routes), 'auto'))),
+				makeModel('router-from-a-host-that-sends-only-its-file', wire(row)),
+				// A way of switching this window does not know is not shown.
+				makeModel('router-from-a-newer-host', wire({ ...row, 'vscode.chat.modelRouterSwitching': 'mid-turn' })),
+				makeModel('not-a-router'),
+			]);
+			const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			const clientFile = kind.toClient(file).toString();
+			assert.deepStrictEqual(infos.map(({ metadata }) => [metadata.id, metadata.detailsResource && URI.revive(metadata.detailsResource).toString(), metadata.modelRouterRoutes, metadata.modelRouterSwitching]), [
+				['opaque-router-id', clientFile, routes, 'auto'],
+				['router-from-a-host-that-sends-only-its-file', clientFile, [], undefined],
+				['router-from-a-newer-host', clientFile, [], undefined],
+				['not-a-router', undefined, undefined, undefined],
+			]);
+		});
+	}
+
 	test('announces the first models, even none, and later only models that changed', () => {
 		const provider = createProvider();
 		let changes = 0;
@@ -779,6 +809,18 @@ suite('AgentHostLanguageModelProvider', () => {
 			statusIcon: Codicon.warning.id,
 			warningText: { model_degraded: 'GPT-5 is currently degraded.' },
 			infoText: { model_relocated: 'GPT-5 now serves from a new region.' },
+		});
+	});
+
+	test('a model router keeps its description, with its warning beside it', async () => {
+		const provider = createProvider();
+		provider.updateModels([makeModel('router', { ...createModelRouterModelMeta('A router.', URI.file('/routers/daily.model-router.yaml')), rowWarning: 'Route 2 (gone) is skipped.' })]);
+
+		const metadata = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata;
+		assert.deepStrictEqual({ tooltip: metadata.tooltip, statusIcon: metadata.statusIcon?.id, warningText: metadata.warningText }, {
+			tooltip: 'A router.',
+			statusIcon: Codicon.warning.id,
+			warningText: { modelRouter: 'Route 2 (gone) is skipped.' },
 		});
 	});
 

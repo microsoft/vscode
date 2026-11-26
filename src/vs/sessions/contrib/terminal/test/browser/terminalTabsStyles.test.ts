@@ -29,19 +29,24 @@ suite('Sessions - Terminal Tabs Styles', () => {
 		const paneView = append(panel, $('.monaco-pane-view'));
 		const body = append(paneView, $('.pane-body.integrated-terminal'));
 		const tabs = append(body, $('.tabs-container.has-text'));
+		tabs.style.height = '200px';
 		const listContainer = append(tabs, $('.tabs-list-container'));
-		const list = append(listContainer, $('.tabs-list.monaco-list'));
-		const rows = append(list, $('.monaco-list-rows'));
+		const list = append(listContainer, $('.tabs-list'));
+		const monacoList = append(list, $('.monaco-list'));
+		const scrollable = append(monacoList, $('.monaco-scrollable-element'));
+		const rows = append(scrollable, $('.monaco-list-rows'));
 		rows.style.width = '200px';
 		const row = append(rows, $('.monaco-list-row.selected'));
+		row.style.top = '0';
+		row.style.height = '22px';
 		const entry = append(row, $('.terminal-tabs-entry.is-active'));
 		append(entry, $('.monaco-icon-label'));
-		return { root, listContainer, row, entry };
+		return { tabs, listContainer, list, row, entry };
 	}
 
 	for (const compact of [false, true]) {
 		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
-			test(`matches editor terminal row styling in ${theme}, ${compact ? 'compact' : 'default'} density`, () => {
+			test(`matches editor terminal row styling and layout in ${theme}, ${compact ? 'compact' : 'default'} density`, () => {
 				const agents = createTerminalList(true, compact, theme);
 				const editor = createTerminalList(false, compact, theme);
 				const getRowStyles = (row: HTMLElement) => {
@@ -53,15 +58,23 @@ suite('Sessions - Terminal Tabs Styles', () => {
 						borderRadius: style.borderRadius,
 					};
 				};
+				const getListLayout = (terminal: ReturnType<typeof createTerminalList>) => ({
+					gap: terminal.row.getBoundingClientRect().top - terminal.tabs.getBoundingClientRect().top,
+					viewportHeight: terminal.list.clientHeight,
+				});
 				const inset = compact ? 2 : 4;
 				assert.deepStrictEqual({
 					agents: getRowStyles(agents.row),
 					editor: getRowStyles(editor.row),
+					agentsLayout: getListLayout(agents),
+					editorLayout: getListLayout(editor),
 					entryPadding: mainWindow.getComputedStyle(agents.entry).paddingInline,
 					background: mainWindow.getComputedStyle(agents.listContainer).backgroundColor,
 				}, {
 					agents: { left: `${inset}px`, right: `${inset}px`, width: `${200 - 2 * inset}px`, borderRadius: '4px' },
 					editor: { left: `${inset}px`, right: `${inset}px`, width: `${200 - 2 * inset}px`, borderRadius: '4px' },
+					agentsLayout: { gap: 4, viewportHeight: 196 },
+					editorLayout: { gap: 4, viewportHeight: 196 },
 					entryPadding: '8px',
 					background: 'rgb(34, 51, 68)',
 				});
@@ -70,19 +83,21 @@ suite('Sessions - Terminal Tabs Styles', () => {
 	}
 
 	test('preserves the drop target background and icon-only row styling', () => {
-		const { root, listContainer, row } = createTerminalList(true, false, 'vs-dark');
-		root.querySelector('.tabs-container')!.classList.remove('has-text');
+		const { tabs, listContainer, row } = createTerminalList(true, false, 'vs-dark');
+		tabs.classList.remove('has-text');
 		listContainer.classList.add('drop-target');
 		assert.deepStrictEqual({
 			background: mainWindow.getComputedStyle(listContainer).backgroundColor,
 			borderRadius: mainWindow.getComputedStyle(row).borderRadius,
 			left: mainWindow.getComputedStyle(row).left,
 			right: mainWindow.getComputedStyle(row).right,
+			gap: row.getBoundingClientRect().top - tabs.getBoundingClientRect().top,
 		}, {
 			background: 'rgb(51, 68, 85)',
 			borderRadius: '4px',
 			left: '4px',
 			right: '4px',
+			gap: 4,
 		});
 	});
 });

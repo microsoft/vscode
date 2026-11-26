@@ -92,8 +92,6 @@ import { ExtensionTextDocumentManager } from '../../../platform/workspace/vscode
 import { GithubAvailableEmbeddingTypesService, IGithubAvailableEmbeddingTypesService } from '../../../platform/workspaceChunkSearch/common/githubAvailableEmbeddingTypes';
 import { IRerankerService, RerankerService } from '../../../platform/workspaceChunkSearch/common/rerankerService';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
-import { IToolResultContentRenderer } from '../../agentDebug/common/toolResultRenderer';
-import { ToolResultContentRenderer } from '../../agentDebug/vscode-node/toolResultContentRenderer';
 import { GitHubOrgChatResourcesService, IGitHubOrgChatResourcesService } from '../../agents/vscode-node/githubOrgChatResourcesService';
 import { CommandServiceImpl, ICommandService } from '../../commands/node/commandService';
 import { ICopilotInlineCompletionItemProviderService, NullCopilotInlineCompletionItemProviderService } from '../../completions/common/copilotInlineCompletionItemProviderService';
@@ -216,7 +214,6 @@ export function createExtensionTestingServices(): TestingServiceCollection {
 	testingServiceCollection.define(IRerankerService, new SyncDescriptor(RerankerService));
 	testingServiceCollection.define(IOTelSqliteStore, new OTelSqliteStore(':memory:'));
 	testingServiceCollection.define(ISessionStore, new SessionStore(':memory:'));
-	testingServiceCollection.define(IToolResultContentRenderer, new SyncDescriptor(ToolResultContentRenderer));
 	testingServiceCollection.define(IGitHubOrgChatResourcesService, new SyncDescriptor(GitHubOrgChatResourcesService));
 
 	return testingServiceCollection;

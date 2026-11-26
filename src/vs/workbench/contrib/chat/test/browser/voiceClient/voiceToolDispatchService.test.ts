@@ -38,7 +38,7 @@ import { VoiceLiveInputRouter } from '../../../common/voiceClient/voiceLiveInput
 import { ILocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
 
 function createDispatchService(store: Pick<DisposableStore, 'add'>, agentSessions: IAgentSessionsService, chat: IChatService, tools: ILanguageModelToolsService, options: {
-	hostEnabled?: boolean; preferCopilot?: boolean; managed?: boolean; configuration?: TestConfigurationService; gate?: IAccountPolicyGateService;
+	hostEnabled?: boolean; preferCopilot?: boolean; managed?: boolean; configuration?: TestConfigurationService; gate?: IAccountPolicyGateService; localHidden?: boolean;
 } = {}) {
 	const configuration = options.configuration ?? new TestConfigurationService({ [ChatConfiguration.EditorPreferCopilotHarness]: options.preferCopilot ?? true });
 	return new VoiceToolDispatchService(
@@ -58,7 +58,7 @@ function createDispatchService(store: Pick<DisposableStore, 'add'>, agentSession
 		options.gate ?? {
 			_serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { },
 		},
-		upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
+		upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(options.localHidden ?? false) }),
 	);
 }
 
@@ -109,6 +109,8 @@ suite('VoiceToolDispatchService - session actions', () => {
 		{ name: 'unavailable SDK', hostEnabled: false, expected: 'local' },
 		{ name: 'managed runtime requirement', hostEnabled: false, managed: true, expected: SessionType.AgentHostCopilot },
 		{ name: 'administrator Local override', hostEnabled: true, adminLocal: true, expected: 'local' },
+		{ name: 'hidden Local chats without another agent', hostEnabled: false, localHidden: true, expected: SessionType.AgentHostCopilot },
+		{ name: 'administrator Local override while Local chats are hidden', hostEnabled: true, adminLocal: true, localHidden: true, expected: 'local' },
 	]) {
 		test(`new voice conversations respect ${scenario.name}`, async () => {
 			const created: string[] = [];
@@ -143,6 +145,17 @@ suite('VoiceToolDispatchService - session actions', () => {
 			override async acquireOrLoadSession() { return undefined; }
 		}();
 		const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), chat, new class extends mock<ILanguageModelToolsService>() { }(), { hostEnabled: true });
+		await assert.rejects(() => service.createChatSession(), /Unable to start/);
+		assert.strictEqual(localCreations, 0);
+	});
+
+	test('while Local chats are hidden, an agent that cannot start yet reports it instead of a Local conversation starting', async () => {
+		let localCreations = 0;
+		const chat = new class extends mock<IChatService>() {
+			override startNewLocalSession(): IChatModelReference { localCreations++; throw new Error('Unexpected Local'); }
+			override async acquireOrLoadSession() { return undefined; }
+		}();
+		const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), chat, new class extends mock<ILanguageModelToolsService>() { }(), { hostEnabled: false, localHidden: true });
 		await assert.rejects(() => service.createChatSession(), /Unable to start/);
 		assert.strictEqual(localCreations, 0);
 	});

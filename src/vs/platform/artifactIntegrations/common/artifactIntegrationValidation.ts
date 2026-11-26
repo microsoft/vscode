@@ -113,6 +113,7 @@ export function isArtifactConfiguration(value: unknown): value is ArtifactAutoma
 		&& isDictionary(value.generations, isCounter)
 		&& (value.enabledAt === undefined || isDictionary(value.enabledAt, isCounter))
 		&& (value.grants === undefined || isDictionary(value.grants, isArtifactActor))
+		&& (value.disabledBy === undefined || isDictionary(value.disabledBy, isArtifactActor))
 		&& isRecord(value.disablements) && Object.values(value.disablements).every(item =>
 			isRecord(item) && typeof item.reason === 'string' && isCounter(item.attempts) && (item.lastRunId === undefined || typeof item.lastRunId === 'string'));
 }

@@ -27,7 +27,7 @@ import { asTextOrError, IRequestService } from '../../../../../platform/request/
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
-import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
+import { renderCustomizationDetailLink, renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 
 const $ = DOM.$;
 const maxRepresentativeQueries = 3;
@@ -51,7 +51,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	private readonly titleEl: HTMLElement;
 	private readonly titleActionsEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
-	private readonly publisherEl: HTMLAnchorElement;
+	private readonly headerLinkEl: HTMLAnchorElement;
 	private readonly installStateEl: HTMLElement;
 	private readonly installStateCardEl: HTMLElement;
 	private readonly installStateIconEl: HTMLElement;
@@ -91,7 +91,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		const identity = DOM.append(header, $('.embedded-detail-header-text'));
 		const nameRow = DOM.append(identity, $('.embedded-detail-name-row'));
 		this.titleEl = DOM.append(nameRow, $('h2.embedded-detail-name'));
-		this.publisherEl = DOM.append(nameRow, $('a.embedded-detail-publisher')) as HTMLAnchorElement;
+		this.headerLinkEl = DOM.append(nameRow, $('a.embedded-detail-header-link')) as HTMLAnchorElement;
 		this.titleActionsEl = DOM.append(header, $('.embedded-detail-title-actions'));
 		this.descriptionEl = DOM.append(this.root, $('p.embedded-detail-description.marketplace-detail-description'));
 
@@ -158,9 +158,10 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.readmeContent = undefined;
 		this.titleEl.textContent = '';
 		this.descriptionEl.textContent = '';
-		this.publisherEl.textContent = '';
-		this.publisherEl.style.display = 'none';
-		this.publisherEl.removeAttribute('href');
+		this.headerLinkEl.textContent = '';
+		this.headerLinkEl.style.display = 'none';
+		this.headerLinkEl.removeAttribute('href');
+		this.headerLinkEl.removeAttribute('aria-label');
 		this.installStateEl.style.display = 'none';
 		this.iconDisposables.clear();
 		DOM.clearNode(this.iconEl);
@@ -180,16 +181,18 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		const state = this.installService.getInstallState(resource);
 		const target = getLocationTarget(state);
 		const statePresentation = getInstallStatePresentation(state);
+		const isConnector = resource.installation?.kind === 'copilotConnector';
 		return [
 			resource.displayName,
-			resource.publisher,
+			!isConnector ? resource.publisher : undefined,
 			resource.description,
 			statePresentation ? [statePresentation.summary, ...statePresentation.details].join('\n') : undefined,
 			formatList(localize('marketplaceDetail.queries', "Get started"), resource.representativeQueries.slice(0, maxRepresentativeQueries)),
 			localize('marketplaceDetail.typeAccessible', "Type: {0}", getMarketplaceTypeLabel(resource)),
-			resource.publisher ? localize('marketplaceDetail.publisherAccessible', "Publisher: {0}", resource.publisher) : undefined,
+			!isConnector && resource.publisher ? localize('marketplaceDetail.publisherAccessible', "Publisher: {0}", resource.publisher) : undefined,
 			resource.version ? localize('marketplaceDetail.versionAccessible', "Version: {0}", resource.version) : undefined,
 			localize('marketplaceDetail.sourceAccessible', "Source: {0}", this.options.getSourceLabel(resource.sourceId)),
+			isConnector && resource.homepage ? localize('marketplaceDetail.homepageAccessible', "Homepage: {0}", resource.homepage) : undefined,
 			formatList(localize('marketplaceDetail.tags', "Tags"), resource.tags),
 			resource.repository ? localize('marketplaceDetail.repositoryAccessible', "Repository: {0}", getRepositoryLabel(resource.repository)) : undefined,
 			target ? localize('marketplaceDetail.locationAccessible', "Location: {0}", target.fsPath || target.toString()) : undefined,
@@ -208,26 +211,20 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.locationFactEl = undefined;
 
 		this.titleEl.textContent = resource.displayName;
-		this.publisherEl.textContent = resource.publisher ?? '';
-		this.publisherEl.style.display = resource.publisher ? '' : 'none';
-		const publisherUrl = getPublisherUrl(resource);
-		if (publisherUrl) {
-			this.publisherEl.href = publisherUrl.toString(true);
-			this.renderDisposables.add(DOM.addDisposableListener(this.publisherEl, DOM.EventType.CLICK, event => {
-				event.preventDefault();
-				void this.options.openExternal(publisherUrl);
-			}));
-		} else {
-			this.publisherEl.removeAttribute('href');
-		}
-		if (resource.publisher) {
-			this.renderDisposables.add(this.hoverService.setupDelayedHover(this.publisherEl, { content: resource.publisher }));
-		}
+		const isConnector = resource.installation?.kind === 'copilotConnector';
+		const publisherUrl = isConnector ? undefined : getPublisherUrl(resource);
+		renderCustomizationDetailLink(this.headerLinkEl, {
+			label: isConnector ? undefined : resource.publisher,
+			target: publisherUrl,
+			onOpen: target => void this.options.openExternal(target),
+			hoverService: this.hoverService,
+			hoverGroupId: this.factHoverGroupId,
+		}, this.renderDisposables);
 		this.renderIcon();
 		this.descriptionEl.textContent = resource.description || localize('marketplaceDetail.noDescription', "No description provided.");
 		this.renderQueries(resource);
 		this.appendFact(localize('marketplaceDetail.type', "Type"), getMarketplaceTypeLabel(resource));
-		if (resource.publisher) {
+		if (!isConnector && resource.publisher) {
 			this.appendFact(localize('marketplaceDetail.publisher', "Publisher"), this.createLink(resource.publisher, publisherUrl));
 		}
 		if (resource.version) {
@@ -235,6 +232,9 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		}
 		const sourceLabel = this.options.getSourceLabel(resource.sourceId);
 		this.appendFact(localize('marketplaceDetail.source', "Source"), this.createLink(sourceLabel, resource.externalUrl ?? resource.url ?? resource.repository));
+		if (isConnector && resource.homepage) {
+			this.appendFact(localize('marketplaceDetail.homepage', "Homepage"), this.createLink(resource.homepage, resource.homepage));
+		}
 		if (resource.tags.length) {
 			this.appendFact(localize('marketplaceDetail.tags', "Tags"), resource.tags.join(', '));
 		}

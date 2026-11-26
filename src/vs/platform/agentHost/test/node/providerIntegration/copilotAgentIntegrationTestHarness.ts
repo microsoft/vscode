@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, type CopilotClientOptions } from '@github/copilot-sdk';
+import { CopilotClient, type CopilotClientOptions } from '@microsoft/copilot-sdk';
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -59,31 +59,39 @@ class LocalEndpointCopilotAgent extends CopilotAgent {
 	endpoint = '';
 	home = '';
 	configuration: IAgentConfigurationService | undefined;
-	readonly clients: { options: CopilotClientOptions; client: ObservedCopilotClient }[] = [];
+	readonly clients: { options: CopilotClientOptions & { runtime: Extract<NonNullable<CopilotClientOptions['runtime']>, { kind: 'spawned-stdio' }> }; client: ObservedCopilotClient }[] = [];
 	onClientStarted: ((client: CopilotClient, options: CopilotClientOptions) => void) | undefined;
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
-		for (const [key, value] of Object.entries(options.env ?? {})) {
+		const runtime = options.runtime;
+		assert.ok(runtime?.kind === 'spawned-stdio');
+		for (const [key, value] of Object.entries(runtime.env ?? {})) {
 			assert.ok(!isCredentialEnvironmentKey(key) || labelTestCredential(value) !== 'UNEXPECTED', `Unexpected credential environment key in test subprocess: ${key}`);
 		}
-		assert.notStrictEqual(labelTestCredential(options.gitHubToken), 'UNEXPECTED', 'Unexpected test startup credential');
+		assert.notStrictEqual(labelTestCredential(options.github?.token), 'UNEXPECTED', 'Unexpected test startup credential');
 		const client = new ObservedCopilotClient({
 			...options,
-			env: {
-				...createIsolatedProviderEnvironment(this.home, options.env),
-				COPILOT_HOME: options.env?.COPILOT_HOME,
-				COPILOT_API_URL: this.endpoint,
-				COPILOT_DEBUG_GITHUB_API_URL: this.endpoint,
-				COPILOT_MANAGED_SETTINGS_CACHE: '0',
-				COPILOT_TELEMETRY_ENABLED: 'false',
+			runtime: {
+				...runtime,
+				env: {
+					...createIsolatedProviderEnvironment(this.home, runtime.env),
+					COPILOT_HOME: runtime.env?.COPILOT_HOME,
+					COPILOT_API_URL: this.endpoint,
+					COPILOT_DEBUG_GITHUB_API_URL: this.endpoint,
+					COPILOT_MANAGED_SETTINGS_CACHE: '0',
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				},
 			},
 		});
 		this.clients.push({
 			options: {
 				...options,
-				gitHubToken: options.gitHubToken === undefined ? undefined : labelTestCredential(options.gitHubToken),
-				env: Object.fromEntries(Object.entries(options.env ?? {}).map(([key, value]) =>
-					[key, isCredentialEnvironmentKey(key) && value !== undefined ? labelTestCredential(value) : value])),
+				github: { ...options.github, token: options.github?.token === undefined ? undefined : labelTestCredential(options.github.token) },
+				runtime: {
+					...runtime,
+					env: Object.fromEntries(Object.entries(runtime.env ?? {}).map(([key, value]) =>
+						[key, isCredentialEnvironmentKey(key) && value !== undefined ? labelTestCredential(value) : value])),
+				},
 			},
 			client,
 		});

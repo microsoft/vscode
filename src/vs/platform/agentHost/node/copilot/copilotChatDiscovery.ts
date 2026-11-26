@@ -141,21 +141,56 @@ export class CopilotChatDiscovery extends Disposable {
 		for (const { id, resource, reason } of changes.added) {
 			if (!this._hostSessions.has(id)) {
 				this._candidates.set(id, new CopilotSessionDiscoveryCandidate(id, resource, reason,
+					reason === 'directoryAdded' || (!this._initialScan && !changes.reset),
 					() => this._schedule(), this._fileService, this._logService));
 				this._logService.trace(`[CopilotDiscovery] Candidate ${id}: enrolled=${reason}`);
 			}
 		}
-		const probes = new Set<CopilotSessionDiscoveryCandidate>();
+		const priority = new Set<CopilotSessionDiscoveryCandidate>();
 		for (const [id, candidate] of this._candidates) {
 			if (candidate.deleted || this._hostSessions.has(id)) {
 				this._removeCandidate(id);
-			} else if (!candidate.watching && this._watchCount < CopilotChatDiscovery.candidateLimit) {
+			} else if (candidate.recent && priority.size < CopilotChatDiscovery.candidateLimit / 2) {
+				priority.add(candidate);
+			}
+		}
+		const watched = new Set(priority);
+		for (const candidate of this._candidates.values()) {
+			if (watched.size >= CopilotChatDiscovery.candidateLimit) {
+				break;
+			}
+			if (candidate.watching) {
+				watched.add(candidate);
+			}
+		}
+		for (const candidate of this._candidates.values()) {
+			if (watched.size >= CopilotChatDiscovery.candidateLimit) {
+				break;
+			}
+			watched.add(candidate);
+		}
+		for (const candidate of this._candidates.values()) {
+			if (candidate.watching && !watched.has(candidate)) {
+				candidate.unwatch();
+				this._watchCount--;
+			}
+		}
+		const probes = new Set<CopilotSessionDiscoveryCandidate>();
+		for (const candidate of watched) {
+			if (!candidate.watching) {
 				candidate.watch();
 				this._watchCount++;
 				probes.add(candidate);
 			}
 		}
 		if (maintenance) {
+			// Reserve part of the probe budget for recent arrivals, including watcher arming gaps.
+			for (const candidate of priority) {
+				if (probes.size >= CopilotChatDiscovery.candidateLimit) {
+					break;
+				}
+				probes.add(candidate);
+			}
 			for (const candidate of this._candidates.values()) {
 				if (probes.size >= CopilotChatDiscovery.candidateLimit) {
 					break;

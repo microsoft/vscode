@@ -158,5 +158,38 @@ suite('Agent host SQLite journal', () => {
 				await close(reader);
 			}
 		});
+
+		for (const journalHost of [local, network]) {
+			test(`waits for a concurrent writer before configuring and writing (${journalHost === local ? 'local' : 'network'})`, async () => {
+				const path = join(directory, 'contended.db');
+				const writer = await openDatabase(path);
+				try {
+					await exec(writer, 'CREATE TABLE item (id INTEGER); BEGIN IMMEDIATE; INSERT INTO item VALUES (1)');
+					const database = await openDatabase(path);
+					try {
+						await exec(database, 'PRAGMA busy_timeout = 0');
+						const configured = configureSqliteJournal(database, path, journalHost);
+						const release = new Promise<void>((resolve, reject) => {
+							setTimeout(() => { exec(writer, 'COMMIT').then(resolve, reject); }, 50);
+						});
+						await Promise.all([configured, release]);
+						await exec(writer, 'BEGIN IMMEDIATE; INSERT INTO item VALUES (2)');
+						const write = exec(database, 'INSERT INTO item VALUES (3)');
+						const releaseWrite = new Promise<void>((resolve, reject) => {
+							setTimeout(() => { exec(writer, 'COMMIT').then(resolve, reject); }, 50);
+						});
+						await Promise.all([write, releaseWrite]);
+						assert.deepStrictEqual({
+							rows: await get(database, 'SELECT count(*) AS count FROM item'),
+							busyTimeout: await get(database, 'PRAGMA busy_timeout'),
+						}, { rows: { count: 3 }, busyTimeout: { timeout: 5000 } });
+					} finally {
+						await close(database);
+					}
+				} finally {
+					await close(writer);
+				}
+			});
+		}
 	});
 });

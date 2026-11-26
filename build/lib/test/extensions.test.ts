@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import es from 'event-stream';
+import { collectStream } from './collectStream.ts';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -68,9 +68,8 @@ suite('getSharedExtensionDependencyStream', () => {
 		const moduleIgnore = path.join(root, '.moduleignore');
 		fs.writeFileSync(moduleIgnore, 'x/README.md\n');
 
-		const packaged = await new Promise<VinylFile[]>((resolve, reject) => getSharedExtensionDependencyStream(folder, 'extensions/node_modules/x')
-			.pipe(cleanNodeModules(moduleIgnore))
-			.pipe(es.writeArray((err: Error | undefined, result: VinylFile[]) => err ? reject(err) : resolve(result))));
+		const packaged = await collectStream<VinylFile>(getSharedExtensionDependencyStream(folder, 'extensions/node_modules/x')
+			.pipe(cleanNodeModules(moduleIgnore)));
 
 		assert.deepStrictEqual(packaged.filter(file => !file.isDirectory()).map(file => file.relative.split(path.sep).join('/')), ['extensions/node_modules/x/index.js']);
 	});

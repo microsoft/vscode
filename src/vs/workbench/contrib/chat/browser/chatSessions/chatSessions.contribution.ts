@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sep } from '../../../../../base/common/path.js';
-import { AsyncIterableProducer, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, raceCancellation, raceCancellationError, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -369,6 +369,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<{ readonly chatSessionType: string }>());
 	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
 
+	private static readonly ITEM_CHANGE_DEBOUNCE_MS = 50;
+
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
 	readonly onDidChangeSessionItems = this._onDidChangeSessionItems.event;
 
@@ -401,8 +403,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeCustomizations = this._register(new Emitter<{ readonly chatSessionType: string }>());
 	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
 
-	private readonly _hasCanDelegateProvidersKey: IContextKey<boolean>;
-
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -414,8 +414,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this._hasCanDelegateProvidersKey = ChatContextKeys.hasCanDelegateProviders.bindTo(this._contextKeyService);
 
 		this._register(extensionPoint.setHandler(extensions => {
 			for (const ext of extensions) {
@@ -592,7 +590,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					}
 				}
 				this._contributionDisposables.deleteAndDispose(contribution.type);
-				this._updateHasCanDelegateProvidersContextKey();
 			}
 		};
 	}
@@ -839,7 +836,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._onDidChangeSessionItems.fire({ removed: Array.from(disposedChatSessions) });
 			}
 		}
-		this._updateHasCanDelegateProvidersContextKey();
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
@@ -921,13 +917,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			.map(entry => this.resolveChatSessionContribution(entry.extension, entry.contribution));
 	}
 
-	private _updateHasCanDelegateProvidersContextKey(): void {
-		const hasCanDelegate = this.getAllChatSessionContributions().filter(c => c.canDelegate);
-		const canDelegateEnabled = hasCanDelegate.length > 0;
-		this._logService.trace(`[ChatSessionsService] hasCanDelegateProvidersAvailable=${canDelegateEnabled} (${hasCanDelegate.map(c => c.type).join(', ')})`);
-		this._hasCanDelegateProvidersKey.set(canDelegateEnabled);
-	}
-
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined {
 		const entry = this._contributions.get(chatSessionType);
 		if (!entry) {
@@ -1003,7 +992,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (contribution.onDidChangeRequiresCopilotSignIn) {
 			disposables.add(contribution.onDidChangeRequiresCopilotSignIn(() => this._onDidChangeAvailability.fire()));
 		}
-		this._updateHasCanDelegateProvidersContextKey();
+		if (contribution.onDidChangeAvailability) {
+			disposables.add(contribution.onDidChangeAvailability(() => this._onDidChangeAvailability.fire()));
+		}
 		this._onDidChangeAvailability.fire();
 
 		return toDisposable(() => {
@@ -1016,7 +1007,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				}
 			}
 			this._contributionDisposables.deleteAndDispose(contribution.type);
-			this._updateHasCanDelegateProvidersContextKey();
 			this._onDidChangeAvailability.fire();
 		});
 	}
@@ -1216,12 +1206,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._itemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(initialRefreshCts.token, 'initial') });
 		this._onDidChangeItemsProviders.fire({ chatSessionType });
 
+		// Controllers may report changes in bursts (e.g. one per session summary update): merge them and notify listeners and
+		// re-count in-progress sessions once per interval instead of once per event.
+		const pendingUpdated = new ResourceMap<IChatSessionItem>();
+		const pendingRemoved = new ResourceSet();
+		const flushScheduler = disposables.add(new RunOnceScheduler(() => {
+			const delta: IChatSessionItemsDelta = {
+				addedOrUpdated: pendingUpdated.size ? Array.from(pendingUpdated.values()) : undefined,
+				removed: pendingRemoved.size ? Array.from(pendingRemoved) : undefined,
+			};
+			pendingUpdated.clear();
+			pendingRemoved.clear();
+			this._onDidChangeSessionItems.fire(delta);
+			this.updateInProgressStatus(chatSessionType);
+		}, ChatSessionsService.ITEM_CHANGE_DEBOUNCE_MS));
+
 		disposables.add(controller.onDidChangeChatSessionItems(e => {
 			for (const sessionResource of e.removed ?? []) {
 				this._disposeSession(sessionResource);
+				pendingUpdated.delete(sessionResource);
+				pendingRemoved.add(sessionResource);
 			}
-			this._onDidChangeSessionItems.fire(e);
-			this.updateInProgressStatus(chatSessionType);
+			for (const item of e.addedOrUpdated ?? []) {
+				pendingRemoved.delete(item.resource);
+				pendingUpdated.set(item.resource, item);
+			}
+			if (!flushScheduler.isScheduled()) {
+				flushScheduler.schedule();
+			}
 		}));
 
 		return {

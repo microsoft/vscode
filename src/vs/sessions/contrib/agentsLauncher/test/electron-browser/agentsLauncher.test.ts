@@ -7,13 +7,15 @@ import * as assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestDispatchedEvent, INewSessionRequestEndedEvent, ISessionChange, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { IRectangle } from '../../../../../platform/window/common/window.js';
 import { AgentsLauncherClickThrough, AgentsLauncherPresenter, computeAgentsLauncherLayout, DismissalCheck, dismissWhenAllowed, followOrdinarySend, IAgentsLauncherWindowPresentation } from '../../electron-browser/agentsLauncher.js';
 
@@ -128,44 +130,115 @@ suite('Agents Launcher', () => {
 		});
 	});
 
-	test('leaves for the Agents window as an ordinary send goes out, and opens its session once it has started, but not one that failed or did not go out', () => {
+	test('leaves for the Agents window as an ordinary send goes out, and opens its session once, after leaving, as it is then: as soon as its message was sent, or else once it has started; not one that failed, was superseded or did not go out', async () => {
 		const accepted = store.add(new Emitter<INewSessionRequestAcceptedEvent>());
+		const dispatched = store.add(new Emitter<INewSessionRequestDispatchedEvent>());
 		const ended = store.add(new Emitter<INewSessionRequestEndedEvent>());
+		const replacedDraft = store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const replaced = store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
-		const service = upcastPartial<ISessionsManagementService>({ onDidAcceptNewSessionRequest: accepted.event, onDidEndNewSessionRequest: ended.event, onDidReplaceNewDraftSession: replaced.event, onDidReplaceSession: Event.None });
+		const changed = store.add(new Emitter<readonly ISessionChange[]>());
+		const known = new Map<string, ISession>();
+		const service = upcastPartial<ISessionsManagementService>({
+			onDidAcceptNewSessionRequest: accepted.event,
+			onDidDispatchNewSessionRequest: dispatched.event,
+			onDidEndNewSessionRequest: ended.event,
+			onDidReplaceNewDraftSession: replacedDraft.event,
+			onDidReplaceSession: replaced.event,
+			onDidChangeSession: changed.event,
+			getSession: resource => known.get(resource.toString()),
+		});
 		const slot = upcastPartial<INewSessionDraftSlot>({ id: 'agentsLauncher' });
 		const otherSlot = upcastPartial<INewSessionDraftSlot>({ id: 'other' });
-		const session = (sessionId: string) => upcastPartial<ISession>({ sessionId });
-		const follow = (scenario: (draft: ISession, following: IDisposable) => void) => {
+		const session = (sessionId: string, status = SessionStatus.Untitled) => upcastPartial<ISession>({ sessionId, resource: URI.parse(`test-session:/${sessionId}`), status: constObservable(status) });
+		const list = (listed: ISession) => {
+			known.set(listed.resource.toString(), listed);
+			changed.fire([{ session: listed, kind: 'added' }]);
+		};
+		const follow = async (scenario: (draft: ISession, following: IDisposable, events: string[], leaving: DeferredPromise<void>) => Promise<void> | void) => {
+			known.clear();
 			const events: string[] = [];
 			const draft = session('draft');
-			const following = followOrdinarySend(service, slot, draft, { leave: () => events.push('leave'), open: started => events.push(`open ${started.sessionId}`) });
-			scenario(draft, following);
+			const leaving = new DeferredPromise<void>();
+			const following = followOrdinarySend(service, slot, draft, {
+				leave: () => { events.push('leave'); return leaving.p; },
+				open: opened => events.push(`open ${opened.sessionId} ${opened.status.get()}`),
+			});
+			await scenario(draft, following, events, leaving);
+			if (!leaving.isSettled) {
+				leaving.complete();
+			}
+			await timeout(0);
 			following.dispose();
 			return events;
 		};
+		const sendAndList = async (draft: ISession, leaving?: DeferredPromise<void>) => {
+			accepted.fire({ session: draft, owner: slot, background: true });
+			leaving?.complete();
+			dispatched.fire({ session: draft, owner: slot });
+			list(session('draft', SessionStatus.InProgress));
+			await timeout(0);
+		};
 
 		assert.deepStrictEqual({
-			started: follow(draft => {
+			sent: await follow(async (draft, _following, events, leaving) => {
 				accepted.fire({ session: draft, owner: otherSlot, background: true });
 				accepted.fire({ session: session('other'), owner: slot, background: true });
 				accepted.fire({ session: draft, owner: slot, background: true });
-				replaced.fire({ from: draft, to: session('prepared') });
-				ended.fire({ session: session('prepared'), owner: otherSlot, started: true, readopted: false });
-				ended.fire({ session: session('prepared'), owner: slot, started: true, readopted: false });
+				leaving.complete();
+				replacedDraft.fire({ from: draft, to: session('prepared') });
+				dispatched.fire({ session: session('prepared'), owner: otherSlot });
+				dispatched.fire({ session: session('prepared'), owner: slot });
+				list(session('prepared'));
+				await timeout(0);
+				events.push('drafts are not opened');
+				list(session('prepared', SessionStatus.InProgress));
+				await timeout(0);
+				events.push('starts');
+				ended.fire({ session: session('prepared', SessionStatus.InProgress), owner: slot, started: true, readopted: false });
 			}),
-			failed: follow(draft => {
+			listedBeforeSent: await follow(async (draft, _following, events, leaving) => {
+				accepted.fire({ session: draft, owner: slot, background: true });
+				leaving.complete();
+				list(session('draft', SessionStatus.InProgress));
+				await timeout(0);
+				events.push('not sent yet');
+				dispatched.fire({ session: draft, owner: slot });
+			}),
+			sentOnlyOnceStarted: await follow((draft, _following, _events, leaving) => {
+				accepted.fire({ session: draft, owner: slot, background: true });
+				leaving.complete();
+				ended.fire({ session: session('draft', SessionStatus.Completed), owner: slot, started: true, readopted: false });
+			}),
+			failed: await follow(draft => {
 				accepted.fire({ session: draft, owner: slot, background: true });
 				ended.fire({ session: draft, owner: slot, started: false, readopted: false, error: new Error('failed') });
 			}),
-			notSent: follow((draft, following) => {
+			failedWhileLeaving: await follow(async (draft, _following, events) => {
+				await sendAndList(draft);
+				events.push('waits to leave');
+				ended.fire({ session: draft, owner: slot, started: false, readopted: false, error: new Error('failed') });
+			}),
+			replacedWhileLeaving: await follow(async draft => {
+				await sendAndList(draft);
+				replaced.fire({ from: session('draft', SessionStatus.InProgress), to: session('committed', SessionStatus.InProgress) });
+			}),
+			supersededWhileLeaving: await follow(async (draft, following) => {
+				await sendAndList(draft);
 				following.dispose();
-				accepted.fire({ session: draft, owner: slot, background: true });
+			}),
+			notSent: await follow((draft, following, _events, leaving) => {
+				following.dispose();
+				void sendAndList(draft, leaving);
 				ended.fire({ session: draft, owner: slot, started: true, readopted: false });
 			}),
 		}, {
-			started: ['leave', 'open prepared'],
+			sent: ['leave', 'drafts are not opened', `open prepared ${SessionStatus.InProgress}`, 'starts'],
+			listedBeforeSent: ['leave', 'not sent yet', `open draft ${SessionStatus.InProgress}`],
+			sentOnlyOnceStarted: ['leave', `open draft ${SessionStatus.Completed}`],
 			failed: ['leave'],
+			failedWhileLeaving: ['leave', 'waits to leave'],
+			replacedWhileLeaving: ['leave', `open committed ${SessionStatus.InProgress}`],
+			supersededWhileLeaving: ['leave'],
 			notSent: [],
 		});
 	});

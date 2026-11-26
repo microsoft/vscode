@@ -42,8 +42,6 @@ export class AnyDiagnosticCompletionItem extends DiagnosticCompletionItem {
 
 export class AnyDiagnosticCompletionProvider implements IDiagnosticCompletionProvider<AnyDiagnosticCompletionItem> {
 
-	public static SupportedLanguages = new Set<string>(['*']);
-
 	public readonly providerName = 'any';
 
 	constructor(private readonly _logger: ILogger) { }

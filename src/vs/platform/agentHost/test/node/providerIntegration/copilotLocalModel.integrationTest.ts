@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { approveAll, CopilotClient, defineTool, type CopilotRequestContext, type SessionConfig } from '@github/copilot-sdk';
+import { RuntimeConnection, approveAll, CopilotClient, defineTool, type CopilotRequestContext, type CreateSessionOptions } from '@microsoft/copilot-sdk';
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import type { IncomingHttpHeaders, IncomingMessage, Server, ServerResponse } from 'http';
@@ -262,10 +262,14 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 	const sessionOptions = {
 		workingDirectory: '',
 		enableConfigDiscovery: false,
-		availableTools: ['report_value'],
-		tools: [reportTool],
-		onPermissionRequest: approveAll,
-	} satisfies Partial<SessionConfig>;
+		tools: {
+			availableTools: ['report_value'],
+			definitions: [reportTool],
+		},
+		permissions: {
+			onRequest: approveAll,
+		},
+	} satisfies Partial<CreateSessionOptions>;
 
 	setup(async () => {
 		home = await mkdtemp(join(tmpdir(), 'copilot-local-model-'));
@@ -427,12 +431,19 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		});
 		setLocalModelRequestHandlerEnvironment(env, true);
 		client = new CopilotClient({
-			workingDirectory: home,
-			baseDirectory: join(home, 'copilot'),
-			useLoggedInUser: false,
-			gitHubToken: GITHUB_TOKEN,
-			requestHandler: handler,
-			env,
+			mode: 'coding-agent',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				workingDirectory: home,
+				baseDirectory: join(home, 'copilot'),
+				env: env,
+			}),
+			github: {
+				useLoggedInUser: false,
+				token: GITHUB_TOKEN,
+			},
+			models: {
+				requestHandler: handler,
+			},
 		});
 	});
 
@@ -468,7 +479,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 	}
 
 	test('serves an Auto turn on the device, including a tool call, and attributes it as local', async () => {
-		const session = await client.createSession({ ...sessionOptions, model: 'auto', ...withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
+		const session = await client.createSession({ ...sessionOptions, model: 'auto', inference: withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
 		const turn = await runTurn(session, 'Please report the value 42.');
 		await session.disconnect();
 
@@ -510,7 +521,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 
 	test('falls back to the cloud with the route token when the local server dies before the first output', async () => {
 		llamaDiesBeforeOutput = true;
-		const session = await client.createSession({ ...sessionOptions, model: 'auto', ...withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
+		const session = await client.createSession({ ...sessionOptions, model: 'auto', inference: withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
 		const turn = await runTurn(session, 'Say hello.');
 		await session.disconnect();
 
@@ -532,7 +543,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 	test('routes a local pick whose cloud fallback serves only the Responses API, and falls back through it', async () => {
 		fallbackEndpoints = ['/responses', 'ws:/responses'];
 		llamaDiesBeforeOutput = true;
-		const session = await client.createSession({ ...sessionOptions, model: 'auto', ...withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
+		const session = await client.createSession({ ...sessionOptions, model: 'auto', inference: withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
 		const turn = await runTurn(session, 'Say hello.');
 		await session.disconnect();
 
@@ -580,12 +591,12 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		assert.ok(ready);
 		serving.active = { ...ready, server: 'stopped' };
 		serving.ensureStartedImpl = async () => serving.active = ready;
-		const created = await client.createSession({ ...sessionOptions, model: DIRECT_MODEL, ...withLocalModelSessionConfig({}, contribution) });
+		const created = await client.createSession({ ...sessionOptions, model: DIRECT_MODEL, inference: withLocalModelSessionConfig({}, contribution) });
 		const create = await phase(created, 'Say hello.');
 		const sessionId = created.sessionId;
 		await created.disconnect();
 
-		const resumed = await client.resumeSession(sessionId, { ...sessionOptions, ...withLocalModelSessionConfig({}, contribution) });
+		const resumed = await client.resumeSession(sessionId, { ...sessionOptions, inference: withLocalModelSessionConfig({}, contribution) });
 		const resume = await phase(resumed, 'Say hello again.');
 		await resumed.disconnect();
 
@@ -624,7 +635,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		serving.active = { ...ready, server: 'stopped' };
 		serving.ensureStartedImpl = async () => serving.active = ready;
 		llamaPromptProgress = { total: 12000, cache: 0 };
-		const session = await client.createSession({ ...sessionOptions, streaming: true, model: DIRECT_MODEL, ...withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
+		const session = await client.createSession({ ...sessionOptions, events: { streaming: true }, model: DIRECT_MODEL, inference: withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
 		const turn = await runTurn(session, 'Say hello.');
 		await session.disconnect();
 		const streams = await Promise.all(localStreams);
@@ -669,14 +680,14 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 
 		// Harmony (`reasoning_effort`): the chat's level reaches the template.
 		serving.active = { ...ready, thinking: THINKING_ROW.thinking };
-		const effortSession = await client.createSession({ ...sessionOptions, model: DIRECT_MODEL, reasoningEffort: effortFor('high'), ...sessionConfig });
+		const effortSession = await client.createSession({ ...sessionOptions, model: DIRECT_MODEL, inference: { ...sessionConfig, reasoningEffort: effortFor('high') } });
 		const effortTurn = await runTurn(effortSession, 'Say hello.');
 		await effortSession.disconnect();
 		const effort = { turn: effortTurn.reply, runtime: sentToSentinel(), llama: llamaThinking() };
 
 		// `enable_thinking` (Off / On): Off is `none`, which the runtime would drop, so the launcher sends `minimal`.
 		serving.active = { ...ready, thinking: { kind: 'toggle' } };
-		const toggleSession = await client.createSession({ ...sessionOptions, model: DIRECT_MODEL, reasoningEffort: effortFor('none'), ...sessionConfig });
+		const toggleSession = await client.createSession({ ...sessionOptions, model: DIRECT_MODEL, inference: { ...sessionConfig, reasoningEffort: effortFor('none') } });
 		const toggleTurn = await runTurn(toggleSession, 'Say hello.');
 		await toggleSession.disconnect();
 		const toggle = { turn: toggleTurn.reply, runtime: sentToSentinel(), llama: llamaThinking() };
@@ -684,7 +695,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		// Auto has no session-level effort; its routed model supplies the effort.
 		serving.active = { ...ready, thinking: THINKING_ROW.thinking };
 		fallbackReasoningEfforts = ['low', 'medium', 'high'];
-		const autoSession = await client.createSession({ ...sessionOptions, model: 'auto', ...sessionConfig });
+		const autoSession = await client.createSession({ ...sessionOptions, model: 'auto', inference: sessionConfig });
 		const autoTurn = await runTurn(autoSession, 'Say hello.');
 		await autoSession.disconnect();
 		const auto = { turn: autoTurn.reply, runtime: sentToSentinel(), llama: llamaThinking() };
@@ -699,15 +710,15 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 
 	test('Auto rejects a session-level reasoning effort before local routing', async () => {
 		await assert.rejects(client.createSession({
-			...sessionOptions, model: 'auto', reasoningEffort: 'low',
-			...withLocalModelSessionConfig({}, buildLocalModelSessionConfig([THINKING_ROW])),
+			...sessionOptions, model: 'auto',
+			inference: { ...withLocalModelSessionConfig({}, buildLocalModelSessionConfig([THINKING_ROW])), reasoningEffort: 'low' },
 		}), /Reasoning effort is not supported when using the "auto" model/);
 		assert.deepStrictEqual({ autoRequests, localRequests: llamaRequests.length }, { autoRequests: [], localRequests: 0 });
 		assertSecurityInvariants();
 	});
 
 	test('a prompt that does not fit the on-device model\'s context reaches the runtime as its context-limit error: it compacts and retries instead of failing as an unavailable model', async () => {
-		const session = await client.createSession({ ...sessionOptions, model: DIRECT_MODEL, ...withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
+		const session = await client.createSession({ ...sessionOptions, model: DIRECT_MODEL, inference: withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
 		const events: string[] = [];
 		const unsubscribe = session.on(event => {
 			if (event.type === 'session.error') {
@@ -744,7 +755,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 			providers: [{ name: 'acme', type: 'openai' as const, wireApi: 'completions' as const, baseUrl: `${acmeUrl}/v1`, bearerToken: ACME_KEY }],
 			models: [{ id: 'test-model', provider: 'acme' }],
 		};
-		const session = await client.createSession({ ...sessionOptions, model: 'acme/test-model', ...withLocalModelSessionConfig(acmeConfig, provider.contributeSessionConfig()) });
+		const session = await client.createSession({ ...sessionOptions, model: 'acme/test-model', inference: withLocalModelSessionConfig(acmeConfig, provider.contributeSessionConfig()) });
 		const turn = await runTurn(session, 'Say hello.');
 		await session.disconnect();
 

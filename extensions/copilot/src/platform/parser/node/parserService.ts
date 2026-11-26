@@ -7,7 +7,6 @@ import type * as vscode from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Range } from '../../../vscodeTypes';
 import { TextDocumentSnapshot } from '../../editing/common/textDocumentSnapshot';
-import { BlockNameDetail, DetailBlock, QueryMatchTree } from './chunkGroupTypes';
 import { OverlayNode, TreeSitterExpressionInfo, TreeSitterOffsetRange, TreeSitterPointRange } from './nodes';
 import type * as parser from './parserImpl';
 import { WASMLanguage } from './treeSitterLanguages';
@@ -100,16 +99,6 @@ export interface IParserService {
 	 * @returns an AST parsing the source with the given language
 	 */
 	getTreeSitterASTForWASMLanguage(language: WASMLanguage, source: string): TreeSitterAST;
-
-	/**
-	 * Get a `QueryMatchTree` with all of the MatchGroups that semantic chunking needs for its header.
-	 */
-	getSemanticChunkTree(language: WASMLanguage, source: string): Promise<QueryMatchTree<DetailBlock>>;
-	/**
-	 * Get a `BlockNameNode` that is the root of a tree of semantic chunk names for a source
-	 */
-	getSemanticChunkNames(language: WASMLanguage, source: string): Promise<QueryMatchTree<BlockNameDetail>>;
-
 }
 
 export class ParserWorkerTimeoutError extends Error {
@@ -143,5 +132,3 @@ export function vscodeToTreeSitterOffsetRange(range: Range, document: TextDocume
 export function treeSitterOffsetRangeToVSCodeRange(document: TextDocumentSnapshot, range: TreeSitterOffsetRange): vscode.Range {
 	return new Range(document.positionAt(range.startIndex), document.positionAt(range.endIndex));
 }
-
-export type NodeToDocumentContext = parser.NodeToDocumentContext;

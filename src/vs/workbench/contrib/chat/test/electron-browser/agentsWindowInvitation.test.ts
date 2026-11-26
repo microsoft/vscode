@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -27,7 +28,8 @@ import { IProgressService } from '../../../../../platform/progress/common/progre
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorCloseContext, IEditorCloseEvent } from '../../../../common/editor.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -54,7 +56,7 @@ import { AgentHostEditorActivity, IAgentHostEditorActivityService } from '../../
 suite('AgentsWindowInvitation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(options: { enabled?: boolean; developerMode?: boolean; autoShow?: boolean; claimDelay?: Promise<void>; isSessionsWindow?: boolean } = {}) {
+	function createHarness(options: { enabled?: boolean; developerMode?: boolean; autoShow?: boolean; claimDelay?: Promise<void>; isSessionsWindow?: boolean; enableContinueScenario?: boolean; remoteAuthority?: string; folders?: URI[] } = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const storage = store.add(new InMemoryStorageService());
 		const coordinator = store.add(new AgentsWindowInvitationState(Date.now, storage));
@@ -74,7 +76,8 @@ suite('AgentsWindowInvitation', () => {
 			[ChatConfiguration.AgentsWindowBannerDeveloperMode]: options.developerMode ?? false,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const treatments = new Map<string, string | number | boolean>();
+		// Most tests use the continue scenario, which needs no parallel activity but only shows when a treatment enables it.
+		const treatments = new Map<string, string | number | boolean>(options.enableContinueScenario === false ? [] : [['chatAgentsWindowBanner.continueInAgentsWindow.enabled', true]]);
 		const models = observableValue<Iterable<IChatModel>>(store, []);
 		const widgets: IChatWidget[] = [];
 		const events: { name: string | undefined; data: object | undefined }[] = [];
@@ -119,7 +122,10 @@ suite('AgentsWindowInvitation', () => {
 			override error(message: string | Error): void { warnings.push(String(message)); }
 			override warn(message: string): void { warnings.push(message); }
 		}());
-		instantiation.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: options.isSessionsWindow ?? false }));
+		instantiation.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: options.isSessionsWindow ?? false, remoteAuthority: options.remoteAuthority }));
+		instantiation.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: (options.folders ?? []).map((uri, index) => ({ uri, name: uri.path, index, toResource: path => URI.joinPath(uri, path) })) }),
+		}));
 		instantiation.stub(IEditorService, upcastPartial<IEditorService>({ onDidCloseEditor: closed.event }));
 		instantiation.stub(IHostService, upcastPartial<IHostService>({ get hasFocus() { return hostFocused; }, onDidChangeFocus: Event.map(focused.event, () => hostFocused) }));
 		instantiation.stub(ILifecycleService, upcastPartial<ILifecycleService>({ onWillShutdown: Event.None }));
@@ -681,6 +687,39 @@ suite('AgentsWindowInvitation', () => {
 			scenario: 'continueInAgentsWindow', history, shown: [{ scenario: 'continueInAgentsWindow', action: 'shown' }],
 		});
 	}));
+
+	test('shows only the parallel-work scenarios without treatments', () => runWithFakedTimers({ startTime: 100_000 }, async () => {
+		const h = createHarness({ enableContinueScenario: false });
+		const chat = h.addChat('/current');
+		h.focus(chat.widget);
+		chat.send(Date.now() - 30_000);
+		await timeout(0);
+		const alone = { scenario: h.scenario, triggers: [...h.telemetry.triggers] };
+		h.otherSession(1);
+		await timeout(0);
+		assert.deepStrictEqual({ alone, scenario: h.scenario, title: h.notification?.message, action: h.notification?.actions[0].label }, {
+			// A scenario that can't show only triggers its own enablement treatment.
+			alone: { scenario: undefined, triggers: ['chatAgentsWindowBanner.continueInAgentsWindow.enabled'] },
+			scenario: 'parallelWorkSameWindow', title: 'Manage all your sessions in the Agents Window', action: 'Manage in Agents Window',
+		});
+	}));
+
+	for (const revealCurrentSession of [false, true]) {
+		test(`names a remote window's machine and folder only when revealing its own agent host session (${revealCurrentSession})`, () => runWithFakedTimers({ startTime: 100_000 }, async () => {
+			const folder = URI.from({ scheme: Schemas.vscodeRemote, authority: 'tunnel+box', path: '/project' });
+			const h = createHarness({ remoteAuthority: 'tunnel+box', folders: [folder] });
+			await h.configure(ChatConfiguration.AgentsWindowBannerRevealCurrentSession, revealCurrentSession);
+			const chat = h.addChat('/current');
+			h.focus(chat.widget);
+			chat.send(Date.now() - 30_000);
+			await timeout(0);
+			await h.click(0);
+			const source = AgentsWindowOpenSource.ContinueInAgentsWindow;
+			assert.deepStrictEqual(h.opens, [revealCurrentSession
+				? { folderUri: folder.toJSON(), revealRemoteAuthority: 'tunnel+box', reveal: chat.resource.toJSON(), onboardingSessionResource: chat.resource.toJSON(), source }
+				: { reveal: 'new', onboardingSessionResource: chat.resource.toJSON(), source }]);
+		}));
+	}
 
 	test('uses scenario copy treatments and falls back through disabled higher-priority scenarios', () => runWithFakedTimers({ startTime: 100_000 }, async () => {
 		const h = createHarness();

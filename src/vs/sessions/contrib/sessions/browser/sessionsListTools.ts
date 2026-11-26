@@ -17,13 +17,15 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getSessionGroupSectionId, ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SESSIONS_LIST_UNGROUPED_PLACEMENT, SessionsGrouping, SessionsList, SessionsListSessionPosition, SessionsListSnapshotNode, SessionsSorting } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_UNGROUPED_PLACEMENT, SessionsList, SessionsListSessionPosition, SessionsListSnapshotNode } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { getSessionFilterOptions, SessionFilter, sessionFilterKey } from '../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 
@@ -109,6 +111,7 @@ export class ReadSessionsListTool implements IToolImpl {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) { }
 
 	getToolData(): IToolData {
@@ -175,7 +178,7 @@ export class ReadSessionsListTool implements IToolImpl {
 
 	private getViewState(view: SessionsView & { readonly sessionsControl: SessionsList }) {
 		const list = view.sessionsControl;
-		const filterOptions = getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session));
+		const filterOptions = getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session), this.uriIdentityService.extUri);
 		return {
 			grouping: view.grouping,
 			sorting: view.sorting,
@@ -196,6 +199,7 @@ export class OrganizeSessionsListTool implements IToolImpl {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionGroupsService private readonly sessionGroupsService: ISessionGroupsService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) { }
 
 	getToolData(): IToolData {
@@ -364,11 +368,11 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		const resetFilters = optionalBoolean(operation, 'resetFilters');
 		const filters = this.readFilters(operation, list);
 
-		if (resetFilters) {
-			view.resetFilters();
-		}
 		if (grouping !== undefined) {
 			view.setGrouping(grouping);
+		}
+		if (resetFilters) {
+			view.resetFilters();
 		}
 		if (sorting !== undefined) {
 			view.setSorting(sorting);
@@ -397,7 +401,7 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		if (!Array.isArray(operation.filters)) {
 			throw new SessionsListToolInputError('"filters" must be an array.');
 		}
-		const options = new Map(getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session))
+		const options = new Map(getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session), this.uriIdentityService.extUri)
 			.map(option => [sessionFilterKey(option.filter), option.filter]));
 		return operation.filters.map((entry: unknown) => {
 			if (!isObject(entry)) {

@@ -25,9 +25,50 @@ export interface IDidEnterWorkspaceEvent {
 	join(promise: Promise<void>): void;
 }
 
+/**
+ * An event that is fired before folders the user removes, or the folder whose location the user switches, leave the workspace.
+ * What runs against these folders can ask the user to confirm.
+ */
+export interface IWillRemoveFoldersEvent {
+
+	/**
+	 * The folders about to be removed. A location switch removes the folder at its current location.
+	 */
+	readonly folders: readonly URI[];
+
+	/**
+	 * Asks the user to confirm. `reasons` are shown to the user: nothing is asked for when they are `undefined` or empty.
+	 * `stop` runs when the user confirms, before the folders are removed, to stop what the reasons are about.
+	 */
+	veto(reasons: string | readonly string[] | undefined | Promise<string | readonly string[] | undefined>, stop?: () => Promise<void>): void;
+}
+
+/**
+ * Options of {@link IWorkspaceEditingService.removeFolders} and {@link IWorkspaceEditingService.updateFolders}.
+ */
+export interface IWorkspaceFoldersEditOptions {
+
+	/**
+	 * When `true`, errors are bubbled up. Otherwise, the service handles the error with proper message and action.
+	 */
+	readonly donotNotifyError?: boolean;
+
+	/**
+	 * When `true`, the user is not asked to confirm when something runs against the removed folders ({@link IWorkspaceEditingService.onWillRemoveFolders}).
+	 * Callers that must not ask, such as an extension or an unattended request, pass `force`. Otherwise, the user is asked.
+	 */
+	readonly force?: boolean;
+}
+
 export interface IWorkspaceEditingService {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fired before folders leave the workspace through {@link removeFolders}, {@link updateFolders} or {@link setFolderLocation},
+	 * unless the caller forces the change. Removals that do not go through this service, such as an edit of the workspace file, are not fired for.
+	 */
+	readonly onWillRemoveFolders: Event<IWillRemoveFoldersEvent>;
 
 	/**
 	 * Fired after the workspace is entered. Allows listeners to join the
@@ -43,15 +84,13 @@ export interface IWorkspaceEditingService {
 
 	/**
 	 * Remove folders from the existing workspace
-	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	removeFolders(folders: URI[], donotNotifyError?: boolean): Promise<void>;
+	removeFolders(folders: URI[], options?: IWorkspaceFoldersEditOptions): Promise<void>;
 
 	/**
 	 * Allows to add and remove folders to the existing workspace at once.
-	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
+	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], options?: IWorkspaceFoldersEditOptions): Promise<void>;
 
 	/**
 	 * Moves the folder to `location`; pass the `uri` of the workspace's single-folder identifier
@@ -65,10 +104,12 @@ export interface IWorkspaceEditingService {
 	 * `options.folder` optionally names the folder to move by its current `uri`; it must match
 	 * the folder of the workspace. Multi-root workspaces are not supported yet.
 	 *
+	 * Unless `options.force` is `true`, the user is asked to confirm when something runs against the current location ({@link onWillRemoveFolders}).
+	 *
 	 * When `options.ifIdle` is `true`, the call does nothing if another switch is still in flight,
 	 * so that background callers never override a switch requested by the user.
 	 */
-	setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void>;
+	setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI; readonly force?: boolean }): Promise<void>;
 
 	/**
 	 * Enters the workspace with the provided path.

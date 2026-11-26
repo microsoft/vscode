@@ -38,18 +38,21 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	private _viewModelRetainers = 0;
 	/** The title of the chat whose changes this editor shows, for an editor of a chat; `undefined` for one of a session. */
 	private readonly _chatTitle: IObservable<string | undefined>;
+	/** The count of changed files its tab announces. */
+	private readonly _fileCount: IObservable<number | undefined>;
 
 	constructor(
 		readonly multiDiffSource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
+		@ISessionChangesService sessionChangesService: ISessionChangesService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super(editorGroupsService, layoutService);
 
-		const onDidChangeCount = Event.fromObservableLight(sessionChangesService.activeSessionUncommittedChangesCountObs);
+		this._fileCount = sessionChangesService.getChangesEditorFileCount(multiDiffSource);
+		const onDidChangeCount = Event.fromObservableLight(this._fileCount);
 		this._register(onDidChangeCount(() => this._onDidChangeLabel.fire()));
 
 		const sessionResource = sessionChangesService.getSessionResource(multiDiffSource);
@@ -93,7 +96,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	override getAriaLabel(): string {
-		const changeCount = this.sessionChangesService.activeSessionUncommittedChangesCountObs.get();
+		const changeCount = this._fileCount.get();
 		return !changeCount
 			? this.getTitle()
 			: localize('sessionChangesEditor.ariaLabel', "{0}, {1}", this.getTitle(), getSessionChangesFileCountLabel(changeCount));

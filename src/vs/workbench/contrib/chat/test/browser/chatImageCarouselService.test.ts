@@ -626,7 +626,7 @@ suite('ChatImageCarouselService helpers', () => {
 						markUp: (_container, screenshot, surface): IScreenshotToolMarkUp => {
 							markUps.push({ screenshot, surface });
 							const edit: IScreenshotToolEdit = { original: marked, annotationState: { actions: [], undoneActions: [], crop: null }, image: marked, annotated: true };
-							return { result: Promise.resolve(edit), focus: () => { }, finish: () => { }, dispose: () => { } };
+							return { result: Promise.resolve(edit), hasChanges: false, focus: () => { }, finish: () => { }, cancel: async () => true, dispose: () => { } };
 						},
 					})),
 				);
@@ -695,8 +695,10 @@ suite('ChatImageCarouselService helpers', () => {
 					restored.push(!!previous);
 					return { original, annotationState, image: marked, annotated: true };
 				}),
+				hasChanges: false,
 				focus: () => { },
 				finish: () => { },
+				cancel: async () => true,
 				dispose: () => { },
 			}));
 			const markUp = async (attachmentModel: ChatAttachmentModel) => {

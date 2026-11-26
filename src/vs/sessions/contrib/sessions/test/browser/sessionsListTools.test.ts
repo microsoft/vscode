@@ -22,8 +22,8 @@ import { ISession } from '../../../../../workbench/services/sessions/common/sess
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { OrganizeSessionsListTool, ReadSessionsListTool } from '../../browser/sessionsListTools.js';
-import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
+import { DEFAULT_SESSIONS_GROUPINGS, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 
@@ -62,7 +62,7 @@ suite('Sessions - Sessions list tools', () => {
 		const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
 		void configurationService.setUserConfiguration(SESSIONS_LIST_AGENT_TOOLS_SETTING, true);
 		const storageService = harness.instantiationService.get(IStorageService);
-		storageService.store('sessionsListControl.groups', JSON.stringify({ groups: options.groups ?? [], membership: options.memberships ?? {}, sectionMembership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('sessionsListControl.localGroups', JSON.stringify({ groups: options.groups ?? [], membership: options.memberships ?? {}, sectionMembership: {} }), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const orderService = harness.store.add(new SessionSectionOrderService(storageService));
 		harness.instantiationService.stub(ISessionSectionOrderService, orderService);
 		harness.instantiationService.stub(ISessionGroupsService, harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
@@ -89,12 +89,25 @@ suite('Sessions - Sessions list tools', () => {
 			onSessionOpen: () => { },
 		}));
 		list.layout(800, 400);
+		const groupingHost = {
+			get currentGrouping() { return state.grouping; },
+			set currentGrouping(grouping: SessionsGrouping) { state.grouping = grouping; },
+			get grouping() { return state.grouping; },
+			get inboxAvailable(): boolean { return Reflect.get(SessionsView.prototype, 'inboxAvailable', this); },
+			offeredGroupings: DEFAULT_SESSIONS_GROUPINGS,
+			configurationService,
+			storageService,
+			chatEntitlementService: { sentiment: { hidden: false } },
+			sessionsControl: list,
+			updateHeaderLayout: () => { },
+			setGrouping: SessionsView.prototype.setGrouping,
+		};
 		const view = upcastPartial<SessionsView>({
 			sessionsControl: list,
 			get grouping() { return state.grouping; },
 			get sorting() { return state.sorting; },
 			get compact() { return state.compact; },
-			setGrouping: grouping => { state.grouping = grouping; list.update(true); },
+			setGrouping: grouping => groupingHost.setGrouping(grouping),
 			setSorting: sorting => { state.sorting = sorting; list.update(); },
 			setCompact: compact => { state.compact = compact; },
 			setShowArchived: show => list.setExcludeArchived(!show),
@@ -314,15 +327,15 @@ suite('Sessions - Sessions list tools', () => {
 	});
 
 	for (const enabled of [false, true]) {
-		test(`allows inbox grouping regardless of the default setting (${enabled})`, async () => {
+		test(`Inbox grouping requires the Inbox setting (${enabled})`, async () => {
 			const { organize, read, list, configurationService } = setup([session('Alpha', 1)], { realListModel: true });
 			await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, enabled);
 			list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
 			const result = await organize({ action: 'setView', grouping: 'inbox', resetFilters: true });
 			assert.deepStrictEqual({ results: result.results, grouping: (await read()).view.grouping, excluded: list.filters.isExcluded({ kind: 'harness', id: 'claude' }) }, {
-				results: [{ action: 'setView', ok: true }],
-				grouping: 'inbox',
-				excluded: false,
+				results: enabled ? [{ action: 'setView', ok: true }] : [{ action: 'setView', ok: false, error: 'Enable sessions.list.inboxEnabled and AI features to use Inbox Mode.' }],
+				grouping: enabled ? 'inbox' : 'workspace',
+				excluded: !enabled,
 			});
 		});
 	}

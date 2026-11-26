@@ -7,7 +7,6 @@ import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolDefinition } from '../../../common/state/protocol/state.js';
 import type { IClaudeAgentSdkService } from '../claudeAgentSdkService.js';
-import { jsonSchemaToZodRawShape } from './claudeJsonSchemaToZod.js';
 
 /**
  * Anthropic SDK contract: the in-process MCP `tool()` handler receives a
@@ -38,6 +37,7 @@ export async function buildClientToolMcpServer(
 	awaitResult: (toolUseId: string) => Promise<CallToolResult>,
 	sdk: IClaudeAgentSdkService
 ): Promise<McpSdkServerConfigWithInstance> {
+	const { jsonSchemaToZodRawShape } = await import('./claudeJsonSchemaToZod.js');
 	const tools = await Promise.all(snapshot.map(def => sdk.tool(
 		def.name,
 		def.description ?? '',

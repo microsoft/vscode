@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection } from '@microsoft/copilot-sdk';
 import * as os from 'os';
 import { resolve } from '../../../../base/common/path.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -96,11 +96,9 @@ export async function runAgentHostCertificateCommand(command: string, confirmed:
 		const logService = store.add(new LogService(store.add(new ConsoleLogger(LogLevel.Warning))));
 		const certificates = new CopilotSandboxCertificate(logService);
 		const client = new CopilotClient({
-			connection: RuntimeConnection.forStdio({ path: runtimePath }),
-			baseDirectory: home,
-			workingDirectory: os.homedir(),
+			runtime: RuntimeConnection.forSpawnedStdio({ path: runtimePath, baseDirectory: home, workingDirectory: os.homedir() }),
 			mode: 'empty',
-			useLoggedInUser: false,
+			github: { useLoggedInUser: false },
 		});
 		return await executeCopilotCertificateCommand(command, client, certificates, message => console.log(message));
 	} catch (error) {

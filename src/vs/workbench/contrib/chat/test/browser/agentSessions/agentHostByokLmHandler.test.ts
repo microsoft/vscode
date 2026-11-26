@@ -342,7 +342,7 @@ suite('AgentHostByokLmHandler', () => {
 				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
 				{ type: 'tool_use', name: 'apply_patch', toolCallId: 't2', parameters: { input: 'patch' } },
 				{ type: 'data', mimeType: 'stateful_marker', data: VSBuffer.fromString('claude\\resp_provider') },
-				{ type: 'data', mimeType: 'usage', data: VSBuffer.fromString('{"prompt_tokens":10,"completion_tokens":5,"completion_tokens_details":{"reasoning_tokens":2}}') },
+				{ type: 'data', mimeType: 'usage', data: VSBuffer.fromString('{"prompt_tokens":10,"prompt_tokens_details":{"cached_tokens":7},"completion_tokens":5,"completion_tokens_details":{"reasoning_tokens":2}}') },
 			]),
 		);
 		const handler = createHandler(service);
@@ -370,8 +370,27 @@ suite('AgentHostByokLmHandler', () => {
 				{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
 			],
 			responseId: 'resp_provider',
-			usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2 },
+			usage: { inputTokens: 10, cachedTokens: 7, outputTokens: 5, reasoningTokens: 2 },
 		});
+	});
+
+	test('ignores missing or invalid cached token details', async () => {
+		const usages = [
+			'{"prompt_tokens":10}',
+			'{"prompt_tokens":10,"prompt_tokens_details":null}',
+			'{"prompt_tokens":10,"prompt_tokens_details":{"cached_tokens":"7"}}',
+			'{"prompt_tokens":10,"prompt_tokens_details":{"cached_tokens":0}}',
+		];
+		const results = [];
+		for (const usage of usages) {
+			const service = new TestLanguageModelsService(
+				new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
+				() => responseOf([{ type: 'data', mimeType: 'usage', data: VSBuffer.fromString(usage) }]),
+			);
+			const handler = createHandler(service);
+			results.push((await handler.chat({ vendor: 'acme', modelId: 'claude', input: [] }, CancellationToken.None)).usage);
+		}
+		assert.deepStrictEqual(results.map(usage => usage?.cachedTokens), [undefined, undefined, undefined, 0]);
 	});
 
 	test('streams a delta for every part it folds into the result, in fold order', async () => {

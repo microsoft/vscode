@@ -88,10 +88,15 @@ export class MobileHostPlaceChipViewItem extends BaseActionViewItem {
 		this._trigger?.focus();
 	}
 
+	protected override getTooltip(): string | undefined {
+		return this._filterService.selectedHost?.label ?? super.getTooltip();
+	}
+
 	private _update(): void {
 		if (!this._trigger || !this._icon || !this._label) {
 			return;
 		}
+		this.updateTooltip();
 		const selected = this._filterService.selectedHost;
 		dom.clearNode(this._icon);
 

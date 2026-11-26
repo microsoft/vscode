@@ -158,6 +158,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			branch: initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined,
 			enabled: initial?.enabled ?? true,
 			endDate: getAutomationAfterDate(initial?.disableConditions),
+			continueSession: initial?.continueSession === true,
 			timeZone: initial?.schedule.timeZone,
 			timezoneOffset,
 			cloudTrigger: existing?.schedule.interval === 'custom' ? existing.cloudTrigger : undefined,
@@ -272,6 +273,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return undefined;
 			}
 			const disableConditions = buildAutomationDisableConditions(state.endDate);
+			const continueSession = target.providerId && this.automationService.supportsContinueSession?.(target.providerId) ? { continueSession: state.continueSession === true } : {};
 			if (existing) {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
@@ -284,6 +286,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						sessionTemplate: sessionTemplate ?? null,
 					} : {}),
 					...(state.endDate !== getAutomationAfterDate(existing.disableConditions) ? { disableConditions } : {}),
+					...continueSession,
 					...(customizationIds !== undefined ? { customizationIds } : {}),
 				};
 				return { kind: 'update', id: existing.id, value: patch };
@@ -308,6 +311,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					} : {}),
 				enabled: state.enabled,
 				...(createDisableConditions.length > 0 ? { disableConditions: createDisableConditions } : {}),
+				...continueSession,
 				...(customizationIds !== undefined ? { customizationIds } : {}),
 			};
 			return { kind: 'create', value: create };

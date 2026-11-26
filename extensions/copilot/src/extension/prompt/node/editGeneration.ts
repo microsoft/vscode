@@ -8,8 +8,6 @@ import { Range, TextEdit } from '../../../vscodeTypes';
 
 export type Lines = readonly string[];
 
-export type LineRange = { readonly firstLineIndex: number; readonly endLineIndex: number };
-
 export class LinesEdit {
 	constructor(public readonly firstLineIndex: number, readonly endLineIndex: number, public readonly lines: Lines, public readonly prefix = '', public readonly suffix = '\n') {
 	}
@@ -81,4 +79,3 @@ export const enum EditStrategy {
 export function trimLeadingWhitespace(str: string): string {
 	return str.replace(/^\s+/g, '');
 }
-

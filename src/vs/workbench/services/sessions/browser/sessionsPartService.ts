@@ -64,6 +64,8 @@ export interface ISessionView {
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult;
 	applyDraft(draft: IAgentsWindowDraft, folderUri: URI | undefined, options: ISelectWorkspaceOptions, token: CancellationToken): Promise<WorkspaceSelectionResult>;
 	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult;
+	/** Starts in the environment of a provider's sessions, as choosing it in the Environment picker does. */
+	selectEnvironment(providerId: string): WorkspaceSelectionResult;
 
 	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
 	openChatToSide(resource: URI, referenceChatResource?: URI): Promise<void>;

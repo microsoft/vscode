@@ -227,7 +227,8 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 				onChanged(session);
 			}
 		}));
-		store.add(provider.onDidChangeSessions(e => {
+		// Also the removals outside its listing scope, whose schemas are registered too
+		store.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(e => {
 			for (const removed of e.removed) {
 				onRemoved(removed);
 			}

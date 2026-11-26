@@ -746,6 +746,12 @@ export interface ILanguageModelToolsService {
 	// tool names in prompt and agent files ('full reference names')
 	getFullReferenceNames(): Iterable<string>;
 	getFullReferenceName(tool: IToolData | IToolSet, toolSet?: IToolSet): string;
+	/**
+	 * Creates a function that returns the names {@link getFullReferenceName} returns, from one snapshot of the
+	 * tools and tool sets. Each {@link getFullReferenceName} call computes the names of all tools and tool sets,
+	 * so use this to name many of them at once.
+	 */
+	createFullReferenceNameResolver(): (tool: IToolData | IToolSet, toolSet?: IToolSet) => string;
 	getFullReferenceNameMap(): Map<IToolData | IToolSet, string>;
 	getToolByFullReferenceName(fullReferenceName: string): IToolData | IToolSet | undefined;
 	getDeprecatedFullReferenceNames(): Map<string, Set<string>>;

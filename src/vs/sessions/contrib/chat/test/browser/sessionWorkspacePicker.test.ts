@@ -160,6 +160,7 @@ function createMockProvider(id: string, opts?: {
 		onDidChangeSessions: opts?.onDidChangeSessions ?? Event.None,
 		onDidMoveChat: Event.None,
 		getSessions: opts?.getSessions ?? (() => []),
+		getSession: () => undefined,
 		createNewSession: () => { throw new Error('Not implemented'); },
 		createQuickChat: () => { throw new Error('Not implemented'); },
 		deleteNewSession: () => { },
@@ -1481,6 +1482,33 @@ suite('WorkspacePicker - Environment', () => {
 			});
 		});
 	}
+
+	test('offers repositories in a remote environment only when its host offers folders or clones them', () => {
+		const environment: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Jobs', icon: Codicon.remote, providerIds: ['remote'] };
+		const actions = ['Work in Repository...', 'Issue...'].map((label, index) => ({ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, label), attachesContext: index > 0 }));
+		const offered = (host: Partial<ISessionsProvider>) => {
+			const providers = disposables.add(new MockSessionsProvidersService());
+			const execution = createMockProvider('remote');
+			providers.setProviders([
+				{ ...execution, cloneRepository: async () => execution.resolveWorkspace(URI.parse('vscode-agent-host://host/project'))!, ...host },
+				{ ...createMockProvider('github', { browseActions: actions }), supportsLocalWorkspaces: true },
+			]);
+			const picker = createTestPicker(disposables, providers, undefined, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
+				environment: constObservable(environment), restoreFromSessions: false, configuration: {},
+			});
+			assert.ok(picker instanceof DispatchingWorkspacePicker);
+			return { items: picker.getItems().filter(item => item.item?.browseActionIndex !== undefined).map(item => item.label), offersWorkspaces: picker.offersWorkspaces(environment) };
+		};
+		assert.deepStrictEqual({
+			neither: offered({ canCloneRepository: false }),
+			clones: offered({ canCloneRepository: true }),
+			folders: offered({ canCloneRepository: false, browseActions: [makeBrowseAction('remote', SESSION_WORKSPACE_GROUP_REMOTE, 'Browse Jobs...')] }),
+		}, {
+			neither: { items: ['Issue'], offersWorkspaces: false },
+			clones: { items: ['Work in Repository', 'Issue'], offersWorkspaces: true },
+			folders: { items: ['Open Folder...', 'Work in Repository', 'Issue'], offersWorkspaces: true },
+		});
+	});
 
 	test('reports failed container checks separately from unsupported folders', async () => {
 		const expectedError = new Error('container detection failed');
@@ -7564,6 +7592,87 @@ function hostEntry(providerId: string): IAgentHostFilterEntry {
 suite('WebWorkspacePicker - Host scope updates', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createPhoneTargetPicker(providers: ISessionsProvider[], host: IAgentHostFilterEntry, recents: { uri: URI; providerId: string }[]) {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders(providers);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, recents.map(recent => ({ ...recent, checked: false })));
+		const workbench = document.body.appendChild(document.createElement('div'));
+		workbench.classList.add('phone-layout');
+		disposables.add(toDisposable(() => workbench.remove()));
+		const changed = disposables.add(new Emitter<void>());
+		const picker = createTestPicker(disposables, providersService, storage, undefined, TestWebWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, searchWorkspaceTargetDirectly: true },
+			undefined, undefined, undefined, upcastPartial<IAgentHostFilterService>({ onDidChange: changed.event, get selectedHost() { return host; } }),
+			upcastPartial<IWorkbenchLayoutService>({ mainContainer: workbench }));
+		const trigger = workbench.appendChild(document.createElement('button'));
+		return { picker, workbench, trigger, changeHost: (next: IAgentHostFilterEntry) => { host = next; changed.fire(); } };
+	}
+
+	test('a phone Cloud target opens repository search even with recents and discards a late result after switching hosts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const id = 'cloud-creation';
+		const recent = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/example/recent/HEAD' });
+		const pending = new DeferredPromise<ISessionWorkspace | undefined>();
+		let options: Parameters<ISessionWorkspaceBrowseAction['run']>[1];
+		const provider = createMockProvider(id, {
+			group: SESSION_WORKSPACE_GROUP_GITHUB, browseActions: [{
+				providerId: id, group: SESSION_WORKSPACE_GROUP_GITHUB, label: 'Repository', icon: Codicon.github,
+				run: (_current, browseOptions) => { options = browseOptions; return pending.p; },
+			}]
+		});
+		const other = createMockProvider('other');
+		const { picker, trigger, workbench, changeHost } = createPhoneTargetPicker([provider, other],
+			{ ...hostEntry(id), grouped: true, sessionCreationProviderId: id }, [{ uri: recent, providerId: id }]);
+		picker.showPicker(false, trigger, undefined, false);
+		await timeout(0);
+		assert.ok(options);
+		const opened = { recents: options.recentFolders.map(uri => uri.toString()), intermediate: !!workbench.querySelector('[role=dialog]'), expanded: trigger.ariaExpanded };
+		changeHost(hostEntry(other.id));
+		const previous = picker.selectedFolderUri;
+		await pending.complete(provider.resolveWorkspace(recent));
+		await timeout(0);
+		assert.deepStrictEqual({ opened, cancelled: options.token.isCancellationRequested, expanded: trigger.ariaExpanded, selectionChanged: previous !== picker.selectedFolderUri }, {
+			opened: { recents: [recent.toString()], intermediate: false, expanded: 'true' }, cancelled: true, expanded: 'false', selectionChanged: false,
+		});
+	}));
+
+	test('a phone environment target searches only that host and selects a folder without opening another sheet', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const id = 'remote';
+		const queries = new Set<string>();
+		const host = createMockProvider(id, {
+			group: SESSION_WORKSPACE_GROUP_REMOTE, browseActions: [{
+				providerId: id, group: SESSION_WORKSPACE_GROUP_REMOTE, icon: Codicon.folder, label: 'Folders', run: async () => assert.fail('Unexpected folder dialog'),
+				listFolders: async query => {
+					queries.add(query);
+					const workspace = host.resolveWorkspace(URI.file('/projects'));
+					return workspace && query === 'proj' ? [workspace] : [];
+				},
+			}]
+		});
+		const github = createMockProvider('github', {
+			group: SESSION_WORKSPACE_GROUP_GITHUB, browseActions: [{
+				providerId: 'github', group: SESSION_WORKSPACE_GROUP_GITHUB, icon: Codicon.github, label: 'Repository', run: async () => assert.fail('Unexpected GitHub search'),
+			}]
+		});
+		const { picker, workbench, trigger } = createPhoneTargetPicker([host, github], hostEntry(id), [
+			{ uri: URI.file('/notes'), providerId: id }, { uri: URI.file('/other-repository'), providerId: github.id },
+		]);
+		picker.showPicker(false, trigger, undefined, false);
+		await timeout(301);
+		const input = workbench.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input')!;
+		const opened = { title: workbench.querySelector('[role=dialog]')?.ariaLabel, rows: Array.from(workbench.querySelectorAll('.mobile-picker-sheet-label'), e => e.textContent), shortcuts: workbench.querySelectorAll('.mobile-picker-sheet-header-action').length };
+		input.value = 'proj';
+		input.dispatchEvent(new CustomEvent('input'));
+		await timeout(301);
+		workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item')!.click();
+		await timeout(301);
+		workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-primary-action')!.click();
+		await timeout(301);
+		assert.deepStrictEqual({ opened, queries: [...queries], picked: picker.selectedFolderUri?.path, dialogs: workbench.querySelectorAll('[role=dialog]').length }, {
+			opened: { title: 'Choose folder', rows: ['notes'], shortcuts: 0 }, queries: ['', 'proj', 'projects/'], picked: '/projects', dialogs: 0,
+		});
+	}));
+
 	for (const change of ['offline', 'scope', 'dispose'] as const) {
 		test(`dismisses an open mobile workspace picker on ${change}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const providersService = disposables.add(new MockSessionsProvidersService());
@@ -8230,6 +8339,25 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
+	test('selects Chat without remembering it until a workspace is selected', () => {
+		const storage = disposables.add(new TestStorageService());
+		providersService.setProviders([createMockProvider('local-1')]);
+		const options: IWorkspacePickerOptions = {
+			getNoWorkspaceOption: () => ({ description: 'Start without a backing workspace', isSelected: false, select: () => { } }),
+		};
+		const picker = createTestablePicker(disposables, providersService, true, options, undefined, storage);
+		picker.selectNoWorkspace(false, false);
+		const selected = picker.isNoWorkspaceSelected();
+		const remembered = createTestablePicker(disposables, providersService, true, options, undefined, storage).isNoWorkspaceSelected();
+		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false });
+
+		assert.deepStrictEqual({ selected, remembered, afterWorkspaceSelection: picker.isNoWorkspaceSelected() }, {
+			selected: true,
+			remembered: false,
+			afterWorkspaceSelection: false,
+		});
+	});
+
 	test('groups recent repositories below recent folders', () => {
 		const storage = disposables.add(new TestStorageService());
 		const folderUri = URI.file('/local/folder');
@@ -8762,6 +8890,8 @@ suite('WorkspacePicker - a composer outside the main window', () => {
 			_openQuickChat: () => upcastPartial<ISession>({ providerId: 'p', sessionType: 't' }),
 			_reconcileWorkspaceEnvironment: () => { },
 			_replaceDraftOnUnservableHarness: () => { },
+			_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
+			_applyRequestedWorktreePlacement: () => { },
 		};
 		for (const method of ['_selectRequestedNoWorkspace', '_isRequestedAgent', '_seedRequestedTarget', '_syncWorkspacePickerDevContainerMode', 'selectNoWorkspace']) {
 			const implementation = Reflect.get(NewChatWidget.prototype, method) as (...args: unknown[]) => unknown;
@@ -9099,6 +9229,54 @@ suite('WorkspacePicker - Allowed folders', () => {
 		await picker.dispatchItem(picker.getItems().find(item => item.label === 'New Worktree')!.item!);
 
 		assert.deepStrictEqual(picker.getSelectedLocationDescription(), 'New worktree of b');
+	});
+
+	test('at a worktree selected by another form of its path, which no provider resolves, selects the worktree the window\'s folder is at, as one selection with its events, so its row is checked, its chip shows it and New Worktree sticks', async () => {
+		const newWorktree = { selected: false };
+		const { picker } = createPicker(['/local/vscode.worktrees/a', '/local/vscode', '/private/local/vscode.worktrees/a'], undefined, {
+			// The window's folder is at the worktree, also by the other form of its path
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode' ? { kind: 'folder' } : { label: 'a', kind: 'worktree', current: true },
+			newWorktree: { isAvailable: () => true, isSelected: () => newWorktree.selected, setSelected: selected => { newWorktree.selected = selected; } },
+			resolves: folderUri => !folderUri.path.startsWith('/private/'),
+		});
+		const events: string[] = [];
+		store.add(picker.onDidSelectWorkspace(folderUri => events.push(`select ${folderUri?.path}`)));
+		store.add(picker.onDidChangeSelection(() => events.push(`change ${picker.selectedFolderUri?.path}`)));
+		picker.setSelectedWorkspace(URI.file('/private/local/vscode.worktrees/a'));
+		// Before any trigger renders it, as a composer reads it
+		const selected = picker.selectedFolderUri?.path;
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{ label: 'Workspace', ariaLabel: 'Choose a workspace', icon: Codicon.project, reflectsWorkspace: true, attachesContext: false }]);
+		const trigger = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger [role="button"]')!;
+		const checked = () => picker.getItems().filter(item => item.item?.checked).map(item => item.item?.folderUri?.path ?? item.label);
+		const atWorktree = { selected, events: [...events], checked: checked(), ariaLabel: trigger.getAttribute('aria-label'), worktreeIcon: !!trigger.querySelector('.codicon-worktree') };
+		await picker.dispatchItem(picker.getItems().find(item => item.label === 'New Worktree')!.item!);
+
+		assert.deepStrictEqual({ atWorktree, inNewWorktree: { checked: checked(), label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent, selected: picker.selectedFolderUri?.path } }, {
+			atWorktree: { selected: '/local/vscode.worktrees/a', events: ['change /local/vscode.worktrees/a', 'select /local/vscode.worktrees/a'], checked: ['/local/vscode.worktrees/a'], ariaLabel: 'Worktree: a', worktreeIcon: true },
+			inNewWorktree: { checked: ['New Worktree'], label: 'New Worktree', selected: '/local/vscode.worktrees/a' },
+		});
+	});
+
+	test('a worktree selected by another form of its path before the window\'s folder is known to be there is selected again by the worktree, once, with its events, as the folders tell', () => {
+		let known = false;
+		const { picker, allowedFolders } = createPicker(['/local/vscode.worktrees/a', '/local/vscode', '/private/local/vscode.worktrees/a'], undefined, {
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode' ? { kind: 'folder' } : { label: 'a', kind: 'worktree', current: known },
+			resolves: folderUri => !folderUri.path.startsWith('/private/'),
+		});
+		picker.setSelectedWorkspace(URI.file('/private/local/vscode.worktrees/a'), { fireEvent: false });
+		const before = picker.selectedFolderUri?.path;
+		const events: string[] = [];
+		store.add(picker.onDidSelectWorkspace(folderUri => events.push(`select ${folderUri?.path}`)));
+		store.add(picker.onDidChangeSelection(() => events.push(`change ${picker.selectedFolderUri?.path}`)));
+		known = true;
+		allowedFolders.set([...allowedFolders.get()], undefined);
+
+		assert.deepStrictEqual({ before, after: picker.selectedFolderUri?.path, events }, {
+			before: '/private/local/vscode.worktrees/a',
+			after: '/local/vscode.worktrees/a',
+			events: ['change /local/vscode.worktrees/a', 'select /local/vscode.worktrees/a'],
+		});
 	});
 
 	test('a selected folder that leaves the window gives way to the window\'s first folder', () => {

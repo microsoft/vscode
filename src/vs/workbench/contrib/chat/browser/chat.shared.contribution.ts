@@ -12,7 +12,7 @@ import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHos
 import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_THRESHOLD_SETTING } from '../../../services/agentHost/browser/codexContinuationService.js';
 import { Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
@@ -25,11 +25,11 @@ import { ChatPetJumpGameAccessibleView } from './accessibility/chatPetJumpGameAc
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostHooksEnabledConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotShellAuthenticationEnabledSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotMemoryModeValues, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotShellAuthenticationEnabledSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotProgrammaticToolCallingEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotMemoryModeValues, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { copilotPolicyHelperConfigurationProperties } from './copilotPolicyHelperConfiguration.js';
 import { imageGenerationConfigurationProperties } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
@@ -76,7 +76,7 @@ import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfigurationProperties } from './chatNetworkConfiguration.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, OpenInAgentsTitleBarHoverVariant } from '../common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, WelcomePageCardSurface, WelcomeSignInStyle } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
@@ -101,6 +101,9 @@ import { CustomizationMigrationTelemetryService, ICustomizationMigrationTelemetr
 import { CustomizationMigrationService } from './aiCustomization/customizationMigrationServiceImpl.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
+import { IChatExtensionCustomizationsService } from '../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { ChatExtensionCustomizationsService } from '../common/promptSyntax/service/chatExtensionCustomizationsServiceImpl.js';
+import { IAgenticSkillsService, NullAgenticSkillsService } from '../common/promptSyntax/service/agenticSkillsService.js';
 import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js';
 import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
@@ -158,6 +161,7 @@ import { ChatThinkingTitleService, IChatThinkingTitleService } from '../common/c
 import { CustomizationsTelemetryContribution, CustomizationsTelemetryService, ICustomizationsTelemetryService } from './aiCustomization/customizationsTelemetryService.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
+import { ChatCustomizationFileTelemetryContribution } from './promptSyntax/customizationFileTelemetry.js';
 import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
 import { ChatSpeechToTextService, DICTATION_MAI_MODEL_ID, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import { IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient } from './speechToText/voiceCodeTranscriptionClient.js';
@@ -200,6 +204,7 @@ import { ChatOutlineCreator } from './chatOutlineCreator.js';
 import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatLayoutService } from './widget/chatLayoutService.js';
+import { ChatMcpAppEditor, ChatMcpAppEditorInput } from './widget/chatContentParts/toolInvocationParts/chatMcpAppEditor.js';
 import './widget/input/chatInputNoticeHub.js';
 import './widget/input/chatInputNotificationService.js';
 import { ChatInputBoxContentProvider } from './widget/input/editor/chatEditorInputContentProvider.js';
@@ -527,12 +532,6 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
-		[ChatConfiguration.OpenSessionsInEditor]: {
-			type: 'boolean',
-			default: false,
-			markdownDescription: nls.localize('chat.agentSessions.openInEditor', "Controls whether opening an agent session, from the sessions list or a session link, shows it in an editor instead of the Chat view. Like opening a file, an editor that already shows the session is revealed, and a session shown in the Chat view moves into an editor."),
-			tags: ['experimental'],
-		},
 		[ChatConfiguration.SaveBeforeSend]: {
 			type: 'boolean',
 			description: nls.localize('chat.saveBeforeSend', "Controls whether all dirty editors except untitled editors are saved before sending a chat message."),
@@ -713,7 +712,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.InlineAttachmentsEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.inlineAttachments.enabled', "Controls whether context attached to the chat input, such as files, folders, images, symbols, tools, and pull requests, is shown as pills inline with the prompt text at the position where it was added, instead of above the input. Each inline attachment behaves like a single character: move the cursor across it, select it, or delete it like text. Sent requests show the same pills inline, and still show attached images as thumbnails above their text. The prompt sent to the model mentions each pill by its attachment's name and location, and attaches each attachment once, however often it is mentioned."),
-			default: product.quality === 'insider',
+			default: true,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.EditorAssociations]: {
@@ -1087,7 +1086,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.BtwTipEnabled]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: nls.localize('chat.btwTip.enabled', "Controls whether the Agents Window shows a tip about using `/btw` to ask side questions."),
@@ -1758,6 +1757,21 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 		},
+		[CopilotSecurityReviewSecretDetectionEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.securityReview.secretDetection.enabled', "When enabled, `/security-review` in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format. Requires preview features to be allowed by your organization. Applies to new and resumed sessions."),
+			default: false,
+			tags: ['preview'],
+			scope: ConfigurationScope.APPLICATION,
+		},
+		[CopilotProgrammaticToolCallingEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.programmaticToolCalling.enabled', "When enabled, Copilot SDK sessions offer a `run_program` tool that runs a sandboxed JavaScript program to call other tools and return a reduced result, instead of making each call separately, and the system prompt explains when to use it. Tool calls inside a program keep their normal permissions. Replaces model-hosted programmatic tool calling. Applies to new and resumed sessions."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			scope: ConfigurationScope.APPLICATION,
+			agentHost: { key: CopilotCliConfigKey.ProgrammaticToolCalling },
+		},
 		[AgentHostCopilotProgressUpdatesPromptSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.copilot.progressUpdatesPrompt.enabled', "When enabled, Copilot SDK sessions running a GPT model or Auto are asked to send a brief user-visible update before their first tool call and while they work. Applies to new and resumed sessions."),
@@ -1995,12 +2009,12 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.HtmlPreviewEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.htmlPreview.enabled.description', "Render explicit html-preview code blocks as inline HTML previews in the Agents window. When disabled, these blocks are shown as source code."),
-			default: false,
+			default: true,
 		},
 		[ChatConfiguration.NativeComponentsEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.nativeComponents.enabled.description', "Render explicit vscode-ui code blocks as native visuals, such as metrics, tables, and bar charts, in Agents window responses. When disabled, these blocks are shown as source code."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
@@ -2327,11 +2341,12 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_CHAT_HOOKS]: {
 			type: 'boolean',
 			title: nls.localize('chat.useHooks.title', "Use Chat Hooks",),
-			markdownDescription: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness.",),
+			markdownDescription: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. The Local agent harness loads hooks from the files configured in `#chat.hookFilesLocations#`. In Copilot sessions, turning this off stops repository hooks and hooks in custom agents from the next message, while hooks in `~/.copilot` and in plugins still run. Copilot sessions use this setting from user settings or policy, not from workspace settings.",),
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
 			tags: ['preview', 'prompts', 'hooks', 'agent'],
+			agentHost: { key: AgentHostHooksEnabledConfigKey },
 			policy: {
 				name: 'ChatHooks',
 				category: PolicyCategory.InteractiveSession,
@@ -2340,10 +2355,17 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.useHooks.description',
-						value: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness.",)
+						value: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. The Local agent harness loads hooks from the files configured in `#chat.hookFilesLocations#`. In Copilot sessions, turning this off stops repository hooks and hooks in custom agents from the next message, while hooks in `~/.copilot` and in plugins still run. Copilot sessions use this setting from user settings or policy, not from workspace settings.",)
 					}
 				},
 			}
+		},
+		[ChatConfiguration.HooksShowWarnings]: {
+			type: 'boolean',
+			title: nls.localize('chat.hooks.showWarnings.title', "Show Hook Warnings",),
+			markdownDescription: nls.localize('chat.hooks.showWarnings.description', "Controls whether the chat shows a warning when a hook fails to start, exits with an error, or reports a warning. This setting is only used by the Copilot harness.",),
+			default: product.quality !== 'stable',
+			tags: ['preview', 'hooks', 'agent'],
 		},
 		[PromptsConfig.USE_CLAUDE_HOOKS]: {
 			type: 'boolean',
@@ -2447,17 +2469,30 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		[ChatConfiguration.WelcomePageSignInStyle]: {
+			type: 'string',
+			enum: [WelcomeSignInStyle.Button, WelcomeSignInStyle.CopilotCard, WelcomeSignInStyle.GitHubCard, WelcomeSignInStyle.CompactCard],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.signIn.style.button', "Show a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.copilotCard', "Show a card that lists what GitHub Copilot does, with a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.githubCard', "Show a card that lists what working with GitHub brings, such as pull requests, issues and GitHub Copilot, with a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.compactCard', "Show a card that sums up what signing in brings in one sentence, with a sign-in button."),
+			],
+			markdownDescription: nls.localize('chat.welcomePage.signIn.style', "Controls how the Welcome page asks you to sign in with GitHub when signed out. Applies only while {0} is enabled.", '`#chat.welcomePage.signIn.enabled#`'),
+			default: WelcomeSignInStyle.Button,
+			tags: ['advanced', 'experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: {
 			type: 'string',
-			enum: [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.Auto],
+			enum: [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.Banner],
 			enumDescriptions: [
 				nls.localize('chat.welcomePage.agentsWindowGraphic.none', "Show no graphic."),
-				nls.localize('chat.welcomePage.agentsWindowGraphic.windowComparison', "Show the editor window and the Agents window side by side."),
-				nls.localize('chat.welcomePage.agentsWindowGraphic.manyWindowsToOne', "Show how editor windows for several projects become one Agents window."),
-				nls.localize({ key: 'chat.welcomePage.agentsWindowGraphic.auto', comment: ['Values surrounded by single quotes are not to be translated.'] }, "Show 'manyWindowsToOne' when more than one editor window is open, and 'windowComparison' otherwise."),
+				nls.localize('chat.welcomePage.agentsWindowGraphic.windowComparison', "Show the editor window and the Agents window side by side, above the Agents window button."),
+				nls.localize('chat.welcomePage.agentsWindowGraphic.banner', "Show a banner at the top of the page that describes the Agents window next to a picture of it, with a button that opens it."),
 			],
-			description: nls.localize('chat.welcomePage.agentsWindowGraphic', "Controls which graphic explains the Agents window above the Agents window button on the Welcome page."),
-			default: AgentsWindowGraphicVariant.None,
+			description: nls.localize('chat.welcomePage.agentsWindowGraphic', "Controls which graphic explains the Agents window on the Welcome page. Graphics are only shown when signed in."),
+			default: AgentsWindowGraphicVariant.WindowComparison,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -2472,35 +2507,27 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.welcomePage.agentsWindowSectionStyle.band', "Show the section on a subtle surface across the width of the page's content."),
 				nls.localize('chat.welcomePage.agentsWindowSectionStyle.separator', "Separate the section from the rest of the page with lines above and below it."),
 			],
-			description: nls.localize('chat.welcomePage.agentsWindowSectionStyle', "Controls how the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. Applies only while a graphic is shown."),
+			markdownDescription: nls.localize('chat.welcomePage.agentsWindowSectionStyle', "Controls how the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. Applies only while {0} is `windowComparison`.", '`#chat.welcomePage.agentsWindowGraphic#`'),
 			default: AgentsWindowSectionStyle.Outline,
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ChatConfiguration.WelcomePageCardSurface]: {
+			type: 'string',
+			enum: [WelcomePageCardSurface.Neutral, WelcomePageCardSurface.Tint],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.cardSurface.neutral', "Show the cards on a neutral surface, like the walkthrough tiles."),
+				nls.localize('chat.welcomePage.cardSurface.tint', "Show the cards on a surface tinted with the accent color."),
+			],
+			markdownDescription: nls.localize('chat.welcomePage.cardSurface', "Controls the surface of the Welcome page's cards that promote a feature: the Agents window banner, shown while {0} is `banner`, and the sign-in cards, shown while {1} is a card.", '`#chat.welcomePage.agentsWindowGraphic#`', '`#chat.welcomePage.signIn.style#`'),
+			default: WelcomePageCardSurface.Neutral,
+			tags: ['advanced', 'experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.TitleBarOpenInAgentsWindowEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
 			default: true,
-		},
-		[ChatConfiguration.TitleBarOpenInAgentsWindowRichHover]: {
-			type: 'string',
-			enum: [OpenInAgentsTitleBarHoverVariant.None, OpenInAgentsTitleBarHoverVariant.ManyWindowsToOne, OpenInAgentsTitleBarHoverVariant.WindowComparison],
-			enumDescriptions: [
-				nls.localize('chat.titleBar.openInAgentsWindow.richHover.none', "Show a simple tooltip, and grow the button to show its label."),
-				nls.localize('chat.titleBar.openInAgentsWindow.richHover.manyWindowsToOne', "Show a hover card with a graphic of editor windows for several projects becoming one Agents window, and keep the button an icon."),
-				nls.localize('chat.titleBar.openInAgentsWindow.richHover.windowComparison', "Show a hover card with a graphic of the editor window and the Agents window side by side, and keep the button an icon."),
-			],
-			description: nls.localize('chat.titleBar.openInAgentsWindow.richHover', "Controls whether hovering or focusing the Open in Agents Window button in the title bar shows a hover card that explains the Agents window, and which graphic the card shows. Applies to users who have created fewer than two sessions in the Agents window; other users always see a simple tooltip."),
-			default: OpenInAgentsTitleBarHoverVariant.None,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-		},
-		[ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.titleBar.openInAgentsWindow.richHoverOnClick', "Controls whether clicking the Open in Agents Window button in the title bar opens its hover card, with focus in it, instead of the Agents window. The card's Open Agents Window button opens the Agents window. Applies only while the button shows a hover card, see {0}.", '`#chat.titleBar.openInAgentsWindow.richHover#`'),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'auto' },
 		},
 		...agentsWindowHandoffConfigurationProperties,
 		'chat.approvedAccountOrganizations': {
@@ -2677,6 +2704,16 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(ChatEditorInput)
+	]
+);
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		ChatMcpAppEditor,
+		ChatMcpAppEditor.ID,
+		nls.localize('chatMcpApp', "MCP App")
+	),
+	[
+		new SyncDescriptor(ChatMcpAppEditorInput)
 	]
 );
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -3039,7 +3076,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		this.registerMaxRequestsSetting();
 		this.registerNewChatButtonIcon();
 		this.registerDefaultModeSetting();
-		this.registerSecurityReviewSecretDetectionSetting();
 	}
 
 
@@ -3069,42 +3105,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			});
 		};
 		this._register(Event.runAndSubscribe(Event.debounce(this.entitlementService.onDidChangeEntitlement, () => { }, 1000), () => registerMaxRequestsSetting()));
-	}
-
-	/**
-	 * Registered only for internal accounts. The agent host also checks the session's account at launch.
-	 * Configurable only through settings.json until its runtime dependencies land.
-	 */
-	private registerSecurityReviewSecretDetectionSetting(): void {
-		const node: IConfigurationNode = {
-			id: 'chatSidebar',
-			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
-			type: 'object',
-			properties: {
-				[CopilotSecurityReviewSecretDetectionEnabledSettingId]: {
-					type: 'boolean',
-					markdownDescription: nls.localize('chat.copilot.securityReview.secretDetection.enabled', "When enabled, `/security-review` in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format. Available to GitHub and Microsoft staff only, and requires preview features to be allowed by your organization. Applies to new and resumed sessions."),
-					default: false,
-					tags: ['preview'],
-					scope: ConfigurationScope.APPLICATION,
-					included: false,
-				},
-			}
-		};
-		let registered = false;
-		const update = () => {
-			const internal = this.entitlementService.isInternal;
-			if (internal !== registered) {
-				configurationRegistry.updateConfigurations(internal ? { add: [node], remove: [] } : { add: [], remove: [node] });
-				registered = internal;
-			}
-		};
-		this._register(Event.runAndSubscribe(this.entitlementService.onDidChangeEntitlement, update));
-		this._register(toDisposable(() => {
-			if (registered) {
-				configurationRegistry.deregisterConfigurations([node]);
-			}
-		}));
 	}
 
 	private registerNewChatButtonIcon(): void {
@@ -3462,6 +3462,7 @@ registerWorkbenchContribution2(ChatResponseResourceWorkbenchContribution.ID, Cha
 registerWorkbenchContribution2(ChatTerminalOutputTextModelWorkbenchContribution.ID, ChatTerminalOutputTextModelWorkbenchContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguageFeaturesProvider, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatCustomizationFileTelemetryContribution.ID, ChatCustomizationFileTelemetryContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AgentPluginRecommendations.ID, AgentPluginRecommendations, WorkbenchPhase.Eventually);
@@ -3560,6 +3561,8 @@ registerSingleton(IChatThinkingTitleService, ChatThinkingTitleService, Instantia
 registerSingleton(IAgentNetworkFilterService, AgentNetworkFilterService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
+registerSingleton(IChatExtensionCustomizationsService, ChatExtensionCustomizationsService, InstantiationType.Delayed);
+registerSingleton(IAgenticSkillsService, NullAgenticSkillsService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMigrationService, CustomizationMigrationService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMigrationTelemetryService, CustomizationMigrationTelemetryService, InstantiationType.Delayed);
 registerSingleton(ICustomizationsTelemetryService, CustomizationsTelemetryService, InstantiationType.Delayed);

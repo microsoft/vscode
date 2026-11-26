@@ -133,6 +133,15 @@ export function isSessionCreated(session: Pick<ISession, 'status'> | undefined, 
 }
 
 /**
+ * Whether `session` is archived and its provider has confirmed the archive. Consumers that discard state of an archived
+ * session, such as its group membership, pins or terminals, use this rather than {@link ISession.isArchived}: a provider
+ * can show a session as archived before its host confirms the archive, and restores the session when the host rejects it.
+ */
+export function isSessionArchiveConfirmed(session: Pick<ISession, 'isArchived' | 'archivePending'>, reader?: IReader): boolean {
+	return session.isArchived.read(reader) && !session.archivePending?.read(reader);
+}
+
+/**
  * Whether `chat` of `session` is a workspace-less quick chat, or, without a chat, whether `session` is a quick chat. A chat
  * of a quick chat that works in a folder of its own is not: the UI of the conversation that shows it treats it as a chat of
  * a workspace session.
@@ -203,6 +212,8 @@ export interface ISessionGitRepository {
 	readonly branchName?: string;
 	/** Name of the base branch. */
 	readonly baseBranchName: string | undefined;
+	/** Full ref of the base branch Branch Changes compares against (e.g. `refs/remotes/origin/main`), shown without its `refs/heads/` or `refs/remotes/` prefix. {@link baseBranchName} is the branch it names, without its remote. Absent when the host does not report it. */
+	readonly baseBranchRef?: string;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
 	readonly baseBranchProtected?: boolean;
 	/** Whether the repository has any Git remote. */
@@ -323,8 +334,16 @@ export interface ISessionWorkspace {
 	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
-	/** Folders in this session workspace. */
+	/**
+	 * Folders in this session workspace. The first is the default (main) folder: the session runs in it, or in its
+	 * worktree. Any others are attached as they are.
+	 */
 	readonly folders: ISessionFolder[];
+	/**
+	 * The workspace configuration (a `.code-workspace` file) the session was created in, with its folders as they were then;
+	 * `undefined` for a session created for folders alone. Providers that do not record workspaces omit it.
+	 */
+	readonly workspaceConfig?: ISessionWorkspaceConfig;
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
 	/**
@@ -337,6 +356,32 @@ export interface ISessionWorkspace {
 	 * identifies the workspace in pickers, this is drawn inline in dense rows.
 	 */
 	readonly typeIcon?: ThemeIcon;
+}
+
+/**
+ * The workspace configuration (a `.code-workspace` file, as `IWorkspace.configuration`) a session can be created in:
+ * a named, ordered set of folders. Not to be confused with a session's configuration. The
+ * first folder is the default (main) folder. A session records the workspace it was created in (see
+ * {@link ISessionWorkspace.workspaceConfig}) with a snapshot of its folders; the session's current folders are those of its
+ * {@link ISessionWorkspace}, which can differ later, for example after a chat added a folder.
+ *
+ * All URIs are in the client's URI space.
+ */
+export interface ISessionWorkspaceConfig {
+	/** The `.code-workspace` file. Identifies the workspace. */
+	readonly uri: URI;
+	/** The display name. */
+	readonly name: string;
+	/** The folders, the default folder first. Never empty. */
+	readonly folders: readonly URI[];
+}
+
+/** Structural equality for {@link ISessionWorkspaceConfig}. */
+export function sessionWorkspaceConfigEqual(a: ISessionWorkspaceConfig | undefined, b: ISessionWorkspaceConfig | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	return !!a && !!b && isEqual(a.uri, b.uri) && a.name === b.name && arrayEquals(a.folders, b.folders, isEqual);
 }
 
 /**
@@ -664,6 +709,8 @@ export interface ISessionChangeset {
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
 	/** The capabilities of this changeset. */
 	readonly capabilities?: ISessionChangesetCapabilities;
+	/** Present while the user can change the base branch this changeset compares against. */
+	readonly baseBranchSelection?: IObservable<ISessionChangesetBaseBranchSelection | undefined>;
 
 	/**
 	 * Invoke an operation declared in {@link operations}. `target` must be
@@ -731,6 +778,22 @@ export interface ISessionChangesetOperation {
 export interface ISessionChangesetCapabilities {
 	/** Whether the changeset supports review workflow. */
 	readonly review?: boolean;
+}
+
+/** The branches a changeset can compare against. */
+export interface ISessionChangesetBaseBranchCandidates {
+	/** Full refs of the local and remote branches (for example `refs/remotes/origin/main`), as the base is recorded, most recently committed first. */
+	readonly refs: readonly string[];
+	/** The ref a new session of the repository records as its base, when the repository has a default branch. */
+	readonly defaultRef?: string;
+}
+
+/** Changes the base branch a changeset compares against. */
+export interface ISessionChangesetBaseBranchSelection {
+	/** Lists the branches the changeset can compare against, without changing anything. */
+	getCandidates(token: CancellationToken): Promise<ISessionChangesetBaseBranchCandidates>;
+	/** Compares the changeset against `ref`, a ref from {@link getCandidates}, recorded exactly as listed. */
+	setBaseBranch(ref: string): Promise<void>;
 }
 
 /**
@@ -850,6 +913,11 @@ export interface IChat {
 
 	/** The effective workspace available to this chat. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/**
+	 * The working directories the chat sets itself, in place of its session's: the folders of its {@link workspace} are then
+	 * its own. `undefined` or empty while it works in its session's folders. Providers that cannot tell omit the observable.
+	 */
+	readonly ownWorkingDirectories?: IObservable<readonly URI[] | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
 	/** When the chat was last updated. `undefined` while the provider resolves the exact per-chat timestamp; consumers should omit it rather than fall back to aggregate session time. */
@@ -1072,6 +1140,12 @@ export interface ISession {
 	readonly preparationProgress?: IObservable<ISessionPreparationProgress | undefined>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
+	/**
+	 * Whether {@link isArchived} shows an archive that the provider's host has not confirmed yet. The provider restores the
+	 * session if the host rejects it, so use {@link isSessionArchiveConfirmed} before discarding the session's state. Absent
+	 * means `false`.
+	 */
+	readonly archivePending?: IObservable<boolean>;
 	/** Whether the session has been read. */
 	readonly isRead: IObservable<boolean>;
 	/** Status description shown while the session is active (e.g., current agent action). */
@@ -1139,6 +1213,12 @@ export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**
+	 * Whether a chat of this session can add folders to work in, and remove any folder it works in but its default
+	 * folder (its first), through `ISessionsProvider.addChatFolder` and `ISessionsProvider.removeChatFolder`.
+	 * Defaults to falsy when omitted.
+	 */
+	readonly supportsChatFolders?: boolean;
+	/**
 	 * Harness ids a new peer chat may choose in this session, in the same identity
 	 * space as {@link ISession.harness}. Absent or empty means choosing a harness
 	 * for a new peer chat is unsupported.
@@ -1156,8 +1236,9 @@ export interface ISessionCapabilities {
 	/**
 	 * Whether this session supports creating a side chat from a turn (via
 	 * `/btw`). Side chats inherit the source chat's model/agent and are shown
-	 * as ordinary peer chats in the session's standard chat tabs. Defaults to
-	 * falsy (no side chat) when omitted.
+	 * as ordinary peer chats in the session's standard chat tabs, or as tabs of
+	 * the Agents window's side pane while `sessions.experimental.sideChatsInSidePane`
+	 * is on. Defaults to falsy (no side chat) when omitted.
 	 */
 	readonly supportsSideChat?: boolean;
 	/**
@@ -1209,6 +1290,11 @@ export function getUntitledSessionTitle(isQuickChat: boolean): string {
 		: localize('agentSessions.newSession', "New Session");
 }
 
+export interface ISessionWorkspaceBrowseOptions {
+	readonly recentFolders: readonly URI[];
+	readonly token: CancellationToken;
+}
+
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;
@@ -1238,7 +1324,7 @@ export interface ISessionWorkspaceBrowseAction {
 	 * if cancelled. The current execution workspace is provided so context
 	 * pickers can scope results to its repository.
 	 */
-	run(currentWorkspace?: ISessionWorkspace): Promise<ISessionWorkspace | undefined>;
+	run(currentWorkspace?: ISessionWorkspace, options?: ISessionWorkspaceBrowseOptions): Promise<ISessionWorkspace | undefined>;
 	/**
 	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
 	 * picker that shows a folder list with search-as-you-type instead of
@@ -1378,6 +1464,7 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| (!!a.typeIcon && !!b.typeIcon && !ThemeIcon.isEqual(a.typeIcon, b.typeIcon))
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
+		|| !sessionWorkspaceConfigEqual(a.workspaceConfig, b.workspaceConfig)
 		|| a.folders.length !== b.folders.length) {
 		return false;
 	}
@@ -1415,6 +1502,7 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.isRepository?.get() === b.isRepository?.get()
 		&& a.branchName === b.branchName
 		&& a.baseBranchName === b.baseBranchName
+		&& a.baseBranchRef === b.baseBranchRef
 		&& a.baseBranchProtected === b.baseBranchProtected
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote

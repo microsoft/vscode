@@ -6,7 +6,7 @@
 /*
  * Extracts the explicit AI-written text chunks from a file-edit tool's
  * input payload. Both Claude (via @anthropic-ai/claude-agent-sdk) and
- * Copilot CLI (via @github/copilot-sdk) accept canonical tool schemas
+ * Copilot CLI (via @microsoft/copilot-sdk) accept canonical tool schemas
  * whose shapes we can read structurally — Claude uses PascalCase names
  * (`Write`, `Edit`, `MultiEdit`) with `_string` fields, Copilot uses
  * snake_case (`create`, `edit`, `str_replace`, `insert`,

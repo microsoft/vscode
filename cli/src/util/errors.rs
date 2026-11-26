@@ -183,7 +183,7 @@ pub struct InvalidTunnelName(pub String);
 
 impl std::fmt::Display for InvalidTunnelName {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "{}", &self.0)
+		write!(f, "{}", self.0)
 	}
 }
 
@@ -195,7 +195,7 @@ impl std::fmt::Display for TunnelCreationFailed {
 		write!(
 			f,
 			"Could not create tunnel with name: {}\nReason: {}",
-			&self.0, &self.1
+			self.0, self.1
 		)
 	}
 }
@@ -205,7 +205,7 @@ pub struct TunnelHostFailed(pub String);
 
 impl std::fmt::Display for TunnelHostFailed {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "{}", &self.0)
+		write!(f, "{}", self.0)
 	}
 }
 
@@ -214,7 +214,7 @@ pub struct ExtensionInstallFailed(pub String);
 
 impl std::fmt::Display for ExtensionInstallFailed {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Extension install failed: {}", &self.0)
+		write!(f, "Extension install failed: {}", self.0)
 	}
 }
 

@@ -14,7 +14,7 @@ import { writePnpmLockfile } from './pnpmLockfileFixture.ts';
 
 const repoRoot = path.join(import.meta.dirname, '..', '..', '..');
 const script = 'build/azure-pipelines/common/apply-sdk-canary-override.ts';
-const sdk = '@github/copilot-sdk';
+const sdk = '@microsoft/copilot-sdk';
 
 // A fake `pnpm` on PATH: reports the pinned version, answers the registry queries and, unless
 // FAKE_PNPM_STALE is set, locks the SDK version of package.json like `pnpm install --lockfile-only`.

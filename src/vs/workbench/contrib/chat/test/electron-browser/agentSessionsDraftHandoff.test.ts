@@ -322,7 +322,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 			transferDraft: { type: transferDraft.type, default: transferDraft.default, tags: transferDraft.tags, experiment: { present: Object.hasOwn(transferDraft, 'experiment'), value: transferDraft.experiment } },
 			introduction: { enum: introduction.enum, tags: introduction.tags },
 		}, {
-			banner: { default: false, experiment: { mode: 'auto' } },
+			banner: { default: true, experiment: { mode: 'auto' } },
 			developer: { default: false, tags: ['experimental', 'advanced'], experiment: false },
 			reveal: { type: 'boolean', default: true, scope: ConfigurationScope.APPLICATION, tags: ['experimental', 'advanced'], experiment: { mode: 'auto' } },
 			transferDraft: { type: 'boolean', default: true, tags: ['experimental'], experiment: { present: true, value: { mode: 'auto' } } },

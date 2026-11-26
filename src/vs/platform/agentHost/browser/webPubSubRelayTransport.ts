@@ -20,7 +20,7 @@ import { StopWatch } from '../../../base/common/stopwatch.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import { AnswerShellAuthenticationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
-import { formatConnectionDiagnosticError, getConnectionDiagnosticError, type ConnectionCloseReason } from '../common/connectionDiagnostics.js';
+import { formatConnectionDiagnosticError, getConnectionDiagnosticError, type ConnectionCloseReason, type ConnectionHandshakeMethod, type ConnectionHandshakeState } from '../common/connectionDiagnostics.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import { isJsonRpcResponse, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
@@ -97,6 +97,8 @@ export interface IWebPubSubRelayTransportOptions {
 	readonly onProtocolError?: (err: unknown) => void;
 	/** Content-free receive counter, including control, malformed and chunk frames. */
 	readonly onDidReceiveFrame?: () => void;
+	/** Content-free milestones for the latest AHP handshake, before generation filtering. */
+	readonly onHandshakeProgress?: (method: ConnectionHandshakeMethod, state: ConnectionHandshakeState) => void;
 	/**
 	 * Records every AHP frame to a JSONL transcript when
 	 * `chat.agentHost.ahpJsonlLoggingEnabled` is on. Cloud sandbox hosts do not implement
@@ -156,6 +158,8 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	private _connectResolved = false;
 	private _generation: number | undefined;
 	private _handshakeId: JsonRpcRequest['id'] | undefined;
+	private _handshakeMethod: ConnectionHandshakeMethod | undefined;
+	private _handshakeState: ConnectionHandshakeState | undefined;
 	private readonly _requests = new Set<JsonRpcRequest['id']>();
 	private readonly _closedBeforeHandshake = new Set<number>();
 	private readonly _watch = StopWatch.create(false);
@@ -450,8 +454,13 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._deliver(value as ProtocolMessage, result.generation);
 			}
 		} else if (result.kind === 'pending') {
-			if (this._handshakeId !== undefined && result.group.scope === 'client' && result.group.lane === 'to-client') {
-				this._handshakeTimer.schedule();
+			if (this._handshakeId !== undefined) {
+				if (result.group.scope === 'client' && result.group.lane === 'to-client') {
+					this._handshakeTimer.schedule();
+				}
+				if (this._handshakeState === 'waiting') {
+					this._reportHandshakeProgress('chunksReceived');
+				}
 			}
 			// Only host chunks count: relay acks and system frames arrive even when the host is dead.
 			this._onDidReceiveData.fire();
@@ -465,9 +474,11 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		}
 		const response = isJsonRpcResponse(payload);
 		if (this._handshakeId !== undefined && !(response && payload.id === this._handshakeId)) {
+			this._reportHandshakeProgress('otherMessagesReceived');
 			return;
 		}
 		if (response && payload.id !== null && payload.id === this._handshakeId) {
+			this._reportHandshakeProgress('responseReceived');
 			if (generation !== undefined && this._closedBeforeHandshake.has(generation)) {
 				this._fireClose('hostLaneClosed');
 				return;
@@ -498,6 +509,13 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		this._onMessage.fire(payload);
 	}
 
+	private _reportHandshakeProgress(state: ConnectionHandshakeState): void {
+		if (this._handshakeMethod !== undefined && this._handshakeState !== state) {
+			this._handshakeState = state;
+			this._options.onHandshakeProgress?.(this._handshakeMethod, state);
+		}
+	}
+
 	/** Publish each chunk once; rejection or a missing acknowledgement after 30 seconds fails the transport. */
 	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void {
 		if (this._closed || !this._ws) {
@@ -519,8 +537,11 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			this._requests.add(message.id);
 			if (message.method === 'initialize' || message.method === 'reconnect') {
 				this._handshakeId = message.id;
+				this._handshakeMethod = message.method;
+				this._handshakeState = undefined;
 				this._closedBeforeHandshake.clear();
 				this._handshakeTimer.schedule();
+				this._reportHandshakeProgress('waiting');
 			}
 		}
 		// Logged before chunking, so the transcript carries whole AHP messages rather than the

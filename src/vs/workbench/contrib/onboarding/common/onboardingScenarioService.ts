@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -102,6 +103,13 @@ export interface IOnboardingScenarioService {
 
 	/** Whether the scenario has already been shown to the user. */
 	hasBeenShown(id: string): boolean;
+
+	/**
+	 * Fires with the scenario id when an experiment scenario reaches its would-show moment, in
+	 * every arm, right after its assignment context starts flowing into telemetry. May fire
+	 * repeatedly for the same scenario.
+	 */
+	readonly onDidReachWouldShow: Event<string>;
 
 	/** Checks eligibility before a pre-tour nudge and records experiment exposure in both arms. A reader tracks assignment resolution. */
 	shouldShowNudge(id: string, reader?: IReader): boolean;

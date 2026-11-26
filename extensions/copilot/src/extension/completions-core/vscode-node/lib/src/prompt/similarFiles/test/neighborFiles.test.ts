@@ -152,8 +152,6 @@ suite('neighbor files tests', function () {
 		assert.strictEqual(docs.has(FILE_B), true);
 		assert.strictEqual(docs.has(FILE_C), true);
 		assert.strictEqual(docs.has(FILE_D), true);
-		assert.strictEqual(neighborSource.has(NeighboringFileType.CursorMostCount), false);
-		assert.strictEqual(neighborSource.has(NeighboringFileType.CursorMostRecent), false);
 		assert.strictEqual(neighborSource.has(NeighboringFileType.OpenTabs), true);
 		assert.strictEqual(neighborSource.get(NeighboringFileType.OpenTabs)?.length, 3);
 		assert.strictEqual(neighborSource.get(NeighboringFileType.OpenTabs)?.shift(), FILE_B);

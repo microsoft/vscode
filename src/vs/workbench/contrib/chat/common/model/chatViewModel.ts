@@ -420,7 +420,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			}
 
 			const modelEventToVmEvent: IChatViewModelChangeEvent =
-				e.kind === 'addRequest' ? { kind: 'addRequest' }
+				e.kind === 'addRequest' && e.index === undefined ? { kind: 'addRequest' }
 					: e.kind === 'initialize' ? { kind: 'initialize' }
 						: e.kind === 'setHidden' ? { kind: 'setHidden' }
 							: null;

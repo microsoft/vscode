@@ -53,13 +53,26 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 	readonly when = ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR,
-		CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.isEqualTo(''),
+		ContextKeyExpr.or(CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.isEqualTo(''), CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.isEqualTo('plugins')),
 	);
 
 	constructor(readonly type: AccessibleViewType) { }
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const editor = accessor.get(IEditorService).activeEditorPane;
+		const marketplaces = editor instanceof AICustomizationManagementEditor ? editor.getPluginMarketplacesWidget() : undefined;
+		if (marketplaces) {
+			const focused = DOM.getActiveElement();
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.CustomizationDiscovery,
+				{ type: this.type, language: 'plaintext' },
+				() => this.type === AccessibleViewType.Help
+					? localize('customizationMarketplaces.help', "Marketplaces is a subpage of Plugins. Use Tab and Shift+Tab to move between the page controls, the search box, and the marketplace list. In the list, use the arrow keys to navigate marketplaces and press Enter to browse one. Press Shift+F10 on a marketplace for Browse, Refresh Marketplace, Open Folder, and Remove Marketplace when available. Press Escape to return to Plugins. Use {0} to read the marketplace list in the Accessible View.", '<keybinding:editor.action.accessibleView>')
+					: marketplaces.getAccessibilityContent(),
+				() => DOM.isHTMLElement(focused) && focused.isConnected ? focused.focus() : marketplaces.focus(),
+				AccessibilityVerbositySettingId.CustomizationDiscovery,
+			);
+		}
 		const welcomePage = editor instanceof AICustomizationManagementEditor ? editor.getWelcomePage() : undefined;
 		if (!welcomePage) {
 			return undefined;
@@ -75,16 +88,16 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 			() => this.type === AccessibleViewType.Help ? welcomePage.isDiscover || isDetail ? [
 				localize('customizationDiscovery.help.overview', "Browse customizations searches installed agents, skills, instructions, prompts, hooks, MCP servers, and plugins, and can browse available marketplace items."),
 				localize('customizationDiscovery.help.descriptionLinks', "The customization type links below the heading open their respective management sections."),
-				localize('customizationDiscovery.help.create', "Add Customization starts the same creation flows as each management section. For agents, skills, instructions, and prompts, choose a workspace or user location, Generate with AI when available, or an action provided by the selected agent. Add MCP Server opens the server configuration wizard. Add Plugin offers the selected agent's plugin actions and Install from Source. Escape cancels without creating an item."),
+				localize('customizationDiscovery.help.create', "Add Customization starts the same creation flows as each management section. For agents, skills, instructions, and prompts, choose a workspace or user location, Generate with AI when available, or an action provided by the selected agent. Add MCP Server opens the server configuration wizard. Add Plugin offers the selected agent's plugin actions and Install from Source. Add Marketplace opens the marketplace source input. Escape cancels without creating an item."),
 				localize('customizationDiscovery.help.pluginEnablement', "Copilot-owned plugins use runtime enablement. Installed plugin controls change global activation. Chat plugin context menus offer global and repository activation, not session-only overrides. Unavailable actions explain whether the host lacks support, the chat is still initializing, or your organization manages the plugin. Plugin-provided MCP servers show Waiting for Session Start until their plugin activation is known; their controls are unavailable while waiting."),
 				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, @type:plugin, and @type:canvas. Canvas extension results use explicit compatibility metadata from the marketplace. The search filter menu updates the same query and filters can be combined."),
 				localize('customizationDiscovery.help.ranking', "Available search results are ordered by source-assigned relevance, not trust or quality. Curated Browse sections preserve their saved editorial order. When curated sections are unavailable, Browse uses source priority and catalog order."),
 				localize('customizationDiscovery.help.browse', "Clear the search to browse Editor's picks, Plan, build, and ship, and Connect your work when curated GitHub Feed sections are available. Otherwise, Browse groups catalog items by type. Show All on a type section applies its filter and moves to search results."),
-				localize('customizationDiscovery.help.sources', "Use the source picker to search all available marketplace feeds or one feed. Configure Marketplaces opens a quick pick where you can add and manage plugin marketplaces."),
+				localize('customizationDiscovery.help.sources', "Use the marketplace picker to search All Marketplaces or one marketplace. Manage Marketplaces opens a subpage of Plugins where you can search, add, browse, refresh, and remove plugin marketplaces. The Plugins page and the Manage Plugin Marketplaces command open the same page."),
 				localize('customizationDiscovery.help.navigation', "Use Tab and Shift+Tab between controls. In search results, use the arrow keys, Home, and End to navigate the list. Press Enter or Space on an available item to open its in-product details. Press Enter to open an installed item."),
 				localize('customizationDiscovery.help.install', "Review an available item's source, then choose Install. For connectors, choose Connect, Reconnect, or Disconnect to manage the connection. When the selected agent provides SDK installation management, its inventory is authoritative and its exact review is shown before installation or removal. Copilot SDK search omits candidates that the runtime does not mark installable. Installing a public Browse result through Copilot prompts for GitHub sign-in first when needed. Repair asks the owning SDK or local implementation to recover missing content. Installed marketplace items provide an Uninstall action. MCP servers that require unsupported local prerequisites provide View Setup to open the publisher's instructions instead. VS Code continues to apply destination, trust, policy, and compatibility checks."),
 				localize('customizationDiscovery.help.getStarted', "In an item's details, choose a prompt under Get started to install the item and open that prompt in a new Copilot session."),
-				localize('customizationDiscovery.help.links', "Available customization names no longer open external resources. Open an item's details to review its metadata, then use the explicitly labeled resource or repository actions for external navigation. Back or Escape returns to Browse and restores focus."),
+				localize('customizationDiscovery.help.links', "Available customization names no longer open external resources. Open an item's details to review its metadata, then use the homepage, source, or repository links when available for external navigation. Back or Escape returns to Browse and restores focus."),
 				localize('customizationDiscovery.help.paging', "Scrolling near the end of search results loads another page without removing loaded items. Retry repeats a failed marketplace request."),
 				localize('customizationDiscovery.help.sourceFailures', "Unavailable sources show a warning notification with a Retry action. Scrolling continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),
 				localize('customizationDiscovery.help.sourceRecovery', "Sources that need the same GitHub account share one Sign In action instead of showing duplicate prompts. Sign-in starts only when you choose it; cancelling keeps the other results available. Additional Connector permission is requested only when you explicitly connect, reconnect, disconnect, or check a connection."),

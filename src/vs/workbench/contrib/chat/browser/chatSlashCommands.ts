@@ -35,7 +35,6 @@ import { toAgentHostBackendSessionUri } from './agentSessions/agentHost/agentHos
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
-import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
 import { IChatWidgetService } from './chat.js';
@@ -123,12 +122,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
 			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
-		}, async (_prompt, _progress, _history, _location, sessionResource) => {
-			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
-				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Hooks);
-			} else {
-				await instantiationService.invokeFunction(showConfigureHooksQuickPick);
-			}
+		}, async () => {
+			await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Hooks);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'models',

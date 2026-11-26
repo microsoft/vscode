@@ -10,11 +10,6 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { PullArtifactRef } from '../vscode/cloudAgentBackend';
 
-export interface ResolveOptions {
-	readonly attempts?: number;
-	readonly spacingMs?: number;
-}
-
 /**
  * Resolve a raw {@link PullArtifactRef} to a full {@link PullRequestSearchItem} for UI rendering.
  *

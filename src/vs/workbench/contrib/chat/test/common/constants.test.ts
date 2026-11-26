@@ -19,7 +19,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatConfiguration, ChatPermissionLevel, CopilotHarnessIntroductionMode, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isLocalAgentHostSessionTypeDisabledByPolicy, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, CopilotHarnessIntroductionMode, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalChatFallbackRefusal, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isLocalAgentHostSessionTypeDisabledByPolicy, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -36,6 +36,39 @@ suite('ChatConfiguration defaults', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const localWorkspace = createWorkspace(URI.file('/workspace'));
+
+	test('while a feature hides local chats, a new chat without another session type is Copilot and cannot fall back to Local, except in virtual workspaces and under the policy that keeps Local the default; otherwise Local is the fallback', () => {
+		const chatSessionsService = createChatSessionsService();
+		const resolve = (localChatHidden: boolean, workspace = localWorkspace, keepLocalByPolicy = false) => {
+			const configurationService = new TestConfigurationService({
+				[ChatConfiguration.DefaultToCopilotHarness]: false,
+				[ChatConfiguration.EditorPreferCopilotHarness]: false,
+				[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			});
+			if (keepLocalByPolicy) {
+				sinon.stub(configurationService, 'inspect').callThrough().withArgs(ChatConfiguration.TemporaryDefaultToLocalHarness).returns({ policyValue: true });
+			}
+			const result = {
+				newChat: getDefaultNewChatSessionType(configurationService, chatSessionsService, disposables.add(new TestStorageService()), workspace, false, { localChatHidden }),
+				localOffered: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, workspace, false, false, false, localChatHidden),
+				fallbackRefused: !!getLocalChatFallbackRefusal(configurationService, workspace, false, localChatHidden),
+			};
+			sinon.restore();
+			return result;
+		};
+
+		assert.deepStrictEqual({
+			hidden: resolve(true),
+			shown: resolve(false),
+			hiddenVirtual: resolve(true, createWorkspace(URI.parse('virtual:/workspace'))),
+			hiddenKeptByPolicy: resolve(true, localWorkspace, true),
+		}, {
+			hidden: { newChat: SessionType.AgentHostCopilot, localOffered: false, fallbackRefused: true },
+			shown: { newChat: localChatSessionType, localOffered: true, fallbackRefused: false },
+			hiddenVirtual: { newChat: localChatSessionType, localOffered: true, fallbackRefused: false },
+			hiddenKeptByPolicy: { newChat: localChatSessionType, localOffered: true, fallbackRefused: false },
+		});
+	});
 
 	test('Copilot harness defaults on without experiment controls or experimental tags', () => {
 		const settings = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
@@ -1066,7 +1099,7 @@ suite('ChatConfiguration defaults', () => {
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
 			[ChatConfiguration.EditorPreferCopilotHarness]: true,
 		});
-		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const rememberedStorageService = disposables.add(new TestStorageService());
 		const currentStorageService = disposables.add(new TestStorageService());
 		const workspace = createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode'));
@@ -1096,6 +1129,40 @@ suite('ChatConfiguration defaults', () => {
 			localVisible: true,
 			localRememberedUsable: true,
 			claudeUsable: false,
+		});
+	});
+
+	test('a mixed workspace does not restore an unsupported local harness', () => {
+		const configuration = new TestConfigurationService({ [ChatConfiguration.DefaultToCopilotHarness]: true });
+		const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storage = disposables.add(new TestStorageService());
+		const workspace = createWorkspace(URI.file('/workspace'), URI.parse('custom-vfs://provider/workspace'));
+		storeUserSelectedSessionType(storage, SessionType.AgentHostClaude);
+
+		assert.deepStrictEqual({
+			usable: [SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex]
+				.map(type => isNewChatSessionTypeUsable(type, configuration, sessions, workspace)),
+			resolved: resolveSessionType(configuration, sessions, storage, workspace, true, { currentSessionType: SessionType.AgentHostCodex }),
+		}, {
+			usable: [true, false, false],
+			resolved: { sessionType: SessionType.AgentHostCopilot },
+		});
+	});
+
+	test('a mixed remote workspace restores available remembered and current harnesses', () => {
+		const configuration = new TestConfigurationService({ [ChatConfiguration.DefaultToCopilotHarness]: true });
+		const sessions = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex);
+		const workspace = createWorkspace(URI.parse('vscode-remote://ssh-remote+test/workspace'), URI.parse('custom-vfs://provider/workspace'));
+		const rememberedStorage = disposables.add(new TestStorageService());
+		const emptyStorage = disposables.add(new TestStorageService());
+		storeUserSelectedSessionType(rememberedStorage, SessionType.AgentHostClaude);
+
+		assert.deepStrictEqual({
+			remembered: resolveSessionTypeWithReason(configuration, sessions, rememberedStorage, workspace, true),
+			current: resolveSessionTypeWithReason(configuration, sessions, emptyStorage, workspace, true, { currentSessionType: SessionType.AgentHostCodex }),
+		}, {
+			remembered: { sessionType: SessionType.AgentHostClaude, selectionReason: 'rememberedSelection' },
+			current: { sessionType: SessionType.AgentHostCodex, selectionReason: 'currentSession' },
 		});
 	});
 

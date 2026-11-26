@@ -47,24 +47,6 @@ export class CompletionsFetcher implements ICompletionsFetcherService {
 	}
 }
 
-/**
- * Encapsulates all the functionality related to making GET/POST/DELETE requests using
- * different libraries (and in the future, different environments like web vs
- * node).
- */
-export abstract class Fetcher {
-	abstract readonly name: string;
-	/**
-	 * Returns the real implementation, not a delegator.  Used by diagnostics to ensure the fetcher name and all
-	 * reachability checks are aligned.
-	 */
-	getImplementation(): Fetcher | Promise<Fetcher> {
-		return this;
-	}
-	abstract fetch(url: string, options: FetchOptions): Promise<Response>;
-	abstract disconnectAll(): Promise<unknown>;
-}
-
 export function isInterruptedNetworkError(error: unknown): boolean {
 	if (!(error instanceof Error)) { return false; }
 	if (error.message === 'ERR_HTTP2_GOAWAY_SESSION') { return true; }

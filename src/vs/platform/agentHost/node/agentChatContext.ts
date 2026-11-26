@@ -51,10 +51,12 @@ function createAgentChatSessionSettings(snapshot: ISessionStateSnapshot | undefi
  * registry at every {@link IAgentChatOwnerRef.get}. Before the chat is
  * registered (a provider creating it) it answers `session`, the session the
  * operation was issued for; after the chat leaves the registry it answers the
- * last owner it saw, so teardown keeps addressing that session.
+ * last owner it saw, so teardown keeps addressing that session. Before the
+ * session is registered, `recordedDefaultChat` supplies its persisted chat format.
  */
-export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: URI | ProtocolURI, session: URI | ProtocolURI): IAgentChatOwnerRef {
+export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: URI | ProtocolURI, session: URI | ProtocolURI, recordedDefaultChat?: ProtocolURI): IAgentChatOwnerRef {
 	const chatKey = toKey(chat);
+	const sessionKey = toKey(session);
 	let last = toKey(session);
 	let lastUri = toUri(session);
 	const getOwner = () => {
@@ -67,7 +69,10 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
 	};
 	return {
 		get: getOwner,
-		getSubagentChatUriFormat: () => chatUriFormatOf(stateManager.getDefaultChat(getOwner().toString())),
+		getSubagentChatUriFormat: () => {
+			const owner = getOwner().toString();
+			return chatUriFormatOf(stateManager.getDefaultChat(owner) ?? (owner === sessionKey ? recordedDefaultChat : undefined));
+		},
 		isDefaultChat: () => {
 			const defaultChat = stateManager.getDefaultChat(getOwner().toString());
 			return defaultChat === undefined ? undefined : defaultChat === chatKey;
@@ -171,9 +176,10 @@ function buildAgentChatContext(stateManager: AgentHostStateManager, authenticati
 		: isChatWorkspaceless(stateManager, chatKey, sessionState, sessionSettings?.workspaceless === true);
 	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
 	const chatSurface = stateManager.getSessionSurfaceMeta(sessionKey)?.surface;
+	const recordedDefaultChat = sessionState && [...sessionState.chats].find(([, entry]) => entry.isDefault)?.[0];
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
-		owner: createChatOwnerRef(stateManager, chat, session),
+		owner: createChatOwnerRef(stateManager, chat, session, recordedDefaultChat),
 		sessionSettings,
 		workspaceless,
 		launchWorkingDirectories: isToolChat || workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),

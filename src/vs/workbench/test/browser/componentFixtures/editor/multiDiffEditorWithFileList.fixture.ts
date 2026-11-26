@@ -77,10 +77,10 @@ export default defineThemedFixtureGroup({ path: 'editor/multiDiffEditor' }, {
 			expectedVisualDescriptions: ['A list of five changed files docked on the left of the multi-file diffs, with the first file selected.'],
 			render: context => renderMultiDiffEditorWithFileListWidget(context, 1000, 'list', 'left'),
 		}),
-		NarrowHidesFileList: defineComponentFixture({
+		NarrowKeepsFileList: defineComponentFixture({
 			themes: ['dark'],
 			labels: { kind: 'screenshot' },
-			expectedVisualDescriptions: ['A narrow multi diff editor where the file list is hidden so the diffs use the full width.'],
+			expectedVisualDescriptions: ['A narrow multi diff editor that keeps the list of changed files docked on the right at its minimum width, with the diffs using the remaining width.'],
 			render: context => renderMultiDiffEditorWithFileListWidget(context, 520),
 		}),
 	}),

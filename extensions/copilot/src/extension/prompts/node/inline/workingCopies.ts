@@ -26,10 +26,6 @@ export class WorkingCopyDerivedDocument {
 		return this._derivedDocument.languageId;
 	}
 
-	public get derivedDocumentTransformer(): PositionOffsetTransformer {
-		return this._derivedDocument.positionOffsetTransformer;
-	}
-
 	public get originalDocumentTransformer(): PositionOffsetTransformer {
 		return this._workingCopyOriginalDocument.transformer;
 	}
@@ -98,20 +94,6 @@ export class WorkingCopyDerivedDocument {
 
 		return transformedProgressItem;
 	}
-
-	public rebaseEdits(edits: readonly TextEdit[]): TextEdit[] {
-		// See comment from above explaining the rebasing
-		const d0 = this._workingCopyOriginalDocument;
-		const s0 = this._derivedDocument;
-		const e_sum = s0.edits;
-		const e_ai = toOffsetEdits(s0.positionOffsetTransformer, edits);
-		const e_ai_r = e_ai.rebaseSkipConflicting(e_sum.inverse(d0.text));
-		return fromOffsetEdits(d0.transformer, e_ai_r);
-	}
-
-	public convertPostEditsOffsetToOriginalOffset(postEditsOffset: number): number {
-		return this._derivedDocument.projectBack(postEditsOffset);
-	}
 }
 
 /**
@@ -176,14 +158,6 @@ export class DocumentSnapshot {
 
 	public get text(): string {
 		return this._text;
-	}
-
-	private _transformer: PositionOffsetTransformer | null = null;
-	public get transformer(): PositionOffsetTransformer {
-		if (!this._transformer) {
-			this._transformer = new PositionOffsetTransformer(this._text);
-		}
-		return this._transformer;
 	}
 
 	constructor(

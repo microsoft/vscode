@@ -12,12 +12,6 @@ import { registerCommand } from '../telemetry';
 import { wrapDoc } from '../textDocumentManager';
 import { CopilotSuggestionsPanelManager } from './copilotSuggestionsPanelManager';
 
-// Exported for testing
-export enum PanelNavigationType {
-	Previous = 'previous',
-	Next = 'next',
-}
-
 /**
  * This interface contains data associated to a completion displayed in the panel.
  */

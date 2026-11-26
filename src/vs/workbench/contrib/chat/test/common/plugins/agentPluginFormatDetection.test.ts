@@ -32,6 +32,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
  * allowing format detection and content reading to be tested in isolation.
  */
 class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
+	protected readonly _discoveryKind = 'configured';
 	private _sources: URI[] = [];
 	private _remove: (() => Promise<boolean>) | undefined = async () => true;
 	private _nextDiscoveryBarrier: Promise<void> | undefined;

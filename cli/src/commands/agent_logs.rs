@@ -70,8 +70,10 @@ pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32,
 					print_action(envelope.server_seq, &envelope.action);
 				}
 				Some(other) => {
-					let notif_style = Style::new().magenta();
-					println!("{}", notif_style.apply_to(format!("notification: {other:?}")));
+					if let Some(message) = format_notification(&other) {
+						let notif_style = Style::new().magenta();
+						println!("{}", notif_style.apply_to(message));
+					}
 				}
 				None => {
 					println!("{}", Styles::muted().apply_to("Subscription closed."));
@@ -87,6 +89,26 @@ pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32,
 
 	client.shutdown().await;
 	Ok(0)
+}
+
+/// Formats notifications without retaining the action payloads' debug formatters.
+fn format_notification(event: &SubscriptionEvent) -> Option<String> {
+	match event {
+		SubscriptionEvent::Action(_) => None,
+		SubscriptionEvent::SessionAdded(params) => {
+			Some(format!("notification: SessionAdded({params:?})"))
+		}
+		SubscriptionEvent::SessionRemoved(params) => {
+			Some(format!("notification: SessionRemoved({params:?})"))
+		}
+		SubscriptionEvent::SessionSummaryChanged(params) => {
+			Some(format!("notification: SessionSummaryChanged({params:?})"))
+		}
+		SubscriptionEvent::AuthRequired(params) => {
+			Some(format!("notification: AuthRequired({params:?})"))
+		}
+		other => Some(format!("notification: {other:?}")),
+	}
 }
 
 fn print_initial_state(uri: &str, result: &SubscribeResult) {
@@ -211,6 +233,76 @@ fn truncate(s: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use serde_json::json;
+
+	#[test]
+	fn notification_format_preserves_debug_output() {
+		let events = [
+			SubscriptionEvent::SessionAdded(
+				serde_json::from_value(json!({
+					"channel": "ahp-root://",
+					"summary": {
+						"provider": "test-provider",
+						"title": "Session \"α\"\n",
+						"status": 1,
+						"resource": "ahp-session:/one",
+						"createdAt": "2026-01-01T00:00:00Z",
+						"modifiedAt": "2026-01-01T00:00:00Z",
+						"_meta": { "nested": [1, "é"] }
+					}
+				}))
+				.unwrap(),
+			),
+			SubscriptionEvent::SessionRemoved(
+				serde_json::from_value(json!({
+					"channel": "ahp-root://",
+					"session": "ahp-session:/one"
+				}))
+				.unwrap(),
+			),
+			SubscriptionEvent::SessionSummaryChanged(
+				serde_json::from_value(json!({
+					"channel": "ahp-root://",
+					"session": "ahp-session:/one",
+					"changes": { "title": "Changed\n\"title\"", "status": 2 }
+				}))
+				.unwrap(),
+			),
+			SubscriptionEvent::AuthRequired(
+				serde_json::from_value(json!({
+					"channel": "ahp-session:/one",
+					"resource": {
+						"resource": "https://example.test/",
+						"resource_name": "Réseau \"test\"",
+						"authorization_servers": ["https://auth.example.test/"]
+					},
+					"reason": "future-reason"
+				}))
+				.unwrap(),
+			),
+		];
+
+		for event in events {
+			assert_eq!(
+				format_notification(&event),
+				Some(format!("notification: {event:?}"))
+			);
+		}
+	}
+
+	#[test]
+	fn notification_format_leaves_actions_to_action_renderer() {
+		let envelope = serde_json::from_value(json!({
+			"channel": "ahp-session:/one",
+			"serverSeq": 1,
+			"action": { "type": "session/titleChanged", "title": "Title" }
+		}))
+		.unwrap();
+		assert_eq!(
+			format_notification(&SubscriptionEvent::Action(envelope)),
+			None
+		);
+	}
 
 	#[test]
 	fn truncate_respects_character_limit() {

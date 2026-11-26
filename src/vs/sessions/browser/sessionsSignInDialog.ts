@@ -71,7 +71,7 @@ export class SessionsSigningInDialog extends Disposable {
 				disableCloseAction: true,
 				disableCloseButton: true,
 				disableDefaultAction: true,
-				isExternalFocusAllowed: target => !!target.closest('.quick-input-widget'),
+				isExternalFocusAllowed: target => !!target.closest('.quick-input-widget, .mobile-dialog-sheet-overlay'),
 			}, keybindingService, layoutService, hostService, undefined, commandId => commandId.startsWith('quickInput.'))
 		));
 

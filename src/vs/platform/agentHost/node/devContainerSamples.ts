@@ -16,7 +16,7 @@ import { devContainerServerCacheMount } from './devContainerServerCache.js';
 import { devContainerSandboxRunArgs } from './devContainerSandbox.js';
 import { devContainerStateFallbackTarget, getDevContainerStateMount, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, isDevContainerRunning, isDevContainerStateVolumeFor } from './devContainerState.js';
 
-interface ICommandResult {
+export interface ICommandResult {
 	readonly stdout: string;
 	readonly stderr: string;
 	readonly code: number;
@@ -66,7 +66,7 @@ export function getDevContainerSampleLabels(repository: IDevContainerRepository)
 	];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
@@ -86,7 +86,7 @@ export function parseDevContainerSampleConfiguration(content: string): Record<st
 	return { ...config, image: config.image };
 }
 
-async function writeAtomic(path: string, content: string): Promise<void> {
+export async function writeAtomic(path: string, content: string): Promise<void> {
 	const temporaryPath = `${path}.${randomUUID()}`;
 	try {
 		await writeFile(temporaryPath, content, { mode: 0o600, flag: 'wx' });
@@ -96,7 +96,7 @@ async function writeAtomic(path: string, content: string): Promise<void> {
 	}
 }
 
-function checked(result: ICommandResult, operation: string): string {
+export function checked(result: ICommandResult, operation: string): string {
 	if (result.code !== 0) {
 		throw new Error(localize('devContainerSample.commandFailed', "{0} failed (exit {1}): {2}", operation, result.code, result.stderr || result.stdout));
 	}

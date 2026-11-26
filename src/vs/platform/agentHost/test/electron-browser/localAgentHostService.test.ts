@@ -32,6 +32,7 @@ import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetr
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import { AgentHostOTelEnabledSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelPolicyState, IAgentCreateChatRequestOptions, IAgentHostManagementService, IAgentHostOTelPolicyReadiness, IAgentHostOTelSettings } from '../../common/agentService.js';
 import { ActionEnvelope, ActionType, INotification, NotificationType } from '../../common/state/sessionActions.js';
+import type { OtlpExportLogsParams } from '../../common/state/protocol/channels-otlp/notifications.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { MessageAttachmentKind, MessageKind, ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
@@ -67,7 +68,8 @@ suite('LocalAgentHostServiceClient events', () => {
 	};
 	const notification: INotification = { type: NotificationType.SessionRemoved, channel: ROOT_STATE_URI, session: 'copilotcli:/test' };
 	const mcpNotification: IMcpNotification = { channel: 'mcp:/test', method: 'notifications/tools/list_changed' };
-	const expected = [action, notification, mcpNotification];
+	const otlpLogs: OtlpExportLogsParams = { channel: 'other-logs://server/debug', payload: {} };
+	const expected = [action, notification, mcpNotification, otlpLogs];
 
 	function createService(
 		configurationService = new TestConfigurationService(),
@@ -77,6 +79,7 @@ suite('LocalAgentHostServiceClient events', () => {
 		const onDidAction = disposables.add(new Emitter<ActionEnvelope>());
 		const onDidNotification = disposables.add(new Emitter<INotification>());
 		const onMcpNotification = disposables.add(new Emitter<IMcpNotification>());
+		const onDidReceiveOtlpLogs = disposables.add(new Emitter<OtlpExportLogsParams>());
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
 		const connectionAvailable = observableValue('test connection availability', false);
 		const createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
@@ -86,12 +89,14 @@ suite('LocalAgentHostServiceClient events', () => {
 			onDidAction.fire(action);
 			onDidNotification.fire(notification);
 			onMcpNotification.fire(mcpNotification);
+			onDidReceiveOtlpLogs.fire(otlpLogs);
 		};
 		const protocolClient = {
 			connect: async () => { connectCount++; fire(); },
 			onDidAction: onDidAction.event,
 			onDidNotification: onDidNotification.event,
 			onMcpNotification: onMcpNotification.event,
+			onDidReceiveOtlpLogs: onDidReceiveOtlpLogs.event,
 			onDidChangeConnectionState: onDidChangeConnectionState.event,
 			onDidFatalClose: Event.None,
 			connectionAvailable,
@@ -120,12 +125,13 @@ suite('LocalAgentHostServiceClient events', () => {
 		});
 		instantiationService.set(IInstantiationService, instantiationService);
 		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo, readiness, sendOTelPolicy));
-		const received: (ActionEnvelope | INotification | IMcpNotification)[] = [];
+		const received: (ActionEnvelope | INotification | IMcpNotification | OtlpExportLogsParams)[] = [];
 		const listen = () => {
 			const listeners = disposables.add(new DisposableStore());
 			listeners.add(service.onDidAction(event => received.push(event)));
 			listeners.add(service.onDidNotification(event => received.push(event)));
 			listeners.add(service.onMcpNotification(event => received.push(event)));
+			listeners.add(service.onDidReceiveOtlpLogs(event => received.push(event)));
 			return listeners;
 		};
 		return {
@@ -135,7 +141,7 @@ suite('LocalAgentHostServiceClient events', () => {
 				onDidChangeConnectionState.fire(state);
 			},
 			connectCount: () => connectCount,
-			listening: () => [onDidAction.hasListeners(), onDidNotification.hasListeners(), onMcpNotification.hasListeners()],
+			listening: () => [onDidAction.hasListeners(), onDidNotification.hasListeners(), onMcpNotification.hasListeners(), onDidReceiveOtlpLogs.hasListeners()],
 		};
 	}
 
@@ -402,8 +408,8 @@ suite('LocalAgentHostServiceClient events', () => {
 		fire();
 		assert.deepStrictEqual({ received, detached, listening: listening() }, {
 			received: [...expected, ...expected],
-			detached: [false, false, false],
-			listening: [true, true, true],
+			detached: [false, false, false, false],
+			listening: [true, true, true, true],
 		});
 	});
 
@@ -415,7 +421,7 @@ suite('LocalAgentHostServiceClient events', () => {
 		fire();
 		assert.deepStrictEqual({ received, listening: listening() }, {
 			received: expected,
-			listening: [false, false, false],
+			listening: [false, false, false, false],
 		});
 	});
 });

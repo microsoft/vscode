@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
@@ -33,6 +34,7 @@ import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/s
 import { IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionAttentionService } from '../../browser/sessionAttentionService.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
 
 suite('SessionAttentionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -79,6 +81,8 @@ suite('SessionAttentionService', () => {
 		let sessions = initialSessions;
 		const chat = new TestChatService();
 		const github = new TestGitHubService();
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const sessionsManagement = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionsChanged.event, onDidDeleteSession: Event.None, onDidReplaceSession: Event.None, getSessions: () => [...sessions],
@@ -90,9 +94,10 @@ suite('SessionAttentionService', () => {
 			storage,
 			upcastPartial<IChatEntitlementService>({ sentimentObs: sentiment }),
 			upcastPartial<IChatSessionsService>({ onDidChangeContentProviderSchemes: contentProvidersChanged.event }),
+			configuration,
 		));
 		return {
-			service, chat, github, sentiment, storage, contentProvidersChanged,
+			service, chat, github, sentiment, storage, contentProvidersChanged, configuration,
 			createListModel() {
 				return store.add(new SessionsListModelService(storage, sessionsManagement, new TestConfigurationService(), service));
 			},
@@ -295,6 +300,74 @@ suite('SessionAttentionService', () => {
 			],
 			polling: [0, 3, 3, 0, 3, 0], hidden: 0, released: 0,
 		});
+	});
+
+	test('enabling Inbox tracks attention without visible demand and keeps it current after demand is released', async () => {
+		const session = createSession('pr', SessionStatus.Completed, 100, [{ number: 42 }]);
+		(session.isRead as ISettableObservable<boolean>).set(true, undefined);
+		const fixture = createFixture([session]);
+		const list = fixture.createListModel();
+		const setEnabled = async (enabled: boolean) => {
+			await fixture.configuration.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, enabled);
+			fixture.configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				affectsConfiguration: key => key === SESSIONS_LIST_INBOX_ENABLED_SETTING,
+			}));
+			await timeout(0);
+		};
+		const before = {
+			attention: fixture.service.sessionAttention.get().size,
+			cutoff: fixture.storage.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE),
+		};
+		await setEnabled(true);
+		const initial = list.getInboxState(session)?.kind;
+		const polling = [fixture.github.pollingCount];
+		const demand = store.add(fixture.service.acquireSessionAttention());
+		demand.dispose();
+		polling.push(fixture.github.pollingCount);
+		fixture.github.setPullRequest(42, openPullRequest(42));
+		fixture.github.setCIStatus(42, GitHubCIOverallStatus.Failure);
+		const refreshed = {
+			state: list.getInboxState(session)?.kind,
+			tab: fixture.service.sessionAttention.get().get(session.sessionId)?.tab,
+		};
+		fixture.sentiment.set({ hidden: true }, undefined);
+		polling.push(fixture.github.pollingCount);
+		fixture.sentiment.set({}, undefined);
+		await timeout(0);
+		polling.push(fixture.github.pollingCount);
+		await setEnabled(false);
+		polling.push(fixture.github.pollingCount);
+		assert.deepStrictEqual({
+			before, initial, refreshed, polling,
+			cutoffEstablished: Number.isFinite(fixture.storage.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE)),
+			disabled: fixture.service.sessionAttention.get().size,
+		}, {
+			before: { attention: 0, cutoff: undefined },
+			initial: 'done',
+			refreshed: { state: undefined, tab: InboxTab.ReadyForYou },
+			polling: [2, 2, 0, 3, 0],
+			cutoffEstablished: true,
+			disabled: 0,
+		});
+	});
+
+	test('polls pull requests only for sessions that can be notified about them', async () => {
+		const busy = createSession('busy', SessionStatus.InProgress, 100, [{ number: 7 }]);
+		const fixture = createFixture([
+			busy,
+			createSession('owner', SessionStatus.Completed, 100, [{ number: 8 }]),
+			createSession('reader', SessionStatus.Completed, 200, [{ number: 8, owned: false }]),
+		]);
+		for (const number of [7, 8]) {
+			fixture.github.setPullRequest(number, openPullRequest(number));
+		}
+		store.add(fixture.service.acquireSessionAttention());
+		await timeout(0);
+		const polling = [fixture.github.pollingCount];
+		(busy.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
+		await timeout(0);
+		polling.push(fixture.github.pollingCount);
+		assert.deepStrictEqual(polling, [3, 6]);
 	});
 
 	for (const stop of ['release', 'hidden', 'removed', 'disposed'] as const) {

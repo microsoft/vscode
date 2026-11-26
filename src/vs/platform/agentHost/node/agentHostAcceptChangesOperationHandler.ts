@@ -36,6 +36,8 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 
 	public static readonly OPERATION_ACCEPT_CHANGES = AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID;
 
+	readonly changesGitState = false;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,

@@ -35,6 +35,7 @@ import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
+import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { reviveConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
@@ -225,6 +226,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly onDidNotification = this._onDidNotification.event;
 	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
+	private readonly _onDidReceiveOtlpLogs = this._register(new Relay<OtlpExportLogsParams>());
+	readonly onDidReceiveOtlpLogs = this._onDidReceiveOtlpLogs.event;
 	private readonly _artifactIntegrationUpdates = this._register(new Relay<ArtifactIntegrationUpdate>());
 	private readonly _artifactIntegrationReset = this._register(new Relay<void>());
 	readonly artifactIntegrationTransport = {
@@ -299,6 +302,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._onDidAction.input = this._protocolClient.onDidAction;
 			this._onDidNotification.input = this._protocolClient.onDidNotification;
 			this._onMcpNotification.input = this._protocolClient.onMcpNotification;
+			this._onDidReceiveOtlpLogs.input = this._protocolClient.onDidReceiveOtlpLogs;
 			this._artifactIntegrationUpdates.input = this._protocolClient.artifactIntegrationTransport.onDidUpdate;
 			this._artifactIntegrationReset.input = this._protocolClient.artifactIntegrationTransport.onDidReset;
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
@@ -452,6 +456,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
 		return this._protocolClient?.getInflightSessionCreate(resource);
+	}
+
+	async subscribeStateless(resource: URI): Promise<void> {
+		await this._requireClient().subscribeStateless(resource);
+	}
+
+	unsubscribe(resource: URI): void {
+		this._protocolClient?.unsubscribe(resource);
 	}
 
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {

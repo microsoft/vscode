@@ -11,8 +11,8 @@ import { raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, constObservable } from '../../../../base/common/observable.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { IObservable, autorun, constObservable } from '../../../../base/common/observable.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -28,13 +28,13 @@ import { InQuickInputContextKey } from '../../../../platform/quickinput/browser/
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { editorBackground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { AGENTS_LAUNCHER_IPC_CHANNEL, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
+import { AGENTS_LAUNCHER_IPC_CHANNEL, IAgentsLauncherOptions, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { AGENTS_LAUNCHER_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, AGENTS_LAUNCHER_COMMAND_METADATA } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { AbstractChatView, INewSessionDraftHost } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
@@ -42,6 +42,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SharedChatInputComposer } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { createSessionHostServices, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
@@ -52,12 +53,6 @@ const AGENTS_LAUNCHER_INITIAL_HEIGHT = 180;
 const AGENTS_LAUNCHER_BLUR_HIDE_DELAY = 150;
 /** How long the Agents Launcher stays transparent at most as it shows, waiting for its first frame. */
 const AGENTS_LAUNCHER_REVEAL_TIMEOUT = 150;
-/**
- * Whether the Agents Launcher's window is transparent around its card, with room for the composer's popups, and lets clicks through
- * there. Only on macOS: on Linux, transparency depends on the compositor and a window that lets clicks through receives no mouse
- * moves to stop; on Windows, some systems render transparent windows opaque black (electron/electron#40515).
- */
-const AGENTS_LAUNCHER_TRANSPARENT = isMacintosh;
 const HIDE_AGENTS_LAUNCHER_COMMAND_ID = 'workbench.action.hideAgentsLauncher';
 const AGENTS_LAUNCHER_SEND_IN_BACKGROUND_COMMAND_ID = 'workbench.action.agentsLauncher.sendInBackground';
 
@@ -69,12 +64,12 @@ export const IAgentsLauncherService = createDecorator<IAgentsLauncherService>('a
 export interface IAgentsLauncherService {
 	readonly _serviceBrand: undefined;
 	readonly isVisible: IObservable<boolean>;
-	/** Shows and focuses the Agents Launcher. */
-	show(): Promise<void>;
+	/** Shows and focuses the Agents Launcher, with its composer aimed as `options` ask. */
+	show(options?: IAgentsLauncherOptions): Promise<void>;
 	/** Hides the Agents Launcher while preserving its draft. */
 	hide(): Promise<void>;
-	/** Shows or hides the Agents Launcher. */
-	toggle(): Promise<void>;
+	/** Hides the Agents Launcher, or shows it as {@link show} does. */
+	toggle(options?: IAgentsLauncherOptions): Promise<void>;
 	/** Starts the composer's session in the background and keeps the Agents Launcher open, with a status that can open the session. */
 	sendInBackground(): Promise<void>;
 }
@@ -149,7 +144,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _blurHide = this._register(new MutableDisposable());
 	private readonly _focusRequest = this._register(new MutableDisposable());
-	/** Opens the session of the last send that leaves the Agents Launcher, once it has started. */
+	/** Opens the session of the last send that leaves the Agents Launcher, once its message was sent. */
 	private readonly _pendingOpen = this._register(new MutableDisposable());
 	private readonly _backgroundSends: ChatWindowComposerBackgroundSends;
 	private readonly _composer: ChatWindowComposerModel;
@@ -164,6 +159,11 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	private _display: IAgentsLauncherDisplay | undefined;
 	private _lastLayout: IAgentsLauncherLayout | undefined;
 	private _contentHeight = AGENTS_LAUNCHER_INITIAL_HEIGHT;
+	/**
+	 * Whether the Agents Launcher's window is transparent around its card, with room for the composer's popups, and lets clicks
+	 * through there. Decided as a window is created, see {@link _canBeTransparent}.
+	 */
+	private _transparent = false;
 
 	constructor(
 		@IAuxiliaryWindowService private readonly _auxiliaryWindowService: IAuxiliaryWindowService,
@@ -198,17 +198,16 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			input: composer.input,
 			requestedTarget: composer.requestedTarget,
 			setRequestedTarget: (target, reason) => composer.setRequestedTarget(target, reason),
+			onDidRetarget: composer.onDidRetarget,
 			openStartedSession: session => composer.openStartedSession(session),
 			trackBackgroundSend: send => {
 				const tracking = composer.trackBackgroundSend(send);
-				return send.requestedInBackground ? tracking : combinedDisposable(tracking, this._openWhenStarted(send.session));
+				return send.requestedInBackground ? tracking : combinedDisposable(tracking, this._openWhenShown(send.session));
 			},
 		};
 
 		this._register(this._nativeHostService.onDidBlurMainOrAuxiliaryWindow(windowId => this._onWindowBlur(windowId)));
-		if (AGENTS_LAUNCHER_TRANSPARENT) {
-			this._register(this._nativeHostService.onDidChangeDisplay(() => void this._onDidChangeDisplay().catch(error => this._logService.error('[AgentsLauncher] Failed to lay out for the displays', error))));
-		}
+		this._register(this._nativeHostService.onDidChangeDisplay(() => void this._onDidChangeDisplay().catch(error => this._logService.error('[AgentsLauncher] Failed to lay out for the displays', error))));
 		this._register(this._nativeHostService.onDidFocusMainOrAuxiliaryWindow(windowId => {
 			if (windowId === this._window?.window.vscodeWindowId) {
 				this._blurHide.clear();
@@ -228,8 +227,26 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	/** Shows, positions, and focuses the Agents Launcher. */
-	show(): Promise<void> {
+	show(options?: IAgentsLauncherOptions): Promise<void> {
+		if (options?.workspace === '') {
+			this._requestNoWorkspace();
+		} else if (options?.workspace !== undefined) {
+			this._logService.warn(`[AgentsLauncher] Ignoring unsupported workspace '${options.workspace}': only '' (no workspace) is supported`);
+		}
 		return this._presenter.show();
+	}
+
+	/**
+	 * Aims the composer at a chat without a workspace, keeping what was typed, and the requested agent, model and custom
+	 * agent where that agent has chats without one, as picking Chat in its workspace picker does. A draft without one stays.
+	 */
+	private _requestNoWorkspace(): void {
+		if (this._composer.session.get()?.isQuickChat?.get()) {
+			return;
+		}
+		const target = this._composer.requestedTarget.get();
+		const keepsAgent = !!target?.providerId && this._sessionsManagementService.isQuickChatTargetAvailable({ providerId: target.providerId, sessionTypeId: target.sessionTypeId });
+		this._composer.requestTarget(keepsAgent ? { providerId: target.providerId, sessionTypeId: target.sessionTypeId, modelId: target.modelId, modeId: target.modeId } : {});
 	}
 
 	/** Lays out the composer for a show, creating its window should there be none: resolves to the window to show, if any. */
@@ -240,6 +257,14 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		}
 
 		const { display: bounds, workArea } = await this._nativeHostService.getCursorScreenPoint();
+		const transparent = await this._canBeTransparent();
+		if (this._window && this._transparent !== transparent) {
+			// GPU compositing changed since the window was created: this show continues with a new one.
+			this._destroyWindow(`Transparency changed to ${transparent}`, true);
+		}
+		if (!this._window && !this._windowCreation) {
+			this._transparent = transparent;
+		}
 		const display = this._display = { bounds, workArea };
 		// Created at the zoom level of the Agents window.
 		const auxiliaryWindow = await this._ensureWindow(this._computeLayout(display, getZoomFactor(mainWindow)));
@@ -306,8 +331,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		const auxiliaryWindow = this._window;
 		const surface = this._surface;
 		const inputContent = this._view?.inputContentElement;
-		// A hidden window is laid out again as it shows.
-		if (!auxiliaryWindow || !surface || !inputContent || !this._presenter.visible.get()) {
+		// A hidden window is laid out again as it shows, and an opaque one is only the card.
+		if (!auxiliaryWindow || !surface || !inputContent || !this._presenter.visible.get() || !this._transparent) {
 			return;
 		}
 		const { display: bounds, workArea } = await this._nativeHostService.getCursorScreenPoint();
@@ -320,14 +345,35 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	private _computeLayout(display: IAgentsLauncherDisplay, zoomFactor: number): IAgentsLauncherLayout {
-		return computeAgentsLauncherLayout(display.bounds, display.workArea, this._contentHeight, zoomFactor, AGENTS_LAUNCHER_TRANSPARENT);
+		return computeAgentsLauncherLayout(display.bounds, display.workArea, this._contentHeight, zoomFactor, this._transparent);
+	}
+
+	/**
+	 * Whether the Agents Launcher's window can be transparent. Not on Linux, where transparency depends on the compositor and a window
+	 * that lets clicks through receives no mouse moves to stop. On Windows, only with GPU compositing: without it, Chromium draws a
+	 * transparent window with `UpdateLayeredWindow`, which fails once the opacity it fades in with has been set with
+	 * `SetLayeredWindowAttributes`, so that the window stops updating (electron/electron#32555).
+	 */
+	private async _canBeTransparent(): Promise<boolean> {
+		if (isMacintosh) {
+			return true;
+		}
+		if (!isWindows) {
+			return false;
+		}
+		try {
+			return await this._nativeHostService.isGPUCompositingEnabled();
+		} catch (error) {
+			this._logService.warn('[AgentsLauncher] Failed to read whether GPU compositing is enabled', error);
+			return false;
+		}
 	}
 
 	/** Lays the composer out for `layout`, which is in the display's coordinates rather than the window's CSS pixels. */
 	private _layoutView(auxiliaryWindow: IAuxiliaryWindow, view: AbstractChatView, layout: IAgentsLauncherLayout): void {
 		const zoomFactor = getZoomFactor(auxiliaryWindow.window);
 		const { window, card } = layout;
-		if (AGENTS_LAUNCHER_TRANSPARENT && this._surface) {
+		if (this._transparent && this._surface) {
 			this._surface.style.left = `${(card.x - window.x) / zoomFactor}px`;
 			this._surface.style.top = `${(card.y - window.y) / zoomFactor}px`;
 			this._surface.style.width = `${card.width / zoomFactor}px`;
@@ -354,8 +400,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	/** Toggles the Agents Launcher while retaining the same composer and draft slot. */
-	toggle(): Promise<void> {
-		return this._presenter.visible.get() ? this.hide() : this.show();
+	toggle(options?: IAgentsLauncherOptions): Promise<void> {
+		return this._presenter.visible.get() ? this.hide() : this.show(options);
 	}
 
 	async sendInBackground(): Promise<void> {
@@ -385,7 +431,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	private async _createWindow(layout: IAgentsLauncherLayout): Promise<IAuxiliaryWindow> {
-		this._logService.trace('[AgentsLauncher] Creating auxiliary window');
+		this._logService.trace(`[AgentsLauncher] Creating auxiliary window transparent=${this._transparent}`);
 		const backgroundColor = this._themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1E1E1E';
 		const auxiliaryWindow = await this._auxiliaryWindowService.open({
 			bounds: layout.window,
@@ -398,7 +444,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			disableMaximize: true,
 			nativeTitlebar: false,
 			// A transparent window is not resized but laid out, as resizing can break its transparency, and the card draws its own shadow.
-			...(AGENTS_LAUNCHER_TRANSPARENT ? { transparent: true, notResizable: true, noShadow: true } : { backgroundColor }),
+			...(this._transparent ? { transparent: true, notResizable: true, noShadow: true } : { backgroundColor }),
 		});
 		await auxiliaryWindow.whenStylesHaveLoaded;
 
@@ -422,7 +468,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		const surface = dom.append(auxiliaryWindow.container, dom.$('.agents-launcher', { role: 'dialog', 'aria-label': title }));
 		this._windowDisposables.add(toDisposable(() => surface.remove()));
 		this._surface = surface;
-		if (AGENTS_LAUNCHER_TRANSPARENT) {
+		if (this._transparent) {
 			// An attribute rather than a class, which would follow those of the Agents window's container too.
 			auxiliaryWindow.container.setAttribute('data-agents-launcher-transparent', '');
 			this._trackClickThrough(auxiliaryWindow, surface);
@@ -445,6 +491,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			contextKeyService: scopedContextKeyService,
 		});
 		this._windowDisposables.add(this._sessionHostService.registerHost(host));
+		// The composer's controls are scoped to its draft, such as its repository pickers, rather than to the Agents window's active session.
+		this._windowDisposables.add(autorun(reader => setHostSessionContextKeys(host.session.read(reader), host.chat.read(reader), undefined, scopedContextKeyService, reader)));
 		const scopedInstantiationService = this._windowDisposables.add(this._instantiationService.createChild(createSessionHostServices(scopedContextKeyService, host)));
 		const view = this._windowDisposables.add(this._chatViewFactory.createNewChatView(false, {
 			backgroundSend: true,
@@ -463,7 +511,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		this._layoutView(auxiliaryWindow, view, layout);
 
 		this._windowDisposables.add(auxiliaryWindow.onDidLayout(dimension => {
-			if (AGENTS_LAUNCHER_TRANSPARENT) {
+			if (this._transparent) {
 				// A transparent window keeps the size it was laid out for, which it cannot be resized from and is laid out again for as
 				// displays change: a change of its zoom changes the CSS pixels of the card, and of the pointer in it.
 				this._layoutView(auxiliaryWindow, view, this._lastLayout ?? layout);
@@ -591,22 +639,27 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	/**
-	 * Leaves the Agents Launcher for the Agents window as the send of `draft` goes out, and opens its session there as soon as it
-	 * has started. A failure is reported there, and the prompt goes back into the Agents Launcher's composer. Disposing the result,
-	 * as the composer does for a send it does not dispatch, stays in the Agents Launcher.
+	 * Leaves the Agents Launcher for the Agents window as the send of `draft` goes out, and opens its session there as soon as its
+	 * message was sent, which is usually well before it has started ({@link followOrdinarySend}). A failure is reported there,
+	 * and the prompt goes back into the Agents Launcher's composer. Disposing the result, as the composer does for a send it does
+	 * not dispatch, stays in the Agents Launcher; a newer send's open replaces it.
 	 */
-	private _openWhenStarted(draft: ISession): IDisposable {
+	private _openWhenShown(draft: ISession): IDisposable {
 		const pending = followOrdinarySend(this._sessionsManagementService, this._composer.slot, draft, {
-			leave: () => {
-				this._logService.trace(`[AgentsLauncher] Opening session=${draft.sessionId} once it has started`);
-				void (async () => {
+			leave: async () => {
+				this._logService.trace(`[AgentsLauncher] Opening session=${draft.sessionId} once its message was sent`);
+				try {
 					await this.hide();
 					await this._nativeHostService.focusWindow({ mode: FocusMode.Force, targetWindowId: mainWindow.vscodeWindowId });
-				})().catch(error => this._logService.error('[AgentsLauncher] Failed to show the Agents window', error));
+				} catch (error) {
+					// The session still opens: the Agents window shows it once it is in front.
+					this._logService.error('[AgentsLauncher] Failed to show the Agents window', error);
+				}
 			},
 			open: session => {
+				this._logService.trace(`[AgentsLauncher] Opening session=${session.sessionId} status=${session.status.get()}`);
 				void this._sessionsService.openSession(session.resource, { source: 'chat', forceMainChat: true })
-					.catch(error => this._logService.error('[AgentsLauncher] Failed to open the started session', error));
+					.catch(error => this._logService.error('[AgentsLauncher] Failed to open the sent session', error));
 			},
 		});
 		this._pendingOpen.value = pending;
@@ -634,7 +687,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		this._auxiliaryWindow.clear();
 	}
 
-	private _destroyWindow(reason: string): void {
+	/** Closes the Agents Launcher's window. `keepShowing` for a show that creates another one, which the presenter goes on to show. */
+	private _destroyWindow(reason: string, keepShowing = false): void {
 		const auxiliaryWindow = this._window;
 		if (!auxiliaryWindow) {
 			return;
@@ -645,7 +699,9 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		this._view = undefined;
 		this._display = undefined;
 		this._lastLayout = undefined;
-		this._presenter.reset();
+		if (!keepShowing) {
+			this._presenter.reset();
+		}
 		this._blurHide.clear();
 		this._focusRequest.clear();
 		this._windowDisposables.clear();
@@ -668,8 +724,8 @@ class AgentsLauncherContribution extends Disposable implements IWorkbenchContrib
 		@ILogService logService: ILogService,
 	) {
 		super();
-		const handleToggle = () => {
-			void agentsLauncherService.toggle().catch(error => logService.error('[AgentsLauncher] Failed to handle IPC toggle', error));
+		const handleToggle = (_event: unknown, ...argsRaw: unknown[]) => {
+			void agentsLauncherService.toggle(argsRaw[0] as IAgentsLauncherOptions | undefined).catch(error => logService.error('[AgentsLauncher] Failed to handle IPC toggle', error));
 		};
 		ipcRenderer.on(AGENTS_LAUNCHER_IPC_CHANNEL, handleToggle);
 		this._register(toDisposable(() => ipcRenderer.removeListener(AGENTS_LAUNCHER_IPC_CHANNEL, handleToggle)));
@@ -687,11 +743,12 @@ registerAction2(class ShowAgentsLauncherAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
+			metadata: AGENTS_LAUNCHER_COMMAND_METADATA,
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(IAgentsLauncherService).toggle();
+	override run(accessor: ServicesAccessor, options?: IAgentsLauncherOptions): Promise<void> {
+		return accessor.get(IAgentsLauncherService).toggle(options);
 	}
 });
 

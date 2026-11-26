@@ -173,6 +173,48 @@ suite('Saved session draft lifecycle', () => {
 		await assert.rejects(async () => instantiation.invokeFunction(command.handler, ...args), /no longer available/);
 	});
 
+	test('draft creation notifies only once across new drafts and service recreation', () => {
+		const first = create();
+		const composer = first.service.createComposer();
+		const registration = disposables.add(first.service.registerComposer(composer, async () => { }, () => { }));
+		const counts: number[] = [];
+		for (const inputText of ['First draft', 'Second draft']) {
+			composer.updateInput({ inputText, attachments: [] });
+			first.service.stowAndClear(composer);
+			counts.push(first.infoNotifications.length);
+		}
+		registration.dispose();
+		first.service.dispose();
+
+		const next = create(true, first.storage);
+		const nextComposer = next.service.createComposer();
+		disposables.add(next.service.registerComposer(nextComposer, async () => { }, () => { }));
+		nextComposer.updateInput({ inputText: 'After reload', attachments: [] });
+		nextComposer.updateTarget({ folderUri: URI.file('/another-workspace') });
+		next.service.stowAndClear(nextComposer);
+
+		assert.deepStrictEqual({
+			counts, afterReload: next.infoNotifications.length,
+			drafts: next.service.sections.get().flatMap(section => section.items.map(item => item.title)).sort(),
+		}, { counts: [1, 1], afterReload: 0, drafts: ['After reload', 'First draft', 'Second draft'] });
+	});
+
+	test('silent saves do not consume the one-time draft creation notification', () => {
+		const { service, infoNotifications } = create();
+		const composer = service.createComposer();
+		composer.updateInput({ inputText: 'Silently saved', attachments: [] });
+		service.stow(composer);
+		service.stow(composer, { notifyCreated: true });
+		const afterSilentSave = infoNotifications.length;
+
+		const next = service.createComposer();
+		next.updateInput({ inputText: 'New draft', attachments: [] });
+		service.stow(next, { notifyCreated: true });
+		assert.deepStrictEqual({
+			afterSilentSave, notifications: infoNotifications.map(message => message.toString()),
+		}, { afterSilentSave: 0, notifications: ['Created draft. Open Draft'] });
+	});
+
 	test('draft notifications exclude disabled, empty, scheduling, restoration, and background saves', () => {
 		const results = ['disabled', 'empty', 'scheduling', 'restoring', 'background'].map(reason => {
 			const { service, infoNotifications } = create(reason !== 'disabled');

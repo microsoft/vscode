@@ -5,6 +5,7 @@
 
 import type { PermissionMode, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import type { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
@@ -59,7 +60,8 @@ export class ClaudeFileEditObserver extends Disposable {
 	private readonly _editToolPaths = new Map<string, { readonly filePath: string; readonly toolName: string; readonly toolInput: unknown; readonly modelId: string | undefined; readonly clientContext?: IAgentHostClientTelemetryContext; readonly chatUri?: string }>();
 
 	constructor(
-		sessionUri: string,
+		storage: URI,
+		chat: URI,
 		/** The session that owns the chat, read when an edit is attributed. */
 		owner: IAgentChatOwnerRef,
 		dbRef: IReference<ISessionDatabase>,
@@ -71,7 +73,7 @@ export class ClaudeFileEditObserver extends Disposable {
 		this._register(dbRef);
 		this._editTracker = this._register(instantiationService.createInstance(
 			FileEditTracker,
-			sessionUri,
+			{ storage, chat },
 			() => owner.get().toString(),
 			CLAUDE_AGENT_PROVIDER_ID,
 			undefined,

@@ -31,7 +31,7 @@ import { EditorInput, IEditorCloseHandler } from '../../../../../common/editor/e
 import { IEditorGroup } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatEditorTitleMaxLength, SessionTypeSelectionReason, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isLocalAgentHostSessionTypeDisabledByPolicy, isNewChatSessionTypeUsable, managedPolicyRequiresAgentHostMessage } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength, SessionTypeSelectionReason, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isLocalAgentHostSessionTypeDisabledByPolicy, isNewChatSessionTypeUsable, getLocalChatFallbackRefusal } from '../../../common/constants.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -450,8 +450,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	private assertLocalFallbackAllowed(): void {
-		if (requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
-			throw new Error(managedPolicyRequiresAgentHostMessage());
+		const refusal = getLocalChatFallbackRefusal(this.configurationService, this.workspaceContextService.getWorkspace(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService), this.localChatAvailabilityService.hidden.get());
+		if (refusal) {
+			throw new Error(refusal);
 		}
 	}
 

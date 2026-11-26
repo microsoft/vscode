@@ -155,6 +155,18 @@ export const enum PartOpensMaximizedOptions {
 
 export type PanelAlignment = 'left' | 'center' | 'right' | 'justify';
 
+/**
+ * The arrangement of the primary side bar, the panel and the secondary side bar of the main window.
+ * The size of a part is its size when it shows and is not maximized: the width of a side bar, the
+ * height of a panel at the top or bottom and the width of a panel on the left or right. The view
+ * container of a part is the one that it shows, or that it showed last while it is hidden.
+ */
+export interface IPartsLayoutState {
+	readonly sideBar: { readonly visible: boolean; readonly size: number; readonly viewContainerId?: string };
+	readonly panel: { readonly visible: boolean; readonly size: number; readonly position: Position; readonly maximized: boolean; readonly viewContainerId?: string };
+	readonly auxiliaryBar: { readonly visible: boolean; readonly size: number; readonly maximized: boolean; readonly viewContainerId?: string };
+}
+
 export function positionToString(position: Position): string {
 	switch (position) {
 		case Position.LEFT: return 'left';
@@ -534,6 +546,12 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeAuxiliaryBarMaximized: Event<void>;
 
 	/**
+	 * Emits when the auxiliary bar starts or stops hiding its Maximize action, as claimed by
+	 * {@link hideAuxiliaryBarMaximize}.
+	 */
+	readonly onDidChangeAuxiliaryBarMaximizeHidden: Event<boolean>;
+
+	/**
 	 * True if a default layout with default editors was applied at startup
 	 */
 	readonly openedDefaultEditors: boolean;
@@ -623,6 +641,29 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	isPanelMaximized(): boolean;
 
 	/**
+	 * Emitted with whether the chat part is visible, when that changes. Hiding it with the editor area for a
+	 * maximized panel counts, and nothing is emitted while it stays as it is.
+	 */
+	readonly onDidChangeChatPartVisibility: Event<boolean>;
+
+	/**
+	 * Whether the window has a chat part, shown or not.
+	 */
+	hasChatPart(): boolean;
+
+	/**
+	 * Whether the editor area is hidden so that the chat part takes its space.
+	 */
+	isEditorHiddenByChat(): boolean;
+
+	/**
+	 * Hides the editor area so that the chat part takes its space, or shows it again.
+	 * Hiding requires a visible chat part. Opening an editor, hiding the chat part and
+	 * maximizing the panel show the editor area again.
+	 */
+	setEditorHiddenByChat(hidden: boolean): void;
+
+	/**
 	 * Maximizes the auxiliary sidebar by hiding the editor and panel areas.
 	 * Restores the previous layout if the auxiliary sidebar is already maximized.
 	 */
@@ -639,6 +680,32 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns true if the auxiliary sidebar is maximized.
 	 */
 	isAuxiliaryBarMaximized(): boolean;
+
+	/**
+	 * Claims that the auxiliary bar does not offer to maximize, for as long as the returned claim is not disposed.
+	 * Claims stack: the action stays hidden while any claim is held.
+	 */
+	hideAuxiliaryBarMaximize(): IDisposable;
+
+	/**
+	 * Returns true while any claim made with {@link hideAuxiliaryBarMaximize} is held.
+	 */
+	isAuxiliaryBarMaximizeHidden(): boolean;
+
+	/**
+	 * Returns the arrangement of the primary side bar, the panel and the secondary side bar of the main window,
+	 * or `undefined` where the layout of the window cannot apply one (see {@link applyPartsLayoutState}).
+	 * While the secondary side bar is maximized, the other parts are described as they show when it is restored.
+	 */
+	getPartsLayoutState(): IPartsLayoutState | undefined;
+
+	/**
+	 * Applies an arrangement of the primary side bar, the panel and the secondary side bar of the main window at once,
+	 * without passing through intermediate arrangements and without moving the focus to another part. A part that shows
+	 * opens the view container of the state, without focus, or the one that it showed last if the state has none or
+	 * its view container is not there. Does nothing where the layout of the window cannot apply an arrangement.
+	 */
+	applyPartsLayoutState(state: IPartsLayoutState): void;
 
 	/**
 	 * Returns true if the main window has a border.

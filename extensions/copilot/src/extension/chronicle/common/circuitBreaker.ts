@@ -164,18 +164,6 @@ export class CircuitBreaker {
 	}
 
 	/**
-	 * Force reset the circuit breaker to closed state.
-	 */
-	reset(): void {
-		this.failureCount = 0;
-		this.lastFailureTime = 0;
-		this.probeInFlight = false;
-		this.probeStartTime = 0;
-		this.currentResetTimeoutMs = this.options.resetTimeoutMs;
-		this._setState(CircuitState.CLOSED);
-	}
-
-	/**
 	 * Update state based on timeout — transitions from OPEN to HALF_OPEN
 	 * after the reset timeout has elapsed.
 	 */

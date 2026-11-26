@@ -33,6 +33,7 @@ import { TestDecorationsService, workbenchInstantiationService } from '../../../
 
 interface TestTimelinePane {
 	clear: TimelinePane['clear'];
+	loadTimeline: TimelinePane['loadTimeline'];
 	loadTimelineForSource: TimelinePane['loadTimelineForSource'];
 	onProvidersChanged: TimelinePane['onProvidersChanged'];
 	onEditableChanged: TimelinePane['onEditableChanged'];
@@ -110,6 +111,7 @@ suite('TimelinePane', () => {
 			pane, results, requests, treeCalls,
 			setEditable: (value: TimelineEditable | undefined) => { editable = value; },
 			setSelection: (value: TimelineItem[]) => { selection = value; },
+			getLabels: () => [...children ?? []].map(child => child.element.label),
 			getLoadMore: () => {
 				const element = [...children ?? []].find(child => child.element.handle === 'vscode-command:loadMore')!.element;
 				return element as Parameters<TimelinePane['loadMore']>[0];
@@ -181,6 +183,39 @@ suite('TimelinePane', () => {
 			assert.strictEqual(getLoadMore().loading, false);
 		});
 	}
+
+	test('stops loading when the last provider to answer provides no timeline', async () => {
+		const load = async (items: TimelineItem[]) => {
+			const { pane, results, getLabels } = createPane();
+			const noTimeline = new DeferredPromise<Timeline | undefined>();
+			results.set('B', Promise.resolve({ source: 'B', items }));
+			results.set('A', noTimeline.p);
+			await pane.loadTimeline(true);
+			await timeout(0);
+			await noTimeline.complete(undefined);
+			await timeout(0);
+			return { labels: getLabels(), message: pane.message };
+		};
+
+		assert.deepStrictEqual({
+			withoutItems: await load([]),
+			withItems: await load([{ handle: 'B|first', source: 'B', label: 'First item', timestamp: 1 }]),
+		}, {
+			withoutItems: { labels: [], message: 'No timeline information was provided. Source Control has not been configured.' },
+			withItems: { labels: ['First item'], message: undefined },
+		});
+	});
+
+	test('removes the items of a provider that provides no timeline after a change', async () => {
+		const { pane, results, getLabels } = createPane();
+		await addPageableProvider(pane, results);
+		results.set('B', Promise.resolve(undefined));
+
+		pane.onTimelineChanged({ id: 'B', workspace: false, uris: [uri] });
+		await timeout(0);
+
+		assert.deepStrictEqual(getLabels(), []);
+	});
 
 	test('re-renders the edited item and defers refreshing until editing ends', async () => {
 		const { pane, results, treeCalls, setEditable } = createPane();

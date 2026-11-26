@@ -101,6 +101,10 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 		this._delegate.cacheTunnel(tunnel, authProvider);
 	}
 
+	updateCachedTunnel(tunnel: ITunnelInfo): void {
+		this._delegate.updateCachedTunnel(tunnel);
+	}
+
 	removeCachedTunnel(tunnelId: string): void {
 		this._delegate.removeCachedTunnel(tunnelId);
 	}

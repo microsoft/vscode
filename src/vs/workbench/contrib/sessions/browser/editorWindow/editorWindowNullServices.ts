@@ -16,6 +16,7 @@ import { IAgentFeedback } from '../agentFeedbackModel.js';
 import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { ICodeReviewService, IPRReviewCommentTarget, IPRReviewState, PRReviewStateKind } from '../codeReviewService.js';
 import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { ISideChatPlacementService } from '../sideChatPlacement.js';
 
 function notAvailable(): Promise<never> {
 	return Promise.reject(new Error('Automations are not available in this window'));
@@ -67,6 +68,14 @@ export class EditorWindowAutomationService implements IAutomationService {
 }
 
 /** The pinned canvases of an editor window: it has none, so the sessions list shows none. */
+/** An editor window has no side pane: side chats show where they did before. */
+export class EditorWindowSideChatPlacementService implements ISideChatPlacementService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly inSidePane: IObservable<boolean> = constObservable(false);
+}
+
 export class EditorWindowPinnedCanvasService implements IPinnedCanvasService {
 
 	declare readonly _serviceBrand: undefined;

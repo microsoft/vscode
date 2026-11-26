@@ -8,7 +8,7 @@ import { StringEdit } from '../../../../util/vs/editor/common/core/edits/stringE
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { EventLogEntryData, LogEntry } from '../workspaceLog';
 import { DocumentRecording } from './documentHistory';
-import { DocumentId, DocumentStateId, InlineCompletionFetchRequest, Operation, OperationKind } from './operation';
+import { DocumentId, DocumentStateId, InlineCompletionFetchRequest, Operation } from './operation';
 
 export class RecordingData {
 	public static create(logEntries: readonly LogEntry[]): RecordingData {
@@ -117,16 +117,6 @@ export class ResolvedRecording {
 		return undefined;
 	}
 
-	public getChangeOperationAtOrBefore(opIdx: number): Operation | undefined {
-		for (let i = opIdx; i >= 0; i--) {
-			const op = this._operations[i];
-			if (op.kind === OperationKind.Changed) {
-				return op;
-			}
-		}
-		return undefined;
-	}
-
 	public get operations(): readonly Operation[] { return this._operations; }
 	public get documents(): readonly WorkspaceDocument[] {
 		return [...this._documents.values()].map(d => new WorkspaceDocument(d.documentId, d));
@@ -142,24 +132,6 @@ export class ResolvedRecording {
 
 	public getDocument(documentId: DocumentId): WorkspaceDocument {
 		return new WorkspaceDocument(documentId, this._documents.get(documentId)!);
-	}
-
-	public getDocumentByRelativePath(documentRelativePath: string): WorkspaceDocument | undefined {
-		for (const doc of this.documents) {
-			if (doc.documentRelativePath === documentRelativePath) {
-				return doc;
-			}
-		}
-		return undefined;
-	}
-
-	public getDocumentByUri(uri: string): WorkspaceDocument | undefined {
-		for (const doc of this.documents) {
-			if (doc.documentUri === uri) {
-				return doc;
-			}
-		}
-		return undefined;
 	}
 }
 
@@ -180,8 +152,6 @@ class WorkspaceDocument {
 		private readonly documentHistory: DocumentRecording,
 	) { }
 
-	getInitialState(): DocumentState { return this.documentHistory.getState(1); }
-
 	getLastState(): DocumentState { return this.documentHistory.getLastState(); }
 
 	getState(documentStateId: DocumentStateId): DocumentState {
@@ -190,10 +160,6 @@ class WorkspaceDocument {
 
 	getEdit(initialState: DocumentStateId, lastState: DocumentStateId): StringEdit {
 		return this.documentHistory.getEdit(initialState, lastState);
-	}
-
-	getStateIdBeforeOrAtOpIdx(opIdx: number): DocumentStateId | undefined {
-		return this.documentHistory.getStateIdAfterOp(opIdx);
 	}
 }
 

@@ -326,7 +326,7 @@ export class CodeSearchRepoTracker extends Disposable {
 			}
 		}
 
-		this._repos.set(rootUri, {
+		this.updateRepoEntry({ rootUri }, {
 			status: TrackedRepoStatus.Resolved,
 			repo: { rootUri },
 			resolvedRemoteInfo: {

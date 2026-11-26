@@ -217,4 +217,28 @@ suite('WorkbenchToolBar', () => {
 			contextMenu: ['Configure Keybinding (disabled)', 'Hide optional1', '---', 'optional1 (checked)', 'optional2'],
 		});
 	});
+
+	test('a submenu marked as always shown cannot be hidden, without being listed in the toolbar options', () => {
+		const hidden = new Set(['fixed']);
+		const createHideActions = (id: string): IMenuItemHide => ({
+			get isHidden() { return hidden.has(id); },
+			get isModifiedFromDefault() { return hidden.has(id); },
+			hide: toAction({ id: `hide/${id}`, label: `Hide ${id}`, run: () => { hidden.add(id); } }),
+			toggle: toAction({ id: `toggle/${id}`, label: id, checked: !hidden.has(id), run: () => { } }),
+		});
+		const fixed = new SubmenuItemAction({ title: 'fixed', submenu: MenuId.CommandPalette, isAlwaysShown: true }, createHideActions('fixed'), [toAction({ id: 'child', label: 'child', run: () => { } })]);
+		const optional = new MenuItemAction({ id: 'optional', title: 'optional' }, undefined, undefined, createHideActions('optional'), undefined, new class extends mock<IContextKeyService>() { }(), new class extends mock<ICommandService>() { }());
+		let contextMenuActions: readonly string[] = [];
+		const toolBar = createToolBar(new TestTelemetryService(), {}, delegate => {
+			contextMenuActions = delegate.getActions().map(action => action instanceof Separator ? '---' : `${action.label}${action.checked ? ' (checked)' : ''}`);
+		});
+		toolBar.setActions([fixed, optional]);
+		toolBar.getItemElement(0)?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+
+		// Shown despite the hidden state stored for it, and its context menu lists only the items that can be hidden.
+		assert.deepStrictEqual({ shown: [0, 1].map(index => toolBar.getItemAction(index)?.label), contextMenu: contextMenuActions }, {
+			shown: ['fixed', 'optional'],
+			contextMenu: ['optional (checked)'],
+		});
+	});
 });

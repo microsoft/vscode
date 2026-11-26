@@ -163,7 +163,7 @@ export async function storeCodexTurnDiffs(captures: readonly ICodexTurnDiffCaptu
 	readonly relatedDiffs: readonly string[];
 	readonly cwd: URI;
 	readonly nativeCwd: URI;
-	readonly database: ISessionDatabase;
+	readonly storeFileEdit: ISessionDatabase['storeFileEdit'];
 	readonly fileService: IFileService;
 	readonly logService: ILogService;
 	/** Host turns whose rows are no longer written; checked before each write, since a truncation can land mid-store. */
@@ -299,7 +299,7 @@ export async function storeCodexTurnDiffs(captures: readonly ICodexTurnDiffCaptu
 				beforeContent: before === undefined ? undefined : VSBuffer.fromString(before).buffer,
 				afterContent: after === undefined ? undefined : VSBuffer.fromString(after).buffer,
 			};
-			await context.database.storeFileEdit({
+			await context.storeFileEdit({
 				turnId, toolCallId: `codex-turn-diff:${generateUuid()}`, filePath: path,
 				kind: before === undefined ? FileEditKind.Create : after === undefined ? FileEditKind.Delete : FileEditKind.Edit,
 				...content, addedLines: undefined, removedLines: undefined,

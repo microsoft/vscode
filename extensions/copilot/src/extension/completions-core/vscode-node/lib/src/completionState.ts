@@ -48,10 +48,6 @@ export class CompletionState {
 		);
 	}
 
-	updatePosition(position: Position): CompletionState {
-		return this.updateState(this._textDocument, position);
-	}
-
 	addSelectedCompletionInfo(selectedCompletionInfo: IntelliSenseInsertion): CompletionState {
 		if (this.editsWithPosition.find(edit => edit.source === 'selectedCompletionInfo')) {
 			throw new Error('Selected completion info already applied');

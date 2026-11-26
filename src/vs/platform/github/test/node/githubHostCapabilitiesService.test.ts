@@ -31,11 +31,12 @@ suite('GitHubHostCapabilitiesService', () => {
 	test('probes once per host', async () => {
 		await withServer(async server => {
 			server.enqueue(gitHubGraphQLStep({
-				queryIncludes: ['__type(name: "PullRequest")', '__type(name: "Repository")', '__type(name: "RequirableByPullRequest")'],
+				queryIncludes: ['__type(name: "PullRequest")', '__type(name: "Repository")', '__type(name: "RequirableByPullRequest")', '__type(name: "RemovedFromMergeQueueEvent")'],
 				response: gitHubGraphQLResponse({
 					pullRequest: { fields: [{ name: 'mergeQueueEntry' }, { name: 'reviewThreads' }] },
 					repository: { fields: [{ name: 'mergeQueue' }] },
 					requirableByPullRequest: { name: 'RequirableByPullRequest' },
+					removedFromMergeQueueEvent: { name: 'RemovedFromMergeQueueEvent' },
 				}),
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
@@ -59,6 +60,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				first: {
 					graphql: true,
 					mergeQueue: true,
+					mergeQueueRemovals: true,
 					reviewThreads: true,
 					checkContextRequiredness: true,
 				},
@@ -116,6 +118,7 @@ suite('GitHubHostCapabilitiesService', () => {
 			assert.deepStrictEqual(result, {
 				graphql: false,
 				mergeQueue: false,
+				mergeQueueRemovals: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
 			});
@@ -177,6 +180,7 @@ suite('GitHubHostCapabilitiesService', () => {
 			assert.deepStrictEqual(result, {
 				graphql: true,
 				mergeQueue: false,
+				mergeQueueRemovals: false,
 				reviewThreads: true,
 				checkContextRequiredness: false,
 			});
@@ -221,6 +225,7 @@ suite('GitHubHostCapabilitiesService', () => {
 			const unavailable = {
 				graphql: false,
 				mergeQueue: false,
+				mergeQueueRemovals: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
 			};
@@ -237,6 +242,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				recovered: {
 					graphql: true,
 					mergeQueue: false,
+					mergeQueueRemovals: false,
 					reviewThreads: true,
 					checkContextRequiredness: false,
 				},
@@ -329,6 +335,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				second: {
 					graphql: true,
 					mergeQueue: false,
+					mergeQueueRemovals: false,
 					reviewThreads: true,
 					checkContextRequiredness: false,
 				},

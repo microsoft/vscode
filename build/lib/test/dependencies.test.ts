@@ -8,7 +8,9 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { suite, test } from 'node:test';
-import es from 'event-stream';
+import { Readable } from 'stream';
+import { mapStreamSync } from '../streams.ts';
+import { collectStream } from './collectStream.ts';
 import VinylFile from 'vinyl';
 import { getLayoutLockfile, getMixedInDistroDependencies, toFlatProductionDependencies, toPackagedLayout } from '../dependencies.ts';
 import { getHoistedLocations } from '../pnpmHoist.ts';
@@ -126,13 +128,12 @@ snapshots:
 			.map(file => new VinylFile({ base: root, path: file, contents: fs.readFileSync(file) }));
 
 		// Like `rewriteSourceMappingURL`, change each file synchronously, from its packaged path.
-		const packaged = await new Promise<VinylFile[]>((resolve, reject) => es.readArray(files)
+		const packaged = await collectStream<VinylFile>(Readable.from(files)
 			.pipe(toPackagedLayout([a, uuid, b, bUuid, distro]))
-			.pipe(es.mapSync((file: VinylFile) => {
+			.pipe(mapStreamSync((file: VinylFile) => {
 				file.contents = Buffer.from(file.contents!.toString().replace(/sourceMappingURL=(.*)$/, `sourceMappingURL=https://cdn/${path.dirname(file.relative).split(path.sep).join('/')}/$1`));
 				return file;
-			}))
-			.pipe(es.writeArray((err: Error | undefined, result: VinylFile[]) => err ? reject(err) : resolve(result))));
+			})));
 
 		assert.deepStrictEqual(packaged.map(file => [file.relative.split(path.sep).join('/'), file.contents!.toString()]), [
 			['node_modules/a/index.js', 'a'],

@@ -60,8 +60,6 @@ export type StreamedEdit = {
 	readonly patchIndex?: number;
 };
 
-export type PushEdit = (edit: Result<StreamedEdit, NoNextEditReason>) => void;
-
 export class RequestEditWindow {
 	constructor(readonly window: OffsetRange) { }
 	containsCursor(cursor: OffsetRange): boolean {

@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { IFileContent, IFileService, IFileStatWithMetadata, IFileSystemProviderRegistrationEvent } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -46,7 +47,7 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 			upcastPartial<IPromptsService>({}),
 			upcastPartial<IGitService>(options.gitService ?? {}),
 			upcastPartial<ILogService>(options.logService ?? {}),
-			upcastPartial<IFileService>(options.fileService ?? {}),
+			upcastPartial<IFileService>({ hasProvider: () => true, onDidChangeFileSystemProviderRegistrations: Event.None, ...options.fileService }),
 			upcastPartial<INotificationService>(options.notificationService ?? {}),
 			upcastPartial<ILabelService>({}),
 			new class extends mock<ISessionsProvidersService>() {
@@ -209,6 +210,32 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 			environment: 'devbox-1',
 		});
 		assert.strictEqual(service.activeProjectRoot.get()?.path, '/target');
+	});
+
+	test('uses only a project root the window can read, once it can', () => {
+		const registered = new Set(['file']);
+		const registrations = new Emitter<IFileSystemProviderRegistrationEvent>();
+		const session = observableValue<ITestSessionWithChat | undefined>('session', undefined);
+		const service = createService({
+			activeSession: session,
+			fileService: { hasProvider: resource => registered.has(resource.scheme), onDidChangeFileSystemProviderRegistrations: registrations.event },
+		});
+		const roots: (string | undefined)[] = [];
+		const observer = autorun(reader => { roots.push(service.activeProjectRoot.read(reader)?.toString()); });
+		const open = (uri: string) => {
+			const root = URI.parse(uri);
+			session.set(createActiveSession({ ...createWorkspace('/unused', 'vscode'), uri: root, folders: [{ root, workingDirectory: root, name: 'vscode', description: undefined }] }), undefined);
+		};
+
+		open('https://github.com/microsoft/vscode');
+		open('github-remote-file://github/microsoft/vscode/HEAD');
+		registered.add('github-remote-file');
+		registrations.fire({ added: true, scheme: 'github-remote-file' });
+		open('file:///workspace');
+		observer.dispose();
+		registrations.dispose();
+
+		assert.deepStrictEqual(roots, [undefined, 'github-remote-file://github/microsoft/vscode/HEAD', 'file:///workspace']);
 	});
 
 	test('uses the explicit chat harness and workspace', () => {

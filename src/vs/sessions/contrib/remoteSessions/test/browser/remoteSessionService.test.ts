@@ -18,10 +18,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { ContextSizeConfigKey, modelConfigurationSourceKey } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { withAgentHostResources } from '../../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { readRemoteSessionOrigin, toRemoteSessionMessageMetadata, withRemoteSessionsCapability } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
+import { ReasoningEffortConfigKey } from '../../../../../platform/agentHost/common/reasoningEffort.js';
 import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PolicyState, RootState } from '../../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -31,18 +33,22 @@ import { IFileService, IFileStatWithMetadata } from '../../../../../platform/fil
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveModelIdentifierFromCatalog } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionGitRepository, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { RemoteSessionService } from '../../browser/remoteSessionService.js';
+import { LocalDevContainerEnvironmentHost } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { parseCreateRemoteSessionOptions, RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 import { IRemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
 
 class RemoteConnection extends mock<IAgentConnection>() {
 	override clientId = 'target-client';
+	constructor(override readonly resourceUris: IAgentHostResourceUriMapper = identityAgentHostResourceUriMapper) {
+		super();
+	}
 }
 
 class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
@@ -51,15 +57,17 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	override readonly label: string;
 	override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, { kind: 'connected' });
 	override readonly supportsQuickChats = true;
+	override supportsModelConfigurationForCreation?: boolean;
 	override readonly hostGroup: IAgentHostSessionsProvider['hostGroup'] = undefined;
 	override sessionTypes: ISessionType[];
 	root: RootState;
 	rootAvailable = true;
-	connection = new RemoteConnection();
+	connection: RemoteConnection;
 
 	constructor(name: string, load = 0, platform: 'windows' | 'linux' | 'macos' = 'linux', agentProvider = 'copilot') {
 		super();
 		this.remoteAddress = `ws://${name}:8080`;
+		this.connection = new RemoteConnection(createAgentHostResourceUriMapper(agentHostAuthority(this.remoteAddress)));
 		this.id = `agenthost-${agentHostAuthority(this.remoteAddress)}`;
 		this.label = name;
 		this.sessionTypes = [{
@@ -130,10 +138,15 @@ suite('RemoteSessionService', () => {
 			] as const);
 		})));
 		const hiddenModels = new Set<string>();
+		const savedModelConfigurations = new Map<string, Record<string, unknown>>();
 		const languageModels = new class extends mock<ILanguageModelsService>() {
 			override getLanguageModelIds() { return [...models.keys()]; }
 			override lookupLanguageModel(identifier: string) { return models.get(identifier); }
 			override isModelHidden(identifier: string) { return hiddenModels.has(identifier); }
+			override getModelConfiguration(identifier: string) {
+				const saved = savedModelConfigurations.get(identifier);
+				return saved && { ...saved };
+			}
 		}();
 		const autoModelSessionTypes = new Set<string>();
 		const management = new class extends mock<ISessionsManagementService>() {
@@ -240,7 +253,7 @@ suite('RemoteSessionService', () => {
 			}(),
 		);
 		const create = (input: object = {}, id = 'request') => service.createSession(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }), sourceChat.resource, id, CancellationToken.None);
-		return { service, create, calls, source, sourceChat, state, configuration, backgroundEvents, models, hiddenModels, autoModelSessionTypes };
+		return { service, create, calls, source, sourceChat, state, configuration, backgroundEvents, models, hiddenModels, savedModelConfigurations, autoModelSessionTypes };
 	}
 
 	test('lists resources, models, host identity and workload without connecting hosts', () => {
@@ -348,6 +361,105 @@ suite('RemoteSessionService', () => {
 			permissionLevel: calls[0].options?.permissionLevel,
 			sessionTemplate: calls[0].options?.sessionTemplate,
 		}, { hostId: hosts[1].id, modelId: `${hosts[1].sessionTypes[0].chatSessionType}:test-model`, permissionLevel: undefined, sessionTemplate: undefined });
+	});
+
+	function withModelOptions(host: RemoteProvider, models: Map<string, ILanguageModelChatMetadata>, properties: ILanguageModelConfigurationSchema['properties'] = {
+		[ReasoningEffortConfigKey]: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' },
+		[ContextSizeConfigKey]: { type: 'number', enum: [200_000, 1_000_000], default: 200_000 },
+	}): string {
+		const identifier = `${host.sessionTypes[0].chatSessionType}:test-model`;
+		models.set(identifier, {
+			...models.get(identifier)!,
+			configurationSchema: { type: 'object', properties },
+		});
+		return identifier;
+	}
+
+	test('a named model starts with the user\'s saved options, which requested options override as explicit choices', async () => {
+		const host = new RemoteProvider('host');
+		host.supportsModelConfigurationForCreation = true;
+		const { service, calls, sourceChat, models, savedModelConfigurations } = setup([host]);
+		savedModelConfigurations.set(withModelOptions(host, models), { [ReasoningEffortConfigKey]: 'high', [ContextSizeConfigKey]: 1_000_000 });
+		const model = { provider: 'copilot', id: 'test-model' };
+		for (const [id, input] of Object.entries({ default: {}, saved: { model }, requested: { model, reasoningEffort: 'low', contextTier: 'default' } })) {
+			await service.createSession(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }, true), sourceChat.resource, id, CancellationToken.None);
+		}
+		assert.deepStrictEqual(calls.map(call => call.options?.modelConfiguration), [
+			undefined,
+			{ [ReasoningEffortConfigKey]: 'high', [ContextSizeConfigKey]: 1_000_000 },
+			{
+				[ReasoningEffortConfigKey]: 'low', [modelConfigurationSourceKey(ReasoningEffortConfigKey)]: 'explicit',
+				[ContextSizeConfigKey]: 200_000, [modelConfigurationSourceKey(ContextSizeConfigKey)]: 'explicit',
+			},
+		]);
+	});
+
+	test('explicit options use the host\'s advertised effort and tier keys instead of conflicting saved aliases', async () => {
+		const host = new RemoteProvider('host');
+		host.supportsModelConfigurationForCreation = true;
+		const { service, calls, sourceChat, models, savedModelConfigurations } = setup([host]);
+		const identifier = withModelOptions(host, models, {
+			reasoningEffort: { type: 'string', enum: ['low', 'high'] },
+			contextTier: { type: 'string', enum: ['default', 'long_context'] },
+		});
+		savedModelConfigurations.set(identifier, {
+			thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit',
+			contextSize: 200_000, [modelConfigurationSourceKey('contextSize')]: 'explicit',
+		});
+		const options = parseCreateRemoteSessionOptions({ prompt: 'Run tests', model: { provider: 'copilot', id: 'test-model' }, reasoningEffort: 'high', contextTier: 'long_context' }, true);
+		await service.createSession(options, sourceChat.resource, 'request', CancellationToken.None);
+		assert.deepStrictEqual(calls[0].options?.modelConfiguration, {
+			reasoningEffort: 'high', [modelConfigurationSourceKey('reasoningEffort')]: 'explicit',
+			contextTier: 'long_context', [modelConfigurationSourceKey('contextTier')]: 'explicit',
+		});
+	});
+
+	test('invalid saved model options reject only the affected host', async () => {
+		const stale = new RemoteProvider('stale', 0);
+		const healthy = new RemoteProvider('healthy', 1);
+		stale.supportsModelConfigurationForCreation = true;
+		healthy.supportsModelConfigurationForCreation = true;
+		const { create, calls, models, savedModelConfigurations } = setup([stale, healthy]);
+		savedModelConfigurations.set(withModelOptions(stale, models), { obsoleteOption: { value: 'old' } });
+		const saved = { [ReasoningEffortConfigKey]: 'high', [ContextSizeConfigKey]: 1_000_000 };
+		savedModelConfigurations.set(withModelOptions(healthy, models), saved);
+
+		const model = { provider: 'copilot', id: 'test-model' };
+		await create({ model });
+		await assert.rejects(create({ model, hostId: stale.id }, 'pinned'), /Saved options for model copilot\/test-model must contain only JSON primitive values/);
+		assert.deepStrictEqual(calls.map(({ options }) => [options?.providerId, options?.modelConfiguration]), [[healthy.id, saved]]);
+	});
+
+	test('a requested model option the host cannot apply rejects the host instead of being dropped', async () => {
+		const host = new RemoteProvider('host');
+		const { service, calls, sourceChat, models } = setup([host]);
+		const model = { provider: 'copilot', id: 'test-model' };
+		const reasons = async (input: object, properties?: ILanguageModelConfigurationSchema['properties'], supported = true) => {
+			host.supportsModelConfigurationForCreation = supported;
+			withModelOptions(host, models, properties);
+			const error = await service.createSession(parseCreateRemoteSessionOptions({ prompt: 'Run tests', model, ...input }, true), sourceChat.resource, JSON.stringify([input, properties, supported]), CancellationToken.None)
+				.then(() => undefined, (error: Error) => error.message);
+			return error && JSON.parse(error.slice(error.indexOf('[')))[0].reasons;
+		};
+		assert.deepStrictEqual({
+			unsupportedEffort: await reasons({ reasoningEffort: 'xhigh' }),
+			lockedEffort: await reasons({ reasoningEffort: 'high' }, { thinkingLevel: { type: 'string', enum: ['high'], readOnly: true }, reasoningEffort: { type: 'string', enum: ['high'] } }),
+			singleWindow: await reasons({ contextTier: 'long_context' }, { contextSize: { type: 'number', enum: [200_000] }, contextTier: { type: 'string', enum: ['default', 'long_context'] } }),
+			lockedContext: await reasons({ contextTier: 'long_context' }, { [ContextSizeConfigKey]: { type: 'number', enum: [200_000, 1_000_000], readOnly: true } }),
+			unsupportedTier: await reasons({ contextTier: 'long_context' }, { contextTier: { type: 'string', enum: ['default'] } }),
+			lockedTier: await reasons({ contextTier: 'default' }, { contextTier: { type: 'string', enum: ['default', 'long_context'], readOnly: true } }),
+			unsupportedHost: await reasons({ contextTier: 'long_context' }, undefined, false),
+			calls,
+		}, {
+			unsupportedEffort: ['Model copilot/test-model does not support reasoning effort xhigh. Use one of: low, medium, high.'],
+			lockedEffort: ['Reasoning effort is locked for model copilot/test-model.'],
+			singleWindow: ['Model copilot/test-model has a single context window, so a context tier does not apply.'],
+			lockedContext: ['Context size is locked for model copilot/test-model.'],
+			unsupportedTier: ['Model copilot/test-model does not support context tier long_context.'],
+			lockedTier: ['Context size is locked for model copilot/test-model.'],
+			unsupportedHost: ['The host cannot apply a reasoning effort or context tier to a new session.'],
+			calls: [],
+		});
 	});
 
 	for (const id of ['claude-haiku-4.5', 'openrouter/aion-labs/aion-3.0']) {
@@ -562,6 +674,48 @@ suite('RemoteSessionService', () => {
 		const ready = new RemoteProvider('ready', 2);
 		const { create } = setup([unavailable, ready]);
 		assert.strictEqual((await create()).host.id, ready.id);
+	});
+
+	test('describes the host that an ID or a remote workspace pins, and the directory that creation inspects', () => {
+		const build = new RemoteProvider('build');
+		const localContainer = Object.assign(new RemoteProvider('container-1'), { label: 'Dev Container 3', devContainerEnvironmentHost: LocalDevContainerEnvironmentHost });
+		const remoteContainer = Object.assign(new RemoteProvider('container-2'), { label: 'Dev Container 4', devContainerEnvironmentHost: build.remoteAddress });
+		const { service } = setup([build, localContainer, remoteContainer]);
+		const describe = (input: object) => service.getRequestedDestination(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }));
+		const containerWorkspace = remoteContainer.mapAgentHostResource(URI.file('/workspaces/ubuntu'));
+		// A wrapper that displays one path while its metadata names another directory.
+		const misleading = toAgentHostContentUri(URI.file('/workspaces/other'), agentHostAuthority(remoteContainer.remoteAddress), URI.file('/workspaces/demo'));
+		const unavailableWorkspace = toAgentHostUri(URI.file('/repo'), 'gone-host');
+		// A POSIX directory whose name contains a backslash, and a UNC directory: neither may be formatted for this client.
+		const backslash = remoteContainer.mapAgentHostResource(URI.from({ scheme: 'file', path: '/workspaces/a\\b' }));
+		const unc = remoteContainer.mapAgentHostResource(URI.from({ scheme: 'file', authority: 'server-a', path: '/share/repo' }));
+		assert.deepStrictEqual({
+			byId: describe({ hostId: build.id }),
+			localContainer: describe({ hostId: localContainer.id }),
+			remoteContainerByWorkspace: describe({ workspace: { uri: containerWorkspace.toString() } }),
+			misleadingWorkspace: describe({ workspace: { uri: misleading.toString() } }).workspace,
+			backslashWorkspace: describe({ workspace: { uri: backslash.toString() } }).workspace,
+			uncWorkspace: describe({ workspace: { uri: unc.toString() } }).workspace,
+			fileOnPinnedHost: describe({ hostId: build.id, workspace: { uri: 'file:///home/user/project' } }).workspace,
+			otherHostsWorkspace: describe({ hostId: build.id, workspace: { uri: containerWorkspace.toString() } }).workspace,
+			automatic: describe({ workspace: { uri: 'file:///home/user/project' } }),
+			automaticUnc: describe({ workspace: { uri: 'file://server-a/share/repo' } }).workspace,
+			unknownId: describe({ hostId: 'agenthost-missing' }),
+			unknownAuthority: describe({ workspace: { uri: unavailableWorkspace.toString() } }),
+		}, {
+			byId: { host: { label: 'build' }, pinnedBy: build.id, workspace: undefined },
+			localContainer: { host: { label: 'Dev Container 3', containerHost: 'This Computer' }, pinnedBy: localContainer.id, workspace: undefined },
+			remoteContainerByWorkspace: { host: { label: 'Dev Container 4', containerHost: 'build' }, pinnedBy: agentHostAuthority(remoteContainer.remoteAddress), workspace: '/workspaces/ubuntu' },
+			misleadingWorkspace: '/workspaces/other',
+			backslashWorkspace: '/workspaces/a\\b',
+			uncWorkspace: '//server-a/share/repo',
+			fileOnPinnedHost: '/home/user/project',
+			otherHostsWorkspace: '/workspaces/ubuntu',
+			automatic: { host: undefined, pinnedBy: undefined, workspace: '/home/user/project' },
+			automaticUnc: '//server-a/share/repo',
+			unknownId: { host: undefined, pinnedBy: 'agenthost-missing', workspace: undefined },
+			unknownAuthority: { host: undefined, pinnedBy: 'gone-host', workspace: '/repo' },
+		});
 	});
 
 	test('remote workspace URIs pin the matching host and configure a fresh branch', async () => {

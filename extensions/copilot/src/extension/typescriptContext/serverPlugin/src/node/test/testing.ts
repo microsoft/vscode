@@ -9,28 +9,30 @@ import TS from '../../common/typescript';
 const ts = TS();
 
 import { computeContext as _computeContext, nesRename as _nesRename, prepareNesRename as _prepareNesRename } from '../../common/api';
-import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, RequestContext, type Logger, type Search } from '../../common/contextProvider';
+import { CharacterBudget, ComputeContextSession, ContextResult, RequestContext, type Search } from '../../common/contextProvider';
 import type { Host } from '../../common/host';
 import { PrepareNesRenameResult } from '../../common/nesRenameValidator';
 import { CodeSnippet, ContextKind, type ContextItem, type FullContextItem, type PriorityTag, type Range, type RenameGroup, type RenameKind, type Trait } from '../../common/protocol';
-import { NullCancellationToken } from '../../common/typescripts';
 import { NodeHost } from '../host';
 import { LanguageServices } from './languageServices';
+
+export class NullCancellationToken implements tt.CancellationToken {
+	public isCancellationRequested(): boolean {
+		return false;
+	}
+
+	public throwIfCancellationRequested(): void {
+		// noop
+	}
+}
 
 export class SingleLanguageServiceSession extends ComputeContextSession {
 
 	private readonly languageService: tt.LanguageService;
 
-	public readonly logger: Logger;
-
 	constructor(languageService: tt.LanguageService, languageServiceHost: tt.LanguageServiceHost, host: Host) {
 		super(languageServiceHost, host, false);
 		this.languageService = languageService;
-		this.logger = new NullLogger();
-	}
-
-	public logError(_error: Error, _cmd: string): void {
-		// Null logger;
 	}
 
 	public *getLanguageServices(sourceFile?: tt.SourceFile): IterableIterator<tt.LanguageService> {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -299,6 +300,7 @@ suite('Continue in Copilot policy recovery', () => {
 				// The panel is the Chat view, as in the workbench
 				services.stub(IViewDescriptorService, {});
 				services.stub(IWorkbenchLayoutService, {});
+				stubChatViewHostServiceDependencies(services);
 				services.stub(IChatViewHostService, store.add(services.createInstance(ChatViewHostService)));
 				const action = new ContinueChatInCopilotAction();
 				// The policy move runs on its own when the panel opens a chat, and when the user chooses it in an editor.

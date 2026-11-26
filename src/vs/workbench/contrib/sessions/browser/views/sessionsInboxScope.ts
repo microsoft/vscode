@@ -79,7 +79,7 @@ export class SessionsInboxScope extends Disposable {
 				environments: [...environmentOptions.values()].map(environment => ({
 					id: environment.id,
 					label: environment.label,
-					disconnected: environment.isConnected?.read(reader) === false,
+					isConnected: environment.isConnected?.read(reader),
 					unavailable: !availableEnvironments.has(environment.id),
 				})),
 				workspaces: getInboxWorkspaceOptions(catalog, scope.environment?.id, reader),
@@ -106,7 +106,7 @@ export class SessionsInboxScope extends Disposable {
 			const selected = environments.find(environment => environment.id === scope.environment?.id);
 			return selected?.unavailable
 				? localize('unavailableEnvironment', "Unavailable: {0}", selected.label)
-				: selected?.disconnected
+				: selected?.isConnected === false
 					? localize('disconnectedEnvironment', "Disconnected: {0}", selected.label)
 					: selected?.label ?? scope.environment.label;
 		});
@@ -199,7 +199,9 @@ export class SessionsInboxScope extends Disposable {
 			}, ...environments.map(environment => ({
 				kind: ActionListItemKind.Action,
 				label: environment.label,
-				description: environment.unavailable ? localize('unavailable', "Unavailable") : environment.disconnected ? localize('disconnected', "Disconnected") : undefined,
+				description: environment.unavailable ? localize('unavailable', "Unavailable")
+					: environment.isConnected === false ? localize('disconnected', "Disconnected")
+						: environment.isConnected === true ? localize('connected', "Connected") : undefined,
 				group: { title: '', icon: getEnvironmentIcon(environment.id) },
 				item: {
 					checked: environment.id === scope.environment?.id,

@@ -9,7 +9,8 @@ import { getAgentSessionProviderIcon, getAgentSessionProviderName } from './agen
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, ChatViewSessionsOpenChatIn } from '../../common/constants.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -211,7 +212,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 }
 
 /**
- * With `chat.agentSessions.openInEditor`, sessions open like files: an existing
+ * While `chat.viewSessions.openChatIn` is `editorArea`, sessions open like files: an existing
  * editor is revealed, including an inactive tab without a widget, while a session
  * shown in the Chat view opens in a new editor, which moves it out of the Chat view.
  */
@@ -263,6 +264,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 	const configurationService = accessor.get(IConfigurationService);
 	const notificationService = accessor.get(INotificationService);
 	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 	try {
 		session.setRead(true); // mark as read when opened
@@ -284,7 +286,8 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		logService.trace(`[AgentSessions] openSession: provider '${session.providerType}' activated for ${session.resource.toString()}`);
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
-		if (configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
+		// The Agents window keeps its own presentation: the setting is shared with it
+		if (configurationService.getValue<string>(ChatConfiguration.ChatViewSessionsOpenChatIn) === ChatViewSessionsOpenChatIn.EditorArea && !environmentService.isSessionsWindow) {
 			// Like files: a click opens the session in the active group, a modifier-click to the side.
 			target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 			options = { ...options, revealIfOpened: !openOptions?.sideBySide && shouldRevealSessionEditor(chatWidgetService, session.resource) };

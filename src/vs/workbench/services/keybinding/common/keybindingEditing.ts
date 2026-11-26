@@ -34,8 +34,6 @@ export interface IKeybindingEditingService {
 
 	editKeybinding(keybindingItem: ResolvedKeybindingItem, key: string, when: string | undefined): Promise<void>;
 
-	setSystemWide(keybindingItem: ResolvedKeybindingItem, systemWide: boolean): Promise<void>;
-
 	removeKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void>;
 
 	resetKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void>;
@@ -63,41 +61,6 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	editKeybinding(keybindingItem: ResolvedKeybindingItem, key: string, when: string | undefined): Promise<void> {
 		return this.queue.queue(() => this.doEditKeybinding(keybindingItem, key, when, false)); // queue up writes to prevent race conditions
-	}
-
-	setSystemWide(keybindingItem: ResolvedKeybindingItem, systemWide: boolean): Promise<void> {
-		return this.queue.queue(() => this.doSetSystemWide(keybindingItem, systemWide));
-	}
-
-	private async doSetSystemWide(keybindingItem: ResolvedKeybindingItem, systemWide: boolean): Promise<void> {
-		const key = keybindingItem.resolvedKeybinding?.getUserSettingsLabel();
-		if (!key || !keybindingItem.command || (systemWide && !keybindingItem.resolvedKeybinding?.getElectronAccelerator())) {
-			throw new Error(localize('systemWideUnsupported', "System-wide shortcuts require a single supported key combination."));
-		}
-
-		const reference = await this.resolveAndValidate();
-		try {
-			const model = reference.object.textEditorModel;
-			const { tabSize, insertSpaces } = model.getOptions();
-			const eol = model.getEOL();
-			if (keybindingItem.isDefault) {
-				const entry = this.asObject(key, keybindingItem.command, keybindingItem.when?.serialize(), false, keybindingItem.commandArgs, systemWide);
-				this.applyEditsToBuffer(setProperty(model.getValue(), [-1], entry, { tabSize, insertSpaces, eol })[0], model);
-				this.removeDefaultKeybinding(keybindingItem, model);
-			} else {
-				const entries = this.parse(model).result;
-				const index = this.findUserKeybindingEntryIndex(keybindingItem, entries);
-				if (index === -1) {
-					throw new Error(localize('systemWideKeybindingChanged', "The keybinding has changed. Please try again with the updated keybinding."));
-				}
-				for (const edit of setProperty(model.getValue(), [index, 'systemWide'], systemWide || undefined, { tabSize, insertSpaces, eol })) {
-					this.applyEditsToBuffer(edit, model);
-				}
-			}
-			await this.save();
-		} finally {
-			reference.dispose();
-		}
 	}
 
 	resetKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void> {

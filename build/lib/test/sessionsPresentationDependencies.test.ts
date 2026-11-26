@@ -54,9 +54,10 @@ const mobileNewSessionPresentation = [
 ];
 const chatBackgroundPresentation = [
 	'src/vs/sessions/contrib/chat/browser/chatBackground.contribution.ts',
-	'src/vs/sessions/contrib/chat/browser/chatBackgroundTint.ts',
 	'src/vs/sessions/contrib/chat/browser/getThemeColorsTool.ts',
 	'src/vs/workbench/contrib/sessions/browser/chat/defaultChatViewFactory.ts',
+	'src/vs/workbench/contrib/sessions/browser/chatBackgroundActions.ts',
+	'src/vs/workbench/contrib/sessions/browser/chatBackgroundTint.ts',
 	'src/vs/workbench/contrib/sessions/browser/chatBackgroundService.ts',
 	'src/vs/workbench/contrib/sessions/browser/chatBackgroundRenderer.ts',
 	'src/vs/workbench/contrib/sessions/browser/sessionsChatSurface.ts',
@@ -143,12 +144,12 @@ suite('Sessions presentation entry isolation', () => {
 				backgroundModules: chatBackgroundPresentation.filter(file => dependencies.has(file)),
 				factory: registrations.filter(([id]) => id === 'IChatViewFactory'),
 				backgroundService: registrations.filter(([id]) => id === 'ISessionsChatBackgroundService'),
-				promptsService: registrations.filter(([id]) => id === 'IPromptsService'),
+				agenticSkillsService: registrations.filter(([id]) => id === 'IAgenticSkillsService'),
 			}, {
 				backgroundModules: mobile ? [] : chatBackgroundPresentation,
 				factory: [['IChatViewFactory', mobile ? 'MobileChatViewFactory' : 'DefaultChatViewFactory']],
 				backgroundService: mobile ? [] : [['ISessionsChatBackgroundService', 'SessionsChatBackgroundService']],
-				promptsService: [['IPromptsService', 'AgenticPromptsService']],
+				agenticSkillsService: [['IAgenticSkillsService', 'AgenticSkillsService']],
 			});
 		});
 
@@ -224,7 +225,7 @@ suite('Sessions presentation entry isolation', () => {
 				'src/vs/workbench/contrib/chat/browser/attachments/defaultChatAttachmentWidgetRegistry.ts',
 				'src/vs/workbench/contrib/chat/browser/actions/chatScreenshotContextPicker.ts',
 			];
-			const experimental = ['mobileChatEditPresenter.ts', 'mobileSessionsListPresentation.ts', 'mobileClipboardImageContext.ts', 'mobileChatViewFactory.ts'].map(file => mobilePresentationRoot + file);
+			const experimental = ['mobileChatEditPresenter.ts', 'mobileSessionsListPresentation.ts', 'mobileAttachmentContext.ts', 'mobileChatViewFactory.ts'].map(file => mobilePresentationRoot + file);
 			const registrations = [
 				defaultChatPresentation, defaultSessionsRegistrations, mobilePresentationRoot + 'mobile.contribution.ts',
 				'src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts',
@@ -254,12 +255,12 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(contributions.filter(file => dependencies.has(file)), contributions);
 		});
 
-		test(`${entry} keeps clipboard registration outside the restore-blocking phase`, () => {
+		test(`${entry} keeps attachment context registration outside the restore-blocking phase`, () => {
 			const file = entry.includes('.mobile.')
-				? mobilePresentationRoot + 'mobileClipboardImageContext.ts'
+				? mobilePresentationRoot + 'mobileAttachmentContext.ts'
 				: defaultChatPresentation;
 			assert.match(fs.readFileSync(path.join(repositoryRoot, file), 'utf8'),
-				/registerWorkbenchContribution2\('chat\.(?:mobileClipboardImageContext|clipboardImageContext)', \w+, WorkbenchPhase\.AfterRestored\);/);
+				/registerWorkbenchContribution2\('chat\.(?:mobileAttachmentContext|attachmentContext)', \w+, WorkbenchPhase\.AfterRestored\);/);
 		});
 
 		test(`${entry} includes redesigned input and edit rendering only for the mobile entry`, () => {
@@ -352,7 +353,6 @@ function isMobileEntryFile(file: string): boolean {
 			mobileConfigurationPresenter,
 			mobileInputButton,
 			hostPickerRoot + 'mobileAgentHostFilterService.ts',
-			hostPickerRoot + 'mobileTunnelConnection.ts',
 		].includes(file);
 }
 

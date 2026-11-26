@@ -21,21 +21,6 @@ export namespace Result {
 		return Result.error(new Error(errorMessage));
 	}
 
-	export function tryWith<T>(f: () => T): Result<T, Error> {
-		try {
-			return Result.ok(f());
-		} catch (err) {
-			return Result.error(ErrorUtils.fromUnknown(err));
-		}
-	}
-
-	export async function tryWithAsync<T>(f: () => Promise<T>): Promise<Result<T, Error>> {
-		try {
-			return Result.ok(await f());
-		} catch (err) {
-			return Result.error(ErrorUtils.fromUnknown(err));
-		}
-	}
 }
 
 /**

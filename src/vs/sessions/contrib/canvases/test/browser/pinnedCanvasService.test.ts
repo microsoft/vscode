@@ -8,7 +8,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -108,7 +108,8 @@ suite('PinnedCanvasService', () => {
 			observeCanvas: (_session, _chat, canvasResource) => {
 				const key = canvasResource.toString();
 				observed.push(key);
-				const value = live.get(key) ?? observableValue<ICanvas | undefined>('live', undefined);
+				// As the provider's, an observation is pending until it loads, and `undefined` once it fails.
+				const value = live.get(key) ?? observableValue<ICanvas | undefined>('live', { resource: canvasResource, instanceId: undefined, title: 'Canvas', source: undefined });
 				live.set(key, value);
 				return { object: value, dispose: () => released.push(key) };
 			},
@@ -336,6 +337,35 @@ suite('PinnedCanvasService', () => {
 		});
 	});
 
+	test('keeps a pin while its session archive is pending, through a rejected archive, until an archive is confirmed', () => {
+		const canvas = createCanvas('pending');
+		const { chat } = createChat('chat:/pending', [canvas]);
+		// An agent host main chat shares its session's archived state.
+		const isArchived = chat.isArchived as ISettableObservable<boolean>;
+		const archivePending = observableValue('archivePending', false);
+		const session = upcastPartial<ISession>({ providerId: 'local-agent-host', resource: URI.parse('session:/pending'), chats: observableValue('chats', [chat]), isArchived, archivePending });
+		const harness = createHarness({ sessions: [session] });
+		harness.service.pin(reference(session, chat, canvas));
+		const titles = () => harness.service.entries.get().map(entry => entry.title.get());
+		const setArchiveState = (archived: boolean, pending: boolean) => transaction(tx => {
+			isArchived.set(archived, tx);
+			archivePending.set(pending, tx);
+		});
+
+		setArchiveState(true, true);
+		const whilePending = titles();
+		setArchiveState(false, false);
+		const afterRejection = titles();
+		setArchiveState(true, true);
+		setArchiveState(true, false);
+
+		assert.deepStrictEqual({ whilePending, afterRejection, afterConfirmation: titles() }, {
+			whilePending: ['Canvas pending'],
+			afterRejection: ['Canvas pending'],
+			afterConfirmation: [],
+		});
+	});
+
 	test('removes a pin whose chat its session stops listing, but not one whose chat it has not listed yet', () => {
 		const [planCanvas, laterCanvas] = [createCanvas('plan'), createCanvas('later')];
 		const plan = createChat('chat:/plan', [planCanvas]);
@@ -528,6 +558,132 @@ suite('PinnedCanvasService', () => {
 		});
 	});
 
+	test('opens a canvas its chat restores once while its pin is shown, so that the consent its extension waits for is asked', async () => {
+		const canvas = createCanvas('plan');
+		const { harness, entry, chat } = createRestoredHarness(canvas);
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, [canvas]);
+		// The chat lists the canvas it restores, without a source until its extension starts.
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		harness.setLive({ ...canvas, status: 'starting', source: undefined }, canvas.resource);
+		const whileRestoring = { state: entry.state.get(), reconnecting: entry.reconnecting.get() };
+		harness.setLive(canvas, canvas.resource);
+
+		assert.deepStrictEqual({
+			whileRestoring,
+			restored: { state: entry.state.get(), reconnecting: entry.reconnecting.get(), canvas: entry.reference.get()?.canvas.toString() },
+			openedCanvases: harness.openedCanvases,
+			openedChats: harness.openedChats,
+		}, {
+			whileRestoring: { state: PinnedCanvasState.Pending, reconnecting: true },
+			restored: { state: PinnedCanvasState.Live, reconnecting: false, canvas: 'ahp-canvas:/chat/plan' },
+			openedCanvases: ['chat:/a user:canvases/plan#plan'],
+			openedChats: [],
+		});
+	});
+
+	test('opens a restoring canvas again when its shown pin is selected again or its session is replaced', async () => {
+		const canvas = createCanvas('plan');
+		const { harness, entry, sessions, chat } = createRestoredHarness(canvas, { openCanvas: async () => { throw new Error('Connection closed.'); } });
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, [canvas]);
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		await timeout(0);
+		const opensBefore = harness.openedCanvases.length;
+		await harness.service.show(entry);
+		await timeout(0);
+		const opensAfterSelecting = harness.openedCanvases.length;
+		const replacement = createSession('session:/a', [createChat('chat:/a', undefined).chat]);
+		sessions.splice(0, 1, replacement);
+		harness.sessionsChanged.fire({ added: [replacement], removed: [], changed: [] });
+		harness.setChatCanvases(chat.resource, [canvas]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opensBefore,
+			opensAfterSelecting,
+			opensAfterReplacement: harness.openedCanvases.length,
+			state: entry.state.get(),
+			reconnecting: entry.reconnecting.get(),
+			notifications: harness.notifications,
+		}, {
+			opensBefore: 1,
+			opensAfterSelecting: 2,
+			opensAfterReplacement: 3,
+			state: PinnedCanvasState.Pending,
+			reconnecting: true,
+			notifications: [],
+		});
+	});
+
+	test('does not open a restoring canvas again while its open is pending, and ignores a denial that arrives after it is unpinned and pinned again', async () => {
+		const canvas = createCanvas('plan');
+		const consent = { id: 'consent', kind: 'environment', extensionName: 'user:canvases', displayName: 'Canvases', items: ['TOKEN'], persistable: true } as const;
+		const answer = new DeferredPromise<void>();
+		const { harness, entry, chat, membership } = createRestoredHarness(canvas, { openCanvas: () => answer.p });
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, [canvas]);
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		await harness.service.show(entry);
+		harness.setLive({ ...canvas, status: 'starting', source: undefined }, canvas.resource);
+		await timeout(0);
+		const opensWhilePending = harness.openedCanvases.length;
+		const pinned = entry.reference.get()!;
+		harness.service.unpin(entry);
+		// The canvas restores, and the user pins it again.
+		harness.setLive(canvas, canvas.resource);
+		membership.set([canvas], undefined);
+		const repinned = harness.service.pin(pinned);
+		answer.error(new CanvasExtensionConsentDeniedError(consent, true));
+		await timeout(0);
+
+		assert.deepStrictEqual({ opensWhilePending, repinned, notifications: harness.notifications }, { opensWhilePending: 1, repinned: true, notifications: [] });
+	});
+
+	test('does not open a restoring canvas while a reopen of it is pending', async () => {
+		const canvas = createCanvas('plan');
+		const answer = new DeferredPromise<void>();
+		const { harness, entry, chat } = createRestoredHarness(canvas, { openCanvas: () => answer.p });
+
+		await harness.service.show(entry);
+		// The chat lacks the canvas, so the pin reopens it; the chat then lists it while it restores it.
+		harness.setChatCanvases(chat.resource, []);
+		await timeout(0);
+		harness.setChatCanvases(chat.resource, [canvas]);
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		await timeout(0);
+		const opens = harness.openedCanvases.length;
+		answer.complete();
+
+		assert.deepStrictEqual({ opens, state: entry.state.get() }, { opens: 1, state: PinnedCanvasState.Pending });
+	});
+
+	test('does not report a denied open of a canvas lifetime its pin no longer shows', async () => {
+		const canvas = createCanvas('plan');
+		const consent = { id: 'consent', kind: 'environment', extensionName: 'user:canvases', displayName: 'Canvases', items: ['TOKEN'], persistable: true } as const;
+		const answer = new DeferredPromise<void>();
+		const { harness, entry, chat } = createRestoredHarness(canvas, { openCanvas: () => answer.p });
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, [canvas]);
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		await timeout(0);
+		const reopened = createCanvas('plan', { resource: URI.parse('ahp-canvas:/chat/plan-reopened') });
+		harness.setChatCanvases(chat.resource, [reopened]);
+		harness.setLive(reopened, reopened.resource);
+		answer.error(new CanvasExtensionConsentDeniedError(consent, true));
+		await timeout(0);
+
+		assert.deepStrictEqual({ state: entry.state.get(), canvas: entry.reference.get()?.canvas.toString(), notifications: harness.notifications }, {
+			state: PinnedCanvasState.Live,
+			canvas: 'ahp-canvas:/chat/plan-reopened',
+			notifications: [],
+		});
+	});
+
 	test('reopens a shown pin through its chat when its chat no longer lists its canvas, and binds once the chat publishes it after unrelated changes', async () => {
 		const opened = new DeferredPromise<void>();
 		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'), { openCanvas: () => opened.p });
@@ -562,6 +718,28 @@ suite('PinnedCanvasService', () => {
 			openedChats: [],
 			notifications: [],
 		});
+	});
+
+	test('never shows a pin that binds the canvas its chat reopened under the reference of the canvas it replaces', async () => {
+		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'));
+		await harness.service.show(entry);
+		// The pin binds the canvas its chat restores, then the chat leaves the canvas for the pin to open.
+		harness.setChatCanvases(chat.resource, [createCanvas('plan')]);
+		harness.setChatCanvases(chat.resource, []);
+		await timeout(0);
+		const presented: string[] = [];
+		// A canvas view loads the canvas it reads through the reference it reads with it.
+		const observer = autorun(reader => {
+			presented.push(`${entry.reference.read(reader)?.canvas.toString()} shows ${entry.canvas.read(reader)?.resource.toString()}`);
+		});
+		const reopened = createCanvas('plan', { resource: URI.parse('ahp-canvas:/chat/plan-reopened') });
+		harness.setChatCanvases(chat.resource, [reopened]);
+		observer.dispose();
+
+		assert.deepStrictEqual(presented, [
+			'ahp-canvas:/chat/plan shows ahp-canvas:/chat/plan',
+			'ahp-canvas:/chat/plan-reopened shows ahp-canvas:/chat/plan-reopened',
+		]);
 	});
 
 	test('marks a pin unavailable when its chat does not publish the canvas it reopened in time, and reopens it when it is shown again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -727,6 +905,25 @@ suite('PinnedCanvasService', () => {
 
 		assert.deepStrictEqual({ whilePending, state: entry.state.get(), reconnecting: entry.reconnecting.get(), chatObservations: harness.chatObservations }, {
 			whilePending: { state: PinnedCanvasState.Pending, reconnecting: true, chatObservations: [`observe ${chat.resource}`, `release ${chat.resource}`] },
+			state: PinnedCanvasState.Live,
+			reconnecting: false,
+			chatObservations: [`observe ${chat.resource}`, `release ${chat.resource}`],
+		});
+	});
+
+	test('keeps observing the chat of a shown pin until the canvas its chat restores has a source', async () => {
+		const canvas = createCanvas('plan');
+		const { harness, entry, chat } = createRestoredHarness(canvas);
+
+		await harness.service.show(entry);
+		// A chat whose runtime was released lists its canvas before restoring it.
+		harness.setChatCanvases(chat.resource, [canvas]);
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		const whileRestoring = { state: entry.state.get(), reconnecting: entry.reconnecting.get(), chatObservations: [...harness.chatObservations] };
+		harness.setLive(canvas, canvas.resource);
+
+		assert.deepStrictEqual({ whileRestoring, state: entry.state.get(), reconnecting: entry.reconnecting.get(), chatObservations: harness.chatObservations }, {
+			whileRestoring: { state: PinnedCanvasState.Pending, reconnecting: true, chatObservations: [`observe ${chat.resource}`] },
 			state: PinnedCanvasState.Live,
 			reconnecting: false,
 			chatObservations: [`observe ${chat.resource}`, `release ${chat.resource}`],

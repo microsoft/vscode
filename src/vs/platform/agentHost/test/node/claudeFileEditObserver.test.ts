@@ -70,7 +70,8 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const observer = disposables.add(instantiationService.createInstance(
 		ClaudeFileEditObserver,
-		'claude:/sess-1',
+		URI.parse('claude:/sess-1'),
+		URI.parse('ahp-chat:/conversation'),
 		owner,
 		dbRef,
 	));

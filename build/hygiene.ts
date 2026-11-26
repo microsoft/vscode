@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import cp from 'child_process';
-import es from 'event-stream';
+import { Readable } from 'stream';
+import { through, merge, mapStream } from './lib/streams.ts';
 import fs from 'fs';
 import { filter } from './lib/gulp/facade.ts';
 import pall from 'p-all';
@@ -82,14 +83,14 @@ export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined 
 /**
  * Main hygiene function that runs checks on files
  */
-export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runOxlint = true): NodeJS.ReadWriteStream {
+export function hygiene(some: NodeJS.ReadableStream | string[] | undefined, runOxlint = true): NodeJS.ReadWriteStream {
 	const started = Date.now();
 	const requestedPaths = Array.isArray(some) ? some : undefined;
 	const scope = requestedPaths ? `${requestedPaths.length} requested path${requestedPaths.length === 1 ? '' : 's'}` : some ? 'provided file stream' : 'full repository';
 	console.log(`Starting hygiene (${scope})...`);
 	let errorCount = 0;
 
-	const productJson = es.through(function (file: VinylFile) {
+	const productJson = through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
 		if (product.extensionsGallery) {
@@ -100,7 +101,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
-	const unicode = es.through(function (file: VinylFileWithLines) {
+	const unicode = through(function (file: VinylFileWithLines) {
 		const lines = file.contents!.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
 		const allowInComments = lines.some(line => /allow-any-unicode-comment-file/.test(line));
@@ -137,7 +138,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
-	const indentation = es.through(function (file: VinylFileWithLines) {
+	const indentation = through(function (file: VinylFileWithLines) {
 		const lines = file.__lines || file.contents!.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
 
@@ -159,7 +160,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
-	const copyrights = es.through(function (file: VinylFileWithLines) {
+	const copyrights = through(function (file: VinylFileWithLines) {
 		const lines = file.__lines;
 
 		for (let i = 0; i < copyrightHeaderLines.length; i++) {
@@ -175,7 +176,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 
 	// Started for the first file that the formatting check covers.
 	let formatter: Promise<Formatter> | undefined;
-	const formatting = es.map(function (file: VinylFile, cb) {
+	const formatting = mapStream(function (file: VinylFile, cb) {
 		formatter ??= Formatter.start();
 		formatter
 			.then(f => f.verifyFormatting(file.path, file.contents!.toString('utf8')))
@@ -191,7 +192,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 			}, err => cb(err));
 	});
 
-	let input: NodeJS.ReadWriteStream;
+	let input: NodeJS.ReadableStream;
 	if (Array.isArray(some) || typeof some === 'string' || !some) {
 		const options = { base: '.', follow: true, allowEmpty: true };
 		if (some) {
@@ -208,7 +209,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const yarnLockFilter = filter(['**', '!**/yarn.lock']);
 	const unicodeFilterStream = filter(Array.from(unicodeFilter), { restore: true });
 	const checkedFiles = new Set<string>();
-	const trackCheckedFile = () => es.through(function (file: VinylFile) {
+	const trackCheckedFile = () => through(function (file: VinylFile) {
 		checkedFiles.add(file.relative);
 		this.emit('data', file);
 	});
@@ -218,7 +219,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
 		.pipe(productJsonFilter)
-		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : trackCheckedFile().pipe(productJson))
+		.pipe(process.env['BUILD_SOURCEVERSION'] ? through() : trackCheckedFile().pipe(productJson))
 		.pipe(productJsonFilter.restore)
 		.pipe(unicodeFilterStream)
 		.pipe(trackCheckedFile())
@@ -242,7 +243,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 			result
 				.pipe(filter(Array.from(lintFilter)))
 				.pipe(trackCheckedFile())
-				.pipe(es.through(function (file: VinylFile) {
+				.pipe(through(function (file: VinylFile) {
 					lintPaths.push(file.relative.replace(/\\/g, '/'));
 					this.emit('data', file);
 				}, async function () {
@@ -270,8 +271,8 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	);
 
 	let count = 0;
-	return es.merge(...streams).pipe(
-		es.through(
+	return merge(...streams).pipe(
+		through(
 			function (data: unknown) {
 				count++;
 				if (process.env['TRAVIS'] && count % 10 === 0) {
@@ -396,7 +397,7 @@ if (import.meta.main) {
 						.then(
 							(vinyls) => {
 								return new Promise<void>((c, e) =>
-									hygiene(es.readArray(vinyls).pipe(filter(Array.from(all))))
+									hygiene(Readable.from(vinyls).pipe(filter(Array.from(all))))
 										.on('end', () => c())
 										.on('error', e)
 								);

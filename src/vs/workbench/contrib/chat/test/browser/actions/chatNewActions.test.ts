@@ -14,6 +14,7 @@ import { NEW_CHAT_ICON_VARIANTS, NewChatAction, newChatIconVariantAction } from 
 import { IChatViewHostService } from '../../../browser/chatViewHost.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 
 function context(values: Record<string, ContextKeyValue>): IContext {
 	return { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
@@ -57,7 +58,7 @@ suite('Chat new actions', () => {
 		const accessor = upcastPartial<ServicesAccessor>({
 			get: (<T>(id: unknown) => {
 				assert.ok(id === IChatViewHostService || id === IInstantiationService);
-				return { newChat: async () => { started++; return true; } } as T;
+				return { replaced: constObservable(true), newChat: async () => { started++; return true; } } as T;
 			}) as ServicesAccessor['get'],
 		});
 		for (const action of [new NewChatAction(), ...NEW_CHAT_ICON_VARIANTS.map(variant => new (newChatIconVariantAction(variant))())]) {
@@ -71,7 +72,7 @@ suite('Chat new actions', () => {
 		const shows = new DeferredPromise<boolean>();
 		const steps: string[] = [];
 		const accessor = upcastPartial<ServicesAccessor>({
-			get: (<T>() => ({ newChat: () => shows.p }) as T) as ServicesAccessor['get'],
+			get: (<T>() => ({ replaced: constObservable(true), newChat: () => shows.p }) as T) as ServicesAccessor['get'],
 		});
 
 		const run = new NewChatAction().run(accessor).then(() => steps.push('New Chat completes'));
@@ -81,5 +82,31 @@ suite('Chat new actions', () => {
 		await run;
 
 		assert.deepStrictEqual(steps, ['host shows its new chat', 'New Chat completes']);
+	});
+
+	test('without a host that replaces the Chat view, New Chat runs as it always did, without asking the Chat view to start it', async () => {
+		const steps: string[] = [];
+		const accessor = upcastPartial<ServicesAccessor>({
+			get: (<T>(id: unknown) => (id === IChatViewHostService
+				? { replaced: constObservable(false), chatsOpenElsewhere: constObservable(false), newChat: async () => { steps.push('Chat view host asked'); return true; } }
+				: { invokeFunction: () => { steps.push('New Chat runs'); } }) as T) as ServicesAccessor['get'],
+		});
+
+		await new NewChatAction().run(accessor);
+
+		assert.deepStrictEqual(steps, ['New Chat runs']);
+	});
+
+	test('while the chats open elsewhere without a host that replaces the Chat view, such as in editors, New Chat asks the Chat view for its own new chat, so that its composer shows', async () => {
+		const steps: string[] = [];
+		const accessor = upcastPartial<ServicesAccessor>({
+			get: (<T>(id: unknown) => (id === IChatViewHostService
+				? { replaced: constObservable(false), chatsOpenElsewhere: constObservable(true), newChat: async (_target: unknown, options?: { ownChat?: boolean }) => { steps.push(`Chat view host asked for ${options?.ownChat ? 'its own' : 'a'} new chat`); return true; } }
+				: { invokeFunction: () => { steps.push('New Chat runs'); } }) as T) as ServicesAccessor['get'],
+		});
+
+		await new NewChatAction().run(accessor);
+
+		assert.deepStrictEqual(steps, ['Chat view host asked for its own new chat']);
 	});
 });

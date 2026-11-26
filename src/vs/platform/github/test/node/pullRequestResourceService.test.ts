@@ -34,6 +34,8 @@ const policy: PullRequestPollingPolicy = {
 	checksBackstop: 500,
 	mergeabilityVisible: 20,
 	mergeabilityBackground: 200,
+	mergeQueueVisible: 15,
+	mergeQueueBackground: 150,
 	failureBackoff: { immediateRetries: 0, base: 5, maximum: 20, jitter: 0 },
 	jitter: 0,
 };
@@ -818,6 +820,48 @@ suite('PullRequestResourceService', () => {
 		clock.advanceBy(policy.checksPendingBackground);
 		await flushAsync();
 		assert.deepStrictEqual(queries.calls.map(call => call.fragment), ['checks']);
+		subscription.dispose();
+	});
+
+	test('polls a queued pull request on the merge queue interval and reads core at once when it leaves the queue', async () => {
+		const { clock, queries, service } = setup();
+		let queued = true;
+		let merged = false;
+		queries.handlers.set('core', () => ({ fragment: 'core', value: { ...core('head-1'), state: merged ? 'merged' : 'open' }, complete: true }));
+		queries.handlers.set('mergeability', () => ({
+			fragment: 'mergeability',
+			value: {
+				headSha: 'head-1', baseSha: 'base', mergeable: queued ? 'UNKNOWN' : 'MERGEABLE', viewerCanUpdate: true, viewerCanMerge: true, viewerCanEnableAutoMerge: false,
+				allowedMergeMethods: ['SQUASH'], autoMergeEnabled: false, mergeQueueRequired: true, queueRequirementKnown: true,
+				...queued ? { mergeQueueEntryId: 'MQE1', mergeQueueEntryState: 'AWAITING_CHECKS' as const, mergeQueuePosition: 1 } : {},
+			},
+			complete: !queued,
+			headSha: 'head-1',
+		}));
+		const subscription = service.subscribePullRequest(ref, { priority: 'background', core: true, mergeability: true });
+		await subscription.refresh('core');
+		await subscription.refresh('mergeability');
+
+		queries.calls.length = 0;
+		clock.advanceBy(policy.mergeQueueBackground);
+		await flushAsync();
+		const whileQueued = queries.calls.map(call => call.fragment).sort();
+
+		queued = false;
+		merged = true;
+		queries.calls.length = 0;
+		await subscription.refresh('mergeability');
+		clock.advanceBy(0);
+		await flushAsync();
+		assert.deepStrictEqual({
+			whileQueued,
+			afterLeaving: queries.calls.map(call => call.fragment),
+			state: subscription.resource.snapshot.get().core.value?.state,
+		}, {
+			whileQueued: ['core', 'mergeability'],
+			afterLeaving: ['mergeability', 'core'],
+			state: 'merged',
+		});
 		subscription.dispose();
 	});
 });

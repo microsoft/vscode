@@ -377,7 +377,7 @@ suite('Copilot Agent credential sponsorship', function () {
 			canvases,
 			traffic: { github: githubTokens.length, model: modelTraffic.length, connectors: connectorTokens.length },
 			clients: agent.clients.slice(beforeRead.clients).map(entry => ({
-				mode: entry.options.mode, token: entry.options.gitHubToken, stops: entry.client.stopCount, errors: entry.client.stopErrorCount,
+				mode: entry.options.mode, token: entry.options.github?.token, stops: entry.client.stopCount, errors: entry.client.stopErrorCount,
 			})),
 			unexpectedRequests,
 		}, {
@@ -492,23 +492,23 @@ suite('Copilot Agent credential sponsorship', function () {
 			created: await readFile(join(directory, name, 'created.txt'), 'utf8'),
 			shellExecuted: modelTraffic.filter(traffic => traffic.probe === name).some(traffic => traffic.results.some(result => result.includes('SHELL_EXECUTION_PROOF'))),
 		})));
-		const storageClients = agent.clients.filter(entry => entry.options.mode === 'empty' && entry.options.gitHubToken === undefined);
+		const storageClients = agent.clients.filter(entry => entry.options.mode === 'empty' && entry.options.github?.token === undefined);
 		const promptContexts = ['A', 'B', 'L'].map(probe => {
 			const request = modelTraffic.find(traffic => traffic.probe === probe)!;
 			return { instructions: request.instructions, environment: request.environment, ancestorInstructions: request.ancestorInstructions, workspaceSkill: request.workspaceSkill };
 		});
 		assert.deepStrictEqual({
 			tokensByProbe, toolsByProbe, files, toolCompletions: completions.length, toolOutcomes, promptContexts,
-			storage: storageClients.map(entry => ({ token: entry.options.gitHubToken, mode: entry.options.mode, stops: entry.client.stopCount, errors: entry.client.stopErrorCount })),
-			stoppedScoped: agent.clients.filter(entry => entry.options.gitHubToken !== undefined).map(entry => entry.client.stopCount),
-			scopedProductEnvironment: agent.clients.filter(entry => entry.options.gitHubToken !== undefined || entry.options.mode === 'empty').map(entry =>
-				Object.fromEntries(Object.keys(credentialEnvironmentSentinels).map(key => [key, entry.options.env?.[key] === undefined]))),
-			legacyStartupTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty' && entry.options.gitHubToken === undefined).map(entry => entry.options.gitHubToken))],
-			legacyAmbientTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty' && entry.options.gitHubToken === undefined).map(entry => entry.options.env?.COPILOT_SDK_AUTH_TOKEN))],
+			storage: storageClients.map(entry => ({ token: entry.options.github?.token, mode: entry.options.mode, stops: entry.client.stopCount, errors: entry.client.stopErrorCount })),
+			stoppedScoped: agent.clients.filter(entry => entry.options.github?.token !== undefined).map(entry => entry.client.stopCount),
+			scopedProductEnvironment: agent.clients.filter(entry => entry.options.github?.token !== undefined || entry.options.mode === 'empty').map(entry =>
+				Object.fromEntries(Object.keys(credentialEnvironmentSentinels).map(key => [key, entry.options.runtime?.env?.[key] === undefined]))),
+			legacyStartupTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty' && entry.options.github?.token === undefined).map(entry => entry.options.github?.token))],
+			legacyAmbientTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty' && entry.options.github?.token === undefined).map(entry => entry.options.runtime?.env?.COPILOT_SDK_AUTH_TOKEN))],
 			connectorTokenKinds: [...new Set(connectorTokens)].sort(),
 			unexpectedRequests,
 			githubTokenKinds: [...new Set(githubTokens)].sort(),
-			scopedRuntimeTokens: agent.clients.filter(entry => entry.options.gitHubToken !== undefined).map(entry => entry.options.gitHubToken).sort(),
+			scopedRuntimeTokens: agent.clients.filter(entry => entry.options.github?.token !== undefined).map(entry => entry.options.github?.token).sort(),
 		}, {
 			tokensByProbe: { A: ['A'], B: ['B'], L: ['L'], 'A-ROTATED': ['AR'], 'B-UNCHANGED': ['B'], 'L-UNCHANGED': ['L'], 'A-CONFIG': ['AR'], 'B-CONFIG': ['B'], 'L-CONFIG': ['L'], 'L-AFTER-DISPOSAL': ['L'] },
 			toolsByProbe: { A: [...codingTools], B: [...codingTools], L: [...codingTools] },

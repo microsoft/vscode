@@ -33,6 +33,8 @@ let localizedStrings: IBrowserViewPreloadLocalizedStrings = {
  */
 function init() {
 	const { contextBridge, ipcRenderer } = require('electron');
+	let dialogProbeToken: string | undefined;
+	const nativeConfirm = window.confirm;
 
 	// #######################################################################
 	// ###                                                                 ###
@@ -262,6 +264,14 @@ function init() {
 
 	const mainWorldHelpers = {
 		getElement,
+		prompt(message = '', defaultValue = ''): string | null {
+			dialogProbeToken ??= ipcRenderer.sendSync('vscode:browserView:dialogProbe');
+			// Let Blink apply modal eligibility, including inherited and CSP sandbox restrictions.
+			if (!nativeConfirm(dialogProbeToken)) {
+				return null;
+			}
+			return ipcRenderer.sendSync('vscode:browserView:prompt', String(message), String(defaultValue));
+		},
 		/** Opaque token exposed for CDP-side frame matching. */
 		getFrameToken(): string { return frameToken; }
 	};
@@ -274,6 +284,12 @@ function init() {
 		// Expose helpers on `window.__vscode_helpers` in the page's main world
 		// for CDP `Runtime.evaluate` (which runs against the main world) to use.
 		contextBridge.exposeInMainWorld('__vscode_helpers', mainWorldHelpers);
+		// Electron replaces the native prompt with a throwing stub, so no native dialog event is available.
+		contextBridge.executeInMainWorld({
+			func: () => {
+				window.prompt = (window as typeof window & { __vscode_helpers: typeof mainWorldHelpers }).__vscode_helpers.prompt;
+			},
+		});
 	} catch (error) {
 		console.error(error);
 	}
@@ -395,7 +411,6 @@ class ElementPicker {
 	private readonly _commentBackdrop: SVGSVGElement;
 	private readonly _commentBackdropCutout: SVGRectElement;
 	private readonly _highlightShape: SVGRectElement;
-	private readonly _highlight: HTMLDivElement;
 	private readonly _commentPreviewRemoveButton: HTMLButtonElement;
 	private readonly _overlay: HTMLDivElement;
 	private readonly _label: HTMLDivElement;
@@ -481,12 +496,6 @@ class ElementPicker {
 		this._commentBackdrop = commentBackdrop;
 		this._commentBackdropCutout = backdropCutout;
 		this._highlightShape = highlightShape;
-
-		const highlight = document.createElement('div');
-		highlight.className = 'highlight';
-		highlight.style.display = 'none';
-		root.appendChild(highlight);
-		this._highlight = highlight;
 
 		const commentPreviewRemoveButton = document.createElement('button');
 		commentPreviewRemoveButton.className = 'comment-preview-remove';
@@ -705,7 +714,6 @@ class ElementPicker {
 		window.removeEventListener('blur', this._onWindowBlur);
 		window.removeEventListener('keydown', this._onKeyDown, true);
 
-		this._highlight.style.display = 'none';
 		this._label.style.display = 'none';
 		this._dragbox.style.display = 'none';
 		this._dragStart = undefined;
@@ -1109,23 +1117,14 @@ class ElementPicker {
 	// --- Highlight ---
 
 	private _renderHighlight(target: Element): void {
-		const highlight = this._highlight;
 		const label = this._label;
 
 		const rect = target.getBoundingClientRect();
-		const scrollX = window.scrollX || 0;
-		const scrollY = window.scrollY || 0;
 		const viewportHeight = window.innerHeight;
 		const viewportWidth = document.documentElement.clientWidth;
 		const visibleRect = this._getVisibleTargetBounds(rect);
 		const labelHeight = 22; // label height (20) + 2px gap above the box.
 
-		// Highlight box is in *page* coordinates so it scrolls with the document.
-		highlight.style.display = 'block';
-		highlight.style.left = `${rect.left + scrollX}px`;
-		highlight.style.top = `${rect.top + scrollY}px`;
-		highlight.style.width = `${rect.width}px`;
-		highlight.style.height = `${rect.height}px`;
 		this._highlightShape.style.display = 'block';
 		this._highlightShape.setAttribute('x', `${visibleRect.x}`);
 		this._highlightShape.setAttribute('y', `${visibleRect.y}`);
@@ -1269,7 +1268,6 @@ class ElementPicker {
 	private _updateHighlight(target: Element | undefined): void {
 		this._highlightTarget = target;
 		if (!target) {
-			this._highlight.style.display = 'none';
 			this._highlightShape.style.display = 'none';
 			this._label.style.display = 'none';
 			return;
@@ -1785,10 +1783,6 @@ class ElementPicker {
 				all: initial;
 				font-family: var(--pick-font, system-ui, -apple-system, sans-serif);
 				pointer-events: none !important;
-			}
-			.highlight {
-				position: absolute; box-sizing: border-box;
-				z-index: 2;
 			}
 			.comment-backdrop {
 				position: fixed;

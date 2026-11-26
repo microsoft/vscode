@@ -5,11 +5,14 @@
 
 import { $, append } from '../../../../../base/browser/dom.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { getInboxWorkspaceFilter, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
@@ -32,6 +35,7 @@ function renderScope({ container, disposableStore, theme }: ComponentFixtureCont
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase }));
 			reg.define(IContextViewService, ContextViewService);
 			reg.define(IActionWidgetService, ActionWidgetService);
 			reg.defineInstance(ILayoutService, new class extends TestLayoutService {

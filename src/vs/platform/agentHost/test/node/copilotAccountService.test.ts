@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { CopilotClient, CopilotSession, EntraTokenProvider } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, EntraTokenProvider } from '@microsoft/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -29,7 +29,7 @@ suite('Copilot account resource authentication', () => {
 	teardown(async () => { await Promise.all(contexts.splice(0).map(context => context.reset())); });
 
 	const choices = [
-		{ kind: 'loki' as const, host: 'https://m365.example', login: 'Microsoft name', selectionId: 'opaque-m365' },
+		{ kind: 'microsoft365Copilot' as const, host: 'https://m365.example', login: 'Microsoft name', selectionId: 'opaque-m365' },
 		{ kind: 'entraEmu' as const, host: 'https://github.com', login: 'emu-login', selectionId: 'opaque-emu' },
 	];
 	const both: LoginStep = { kind: 'completed', result: { status: 'needs-account-selection', accounts: choices } };
@@ -44,7 +44,7 @@ suite('Copilot account resource authentication', () => {
 		const context = store.add(instantiation.createInstance(CopilotAccountService));
 		contexts.push(context);
 		const state = {
-			step: both as LoginStep, selected: '', created: 0, disconnected: 0, deleted: 0,
+			step: both as LoginStep, accounts: choices, selected: '', created: 0, disconnected: 0, deleted: 0,
 			discovery: undefined as DeferredPromise<LoginStep> | undefined,
 			starting: undefined as DeferredPromise<CopilotSession> | undefined,
 			started: new DeferredPromise<void>(),
@@ -54,8 +54,9 @@ suite('Copilot account resource authentication', () => {
 			override get sessionId() { return 'setup-session'; }
 			override get rpc() {
 				return upcastPartial<CopilotSession['rpc']>({
-					accounts: {
+					accounts: upcastPartial<CopilotSession['rpc']['accounts']>({
 						login: {
+							list: async () => [],
 							begin: async () => ({ flowId: 'opaque-flow', step: { kind: 'awaiting' } }),
 							advance: async request => {
 								state.started.complete();
@@ -67,13 +68,12 @@ suite('Copilot account resource authentication', () => {
 							},
 							cancel: async () => { },
 						},
-						get: async () => ({
-							kind: 'activeAccount',
-							account: { ...choices.find(choice => choice.selectionId === state.selected)!, active: true, derivedFrom: 'runtime-base' },
+						getActive: async () => ({
+							account: { ...state.accounts.find(choice => choice.selectionId === state.selected)!, active: true, derivedFrom: 'runtime-base' },
 						}),
-						enumerate: async () => ({ kind: 'accounts', items: [] }),
-						set: async () => { throw new Error('Verification must not change the active account'); },
-					},
+						list: async () => [],
+						switchActive: async () => { throw new Error('Verification must not change the active account'); },
+					}),
 				});
 			}
 			override async disconnect() { state.disconnected++; }
@@ -128,8 +128,9 @@ suite('Copilot account resource authentication', () => {
 			override get sessionId() { return 'conversation'; }
 			override get rpc() {
 				return upcastPartial<CopilotSession['rpc']>({
-					accounts: {
+					accounts: upcastPartial<CopilotSession['rpc']['accounts']>({
 						login: {
+							list: async () => [],
 							begin: async request => {
 								calls.push(`begin:${request.kind}`);
 								return {
@@ -151,17 +152,17 @@ suite('Copilot account resource authentication', () => {
 							},
 							cancel: async () => { calls.push('cancel'); },
 						},
-						get: async () => ({
-							kind: 'activeAccount', account: scenario === 'missing-active' ? undefined : {
+						getActive: async () => ({
+							account: scenario === 'missing-active' ? null : {
 								...(scenario === 'wrong-active-service' ? offered[1] : selected),
 								...(scenario === 'wrong-active-handle' ? { selectionId: 'other-flow-selection' } : {}),
 								...(scenario === 'wrong-active-login' ? { login: 'other-flow-login' } : {}),
 								active: true, derivedFrom: 'conversation-specific-lineage',
 							},
 						}),
-						enumerate: async () => ({ kind: 'accounts', items: [] }),
-						set: async () => { assert.fail('Restoration must never switch account'); },
-					},
+						list: async () => [],
+						switchActive: async () => { assert.fail('Restoration must never switch account'); },
+					}),
 				});
 			}
 			override async disconnect() { calls.push('disconnect'); }
@@ -179,7 +180,7 @@ suite('Copilot account resource authentication', () => {
 			const current = f.context.requireReady();
 			assert.deepStrictEqual({ discovery, beforeChoice, offered, selection, service: current.choice.service, selected: f.state.selected }, {
 				discovery: { authenticated: true }, beforeChoice: 'choiceRequired',
-				offered: [copilotEntraDiscoveryResource, ...choices.map(choice => copilotEntraResources.get(choice.kind === 'loki' ? copilotEntraM365Audience : copilotEntraEmuAudience))],
+				offered: [copilotEntraDiscoveryResource, ...choices.map(choice => copilotEntraResources.get(choice.kind === 'microsoft365Copilot' ? copilotEntraM365Audience : copilotEntraEmuAudience))],
 				selection: { authenticated: true }, service, selected: service === 'github' ? 'opaque-emu' : 'opaque-m365',
 			});
 		});
@@ -284,6 +285,23 @@ suite('Copilot account resource authentication', () => {
 		});
 	});
 
+	for (const service of ['m365', 'github'] as const) {
+		test(`a restoring sign-in that names the ${service} account differently ${service === 'm365' ? 'restores it and signs in a new conversation' : 'is refused'}`, async () => {
+			const f = fixture();
+			await f.authenticate();
+			await f.authenticate(f.credential(service));
+			const selected = f.context.requireReady();
+			await f.context.releaseSession();
+			f.state.accounts = choices.map(choice => ({ ...choice, selectionId: `restored-${choice.selectionId}`, login: `restored-${choice.login}` }));
+			f.state.step = { kind: 'completed', result: { status: 'needs-account-selection', accounts: f.state.accounts } };
+			const conversation = conversationSession();
+			const restored = await f.context.authenticateSession(conversation.session, f.client, selected, CancellationToken.None).then(() => true, error => error.message);
+			assert.deepStrictEqual({ restored, activated: f.state.selected, contextUnchanged: f.context.state.get() === selected, calls: conversation.calls }, service === 'm365'
+				? { restored: true, activated: 'restored-opaque-m365', contextUnchanged: true, calls: ['begin:entra', 'select:conversation-opaque-m365', 'cancel'] }
+				: { restored: 'The selected Copilot service is no longer available.', activated: 'opaque-emu', contextUnchanged: false, calls: [] });
+		});
+	}
+
 	test('a failed runtime restoration can be retried unless the runtime disowns the selected service', async () => {
 		const f = fixture();
 		await f.authenticate();
@@ -372,6 +390,7 @@ suite('Copilot account resource authentication', () => {
 				rpc: upcastPartial<CopilotSession['rpc']>({
 					accounts: upcastPartial<CopilotSession['rpc']['accounts']>({
 						login: {
+							list: async () => [],
 							begin: async () => { started.complete(); return begin.p; },
 							advance: async () => { assert.fail('Cancelled login cannot advance'); },
 							cancel: async () => { calls.push('cancel'); cancelled.complete(); },

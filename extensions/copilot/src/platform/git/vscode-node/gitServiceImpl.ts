@@ -15,6 +15,7 @@ import { CachedFunction } from '../../../util/vs/base/common/cache';
 import { CancellationToken, cancelOnDispose } from '../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { LRUCache } from '../../../util/vs/base/common/map';
 import { autorun, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../util/vs/base/common/observableInternal';
 import * as path from '../../../util/vs/base/common/path';
 import { isEqual } from '../../../util/vs/base/common/resources';
@@ -33,6 +34,16 @@ const execFileAsync = promisify(execFile);
  */
 const INITIAL_DISCOVERY_TIMEOUT_MS = 30_000;
 
+/**
+ * How long a folder found to be outside any repository is remembered. Without this, every file
+ * asked about in a large folder outside Git starts its own `git rev-parse` process. Kept short so
+ * a repository later created there, but never opened by the Git extension, is still picked up.
+ */
+const NO_REPOSITORY_TTL_MS = 5 * 60 * 1000;
+
+/** Bounds how many folders outside any repository are remembered at once. */
+const MAX_NO_REPOSITORY_FOLDERS = 10_000;
+
 export class GitServiceImpl extends Disposable implements IGitService {
 
 	declare readonly _serviceBrand: undefined;
@@ -48,6 +59,14 @@ export class GitServiceImpl extends Disposable implements IGitService {
 	private _onDidFinishInitialRepositoryDiscovery = new Emitter<void>();
 	readonly onDidFinishInitialization: Event<void> = this._onDidFinishInitialRepositoryDiscovery.event;
 	private _isInitialized = observableValue(this, false);
+
+	// Folders known to be outside any repository, mapped to when that answer expires.
+	private readonly _foldersOutsideRepository = new LRUCache<string, number>(MAX_NO_REPOSITORY_FOLDERS);
+	// Repository root lookups in flight, shared by every file in the same folder.
+	private readonly _repositoryRootLookups = new Map<string, Promise<Uri | null>>();
+	// Bumped whenever a repository opens, which retires answers from lookups already in flight.
+	private _repositoryRootGeneration = 0;
+
 	constructor(
 		@IGitExtensionService private readonly gitExtensionService: IGitExtensionService,
 		@ILogService private readonly logService: ILogService
@@ -79,7 +98,11 @@ export class GitServiceImpl extends Disposable implements IGitService {
 	}
 
 	private registerGitAPIListeners(gitAPI: API) {
-		this._register(gitAPI.onDidOpenRepository(repository => this.doOpenRepository(repository)));
+		this._register(gitAPI.onDidOpenRepository(repository => {
+			// The new repository may contain folders previously found to be outside any repository.
+			this.forgetFoldersOutsideRepository();
+			this.doOpenRepository(repository);
+		}));
 		this._register(gitAPI.onDidCloseRepository(repository => this.doCloseRepository(repository)));
 
 		for (const repository of gitAPI.repositories) {
@@ -255,7 +278,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			}
 
 			// Get repository root
-			const repositoryRoot = await gitAPI.getRepositoryRoot(uri);
+			const repositoryRoot = await this.getRepositoryRoot(gitAPI, uri);
 			if (!repositoryRoot) {
 				this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] No repository root found`);
 				return undefined;
@@ -272,9 +295,55 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] Remotes (.git/config): ${JSON.stringify(remotes)}`);
 			return remotes;
 		} catch (error) {
-			this.logService.error(`[GitServiceImpl][getRepositoryFetchUrls] Failed to read remotes from .git/config: ${error.message}`);
+			// Stringified rather than using the message, so that Git errors include their exit code and stderr.
+			this.logService.error(`[GitServiceImpl][getRepositoryFetchUrls] Failed to read remotes from .git/config: ${error}`);
 			return undefined;
 		}
+	}
+
+	/**
+	 * Finds the root of the repository containing a folder. Every file in a folder shares the
+	 * answer, so a lookup in flight is shared, and a folder outside any repository is remembered
+	 * for {@link NO_REPOSITORY_TTL_MS}.
+	 */
+	private async getRepositoryRoot(gitAPI: API, folder: Uri): Promise<Uri | null> {
+		const key = folder.toString();
+		const outsideRepositoryUntil = this._foldersOutsideRepository.get(key);
+		if (outsideRepositoryUntil !== undefined) {
+			if (Date.now() < outsideRepositoryUntil) {
+				return null;
+			}
+			this._foldersOutsideRepository.delete(key);
+		}
+
+		let lookup = this._repositoryRootLookups.get(key);
+		if (!lookup) {
+			lookup = this.lookUpRepositoryRoot(gitAPI, folder, key);
+			this._repositoryRootLookups.set(key, lookup);
+		}
+		try {
+			return await lookup;
+		} finally {
+			if (this._repositoryRootLookups.get(key) === lookup) {
+				this._repositoryRootLookups.delete(key);
+			}
+		}
+	}
+
+	private async lookUpRepositoryRoot(gitAPI: API, folder: Uri, key: string): Promise<Uri | null> {
+		const generation = this._repositoryRootGeneration;
+		const repositoryRoot = await gitAPI.getRepositoryRoot(folder);
+		// A repository opened while the lookup ran may contain the folder, so its answer is stale.
+		if (!repositoryRoot && generation === this._repositoryRootGeneration) {
+			this._foldersOutsideRepository.set(key, Date.now() + NO_REPOSITORY_TTL_MS);
+		}
+		return repositoryRoot;
+	}
+
+	private forgetFoldersOutsideRepository(): void {
+		this._repositoryRootGeneration++;
+		this._foldersOutsideRepository.clear();
+		this._repositoryRootLookups.clear();
 	}
 
 	private async readLocalGitConfig(rootUri: URI): Promise<string> {

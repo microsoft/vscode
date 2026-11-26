@@ -23,7 +23,7 @@ import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
-import { AgentHostSessionListStore, type IAgentHostSessionListDelta } from './agentHostSessionListStore.js';
+import { AgentHostSessionListStore, type IAgentHostSessionListDelta, type IAgentHostSessionListEntry } from './agentHostSessionListStore.js';
 import { AgentHostChatMoveTracker, IAgentHostChatMove } from './agentHostChatMoveTracker.js';
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
@@ -48,10 +48,26 @@ export function readSessionSummaryBranchName(summary: SessionSummary): string | 
 	return (folderGitState ?? readSessionGitState(summary._meta))?.branchName;
 }
 
+/** An item converted from a store entry, with everything its conversion depends on that is not part of the entry. */
+interface ICachedSessionItem {
+	readonly entry: IAgentHostSessionListEntry;
+	readonly session: URI;
+	readonly resource: URI;
+	readonly canArchiveChat: boolean;
+	readonly item: IChatSessionItem;
+}
+
+/** An item as last reported to the listeners of the controller, and what it shows. */
+interface IReportedSessionItem {
+	readonly item: IChatSessionItem;
+	readonly signature: string;
+}
+
 /**
  * Provides provider-specific session list items for the chat sessions sidebar
  * by projecting the shared {@link AgentHostSessionListStore} state. The
- * controller derives items from the store on demand.
+ * controller derives items from the store on demand, converting only the
+ * entries that changed since they were last converted.
  */
 export class AgentHostSessionListController extends Disposable implements IChatSessionItemController {
 
@@ -60,6 +76,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private readonly _chatMoves = this._register(new AgentHostChatMoveTracker<{ readonly resource: URI }>());
 	/** Fires when a chat of this provider's sessions moved to another of them; resources are chat session resources. */
 	readonly onDidMoveChat: Event<IAgentHostChatMove<{ readonly resource: URI }>> = this._chatMoves.onDidMoveChat;
+
+	/** The items last converted, by session: an item changes only as its entry and the inputs of the conversion do, so most are given out again unconverted. */
+	private _itemCache = new Map<string, ICachedSessionItem>();
+
+	/** The items last reported by a change, by session; what the readers have been told, whatever they have read since. */
+	private readonly _reportedItems = new Map<string, IReportedSessionItem>();
 
 	constructor(
 		private readonly _sessionType: string,
@@ -113,8 +135,19 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	get items(): readonly IChatSessionItem[] {
-		return this._sessionListStore.getSessions(this._provider)
-			.map(entry => this._makeItemFromSummary(entry.summary, entry.statusKnown));
+		const canArchiveChat = this._sessionListStore.canArchiveChat;
+		const cache = new Map<string, ICachedSessionItem>();
+		const items = this._sessionListStore.getSessions(this._provider).map(entry => {
+			const key = entry.summary.resource;
+			let cached = this._itemCache.get(key);
+			if (!cached || cached.entry !== entry || cached.canArchiveChat !== canArchiveChat || cached.resource !== this._sessionListStore.getSessionResource(cached.session)) {
+				cached = this._convert(entry, canArchiveChat);
+			}
+			cache.set(key, cached);
+			return cached.item;
+		});
+		this._itemCache = cache;
+		return items;
 	}
 
 	isNewSession(resource: URI): boolean {
@@ -259,17 +292,32 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private _projectDelta(delta: IAgentHostSessionListDelta): IChatSessionItemsDelta | undefined {
 		let addedOrUpdated: IChatSessionItem[] | undefined;
 		let removed: URI[] | undefined;
+		const canArchiveChat = this._sessionListStore.canArchiveChat;
 		for (const entry of delta.addedOrUpdated ?? []) {
 			if (entry.provider !== this._provider) {
 				continue;
 			}
-			(addedOrUpdated ??= []).push(this._makeItemFromSummary(entry.summary, entry.statusKnown));
+			const key = entry.summary.resource;
+			const converted = this._convert(entry, canArchiveChat);
+			// The project is read from the store by wrappers that filter this controller's items by it, so a change of it is a change of the list
+			const signature = JSON.stringify([converted.item, entry.summary.project]);
+			const reported = this._reportedItems.get(key);
+			if (reported?.signature === signature) {
+				// Nothing the item shows changed, such as a summary change of the session's metadata only: it is not a change of the list
+				this._itemCache.set(key, { ...converted, item: reported.item });
+				continue;
+			}
+			this._reportedItems.set(key, { item: converted.item, signature });
+			this._itemCache.set(key, converted);
+			(addedOrUpdated ??= []).push(converted.item);
 		}
 
 		for (const removal of delta.removed ?? []) {
 			if (removal.provider !== this._provider) {
 				continue;
 			}
+			this._itemCache.delete(removal.session.toString());
+			this._reportedItems.delete(removal.session.toString());
 			(removed ??= []).push(this._sessionListStore.getSessionResource(removal.session));
 		}
 
@@ -277,6 +325,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return undefined;
 		}
 		return { ...(addedOrUpdated ? { addedOrUpdated } : undefined), ...(removed ? { removed } : undefined) };
+	}
+
+	private _convert(entry: IAgentHostSessionListEntry, canArchiveChat: boolean): ICachedSessionItem {
+		const session = URI.parse(entry.summary.resource);
+		const resource = this._sessionListStore.getSessionResource(session);
+		return { entry, session, resource, canArchiveChat, item: this._makeItemFromSummary(entry.summary, entry.statusKnown) };
 	}
 
 	private _makeItemFromSummary(summary: SessionSummary, statusKnown: boolean): IChatSessionItem {

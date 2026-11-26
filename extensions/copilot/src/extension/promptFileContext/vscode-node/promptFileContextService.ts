@@ -20,6 +20,14 @@ export const promptFileSelector = [PromptFileLangageId.prompt, PromptFileLangage
 
 type AgentFileTarget = 'vscode' | 'github-copilot' | undefined;
 
+/**
+ * Mirrors `GithubPromptHeaderAttributes` from vscode's `promptFileAttributes.ts`, which is not copied into this extension.
+ */
+namespace GithubPromptHeaderAttributes {
+	export const mcpServers = 'mcp-servers';
+	export const github = 'github';
+}
+
 const sharedAgentAttributes = [
 	PromptHeaderAttributes.name,
 	PromptHeaderAttributes.description,
@@ -43,13 +51,13 @@ const vscodeAgentAttributes = [
 
 const githubCopilotAgentAttributes = [
 	...sharedAgentAttributes,
-	PromptHeaderAttributes.mcpServers,
+	GithubPromptHeaderAttributes.mcpServers,
 	PromptHeaderAttributes.modelPolicy,
 	PromptHeaderAttributes.skills,
 	PromptHeaderAttributes.deferredToolLoading,
 	PromptHeaderAttributes.strictToolsList,
 	PromptHeaderAttributes.includeCustomInstructions,
-	PromptHeaderAttributes.github,
+	GithubPromptHeaderAttributes.github,
 ];
 
 const agentToolAliases = ['execute', 'read', 'edit', 'search', 'web', 'agent', 'todo'];

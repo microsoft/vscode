@@ -161,7 +161,7 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			this.renderHiddenHosts(hosts.filter(host => host.hidden));
 			dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.liveSummaries', "Host summaries and controls are live. Details and exports use the captured snapshot.");
 		}
-		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.sharing', "Local snapshot, including connection-related Window logs. Known credentials are redacted, but host names, addresses, and messages can contain personal information. Review before sharing.");
+		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.sharingLogs', "Local snapshot, including connection-related log excerpts. Known credentials are redacted, but host names, addresses, and messages can contain personal information. Review before sharing.");
 		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.captured', "Captured: {0}", this.snapshot.capturedAt);
 		const snapshotAddresses = new Set(this.snapshot.sections.map(section => section.hostAddress));
 		const newHostSections = hosts.filter(host => !host.hidden && host.address && !snapshotAddresses.has(host.address)).map(host => ({

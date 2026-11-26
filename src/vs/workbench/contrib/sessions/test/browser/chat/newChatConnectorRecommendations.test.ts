@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, IDimension } from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,6 +19,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../../platfor
 import { IChatTipProvider, IChatTipService } from '../../../../chat/browser/chatTipService.js';
 import { NewChatConnectorRecommendations } from '../../../browser/chat/newChatConnectorRecommendations.js';
 import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../../../common/chatConstants.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 
 const connectorRecommendations: NonNullable<IProductService['connectorRecommendations']> = {
 	linear: { name: 'Linear', description: 'Triage your open issues in Linear', iconUrl: 'https://example.com/linear.png', urls: ['linear.app'] },
@@ -35,6 +37,7 @@ suite('NewChatConnectorRecommendations', () => {
 		readonly fromDefault?: boolean;
 		readonly productRecommendations?: IProductService['connectorRecommendations'];
 		readonly random?: () => number;
+		readonly phone?: boolean;
 	} = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configurationService = new class extends TestConfigurationService {
@@ -69,6 +72,10 @@ suite('NewChatConnectorRecommendations', () => {
 			},
 		} as Partial<IChatTipService>);
 		instantiationService.stub(ITelemetryService, telemetryService);
+		const mainContainer = $('div');
+		mainContainer.classList.toggle('phone-layout', options.phone ?? false);
+		const layoutChanged = store.add(new Emitter<IDimension>());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer, onDidLayoutMainContainer: layoutChanged.event });
 		const recommendations = store.add(instantiationService.createInstance(NewChatConnectorRecommendations, {
 			getInputValue: () => {
 				inputReadCount++;
@@ -81,6 +88,10 @@ suite('NewChatConnectorRecommendations', () => {
 			recommendations,
 			provider: provider!,
 			telemetryService,
+			setPhoneLayout(phone: boolean) {
+				mainContainer.classList.toggle('phone-layout', phone);
+				layoutChanged.fire({ width: phone ? 390 : 1024, height: 844 });
+			},
 			setInput(value: string) {
 				inputValue = value;
 				onDidChangeInput.fire();
@@ -88,6 +99,23 @@ suite('NewChatConnectorRecommendations', () => {
 			get inputReadCount() { return inputReadCount; },
 		};
 	}
+
+	test('does not offer desktop marketplace links on phones and follows layout changes', () => {
+		const fixture = setup({ phone: true });
+		fixture.setInput('Open https://linear.app/example');
+		const phone = { tip: fixture.provider.provideTip()?.id, reads: fixture.inputReadCount };
+		fixture.setPhoneLayout(false);
+		const desktop = fixture.provider.provideTip()?.id;
+		fixture.setPhoneLayout(true);
+		const phoneAgain = fixture.provider.provideTip()?.id;
+		fixture.setPhoneLayout(false);
+		assert.deepStrictEqual({ phone, desktop, phoneAgain, desktopAgain: fixture.provider.provideTip()?.id }, {
+			phone: { tip: undefined, reads: 0 },
+			desktop: 'connectorRecommendation.linear',
+			phoneAgain: undefined,
+			desktopAgain: 'connectorRecommendation.linear',
+		});
+	});
 
 	test('registers as a contextual tip provider', () => {
 		const fixture = setup();

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Sequencer } from '../../../base/common/async.js'; import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { waitForState } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -73,7 +73,7 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 	private readonly _openRepositorySequencer = new Sequencer();
 
 	private _repositoryHandles = new ResourceMap<number>();
-	private readonly _repositories = this._register(new DisposableMap<number, GitRepository>());
+	private readonly _repositories = new Map<number, GitRepository>();
 
 	get repositories(): Iterable<IGitRepository> {
 		return this._repositories.values();
@@ -100,8 +100,12 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 		}
 	}
 
-	async openRepository(uri: URI): Promise<IGitRepository | undefined> {
+	async openRepository(uri: URI, token?: CancellationToken): Promise<IGitRepository | undefined> {
 		return this._openRepositorySequencer.queue(async () => {
+			if (token?.isCancellationRequested) {
+				return undefined;
+			}
+
 			// Open the repository
 			const result = await this._proxy.$openRepository(uri);
 			if (!result) {
@@ -110,11 +114,14 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 
 			const repositoryRootUri = URI.revive(result.rootUri);
 
-			// Create a new repository and store it in the maps
 			const state = toGitRepositoryState(result.state);
-			const repository = new GitRepository(repositoryRootUri, state, this);
-
-			this._repositories.set(result.handle, repository);
+			let repository = this._repositories.get(result.handle);
+			if (repository) {
+				repository.updateState(state);
+			} else {
+				repository = new GitRepository(repositoryRootUri, state, this);
+				this._repositories.set(result.handle, repository);
+			}
 			this._repositoryHandles.set(repositoryRootUri, result.handle);
 
 			// Wait for the repository to be fully initialized before returning it

@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Stats, constants, promises } from 'fs';
-import { Barrier, retry } from '../../../base/common/async.js';
+import { Barrier, retry, timeout } from '../../../base/common/async.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { Event } from '../../../base/common/event.js';
 import { isEqual } from '../../../base/common/extpath.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { basename, dirname, join } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase, joinPath, basename as resourcesBasename, dirname as resourcesDirname } from '../../../base/common/resources.js';
@@ -219,7 +220,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		});
 	}
 
-	async readFile(resource: URI, options?: IFileAtomicReadOptions): Promise<Uint8Array> {
+	async readFile(resource: URI, options?: IFileAtomicReadOptions, token = CancellationToken.None): Promise<Uint8Array> {
 		let lock: IDisposable | undefined = undefined;
 		try {
 			if (options?.atomic) {
@@ -232,14 +233,19 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			const filePath = this.toFilePath(resource);
-			const fd = await this.openFileForRead(filePath);
+			const { fd, namedPipe } = await this.openFileForRead(filePath);
 
 			try {
-				return await Promises.readFile(fd);
+				return namedPipe ? await namedPipe.readAll(token) : await Promises.readFile(fd);
 			} finally {
+				namedPipe?.dispose();
 				await Promises.close(fd);
 			}
 		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+
 			throw this.toFileSystemProviderError(error);
 		} finally {
 			lock?.dispose();
@@ -255,7 +261,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
 
-		readFileIntoStream(this, resource, stream, data => data.buffer, {
+		// Reads get the token so that waiting for a named pipe stops on cancellation
+		readFileIntoStream({
+			open: (resource, opts) => this.open(resource, opts),
+			read: (fd, pos, data, offset, length) => this.read(fd, pos, data, offset, length, token),
+			close: fd => this.close(fd)
+		}, resource, stream, data => data.buffer, {
 			...opts,
 			bufferSize: 256 * 1024 // read into chunks of 256kb each to reduce IPC overhead
 		}, token);
@@ -364,13 +375,17 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	private readonly writeHandles = new Map<number, URI>();
 
+	private readonly namedPipeHandles = this._register(new DisposableMap<number, NamedPipe>());
+
 	private static canFlush = true;
 
 	static configureFlushOnWrite(enabled: boolean): void {
 		DiskFileSystemProvider.canFlush = enabled;
 	}
 
-	private async openFileForRead(filePath: string): Promise<number> {
+	private async openFileForRead(filePath: string): Promise<{ fd: number; namedPipe: NamedPipe | undefined }> {
+
+		// Open non-blocking so that opening a named pipe without a writer does not block
 		const fd = await Promises.open(filePath, isWindows ? 'r' : constants.O_RDONLY | constants.O_NONBLOCK);
 
 		try {
@@ -378,11 +393,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			if (stat.isDirectory()) {
 				throw createFileSystemProviderError(localize('fileIsDirectory', "File is a directory"), FileSystemProviderErrorCode.FileIsADirectory);
 			}
+			if (!isWindows && stat.isFIFO()) {
+				return { fd, namedPipe: new NamedPipe(fd) };
+			}
 			if (!stat.isFile()) {
 				throw createFileSystemProviderError(localize('fileNotRegular', "File is not a regular file"), FileSystemProviderErrorCode.Unavailable);
 			}
 
-			return fd;
+			return { fd, namedPipe: undefined };
 		} catch (error) {
 			try {
 				await Promises.close(fd);
@@ -391,6 +409,37 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			throw error;
+		}
+	}
+
+	private async openFileForWrite(filePath: string, append: boolean): Promise<{ fd: number; namedPipe: NamedPipe | undefined }> {
+		if (!isWindows && await this.isNamedPipe(filePath)) {
+
+			// Opening a named pipe for writing waits for a reader, so open it
+			// non-blocking to fail right away when there is none. The other
+			// flags match 'a' and 'w' in case the file was replaced meanwhile.
+			let fd: number;
+			try {
+				fd = await Promises.open(filePath, constants.O_WRONLY | constants.O_CREAT | (append ? constants.O_APPEND : constants.O_TRUNC) | constants.O_NONBLOCK);
+			} catch (error) {
+				if (error.code === 'ENXIO') {
+					throw createFileSystemProviderError(localize('namedPipeNoReader', "Named pipe has no reader"), FileSystemProviderErrorCode.Unavailable);
+				}
+
+				throw error;
+			}
+
+			return { fd, namedPipe: new NamedPipe(fd) };
+		}
+
+		return { fd: await Promises.open(filePath, append ? 'a' : 'w'), namedPipe: undefined };
+	}
+
+	private async isNamedPipe(filePath: string): Promise<boolean> {
+		try {
+			return (await promises.stat(filePath)).isFIFO();
+		} catch (error) {
+			return false; // a file that does not exist gets created as regular file
 		}
 	}
 
@@ -406,6 +455,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 
 		let fd: number | undefined = undefined;
+		let namedPipe: NamedPipe | undefined = undefined;
 		try {
 
 			// Determine whether to unlock the file (write only)
@@ -461,9 +511,9 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 					// as such we use 'w' to truncate an existing or create the
 					// file otherwise. we do not allow reading.
 					// If `opts.append` is true, use 'a' to append to the file.
-					fd = await Promises.open(filePath, opts.append ? 'a' : 'w');
+					({ fd, namedPipe } = await this.openFileForWrite(filePath, !!opts.append));
 				} else {
-					fd = await this.openFileForRead(filePath);
+					({ fd, namedPipe } = await this.openFileForRead(filePath));
 				}
 			}
 
@@ -487,6 +537,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		// also http://man7.org/linux/man-pages/man2/open.2.html -
 		// "The file offset is set to the beginning of the file.")
 		this.mapHandleToPos.set(fd, 0);
+
+		if (namedPipe) {
+			this.namedPipeHandles.set(fd, namedPipe);
+		}
 
 		// remember that this handle was used for writing
 		if (isFileOpenForWriteOptions(opts)) {
@@ -527,12 +581,18 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		try {
 
+			// Stop waiting on a named pipe before the
+			// OS can reuse the handle for another file
+			const isNamedPipe = this.namedPipeHandles.has(fd);
+			this.namedPipeHandles.deleteAndDispose(fd);
+
 			// Remove this handle from map of positions
 			this.mapHandleToPos.delete(fd);
 
 			// If a handle is closed that was used for writing, ensure
-			// to flush the contents to disk if possible.
-			if (this.writeHandles.delete(fd) && DiskFileSystemProvider.canFlush) {
+			// to flush the contents to disk if possible. Named pipes
+			// have nothing to flush and fail to sync.
+			if (this.writeHandles.delete(fd) && !isNamedPipe && DiskFileSystemProvider.canFlush) {
 				try {
 					await Promises.fdatasync(fd); // https://github.com/microsoft/vscode/issues/9589
 				} catch (error) {
@@ -559,13 +619,20 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number, token = CancellationToken.None): Promise<number> {
 		const normalizedPos = this.normalizePos(fd, pos);
 
 		let bytesRead: number | null = null;
 		try {
-			bytesRead = (await Promises.read(fd, data, offset, length, normalizedPos)).bytesRead;
+			const namedPipe = this.namedPipeHandles.get(fd);
+			bytesRead = namedPipe ?
+				await namedPipe.read(data, offset, length, normalizedPos, token) :
+				(await Promises.read(fd, data, offset, length, normalizedPos)).bytesRead;
 		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+
 			throw this.toFileSystemProviderError(error);
 		} finally {
 			this.updatePos(fd, normalizedPos, bytesRead);
@@ -634,6 +701,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 
+		// Data that reached a named pipe cannot be taken
+		// back, so retrying could write it a second time
+		if (this.namedPipeHandles.has(fd)) {
+			return this.doWrite(fd, pos, data, offset, length);
+		}
+
 		// We know at this point that the file to write to is truncated and thus empty
 		// if the write now fails, the file remains empty. as such we really try hard
 		// to ensure the write succeeds by retrying up to three times.
@@ -645,7 +718,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let bytesWritten: number | null = null;
 		try {
-			bytesWritten = (await Promises.write(fd, data, offset, length, normalizedPos)).bytesWritten;
+			const namedPipe = this.namedPipeHandles.get(fd);
+			bytesWritten = namedPipe ?
+				await namedPipe.write(data, offset, length, normalizedPos, CancellationToken.None) :
+				(await Promises.write(fd, data, offset, length, normalizedPos)).bytesWritten;
 		} catch (error) {
 			throw await this.toFileSystemProviderWriteError(this.writeHandles.get(fd), error);
 		} finally {
@@ -982,4 +1058,94 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	//#endregion
+}
+
+/**
+ * A named pipe (FIFO) that was opened non-blocking, so that opening it never
+ * waits for the other end. Reads and writes that would block wait for the
+ * other end instead of failing with `EAGAIN`, until they are cancelled or
+ * the pipe is closed.
+ */
+class NamedPipe implements IDisposable {
+
+	private static readonly MIN_RETRY_DELAY = 10;
+	private static readonly MAX_RETRY_DELAY = 100;
+	private static readonly READ_ALL_CHUNK_SIZE = 64 * 1024;
+
+	private readonly closed = new CancellationTokenSource();
+
+	private hasReadData = false;
+
+	constructor(private readonly fd: number) { }
+
+	async read(data: Uint8Array, offset: number, length: number, position: number | null, token: CancellationToken): Promise<number> {
+		const bytesRead = await this.retryWhileBlocked(async () => (await Promises.read(this.fd, data, offset, length, position)).bytesRead, token);
+		if (bytesRead > 0) {
+			this.hasReadData = true;
+		} else if (!this.hasReadData && length > 0) {
+			// A pipe that never had a writer and a pipe whose writer closed
+			// without writing cannot be told apart once the writer is gone,
+			// so both fail instead of depending on when the writer closed
+			throw createFileSystemProviderError(localize('namedPipeNoData', "Named pipe has no data and no writer"), FileSystemProviderErrorCode.Unavailable);
+		}
+
+		return bytesRead;
+	}
+
+	async readAll(token: CancellationToken): Promise<Uint8Array> {
+		const chunks: VSBuffer[] = [];
+		while (true) {
+			const chunk = VSBuffer.alloc(NamedPipe.READ_ALL_CHUNK_SIZE);
+			const bytesRead = await this.read(chunk.buffer, 0, chunk.byteLength, null, token);
+			if (bytesRead === 0) {
+				return VSBuffer.concat(chunks).buffer;
+			}
+
+			chunks.push(chunk.slice(0, bytesRead));
+		}
+	}
+
+	async write(data: Uint8Array, offset: number, length: number, position: number | null, token: CancellationToken): Promise<number> {
+		let bytesWritten = 0;
+		while (bytesWritten < length) {
+
+			// Writes are partial when the pipe is almost full
+			const written = bytesWritten;
+			bytesWritten += await this.retryWhileBlocked(async () => (await Promises.write(this.fd, data, offset + written, length - written, position === null ? null : position + written)).bytesWritten, token);
+		}
+
+		return bytesWritten;
+	}
+
+	private async retryWhileBlocked<T>(operation: () => Promise<T>, token: CancellationToken): Promise<T> {
+		const cancellation = new CancellationTokenSource(token);
+		const closeListener = this.closed.token.onCancellationRequested(() => cancellation.cancel());
+		try {
+			let retryDelay = NamedPipe.MIN_RETRY_DELAY;
+			while (true) {
+				if (cancellation.token.isCancellationRequested || this.closed.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
+				try {
+					return await operation();
+				} catch (error) {
+					if (error.code !== 'EAGAIN') {
+						throw error;
+					}
+				}
+
+				// The other end is open but has not caught up yet
+				await timeout(retryDelay, cancellation.token);
+				retryDelay = Math.min(retryDelay * 2, NamedPipe.MAX_RETRY_DELAY);
+			}
+		} finally {
+			closeListener.dispose();
+			cancellation.dispose();
+		}
+	}
+
+	dispose(): void {
+		this.closed.dispose(true);
+	}
 }

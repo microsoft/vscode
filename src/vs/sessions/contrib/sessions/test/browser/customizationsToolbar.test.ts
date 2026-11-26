@@ -59,12 +59,16 @@ import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../.
 import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCustomizationsTelemetry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
+import { ChatCustomizationsHover } from '../../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsHover.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/customizationsConstants.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SessionsSidebarCustomizationsCategories } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 suite('Customizations toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -82,7 +86,7 @@ suite('Customizations toolbar', () => {
 		assert.ok(CUSTOMIZATION_ITEMS.every(item => item.id !== 'sessions.customization.remotes'));
 	});
 
-	test('opens the modal with complete new-session target labels', async () => {
+	test('opens desktop customizations with target labels and rejects phone shortcuts before opening', async () => {
 		const instantiationService = telemetryInstantiationService();
 		const descriptions: (string | undefined)[] = [];
 		const targeted: (URI | undefined)[] = [];
@@ -121,9 +125,40 @@ suite('Customizations toolbar', () => {
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID)!.handler(accessor));
 
-		assert.deepStrictEqual({ descriptions, targeted }, {
+		const container = mainWindow.document.createElement('div');
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ mainContainer: container }));
+		const discovery = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		const resource = URI.parse('copilot:/session');
+		instantiationService.stubInstance(ChatCustomizationsHover, {
+			getExplicitSessionResource: () => undefined,
+			getSessionResource: () => resource,
+			getProjectRoot: () => undefined,
+		});
+		instantiationService.stub(ISessionsManagementService, { getSession: () => undefined, getSessionForChatResource: () => undefined });
+		instantiationService.stub(ICustomizationMigrationService, { computeMigrationHint: () => discovery.p });
+		const pending = assert.rejects(async () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.openCustomizationsAtLocation')!.handler(accessor)), /not available in the phone layout/);
+		container.classList.add('phone-layout');
+		await discovery.complete(undefined);
+		await pending;
+
+		const skills = CUSTOMIZATION_ITEMS.find(item => item.section === AICustomizationManagementSection.Skills)!;
+		for (const id of [OPEN_AI_CUSTOMIZATIONS_COMMAND_ID, 'sessions.openCustomizationsAtLocation', skills.id]) {
+			await assert.rejects(async () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor)), /not available in the phone layout/);
+		}
+		const phoneContext = new Map([
+			[ChatContextKeys.enabled.key, true],
+			[IsPhoneLayoutContext.key, true],
+			[`sessionsCustomizationSectionVisible.${AICustomizationManagementSection.Skills}`, true],
+		]);
+		const context: IContext = { getValue: <T>(key: string) => phoneContext.get(key) as T | undefined };
+		const visibleShortcuts = MenuRegistry.getMenuItems(Menus.SidebarCustomizations).filter(isIMenuItem)
+			.filter(item => [OPEN_AI_CUSTOMIZATIONS_COMMAND_ID, skills.id].includes(item.command.id) && item.when?.evaluate(context))
+			.map(item => item.command.id);
+
+		assert.deepStrictEqual({ descriptions, targeted, visibleShortcuts }, {
 			descriptions: ['(Copilot · vscode · Cloud)'],
 			targeted: [undefined],
+			visibleShortcuts: [],
 		});
 	});
 

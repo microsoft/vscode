@@ -66,8 +66,12 @@ const height = 900;
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
 type BrowserChannel = 'msedge' | 'chrome';
 
-async function runTestsInBrowser(browserType: BrowserType, browserChannel: BrowserChannel, endpoint: URL, server: cp.ChildProcess): Promise<void> {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), channel: browserChannel });
+async function runTestsInBrowser(browserType: BrowserType, browserChannel: BrowserChannel, endpoint: URL, server: cp.ChildProcess, serverFamily: string | undefined): Promise<void> {
+	// The server listens on only one loopback address for `localhost` (::1 on Windows), but Firefox tries 127.0.0.1
+	// first. Each new connection then waits for a refused IPv4 attempt (about 2 s on Windows) and can fail outright
+	// with NS_ERROR_CONNECTION_REFUSED, so make Firefox try the family the server bound first.
+	const firefoxUserPrefs = browserType === 'firefox' && serverFamily ? { 'network.dns.preferIPv6': serverFamily === 'IPv6' } : undefined;
+	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), channel: browserChannel, firefoxUserPrefs });
 	const context = await browser.newContext();
 
 	const page = await context.newPage();
@@ -181,7 +185,7 @@ function consoleLogFn(msg: playwright.ConsoleMessage) {
 	return console.log;
 }
 
-async function launchServer(browserType: BrowserType, browserChannel: BrowserChannel): Promise<{ endpoint: URL; server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType, browserChannel: BrowserChannel): Promise<{ endpoint: URL; server: cp.ChildProcess; serverFamily: string | undefined }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -274,18 +278,27 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 	});
 
 	return new Promise(c => {
+		// Both lines can be split across stdout chunks, so match them on the output so far.
+		let output: string | undefined = '';
 		serverProcess.stdout!.on('data', data => {
-			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
+			if (output === undefined) {
+				return;
+			}
+			output += data.toString('ascii');
+			const matches = output.match(/Web UI available at (.+)\r?\n/);
 			if (matches !== null) {
-				c({ endpoint: new URL(matches[1]), server: serverProcess });
+				// Printed by server-main.ts when it starts listening, before the Web UI line.
+				const serverFamily = output.match(/Server bound to .+ \((IPv4|IPv6)\)/)?.[1];
+				output = undefined;
+				c({ endpoint: new URL(matches[1].trim()), server: serverProcess, serverFamily });
 			}
 		});
 	});
 }
 
 const [browserType, browserChannel] = args.browser.split('-');
-launchServer(browserType, browserChannel).then(async ({ endpoint, server }) => {
-	return runTestsInBrowser(browserType, browserChannel, endpoint, server);
+launchServer(browserType, browserChannel).then(async ({ endpoint, server, serverFamily }) => {
+	return runTestsInBrowser(browserType, browserChannel, endpoint, server, serverFamily);
 }, error => {
 	console.error(error);
 	process.exit(1);

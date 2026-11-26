@@ -115,6 +115,15 @@ export class QueryBuilder {
 	) {
 	}
 
+	/**
+	 * Whether glob patterns should match paths case-insensitively for the given resources.
+	 * This follows the file systems hosting them rather than the OS of the client.
+	 */
+	ignoreGlobCaseForResources(resources: readonly URI[]): boolean {
+		const resourcesToCheck = resources.length ? resources : [URI.from({ scheme: this.pathService.defaultUriScheme, path: '/' })];
+		return resourcesToCheck.every(resource => this.uriIdentityService.extUri.ignorePathCasing(resource));
+	}
+
 	aiText(contentPattern: string, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): IAITextQuery {
 		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
 		return {
@@ -258,7 +267,11 @@ export class QueryBuilder {
 		if (options.onlyOpenEditors) {
 			const openEditors = arrays.coalesce(this.editorGroupsService.groups.flatMap(group => group.editors.map(editor => editor.resource)));
 			this.logService.trace('QueryBuilder#commonQuery - openEditor URIs', JSON.stringify(openEditors));
-			const openEditorsInQuery = openEditors.filter(editor => pathIncludedInQuery(queryProps, editor.fsPath));
+			const openEditorsInQuery = openEditors.filter(editor => pathIncludedInQuery({
+				...queryProps,
+				ignoreGlobCase: this.ignoreGlobCaseForResources([editor])
+			}, editor.fsPath));
+			queryProps.ignoreGlobCase = openEditorsInQuery.length > 0 && this.ignoreGlobCaseForResources(openEditorsInQuery);
 			const openEditorsQueryProps = this.commonQueryFromFileList(openEditorsInQuery);
 			this.logService.trace('QueryBuilder#commonQuery - openEditor Query', JSON.stringify(openEditorsQueryProps));
 			return { ...queryProps, ...openEditorsQueryProps };

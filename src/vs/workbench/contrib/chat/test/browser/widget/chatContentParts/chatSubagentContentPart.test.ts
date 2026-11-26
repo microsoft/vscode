@@ -411,7 +411,7 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	function getOpenChatContext(part: ChatSubagentContentPart): IOpenSubagentChatContext | undefined {
-		return (part as unknown as { _openChatToolbar?: { actionBar?: { context?: IOpenSubagentChatContext } } })._openChatToolbar?.actionBar?.context;
+		return (part as unknown as { _openChatToolbar?: { toolbar?: { actionBar?: { context?: IOpenSubagentChatContext } } } })._openChatToolbar?.toolbar?.actionBar?.context;
 	}
 
 	suite('Basic rendering', () => {

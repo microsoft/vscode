@@ -146,13 +146,14 @@ export function parseTunnelInfo(tunnel: ITunnelDescriptor): ITunnelInfo | undefi
 	}
 
 	const rawCount = tunnel.status?.hostConnectionCount;
+	const hostConnectionCount = typeof rawCount === 'number' ? rawCount : rawCount?.current;
 	return {
 		tunnelId,
 		clusterId,
 		name: tags.name || tunnel.name || tunnelId,
 		tags: labels,
 		protocolVersion: tags.protocolVersion,
-		hostConnectionCount: typeof rawCount === 'number' ? rawCount : (rawCount?.current ?? 0),
+		hostConnectionCount: hostConnectionCount !== undefined && Number.isInteger(hostConnectionCount) && hostConnectionCount >= 0 ? hostConnectionCount : undefined,
 	};
 }
 

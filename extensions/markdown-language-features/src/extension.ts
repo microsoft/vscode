@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { LanguageClient, ServerOptions, TransportKind } from 'vscode-languageclient/node';
 import { MdLanguageClient, startClient } from './client/client';
 import { activateShared } from './extension.shared';
+export { deactivate } from './extension.shared';
 import { VsCodeOutputLogger } from './logging';
 import { IMdParser, MarkdownItEngine } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';

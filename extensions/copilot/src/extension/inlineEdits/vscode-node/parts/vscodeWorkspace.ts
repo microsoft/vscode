@@ -18,14 +18,16 @@ import { IWorkspaceService } from '../../../../platform/workspace/common/workspa
 import { getLanguage } from '../../../../util/common/languages';
 import { findNotebook } from '../../../../util/common/notebooks';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
-import { asPromise, raceCancellation, raceTimeout } from '../../../../util/vs/base/common/async';
+import { asPromise, raceCancellation, raceTimeout, RunOnceScheduler } from '../../../../util/vs/base/common/async';
 import { diffMaps } from '../../../../util/vs/base/common/collections';
 import { onUnexpectedError } from '../../../../util/vs/base/common/errors';
+import { Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
 import { DisposableStore, IDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { ResourceSet } from '../../../../util/vs/base/common/map';
 import { Schemas } from '../../../../util/vs/base/common/network';
 import { autorun, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, transaction } from '../../../../util/vs/base/common/observableInternal';
+import { MicrotaskDelay } from '../../../../util/vs/base/common/symbols';
 import { isDefined } from '../../../../util/vs/base/common/types';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { TextReplacement } from '../../../../util/vs/editor/common/core/edits/textEdit';
@@ -185,6 +187,28 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 		return map;
 	});
 
+	/**
+	 * Tracking decisions resolve one document at a time, and every applied decision recomputes the
+	 * list of all documents. Documents are opened in bursts (e.g. a multi diff editor opens both sides
+	 * of every changed file), so apply the decisions in batches to avoid quadratic work.
+	 */
+	private readonly _pendingShouldTrack = new Map<ISettableObservable<boolean>, boolean>();
+	private readonly _applyPendingShouldTrack = this._store.add(new RunOnceScheduler(() => {
+		transaction(tx => {
+			for (const [shouldTrack, value] of this._pendingShouldTrack) {
+				shouldTrack.set(value, tx);
+			}
+		});
+		this._pendingShouldTrack.clear();
+	}, 0));
+
+	private _setShouldTrack(shouldTrack: ISettableObservable<boolean>, value: boolean): void {
+		this._pendingShouldTrack.set(shouldTrack, value);
+		if (!this._applyPendingShouldTrack.isScheduled()) {
+			this._applyPendingShouldTrack.schedule();
+		}
+	}
+
 	private readonly _vscodeTextDocuments: IObservable<readonly TextDocument[]> = getObservableTextDocumentList(this._useAlternativeNotebookFormat, this._markdownNotebookCells.value);
 	private readonly _textDocsWithShouldTrackFlag = mapObservableArrayCached(this, this._vscodeTextDocuments, (doc, store) => {
 		const shouldTrack = observableValue<boolean>(this, false);
@@ -192,7 +216,7 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 			// @ulugbekna: not sure if invoking `isCopilotIgnored` on every textDocument-edit event is a good idea
 			// 	also not sure if we should be enforcing local copilot-ignore rules (vs only remote-exclusion rules)
 			this._filter.isTrackingEnabled(doc).then(v => {
-				shouldTrack.set(v, undefined);
+				this._setShouldTrack(shouldTrack, v);
 			}).catch(e => {
 				onUnexpectedError(e);
 			});
@@ -247,7 +271,7 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 			// @ulugbekna: not sure if invoking `isCopilotIgnored` on every textDocument-edit event is a good idea
 			// 	also not sure if we should be enforcing local copilot-ignore rules (vs only remote-exclusion rules)
 			this._filter.isTrackingEnabled(doc).then(v => {
-				shouldTrack.set(v, undefined);
+				this._setShouldTrack(shouldTrack, v);
 			}).catch(e => {
 				onUnexpectedError(e);
 			});
@@ -631,18 +655,22 @@ class VSCodeObservableNotebookDocument extends AbstractVSCodeObservableDocument 
 }
 
 function getObservableTextDocumentList(excludeNotebookCells: boolean, markdownCellUris: ResourceSet): IObservable<readonly TextDocument[]> {
-	return observableFromEvent(undefined, e => {
-		const d1 = workspace.onDidOpenTextDocument(e);
-		const d2 = workspace.onDidCloseTextDocument(e);
+	// The extension host fires one event per document, also when many documents are opened or closed
+	// at once. Recompute the list once per burst instead of once per document, which is quadratic.
+	const onDidOpenOrCloseTextDocument: Event<void> = listener => {
+		const d1 = workspace.onDidOpenTextDocument(() => listener());
+		const d2 = workspace.onDidCloseTextDocument(() => listener());
 		return {
 			dispose: () => {
 				d1.dispose();
 				d2.dispose();
 			}
 		};
-		// If we're meant to exclude notebook cells, we will still include the markdown cells as separate documents.
-		// Thats because markdown cells will be treated as standalone text documents in the editor.
-	}, () => excludeNotebookCells ? workspace.textDocuments.filter(doc => doc.uri.scheme !== Schemas.vscodeNotebookCell || markdownCellUris.has(doc.uri)) : workspace.textDocuments);
+	};
+	const onDidChangeTextDocuments = Event.debounce<void, void>(onDidOpenOrCloseTextDocument, () => undefined, MicrotaskDelay);
+	// If we're meant to exclude notebook cells, we will still include the markdown cells as separate documents.
+	// Thats because markdown cells will be treated as standalone text documents in the editor.
+	return observableFromEvent(undefined, onDidChangeTextDocuments, () => excludeNotebookCells ? workspace.textDocuments.filter(doc => doc.uri.scheme !== Schemas.vscodeNotebookCell || markdownCellUris.has(doc.uri)) : workspace.textDocuments);
 }
 
 function getNotebookDocuments(): IObservable<readonly NotebookDocument[]> {

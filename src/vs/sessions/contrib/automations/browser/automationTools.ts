@@ -76,6 +76,7 @@ interface IAutomationToolOutput {
 	readonly sessionTemplate?: IAutomationSessionTemplate;
 	readonly disableConditions: NonNullable<IAutomationDescriptor['disableConditions']>;
 	readonly enabled: boolean;
+	readonly continueSession?: true;
 	readonly createdAt: string;
 	readonly updatedAt: string;
 	readonly lastRunAt: string | null;
@@ -712,6 +713,10 @@ The change uses the current tool-approval policy. When approval is required, the
 							},
 						},
 					},
+					continueSession: {
+						type: 'boolean',
+						description: 'Whether every run sends its prompt in the session of the previous run, keeping the conversation, instead of a new session. Defaults to false. Supported by local and remote Agent Host automations, not Cloud automations.',
+					},
 				},
 			},
 		};
@@ -798,6 +803,7 @@ The change uses the current tool-approval policy. When approval is required, the
 				const target = proposal.validateTargetAvailability
 					? this.resolveAvailableTarget(proposal.initialValues.target)
 					: proposal.initialValues.target;
+				this.assertContinueSessionSupported(proposal.initialValues.continueSession, target.providerId);
 				return this.completeOperation('create', await this.applyCreate({ ...proposal.initialValues, target }, token, invocation, proposal.captureSession));
 			}
 
@@ -815,6 +821,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			const target = ownedTarget !== undefined && proposal.validateTargetAvailability
 				? this.resolveAvailableTarget(ownedTarget, proposal.existing)
 				: ownedTarget;
+			this.assertContinueSessionSupported(proposal.initialValues.continueSession, (target ?? proposal.existing.target).providerId);
 			const patch = target ? { ...proposal.initialValues, target } : proposal.initialValues;
 			return this.completeOperation('update', await this.applyUpdate(proposal.existing, patch, token));
 		} catch (error) {
@@ -833,6 +840,12 @@ The change uses the current tool-approval policy. When approval is required, the
 			}
 			logAutomationConfigureOutcome(this.telemetryService, proposal.kind, 'failed');
 			throw error;
+		}
+	}
+
+	private assertContinueSessionSupported(continueSession: boolean | undefined, providerId: string | undefined): void {
+		if (continueSession && (!providerId || this.automationService.supportsContinueSession?.(providerId) !== true)) {
+			throw new AutomationToolInputError('"continueSession" is not supported by this automation\'s provider.');
 		}
 	}
 
@@ -994,7 +1007,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			throw new AutomationToolInputError('configureAutomation input must be an object.');
 		}
 		const input = rawInput;
-		assertKnownProperties(input, ['automationId', 'name', 'prompt', 'schedule', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled', 'disableConditions'], 'configureAutomation input');
+		assertKnownProperties(input, ['automationId', 'name', 'prompt', 'schedule', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled', 'disableConditions', 'continueSession'], 'configureAutomation input');
 
 		const automationId = readOptionalNonEmptyString(input, 'automationId');
 		const existing = automationId ? this.automationService.getAutomation(automationId) : undefined;
@@ -1088,6 +1101,7 @@ The change uses the current tool-approval policy. When approval is required, the
 		} else if (existing && schedule?.interval === 'once' && existing.schedule.interval !== 'once') {
 			throw new AutomationToolInputError('Create a separate one-time request instead of converting a recurring automation.');
 		}
+		const continueSession = readOptionalBoolean(input, 'continueSession');
 
 		const proposedValues: IUpdateAutomationOptions = {
 			...(name !== undefined ? { name } : {}),
@@ -1101,6 +1115,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			...(sessionTemplate !== undefined ? { sessionTemplate } : {}),
 			...(enabled !== undefined ? { enabled } : {}),
 			...(disableConditions !== undefined ? { disableConditions } : {}),
+			...(continueSession !== undefined ? { continueSession } : {}),
 		};
 		const validateTargetAvailability = input.target !== undefined
 			&& !(isRecord(input.target) && (input.target.kind === 'currentSession' || input.target.kind === 'currentChat'));
@@ -1131,6 +1146,7 @@ The change uses the current tool-approval policy. When approval is required, the
 				...(enabled !== undefined ? { enabled } : {}),
 				...(disableConditions !== undefined ? { disableConditions } : {}),
 				...(schedule.interval === 'once' ? { purpose: 'scheduledChat', conversation } : {}),
+				...(continueSession ? { continueSession } : {}),
 			},
 			validateTargetAvailability,
 			...(schedule.interval === 'once' && !conversation && sessionTemplate === undefined && isRecord(input.target) && input.target.kind === 'currentSession'
@@ -1460,6 +1476,7 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 			}),
 		disableConditions: automation.disableConditions ?? [],
 		enabled: automation.enabled,
+		...(automation.continueSession ? { continueSession: true as const } : {}),
 		createdAt: automation.createdAt,
 		updatedAt: automation.updatedAt,
 		lastRunAt: automation.lastRunAt ?? null,

@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../base/common/event.js';
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { CDPEvent, CDPTargetInfo, ICDPConnection } from '../common/cdp/types.js';
 import { BrowserView } from './browserView.js';
 import { readBrowserViewAccessibilityTree, type IBrowserViewAccessibilityTree } from './browserViewAccessibility.js';
+import { IBrowserViewDialog, IBrowserViewDialogResponse } from '../common/browserView.js';
 
 /**
  * Intercepts a CDP command before it is forwarded to the Electron debugger.
@@ -54,6 +56,8 @@ export class BrowserViewDebugger extends Disposable {
 	private readonly _onTargetInfoChanged = this._register(new Emitter<CDPTargetInfo>());
 	/** Fired when targetInfo for a known target changes (e.g. title/url update). */
 	readonly onTargetInfoChanged = this._onTargetInfoChanged.event;
+	private readonly _onDidDetachFrame = this._register(new Emitter<void>());
+	readonly onDidDetachFrame = this._onDidDetachFrame.event;
 
 	/** Whether any attached debugger session has paused JavaScript execution. */
 	private _isPaused = false;
@@ -65,6 +69,7 @@ export class BrowserViewDebugger extends Disposable {
 	private readonly _electronDebugger: Electron.Debugger;
 	private readonly _interceptors = new Set<CDPCommandInterceptor>();
 	private _isDisposed = false;
+	private _dialogEvaluationBarrier: DeferredPromise<void> | undefined;
 
 	constructor(
 		private readonly view: BrowserView
@@ -77,6 +82,18 @@ export class BrowserViewDebugger extends Disposable {
 		this._messageHandler = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) => {
 			this.routeCDPEvent(method, params, sessionId);
 		};
+		this._register(view.dialogs.onDidChangeDialog(dialog => {
+			this.updateDialogEvaluationBarrier(dialog);
+			for (const session of this._sessions.values()) {
+				this.emitDialogOpening(session, dialog);
+			}
+		}));
+		this.updateDialogEvaluationBarrier(view.dialogs.pendingDialog);
+		this._register(view.dialogs.onDidCloseDialog(({ dialog, response }) => {
+			for (const session of this._sessions.values()) {
+				this.emitDialogClosed(session, dialog, response);
+			}
+		}));
 	}
 
 	/**
@@ -108,9 +125,35 @@ export class BrowserViewDebugger extends Disposable {
 		return result.targetInfo;
 	}
 
+	private emitDialogOpening(session: DebugSession, dialog: IBrowserViewDialog | undefined): void {
+		if (session.targetId !== this.targetId || !dialog || dialog.type === 'login') {
+			return;
+		}
+		session.emitEvent({
+			method: 'Page.javascriptDialogOpening', params: {
+				type: dialog.type, message: dialog.message ?? '', defaultPrompt: dialog.defaultPrompt ?? '', url: dialog.origin, hasBrowserHandler: true,
+			}, sessionId: session.sessionId
+		});
+	}
+
+	private emitDialogClosed(session: DebugSession, dialog: IBrowserViewDialog, response: IBrowserViewDialogResponse): void {
+		if (session.targetId !== this.targetId || dialog.type === 'login') {
+			return;
+		}
+		session.emitEvent({
+			method: 'Page.javascriptDialogClosed', params: {
+				result: response.accept, userInput: response.promptText ?? '',
+			}, sessionId: session.sessionId
+		});
+	}
+
 	async getAccessibilityTree(): Promise<IBrowserViewAccessibilityTree> {
 		this.ensureAttached();
 		return readBrowserViewAccessibilityTree((method, params) => this._electronDebugger.sendCommand(method, params));
+	}
+
+	async enableFrameEvents(): Promise<void> {
+		await this.sendCommandRaw('Page.enable');
 	}
 
 	/**
@@ -129,8 +172,36 @@ export class BrowserViewDebugger extends Disposable {
 		if (method === 'Emulation.setDeviceMetricsOverride') {
 			return Promise.resolve({});
 		}
-
+		if (method === 'Runtime.evaluate' || method === 'Runtime.callFunctionOn') {
+			return this.evaluateAfterDialogs(method, params, sessionId);
+		}
 		return this.sendCommandRaw(method, params, sessionId);
+	}
+
+	private updateDialogEvaluationBarrier(dialog: IBrowserViewDialog | undefined): void {
+		if (dialog && dialog.type !== 'login') {
+			if (!this._dialogEvaluationBarrier) {
+				this._dialogEvaluationBarrier = new DeferredPromise<void>();
+				this._dialogEvaluationBarrier.p.catch(() => { /* callers observe debugger disposal */ });
+			}
+		} else {
+			this._dialogEvaluationBarrier?.complete();
+			this._dialogEvaluationBarrier = undefined;
+		}
+	}
+
+	private async waitForDialogs(): Promise<void> {
+		while (this._dialogEvaluationBarrier) {
+			await this._dialogEvaluationBarrier.p;
+		}
+	}
+
+	private async evaluateAfterDialogs(method: string, params: unknown, sessionId: string | undefined): Promise<unknown> {
+		await this.waitForDialogs();
+		const result = await this.sendCommandRaw(method, params, sessionId);
+		// An evaluation already in flight can finish while a dialog in another renderer is still queued.
+		await this.waitForDialogs();
+		return result;
 	}
 
 	/**
@@ -140,14 +211,7 @@ export class BrowserViewDebugger extends Disposable {
 	 */
 	sendCommandRaw(method: string, params?: unknown, sessionId?: string): Promise<unknown> {
 		this.ensureAttached();
-		const resultPromise = this._electronDebugger.sendCommand(method, params, sessionId);
-
-		// Electron overrides dialog behavior — manually dismiss open dialogs.
-		if (method === 'Page.handleJavaScriptDialog') {
-			this.view.webContents.emit('-cancel-dialogs');
-		}
-
-		return resultPromise;
+		return this._electronDebugger.sendCommand(method, params, sessionId);
 	}
 
 	/**
@@ -207,6 +271,14 @@ export class BrowserViewDebugger extends Disposable {
 	 * Route a CDP event from the Electron debugger.
 	 */
 	private routeCDPEvent(method: string, params: unknown, sessionId?: string): void {
+		if (method === 'Page.frameDetached') {
+			this._onDidDetachFrame.fire();
+		}
+		// The per-tab queue publishes dialog events in presentation order, including bridged prompts.
+		// beforeunload never shows a dialog: `will-prevent-unload` always lets the page unload.
+		if (method === 'Page.javascriptDialogOpening' || method === 'Page.javascriptDialogClosed') {
+			return;
+		}
 		if (method === 'Target.attachedToTarget') {
 			const p = params as { sessionId: string; targetInfo: CDPTargetInfo; waitingForDebugger: boolean };
 			this.registerSession(p.sessionId, p.targetInfo, p.waitingForDebugger, sessionId);
@@ -296,6 +368,7 @@ export class BrowserViewDebugger extends Disposable {
 
 	override dispose(): void {
 		this._isDisposed = true;
+		this._dialogEvaluationBarrier?.error(new Error('Browser view debugger is disposed'));
 		this.detachElectronDebugger();
 		super.dispose();
 	}

@@ -43,16 +43,42 @@ export function isSessionInboxStateCurrent(state: SessionInboxState, session: IS
 	if (state.kind === 'snoozed') {
 		return state.until > now;
 	}
-	const notificationIds = state.notificationIds;
-	const pendingInput = attention?.pendingInput;
-	return !session || session.loading.read(reader) || state.activity === getSessionInboxActivity(session, reader)
-		&& (!notificationIds || !attention || attention.notificationIds.every(id => notificationIds.includes(id)
-			|| !!pendingInput && (id === pendingInput.provisionalId
-				|| id === pendingInput.notificationId && notificationIds.includes(pendingInput.provisionalId))));
+	// Keep the decision until the session has loaded enough to compare its activity.
+	if (!session || session.loading.read(reader)) {
+		return true;
+	}
+	const [previousStatus, previousUpdatedAt, previousLastTurnEnd] = state.activity.split(':');
+	const [status, updatedAt, lastTurnEnd] = getSessionInboxActivity(session, reader).split(':');
+	// Loading last-turn timing does not add activity newer than the catalog's modified time.
+	if (previousStatus !== status || previousUpdatedAt !== updatedAt
+		|| Math.max(Number(previousUpdatedAt), Number(previousLastTurnEnd)) !== Math.max(Number(updatedAt), Number(lastTurnEnd))) {
+		return false;
+	}
+	const acknowledged = state.notificationIds;
+	if (!acknowledged || !attention) {
+		return true;
+	}
+	return attention.notificationIds.every(id => isNotificationAcknowledged(id, acknowledged, attention.pendingInput));
 }
 
-export function getSessionInboxPriority(session: ISession, attention?: IInboxSessionAttention): InboxNotificationPriority {
-	return attention?.priority ?? (session.status.get() === SessionStatus.NeedsInput ? InboxNotificationPriority.Now : InboxNotificationPriority.Later);
+/**
+ * Whether a live notification was already acknowledged by a triage decision. A pending input
+ * first appears under a provisional identity; once its chat hydrates, the real identity counts
+ * as acknowledged when the provisional one was.
+ */
+function isNotificationAcknowledged(id: string, acknowledged: readonly string[], pendingInput: IInboxSessionAttention['pendingInput']): boolean {
+	if (acknowledged.includes(id)) {
+		return true;
+	}
+	if (!pendingInput) {
+		return false;
+	}
+	return id === pendingInput.provisionalId
+		|| id === pendingInput.notificationId && acknowledged.includes(pendingInput.provisionalId);
+}
+
+export function getSessionInboxPriority(session: ISession, attention?: IInboxSessionAttention, reader?: IReader): InboxNotificationPriority {
+	return attention?.priority ?? (session.status.read(reader) === SessionStatus.NeedsInput ? InboxNotificationPriority.Now : InboxNotificationPriority.Later);
 }
 
 export function getSessionInboxSection(session: ISession, state?: SessionInboxState, reader?: IReader, attention?: IInboxSessionAttention): SessionInboxSection {
@@ -87,7 +113,7 @@ export function getSessionInboxDescription(state: SessionInboxState | undefined)
 	}
 }
 
-/** Returns the unambiguous, provider-advertised PR merge operation; never a local branch merge. */
+/** Returns an available, provider-advertised PR merge operation for a single PR; never a local branch merge. */
 export function getInboxPullRequestMergeOperation(session: ISession, reader?: IReader): { readonly changeset: ISessionChangeset; readonly operation: ISessionChangesetOperation } | undefined {
 	const pullRequests = new Set(getSessionGitHubReferences(session, reader).pullRequests.map(ref => ref.uri.toString()));
 	for (const folder of session.workspace.read(reader)?.folders ?? []) {
@@ -105,15 +131,15 @@ export function getInboxPullRequestMergeOperation(session: ISession, reader?: IR
 		}
 		for (const operation of changeset.operations.read(reader)) {
 			if (operation.id !== AgentHostPullRequestOperationId.Merge
-				|| !operation.scopes.includes(SessionChangesetOperationScope.Changeset)
-				|| operation.status === SessionChangesetOperationStatus.Disabled
-				|| operation.status === SessionChangesetOperationStatus.Running) {
+				|| !operation.scopes.includes(SessionChangesetOperationScope.Changeset)) {
 				continue;
 			}
-			if (candidate) {
+			if (operation.status === SessionChangesetOperationStatus.Running) {
 				return undefined;
 			}
-			candidate = { changeset, operation };
+			if (!candidate && operation.status !== SessionChangesetOperationStatus.Disabled) {
+				candidate = { changeset, operation };
+			}
 		}
 	}
 	return candidate;
