@@ -2506,6 +2506,41 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('uses frame clipping for docked status bar corners and keeps floating corners concentric with the native frame', () => {
+		const root = appendElement(document.body, 'monaco-workbench');
+		store.add(toDisposable(() => root.remove()));
+		const statusbar = appendElement(root, 'part statusbar');
+		const left = appendElement(appendElement(statusbar, 'items-container left-items'), 'statusbar-item left first-visible-item');
+		const leftLabel = appendElement(left, 'statusbar-item-label');
+		const right = appendElement(appendElement(statusbar, 'items-container right-items'), 'statusbar-item right last-visible-item');
+		const rightLabel = appendElement(right, 'statusbar-item-label');
+		const measure = (classes: string) => {
+			root.className = `monaco-workbench modern-ui ${classes}`;
+			root.style.cssText = '--vscode-cornerRadius-small: 4px; --vscode-spacing-sizeNone: 0px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size120: 12px; --window-corner-radius: 16px;';
+			const style = (element: HTMLElement) => getWindow(element).getComputedStyle(element);
+			return [
+				style(left).borderBottomLeftRadius,
+				style(leftLabel).borderBottomLeftRadius,
+				style(right).borderBottomRightRadius,
+				style(rightLabel).borderBottomRightRadius,
+			];
+		};
+
+		assert.deepStrictEqual({
+			docked: measure('mac'),
+			floating: measure('mac floating-panels'),
+			floatingWithoutActivitybar: measure('mac floating-panels noactivitybar'),
+			fullscreen: measure('mac floating-panels noactivitybar fullscreen'),
+			nonMac: measure('floating-panels noactivitybar'),
+		}, {
+			docked: ['0px', '0px', '0px', '0px'],
+			floating: ['4px 14px', '4px 14px', '4px 14px', '4px 14px'],
+			floatingWithoutActivitybar: ['12px 14px', '12px 14px', '12px 14px', '12px 14px'],
+			fullscreen: ['4px', '4px', '4px', '4px'],
+			nonMac: ['4px', '4px', '4px', '4px'],
+		});
+	});
+
 	test('aligns status bar edge icons with activity icons symmetrically across densities', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
 		root.style.cssText = 'position: relative; width: 400px; height: 200px; --vscode-spacing-sizeNone: 0px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size120: 12px;';
