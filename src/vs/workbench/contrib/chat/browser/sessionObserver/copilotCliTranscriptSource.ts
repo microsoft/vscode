@@ -52,33 +52,44 @@ type TodoItems = Extract<IChatSessionEventInput, { kind: 'todos' }>['items'];
 
 function questionsFromSchema(args: Record<string, unknown>): Questions {
 	const schema = args.requestedSchema as { properties?: Record<string, Record<string, unknown>> } | undefined;
-	const out: { text: string; kind: 'single' | 'multi' | 'text'; options?: string[] }[] = [];
+	const out: { text: string; kind: 'single' | 'multi' | 'text'; options?: string[]; description?: string; freeform?: boolean; min?: number; max?: number; format?: string }[] = [];
 	// The common shape: one question with its choices.
 	const question = str(args.question);
 	if (question !== undefined) {
 		const choices = Array.isArray(args.choices) ? (args.choices as unknown[]).map(String) : [];
-		out.push(choices.length ? { text: question, kind: 'single', options: choices } : { text: question, kind: 'text' });
+		out.push(choices.length ? { text: question, kind: 'single', options: choices, freeform: args.allow_freeform !== false } : { text: question, kind: 'text' });
 		return out;
 	}
-	const message = str(args.message);
-	if (message) {
-		out.push({ text: message, kind: 'text' });
-	}
+	const num = (v: unknown) => typeof v === 'number' ? v : undefined;
+	const range = (min: unknown, max: unknown) => ({ ...(num(min) !== undefined ? { min: num(min) } : {}), ...(num(max) !== undefined ? { max: num(max) } : {}) });
+	// Each field as the agent host shows it: its title, then its description as the body.
 	for (const [key, p] of Object.entries(schema?.properties ?? {})) {
-		const text = str(p.title) ?? str(p.description) ?? key;
-		const en = Array.isArray(p.enum) ? (p.enum as unknown[]).map(String) : undefined;
+		const text = str(p.title) ?? key;
+		const description = str(p.description);
+		const base = { text, ...(description && description !== text ? { description } : {}) };
+		const names = Array.isArray(p.enumNames) ? (p.enumNames as unknown[]).map(String) : [];
+		const en = Array.isArray(p.enum) ? (p.enum as unknown[]).map((v, i) => names[i] ?? String(v)) : undefined;
 		const oneOf = Array.isArray(p.oneOf) ? (p.oneOf as { const?: unknown; title?: string }[]).map(o => String(o.title ?? o.const)) : undefined;
 		const items = p.items as { enum?: unknown[]; anyOf?: { const?: unknown; title?: string }[] } | undefined;
 		if (p.type === 'array') {
 			const options = items?.enum?.map(String) ?? items?.anyOf?.map(o => String(o.title ?? o.const));
-			out.push({ text, kind: 'multi', ...(options ? { options } : {}) });
+			out.push({ ...base, kind: 'multi', ...(options ? { options } : {}), freeform: true, ...range(p.minItems, p.maxItems) });
 		} else if (en || oneOf) {
-			out.push({ text, kind: 'single', options: (en ?? oneOf)! });
+			out.push({ ...base, kind: 'single', options: (en ?? oneOf)!, freeform: true });
 		} else if (p.type === 'boolean') {
-			out.push({ text, kind: 'single', options: ['yes', 'no'] });
+			out.push({ ...base, kind: 'single', options: ['True', 'False'], freeform: true });
+		} else if (p.type === 'number' || p.type === 'integer') {
+			out.push({ ...base, kind: 'text', format: String(p.type), ...range(p.minimum, p.maximum) });
 		} else {
-			out.push({ text, kind: 'text' });
+			out.push({ ...base, kind: 'text', ...(str(p.format) ? { format: str(p.format) } : {}), ...range(p.minLength, p.maxLength) });
 		}
+	}
+	// The message leads the first question, as the agent host shows it: it isn't a question of its own.
+	const message = str(args.message);
+	if (!out.length) {
+		out.push({ text: message ?? 'Input requested', kind: 'text' });
+	} else if (message && message !== out[0].text) {
+		out[0] = { ...out[0], text: `${message}\n\n${out[0].text}` };
 	}
 	return out;
 }

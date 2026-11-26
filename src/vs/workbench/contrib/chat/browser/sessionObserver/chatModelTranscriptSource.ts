@@ -215,7 +215,18 @@ export class ChatModelProjector {
 					const qid = (this.options.indexIds ? undefined : part.resolveId) ?? `${turnId}:${i}`;
 					this.once(`q:${qid}`, () => out.push({
 						id: `q:${qid}`, at, turnId, kind: 'question', questionId: qid,
-						questions: part.questions.map(q => ({ text: q.title || text(q.message), kind: q.type === 'singleSelect' ? 'single' as const : q.type === 'multiSelect' ? 'multi' as const : 'text' as const, ...(q.options?.length ? { options: q.options.map(o => o.label) } : {}) })),
+						questions: part.questions.map(q => {
+							// The carousel's heading, then its body: the message, context, description and details, each once.
+							const title = q.title || text(q.message);
+							const body = [text(q.message), q.context, q.description, text(q.detailedMessage)].map(b => b?.trim()).filter((b, i, all): b is string => !!b && b !== title.trim() && all.indexOf(b) === i);
+							const choice = q.type === 'singleSelect' || q.type === 'multiSelect';
+							return {
+								text: title, kind: q.type === 'singleSelect' ? 'single' as const : q.type === 'multiSelect' ? 'multi' as const : 'text' as const,
+								...(q.options?.length ? { options: q.options.map(o => o.label) } : {}),
+								...(body.length ? { description: body.join('\n\n') } : {}),
+								...(choice ? { freeform: q.allowFreeformInput !== false } : {}),
+							};
+						}),
 					}));
 					if (part.isUsed || part.data) {
 						this.once(`qa:${qid}`, () => out.push({

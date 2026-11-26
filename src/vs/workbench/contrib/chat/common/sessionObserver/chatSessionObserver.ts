@@ -77,6 +77,23 @@ interface IChatSessionEventBase {
 	readonly rawType?: string;
 }
 
+/** One question of an agent's question (proposed API `chatSessionObserver`). */
+export interface IChatSessionQuestionItem {
+	/** The question's title. The first question also carries the request's own message before it. */
+	readonly text: string;
+	readonly kind: 'single' | 'multi' | 'text';
+	readonly options?: readonly string[];
+	/** The question's body, shown under its title, when it has one. */
+	readonly description?: string;
+	/** Whether the user may answer in their own words beside or instead of the options. */
+	readonly freeform?: boolean;
+	/** How many options a multi-select question takes, a number's range, or a text answer's length. */
+	readonly min?: number;
+	readonly max?: number;
+	/** What a text answer is: `number`, `integer`, or a text format such as `email`, `uri`, `date`. */
+	readonly format?: string;
+}
+
 /** The facts of an event, without its envelope. */
 export type ChatSessionEventData =
 	| { readonly kind: 'turnStarted'; readonly trigger: 'user' | 'system' | 'autopilot' | 'steering' | 'queued' }
@@ -92,7 +109,7 @@ export type ChatSessionEventData =
 	| { readonly kind: 'toolResult'; readonly callId: string; readonly status: 'completed' | 'failed' | 'cancelled' | 'denied' | 'timedOut'; readonly exitCode?: number; readonly durationMs?: number; readonly error?: string; readonly structured?: unknown }
 	| { readonly kind: 'edit'; readonly callId?: string; readonly uri: URI; readonly operation: 'modify' | 'create' | 'delete' | 'rename'; readonly newUri?: URI; readonly before?: IChatSessionContentRef; readonly after?: IChatSessionContentRef; readonly unifiedDiff: string; readonly added: number; readonly removed: number }
 	| { readonly kind: 'editDecision'; readonly uris: readonly URI[]; readonly decision: 'kept' | 'undone' | 'modifiedByUser' }
-	| { readonly kind: 'question'; readonly questionId: string; readonly questions: readonly { readonly text: string; readonly kind: 'single' | 'multi' | 'text'; readonly options?: readonly string[] }[] }
+	| { readonly kind: 'question'; readonly questionId: string; readonly questions: readonly IChatSessionQuestionItem[] }
 	| { readonly kind: 'questionAnswer'; readonly questionId: string; readonly answers: readonly { readonly selected?: readonly string[]; readonly text?: string }[]; readonly actor: 'user' | 'auto' }
 	| { readonly kind: 'planReview'; readonly reviewId: string; readonly title: string; readonly plan: string; readonly planUri?: URI; readonly actions: readonly string[]; readonly canProvideFeedback: boolean }
 	| { readonly kind: 'planReviewDecision'; readonly reviewId: string; readonly action: string; readonly feedback?: string }

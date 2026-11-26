@@ -147,13 +147,18 @@ function questionsOf(request: ChatInputRequest): Questions {
 		return [{ text: preamble || 'Input requested', kind: 'text' }];
 	}
 	return questions.map((q, i) => {
-		const own = q.message || q.title || q.id;
-		const text = i === 0 && preamble && preamble !== own ? `${preamble}\n\n${own}` : own;
+		// The title the carousel heads the question with, and its message as the body when it isn't the title again.
+		const title = q.title || q.message || q.id;
+		const text = i === 0 && preamble && preamble !== title ? `${preamble}\n\n${title}` : title;
+		const base = { text, ...(q.message && q.message !== title ? { description: q.message } : {}) };
+		const range = (min: number | undefined, max: number | undefined) => ({ ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) });
 		switch (q.kind) {
-			case ChatInputQuestionKind.SingleSelect: return { text, kind: 'single', options: q.options.map(o => o.label) };
-			case ChatInputQuestionKind.MultiSelect: return { text, kind: 'multi', options: q.options.map(o => o.label) };
-			case ChatInputQuestionKind.Boolean: return { text, kind: 'single', options: ['yes', 'no'] };
-			default: return { text, kind: 'text' };
+			case ChatInputQuestionKind.SingleSelect: return { ...base, kind: 'single', options: q.options.map(o => o.label), freeform: q.allowFreeformInput !== false };
+			case ChatInputQuestionKind.MultiSelect: return { ...base, kind: 'multi', options: q.options.map(o => o.label), freeform: q.allowFreeformInput !== false, ...range(q.min, q.max) };
+			case ChatInputQuestionKind.Boolean: return { ...base, kind: 'single', options: ['yes', 'no'] };
+			case ChatInputQuestionKind.Number:
+			case ChatInputQuestionKind.Integer: return { ...base, kind: 'text', format: q.kind === ChatInputQuestionKind.Integer ? 'integer' : 'number', ...range(q.min, q.max) };
+			default: return { ...base, kind: 'text', ...(q.format ? { format: q.format } : {}), ...range(q.min, q.max) };
 		}
 	});
 }

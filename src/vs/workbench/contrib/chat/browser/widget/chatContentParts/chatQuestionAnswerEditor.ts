@@ -123,8 +123,8 @@ export class ChatQuestionAnswerEditor extends Disposable {
 	 * suggestions stay off in answer boxes unless one is offered, and Tab accepts it. The
 	 * placeholder steps aside while the ghost text shows, so the two never overlap.
 	 */
-	enableSuggestions(): void {
-		this._editor.updateOptions({ inlineSuggest: { enabled: true } });
+	enableSuggestions(options?: { readonly showUnfocused?: boolean }): void {
+		this._editor.updateOptions({ inlineSuggest: { enabled: true, ...(options?.showUnfocused ? { keepOnBlur: true } : {}) } });
 		const controller = InlineCompletionsController.get(this._editor);
 		if (controller) {
 			this._register(autorun(reader => {
@@ -134,7 +134,7 @@ export class ChatQuestionAnswerEditor extends Disposable {
 		}
 		const trigger = () => InlineCompletionsController.get(this._editor)?.model.get()?.trigger();
 		this._register(this._editor.onDidFocusEditorText(trigger));
-		if (this._editor.hasTextFocus()) {
+		if (this._editor.hasTextFocus() || options?.showUnfocused) {
 			trigger();
 		}
 	}

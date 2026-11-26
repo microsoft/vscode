@@ -14,7 +14,7 @@ import { identityAgentHostResourceUriMapper } from '../../../../../../platform/a
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ResponsePartKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ActiveTurn, type ChatState, type Message, type ResponsePart, type SessionState, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ResponsePartKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ActiveTurn, type ChatInputRequest, type ChatState, type Message, type ResponsePart, type SessionState, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { agentHostContentKey, AgentHostTranscriptProjector, AgentHostTranscriptSource, computeUnifiedDiff, IAgentHostChatSnapshot, IAgentHostContentRequest } from '../../../browser/sessionObserver/agentHostTranscriptSource.js';
@@ -227,6 +227,25 @@ suite('AgentHostTranscriptSource', () => {
 		assert.strictEqual(new Set(all.map(e => e.id)).size, all.length);
 	});
 
+	test('a question keeps its title and its body, whether a custom answer is allowed, its count or range, and what a text answer is', () => {
+		const { projector } = createProjector();
+		const request: ChatInputRequest = {
+			id: 'q2', message: 'A few choices first.', questions: [
+				{ id: 'lang', kind: ChatInputQuestionKind.SingleSelect as const, title: 'Language', message: 'Pick one for the script.', options: [{ id: 'p', label: 'Python' }], allowFreeformInput: false },
+				{ id: 'extras', kind: ChatInputQuestionKind.MultiSelect as const, title: 'Extras', message: 'Extras', options: [{ id: 'c', label: 'Colors' }], min: 1, max: 2 },
+				{ id: 'count', kind: ChatInputQuestionKind.Integer as const, title: 'Tasks a day', message: 'Roughly.', min: 0, max: 50 },
+				{ id: 'mail', kind: ChatInputQuestionKind.Text as const, title: 'Email', message: 'Email', format: 'email' },
+			],
+		};
+		const pending = projector.project(snapshot([], active('a1', 0, msg('plan it'), [{ kind: ResponsePartKind.InputRequest, request }])));
+		assert.deepStrictEqual(only(pending, 'question')[0].questions, [
+			{ text: 'A few choices first.\n\nLanguage', description: 'Pick one for the script.', kind: 'single', options: ['Python'], freeform: false },
+			{ text: 'Extras', kind: 'multi', options: ['Colors'], freeform: true, min: 1, max: 2 },
+			{ text: 'Tasks a day', description: 'Roughly.', kind: 'text', format: 'integer', min: 0, max: 50 },
+			{ text: 'Email', kind: 'text', format: 'email' },
+		]);
+	});
+
 	test('input requests become questions and answers; plan reviews become plan review events', () => {
 		const { projector } = createProjector();
 		const request = {
@@ -238,7 +257,7 @@ suite('AgentHostTranscriptSource', () => {
 		};
 		const pending = projector.project(snapshot([], active('a1', 0, msg('add tests'), [{ kind: ResponsePartKind.InputRequest, request }])));
 		assert.deepStrictEqual(only(pending, 'question')[0].questions, [
-			{ text: 'Which runner?', kind: 'single', options: ['vitest', 'mocha'] },
+			{ text: 'Which runner?', kind: 'single', options: ['vitest', 'mocha'], freeform: true },
 			{ text: 'Why?', kind: 'text' },
 			{ text: 'Run in CI?', kind: 'single', options: ['yes', 'no'] },
 		]);

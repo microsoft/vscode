@@ -374,9 +374,19 @@ declare module 'vscode' {
 	}
 
 	export interface ChatSessionQuestionItem {
+		/** The question's title. The first question also carries the request's own message before it. */
 		readonly text: string;
 		readonly kind: ChatSessionQuestionKind;
 		readonly options?: readonly string[];
+		/** The question's body, shown under its title, when it has one. */
+		readonly description?: string;
+		/** Whether the user may answer in their own words beside or instead of the options (a custom answer). */
+		readonly freeform?: boolean;
+		/** How many options a multi-select question takes, a number's range, or a text answer's length. */
+		readonly min?: number;
+		readonly max?: number;
+		/** What a text answer is: `number`, `integer`, or a text format such as `email`, `uri`, `date`. */
+		readonly format?: string;
 	}
 
 	export interface ChatSessionQuestionEvent extends ChatSessionEventBase {

@@ -2183,6 +2183,35 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(s.claims(), 0, 'released once answered');
 		});
 
+		test('an answer in the user\'s own words selects no option, not even the agent\'s default, and submitting as is sends the words', () => {
+			const s = stubSuggestions({ freeform: 'jest, as the other repos use' });
+			createWidget(createMockCarousel([runner()]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+
+			assert.deepStrictEqual(items().map(i => i.getAttribute('aria-selected')), ['false', 'false']);
+			submit();
+			assert.deepStrictEqual(submittedAnswers?.get('q1'), { selectedValue: undefined, freeformValue: 'jest, as the other repos use' });
+			assert.deepStrictEqual(s.reported, [{ kind: 'answer', selected: [], text: 'jest, as the other repos use' }]);
+		});
+
+		test('a user\'s pick wins over a suggested answer in their own words', () => {
+			const s = stubSuggestions({ freeform: 'jest' });
+			createWidget(createMockCarousel([runner(), { id: 'q2', type: 'text', title: 'Why?' }]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+			// A click on a pick-one option moves on to the next question, which submit then answers.
+			items()[1].click();
+			submit();
+			assert.deepStrictEqual(submittedAnswers?.get('q1'), { selectedValue: 'vitest', freeformValue: undefined });
+		});
+
+		test('a multi-select question takes the suggested picks and the suggestion\'s own words beside them', () => {
+			const s = stubSuggestions({ selectedOptions: ['Subtasks'], freeform: 'a weekly review view' });
+			createWidget(createMockCarousel([{
+				id: 'q1', type: 'multiSelect', title: 'Which features?',
+				options: [{ id: 'a', label: 'Recurring tasks', value: 'recurring' }, { id: 'b', label: 'Subtasks', value: 'subtasks' }],
+			}]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+			submit();
+			assert.deepStrictEqual(submittedAnswers?.get('q1'), { selectedValues: ['subtasks'], freeformValue: 'a weekly review view' });
+		});
+
 		test('checks every suggested option of a multi-select question', () => {
 			const s = stubSuggestions({ selectedOptions: ['Subtasks', 'Reminders'] });
 			createWidget(createMockCarousel([{

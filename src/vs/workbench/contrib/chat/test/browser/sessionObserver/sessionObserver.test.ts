@@ -47,6 +47,35 @@ suite('chatSessionObserver', () => {
 		assert.strictEqual(cliUserOrigin({}, '<system_notification>done</system_notification>'), 'notification');
 	});
 
+	test('the CLI mapper reads an ask_user form as the agent host shows it: the message leads the first question, a title then its body, True and False, enumNames', () => {
+		n = 0;
+		const m = new CopilotCliEventMapper();
+		const out = m.map([
+			ev('user.message', 1, { content: 'Plan it' }),
+			ev('assistant.message', 2, {
+				content: '', toolRequests: [{
+					toolCallId: 'q7', name: 'ask_user', arguments: {
+						message: 'A few choices first.', requestedSchema: {
+							properties: {
+								tone: { type: 'string', title: 'Tone', description: 'How it reads.', enum: ['c', 'b'], enumNames: ['Calm', 'Bold'] },
+								extras: { type: 'array', title: 'Extras', items: { enum: ['Colors', 'Help flag'] }, maxItems: 2 },
+								remind: { type: 'boolean', title: 'Daily reminder?' },
+								count: { type: 'integer', title: 'Tasks a day', minimum: 0, maximum: 50 },
+							},
+						},
+					},
+				}],
+			}),
+		]);
+		const q = out.find(e => e.kind === 'question');
+		assert.deepStrictEqual(q?.kind === 'question' ? q.questions : undefined, [
+			{ text: 'A few choices first.\n\nTone', description: 'How it reads.', kind: 'single', options: ['Calm', 'Bold'], freeform: true },
+			{ text: 'Extras', kind: 'multi', options: ['Colors', 'Help flag'], freeform: true, max: 2 },
+			{ text: 'Daily reminder?', kind: 'single', options: ['True', 'False'], freeform: true },
+			{ text: 'Tasks a day', kind: 'text', format: 'integer', min: 0, max: 50 },
+		]);
+	});
+
 	test('the CLI mapper keeps state across batches: tools, edits, questions, steering and hand-backs', () => {
 		n = 0;
 		const m = new CopilotCliEventMapper();

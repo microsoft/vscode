@@ -1417,6 +1417,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		return suggestedAnswerForQuestion(this.suggestedAnswer, this.carousel.questions.indexOf(question), this.carousel.questions.length);
 	}
 
+	/**
+	 * The suggestion's own words for this choice question's custom answer, until the user answers the question: shown
+	 * as ghost text in its custom answer box, and what submitting as is sends there.
+	 */
+	private suggestedOwnWords(question: IChatQuestion): string | undefined {
+		if (this._touched.has(question.id) || (question.type !== 'singleSelect' && question.type !== 'multiSelect') || question.allowFreeformInput === false) {
+			return undefined;
+		}
+		return this.suggestionFor(question)?.freeform?.trim() || undefined;
+	}
+
 	/** Whether the suggestion picks this option of the question (by its label, or its title before " - "). */
 	private isSuggestedOption(question: IChatQuestion, label: string): boolean {
 		return !!this.suggestionFor(question)?.selectedOptions?.some(o => o === label || label.startsWith(`${o} - `));
@@ -1484,8 +1495,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}));
 		this._inputBoxes.add(editor.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._inputBoxes.add(editor.onDidPressEnter(() => this.handleNextOrSubmit()));
-		if (this.suggestionFor(question)?.freeform) {
-			editor.enableSuggestions();
+		// A pick-one question takes an option or a custom answer, not both: beside a suggested pick, no words are offered.
+		const suggestion = this.suggestionFor(question);
+		if (suggestion?.freeform && !(question.type === 'singleSelect' && suggestion.selectedOptions?.length)) {
+			// Shown at once, not only on focus, so a suggested answer of NAP's own words is seen like a suggested pick.
+			editor.enableSuggestions({ showUnfocused: true });
 		}
 		return editor;
 	}
@@ -1576,6 +1590,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const suggestedIndex = this._touched.has(question.id) ? -1 : orderedOptions.findIndex(({ option }) => this.isSuggestedOption(question, option.label));
 		if (suggestedIndex !== -1) {
 			selectedIndex = suggestedIndex;
+		} else if (this.suggestedOwnWords(question) && previousSelectedValue === undefined) {
+			// A suggested answer in the user's own words selects no option, so it isn't mistaken for the agent's default.
+			selectedIndex = -1;
 		}
 
 		const listbox = new ChatCardListbox(selectContainer, question.title, 'selected');
@@ -1752,9 +1769,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}));
 
 		// Focus the list itself, not an option: `aria-activedescendant` is only honoured on the
-		// focused element. Or the custom answer editor, when it already has content.
+		// focused element. Or the custom answer editor, when it already has content or a suggested answer in the user's own words.
 		if (this._shouldAutoFocus()) {
-			if (freeformEditor && previousFreeform) {
+			if (freeformEditor && (previousFreeform || (selectedIndex < 0 && this.suggestedOwnWords(question)))) {
 				const capturedFreeform = freeformEditor;
 				this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(capturedFreeform.domNode), () => {
 					capturedFreeform.focus();
@@ -1997,7 +2014,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					selectedValue = originalIndex !== undefined ? question.options?.[originalIndex]?.value : undefined;
 				}
 
-				const freeformValue = this._freeformAnswerEditors.get(question.id)?.value || undefined;
+				const freeformValue = this._freeformAnswerEditors.get(question.id)?.value || (selectedValue === undefined ? this.suggestedOwnWords(question) : undefined);
 				if (selectedValue === undefined && freeformValue) {
 					return { selectedValue: undefined, freeformValue } satisfies IChatSingleSelectAnswer;
 				}
@@ -2027,8 +2044,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					});
 				}
 
-				// Always include freeform value for multi-select questions
-				const freeformValue = this._freeformAnswerEditors.get(question.id)?.value || undefined;
+				// Always include freeform value for multi-select questions, and the suggestion's own words until the user answers
+				const freeformValue = this._freeformAnswerEditors.get(question.id)?.value || this.suggestedOwnWords(question);
 
 				// Return whatever was selected - defaults are applied at render time when
 				// checkboxes are initially checked, so empty selection means user unchecked all
