@@ -144,17 +144,17 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 	}
 
 	/**
-	 * Lists `a.ts`, whose function `run` changed, and `notes.md`, with a structural diff provider for TypeScript files
-	 * that reports the change of `run` while the documents of `a.ts` differ.
+	 * Lists `a.ts`, whose function `run` changed, and other files (by default `notes.md`), with a structural diff provider
+	 * for TypeScript files that reports the change of `run` while the documents of `a.ts` differ.
 	 */
-	async function createStructuralDiffFileList() {
+	async function createStructuralDiffFileList(otherFiles: readonly (readonly [path: string, original: string, modified: string])[] = [['/repo/notes.md', 'old', 'new']]) {
 		const modelService = instantiationService.get(IModelService);
 		const createModels = (path: string, original: string, modified: string) => [
 			disposables.add(modelService.createModel(original, null, URI.from({ scheme: 'original', path }))),
 			disposables.add(modelService.createModel(modified, null, URI.file(path))),
 		] as const;
 		const [original, modified] = createModels('/repo/a.ts', 'function run() {\n\treturn 1;\n}', 'function run() {\n\treturn 2;\n}');
-		const notes = createModels('/repo/notes.md', 'old', 'new');
+		const others = otherFiles.map(([path, original, modified]) => createModels(path, original, modified));
 		instantiationService.stub(IEditorWorkerService, new class extends TestEditorWorkerService {
 			override async computeDiff(originalUri: URI, modifiedUri: URI, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
 				const result = linesDiffComputers.getDefault().computeDiff(modelService.getModel(originalUri)!.getLinesContent(), modelService.getModel(modifiedUri)!.getLinesContent(), options);
@@ -179,7 +179,7 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		const { container, composite } = createComposite(constObservable(true));
 		const widget = composite.multiDiffEditorWidget;
 		composite.layout(new Dimension(1000, 400));
-		const documentItems = [[original, modified], notes].map(([original, modified]) => disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+		const documentItems = [[original, modified] as const, ...others].map(([original, modified]) => disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
 			original: new DiffItemSource(original.uri, original),
 			modified: new DiffItemSource(modified.uri, modified),
 		}, { dispose() { } })));
@@ -192,6 +192,7 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		return {
 			composite,
 			widget,
+			viewModel,
 			original,
 			modified,
 			listRows,
@@ -517,8 +518,9 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		}
 	});
 
-	test('keeps showing the symbols of expanded files while its editor is hidden, without analyzing edits, and loads them again when it is shown', async () => {
+	test('keeps showing the symbols of expanded files while its editor is hidden, without analyzing edits, and updates the files when it is shown', async () => {
 		const { composite, widget, original, modified, listRows, rows, selection, clickTwistie, waitForRows } = await createStructuralDiffFileList();
+		const changed = modified.getValue();
 		try {
 			showStructuralDiff.set(true, undefined);
 			clickTwistie(listRows()[0]);
@@ -531,8 +533,14 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			const editorHidden = { rows: rows(), selection: selection() };
 			composite.setVisible(true);
 			await waitForRows(2);
+			const editorShown = { rows: rows(), selection: selection() };
+			// The file, which no longer can expand, gets its symbol back while the editor is hidden again.
+			composite.setVisible(false);
+			modified.setValue(changed);
+			composite.setVisible(true);
+			await waitForRows(3);
 
-			assert.deepStrictEqual({ editorHidden, editorShown: { rows: rows(), selection: selection() } }, {
+			assert.deepStrictEqual({ editorHidden, editorShown, editorShownAgain: rows() }, {
 				editorHidden: {
 					rows: ['a.ts M expanded keeps twistie space', 'run M impl leaf keeps twistie space', 'notes.md M leaf keeps twistie space'],
 					selection: ['run (focused)'],
@@ -541,7 +549,29 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 					rows: ['a.ts M leaf keeps twistie space', 'notes.md M leaf keeps twistie space'],
 					selection: ['a.ts (focused)'],
 				},
+				editorShownAgain: ['a.ts M expanded keeps twistie space', 'run M impl leaf keeps twistie space', 'notes.md M leaf keeps twistie space'],
 			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('keeps an opened symbol selected when revealing its file first makes another file on screen the current one', async () => {
+		const lines = (text: string) => Array.from({ length: 40 }, (_, index) => `${text} ${index}`).join('\n');
+		const { widget, viewModel, listRows, selection, clickTwistie, waitForRows } = await createStructuralDiffFileList([['/repo/m.md', 'old', 'new'], ['/repo/n.md', lines('old'), lines('new')]]);
+		try {
+			showStructuralDiff.set(true, undefined);
+			clickTwistie(listRows()[0]);
+			await waitForRows(4);
+			// Scrolls `a.ts` out of view and makes the file below the topmost one active, like focusing its diff does.
+			const [, m, n] = viewModel.items.get();
+			widget.reveal({ original: m.originalUri, modified: m.modifiedUri });
+			n.setActive(undefined);
+			const beforeOpening = selection();
+			listRows()[1].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			await timeout(0);
+
+			assert.deepStrictEqual({ beforeOpening, opened: selection() }, { beforeOpening: ['n.md (focused)'], opened: ['run (focused)'] });
 		} finally {
 			widget.setViewModel(undefined);
 		}

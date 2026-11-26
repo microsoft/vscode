@@ -348,7 +348,8 @@ export class MultiDiffEditorFileList extends Disposable {
 	/**
 	 * Called when the editor of the list is shown or hidden. Like the Source Control view, a hidden list keeps no results
 	 * of the structural diff model and analyzes no files. Its expanded files keep showing their structural changes, so
-	 * that switching editors does not make them flicker or move the list, and load them again when the list is shown.
+	 * that switching editors does not make them flicker or move the list. When the list is shown, it renders its files
+	 * again, since the model no longer knows which files have no structural changes, and its expanded files load theirs.
 	 */
 	setVisible(visible: boolean): void {
 		if (this._visible === visible) {
@@ -357,7 +358,7 @@ export class MultiDiffEditorFileList extends Disposable {
 		this._visible = visible;
 		this._structuralDiff.setVisible(visible);
 		if (visible) {
-			this._loadExpandedFiles();
+			this._updatePreservingSelection(() => this._renderFiles());
 		}
 	}
 
@@ -387,6 +388,11 @@ export class MultiDiffEditorFileList extends Disposable {
 		}
 		const resource = { original: item.originalUri, modified: item.modifiedUri };
 		this._multiDiffEditorWidget.reveal(resource, { highlight: false });
+		// Revealing the file makes it active before it scrolls into view, so meanwhile the list can select the file that is
+		// on screen. The list therefore selects the structural change again.
+		this._tree.setSelection([change]);
+		this._tree.setFocus([change]);
+		this._tree.reveal(change);
 		const diffEditor = this._multiDiffEditorWidget.getActiveControl();
 		if (!diffEditor) {
 			return;
