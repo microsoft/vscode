@@ -4697,6 +4697,23 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('produces a warning that stays visible for a worktree with Git LFS pointer files', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Files stored with Git LFS are pointer files in this worktree.',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.WorktreeGitLfsUnavailable,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+
+			assert.deepStrictEqual(result[0], {
+				kind: 'warning',
+				content: new MarkdownString('Files stored with Git LFS are pointer files in this worktree.'),
+				keepVisibleWhenCollapsed: true,
+			});
+		});
+
 		test('produces a warning with a Configure Tools link for active BYOK tool limit notification', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 				kind: ResponsePartKind.SystemNotification,
