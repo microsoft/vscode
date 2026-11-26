@@ -107,7 +107,8 @@ export interface ISessionSection {
 	readonly pinnedCanvas?: IPinnedCanvas;
 	/**
 	 * The root folder (the project or repository folder, never a session's worktree) of a workspace or repository section:
-	 * the root of its first session that has one. Unset when none of its sessions has a folder.
+	 * the root of its first session that has one. Unset when none of its sessions has a folder, or when that root is a cloud
+	 * folder.
 	 */
 	readonly rootFolder?: URI;
 }

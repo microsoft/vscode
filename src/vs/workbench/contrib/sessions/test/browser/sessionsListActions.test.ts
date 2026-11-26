@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IFolderToOpen, IOpenWindowOptions, IWindowOpenable } from '../../../../../platform/window/common/window.js';
 import { WorkbenchScopeContext } from '../../../../common/contextkeys.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../browser/menus.js';
 import { registerSessionsListActions } from '../../browser/views/sessionsListActions.js';
@@ -61,6 +61,7 @@ suite('Sessions list actions', () => {
 			const worktree = createSession('w1', repo, URI.file('/work/repo.worktrees/feature'));
 			const otherWorktree = createSession('w2', repo, URI.file('/work/repo.worktrees/fix'));
 			const remote = createSession('remote', URI.from({ scheme: 'vscode-agent-host', path: '/work/repo' }));
+			const cloud = createSession('cloud', URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/microsoft/vscode/main' }));
 			const section = (...sessions: ISession[]) => groupByWorkspace(sessions)[0];
 			const repositorySection = (...sessions: ISession[]) => groupByRepository(sessions)[0];
 			const clone = createSession('clone', repo, repo, 'microsoft/vscode');
@@ -83,6 +84,8 @@ suite('Sessions list actions', () => {
 					worktreesOfOneRepo: section(createSession('a', repo), worktree, otherWorktree).rootFolder?.path,
 					differentRoots: section(createSession('a', repo), createSession('c', otherRepo)).rootFolder?.path,
 					remote: section(remote).rootFolder?.path,
+					cloud: section(cloud).rootFolder,
+					cloudFirst: section(cloud, createSession('a', repo)).rootFolder,
 					repository: [repositorySection(clone).id, repositorySection(clone).rootFolder?.path],
 					repositoryClones: [repositorySection(clone, otherClone).id, repositorySection(clone, otherClone).rootFolder?.path],
 				},
@@ -94,7 +97,7 @@ suite('Sessions list actions', () => {
 				aiDisabled: false,
 				noRootFolder: false,
 				folders: {
-					oneFolder: '/work/repo', worktree: '/work/repo', worktreesOfOneRepo: '/work/repo', differentRoots: '/work/repo', remote: '/work/repo',
+					oneFolder: '/work/repo', worktree: '/work/repo', worktreesOfOneRepo: '/work/repo', differentRoots: '/work/repo', remote: '/work/repo', cloud: undefined, cloudFirst: undefined,
 					repository: ['repository:microsoft/vscode', '/work/repo'], repositoryClones: ['repository:microsoft/vscode', '/work/repo'],
 				},
 				// The root of the section's first session, never a worktree

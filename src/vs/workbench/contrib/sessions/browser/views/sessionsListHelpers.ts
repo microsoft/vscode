@@ -11,7 +11,7 @@ import { localize } from '../../../../../nls.js';
 import { isSideChat } from '../sideChatPlacement.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getUntitledSessionTitle, IChat, ISession, ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
@@ -75,13 +75,14 @@ export function getSessionSectionType(sectionId: string): string {
 
 /**
  * The {@link ISessionSection.rootFolder} of a workspace or repository section with these sessions: the root folder of the
- * first session that has one. A session in a worktree of a repository has that repository as its root.
+ * first session that has one. A session in a worktree of a repository has that repository as its root. None when that root is
+ * a cloud folder, which an editor window can't open.
  */
 export function getSessionsRootFolder(sessions: readonly ISession[]): URI | undefined {
 	for (const session of sessions) {
 		const root = getSessionPresentationWorkspace(session, undefined)?.folders[0]?.root;
 		if (root) {
-			return root;
+			return root.scheme === GITHUB_REMOTE_FILE_SCHEME ? undefined : root;
 		}
 	}
 	return undefined;
