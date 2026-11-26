@@ -26,7 +26,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, IAutomationProviderDescriptor, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { hasAutomationEventTrigger } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { observableShowSharedAutomationsByOthers, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY } from '../../../../workbench/contrib/chat/common/automations/automationViewState.js';
@@ -39,12 +39,27 @@ import { AutomationsCustomViewFocusContext } from '../../../common/agentsWindowC
 import { AutomationCommands, refreshAutomations, registerAutomationCatalogueRefresh } from '../../automations/browser/automationCommands.js';
 import { AutomationHistorySection, resolveAutomationRunSessions } from '../../automations/browser/automationRunHistory.js';
 import { logAutomationViewShown } from '../../automations/browser/automationTelemetry.js';
-import { describeAutomationSchedule, getAutomationsViewContent, getPhoneCatalogueMessage, getPhoneHistoryMessage, hasOtherSharedSchedules } from '../../sessions/browser/views/automationCataloguePresentation.js';
+import { describeAutomationSchedule, getAutomationsViewContent, getUnavailableAutomationsReasons, hasOtherSharedSchedules } from '../../sessions/browser/views/automationCataloguePresentation.js';
 import { isLocalAutomationRunStarting } from '../../sessions/browser/views/automationRunProgress.js';
 import { readAutomationTemplates } from '../../sessions/browser/views/automationTemplates.js';
 import './media/mobileAutomations.css';
 
 const $ = dom.$;
+
+export function getAutomationsCatalogueMessage(state: AutomationCatalogueState, unavailable: readonly IAutomationProviderDescriptor[], hasVisible: boolean, canFilter: boolean): string {
+	switch (state) {
+		case 'error': return hasVisible ? localize('catalogueLoadPartial', "Some automations couldn't be loaded.") : localize('catalogueLoadError', "Couldn't load automations.");
+		case 'unavailable': return getUnavailableAutomationsReasons(unavailable).join(' ') || localize('catalogueUnavailable', "Automations are unavailable.");
+		case 'loading': return localize('catalogueLoading', "Loading automations…");
+		case 'ready': return hasVisible ? '' : canFilter ? localize('catalogueFiltered', "No schedules match your filters.") : localize('catalogueEmpty', "No saved automations yet.");
+	}
+}
+
+export function getAutomationsHistoryMessage(starting: boolean, unavailable: boolean, missingSessions: boolean): string {
+	return starting ? localize('historyStarting', "Starting run…")
+		: unavailable ? localize('historyUnavailable', "Run history is unavailable.")
+			: missingSessions ? localize('historyNoSessions', "No run sessions are available.") : '';
+}
 
 interface IAutomationPick extends IQuickPickItem {
 	readonly run: () => Promise<void> | void;
@@ -186,7 +201,7 @@ export class MobileAutomationsView extends AbstractCustomView {
 			}
 			const state = this.automations.catalogueState.read(reader);
 			const runState = this.automations.historyState?.read(reader);
-			const catalogueMessage = getPhoneCatalogueMessage(state, this.automations.unavailableProviders.read(reader), visible.length > 0, canFilter);
+			const catalogueMessage = getAutomationsCatalogueMessage(state, this.automations.unavailableProviders.read(reader), visible.length > 0, canFilter);
 			const canRetry = state === 'error' || runState === 'error';
 			if (!canRetry && dom.isActiveElement(retry.element)) {
 				(rowElements.values().next().value?.button ?? root).focus();
@@ -212,7 +227,7 @@ export class MobileAutomationsView extends AbstractCustomView {
 			const hasHistory = runs.some(run => sessions.has(run.id) || run.externalResource || this.automations.getAutomationHistoryState?.(run.automationId) !== undefined);
 			const starting = runs.some(run => isLocalAutomationRunStarting(run, () => sessions.has(run.id), resource => !!this.sessions.getSession(resource)));
 			const showHistoryStatus = content.read(reader).automations.length > 0 && state === 'unavailable' && this.automations.catalogueState.read(reader) !== 'unavailable';
-			historyMessage.textContent = getPhoneHistoryMessage(starting, showHistoryStatus, !hasHistory && runs.length > 0);
+			historyMessage.textContent = getAutomationsHistoryMessage(starting, showHistoryStatus, !hasHistory && runs.length > 0);
 			historyMessage.hidden = !historyMessage.textContent;
 			recent.hidden = !hasHistory && !historyMessage.textContent;
 		}));

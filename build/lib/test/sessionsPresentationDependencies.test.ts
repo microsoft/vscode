@@ -243,6 +243,29 @@ suite('Sessions presentation entry isolation', () => {
 			});
 		});
 
+		test(`${entry} selects only its own Automations view, dialog and accessible view`, () => {
+			const mobile = entry.includes('.mobile.');
+			const dependencies = collectSourceDependencies(entry);
+			const automationsRoot = 'src/vs/sessions/contrib/automations/browser/';
+			const normal = [
+				automationsRoot + 'automations.desktop.contribution.ts',
+				automationsRoot + 'defaultAutomationDialogService.ts',
+				'src/vs/sessions/contrib/sessions/browser/views/automationsView.ts',
+				'src/vs/sessions/contrib/sessions/browser/views/automationsAccessibility.ts',
+			];
+			const experimental = ['mobileAutomationsView.ts', 'mobileAutomationDialogService.ts', 'mobileAutomationsAccessibility.ts'].map(file => mobilePresentationRoot + file);
+			const registrations = [
+				automationsRoot + 'automations.contribution.ts', automationsRoot + 'automations.desktop.contribution.ts', mobilePresentationRoot + 'mobile.contribution.ts',
+			].filter(file => dependencies.has(file)).flatMap(getSingletonRegistrations);
+			assert.deepStrictEqual({
+				files: [...normal, ...experimental].filter(file => dependencies.has(file)),
+				dialog: registrations.filter(([id]) => id === 'IAutomationDialogService'),
+			}, {
+				files: mobile ? experimental : normal,
+				dialog: [['IAutomationDialogService', mobile ? 'MobileAutomationDialogService' : 'DefaultAutomationDialogService']],
+			});
+		});
+
 		test(`${entry} loads policy-continuation and shared composer contributions`, () => {
 			const dependencies = collectSourceDependencies(entry);
 			const contributions = [

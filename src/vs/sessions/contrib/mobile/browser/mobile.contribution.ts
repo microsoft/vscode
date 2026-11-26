@@ -44,11 +44,11 @@ import { localize2 } from '../../../../nls.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { MobileAutomationDialogService } from '../../automations/browser/automationDialogService.js';
+import { MobileAutomationDialogService } from './mobileAutomationDialogService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../browser/workbench.js';
-import { registerAutomationsAccessibility } from '../../sessions/browser/views/automationsAccessibility.js';
+import { MobileAutomationsAccessibilityHelp, MobileAutomationsAccessibleView } from './mobileAutomationsAccessibility.js';
 import { MobileAutomationsContribution } from './mobileAutomationsView.js';
 
 // Phone design language. Imported here, at the end of the mobile entry point,
@@ -93,7 +93,8 @@ registerSingleton(IChatViewFactory, MobileChatViewFactory, InstantiationType.Del
 registerSingleton(IChatEditPresentationService, MobileChatEditPresenter, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry, InstantiationType.Delayed);
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp(undefined, false));
-registerAutomationsAccessibility('phone');
+AccessibleViewRegistry.register(new MobileAutomationsAccessibilityHelp());
+AccessibleViewRegistry.register(new MobileAutomationsAccessibleView());
 registerWorkbenchContribution2('sessions.mobile.automations', MobileAutomationsContribution, WorkbenchPhase.BlockRestore);
 registerAction2(class extends Action2 {
 	constructor() {

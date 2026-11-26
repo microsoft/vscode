@@ -9,7 +9,7 @@ import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cl
 import { agentHostAuthority, normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, isAutomationVisible } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import type { AutomationCatalogueState, IAutomationProviderDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import type { IAutomationProviderDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 
@@ -80,21 +80,6 @@ export function hasOtherSharedSchedules(automations: readonly IAutomationDescrip
 
 export function describeAutomationSchedule(item: IAutomationDescriptor): string {
 	return automationTriggerSummary(item.cloudTrigger?.triggers ?? {}) ?? formatSchedule(item.schedule);
-}
-
-export function getPhoneCatalogueMessage(state: AutomationCatalogueState, unavailable: readonly IAutomationProviderDescriptor[], hasVisible: boolean, canFilter: boolean): string {
-	switch (state) {
-		case 'error': return hasVisible ? localize('phonePartial', "Some automations couldn't be loaded.") : localize('phoneLoadError', "Couldn't load automations.");
-		case 'unavailable': return getUnavailableAutomationsReasons(unavailable).join(' ') || localize('phoneUnavailable', "Automations are unavailable.");
-		case 'loading': return localize('phoneLoading', "Loading automations…");
-		case 'ready': return hasVisible ? '' : canFilter ? localize('phoneFiltered', "No schedules match your filters.") : localize('phoneEmpty', "No saved automations yet.");
-	}
-}
-
-export function getPhoneHistoryMessage(starting: boolean, unavailable: boolean, missingSessions: boolean): string {
-	return starting ? localize('phoneStartingRun', "Starting run…")
-		: unavailable ? localize('phoneHistoryUnavailable', "Run history is unavailable.")
-			: missingSessions ? localize('phoneNoRunSessions', "No run sessions are available.") : '';
 }
 
 export function getAutomationOwnershipGroups(automations: readonly IAutomationDescriptor[]) {

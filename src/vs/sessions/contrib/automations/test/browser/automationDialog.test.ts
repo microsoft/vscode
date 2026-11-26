@@ -76,7 +76,8 @@ import { IAutomationSessionConfiguration, ISessionsProvider } from '../../../../
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { registerMobileSheetNavigation } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSheetNavigation.js';
-import { AutomationDialogService, MobileAutomationDialogService } from '../../browser/automationDialogService.js';
+import { DefaultAutomationDialogService } from '../../browser/defaultAutomationDialogService.js';
+import { MobileAutomationDialogService } from '../../../mobile/browser/mobileAutomationDialogService.js';
 import { AutomationCustomizationSelection, AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, buildAutomationDisableConditions, canSelectAutomationWorkspace, getAutomationDialogProviders, getAutomationEndDateError, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
@@ -258,7 +259,7 @@ suite('Automation dialog creation', () => {
 		if (phoneNavigation) {
 			disposables.add(registerMobileSheetNavigation(container, phoneNavigation));
 		}
-		const result = instantiationService.createInstance(phoneNavigation ? MobileAutomationDialogService : AutomationDialogService).showAutomationDialog(options);
+		const result = instantiationService.createInstance(phoneNavigation ? MobileAutomationDialogService : DefaultAutomationDialogService).showAutomationDialog(options);
 		const buttons = Array.from(container.querySelectorAll<HTMLElement>(phoneNavigation ? '.automation-phone-form-header .monaco-button' : '.automation-dialog-footer-actions .monaco-button'));
 		const saveButton = buttons.find(button => button.textContent === (options.existing ? 'Save' : 'Create'))!;
 		const cancelButton = buttons.find(button => button.textContent === 'Cancel')

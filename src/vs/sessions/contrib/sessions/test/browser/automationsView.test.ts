@@ -115,6 +115,7 @@ import { TestDataTelemetryService } from '../../../../../platform/telemetry/test
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestSessionWithChat, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
+import '../../../automations/browser/automations.desktop.contribution.js';
 
 
 const AUTOMATION_ID = 'automation-1';

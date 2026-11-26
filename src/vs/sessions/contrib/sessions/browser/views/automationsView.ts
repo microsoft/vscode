@@ -27,7 +27,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { Action2, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { getAutomationAfterDate } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -40,7 +40,7 @@ import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
@@ -57,9 +57,6 @@ import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAut
 import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { observableShowSharedAutomationsByOthers, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
@@ -75,12 +72,11 @@ import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from
 import { formatSchedule, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getAutomationsViewContent, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../automations/browser/automationsEditorInput.js';
+import { AUTOMATIONS_MODAL_SETTING } from '../../../automations/browser/automationsEditorInput.js';
 
 
 import '../../../../../workbench/contrib/sessions/browser/media/disclosure.css';
 import '../media/automationsCards.css';
-import { registerAutomationsAccessibility } from './automationsAccessibility.js';
 
 
 import { AutomationHeaderButtonActionViewItem, AutomationHeaderSplitButtonActionViewItem } from '../../../automations/browser/automationActionViewItems.js';
@@ -1860,31 +1856,6 @@ export class AutomationsCustomViewContribution extends Disposable {
 
 
 
-
-registerAutomationsAccessibility('cards');
-registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
-
-registerAction2(class ManageAutomationsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsView.manageAutomations',
-			title: localize2('manageAutomations', "Manage Automations"),
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		if (configurationService.getValue<boolean>(AUTOMATIONS_MODAL_SETTING) === true) {
-			if (configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true || configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
-				return;
-			}
-			accessor.get(ICustomViewService).hideCustomView();
-			await accessor.get(IEditorService).openEditor(AutomationsEditorInput.getOrCreate(), { pinned: true });
-			return;
-		}
-		accessor.get(ICustomViewService).showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
-	}
-});
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.CustomViewAutomations, {
 	submenu: AgentsWindowMenus.AutomationsMoreActions,

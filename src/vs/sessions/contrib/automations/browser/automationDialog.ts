@@ -14,8 +14,7 @@ import { Switch } from '../../../../base/browser/ui/toggle/switch.js';
 import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
-import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { SelectBoxNative } from '../../../../base/browser/ui/selectBox/selectBoxNative.js';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -299,6 +298,17 @@ export function getAutomationEndDateError(endDate: string | undefined, initial: 
 	return endDate !== initial && Date.parse(endDate) <= Date.now()
 		? localize('automation.form.futureEndDate', "The end date has passed. In Advanced Settings, change or clear End date.")
 		: undefined;
+}
+
+/**
+ * Field presentation choices that a workbench entry makes for the Automations
+ * form. Every field is optional; omitting one keeps the default presentation.
+ */
+export interface IAutomationFormPresentation {
+	/** Creates the trigger, time, and day selects. Defaults to the themed {@link SelectBox}. */
+	readonly createScheduleSelect?: (options: ISelectOptionItem[], selected: number, ariaLabel: string) => ISelectBoxDelegate;
+	/** Shows a visible label above the prompt editor. */
+	readonly showPromptLabel?: boolean;
 }
 
 interface IRenderFormHandle {
@@ -1123,7 +1133,7 @@ export function renderForm(
 	setDialogMessage: (source: AutomationDialogMessageSource, message: IAutomationDialogMessage | undefined) => void = () => { },
 	focusDialogMessage: () => void = () => { },
 	inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'],
-	phoneForm = false,
+	presentation: IAutomationFormPresentation = {},
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
 	const validateForm = revalidate;
@@ -1201,9 +1211,8 @@ export function renderForm(
 		anchorPosition: AnchorPosition.ABOVE,
 		maxVisibleOptions: 6,
 	};
-	const scheduleSelect = (options: ISelectOptionItem[], selected: number, ariaLabel: string) => disposables.add(phoneForm
-		? new SelectBoxNative(options, selected, defaultSelectBoxStyles, { ariaLabel, nativeActivation: true })
-		: new SelectBox(options, selected, contextViewService, defaultSelectBoxStyles, { ...scheduleSelectOptions, ariaLabel }));
+	const scheduleSelect = (options: ISelectOptionItem[], selected: number, ariaLabel: string) => disposables.add(presentation.createScheduleSelect?.(options, selected, ariaLabel)
+		?? new SelectBox(options, selected, contextViewService, defaultSelectBoxStyles, { ...scheduleSelectOptions, ariaLabel }));
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
 	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.trigger', "Trigger")));
@@ -1768,7 +1777,7 @@ export function renderForm(
 	}
 	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
-	if (phoneForm) {
+	if (presentation.showPromptLabel) {
 		DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	}
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));

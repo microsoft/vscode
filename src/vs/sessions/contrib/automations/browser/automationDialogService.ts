@@ -5,8 +5,8 @@
 
 import './media/automationDialog.css';
 import * as DOM from '../../../../base/browser/dom.js';
-import { Button, ButtonBar, IButton, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
-import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
+import { Button, IButton } from '../../../../base/browser/ui/button/button.js';
+import { Dialog, IDialogOptions } from '../../../../base/browser/ui/dialog/dialog.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -14,7 +14,6 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Codicon } from '../../../../base/common/codicons.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { isWindows } from '../../../../base/common/platform.js';
 import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -39,9 +38,8 @@ import { IHostService } from '../../../../workbench/services/host/browser/host.j
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
-import { trackMobileSheetNavigation } from '../../../../workbench/contrib/sessions/browser/mobile/mobileSheetNavigation.js';
 import { IAutomationSessionConfiguration } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { AutomationDialogMessageSource, AutomationSessionConfigurationCapture, buildAutomationDisableConditions, createAutomationTarget, getAutomationDialogProviders, IAutomationDialogMessage, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationDialogMessageSource, AutomationSessionConfigurationCapture, buildAutomationDisableConditions, createAutomationTarget, getAutomationDialogProviders, IAutomationDialogMessage, IAutomationFormPresentation, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
 
 const $ = DOM.$;
@@ -72,15 +70,58 @@ const automationDialogAllowableCommands = new Set([
 	'workbench.action.closeQuickOpen',
 ]);
 
+/** Labels and commands that a dialog presentation binds to its Save and Cancel buttons. */
+export interface IAutomationDialogControls {
+	readonly title: string;
+	readonly saveLabel: string;
+	readonly cancelLabel: string;
+	save(): void;
+	cancel(): void;
+}
+
+/** The Save and Cancel buttons that a dialog presentation rendered. */
+export interface IAutomationDialogButtons {
+	readonly save: IButton;
+	readonly cancel: IButton;
+}
+
+/** Elements that a dialog presentation orders for Tab navigation. */
+export interface IAutomationDialogFocusElements {
+	readonly fields: readonly HTMLElement[];
+	readonly notificationAction: HTMLElement | undefined;
+	readonly save: HTMLElement | undefined;
+	readonly cancel: HTMLElement | undefined;
+}
+
+/** The open dialog, as seen by its presentation once it is visible. */
+export interface IAutomationDialogShownContext {
+	/** The workbench container that hosts the dialog. */
+	readonly container: HTMLElement;
+	readonly dialogElement: HTMLElement | undefined;
+	/** Disposed when the dialog closes. */
+	readonly store: DisposableStore;
+	/** Whether a save is being committed, during which the dialog ignores dismissal. */
+	isCommitting(): boolean;
+	focusFirst(): void;
+	/** Dismisses the dialog without saving. */
+	close(): void;
+}
+
 /**
  * Owns the Automations create/edit dialog in the sessions layer, where the
  * session-type provider it needs already lives. The workbench list widget
  * depends only on {@link IAutomationDialogService}.
+ *
+ * Each workbench entry registers its own subclass, which decides where Save
+ * and Cancel appear, how focus moves, and how form fields are presented.
  */
-export class AutomationDialogService implements IAutomationDialogService {
+export abstract class AutomationDialogService implements IAutomationDialogService {
 
 	declare readonly _serviceBrand: undefined;
-	protected readonly phoneForm: boolean = false;
+
+	/** Options for the modal that hosts the form. */
+	protected abstract readonly dialogOptions: Pick<IDialogOptions, 'modalBlockExtraClasses' | 'disableCloseButton'>;
+	protected abstract readonly formPresentation: IAutomationFormPresentation;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -99,6 +140,18 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
 	) { }
+
+	/** Renders actions beside the notification center. Returns Save and Cancel if this presentation puts them there. */
+	protected abstract renderFooterActions(container: HTMLElement, controls: IAutomationDialogControls, store: DisposableStore): IAutomationDialogButtons | undefined;
+
+	/** Renders the area above the form. Returns Save and Cancel if this presentation puts them there. */
+	protected abstract renderHeader(container: HTMLElement, controls: IAutomationDialogControls, store: DisposableStore): IAutomationDialogButtons | undefined;
+
+	/** Orders the elements that Tab and Shift+Tab cycle through. */
+	protected abstract getFocusOrder(elements: IAutomationDialogFocusElements): HTMLElement[];
+
+	/** Called once the dialog is visible, to move focus and connect dismissal. */
+	protected abstract didShowDialog(context: IAutomationDialogShownContext): void;
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		const disposables = new DisposableStore();
@@ -431,28 +484,17 @@ export class AutomationDialogService implements IAutomationDialogService {
 		};
 
 		const activeContainer = this.layoutService.activeContainer;
-		const renderButtons = (container: HTMLElement) => {
-			const actionBar = disposables.add(new ButtonBar(container));
-			const addSave = () => {
-				saveButton = actionBar.addButton(this.phoneForm ? { ...unthemedButtonStyles, secondary: true } : defaultButtonStyles);
-				saveButton.label = saveButtonLabel;
-				disposables.add(saveButton.onDidClick(() => void save()));
-			};
-			const addCancel = () => {
-				cancelButton = actionBar.addButton({ ...(this.phoneForm ? unthemedButtonStyles : defaultButtonStyles), secondary: true });
-				cancelButton.label = cancelButtonLabel;
-				disposables.add(cancelButton.onDidClick(() => closeDialog(undefined)));
-			};
-			if (this.phoneForm) {
-				addCancel();
-				DOM.append(container, $('span.automation-phone-form-title', { 'aria-hidden': 'true' }, title));
-				addSave();
-			} else if (isWindows) {
-				addSave();
-				addCancel();
-			} else {
-				addCancel();
-				addSave();
+		const controls: IAutomationDialogControls = {
+			title,
+			saveLabel: saveButtonLabel,
+			cancelLabel: cancelButtonLabel,
+			save: () => void save(),
+			cancel: () => closeDialog(undefined),
+		};
+		const adoptButtons = (buttons: IAutomationDialogButtons | undefined) => {
+			if (buttons) {
+				saveButton = buttons.save;
+				cancelButton = buttons.cancel;
 			}
 		};
 		const dialog = disposables.add(new Dialog(
@@ -462,8 +504,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			createWorkbenchDialogOptions({
 				type: 'none',
 				extraClasses: ['automation-dialog'],
-				modalBlockExtraClasses: this.phoneForm ? ['automation-phone-form'] : undefined,
-				disableCloseButton: this.phoneForm,
+				...this.dialogOptions,
 				disableDefaultAction: true,
 				isExternalFocusAllowed: isAutomationDialogPopupTarget,
 				// textLinkForeground stamps inline styles onto chat input picker chips.
@@ -497,9 +538,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						};
 						setRepositoryWarningVisible(state.ownership === 'repository');
 					}
-					if (!this.phoneForm) {
-						renderButtons(container);
-					}
+					adoptButtons(this.renderFooterActions(container, controls, disposables));
 				},
 				renderBody: container => {
 					container.classList.add('automation-dialog-body');
@@ -508,16 +547,12 @@ export class AutomationDialogService implements IAutomationDialogService {
 					progressBar = disposables.add(new ProgressBar(progressHost, defaultProgressBarStyles));
 					progressBar.hide();
 
-					if (this.phoneForm) {
-						renderButtons(DOM.append(container, $('.automation-phone-form-header')));
-					} else {
-						DOM.append(container, $('.automation-titlebar', { 'aria-hidden': 'true' }, title));
-					}
+					adoptButtons(this.renderHeader(container, controls, disposables));
 
 					const scrollable = DOM.append(container, $('.automation-dialog-scrollable'));
 					const formPane = DOM.append(scrollable, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions, this.phoneForm);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions, this.formPresentation);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
@@ -531,17 +566,12 @@ export class AutomationDialogService implements IAutomationDialogService {
 					getFocusableElements = handle.getFocusableElements;
 					const keyboardNavigation = disposables.add(registerAutomationDialogKeyboardNavigation(
 						DOM.getWindow(container),
-						() => this.phoneForm ? [
-							...(cancelButton ? [cancelButton.element] : []),
-							...(saveButton ? [saveButton.element] : []),
-							...getFocusableElements(),
-							...(notificationAction ? [notificationAction.element] : []),
-						] : [
-							...getFocusableElements(),
-							...(notificationAction ? [notificationAction.element] : []),
-							...(saveButton ? [saveButton.element] : []),
-							...(cancelButton ? [cancelButton.element] : []),
-						],
+						() => this.getFocusOrder({
+							fields: getFocusableElements(),
+							notificationAction: notificationAction?.element,
+							save: saveButton?.element,
+							cancel: cancelButton?.element,
+						}),
 						isAutomationDialogPopupTarget,
 						() => !saveInProgress && handle.acceptPromptSuggestion(),
 						() => !saveInProgress && handle.cancelInputPopup(),
@@ -596,29 +626,19 @@ export class AutomationDialogService implements IAutomationDialogService {
 			void dialog.show().then(() => closeDialog(undefined));
 			// eslint-disable-next-line eslint-js/no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
 			closeToolbar = dialogElement?.querySelector<HTMLElement>('.dialog-toolbar') ?? undefined;
-			if (this.phoneForm) {
-				const navigation = disposables.add(new MutableDisposable());
-				const trackForm = () => trackMobileSheetNavigation(activeContainer, () => {
-					if (commitInProgress) {
-						navigation.value = trackForm();
-					} else {
-						closeDialog(undefined);
-					}
-				});
-				navigation.value = trackForm();
-				dialogElement?.focus();
-			} else {
-				focusFirst();
-			}
+			this.didShowDialog({
+				container: activeContainer,
+				dialogElement,
+				store: disposables,
+				isCommitting: () => commitInProgress,
+				focusFirst: () => focusFirst(),
+				close: () => closeDialog(undefined),
+			});
 			return await completion.p;
 		} finally {
 			disposables.dispose();
 		}
 	}
-}
-
-export class MobileAutomationDialogService extends AutomationDialogService {
-	protected override readonly phoneForm = true;
 }
 
 function deriveAutomationName(prompt: string): string {
