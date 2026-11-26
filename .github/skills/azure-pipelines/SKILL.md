@@ -126,7 +126,6 @@ node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_
 | `VSCODE_BUILD_WEB` | boolean | `true` | `true`, `false` | Build Web artifacts |
 | `VSCODE_PUBLISH` | boolean | `true` | `true`, `false` | Publish to builds.code.visualstudio.com |
 | `VSCODE_RELEASE` | boolean | `false` | `true`, `false` | Trigger release flow if successful |
-| `VSCODE_STEP_ON_IT` | boolean | `false` | `true`, `false` | Skip tests |
 | `VSCODE_USE_LEGACY_OSS_NOTICE` | boolean | `false` | `true`, `false` | Keep the legacy mixin ThirdPartyNotices.txt instead of the Component Governance notice |
 
 Example: run the CI build (quality checks and the Windows, Linux and macOS CI test jobs) of the current branch, which never signs or publishes:

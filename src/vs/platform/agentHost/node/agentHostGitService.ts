@@ -21,7 +21,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, BaseBranch, parseBaseBranchRef, WorktreeAddError } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, BaseBranch, parseBaseBranchRef, WorktreeAddError, IAddWorktreeResult } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
@@ -69,6 +69,16 @@ const READ_ONLY_GIT_SUBCOMMANDS = new Set(['status', 'rev-parse', 'show-ref', 'f
 
 /** Beyond this many changed paths, stat-ing them costs about as much as the diff the fingerprint would save. */
 const MAX_FINGERPRINTED_CHANGED_PATHS = 2000;
+
+/**
+ * An empty `process` driver turns off the `smudge` and `clean` commands too,
+ * and an optional filter lets git skip it rather than fail.
+ */
+const GIT_LFS_DISABLED_CONFIG = ['-c', 'filter.lfs.process=', '-c', 'filter.lfs.smudge=', '-c', 'filter.lfs.required=false'];
+
+/** Another git process holds `index.lock` only briefly, so an index refresh retries a few times. */
+const INDEX_REFRESH_MAX_ATTEMPTS = 5;
+const INDEX_REFRESH_RETRY_DELAY_MS = 200;
 
 export class AgentHostGitService extends Disposable implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -362,23 +372,26 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		return parseGitWorktrees(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain', '-z'], { throwOnError: true }) ?? '');
 	}
 
-	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
-		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
+	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<IAddWorktreeResult> {
+		const getArgs = (newBranchOption: '-b' | '-B') => {
+			const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
 
-		if (options.newBranchName) {
-			if (!options.track) {
-				// Pass --no-track so the new agent branch never picks up upstream
-				// tracking from the start point (e.g. when starting from
-				// 'origin/main', without --no-track git would set the new branch's
-				// upstream to origin/main, which would mis-attribute pushes/pulls).
-				args.push('--no-track');
+			if (options.newBranchName) {
+				if (!options.track) {
+					// Pass --no-track so the new agent branch never picks up upstream
+					// tracking from the start point (e.g. when starting from
+					// 'origin/main', without --no-track git would set the new branch's
+					// upstream to origin/main, which would mis-attribute pushes/pulls).
+					args.push('--no-track');
+				}
+
+				args.push(newBranchOption, options.newBranchName);
 			}
 
-			args.push('-b', options.newBranchName);
-		}
-
-		// `--` ends the options: neither the path nor the commit-ish can be read as one.
-		args.push('--', options.path.fsPath, options.commitish);
+			// `--` ends the options: neither the path nor the commit-ish can be read as one.
+			args.push('--', options.path.fsPath, options.commitish);
+			return args;
+		};
 
 		// `git worktree add` forces progress reporting on its internal checkout
 		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be
@@ -386,22 +399,82 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		// two-second suppression so the first sample arrives immediately.
 		const progressParser = options.onProgress ? new GitCheckoutProgressParser(options.onProgress) : undefined;
 
-		await this._runWorktreeAdd(repositoryRoot, args, {
+		// Git creates the new branch before the checkout and keeps it when the
+		// checkout fails, so a retry resets that branch rather than creating it.
+		return this._runWorktreeAdd(repositoryRoot, options.path, getArgs('-b'), getArgs('-B'), {
 			timeout: 180_000,
 			throwOnError: true,
 			...(progressParser ? { env: { GIT_PROGRESS_DELAY: '0' }, onStderr: chunk => progressParser.push(chunk) } : {}),
 		});
 	}
 
-	/** Runs `git worktree add`, replacing a failure with a well-known cause by a {@link WorktreeAddError}. */
-	private async _runWorktreeAdd(repositoryRoot: URI, args: readonly string[], options: IRunGitOptions): Promise<void> {
+	/**
+	 * Runs `git worktree add`, replacing a failure with a well-known cause by a
+	 * {@link WorktreeAddError}. When `git-lfs` is missing, it checks Git LFS
+	 * files out as their pointer files instead of failing.
+	 */
+	private async _runWorktreeAdd(repositoryRoot: URI, worktree: URI, args: readonly string[], retryArgs: readonly string[], options: IRunGitOptions): Promise<IAddWorktreeResult> {
+		// The C locale keeps git's messages in English, which the failure and progress patterns match.
+		options = { ...options, env: { ...options.env, LANG: 'C', LC_ALL: 'C' } };
 		try {
-			// The C locale keeps git's messages in English, which the failure and progress patterns match.
-			await this._runGit(repositoryRoot, args, { ...options, env: { ...options.env, LANG: 'C', LC_ALL: 'C' } });
+			await this._runGit(repositoryRoot, args, options);
+			return { gitLfsPointerFiles: false };
 		} catch (error) {
-			const message = error instanceof GitCommandError ? getWorktreeAddFailureMessage(error.stderr) : undefined;
-			throw message ? new WorktreeAddError(message, { cause: error }) : error;
+			if (!isGitLfsMissingError(error)) {
+				throw toWorktreeAddError(error);
+			}
+			this._logService.warn(`[agentHostGitService] git-lfs is not available, so the worktree '${worktree.fsPath}' keeps Git LFS pointer files`);
+			// Git deletes the worktree when its checkout fails, but keeps it when
+			// only the post-checkout hook fails, as the one Git LFS installs does.
+			if (!await this._isCreatedWorktree(worktree)) {
+				try {
+					await this._runGit(repositoryRoot, [...GIT_LFS_DISABLED_CONFIG, ...retryArgs], options);
+				} catch (retryError) {
+					if (!isGitLfsMissingError(retryError) || !await this._isCreatedWorktree(worktree)) {
+						throw toWorktreeAddError(retryError);
+					}
+				}
+			}
 		}
+
+		await this._refreshPointerFileIndex(worktree);
+		return { gitLfsPointerFiles: true };
+	}
+
+	/**
+	 * Rewrites the index of a worktree with Git LFS pointer files without the
+	 * filter, then checks that an ordinary `git status` can read it. Git
+	 * rehashes files changed in the same second the index was written ("racily
+	 * clean") through the filter, so every later read fails until the index is
+	 * rewritten in a later second. `-q` is not passed: it also hides the error
+	 * when another git process holds `index.lock`.
+	 */
+	private async _refreshPointerFileIndex(worktree: URI): Promise<void> {
+		const options: IRunGitOptions = { throwOnError: true, env: { LANG: 'C', LC_ALL: 'C' } };
+		await timeout(1000 - Date.now() % 1000);
+		for (let attempt = 1; ; attempt++) {
+			try {
+				await this._runGit(worktree, [...GIT_LFS_DISABLED_CONFIG, 'update-index', '--refresh'], options);
+				break;
+			} catch (error) {
+				if (isIndexNeedsUpdateError(error)) {
+					break;
+				}
+				if (attempt === INDEX_REFRESH_MAX_ATTEMPTS || !isGitLockError(error)) {
+					throw toWorktreeAddError(error);
+				}
+				await timeout(INDEX_REFRESH_RETRY_DELAY_MS);
+			}
+		}
+		try {
+			await this._runGit(worktree, ['status', '--porcelain', '--untracked-files=no'], options);
+		} catch (error) {
+			throw toWorktreeAddError(error);
+		}
+	}
+
+	private _isCreatedWorktree(worktree: URI): Promise<boolean> {
+		return this._pathExists(path.join(worktree.fsPath, '.git'));
 	}
 
 	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void, excludedFolders: readonly string[] = []): Promise<void> {
@@ -482,12 +555,13 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		}
 	}
 
-	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
+	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<IAddWorktreeResult> {
 		// `-f` (force) so recreation succeeds even when the worktree directory was
 		// deleted out-of-band but git still has it registered ("missing but
 		// already registered worktree"). This is our own managed per-session
 		// worktree/branch, so overriding git's safeguards here is safe.
-		await this._runWorktreeAdd(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', '--', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
+		const args = ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', '--', worktree.fsPath, branchName];
+		return this._runWorktreeAdd(repositoryRoot, worktree, args, args, { timeout: 180_000, throwOnError: true });
 	}
 
 	/**
@@ -2253,8 +2327,13 @@ function hasWorktreePathCollision(file: string, worktreeFiles: ReadonlySet<strin
  */
 export function isRetryableWorktreeRemovalError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
-	return /directory not empty/i.test(message)
-		|| /\bindex\.lock\b/i.test(message)
+	return /directory not empty/i.test(message) || isGitLockError(error);
+}
+
+/** Whether a git command failed because another git process holds a lock file. */
+function isGitLockError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return /\bindex\.lock\b/i.test(message)
 		|| /unable to (?:create|write|append)[^\n]*\.lock/i.test(message)
 		|| /could not lock/i.test(message);
 }
@@ -2307,9 +2386,27 @@ export function summarizeStderrForError(stderr: string): string {
 	return summary.length > MAX ? `${summary.slice(0, MAX - 1)}…` : summary;
 }
 
-/** Whether a stderr line reports that `git-lfs` is required but can't be run, as in a filter or the hooks Git LFS installs. */
+/**
+ * Whether a stderr line reports that `git-lfs` is required but can't be run, as
+ * bash, dash (`: not found`) or Windows report a missing filter command, or as
+ * the hooks Git LFS installs report themselves.
+ */
 function isGitLfsMissing(line: string): boolean {
-	return /\bgit-lfs\b/i.test(line) && /(command not found|not recognized|no such file|was not found)/i.test(line);
+	return /\bgit-lfs\b/i.test(line) && /(command not found|: not found|not recognized|no such file|was not found)/i.test(line);
+}
+
+function isGitLfsMissingError(error: unknown): boolean {
+	return error instanceof GitCommandError && error.stderr.split(/[\r\n]+/).some(isGitLfsMissing);
+}
+
+/** Whether `git update-index --refresh` exited only because files differ from the index, which it still rewrites. */
+function isIndexNeedsUpdateError(error: unknown): boolean {
+	return error instanceof GitCommandError && (error.cause as cp.ExecFileException | undefined)?.code === 1;
+}
+
+function toWorktreeAddError(error: unknown): unknown {
+	const message = error instanceof GitCommandError ? getWorktreeAddFailureMessage(error.stderr) : undefined;
+	return message ? new WorktreeAddError(message, { cause: error }) : error;
 }
 
 /**

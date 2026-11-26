@@ -92,8 +92,6 @@ variables:
     value: false
   - name: VSCODE_PUBLISH
     value: false
-  - name: VSCODE_STEP_ON_IT
-    value: false
   # Keep the legacy notice: there is no Quality stage producing the CG notice.
   - name: VSCODE_OVERWRITE_TPN
     value: 'false'

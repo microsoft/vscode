@@ -24093,10 +24093,10 @@ suite('AgentService (node dispatcher)', () => {
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
 				getWorktrees: async () => [],
-				addWorktree: async () => { },
+				addWorktree: async () => ({ gitLfsPointerFiles: false }),
 				copyWorktreeIncludeFiles: async () => { },
 				symlinkWorktreeFolders: async () => [],
-				addExistingWorktree: async () => { },
+				addExistingWorktree: async () => ({ gitLfsPointerFiles: false }),
 				isWorktreeRegistered: async () => true,
 				removeWorktree: async () => { },
 				branchExists: async () => false,
@@ -24215,10 +24215,10 @@ suite('AgentService (node dispatcher)', () => {
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
 				getWorktrees: async () => [],
-				addWorktree: async () => { },
+				addWorktree: async () => ({ gitLfsPointerFiles: false }),
 				copyWorktreeIncludeFiles: async () => { },
 				symlinkWorktreeFolders: async () => [],
-				addExistingWorktree: async () => { },
+				addExistingWorktree: async () => ({ gitLfsPointerFiles: false }),
 				isWorktreeRegistered: async () => true,
 				removeWorktree: async () => { },
 				branchExists: async () => false,
@@ -25573,7 +25573,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getRepositoryRoot = async () => workingDirectory;
 			gitService.revParse = async () => 'head';
 			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
-			gitService.addWorktree = async () => { };
+			gitService.addWorktree = async () => ({ gitLfsPointerFiles: false });
 			let removeWorktreeCalls = 0;
 			gitService.removeWorktree = async () => { removeWorktreeCalls++; };
 			const isolation = disposables.add(new WorktreeIsolation(
@@ -45780,6 +45780,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			freshGitService.addWorktree = async () => {
 				freshGitCalls.addWorktree++;
+				return { gitLfsPointerFiles: false };
 			};
 			const freshSessionDataService = createSessionDataService(database);
 			const freshService = disposables.add(createService(freshSessionDataService, freshGitService));
@@ -45870,7 +45871,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getCurrentBranch = async () => 'main';
 			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
 			gitService.getFetchRemotes = async () => [{ name: 'origin', url: 'https://github.com/microsoft/vscode.git' }];
-			gitService.addWorktree = async (_root, options) => { mkdirSync(options.path.fsPath, { recursive: true }); };
+			gitService.addWorktree = async (_root, options) => { mkdirSync(options.path.fsPath, { recursive: true }); return { gitLfsPointerFiles: false }; };
 			const database = new TestSessionDatabase();
 			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
 			const sessionDataService = createSessionDataService(database);
@@ -46297,7 +46298,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
 			let addWorktreeCalls = 0;
 			let removeWorktreeCalls = 0;
-			gitService.addWorktree = async () => { addWorktreeCalls++; };
+			gitService.addWorktree = async () => { addWorktreeCalls++; return { gitLfsPointerFiles: false }; };
 			gitService.removeWorktree = async () => { removeWorktreeCalls++; };
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const isolation = disposables.add(new WorktreeIsolation(
@@ -46374,6 +46375,7 @@ suite('AgentService (node dispatcher)', () => {
 				if (addWorktreeCalls === 1) {
 					throw new Error('transient git failure');
 				}
+				return { gitLfsPointerFiles: false };
 			};
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const isolation = disposables.add(new WorktreeIsolation(

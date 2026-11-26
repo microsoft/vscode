@@ -8,7 +8,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { equalSets } from '../../../../base/common/collections.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
 import { isStringArray } from '../../../../base/common/types.js';
@@ -29,6 +29,8 @@ export const enum SessionListModelChangeKind {
 	/** Whether an automation session is shown in the sessions list. */
 	AutomationListing = 'automationListing',
 	Inbox = 'inbox',
+	/** Whether a session is left out of the sessions list for a while; see {@link ISessionsListModelService.hideSessionsProvisionally}. */
+	ProvisionallyHidden = 'provisionallyHidden',
 }
 
 /**
@@ -71,18 +73,28 @@ export interface ISessionsListModelService {
 	isSessionPinned(session: ISession): boolean;
 
 	getInboxState(session: ISession, reader?: IReader): SessionInboxState | undefined;
-	/** Changes local triage state, returning an undo that does not overwrite subsequent decisions. */
+	/**
+	 * Changes local triage state, returning an undo that does not overwrite subsequent decisions. Undoing changes latest
+	 * first undoes each of them, also where they changed the same sessions.
+	 */
 	setInboxState(sessions: readonly ISession[], action: SessionInboxAction): () => void;
 
 	// -- Automation sessions --
 
 	/**
 	 * Whether the session belongs in the sessions list. Every session that is not
-	 * an automation session does. An automation session does when the user showed
-	 * it, or when {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} lists every
+	 * {@link hideSessionsProvisionally hidden provisionally} and not an automation
+	 * session does. An automation session does when the user showed it, or when
+	 * {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} lists every
 	 * automation session and the user did not hide it.
 	 */
 	isSessionListed(session: ISession, reader?: IReader): boolean;
+
+	/**
+	 * Leaves `sessions` out of the sessions list until the returned disposable is disposed, such as while deleting them
+	 * can still be undone. Holds on a session add up; none is persisted.
+	 */
+	hideSessionsProvisionally(sessions: readonly ISession[]): IDisposable;
 
 	/** Shows automation sessions in the sessions list too, at the user's request. They remain listed in Automations. */
 	showAutomationSessions(sessions: readonly ISession[]): void;
@@ -93,8 +105,11 @@ export interface ISessionsListModelService {
 	 */
 	showRepliedAutomationSession(session: ISession): void;
 
-	/** Lists automation sessions only in Automations again, until the user shows them explicitly. */
-	hideAutomationSessions(sessions: readonly ISession[]): void;
+	/**
+	 * Lists automation sessions only in Automations again, until the user shows them explicitly. Returns an undo that
+	 * restores how the sessions were listed before, except for those the user has shown since.
+	 */
+	hideAutomationSessions(sessions: readonly ISession[]): () => void;
 
 	// -- Legacy read-state migration --
 
@@ -191,6 +206,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private readonly _shownAutomationSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
 	/** Automation sessions the user hid from the list; neither a later message nor the setting shows them again. */
 	private readonly _hiddenAutomationSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
+	/** How many holds leave each session out of the list, by session ID; see {@link hideSessionsProvisionally}. */
+	private readonly _provisionallyHiddenSessionIds = observableValue<ReadonlyMap<string, number>>(this, new Map());
 	private readonly _automationSessionsMode: IObservable<AutomationSessionsListMode>;
 	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
 	private readonly _updatedDefaultPlacements: Map<string, number | null>;
@@ -437,12 +454,15 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}
 		const previous = new Map<string, StoredSessionInboxState | undefined>();
 		const applied = new Map<string, ISessionInboxUndoToken>();
+		// The undo of the change before, which undoing this one makes possible again, as when one notice undoes both.
+		const previousTokens = new Map<string, ISessionInboxUndoToken | undefined>();
 		const next = new Map(this._inboxState.get());
 		for (const session of sessions) {
 			if (session.isArchived.get() || previous.has(session.sessionId)) {
 				continue;
 			}
 			previous.set(session.sessionId, next.get(session.sessionId));
+			previousTokens.set(session.sessionId, this._inboxUndoTokens.get(session.sessionId));
 			const state: StoredSessionInboxState = action === undefined ? { kind: 'resumed' }
 				: typeof action === 'number' ? { kind: 'snoozed', until: action }
 					: action === 'hold' ? { kind: 'hold' }
@@ -459,7 +479,12 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			for (const [id, state] of previous) {
 				const token = applied.get(id)!;
 				if (this._inboxUndoTokens.get(id) === token && restored.get(id) === token.state) {
-					this._inboxUndoTokens.delete(id);
+					const previousToken = previousTokens.get(id);
+					if (previousToken) {
+						this._inboxUndoTokens.set(id, previousToken);
+					} else {
+						this._inboxUndoTokens.delete(id);
+					}
 					if (state) {
 						restored.set(id, state);
 					} else {
@@ -533,6 +558,9 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	// -- Automation sessions --
 
 	isSessionListed(session: ISession, reader?: IReader): boolean {
+		if (this._provisionallyHiddenSessionIds.read(reader).has(session.sessionId)) {
+			return false;
+		}
 		if (!session.isAutomation?.read(reader)) {
 			return true;
 		}
@@ -559,11 +587,49 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}
 	}
 
-	hideAutomationSessions(sessions: readonly ISession[]): void {
+	hideAutomationSessions(sessions: readonly ISession[]): () => void {
+		const shownBefore = this._shownAutomationSessionIds.get();
+		const hiddenBefore = this._hiddenAutomationSessionIds.get();
+		const previous = new Map(sessions.map(session => [session.sessionId, { shown: shownBefore.has(session.sessionId), hidden: hiddenBefore.has(session.sessionId) }]));
 		this.fireChanges(this.updateAutomationListing(sessions, (shown, hidden, sessionId) => {
 			shown.delete(sessionId);
 			hidden.add(sessionId);
 		}));
+		return () => {
+			// A session the user has shown since keeps that choice.
+			const stillHidden = sessions.filter(session => this._hiddenAutomationSessionIds.get().has(session.sessionId) && !this._shownAutomationSessionIds.get().has(session.sessionId));
+			this.fireChanges(this.updateAutomationListing(stillHidden, (shown, hidden, sessionId) => {
+				const { shown: wasShown, hidden: wasHidden } = previous.get(sessionId)!;
+				if (wasShown) {
+					shown.add(sessionId);
+				}
+				if (!wasHidden) {
+					hidden.delete(sessionId);
+				}
+			}));
+		};
+	}
+
+	hideSessionsProvisionally(sessions: readonly ISession[]): IDisposable {
+		const sessionIds = [...new Set(sessions.map(session => session.sessionId))];
+		const update = (delta: 1 | -1) => {
+			const previous = this._provisionallyHiddenSessionIds.get();
+			const holds = new Map(previous);
+			for (const sessionId of sessionIds) {
+				const count = (holds.get(sessionId) ?? 0) + delta;
+				if (count > 0) {
+					holds.set(sessionId, count);
+				} else {
+					holds.delete(sessionId);
+				}
+			}
+			this._provisionallyHiddenSessionIds.set(holds, undefined);
+			this.fireChanges(sessionIds
+				.filter(sessionId => previous.has(sessionId) !== holds.has(sessionId))
+				.map(sessionId => ({ sessionId, kind: SessionListModelChangeKind.ProvisionallyHidden })));
+		};
+		update(1);
+		return toDisposable(() => update(-1));
 	}
 
 	/** Applies `update` to each session's explicit listing state, persists it, and returns the sessions whose listing changed. */

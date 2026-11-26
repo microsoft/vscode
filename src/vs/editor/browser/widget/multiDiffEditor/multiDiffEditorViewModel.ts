@@ -234,7 +234,7 @@ export class DocumentDiffItemViewModel extends Disposable {
 	}
 
 	public getKey(): string {
-		return JSON.stringify([
+		return this.documentDiffItem.key ?? JSON.stringify([
 			this.originalUri?.toString(),
 			this.modifiedUri?.toString()
 		]);

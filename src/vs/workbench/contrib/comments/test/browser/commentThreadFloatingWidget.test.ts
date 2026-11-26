@@ -244,6 +244,18 @@ suite('Comment thread floating widget', () => {
 				newCommentInNarrowEditor: 320,
 			});
 		});
+
+		test('starts out as wide as the user last chose, as far as the editor has room for it', () => {
+			assert.deepStrictEqual({
+				existingComment: getDefaultFloatingWidgetWidth(1000, 1000, false, 700),
+				newComment: getDefaultFloatingWidgetWidth(1000, 1000, true, 280),
+				widerThanEditor: getDefaultFloatingWidgetWidth(1000, 600, true, 700),
+			}, {
+				existingComment: 700,
+				newComment: 280,
+				widerThanEditor: 600,
+			});
+		});
 	});
 
 	suite('shouldDockFloatingWidgets', () => {
@@ -555,6 +567,21 @@ suite('Comment thread floating widget', () => {
 				autoFewComments: 200,
 				chosen: 500,
 				chosenTallerThanEditor: 584,
+			});
+		});
+
+		test('is placed no taller than the height the user chose, as far as the editor has room for it', () => {
+			const model = createModel();
+			assert.deepStrictEqual({
+				auto: model.getMaxHeight(undefined),
+				chosenTallerThanAuto: model.getMaxHeight(500),
+				chosenTallerThanEditor: model.getMaxHeight(900),
+				chosenShorterThanMinimum: model.getMaxHeight(30),
+			}, {
+				auto: 360,
+				chosenTallerThanAuto: 500,
+				chosenTallerThanEditor: 584,
+				chosenShorterThanMinimum: 64,
 			});
 		});
 

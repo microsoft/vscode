@@ -79,6 +79,7 @@ import { ISideChatPlacementService } from '../../../../../workbench/contrib/sess
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsListUndoService, SessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -699,6 +700,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 			}());
 			reg.defineInstance(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane: constObservable(false) });
 			reg.define(ISessionsListModelService, SessionsListModelService);
+			reg.define(ISessionsListUndoService, SessionsListUndoService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
 			const reducedMotion = view.reducedMotion;
