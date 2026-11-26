@@ -23,7 +23,7 @@ import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
-import { ChangesetFileStatus, ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, withSessionMultiRootMetadata, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
+import { ChangesetFileStatus, ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withFolderScopeGitState, withSessionGitState, withSessionMultiRootMetadata, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
@@ -2012,6 +2012,43 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			// Not kept by its fingerprint: the failed repository is diffed again
 			recovered: { files: ['/repoA/file.ts', '/repoB/file.ts'], failures: undefined },
 		});
+	});
+
+	test('each repository of a multi-folder branch changeset is diffed against its folder\'s own base branch', async () => {
+		const baseBranches: Record<string, string | undefined> = {};
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async workingDirectory => URI.parse(workingDirectory.toString());
+		git.computeSessionFileDiffs = async (workingDirectory, options) => {
+			baseBranches[workingDirectory.path] = options?.baseBranch;
+			return [gitDiff(`${workingDirectory.path}/file.ts`)];
+		};
+		const workingDirectories = ['file:///repoA', 'file:///repoB'];
+		const { svc, stateManager } = build({ workingDirectories, git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		stateManager.setSessionMeta(sessionStr, withFolderScopeGitState(stateManager.getSessionState(sessionStr)?._meta, getWorkingDirectoryScopeId(['file:///repoB']), { branchName: 'topic', baseBranchName: 'master' }));
+
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+
+		assert.deepStrictEqual({ repoB: baseBranches['/repoB'], repoAUsesSessionBase: baseBranches['/repoA'] !== 'master' }, { repoB: 'master', repoAUsesSessionBase: true });
+	});
+
+	test('a repository Git reports with an upper-case drive letter matches its folder sent with a lower-case one', async () => {
+		const git = createNoopGitService();
+		// Git reports `C:`; folders come through the protocol as `c:`
+		git.getRepositoryRoot = async workingDirectory => URI.parse(workingDirectory.toString().replace('/c%3A/', '/C%3A/'));
+		git.computeSessionFileDiffs = async workingDirectory => {
+			if (workingDirectory.path.endsWith('/b')) {
+				throw new Error('fatal: bad object');
+			}
+			return [gitDiff(`${workingDirectory.path}/file.ts`)];
+		};
+		const workingDirectories = [URI.file('C:/work/a').toString(), URI.file('C:/work/b').toString()];
+		const { svc, stateManager } = build({ workingDirectories, git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(workingDirectories)));
+
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+
+		// Reported once, by the folder, not again by the repository root
+		assert.deepStrictEqual(readChangesetFolderFailures(stateManager.getSessionState(sessionStr)?._meta)[changesetUri]?.map(failure => failure.folder), [workingDirectories[1]]);
 	});
 
 	test('a forced branch refresh arriving during a computation is not satisfied by that computation', async () => {
@@ -5183,6 +5220,25 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				// Every session of several folders lists each repository's changes
 				editorMultiRoot: ['/repoA/changed.ts', '/repoB/changed.ts'],
 			});
+		});
+
+		test('uncommitted changes of a session of several folders none of which is a repository are not computed again', async () => {
+			let rootLookups = 0;
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async () => { rootLookups++; return undefined; };
+			git.hasGitRoot = () => constObservable(false);
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///docs', 'file:///scratch'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				subscriptions: [buildUncommittedChangesetUri(sessionStr)],
+			});
+
+			const changeset = await svc.computeUncommittedChangeset(sessionStr);
+			const lookupsAfterFirst = rootLookups;
+			await svc.computeUncommittedChangeset(sessionStr);
+
+			assert.deepStrictEqual({ status: stateManager.getChangesetState(changeset)?.status, recomputed: rootLookups !== lookupsAfterFirst }, { status: ChangesetStatus.Error, recomputed: false });
 		});
 
 		test('a session of several folders lists the uncommitted changes of the repositories that loaded and records the one that failed', async () => {

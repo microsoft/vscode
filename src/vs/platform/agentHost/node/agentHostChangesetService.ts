@@ -110,6 +110,14 @@ interface IFailedRepository {
 	readonly error: unknown;
 }
 
+/**
+ * Whether `child` is `parent` or inside it. A URI's string form lower-cases a Windows drive letter, so a repository root
+ * Git reports as `C:` and a folder sent as `c:` compare equal on every platform.
+ */
+function isEqualOrInside(child: URI, parent: URI): boolean {
+	return extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(child.toString()), URI.parse(parent.toString()));
+}
+
 /** The working directories in each failed repository, with a reason for the user. */
 function toFolderFailures(workingDirectories: readonly URI[], failedRepositories: readonly IFailedRepository[]): IChangesetFolderFailure[] {
 	const failures: IChangesetFolderFailure[] = [];
@@ -122,14 +130,14 @@ function toFolderFailures(workingDirectories: readonly URI[], failedRepositories
 		};
 	};
 	for (const workingDirectory of workingDirectories) {
-		const failed = failedRepositories.find(repository => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, repository.root));
+		const failed = failedRepositories.find(repository => isEqualOrInside(workingDirectory, repository.root));
 		if (failed) {
 			failures.push(toFailure(workingDirectory, failed));
 		}
 	}
 	// A repository found inside a folder is reported by its own root
 	for (const failed of failedRepositories) {
-		if (!workingDirectories.some(workingDirectory => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, failed.root))) {
+		if (!workingDirectories.some(workingDirectory => isEqualOrInside(workingDirectory, failed.root))) {
 			failures.push(toFailure(failed.root, failed));
 		}
 	}
@@ -140,7 +148,7 @@ function toFolderFailures(workingDirectories: readonly URI[], failedRepositories
 function withDiscoveredRepositories(roots: readonly URI[], discovered: readonly URI[], limit: number): URI[] {
 	const result = [...roots];
 	for (const root of discovered) {
-		if (!result.some(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, root))) {
+		if (!result.some(candidate => isEqualOrInside(candidate, root) && isEqualOrInside(root, candidate))) {
 			result.push(root);
 		}
 	}
@@ -977,15 +985,19 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		const directory = observableFromEvent(this, this._stateManager.onDidChangeSessionWorkingDirectories, () => this._getEffectiveWorkingDirectories(owner)?.[0]);
+		// Of several folders, any one becoming a repository makes the owner's uncommitted changes available
+		const folders = observableFromEvent(this, this._stateManager.onDidChangeSessionWorkingDirectories, () => this._getMultiFolderUncommittedDirectories(owner)?.map(folder => folder.toString()).join('\n'));
 		const availability = derived(this, reader => {
+			const others = folders.read(reader)?.split('\n').slice(1).map(folder => this._gitService.hasGitRoot(URI.parse(folder))) ?? [];
 			const primary = this._parseUncommittedDirectory(directory.read(reader));
-			return primary ? this._gitService.hasGitRoot(primary) : undefined;
+			return primary ? [this._gitService.hasGitRoot(primary), ...others] : undefined;
 		});
 		let previousDirectory: string | undefined;
 		let previousAvailability: boolean | undefined;
 		this._uncommittedRootObservers.set(owner, autorun(reader => {
 			const primary = directory.read(reader);
-			const hasRoot = availability.read(reader)?.read(reader);
+			const roots = availability.read(reader)?.map(root => root.read(reader));
+			const hasRoot = roots === undefined ? undefined : roots.some(root => root === true) ? true : roots.every(root => root === false) ? false : undefined;
 			const directoryChanged = primary !== previousDirectory;
 			const recovered = !directoryChanged && previousAvailability !== true && hasRoot === true;
 			previousDirectory = primary;
@@ -1006,13 +1018,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _isUncommittedUnavailable(session: ProtocolURI): boolean {
-		if (this._getMultiFolderUncommittedDirectories(session)) {
-			// Another folder may be a repository even when the first is not.
-			return false;
-		}
-		const directory = this._parseUncommittedDirectory(this._getEffectiveWorkingDirectories(session)?.[0]);
-		return !!directory
-			&& this._gitService.hasGitRoot(directory).get() === false
+		const folders = this._getMultiFolderUncommittedDirectories(session);
+		// Of several folders, unavailable only when none is a repository and none has a repository found inside it; a
+		// folder whose Git root is still unknown may be one.
+		const directories = folders
+			? (this._getDiscoveredRepositoryRoots(session, this._getEffectiveWorkingDirectories(session)).length ? [] : folders)
+			: [this._parseUncommittedDirectory(this._getEffectiveWorkingDirectories(session)?.[0])].filter(isDefined);
+		return directories.length > 0
+			&& directories.every(directory => this._gitService.hasGitRoot(directory).get() === false)
 			&& this._stateManager.getChangesetState(buildUncommittedChangesetUri(session))?.status === ChangesetStatus.Error;
 	}
 
@@ -1644,6 +1657,24 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 	}
 
+	/**
+	 * The base branch recorded for one repository of an owner of several folders, when it is not the owner's: a
+	 * repository found inside a folder, or the repository of a folder other than the first, which has its own Git state.
+	 * `undefined` for the repository of the owner's first folder, which uses the owner's base branch.
+	 */
+	private _getRepositoryBaseBranch(owner: ProtocolURI, workingDirectories: readonly string[], discovered: readonly URI[], repoRoot: URI): string | undefined {
+		const meta = this._stateManager.getSessionState(this._containingSessionUri(owner))?._meta;
+		if (discovered.some(root => isEqualOrInside(root, repoRoot) && isEqualOrInside(repoRoot, root))) {
+			return readFolderScopeGitState(meta, getWorkingDirectoryScopeId([repoRoot.toString()]))?.baseBranchName;
+		}
+		const [first, ...others] = workingDirectories;
+		if (first === undefined || isEqualOrInside(URI.parse(first), repoRoot)) {
+			return undefined;
+		}
+		const folder = others.find(candidate => isEqualOrInside(URI.parse(candidate), repoRoot));
+		return folder === undefined ? undefined : readFolderScopeGitState(meta, getWorkingDirectoryScopeId([folder]))?.baseBranchName;
+	}
+
 	private async _computeMultiFolderBranchDiffs(session: ProtocolURI, workingDirectories: readonly string[], repositoryFingerprints?: ReadonlyMap<string, string>): Promise<BranchDiffResult> {
 		let gitRepositories: URI[];
 		const discovered = this._getDiscoveredRepositoryRoots(session, workingDirectories);
@@ -1670,10 +1701,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const computedDiffs = new Map<string, { readonly fingerprint: string; readonly diffs: readonly ISessionFileDiff[] }>();
 		const perRepoDiffs = await Promises.settled(gitRepositories.map(repoRoot => limiter.queue(async () => {
 			try {
-				// A repository found inside a folder has its own base branch
-				const repositoryBaseBranch = discovered.some(root => extUriBiasedIgnorePathCase.isEqual(root, repoRoot))
-					? readFolderScopeGitState(this._stateManager.getSessionState(this._containingSessionUri(session))?._meta, getWorkingDirectoryScopeId([repoRoot.toString()]))?.baseBranchName ?? baseBranch
-					: baseBranch;
+				const repositoryBaseBranch = this._getRepositoryBaseBranch(session, workingDirectories, discovered, repoRoot) ?? baseBranch;
 				const fingerprint = repositoryFingerprints?.get(repoRoot.toString()) ?? await this._gitService.getBranchDiffFingerprint?.(repoRoot, repositoryBaseBranch);
 				const previous = previousDiffs?.get(repoRoot.toString());
 				if (fingerprint !== undefined && previous?.fingerprint === fingerprint) {
