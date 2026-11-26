@@ -222,6 +222,112 @@ suite('AgentHostFileCompletionProvider', () => {
 			assert.strictEqual(result[0].rangeStart, 4);
 		});
 
+		test('offers parent directories of enumerated files as directory attachments', async () => {
+			const wd = URI.file('/wd');
+			const files = [URI.joinPath(wd, 'src/nested/util.ts'), URI.joinPath(wd, 'src/index.ts')];
+			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
+			const result = await provider.provideCompletionItems(
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '#', offset: 1 },
+				{ chat: undefined }, CancellationToken.None,
+			);
+			const directories = result.filter(item => item.attachment.type === MessageAttachmentKind.Resource && item.attachment.displayKind === 'directory');
+			assert.deepStrictEqual(directories.map(item => item.attachment.type === MessageAttachmentKind.Resource && item.attachment.uri), [
+				URI.joinPath(wd, 'src').toString(),
+				URI.joinPath(wd, 'src/nested').toString(),
+			]);
+			assert.strictEqual(result.length, 4);
+		});
+
+		test('offers a shared parent directory only once', async () => {
+			const wd = URI.file('/wd');
+			const files = [URI.joinPath(wd, 'src/a.ts'), URI.joinPath(wd, 'src/b.ts'), URI.joinPath(wd, 'src/nested/c.ts'), URI.joinPath(wd, 'src/nested/d.ts')];
+			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
+			const result = await provider.provideCompletionItems(
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '#', offset: 1 },
+				{ chat: undefined }, CancellationToken.None,
+			);
+			const directories = result.flatMap(item => item.attachment.type === MessageAttachmentKind.Resource && item.attachment.displayKind === 'directory' ? [item.attachment.uri] : []);
+			assert.deepStrictEqual(directories, [URI.joinPath(wd, 'src').toString(), URI.joinPath(wd, 'src/nested').toString()]);
+			assert.strictEqual(result.length, 6);
+		});
+
+		test('ranks a directory matching the query first', async () => {
+			const wd = URI.file('/wd');
+			const files = [URI.joinPath(wd, 'src/util.ts'), URI.joinPath(wd, 'lib/other.ts'), URI.joinPath(wd, 'README.md')];
+			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
+			const result = await provider.provideCompletionItems(
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '#src', offset: 4 },
+				{ chat: undefined }, CancellationToken.None,
+			);
+			assert.deepStrictEqual(result[0], {
+				insertText: '#src',
+				rangeStart: 0,
+				rangeEnd: 4,
+				attachment: {
+					type: MessageAttachmentKind.Resource,
+					uri: URI.joinPath(wd, 'src').toString(),
+					label: 'src',
+					displayKind: 'directory',
+				},
+			});
+			assert.ok(result.every(item => item.attachment.type !== MessageAttachmentKind.Resource || !item.attachment.uri.includes('/lib')));
+		});
+
+		test('matches a nested directory by its own name', async () => {
+			const wd = URI.file('/wd');
+			const files = [URI.joinPath(wd, 'src/nested/util.ts'), URI.joinPath(wd, 'README.md')];
+			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
+			const result = await provider.provideCompletionItems(
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '#nest', offset: 5 },
+				{ chat: undefined }, CancellationToken.None,
+			);
+			assert.deepStrictEqual(result.flatMap(item => item.attachment.type === MessageAttachmentKind.Resource && item.attachment.displayKind === 'directory' ? [item.attachment.uri] : []), [URI.joinPath(wd, 'src/nested').toString()]);
+		});
+
+		test('caps directory candidates at MAX_RESULTS for an empty query', async () => {
+			const wd = URI.file('/wd');
+			const files = Array.from({ length: 100 }, (_, i) => URI.joinPath(wd, `dir${i}/file.ts`));
+			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
+			const result = await provider.provideCompletionItems(
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '#', offset: 1 },
+				{ chat: undefined }, CancellationToken.None,
+			);
+			assert.strictEqual(result.length, 50);
+			assert.ok(result.some(item => item.attachment.type === MessageAttachmentKind.Resource && item.attachment.displayKind === 'directory'));
+			assert.ok(result.some(item => item.attachment.type === MessageAttachmentKind.Resource && item.attachment.displayKind === 'document'));
+		});
+
+		test('caps matching directories at MAX_RESULTS for a non-empty query', async () => {
+			const wd = URI.file('/wd');
+			const files = Array.from({ length: 100 }, (_, i) => URI.joinPath(wd, `match${i}/file.ts`));
+			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
+			const result = await provider.provideCompletionItems(
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '#match', offset: 6 },
+				{ chat: undefined }, CancellationToken.None,
+			);
+			assert.strictEqual(result.length, 50);
+		});
+
+		test('offers same-named directories from multiple roots with disambiguated labels', async () => {
+			const rootA = URI.file('/project/a');
+			const rootB = URI.file('/project/b');
+			const { sessionUri, provider } = setup({
+				workingDirectories: [rootA, rootB],
+				results: new Map<string, readonly URI[] | Error>([
+					[rootA.path, [URI.joinPath(rootA, 'src/x.ts')]],
+					[rootB.path, [URI.joinPath(rootB, 'src/y.ts')]],
+				]),
+			});
+			const result = await provider.provideCompletionItems(
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '#', offset: 1 },
+				{ chat: undefined }, CancellationToken.None,
+			);
+			assert.deepStrictEqual(result.flatMap(item => item.attachment.type === MessageAttachmentKind.Resource && item.attachment.displayKind === 'directory' ? [[item.attachment.uri, item.attachment.label]] : []), [
+				[URI.joinPath(rootA, 'src').toString(), 'a \u2022 src'],
+				[URI.joinPath(rootB, 'src').toString(), 'b \u2022 src'],
+			]);
+		});
+
 		test('returns the first MAX_RESULTS files in enumeration order for an empty token', async () => {
 			const wd = URI.file('/wd');
 			const files = Array.from({ length: 100 }, (_, i) => URI.joinPath(wd, `file${i}.ts`));
