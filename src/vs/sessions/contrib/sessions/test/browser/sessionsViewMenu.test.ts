@@ -84,7 +84,7 @@ suite('Sessions - View Menu', () => {
 		environments: readonly ISessionEnvironment[] = [],
 		wording = ChatSessionArchiveActionWording.MarkAsDone,
 		providers?: readonly ISessionsProvider[],
-		windowOptions?: { readonly sessionsWindow?: boolean; readonly emptyWindow?: boolean },
+		windowOptions?: { readonly sessionsWindow?: boolean; readonly emptyWindow?: boolean; readonly workspacesFilter?: { readonly enabled: boolean; readonly barShown: boolean } },
 	) {
 		const configurationService = new class extends TestConfigurationService {
 			readonly updates: unknown[][] = [];
@@ -158,7 +158,7 @@ suite('Sessions - View Menu', () => {
 			get grouping() { return contextKeyService.getContextKeyValue<string>(SessionsViewGroupingContext.key); },
 			scopedContextKeyService: contextKeyService,
 			configurationService,
-			workbenchScopeService: { enabled: constObservable(false) },
+			workbenchScopeService: { enabled: constObservable(windowOptions?.workspacesFilter?.enabled ?? false), barShown: constObservable(windowOptions?.workspacesFilter?.barShown ?? false) },
 			instantiationService: viewInstantiationService,
 			uriIdentityService,
 			workspaceContextService: { getWorkbenchScope: () => windowOptions?.sessionsWindow || windowOptions?.emptyWindow ? undefined : URI.file('/workspace'), getWorkbenchMode: () => windowOptions?.sessionsWindow ? WorkbenchMode.Agents : WorkbenchMode.Editor },
@@ -2049,6 +2049,22 @@ suite('Sessions - View Menu', () => {
 				{ title: 'This Computer', group: '2_environments', checked: true },
 				{ title: 'Cloud', group: '2_environments', checked: true },
 			],
+		});
+	});
+
+	test('keeps the Environment filter where the workspaces filter setting is on but shows no bar', () => {
+		const sessions = [
+			buildTestSession({ id: 'local', title: 'Local' }).session,
+			buildTestSession({ id: 'cloud', title: 'Cloud', environment: 'cloud' }).session,
+		];
+		const { snapshot, filters } = createMenu(sessions, [], undefined, undefined, { workspacesFilter: { enabled: true, barShown: false } });
+		filters.setExcluded({ kind: 'environment', id: 'cloud' }, true);
+		assert.deepStrictEqual({
+			environment: snapshot(Menus.SessionsViewFilter).find(item => item.submenu === Menus.SessionsViewEnvironment.id)?.title,
+			sources: snapshot(Menus.SessionsViewSource).map(item => item.title),
+		}, {
+			environment: 'Environment',
+			sources: ['VS Code (This Computer)'],
 		});
 	});
 

@@ -1034,7 +1034,7 @@ export class SessionsView extends ViewPane {
 					environmentLabels.set(environment.id, environment.label);
 				}
 			}
-			const scopedByBar = this.grouping === SessionsGrouping.Inbox || this.workbenchScopeService.enabled.read(reader);
+			const scopedByBar = this.grouping === SessionsGrouping.Inbox || this.workbenchScopeService.barShown.read(reader);
 			const isEnvironmentIncluded = (id: string) => scopedByBar
 				? !sessionsControl.filters.inboxScope.environment || sessionsControl.filters.inboxScope.environment.id === id
 				: !sessionsControl.filters.isExcluded({ kind: 'environment', id });
@@ -1052,7 +1052,7 @@ export class SessionsView extends ViewPane {
 		});
 		this._register(autorun(reader => {
 			const { options, emptySourcesTitle } = menuState.read(reader);
-			if (!this.workbenchScopeService.enabled.read(reader)) {
+			if (!this.workbenchScopeService.barShown.read(reader)) {
 				reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 					submenu: Menus.SessionsViewEnvironment,
 					title: localize('environment', "Environment"),
