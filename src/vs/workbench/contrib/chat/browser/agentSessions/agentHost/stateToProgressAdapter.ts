@@ -109,8 +109,8 @@ function isRenameChatTool(toolCall: ToolCallState): boolean {
 	return toolCall.toolName === SessionServerToolName.RenameChat || toolCall.toolName.endsWith(`__${SessionServerToolName.RenameChat}`);
 }
 
-/** The server tools whose confirmation names what they act on itself, so their raw input is not shown (`hideConfirmationInput`). */
-const SERVER_TOOLS_HIDING_INPUT: readonly string[] = [SessionServerToolName.SetWorkspace, SessionServerToolName.IsolateFolder, SessionServerToolName.MoveSession];
+/** The server tools whose confirmation names everything they act on itself, so their raw input is not shown. */
+const SERVER_TOOLS_HIDING_INPUT: readonly string[] = [SessionServerToolName.SetWorkspace, SessionServerToolName.IsolateFolder];
 
 function hidesToolInput(toolCall: ToolCallState): boolean {
 	return SERVER_TOOLS_HIDING_INPUT.some(name => toolCall.toolName === name || toolCall.toolName.endsWith(`__${name}`));

@@ -3036,8 +3036,8 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('isolate_folder and move_session confirmations hide their raw input, as their display asks', () => {
-			const toolSpecificData = ['isolate_folder', 'copilot_session__move_session'].map(toolName => toolCallStateToInvocation({
+		test('isolate_folder confirmation hides its raw input, as its message names the folder', () => {
+			const toolSpecificData = ['isolate_folder', 'copilot_session__isolate_folder'].map(toolName => toolCallStateToInvocation({
 				toolCallId: `tc-${toolName}`,
 				toolName,
 				displayName: toolName,
