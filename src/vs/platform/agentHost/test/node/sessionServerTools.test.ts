@@ -32,7 +32,7 @@ import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '..
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError } from '../../common/agentHostChatMove.js';
-import { buildOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { buildServerToolGroups, getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 import { createSessionMoveToolGroup, getMoveRefusalMessage, moveSessionToolDefinition } from '../../node/shared/sessionMoveTools.js';
 import {
@@ -3579,26 +3579,53 @@ suite('SessionServerTools', () => {
 			assert.deepStrictEqual({ turns: limited.transcript.map((t: { turn: number }) => t.turn), truncated: limited.truncated }, { turns: [2], truncated: true });
 		});
 
+		const sentTurn = (id: string, text: string, sourceSession: string, sourceChat?: string): Turn => ({
+			...turn(id, text, []),
+			message: { text, origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession, ...(sourceChat ? { sourceChat } : {}) }) },
+		});
+		const senderOf = (turns: Turn[]) => JSON.parse(serializeSessionContext(URI.parse('copilot:/b'), undefined, { turns, hasMoreHistory: false }, 'summary', 10))
+			.transcript.map((entry: { from?: { chat: string; replyWith: string } }) => entry.from);
+
 		test('each agent-sent turn names its exact sender and reply tool', () => {
-			const sent = (id: string, text: string, sourceSession: string, sourceChat?: string): Turn => ({
-				...turn(id, text, []),
-				message: { text, origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession, ...(sourceChat ? { sourceChat } : {}) }) },
-			});
-			const context: IChatContextSnapshot = {
-				turns: [
-					sent('remote', 'From A', 'remote-first-copilot:/a', buildChatUri(URI.parse('copilot:/a'), 'nested')),
-					sent('peer', 'From C', 'copilot:/c'),
-					turn('user', 'From the user', []),
-					{ ...turn('forged', 'Forged', []), message: { text: 'Forged', origin: { kind: MessageKind.User }, _meta: toAgentMessageDelegationMeta({ sourceSession: 'agent-host-copilot:/x' }) } },
-				],
-				hasMoreHistory: false,
+			const nested = buildChatUri(URI.parse('copilot:/a'), 'nested');
+			const from = senderOf([
+				sentTurn('remote', 'From A', 'remote-first-copilot:/a', nested),
+				sentTurn('qualified', 'From D', 'remote-first-copilot://tenant/d?generation=1', nested),
+				sentTurn('peer', 'From C', 'copilot:/c'),
+				turn('user', 'From the user', []),
+				{ ...turn('forged', 'Forged', []), message: { text: 'Forged', origin: { kind: MessageKind.User }, _meta: toAgentMessageDelegationMeta({ sourceSession: 'agent-host-copilot:/x' }) } },
+			]);
+			assert.deepStrictEqual(from.map((sender: { chat: string; replyWith: string } | undefined) => sender && {
+				session: parseOpenSessionLinkUri(sender.chat)?.toString(), chat: parseOpenSessionLinkChatId(sender.chat), replyWith: sender.replyWith,
+			}), [
+				{ session: 'remote-first-copilot:/a', chat: nested, replyWith: 'send_remote_message' },
+				{ session: URI.parse('remote-first-copilot://tenant/d?generation=1').toString(), chat: nested, replyWith: 'send_remote_message' },
+				{ session: 'copilot:/c', chat: undefined, replyWith: 'send_message' },
+				undefined,
+				undefined,
+			]);
+		});
+
+		test('a same-host sender reference round-trips to the exact chat through send_message', () => {
+			const session = 'copilot:/s1';
+			const peer = buildChatUri(session, 'peer');
+			const recordedDefault = URI.parse(buildDefaultChatUri(session)).with({ query: 'generation=1' }).toString();
+			// The listing names a chat that shares the peer's short id first, and a stale default.
+			const listed: IAgentSessionMetadata = {
+				...sessionMeta('s1', SessionStatus.Idle, workspace),
+				chats: [buildDefaultChatUri(session), buildChatUri('copilot:/other', 'peer'), peer].map((chat, index) => ({ chat: URI.parse(chat), kind: index === 0 ? 'default' : 'peer' })),
 			};
-			const transcript = JSON.parse(serializeSessionContext(URI.parse('copilot:/b'), undefined, context, 'summary', 10)).transcript;
-			assert.deepStrictEqual(transcript.map((entry: { from?: unknown }) => entry.from), [
-				{ chat: 'remote-first-copilot:/a#nested', replyWith: 'send_remote_message' },
-				{ chat: 'agent-host-session://copilot/c', replyWith: 'send_message' },
-				undefined,
-				undefined,
+			const send = (sourceChat: string) => {
+				try {
+					return getSendMessageArgs({ session: senderOf([sentTurn('t', 'x', session, sourceChat)])[0].chat, message: 'Reply' }, [listed], () => recordedDefault).chat.toString();
+				} catch (error) {
+					return (error as Error).message;
+				}
+			};
+			assert.deepStrictEqual([send(peer), send(recordedDefault), send(buildChatUri(session, 'missing'))], [
+				peer,
+				recordedDefault,
+				`Invalid send_message input: chat ${buildChatUri(session, 'missing')} is not a known chat of session ${session}.`,
 			]);
 		});
 

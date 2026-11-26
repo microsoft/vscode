@@ -21,7 +21,7 @@ import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, t
 import { AgentHostAgentOrchestrationLimitsSettingId, IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { getPendingSteeringMessages } from '../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
-import { getAgentMessageSenderChat, readAgentMessageSender, withRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
+import { buildAgentMessageSenderLink, readAgentMessageSender, withRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -584,20 +584,31 @@ suite('RemoteSessionMessageRouter', () => {
 		state.set(chatReducer(state.verifiedValue!, chatTurnComplete('turn-0', 1)));
 		first.drain(channel);
 		// B's current turn answers C's reply; the turn A started still names A.
-		const toC = await router.send(b, { session: 'sender', message: 'Thanks' }, 'b-to-c-again', CancellationToken.None);
+		await router.send(b, { session: 'sender', message: 'Thanks' }, 'b-to-c-again', CancellationToken.None);
 		const taskSender = readAgentMessageSender(state.verifiedValue!.turns[0].message)!;
-		const toA = await router.send(b, { session: getAgentMessageSenderChat(taskSender).toString(), message: 'Result' }, 'b-to-a', CancellationToken.None);
-		assert.deepStrictEqual({
-			toC: toC.chat, toA: toA.chat,
-			delivered: [local, first, second].map(host => host.dispatched.map(({ channel, action }) => `${action.message.text}->${channel}`)),
-		}, {
-			toC: c.toString(), toA: a.toString(),
-			delivered: [
-				[`Result->${buildChatUri(backendSession, 'original-chat')}`],
-				[`Task->${channel}`, `Subresult->${channel}`],
-				[`Subtask->${buildChatUri(backendSession, 'other-chat')}`, `Thanks->${buildChatUri(backendSession, 'other-chat')}`],
-			],
-		});
+		await router.send(b, { session: buildAgentMessageSenderLink(taskSender), message: 'Result' }, 'b-to-a', CancellationToken.None);
+		assert.deepStrictEqual([local, first, second].map(host => host.dispatched.map(({ channel, action }) => `${action.message.text}->${channel}`)), [
+			[`Result->${buildChatUri(backendSession, 'original-chat')}`],
+			[`Task->${channel}`, `Subresult->${channel}`],
+			[`Subtask->${buildChatUri(backendSession, 'other-chat')}`, `Thanks->${buildChatUri(backendSession, 'other-chat')}`],
+		]);
+	});
+
+	test('"sender" reaches the recorded chat when another chat shares its short id', async () => {
+		const { router, local, first, sessions } = setup();
+		const sender = buildChatUri(backendSession, 'original-chat');
+		// Listed first, so a short-id lookup of `original-chat` would choose it.
+		const colliding = { ...local.sessionState.verifiedValue!.chats[1], resource: buildChatUri(URI.parse('copilot:/elsewhere'), 'original-chat') };
+		local.chatStates.set(colliding.resource, new TestSubscription<ChatState>({ ...colliding, turns: [] }, store));
+		const sessionState = local.sessionState.verifiedValue!;
+		local.sessionState.set({ ...sessionState, chats: [sessionState.chats[0], colliding, ...sessionState.chats.slice(1)] });
+		const state = first.chatStates.get(buildDefaultChatUri(backendSession))!;
+		state.set(chatReducer(state.verifiedValue!, {
+			...chatTurnStarted('task', 'Task', new Date(0).toISOString()),
+			message: { text: 'Task', origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession: sessions[0].resource.toString(), sourceChat: sender }) },
+		}));
+		await router.send(sessions[1].resource, { session: 'sender', message: 'Result' }, 'collision', CancellationToken.None);
+		assert.deepStrictEqual(local.dispatched.map(entry => entry.channel), [sender]);
 	});
 
 	test('"sender" requires a current turn started by another chat', async () => {
@@ -620,8 +631,8 @@ suite('RemoteSessionMessageRouter', () => {
 			},
 		}));
 		const result = await router.send(sessions[1].resource, { session: 'sender', message: 'Reply' }, 'same-host', CancellationToken.None);
-		assert.deepStrictEqual({ chat: result.chat, channel: first.dispatched[0].channel }, {
-			chat: sessions[1].chats.get()[2].resource.toString(), channel: buildChatUri(backendSession, 'other-chat'),
+		assert.deepStrictEqual({ session: result.session, channel: first.dispatched[0].channel }, {
+			session: sessions[1].resource.toString(), channel: buildChatUri(backendSession, 'other-chat'),
 		});
 	});
 

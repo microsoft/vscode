@@ -16,7 +16,7 @@ import { getGlobalConfigurationValue } from '../../../../platform/agentHost/comm
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { AgentHostAgentOrchestrationLimitsSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { getAgentMessageSenderChat, readAgentMessageSender, toRemoteSessionMessageMetadata } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
+import { buildAgentMessageSenderLink, readAgentMessageSender, toRemoteSessionMessageMetadata } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { maxSentMessages, orchestrationLimitWindowMs, SessionActionLimiter } from '../../../../platform/agentHost/common/sessionActionLimiter.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../platform/agentHost/common/state/protocol/state.js';
@@ -253,7 +253,7 @@ export class RemoteSessionMessageRouter extends Disposable {
 			if (!session) {
 				throw new Error(localize('remoteMessage.senderUnavailable', "The chat that sent the current message is no longer available in this Agents window."));
 			}
-			return getAgentMessageSenderChat(sender, session).toString();
+			return buildAgentMessageSenderLink(sender, session);
 		} finally {
 			store.dispose();
 		}

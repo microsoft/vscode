@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export type { IAgentMessageSender, IRemoteSessionOrigin } from './vscode/agentRemoteSessionMeta.js';
-export { REMOTE_SESSION_ORIGIN_METADATA_KEY, SendRemoteMessageToolReferenceName, supportsRemoteSessions, withRemoteSessionsCapability, getAgentMessageSenderChat, readAgentMessageSender, readRemoteSessionOrigin, parseRemoteSessionOrigin, readRemoteSessionDepth, withRemoteSessionOrigin, toRemoteSessionMessageMetadata } from './vscode/agentRemoteSessionMeta.js';
+export { REMOTE_SESSION_ORIGIN_METADATA_KEY, SendRemoteMessageToolReferenceName, supportsRemoteSessions, withRemoteSessionsCapability, buildAgentMessageSenderLink, readAgentMessageSender, readRemoteSessionOrigin, parseRemoteSessionOrigin, readRemoteSessionDepth, withRemoteSessionOrigin, toRemoteSessionMessageMetadata } from './vscode/agentRemoteSessionMeta.js';

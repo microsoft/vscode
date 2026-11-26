@@ -10,7 +10,7 @@ import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { findAgentSessionMessage, getPendingSteeringMessages, readOwnedAgentSessionMessage } from '../../common/agentSessionMessage.js';
 import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta, type IAgentMessageSessionDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
-import { getAgentMessageSenderChat, readAgentMessageSender, SendRemoteMessageToolReferenceName } from '../../common/meta/agentRemoteSessionMeta.js';
+import { buildAgentMessageSenderLink, readAgentMessageSender, SendRemoteMessageToolReferenceName } from '../../common/meta/agentRemoteSessionMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionChatMetadata, type IAgentSessionMetadata } from '../../common/agent.js';
 import { fromAgentHostChatHarness, toAgentHostChatHarness } from '../../common/agentHostChatProviders.js';
@@ -1764,7 +1764,9 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: session must match the URI of a known session (see list_sessions).`);
 	}
 	const chatId = parseOpenSessionLinkChatId(sessionInput);
-	const chat = chatId ? resolveLinkedChat(sessions, session, chatId) : resolveDefaultChat(sessions, session, getDefaultChat);
+	// The recorded default chat is authoritative even when a stale listing names another resource for it.
+	const chat = chatId === undefined ? resolveDefaultChat(sessions, session, getDefaultChat)
+		: chatId === getDefaultChat(session.toString()) ? URI.parse(chatId) : resolveLinkedChat(sessions, session, chatId);
 	if (!chat) {
 		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: ${chatId ? `chat ${chatId} is not a known chat of session ${session.toString()}.` : `session ${session.toString()} has no known default chat.`}`);
 	}
@@ -2082,12 +2084,10 @@ interface ISerializedMessageSender {
 /** Describes the chat that sent `message` as a reference its reply tool accepts. */
 function serializeMessageSender(message: Message): ISerializedMessageSender | undefined {
 	const sender = readAgentMessageSender(message);
-	if (!sender) {
-		return undefined;
-	}
-	return sender.sameHost
-		? { chat: buildOpenSessionLinkUri(sender.session, sender.chatId), replyWith: SessionServerToolName.SendMessage }
-		: { chat: getAgentMessageSenderChat(sender).toString(), replyWith: SendRemoteMessageToolReferenceName };
+	return sender && {
+		chat: buildAgentMessageSenderLink(sender),
+		replyWith: sender.sameHost ? SessionServerToolName.SendMessage : SendRemoteMessageToolReferenceName,
+	};
 }
 
 /** Maps a {@link TurnState} (or the in-progress active turn) to a display string. */

@@ -8,7 +8,8 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../agentHostConnectionsService.js';
 import { isRemoteAgentHostSessionType } from '../../agentHostSessionType.js';
-import { getAgentHostChatId, MessageKind, readSessionSpawnDepth, withSessionSpawnDepth, type Message } from '../../state/sessionState.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri } from '../../openSessionLink.js';
+import { MessageKind, readSessionSpawnDepth, withSessionSpawnDepth, type Message } from '../../state/sessionState.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from './agentMessageDelegationMeta.js';
 
 export const REMOTE_SESSION_ORIGIN_METADATA_KEY = 'vscode.remoteSession.origin';
@@ -29,30 +30,35 @@ export function withRemoteSessionsCapability(meta: Record<string, unknown> | und
 	return { ...meta, [remoteSessionsCapabilityKey]: true };
 }
 
-/** Whether a session resource is a host-qualified workbench Agent Host session, as remote session tools address it. */
+/** Whether a scheme names a host-qualified workbench Agent Host session, as remote session tools address it. */
+function isHostQualifiedSessionScheme(scheme: string): boolean {
+	return (scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || isRemoteAgentHostSessionType(scheme))
+		&& scheme !== LOCAL_AGENT_HOST_SCHEME_PREFIX && scheme !== AGENT_HOST_SESSION_LINK_SCHEME;
+}
+
+/** Whether a session resource is a host-qualified workbench session without other URI components, as an origin records it. */
 function isWorkbenchAgentHostSession(session: URI): boolean {
-	return (session.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || isRemoteAgentHostSessionType(session.scheme))
-		&& session.scheme !== LOCAL_AGENT_HOST_SCHEME_PREFIX
+	return isHostQualifiedSessionScheme(session.scheme)
 		&& !session.authority && !session.query && !session.fragment && session.path.startsWith('/') && session.path.length > 1;
 }
 
 /** The exact chat that sent an agent-authored message. */
 export interface IAgentMessageSender {
 	/**
-	 * The sender's session: a host-qualified workbench session resource when a remote session
-	 * tool delivered the message, or the host's session URI when it was sent on the same host.
+	 * The sender's session as recorded: a host-qualified workbench session resource when a remote
+	 * session tool delivered the message, or the host's session URI when it was sent on the same host.
 	 */
 	readonly session: URI;
-	/** The sender's chat id in {@link session}; undefined names its main chat. */
-	readonly chatId: string | undefined;
+	/** The sender's recorded chat resource; undefined names its main chat. */
+	readonly chat: string | undefined;
 	/** The sender runs on the same agent host as the chat that received the message. */
 	readonly sameHost: boolean;
 }
 
 /**
  * Reads the exact chat that sent `message` from its delegation metadata. Only agent-authored
- * messages with a well-formed session reference name a sender; the result is an address, not
- * an authorization, so replies still pass the sending tool's approval and target checks.
+ * messages with a session reference name a sender; the result is an address, not an
+ * authorization, so replies still pass the sending tool's approval and target checks.
  */
 export function readAgentMessageSender(message: Message): IAgentMessageSender | undefined {
 	if (message.origin.kind !== MessageKind.Agent && message.origin.kind !== MessageKind.Tool) {
@@ -68,19 +74,19 @@ export function readAgentMessageSender(message: Message): IAgentMessageSender | 
 	} catch {
 		return undefined;
 	}
-	const chatId = delegation.sourceChat ? getAgentHostChatId(delegation.sourceChat) : undefined;
-	if (isWorkbenchAgentHostSession(session)) {
-		return { session, chatId, sameHost: false };
-	}
-	if (session.query || session.fragment || !session.path.startsWith('/') || session.path.length <= 1) {
+	if (session.scheme === AGENT_HOST_SESSION_LINK_SCHEME || session.path.length <= 1) {
 		return undefined;
 	}
-	return { session, chatId, sameHost: true };
+	return { session, chat: delegation.sourceChat || undefined, sameHost: !isHostQualifiedSessionScheme(session.scheme) };
 }
 
-/** The sender's exact chat as a resource of `session`, which defaults to the sender's own session reference. */
-export function getAgentMessageSenderChat(sender: IAgentMessageSender, session = sender.session): URI {
-	return session.with({ fragment: sender.chatId ?? '' });
+/**
+ * An open link naming the sender's exact chat. It keeps every component of the session and the
+ * complete chat resource, so the link resolves to the recorded chat even when short chat ids
+ * collide. `session` defaults to the sender's recorded session.
+ */
+export function buildAgentMessageSenderLink(sender: IAgentMessageSender, session = sender.session): string {
+	return buildOpenSessionLinkUri(session, sender.chat);
 }
 
 /** Reads an origin whose session and exact chat retain their workbench host identity. */
