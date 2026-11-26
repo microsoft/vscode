@@ -1993,7 +1993,11 @@ suite('Sessions - SessionsList', () => {
 			disposables.add(MenuRegistry.appendMenuItem(SessionItemContextMenuId, { command: { id: hideCanvasSession, title: 'Hide Canvas Session' }, when: SessionItemHasPinnedCanvasContext }));
 			const results = [];
 			for (const separateNavigation of [false, true]) {
-				const [listed, hidden, archived, unpinned] = ['Listed', 'Hidden', 'Archived', 'Unpinned'].map(title => createTestSession(title, { isArchived: title === 'Archived' }).session);
+				const now = Date.now();
+				const [listed, hidden, archived, unpinned] = ['Listed', 'Hidden', 'Archived', 'Unpinned'].map((title, index) => createTestSession(title, {
+					isArchived: title === 'Archived',
+					createdAt: new Date(now - index * 1000),
+				}).session);
 				const pins = [listed, hidden, archived].map(session => upcastPartial<IPinnedCanvas>({
 					id: session.sessionId,
 					identity: { providerId: session.providerId, session: session.resource, chat: session.mainChat.get().resource, extensionId: 'user:canvases', canvasId: 'plan', instanceId: session.sessionId },
