@@ -74,6 +74,8 @@ export const SessionItemIsInSessionsListContext = new RawContextKey<boolean>('se
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolean>('sessionSection.hasGitHubRepository', false);
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
+/** Whether all the sessions of a section work in one local folder (see `getSessionSectionLocalFolder`). */
+export const SessionSectionHasLocalFolderContext = new RawContextKey<boolean>('sessionSection.hasLocalFolder', false);
 export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
 export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
 export const SessionGroupIsComparisonContext = new RawContextKey<boolean>('sessionGroup.isComparison', false);

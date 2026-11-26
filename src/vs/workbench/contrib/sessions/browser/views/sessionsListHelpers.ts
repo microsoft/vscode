@@ -6,12 +6,13 @@
 import { SessionsGrouping, SessionsSorting, ISessionSection, ISessionRepository, ISessionShowMore } from './sessionsListCommon.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { localize } from '../../../../../nls.js';
 import { isSideChat } from '../sideChatPlacement.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getUntitledSessionTitle, IChat, ISession, ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getUntitledSessionTitle, IChat, ISession, ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
@@ -71,6 +72,24 @@ export function isSessionGroupingSection(sectionId: string): boolean {
 /** The {@link SessionSectionTypeContext} value of a section: its grouping kind, or its id for the fixed sections. */
 export function getSessionSectionType(sectionId: string): string {
 	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId;
+}
+
+/**
+ * The one local folder that all the sessions of a section work in (their worktree or their folder), if they have one:
+ * not for sessions with several folders, a remote folder or none, nor for a section whose sessions work in different folders.
+ */
+export function getSessionSectionLocalFolder(section: ISessionSection): URI | undefined {
+	let result: URI | undefined;
+	for (const session of section.sessions) {
+		const workspace = getSessionPresentationWorkspace(session, undefined);
+		const folder = workspace?.folders.length === 1 ? workspace.folders[0] : undefined;
+		const uri = folder?.workingDirectory ?? folder?.root;
+		if (uri?.scheme !== Schemas.file || (result && !extUriBiasedIgnorePathCase.isEqual(result, uri))) {
+			return undefined;
+		}
+		result ??= uri;
+	}
+	return result;
 }
 
 //#region Approval Helpers

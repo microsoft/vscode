@@ -26,13 +26,14 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, WorkbenchScopeContext } from '../../../../common/contextkeys.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { SessionsCategories } from '../../common/categories.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
-import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../common/contextkeys.js';
-import { getSessionListChats, isAutomationSession } from './sessionsListHelpers.js';
-import { SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsListCommon.js';
+import { getSessionListChats, getSessionSectionLocalFolder, isAutomationSession } from './sessionsListHelpers.js';
+import { SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasLocalFolderContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsListCommon.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
@@ -1084,6 +1085,34 @@ function createSessionsListActions(): DisposableStore {
 		group: '4_manage',
 		order: 1,
 		when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'external'),
+	}));
+
+	// Opens the local folder of a workspace or repository section in a new editor window; offered in windows that list all sessions
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID,
+				title: localize2('openSectionFolderInNewWindow', "Open in New Window"),
+				precondition: ChatContextKeys.enabled,
+				menu: [{
+					id: Menus.SessionSectionContext,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						WorkbenchScopeContext.isEqualTo('all'),
+						ContextKeyExpr.or(...['workspace', 'repository'].map(type => ContextKeyExpr.equals(SessionSectionTypeContext.key, type))),
+						SessionSectionHasLocalFolderContext,
+					),
+				}],
+			});
+		}
+		async run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> {
+			const folderUri = section && getSessionSectionLocalFolder(section);
+			if (folderUri) {
+				await accessor.get(IHostService).openWindow([{ folderUri }], { forceNewWindow: true });
+			}
+		}
 	}));
 
 	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
