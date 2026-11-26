@@ -64,10 +64,6 @@ import './media/aiCustomizationManagement.css';
 
 const $ = DOM.$;
 
-export function isToolsTreeKeyboardTarget(target: HTMLElement, row: HTMLElement): boolean {
-	return target === row;
-}
-
 export function getPluginToolsGroup(plugin: PluginCustomization): 'user' | 'workspace' | 'application' {
 	return AICustomizationScopes.fromSource(getAgentHostCustomizationSource(plugin) ?? AICustomizationSources.plugin);
 }

@@ -15,7 +15,7 @@ import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/c
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { URI } from '../../../../base/common/uri.js';
-import { getChatSessionType, getNewChatSessionResource } from './model/chatUri.js';
+import { getChatSessionType } from './model/chatUri.js';
 import { clearUserSelectedSessionType, getRememberedSessionType, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -579,16 +579,6 @@ export function getComputedDefaultSessionType(
 		?? (localChatHidden && !isLocalChatExemptFromHiding(configurationService, workspace) ? SessionType.AgentHostCopilot : localChatSessionType);
 }
 
-export function getComputedDefaultSessionResource(
-	configurationService: IConfigurationService,
-	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	workspace: IWorkspace,
-	agentHostEnabled: boolean
-): URI {
-	const defaultType = getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled);
-	return getNewChatSessionResource(defaultType);
-}
-
 export function isNewChatSessionTypeUsable(
 	sessionType: string,
 	configurationService: IConfigurationService,
@@ -750,19 +740,6 @@ function getUsableRememberedSessionType(
 	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced, false, localChatHidden) ? remembered : undefined;
 }
 
-export function getDefaultNewChatSessionResource(
-	configurationService: IConfigurationService,
-	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	storageService: IStorageService,
-	workspace: IWorkspace,
-	agentHostEnabled: boolean,
-	options?: IDefaultNewChatSessionTypeOptions,
-	managedSandboxEnforced = false
-): URI {
-	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options, managedSandboxEnforced);
-	return getNewChatSessionResource(defaultType);
-}
-
 export function recordUserSelectedSessionType(
 	storageService: IStorageService,
 	configurationService: IConfigurationService,
@@ -917,6 +894,5 @@ export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
 
 export const ChatEditorTitleMaxLength = 30;
 
-export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;
 export const CONTEXT_MODELS_EDITOR = new RawContextKey<boolean>('inModelsEditor', false);
 export const CONTEXT_MODELS_SEARCH_FOCUS = new RawContextKey<boolean>('inModelsSearch', false);

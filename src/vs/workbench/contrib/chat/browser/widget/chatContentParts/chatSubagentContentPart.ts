@@ -648,10 +648,6 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		}
 	}
 
-	public getSubagentTitle(): string {
-		return this.description;
-	}
-
 	public focus(): void {
 		this._openChatToolbar?.focus();
 	}
