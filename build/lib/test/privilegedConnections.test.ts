@@ -67,6 +67,28 @@ test('only builds of main and release/* branches get the privileged service conn
 		});
 	}
 
+	// The universal job only merges and signs, and its stage would be empty without it, so the stage itself must require
+	// the switch, directly or through a variable defined in the same file.
+	for (const [file, document] of files) {
+		const definitions = new Map<string, string>();
+		visit(document, node => {
+			if (typeof node.name === 'string' && typeof node.value === 'string') {
+				definitions.set(node.name, node.value);
+			}
+		});
+		const requiresSwitch = (condition: string) => condition.includes(parameter)
+			|| [...condition.matchAll(/variables(?:\['(?<bracket>\w+)'\]|\.(?<dot>\w+))/g)].some(match => definitions.get(match.groups?.bracket ?? match.groups?.dot ?? '')?.includes(parameter));
+		visit(document, node => {
+			for (const [key, value] of Object.entries(node)) {
+				const condition = /^\$\{\{ if (?<condition>.+) \}\}$/.exec(key)?.groups?.condition;
+				const signs = Array.isArray(value) && value.some(stage => JSON.stringify((stage as YamlObject | null)?.jobs ?? []).includes('darwin/product-build-darwin-universal.yml@self'));
+				if (condition && signs && !requiresSwitch(condition)) {
+					violations.push(`${file}: macOS universal stage runs without ${parameter}`);
+				}
+			}
+		});
+	}
+
 	const branches = '${{ or(eq(variables[\'Build.SourceBranch\'], \'refs/heads/main\'), startsWith(variables[\'Build.SourceBranch\'], \'refs/heads/release/\')) }}';
 	assert.deepStrictEqual({ violations, variables: Object.fromEntries(variables) }, {
 		violations: [],

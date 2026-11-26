@@ -687,8 +687,9 @@ stages:
                   - smoke-agents-basic-proxy
 
       # The universal job waits for the unsigned x64 and arm64 client artifacts
-      # instead of depending on their stages, so that it runs in parallel.
-      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_UNIVERSAL'], true) }}:
+      # instead of depending on their stages, so that it runs in parallel. It
+      # only merges and signs, so builds without the privileged connections skip it.
+      - ${{ if and(eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true), eq(variables['VSCODE_BUILD_STAGE_MACOS_UNIVERSAL'], true)) }}:
         - stage: macOSUniversal
           displayName: macOS UNIVERSAL
           dependsOn: []
