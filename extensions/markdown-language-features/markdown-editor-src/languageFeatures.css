@@ -43,8 +43,8 @@
 	position: fixed;
 	z-index: 110;
 	box-sizing: border-box;
-	max-width: min(750px, calc(100vw - 8px));
-	max-height: calc(100vh - 8px);
+	max-width: min(750px, calc(100vw / var(--md-editor-zoom, 1) - 8px));
+	max-height: calc(100vh / var(--md-editor-zoom, 1) - 8px);
 	overflow: auto;
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 	border-radius: var(--vscode-cornerRadius-large, 8px);

@@ -117,9 +117,10 @@ function registerMarkdownEditorCommands(
 			}
 			return vscode.commands.registerCommand(commandId, () => provider.executeCommand(commandId));
 		});
-	return vscode.Disposable.from(...registrations,
-		vscode.commands.registerCommand('markdown.editor.rename', () => provider.executeCommand('markdown.editor.rename')),
-		vscode.commands.registerCommand('markdown.editor.triggerSuggest', () => provider.executeCommand('markdown.editor.triggerSuggest')));
+	for (const id of ['markdown.editor.rename', 'markdown.editor.triggerSuggest', 'markdown.editor.zoomIn', 'markdown.editor.zoomOut', 'markdown.editor.resetZoom']) {
+		registrations.push(vscode.commands.registerCommand(id, () => provider.executeCommand(id)));
+	}
+	return vscode.Disposable.from(...registrations);
 }
 
 function registerMarkdownLanguageFeatures(
