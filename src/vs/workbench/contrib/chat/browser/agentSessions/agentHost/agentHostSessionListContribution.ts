@@ -58,7 +58,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
-		this._listAllSessions = chatViewSessionsListService.enabled;
+		this._listAllSessions = chatViewSessionsListService.listsAllSessions;
 
 		if (this._isSessionsWindow) {
 			return;

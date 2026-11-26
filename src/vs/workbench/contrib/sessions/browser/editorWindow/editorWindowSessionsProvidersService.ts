@@ -45,7 +45,7 @@ export class EditorWindowSessionsProvidersService extends SessionsProvidersServi
 	}
 
 	private _getListingScope(): ISessionsListingScope {
-		this._listingScope ??= this._register(this._instantiationService.createInstance(WorkspaceFolderRepositories, this._chatViewSessionsListService.enabled));
+		this._listingScope ??= this._register(this._instantiationService.createInstance(WorkspaceFolderRepositories, this._chatViewSessionsListService.listsAllSessions));
 		return this._listingScope;
 	}
 }

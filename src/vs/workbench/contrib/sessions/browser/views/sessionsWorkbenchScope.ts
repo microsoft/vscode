@@ -15,7 +15,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkbenchMode, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditableWorkspaceContextService } from '../../../../services/configuration/common/configuration.js';
-import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../common/sessionConfig.js';
+import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../common/chatConstants.js';
 import { IInboxWorkspaceFilter, SessionsListFilters } from './sessionsListFilters.js';
 
 export const ISessionsWorkbenchScopeService = createDecorator<ISessionsWorkbenchScopeService>('sessionsWorkbenchScopeService');

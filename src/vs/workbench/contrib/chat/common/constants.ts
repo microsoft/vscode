@@ -85,6 +85,8 @@ export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
 	HooksShowWarnings = 'chat.hooks.showWarnings',
 	ChatViewSessionsListEnabled = 'chat.viewSessions.sessionsList.enabled',
+	/** Shows the workspaces filter in every grouping of the Sessions list, and lets the list rather than the providers scope sessions. */
+	SessionsListWorkspacesFilterEnabled = 'sessions.list.workspacesFilter.enabled',
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	/** Desktop only: lets chat attach a screenshot of the window of another app. */
 	AppWindowScreenshotsEnabled = 'chat.appWindowScreenshots.enabled',

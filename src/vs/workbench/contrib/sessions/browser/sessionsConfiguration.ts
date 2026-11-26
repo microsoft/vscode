@@ -9,10 +9,10 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsListCommon.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
-import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_LIST_WORKSPACES_FILTER_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
+import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import product from '../../../../platform/product/common/product.js';
-import { NEW_SESSION_WELCOME_GRAPHIC_SETTING, NEW_SESSION_WELCOME_GRAPHICS, WORKSPACE_OPT_OUT_SETTING } from '../common/chatConstants.js';
+import { NEW_SESSION_WELCOME_GRAPHIC_SETTING, NEW_SESSION_WELCOME_GRAPHICS, SESSIONS_LIST_WORKSPACES_FILTER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/chatConstants.js';
 
 /** The settings of the sessions list, of the sessions it opens and of its New Session composer. */
 export const sessionsListConfigurationProperties = {

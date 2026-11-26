@@ -16,7 +16,7 @@ import { InMemoryStorageService } from '../../../../../../platform/storage/commo
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkbenchMode, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IEditableWorkspaceContextService } from '../../../../../services/configuration/common/configuration.js';
-import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../../common/sessionConfig.js';
+import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../../common/chatConstants.js';
 import { SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
 import { SessionsWorkbenchScopeService } from '../../../browser/views/sessionsWorkbenchScope.js';
 

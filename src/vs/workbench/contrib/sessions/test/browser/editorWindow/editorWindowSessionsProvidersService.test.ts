@@ -16,19 +16,25 @@ import { ILifecycleService } from '../../../../../services/lifecycle/common/life
 import { EditorWindowSessionsProvidersService } from '../../../browser/editorWindow/editorWindowSessionsProvidersService.js';
 import { SessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ISessionsListingScope, ISessionsProvider } from '../../../common/sessionsProvider.js';
-import { IChatViewSessionsListService } from '../../../../chat/common/chatViewSessionsListService.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { ChatViewSessionsListService, IChatViewSessionsListService } from '../../../../chat/common/chatViewSessionsListService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../../common/chatConstants.js';
 
 suite('EditorWindowSessionsProvidersService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(enabled = observableValue('newList', false)) {
+	function createService(configurationService = new TestConfigurationService()) {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ willShutdown: false }));
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({ stat: () => Promise.reject(new Error('no .git')) }));
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IChatViewSessionsListService, upcastPartial<IChatViewSessionsListService>({ enabled }));
+		instantiationService.stub(IChatViewSessionsListService, instantiationService.createInstance(ChatViewSessionsListService));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: Event.None,
 			onDidChangeWorkbenchState: Event.None,
@@ -38,19 +44,25 @@ suite('EditorWindowSessionsProvidersService', () => {
 		return store.add(instantiationService.createInstance(EditorWindowSessionsProvidersService));
 	}
 
-	test('new editor list gets the full inventory and switching back restores legacy provider scope', () => {
-		const enabled = observableValue('newList', true);
-		const service = createService(enabled);
+	test('providers list every session only while the new editor list and its workspaces filter are both on', () => {
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: true });
+		const service = createService(configurationService);
 		let scope: ISessionsListingScope | undefined;
 		store.add(service.registerProvider(upcastPartial<ISessionsProvider>({
 			id: 'local', order: 0, setListingScope: value => { scope = value; },
 		})));
-		const all = scope!.folders.get().map(uri => uri.toString());
-		enabled.set(false, undefined);
-		const legacy = scope!.folders.get().map(uri => uri.toString());
-		enabled.set(true, undefined);
-		assert.deepStrictEqual({ all, legacy, allAgain: scope!.folders.get().map(uri => uri.toString()) }, {
-			all: [], legacy: ['vscode-remote://host/work/repo'], allAgain: [],
+		const folders = () => scope!.folders.get().map(uri => uri.toString());
+		const set = (key: string, value: boolean) => {
+			configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([key]), affectsConfiguration: k => k === key }));
+		};
+		const filterOff = folders();
+		set(SESSIONS_LIST_WORKSPACES_FILTER_SETTING, true);
+		const bothOn = folders();
+		set(ChatConfiguration.ChatViewSessionsListEnabled, false);
+		const legacyList = folders();
+		assert.deepStrictEqual({ filterOff, bothOn, legacyList }, {
+			filterOff: ['vscode-remote://host/work/repo'], bothOn: [], legacyList: ['vscode-remote://host/work/repo'],
 		});
 	});
 
