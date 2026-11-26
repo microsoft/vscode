@@ -1,6 +1,7 @@
 parameters:
   # Whether to include the steps that need a privileged service connection
-  # (source map upload). Only product-build-ci.yml sets this to false.
+  # (source map upload). product-build-ci.yml and dev builds of
+  # product-build.yml set this to false.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
     default: true
