@@ -230,7 +230,7 @@ suite('Workbench layout chat part', () => {
 			telemetryService: NullTelemetryService,
 			extensionService: new NullExtensionService(),
 			// No view containers: the side bar and the panel show and hide empty
-			paneCompositeService: { getActivePaneComposite: () => undefined, getLastActivePaneCompositeId: () => undefined },
+			paneCompositeService: { onDidPaneCompositeOpen: Event.None, onDidPaneCompositeClose: Event.None, getActivePaneComposite: () => undefined, getLastActivePaneCompositeId: () => undefined },
 			viewDescriptorService: {
 				getViewContainersByLocation: () => [],
 				getViewDescriptorById: () => anchor.registered ? {} : null,
@@ -1262,7 +1262,9 @@ suite('Workbench layout chat part', () => {
 				Object.assign(layout, {
 					extensionService: { whenInstalledExtensionsRegistered: () => registered.p },
 					paneCompositeService: {
-						getActivePaneComposite: () => active ? {} : undefined,
+						onDidPaneCompositeOpen: Event.None,
+						onDidPaneCompositeClose: Event.None,
+						getActivePaneComposite: () => active ? { getId: () => active } : undefined,
 						getLastActivePaneCompositeId: (location: ViewContainerLocation) => location === ViewContainerLocation.Sidebar ? 'extensionViewContainer' : undefined,
 						getPaneComposite: () => isRegistered ? {} : undefined,
 						hideActivePaneComposite: () => active = undefined,
@@ -1311,6 +1313,8 @@ suite('Workbench layout chat part', () => {
 				Object.assign(layout, {
 					extensionService: { whenInstalledExtensionsRegistered: () => registered.p },
 					paneCompositeService: {
+						onDidPaneCompositeOpen: Event.None,
+						onDidPaneCompositeClose: Event.None,
 						getActivePaneComposite: () => undefined,
 						getLastActivePaneCompositeId: (location: ViewContainerLocation) => location === ViewContainerLocation.Panel ? 'extensionViewContainer' : undefined,
 						getPaneComposite: (id: string) => viewContainers.has(id) ? {} : undefined,
@@ -1360,7 +1364,9 @@ suite('Workbench layout chat part', () => {
 				Object.assign(layout, {
 					extensionService: { whenInstalledExtensionsRegistered: () => registered.p },
 					paneCompositeService: {
-						getActivePaneComposite: (location: ViewContainerLocation) => location === ViewContainerLocation.AuxiliaryBar && active ? {} : undefined,
+						onDidPaneCompositeOpen: Event.None,
+						onDidPaneCompositeClose: Event.None,
+						getActivePaneComposite: (location: ViewContainerLocation) => location === ViewContainerLocation.AuxiliaryBar && active ? { getId: () => active } : undefined,
 						getLastActivePaneCompositeId: (location: ViewContainerLocation) => location === ViewContainerLocation.AuxiliaryBar ? 'extensionViewContainer' : undefined,
 						getPaneComposite: (id: string) => viewContainers.has(id) ? {} : undefined,
 						getVisiblePaneCompositeIds: () => [],
@@ -1402,6 +1408,155 @@ suite('Workbench layout chat part', () => {
 				focusLost: { opened: 'extensionViewContainer', focused: 'view container' },
 				focusedMeanwhile: { opened: 'extensionViewContainer', focused: 'status bar' },
 			});
+		});
+
+		test('describes the view container that each part shows, or that it showed last while it shows none', () => {
+			const { layout } = createStateLayout();
+			Object.assign(layout, {
+				paneCompositeService: {
+					getActivePaneComposite: (location: ViewContainerLocation) => location === ViewContainerLocation.Sidebar ? { getId: () => 'workbench.view.explorer' } : undefined,
+					getLastActivePaneCompositeId: (location: ViewContainerLocation) => location === ViewContainerLocation.Sidebar ? 'workbench.view.search' : location === ViewContainerLocation.Panel ? 'terminal' : '',
+				},
+			});
+			const state = layout.getPartsLayoutState();
+
+			assert.deepStrictEqual([state.sideBar.viewContainerId, state.panel.viewContainerId, state.auxiliaryBar.viewContainerId], ['workbench.view.explorer', 'terminal', undefined]);
+		});
+
+		/**
+		 * A layout whose side bar shows Explorer, with the view containers of the side bar opening and closing as they do in the
+		 * real layout. The view container of an extension is there once the extensions register.
+		 */
+		function createViewContainersLayout() {
+			const created = createStateLayout();
+			const { layout, views } = created;
+			mainWindow.document.body.appendChild(layout.mainContainer);
+			store.add(toDisposable(() => layout.mainContainer.remove()));
+			const explorerButton = append(views.get(Parts.SIDEBAR_PART)!.element, $('button'));
+			const statusBarButton = append(views.get(Parts.STATUSBAR_PART)!.element, $('button'));
+			const registered = new DeferredPromise<boolean>();
+			const viewContainers = new Set(['workbench.view.explorer', 'workbench.view.search']);
+			const onDidOpen = store.add(new Emitter<{ viewContainerLocation: ViewContainerLocation }>());
+			const onDidClose = store.add(new Emitter<{ viewContainerLocation: ViewContainerLocation }>());
+			const sideBar = { active: 'workbench.view.explorer' as string | undefined, opened: [] as string[] };
+			// What has the focus in a view container hides with it
+			const show = (id: string | undefined) => {
+				if (sideBar.active) {
+					onDidClose.fire({ viewContainerLocation: ViewContainerLocation.Sidebar });
+				}
+				sideBar.active = id;
+				explorerButton.style.display = id === 'workbench.view.explorer' ? '' : 'none';
+				if (id) {
+					onDidOpen.fire({ viewContainerLocation: ViewContainerLocation.Sidebar });
+				}
+			};
+			Object.assign(layout, {
+				extensionService: { whenInstalledExtensionsRegistered: () => registered.p },
+				paneCompositeService: {
+					onDidPaneCompositeOpen: onDidOpen.event,
+					onDidPaneCompositeClose: onDidClose.event,
+					getActivePaneComposite: (location: ViewContainerLocation) => location === ViewContainerLocation.Sidebar && sideBar.active ? { getId: () => sideBar.active } : undefined,
+					getLastActivePaneCompositeId: (location: ViewContainerLocation) => location === ViewContainerLocation.Sidebar ? 'workbench.view.explorer' : undefined,
+					getPaneComposite: (id: string, location: ViewContainerLocation) => location === ViewContainerLocation.Sidebar && viewContainers.has(id) ? {} : undefined,
+					hideActivePaneComposite: () => show(undefined),
+					// As a part opens a view container: one that is not there yet waits for the extensions to register
+					openPaneComposite: async (id: string | undefined, _location: ViewContainerLocation, focus?: boolean) => {
+						if (id && !viewContainers.has(id)) {
+							await registered.p;
+						}
+						if (!id || !viewContainers.has(id)) {
+							return undefined;
+						}
+						sideBar.opened.push(focus ? `${id} with focus` : id);
+						show(id);
+						return {};
+					},
+				},
+			});
+			const register = async () => {
+				viewContainers.add('extensionViewContainer');
+				registered.complete(true);
+				await timeout(0);
+			};
+			const sideBarState = (viewContainerId: string): IPartsLayoutState => {
+				const state = layout.getPartsLayoutState();
+				return { ...state, sideBar: { ...state.sideBar, viewContainerId } };
+			};
+			return { ...created, explorerButton, statusBarButton, sideBar, show, register, sideBarState };
+		}
+
+		test('a part that shows another view container opens the one of the state, without focus, and keeps the focus that was in the one it showed, also when it opens once the extensions register, unless the focus moved elsewhere meanwhile', async () => {
+			const apply = async (viewContainerId: string, moveFocusMeanwhile: boolean) => {
+				const { layout, focus, explorerButton, statusBarButton, sideBar, register, sideBarState } = createViewContainersLayout();
+				const state = sideBarState(viewContainerId);
+
+				explorerButton.focus();
+				layout.applyPartsLayoutState(state);
+				layout.applyPartsLayoutState(state);
+				if (moveFocusMeanwhile) {
+					statusBarButton.focus();
+				}
+				await register();
+
+				return { opened: sideBar.opened, focused: focus.focused, statusBarFocused: mainWindow.document.activeElement === statusBarButton };
+			};
+
+			assert.deepStrictEqual({
+				registered: await apply('workbench.view.search', false),
+				onceRegistered: await apply('extensionViewContainer', false),
+				focusMovedMeanwhile: await apply('extensionViewContainer', true),
+			}, {
+				registered: { opened: ['workbench.view.search'], focused: ['sidebar'], statusBarFocused: false },
+				onceRegistered: { opened: ['extensionViewContainer'], focused: ['sidebar'], statusBarFocused: false },
+				focusMovedMeanwhile: { opened: ['extensionViewContainer'], focused: [], statusBarFocused: true },
+			});
+		});
+
+		test('a part opens the view container of the state that an extension contributes once the extensions register, unless what the part shows changed meanwhile, also back to what it showed, and keeps the one it shows when the state\'s is not there', async () => {
+			const apply = async (viewContainerId: string, meanwhile?: 'switchBack' | 'hideAndShow') => {
+				const { layout, sideBar, show, register, sideBarState } = createViewContainersLayout();
+
+				layout.applyPartsLayoutState(sideBarState(viewContainerId));
+				if (meanwhile === 'switchBack') {
+					show('workbench.view.search');
+					show('workbench.view.explorer');
+				} else if (meanwhile === 'hideAndShow') {
+					layout.setPartHidden(true, Parts.SIDEBAR_PART);
+					layout.setPartHidden(false, Parts.SIDEBAR_PART);
+				}
+				await register();
+
+				return { active: sideBar.active, sideBarVisible: layout.isVisible(Parts.SIDEBAR_PART) };
+			};
+
+			assert.deepStrictEqual({
+				registers: await apply('extensionViewContainer'),
+				switchedBackMeanwhile: await apply('extensionViewContainer', 'switchBack'),
+				hiddenAndShownMeanwhile: await apply('extensionViewContainer', 'hideAndShow'),
+				notThere: await apply('uninstalledViewContainer'),
+			}, {
+				registers: { active: 'extensionViewContainer', sideBarVisible: true },
+				switchedBackMeanwhile: { active: 'workbench.view.explorer', sideBarVisible: true },
+				hiddenAndShownMeanwhile: { active: 'workbench.view.explorer', sideBarVisible: true },
+				notThere: { active: 'workbench.view.explorer', sideBarVisible: true },
+			});
+		});
+
+		test('a part does not restore its view container of an extension, which opens once the extensions register as the window starts, when a state applied meanwhile', async () => {
+			const restore = async (applyMeanwhile: boolean) => {
+				const { layout, sideBar, register, sideBarState } = createViewContainersLayout();
+
+				const restored = (Reflect.get(layout, 'restoreViewContainer') as (location: ViewContainerLocation, id: string) => Promise<void>).call(layout, ViewContainerLocation.Sidebar, 'extensionViewContainer');
+				if (applyMeanwhile) {
+					layout.applyPartsLayoutState(sideBarState('workbench.view.search'));
+				}
+				await register();
+				await restored;
+
+				return sideBar.active;
+			};
+
+			assert.deepStrictEqual({ stateApplied: await restore(true), noState: await restore(false) }, { stateApplied: 'workbench.view.search', noState: 'extensionViewContainer' });
 		});
 	});
 });

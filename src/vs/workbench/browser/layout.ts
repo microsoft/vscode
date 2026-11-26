@@ -6,7 +6,6 @@
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
-import { CancellationTokenSource } from '../../base/common/cancellation.js';
 import { alert } from '../../base/browser/ui/aria/aria.js';
 import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension, isHTMLElement } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
@@ -1251,7 +1250,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestoreViewlet');
 
-			await this.openViewContainer(ViewContainerLocation.Sidebar, this.state.initialization.views.containerToRestore.sideBar);
+			await this.restoreViewContainer(ViewContainerLocation.Sidebar, this.state.initialization.views.containerToRestore.sideBar);
 
 			mark('code/didRestoreViewlet');
 		})());
@@ -1268,7 +1267,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestorePanel');
 
-			await this.openViewContainer(ViewContainerLocation.Panel, this.state.initialization.views.containerToRestore.panel);
+			await this.restoreViewContainer(ViewContainerLocation.Panel, this.state.initialization.views.containerToRestore.panel);
 
 			mark('code/didRestorePanel');
 		})());
@@ -1285,7 +1284,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestoreAuxiliaryBar');
 
-			await this.openViewContainer(ViewContainerLocation.AuxiliaryBar, this.state.initialization.views.containerToRestore.auxiliaryBar);
+			await this.restoreViewContainer(ViewContainerLocation.AuxiliaryBar, this.state.initialization.views.containerToRestore.auxiliaryBar);
 
 			mark('code/didRestoreAuxiliaryBar');
 		})());
@@ -1334,27 +1333,34 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	/**
-	 * Opens a view container, else the default view container, else the first visible view container of a location.
-	 * With `canOpen`, each waits for the extensions to register when it is not registered yet, and opens only while
-	 * `canOpen` returns `true`: opening a view container shows its part.
+	 * Opens the view container that a part restores as the window starts, unless a parts layout state applied since the
+	 * window started: the state decides what the parts show. The view container of an extension is not there until the
+	 * extensions register, so this waits for them before it opens it, as opening it does.
 	 */
-	private async openViewContainer(location: ViewContainerLocation, id: string, focus?: boolean, canOpen?: () => boolean): Promise<void> {
-		// The ids are read as they are tried: a fallback can depend on what registered meanwhile
-		const viewContainerIds = [() => id, () => this.viewDescriptorService.getDefaultViewContainer(location)?.id, () => this.paneCompositeService.getVisiblePaneCompositeIds(location).at(0)];
-		for (const getViewContainerId of viewContainerIds) {
-			const viewContainerId = getViewContainerId();
-			if (canOpen) {
-				if (viewContainerId && !this.paneCompositeService.getPaneComposite(viewContainerId, location)) {
-					await this.extensionService.whenInstalledExtensionsRegistered();
-				}
-				if (!canOpen()) {
-					return;
-				}
-			}
-			if (await this.paneCompositeService.openPaneComposite(viewContainerId, location, focus)) {
-				return;
-			}
+	private async restoreViewContainer(location: ViewContainerLocation, id: string): Promise<void> {
+		if (!this.partsLayoutStateApplied && !this.paneCompositeService.getPaneComposite(id, location)) {
+			await this.extensionService.whenInstalledExtensionsRegistered();
 		}
+
+		if (!this.partsLayoutStateApplied) {
+			await this.openViewContainer(location, id);
+		}
+	}
+
+	private async openViewContainer(location: ViewContainerLocation, id: string, focus?: boolean): Promise<void> {
+		let viewContainer = await this.paneCompositeService.openPaneComposite(id, location, focus);
+		if (viewContainer) {
+			return;
+		}
+
+		// fallback to default view container
+		viewContainer = await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(location)?.id, location, focus);
+		if (viewContainer) {
+			return;
+		}
+
+		// finally try to just open the first visible view container
+		await this.paneCompositeService.openPaneComposite(this.paneCompositeService.getVisiblePaneCompositeIds(location).at(0), location, focus);
 	}
 
 	registerPart(part: Part): IDisposable {
@@ -1901,8 +1907,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private inPartsLayoutStateTransition = false;
 
-	/** Cancels the view containers that applying a state opens, when another state applies or the layout is disposed. */
-	private readonly partsLayoutStateOpens = this._register(new MutableDisposable());
+	/** Whether a parts layout state applied since the window started, so that the parts no longer restore their view containers. */
+	private partsLayoutStateApplied = false;
+
+	/** Ends the view containers that applying a state opens once the extensions register, when another state applies or the layout is disposed. */
+	private readonly partsLayoutStateOpens = this._register(new MutableDisposable<DisposableStore>());
 
 	/**
 	 * Returns the arrangement of the primary side bar, the panel and the secondary side bar. While the
@@ -1917,7 +1926,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return {
 			sideBar: {
 				visible: restored ? restored.sideBarVisible : this.isVisible(Parts.SIDEBAR_PART),
-				size: this.getPartSize(this.sideBarPartView, Parts.SIDEBAR_PART, false, LayoutStateKeys.SIDEBAR_SIZE)
+				size: this.getPartSize(this.sideBarPartView, Parts.SIDEBAR_PART, false, LayoutStateKeys.SIDEBAR_SIZE),
+				...this.getViewContainerState(ViewContainerLocation.Sidebar)
 			},
 			panel: {
 				visible: restored ? restored.panelVisible : this.isVisible(Parts.PANEL_PART),
@@ -1925,16 +1935,27 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					? this.stateModel.getRuntimeValue(isHorizontal(panelPosition) ? LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT : LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH)
 					: this.getPartSize(this.panelPartView, Parts.PANEL_PART, isHorizontal(panelPosition), LayoutStateKeys.PANEL_SIZE),
 				position: panelPosition,
-				maximized: panelMaximized
+				maximized: panelMaximized,
+				...this.getViewContainerState(ViewContainerLocation.Panel)
 			},
 			auxiliaryBar: {
 				visible: this.isVisible(Parts.AUXILIARYBAR_PART),
 				size: restored
 					? this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE)
 					: this.getPartSize(this.auxiliaryBarPartView, Parts.AUXILIARYBAR_PART, false, LayoutStateKeys.AUXILIARYBAR_SIZE),
-				maximized: !!restored
+				maximized: !!restored,
+				...this.getViewContainerState(ViewContainerLocation.AuxiliaryBar)
 			}
 		};
+	}
+
+	/**
+	 * Returns the view container that a part shows, or that it showed last while it is hidden. A part without one has
+	 * no `viewContainerId`, so that a state stays the same when it is stored as JSON and read again.
+	 */
+	private getViewContainerState(location: ViewContainerLocation): { readonly viewContainerId?: string } {
+		const viewContainerId = this.paneCompositeService.getActivePaneComposite(location)?.getId() ?? this.paneCompositeService.getLastActivePaneCompositeId(location);
+		return viewContainerId ? { viewContainerId } : {};
 	}
 
 	/**
@@ -1959,14 +1980,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	 *
 	 * Unlike showing, hiding, moving and maximizing the parts one after the other, this does not pass
 	 * through intermediate arrangements and does not move the focus to another part. The grid is
-	 * created again from the new state, as when the window starts. A part that shows opens its last
-	 * active view container, without focus, and a part that hides closes its active view container.
+	 * created again from the new state, as when the window starts. A part that shows opens the view
+	 * container of the state, without focus, or else its last active view container when it shows none.
+	 * A part that hides closes its active view container, and keeps the one that it showed last.
 	 */
 	applyPartsLayoutState(state: IPartsLayoutState): void {
 		if (!this.workbenchGrid) {
 			onUnexpectedError(new Error('A parts layout state can only be applied once the workbench layout is created.'));
 			return;
 		}
+
+		// The state decides what the parts show, rather than the view containers that they restore as the window starts
+		this.partsLayoutStateApplied = true;
 
 		// The panel can only be maximized when it is centered or on the left or right (see `isPanelMaximized`)
 		const panelMaximized = state.panel.visible && state.panel.maximized && (this.getPanelAlignment() === 'center' || !isHorizontal(state.panel.position));
@@ -2053,36 +2078,27 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Whether the focus moves, as the part that has it hides
 		const focusMoves = !!focusedView && !(this.workbenchGrid.isViewVisible(focusedView) && isHTMLElement(focused) && focused.isConnected);
 
-		// An open that waits for the extensions to register shows its part as it opens, so it is dropped when another state
-		// applies meanwhile, or when its part hides or gets a view container
-		const opens = new CancellationTokenSource();
-		this.partsLayoutStateOpens.value = toDisposable(() => opens.dispose(true));
-		const showViewContainer = async (location: ViewContainerLocation, part: Parts.SIDEBAR_PART | Parts.PANEL_PART | Parts.AUXILIARYBAR_PART) => {
-			await this.showPaneComposite(location, () => !opens.token.isCancellationRequested && this.isVisible(part) && !this.paneCompositeService.getActivePaneComposite(location));
+		// What had the focus gets it again while its part shows, before the view container that it is in can be replaced
+		if (focusedView && !focusMoves && isHTMLElement(focused)) {
+			focused.focus();
+		}
 
-			// The focus that moves finds nothing to focus in a maximized part whose view container opens later: it goes
-			// there as it opens, unless something has the focus by then
-			if (focusMoves && !opens.token.isCancellationRequested && this.paneCompositeService.getActivePaneComposite(location) && this.isFocusLost()) {
-				this.focus();
-			}
-		};
-		for (const [location, part] of [[ViewContainerLocation.Sidebar, Parts.SIDEBAR_PART], [ViewContainerLocation.Panel, Parts.PANEL_PART], [ViewContainerLocation.AuxiliaryBar, Parts.AUXILIARYBAR_PART]] as const) {
+		const opens = new DisposableStore();
+		this.partsLayoutStateOpens.value = opens;
+		for (const [location, part, view, viewContainerId] of [[ViewContainerLocation.Sidebar, Parts.SIDEBAR_PART, this.sideBarPartView, state.sideBar.viewContainerId], [ViewContainerLocation.Panel, Parts.PANEL_PART, this.panelPartView, state.panel.viewContainerId], [ViewContainerLocation.AuxiliaryBar, Parts.AUXILIARYBAR_PART, this.auxiliaryBarPartView, state.auxiliaryBar.viewContainerId]] as const) {
+			const active = this.paneCompositeService.getActivePaneComposite(location)?.getId();
 			if (!this.isVisible(part)) {
-				if (this.paneCompositeService.getActivePaneComposite(location)) {
+				if (active) {
 					this.paneCompositeService.hideActivePaneComposite(location);
 				}
-			} else if (!this.paneCompositeService.getActivePaneComposite(location)) {
-				showViewContainer(location, part);
+			} else if (!active || (viewContainerId && viewContainerId !== active)) {
+				this.showPartsLayoutStateViewContainer(opens, location, part, view, viewContainerId, focusMoves);
 			}
 		}
 
-		// What had the focus gets it again while its part shows, else the focus goes where it goes when that part hides
-		if (focusedView) {
-			if (focusMoves) {
-				this.focus();
-			} else if (isHTMLElement(focused)) {
-				focused.focus();
-			}
+		// The focus goes where it goes when the part that had it hides, once the view containers that can open at once did
+		if (focusMoves) {
+			this.focus();
 		}
 
 		if (state.panel.position !== previousPanelPosition) {
@@ -2094,20 +2110,95 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	/**
-	 * Opens the view container that a part shows when it shows without one, without focus, while `canOpen` returns `true`.
-	 * The panel and the secondary side bar fall back from the one that was active last when it has no views, as the view
-	 * container of an extension has none until the extensions register: they then choose once the extensions registered.
+	 * Opens the view container of a part that shows as a state applies (see {@link getPaneCompositeToOpen}), without focus.
+	 * When that waits for the extensions to register, opening it would undo what happened meanwhile, so it does not open
+	 * when another state applies, the part hides or shows, or a view container opens or closes there meanwhile.
 	 */
-	private async showPaneComposite(location: ViewContainerLocation, canOpen: () => boolean): Promise<void> {
-		let paneCompositeToOpen = this.getPaneCompositeToShow(location);
-		if (!paneCompositeToOpen || paneCompositeToOpen !== this.paneCompositeService.getLastActivePaneCompositeId(location)) {
+	private async showPartsLayoutStateViewContainer(opens: DisposableStore, location: ViewContainerLocation, part: Parts.SIDEBAR_PART | Parts.PANEL_PART | Parts.AUXILIARYBAR_PART, view: ISerializableView, viewContainerId: string | undefined, focusMoves: boolean): Promise<void> {
+		if (this.isPaneCompositeToOpenPending(location, viewContainerId)) {
+			let changed = false;
+			const listeners = opens.add(new DisposableStore());
+			listeners.add(Event.any(this.paneCompositeService.onDidPaneCompositeOpen, this.paneCompositeService.onDidPaneCompositeClose)(e => {
+				if (e.viewContainerLocation === location) {
+					changed = true;
+				}
+			}));
+			listeners.add(this.onDidChangePartVisibility(e => {
+				if (e.partId === part) {
+					changed = true;
+				}
+			}));
 			await this.extensionService.whenInstalledExtensionsRegistered();
-			paneCompositeToOpen = this.getPaneCompositeToShow(location);
+			opens.delete(listeners);
+			if (changed || opens.isDisposed || !this.isVisible(part)) {
+				return;
+			}
 		}
 
-		if (paneCompositeToOpen) {
-			await this.openViewContainer(location, paneCompositeToOpen, false, canOpen); // checks `canOpen` before it opens
+		const paneCompositeToOpen = this.getPaneCompositeToOpen(location, viewContainerId);
+		if (!paneCompositeToOpen) {
+			return;
 		}
+
+		const focusWasInPart = this.hasFocusIn(view);
+		const paneComposite = await this.paneCompositeService.openPaneComposite(paneCompositeToOpen, location, false);
+
+		// What had the focus in the part hid with the view container that this one replaces: the focus stays in the part.
+		// The focus that moved to a maximized part found nothing to focus there before this opened: it goes there now
+		if (paneComposite && this.isFocusLost()) {
+			if (focusWasInPart && this.isVisible(part)) {
+				this.focusPart(part);
+			} else if (focusMoves) {
+				this.focus();
+			}
+		}
+	}
+
+	/**
+	 * Returns whether the view container to open in a part (see {@link getPaneCompositeToOpen}) can change once the extensions
+	 * register: the view container of an extension is not there until then. The panel and the secondary side bar fall back from
+	 * the one that was active last when it has no views, which can be because it is an extension's.
+	 */
+	private isPaneCompositeToOpenPending(location: ViewContainerLocation, viewContainerId: string | undefined): boolean {
+		if (viewContainerId) {
+			return !this.canShowPaneComposite(location, viewContainerId);
+		}
+
+		const paneCompositeToShow = this.getPaneCompositeToShow(location);
+		return !paneCompositeToShow || paneCompositeToShow !== this.paneCompositeService.getLastActivePaneCompositeId(location) || !this.paneCompositeService.getPaneComposite(paneCompositeToShow, location);
+	}
+
+	/**
+	 * Returns the view container to open in a part that shows as a state applies: the one of the state if it can show there.
+	 * Else, if the part shows none, the one that it shows when it shows without one, else the default view container, else
+	 * the first visible one, as when the part shows (see `openViewContainer`). Returns `undefined` to keep what the part shows.
+	 */
+	private getPaneCompositeToOpen(location: ViewContainerLocation, viewContainerId: string | undefined): string | undefined {
+		if (viewContainerId && this.canShowPaneComposite(location, viewContainerId)) {
+			return viewContainerId;
+		}
+
+		const paneCompositeToShow = this.getPaneCompositeToShow(location);
+		if (!paneCompositeToShow || this.paneCompositeService.getActivePaneComposite(location)) {
+			return undefined;
+		}
+
+		const fallbacks = [() => paneCompositeToShow, () => this.viewDescriptorService.getDefaultViewContainer(location)?.id, () => this.paneCompositeService.getVisiblePaneCompositeIds(location).at(0)];
+		for (const getId of fallbacks) {
+			const id = getId();
+			if (id && this.paneCompositeService.getPaneComposite(id, location)) {
+				return id;
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * Returns whether a view container is in a part, and for the panel and the secondary side bar, whether it has views.
+	 */
+	private canShowPaneComposite(location: ViewContainerLocation, viewContainerId: string): boolean {
+		return !!this.paneCompositeService.getPaneComposite(viewContainerId, location) && (location === ViewContainerLocation.Sidebar || this.hasViews(viewContainerId));
 	}
 
 	/**
@@ -2124,11 +2215,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	/**
-	 * Returns whether nothing has the focus, as when what had it hid.
+	 * Returns whether nothing has the focus, as when what had it hid. An element that hides keeps the focus until the
+	 * browser updates the rendering, so a focused element that does not show has lost it.
 	 */
 	private isFocusLost(): boolean {
 		const activeElement = getActiveElement();
-		return !activeElement || activeElement === activeElement.ownerDocument.body;
+		return !activeElement || activeElement === activeElement.ownerDocument.body || activeElement.getClientRects().length === 0;
+	}
+
+	/**
+	 * Returns whether the focus is in a part, also in content that the part shows outside its element (see `hasFocus`).
+	 */
+	private hasFocusIn(view: ISerializableView): boolean {
+		const activeElement = getActiveElement();
+		return !!activeElement && isAncestorUsingFlowTo(activeElement, view.element);
 	}
 
 	//#endregion
