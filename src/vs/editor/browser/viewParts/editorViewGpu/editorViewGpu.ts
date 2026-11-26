@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './editorViewGpu.css';
-import type { EditorView, EditorViewConfig, EditorViewGroup, EditorViewModule, CursorInput, CursorStyle, DecorationInput, DecorationRangeInput, FoldingControlInput, LineInput, ModelDeltaInput, SelectionInput, TokenInput } from './editorViewTypes.js';
-import { addDisposableListener, EventType, getWindow, onDidUnregisterWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
+import type { EditorView, EditorViewConfig, EditorViewFontSmoothing, EditorViewGroup, EditorViewModule, CursorInput, CursorStyle, DecorationInput, DecorationRangeInput, FoldingControlInput, LineInput, ModelDeltaInput, SelectionInput, TokenInput } from './editorViewTypes.js';
+import { addDisposableListener, EventType, getComputedStyle, getWindow, onDidUnregisterWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { Color } from '../../../../base/common/color.js';
 import { equals } from '../../../../base/common/arrays.js';
@@ -173,13 +173,13 @@ function spliceUnsent<T>(array: (T | undefined)[], start: number, deleteCount: n
 const editorViewGroups = new Map<Window, EditorViewGroup | null>();
 let editorViewGroupsListener: IDisposable | undefined;
 
-function editorViewGroup(mod: EditorViewModule, targetWindow: Window): EditorViewGroup | undefined {
+function editorViewGroup(mod: EditorViewModule, targetWindow: Window, fontSmoothing: EditorViewFontSmoothing): EditorViewGroup | undefined {
 	if (!mod.EditorViewGroup) {
 		return undefined;
 	}
 	let group = editorViewGroups.get(targetWindow);
 	if (group === undefined) {
-		group = new mod.EditorViewGroup();
+		group = new mod.EditorViewGroup({ fontSmoothing });
 		editorViewGroups.set(targetWindow, group);
 		editorViewGroupsListener ??= markAsSingleton(onDidUnregisterWindow(window => {
 			editorViewGroups.get(window)?.dispose();
@@ -187,6 +187,18 @@ function editorViewGroup(mod: EditorViewModule, targetWindow: Window): EditorVie
 		}));
 	}
 	return group ?? undefined;
+}
+
+/**
+ * The smoothing of the editor's DOM text, for the renderer to rasterize glyphs
+ * with: on macOS the workbench sets it from `workbench.fontAliasing`, whose
+ * default leaves the browser's own, heavier one. Glyphs rasterized otherwise
+ * look lighter or bolder than DOM text. A window's editors share its group, and
+ * the workbench's smoothing.
+ */
+function editorViewFontSmoothing(element: HTMLElement): EditorViewFontSmoothing {
+	const smoothing = getComputedStyle(element).getPropertyValue('-webkit-font-smoothing');
+	return smoothing === 'antialiased' || smoothing === 'subpixel-antialiased' || smoothing === 'none' ? smoothing : 'default';
 }
 
 /**
@@ -441,9 +453,10 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 				onRendererLost: () => this._onRendererLost(),
 			};
 			const targetWindow = getWindow(this._editorRoot);
-			const group = editorViewGroup(mod, targetWindow);
+			const fontSmoothing = editorViewFontSmoothing(this._editorRoot);
+			const group = editorViewGroup(mod, targetWindow, fontSmoothing);
 			try {
-				this._editorView = await mod.EditorView.create(this.canvas.domNode, { ...options, group });
+				this._editorView = await mod.EditorView.create(this.canvas.domNode, group ? { ...options, group } : { ...options, fontSmoothing });
 			} catch (err) {
 				if (!group || this._disposed) {
 					throw err;
@@ -453,7 +466,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 				if (editorViewGroups.get(targetWindow) === group) {
 					editorViewGroups.set(targetWindow, null);
 				}
-				this._editorView = await mod.EditorView.create(this.canvas.domNode, options);
+				this._editorView = await mod.EditorView.create(this.canvas.domNode, { ...options, fontSmoothing });
 			}
 			if (this._disposed) {
 				this._editorView.dispose();

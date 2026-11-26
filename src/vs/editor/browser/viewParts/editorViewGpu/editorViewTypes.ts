@@ -277,6 +277,12 @@ export interface EditorViewGroup {
 	dispose(): void;
 }
 
+/**
+ * How the renderer anti-aliases glyphs, as values of `-webkit-font-smoothing`;
+ * `'default'` keeps the browser's own smoothing.
+ */
+export type EditorViewFontSmoothing = 'antialiased' | 'subpixel-antialiased' | 'none' | 'default';
+
 export interface EditorViewModule {
 	EditorView: {
 		create(canvas: HTMLCanvasElement, options: {
@@ -287,8 +293,10 @@ export interface EditorViewModule {
 			onRendererLost?: (reason: string) => void;
 			/** Share the group's WebGPU device and glyph atlas; creating the renderer rejects without WebGPU. */
 			group?: EditorViewGroup;
+			/** How to anti-alias glyphs; not with a `group`, which sets it for its views. */
+			fontSmoothing?: EditorViewFontSmoothing;
 		}): Promise<EditorView>;
 	};
 	/** Absent in npm 0.0.1. */
-	EditorViewGroup?: new () => EditorViewGroup;
+	EditorViewGroup?: new (options?: { fontSmoothing?: EditorViewFontSmoothing }) => EditorViewGroup;
 }
