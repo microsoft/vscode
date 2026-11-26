@@ -8,7 +8,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
+import { ToggleMenuAction, ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -33,7 +33,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 		const contextKeyService = new MockContextKeyService();
 		const newChat = new MenuItemAction({ id: 'newChat', title: 'New Chat', icon: undefined, precondition: newChatEnabled ? undefined : ContextKeyExpr.false() }, undefined, undefined, undefined, undefined, contextKeyService, commandService);
 		const actions = [newChat, new Separator(), store.add(new Action('newChatWindow', 'New Chat Window'))];
-		const submenu = new SubmenuItemAction({ submenu: MenuId.ChatNewMenu, title: 'New Chat' }, undefined, actions);
+		const submenu = new SubmenuItemAction({ submenu: MenuId.ChatNewMenu, title: 'New Chat', isSplitButton: true }, undefined, actions);
 		const control = instantiationService.createInstance(ChatViewSessionsListControl, upcastPartial<SessionsView>({ dispose: () => { }, createActionViewItem: () => undefined }), undefined);
 		const item = store.add(control.createActionViewItem(submenu)!);
 		const container = DOM.$('div');
@@ -78,25 +78,29 @@ suite('Sessions - Chat view sessions list New button', () => {
 				actionViewItemProvider: (action, options) => control.createActionViewItem(action, options),
 				// As the Chat view's title in the secondary side bar
 				responsiveBehavior: {
-					enabled: true, kind: 'all', actionMinWidth: 22, reserveMinWidth: false, getAvailableWidth: () => availableWidth,
+					enabled: true, kind: 'all', minItems: 0, overflowFrom: 'start', actionMinWidth: 22, reserveMinWidth: false, getAvailableWidth: () => availableWidth,
 					getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? 36 : undefined,
 				},
 			}));
 			const other = store.add(new Action('other', 'Other'));
-			toolbar.setActions([other, submenu]);
+			toolbar.setActions([submenu, other]);
 			const shown = () => [0, 1, 2].map(index => toolbar.getItemAction(index)?.id);
 
 			const wide = shown();
-			availableWidth = 50;
+			// Room for two generic actions, but not for the split button and another action
+			availableWidth = 55;
 			toolbar.relayout();
 			const narrow = shown();
+			const overflow = [0, 1].map(index => toolbar.getItemAction(index)).find(action => action instanceof ToggleMenuAction);
+			const inOverflow = overflow instanceof ToggleMenuAction && overflow.menuActions.includes(submenu);
 			availableWidth = 400;
 			toolbar.relayout();
 
-			assert.deepStrictEqual({ wide, narrow, restored: shown(), isNewMenu: toolbar.getItemAction(1) === submenu }, {
-				wide: ['other', submenu.id, undefined],
+			assert.deepStrictEqual({ wide, narrow, inOverflow, restored: shown(), isNewMenu: toolbar.getItemAction(0) === submenu }, {
+				wide: [submenu.id, 'other', undefined],
 				narrow: ['other', 'toolbar.toggle.more', undefined],
-				restored: ['other', submenu.id, undefined],
+				inOverflow: true,
+				restored: [submenu.id, 'other', undefined],
 				isNewMenu: true,
 			});
 		} finally {
