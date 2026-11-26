@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -23,12 +24,12 @@ import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost
 import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientProxy } from '../../../../../platform/agentHost/browser/agentHostClientProxy.js';
-import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, isValidDevContainerConnectionName } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { devContainerEnvironmentImage, findDevContainerEnvironment, isLocalDevContainerEnvironment } from '../../../../../platform/agentHost/common/devContainerEnvironments.js';
-import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
-import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
@@ -68,6 +69,8 @@ type DevContainerStateVolumeEvent = {
 	stage: string;
 	outcome: string;
 	reason: string | undefined;
+	errorCause: string | undefined;
+	lifecycleInUp: boolean | undefined;
 	step: string | undefined;
 	target: string | undefined;
 	skipReasons: string | undefined;
@@ -77,6 +80,18 @@ type DevContainerStateVolumeEvent = {
 	createdFolders: number | undefined;
 	existingFolders: number | undefined;
 	skippedFolders: number | undefined;
+	scriptUser: string | undefined;
+	capChown: boolean | undefined;
+	capDacOverride: boolean | undefined;
+	capDacReadSearch: boolean | undefined;
+	capFowner: boolean | undefined;
+	stateOwner: string | undefined;
+	volumeOwner: string | undefined;
+	capDropChown: boolean | undefined;
+	privileged: boolean | undefined;
+	usernsMode: boolean | undefined;
+	readonlyRootfs: boolean | undefined;
+	runtime: string | undefined;
 	errorMessage: string | undefined;
 	enabled: boolean;
 	sample: boolean;
@@ -87,9 +102,11 @@ type DevContainerStateVolumeClassification = {
 	owner: 'chrmarti';
 	comment: 'Reports how keeping user and agent state on a per-container volume went, to evaluate the chat.agentHost.devContainer.stateVolume.enabled experiment.';
 	stage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage: mount (adding the volume), up (starting the container), link (linking state folders to it) or userCommands (lifecycle commands, which run after linking).' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage outcome, e.g., added, existingContainer, linked, noMount, homeNotFound, succeeded or failed.' };
-	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the operation that failed.' };
-	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the link script step that failed.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage outcome, e.g., added, existingContainer, skipped, linked, noMount, homeNotFound, missingCapabilities, readOnlyRootfs, homeInaccessible, stateNotRootOwned (the state folder was re-owned, e.g., by a chown -R in a lifecycle command), untrustedState (another user can change the state folder or the volume\'s root folder), succeeded or failed.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the operation that failed, or of why the stage was skipped, e.g., configUnreadable (the Dev Container CLI then reports the error).' };
+	errorCause: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed cause of a failed up or userCommands stage that the failed command does not identify: duplicateMount, volume, mount, daemon (Docker not running), config, lifecycle (a lifecycle command failed), feature or other.' };
+	lifecycleInUp: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the up stage ran the lifecycle commands. Otherwise, e.g., with the setting on, they run in the userCommands stage, so lifecycle failures can be compared separately.' };
+	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the link script step that failed or skipped linking.' };
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the volume is mounted at /workspaces or at a separate folder.' };
 	skipReasons: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifiers of why state folders were not persisted, e.g., because they are already mounted.' };
 	exitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Exit code of the failed command.' };
@@ -98,8 +115,20 @@ type DevContainerStateVolumeClassification = {
 	createdFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of new state folders created on the volume.' };
 	existingFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders that were already linked.' };
 	skippedFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders not persisted.' };
-	errorMessage: { classification: 'CallstackOrException'; purpose: 'FeatureInsight'; comment: 'Error message of a failed stage without command lines, ids and the container user; the telemetry service also redacts paths and secrets.' };
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the chat.agentHost.devContainer.stateVolume.enabled setting is on. Linking also runs for containers created with it on.' };
+	scriptUser: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the link script ran as root or as another user.' };
+	capChown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_CHOWN capability.' };
+	capDacOverride: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_DAC_OVERRIDE capability.' };
+	capDacReadSearch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_DAC_READ_SEARCH capability.' };
+	capFowner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_FOWNER capability.' };
+	stateOwner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who owns the state folder: root, user (the container user) or other.' };
+	volumeOwner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who owns the volume\'s root folder: root, user (the container user) or other.' };
+	capDropChown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container drops ALL capabilities or CHOWN, for link failures.' };
+	privileged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is privileged, for link failures.' };
+	usernsMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container sets a user namespace mode, for link failures.' };
+	readonlyRootfs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container\'s root file system is read-only, for link failures.' };
+	runtime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed category of the container\'s OCI runtime, e.g., runc, crun, gvisor, kata, sysbox or other, for link failures.' };
+	errorMessage: { classification: 'CallstackOrException'; purpose: 'FeatureInsight'; comment: 'Error message of a failed stage with command lines reduced to known command names, without paths in parentheses, network addresses, ids and the container user; the telemetry service also redacts paths, URLs and secrets.' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the chat.agentHost.devContainer.stateVolume.enabled setting is on. The up and userCommands stages are also reported with it off, without error messages, to compare, and linking also runs for containers created with it on.' };
 	sample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is for a Dev Container sample.' };
 	remote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container runs on a remote Docker host through SSH, Tunnel or WSL.' };
 };
@@ -109,6 +138,8 @@ export function reportDevContainerUserState(telemetryService: ITelemetryService,
 		stage: report.stage,
 		outcome: report.outcome,
 		reason: report.reason,
+		errorCause: report.errorCause,
+		lifecycleInUp: report.lifecycleInUp,
 		step: report.step,
 		target: report.target,
 		skipReasons: report.skipReasons || undefined,
@@ -118,6 +149,18 @@ export function reportDevContainerUserState(telemetryService: ITelemetryService,
 		createdFolders: report.createdFolders,
 		existingFolders: report.existingFolders,
 		skippedFolders: report.skippedFolders,
+		scriptUser: report.scriptUser,
+		capChown: report.capChown,
+		capDacOverride: report.capDacOverride,
+		capDacReadSearch: report.capDacReadSearch,
+		capFowner: report.capFowner,
+		stateOwner: report.stateOwner,
+		volumeOwner: report.volumeOwner,
+		capDropChown: report.capDropChown,
+		privileged: report.privileged,
+		usernsMode: report.usernsMode,
+		readonlyRootfs: report.readonlyRootfs,
+		runtime: report.runtime,
 		errorMessage: report.errorMessage,
 		enabled,
 		sample,
@@ -132,6 +175,7 @@ type DevContainerConnectEvent = {
 	stateVolume: boolean;
 	sample: boolean;
 	remote: boolean;
+	failureStage: DevContainerConnectStage | 'other' | undefined;
 	durationMs: number;
 };
 
@@ -144,6 +188,7 @@ type DevContainerConnectClassification = {
 	stateVolume: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether user state was kept on a per-container volume.' };
 	sample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is for a Dev Container sample.' };
 	remote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container runs on a remote Docker host through SSH, Tunnel or WSL.' };
+	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fixed identifier of the stage a failed attempt that was not cancelled failed in: readConfig, prepare, mount, up, link, userCommands, agentHostStart, connect, timeout or other.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of the attempt in milliseconds.' };
 };
 
@@ -255,6 +300,8 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 	readonly onDidChangeSandboxSupport = this._sandboxSupport.event;
 	private readonly _userState = this._register(new Emitter<IDevContainerAgentHostUserStateReport>());
 	readonly onDidReportUserState = this._userState.event;
+	private readonly _connectFailure = this._register(new Emitter<IDevContainerAgentHostConnectFailure>());
+	readonly onDidFailConnect = this._connectFailure.event;
 	private readonly _connections = new Map<string, { store: DisposableStore; tokenSource: CancellationTokenSource; service?: IDevContainerAgentHostMainService }>();
 	private _disposed = false;
 
@@ -298,6 +345,9 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 			}
 			if (service.onDidReportUserState) {
 				store.add(Event.filter(service.onDidReportUserState, event => event.connectionId === config.connectionId)(event => this._userState.fire(event)));
+			}
+			if (service.onDidFailConnect) {
+				store.add(Event.filter(service.onDidFailConnect, event => event.connectionId === config.connectionId)(event => this._connectFailure.fire(event)));
 			}
 			return await service.connect(config);
 		} catch (error) {
@@ -379,12 +429,17 @@ class DevContainerOutputWriter extends Disposable {
 		this._connectionIds.add(connectionId);
 		this._channelId = getDevContainerOutputChannel(workspaceUri, label);
 
-		this._append(localize('devContainerOutputStarting', "\n--- Starting Dev Container for {0} ---\n", description));
+		this.appendHeading(description);
 		this._register(mainService.onDidOutput(output => {
 			if (this._connectionIds.has(output.connectionId)) {
 				this._append(output.data);
 			}
 		}));
+	}
+
+	/** Marks where the output of starting the Dev Container begins. */
+	appendHeading(description: string): void {
+		this._append(localize('devContainerOutputStarting', "\n--- Starting Dev Container for {0} ---\n", description));
 	}
 
 	addConnection(connectionId: string): void {
@@ -447,6 +502,15 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 
 	isLocalDockerAvailable(): Promise<boolean> {
 		return this._mainService.isDockerAvailable();
+	}
+
+	/** Whether this computer's Docker engine has the environment's volume; a lookup that fails or stalls counts as no. */
+	private async _hasLocalEnvironmentVolume(environmentId: string, token: CancellationToken): Promise<boolean> {
+		const lookup = (this._mainService.hasEnvironmentVolume?.(environmentId) ?? Promise.resolve(false)).catch(error => {
+			this._logService.warn('[DevContainerAgentHostConnector] Failed to look up the environment volume on this computer', error);
+			return false;
+		});
+		return await raceCancellationError(raceTimeout(lookup, DevContainerEnvironmentVolumeLookupTimeoutMs), token) ?? false;
 	}
 
 	getEnvironment(workspaceUris: readonly URI[]): Promise<DevContainerEnvironment> {
@@ -521,7 +585,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		}
 	}
 
-	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean; readonly sandboxEnabled?: boolean }): Promise<IDevContainerAgentHostConnection> {
+	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: IDevContainerAgentHostConnectionOptions): Promise<IDevContainerAgentHostConnection> {
 		const sample = findDevContainerSample(workspaceUri);
 		const environment = findDevContainerEnvironment(workspaceUri);
 		this._ensureEnabled(!!environment);
@@ -539,13 +603,23 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		const source = sample ? { sampleId: sample.id }
 			: environment ? { environmentId: environment.environmentId, image: devContainerEnvironmentImage }
 				: { workspaceFolder: devContainerSourcePath(workspaceUri) };
-		const name = environment && sourceEntry ? localize('devContainerEnvironment.connectionName', "Dev Container on {0}", sourceEntry.name)
-			: localEnvironment ? localize('devContainerEnvironment.localConnectionName', "Dev Container on This Computer")
-				: sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`;
+		// Each environment on a host needs its own name, which its connection shows, e.g., in the chat input.
+		const name = (environment ? options?.name?.trim() : undefined)
+			|| (environment && sourceEntry ? localize('devContainerEnvironment.connectionName', "Dev Container on {0}", sourceEntry.name)
+				: localEnvironment ? localize('devContainerEnvironment.localConnectionName', "Dev Container on This Computer")
+					: sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`);
+		// The host and the log name an environment as it is currently renamed, read on every connect to follow later renames.
+		// A rename the host would reject, e.g., with a NUL character, falls back to the environment's name, so it cannot block connecting.
+		const hostName = () => {
+			const renamed = environment ? this._remoteAgentHostService.getDisplayNameOverride(address) : undefined;
+			return renamed !== undefined && isValidDevContainerConnectionName(renamed) ? renamed : name;
+		};
+		let heading = environment ? hostName() : workspaceUri.fsPath;
 		const connectionStore = new DisposableStore();
-		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._getOutputLabel(workspaceUri), environment ? name : workspaceUri.fsPath, this._outputService));
+		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._getOutputLabel(workspaceUri), heading, this._outputService));
 		// Whether each connection keeps user state on a volume.
 		const connectionIds = new Map<string, boolean>();
+		const failureStages = new Map<string, DevContainerConnectStage>();
 		const cancellationListener = token.onCancellationRequested(() => {
 			void mainService.disconnect(connectionId).catch(error => {
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
@@ -563,6 +637,8 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				stateVolume: persistUserState,
 				sample: !!sample,
 				remote: !!sourceEntry,
+				// Hosts without the failure event, e.g., older remote hosts, and failures before the attempt starts report other.
+				failureStage: success || cancelled ? undefined : failureStages.get(config.connectionId) ?? 'other',
 				durationMs: stopWatch.elapsed(),
 			});
 			try {
@@ -572,6 +648,8 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			} catch (error) {
 				report(false, isCancellationError(error) || (!reconnect && token.isCancellationRequested));
 				throw error;
+			} finally {
+				failureStages.delete(config.connectionId);
 			}
 		};
 		try {
@@ -579,6 +657,13 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				connectionStore.add(mainService.onDidChangeSandboxSupport(event => {
 					if (connectionIds.has(event.connectionId)) {
 						this._sandboxSupport.fire({ workspaceUri, supported: event.supported });
+					}
+				}));
+			}
+			if (mainService.onDidFailConnect) {
+				connectionStore.add(mainService.onDidFailConnect(event => {
+					if (connectionIds.has(event.connectionId)) {
+						failureStages.set(event.connectionId, event.stage);
 					}
 				}));
 			}
@@ -593,13 +678,18 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			let result = await connect({
 				connectionId,
 				...source,
-				name,
+				name: hostName(),
 				resume: options?.resume ?? true,
 				...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 			}, false);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
+			// Dev Containers opens an environment's volume in this computer's Docker engine, which is a WSL distribution's only
+			// when it has the volume, as with Docker Desktop.
+			const volumeOnLocalDockerEngine = environment && sourceEntry?.connection.type === RemoteAgentHostEntryType.WSL
+				? await this._hasLocalEnvironmentVolume(environment.environmentId, token)
+				: undefined;
 
 			let seed = true;
 			const establish = async (): Promise<IRelayConnectionHandle> => {
@@ -620,11 +710,17 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 
 				const reconnectConnectionId = generateUuid();
 				outputWriter.addConnection(reconnectConnectionId);
+				const reconnectName = hostName();
+				// After a rename, the output that follows is headed with the new name.
+				if (environment && reconnectName !== heading) {
+					heading = reconnectName;
+					outputWriter.appendHeading(heading);
+				}
 				try {
 					result = await connect({
 						connectionId: reconnectConnectionId,
 						...source,
-						name,
+						name: reconnectName,
 						resume: false,
 						...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 					}, true);
@@ -665,9 +761,11 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			};
 			return {
 				address,
-				name: result.name,
+				// Not the renamed name the host echoes, which would become the default name and outlast clearing the rename.
+				name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
+				volumeOnLocalDockerEngine,
 				sandboxSupported: result.sandboxSupported,
 				clientCertificates: remoteService ? undefined : {
 					isEnabled: () => result.sharesClientNetwork === true && this._configurationService.getValue<boolean>('http.systemCertificates') !== false,

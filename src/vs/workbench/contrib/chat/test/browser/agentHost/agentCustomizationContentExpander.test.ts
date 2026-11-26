@@ -166,6 +166,25 @@ suite('AgentCustomizationContentExpander', () => {
 			assert.strictEqual(silent.userInvocable, undefined);
 		});
 
+		test('argumentHint is surfaced from SKILL.md frontmatter', async () => {
+			const pluginRoot = URI.file('/plugins/hint-test');
+			await mockFiles(fileService, [
+				{
+					path: '/plugins/hint-test/skills/hinted-skill/SKILL.md', contents: [
+						'---',
+						'name: Hinted',
+						'argument-hint: Describe a task',
+						'---',
+					]
+				},
+			]);
+
+			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
+			assert.strictEqual(items.length, 1);
+			assert.strictEqual(items[0].argumentHint, 'Describe a task');
+		});
+
 		test('flat non-directory entries in skills/ are ignored', async () => {
 			const pluginRoot = URI.file('/plugins/s');
 			await mockFiles(fileService, [

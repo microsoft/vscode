@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { toDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -85,7 +86,7 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	async getFolderLocations(folder: IWorkspaceFolder, token: CancellationToken): Promise<IFolderLocation[]> {
 		const primary = this.getPrimaryLocation(folder);
-		const result: IFolderLocation[] = [{ uri: primary, label: basenameOrAuthority(primary) }];
+		const result: IFolderLocation[] = [{ uri: primary, label: basenameOrAuthority(primary), icon: Codicon.folder }];
 		if (this.isAtAlternateLocation(folder) || this.canSetLocation(folder)) {
 			const extUri = this.uriIdentityService.extUri;
 			const primaryWithoutSeparator = withoutTrailingSeparator(primary);
@@ -166,6 +167,10 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 			}
 		}
 		return groups;
+	}
+
+	areProvidersReady(): boolean {
+		return this.providers.every(({ provider }) => provider.isReady !== false);
 	}
 
 	async resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IResolvedFolderLocation | undefined> {

@@ -98,3 +98,51 @@
 	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size40);
 }
+
+/*
+ * Floating status-bar items sit inside the native window's rounded bottom
+ * corners. Keep their window-facing corner concentric with the frame, offset by
+ * the status bar and label insets (provided by floatingPanels.css).
+ */
+.monaco-workbench.mac.modern-ui.floating-panels:not(.web):not(.fullscreen) .part.statusbar {
+	--modern-ui-statusbar-window-corner-radius:
+		max(var(--vscode-cornerRadius-small), calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-statusbar-inline-inset, 0px)))
+		max(var(--vscode-cornerRadius-small), calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-statusbar-block-end-inset, 0px)));
+	--modern-ui-statusbar-window-label-corner-radius:
+		max(var(--vscode-cornerRadius-small), calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-statusbar-inline-inset, 0px) - var(--modern-ui-statusbar-edge-label-inset, var(--vscode-spacing-size20))))
+		max(var(--vscode-cornerRadius-small), calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-statusbar-block-end-inset, 0px)));
+
+	> .items-container > .statusbar-item.left.first-visible-item {
+		border-bottom-left-radius: var(--modern-ui-statusbar-window-corner-radius);
+	}
+
+	> .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+		border-bottom-left-radius: var(--modern-ui-statusbar-window-label-corner-radius);
+	}
+
+	> .items-container > .statusbar-item.right.last-visible-item {
+		border-bottom-right-radius: var(--modern-ui-statusbar-window-corner-radius);
+	}
+
+	> .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+		border-bottom-right-radius: var(--modern-ui-statusbar-window-label-corner-radius);
+	}
+}
+
+/*
+ * The workbench frame clips docked status-bar backgrounds to the native window
+ * curve. Leave the touching corners square so the short status-bar items cannot
+ * normalize that larger radius against their 22px height; keep the other control
+ * corners on the small-radius tier.
+ */
+.monaco-workbench.mac.modern-ui:not(.web):not(.fullscreen):not(.floating-panels) .part.statusbar {
+	> .items-container > .statusbar-item.left.first-visible-item,
+	> .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+		border-bottom-left-radius: 0;
+	}
+
+	> .items-container > .statusbar-item.right.last-visible-item,
+	> .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+		border-bottom-right-radius: 0;
+	}
+}

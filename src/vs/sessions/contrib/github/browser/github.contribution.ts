@@ -23,6 +23,7 @@ import { GitHubService, IGitHubService, isGitHubReferenceSupported } from '../..
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
 import { PullRequestChangesMultiDiffSourceResolver } from './pullRequestChangesMultiDiffSourceResolver.js';
 
+import '../../../../workbench/contrib/sessions/browser/github/gitHubReferenceActions.js';
 import './pullRequestActions.js';
 import './createSessionFromPullRequestAction.js';
 import './issueActions.js';

@@ -558,6 +558,7 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorVisibility(instantiationService, true);
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return undefined; }
 			override getChatResource(): URI | undefined { return undefined; }
 		});

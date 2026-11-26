@@ -24,12 +24,14 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	private readonly _onDidRemoveDocument = this._toDispose.add(new Emitter<vscode.TextDocument>());
 	private readonly _onDidChangeDocument = this._toDispose.add(new Emitter<Omit<vscode.TextDocumentChangeEvent, 'detailedReason'>>());
 	private readonly _onDidChangeDocumentWithReason = this._toDispose.add(new Emitter<vscode.TextDocumentChangeEvent>());
+	private readonly _onDidChangeDocumentReadonly = this._toDispose.add(new Emitter<vscode.TextDocument>());
 	private readonly _onDidSaveDocument = this._toDispose.add(new Emitter<vscode.TextDocument>());
 
 	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
 	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;
 	readonly onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event as Event<vscode.TextDocumentChangeEvent>;
 	readonly onDidChangeDocumentWithReason: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocumentWithReason.event;
+	readonly onDidChangeDocumentReadonly: Event<vscode.TextDocument> = this._onDidChangeDocumentReadonly.event;
 	readonly onDidSaveDocument: Event<vscode.TextDocument> = this._onDidSaveDocument.event;
 	private _proxy: MainThreadDocumentsShape;
 	private _documentsAndEditors: ExtHostDocumentsAndEditors;
@@ -155,6 +157,18 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 			reason: undefined,
 			detailedReason: undefined,
 		});
+	}
+
+	public $acceptReadonlyStateChanged(uriComponents: UriComponents, isReadonly: boolean): void {
+		const uri = URI.revive(uriComponents);
+		const data = this._documentsAndEditors.getDocument(uri);
+		if (!data) {
+			throw new Error('unknown document');
+		}
+		if (data.document.isReadonly !== isReadonly) {
+			data._acceptIsReadonly(isReadonly);
+			this._onDidChangeDocumentReadonly.fire(data.document);
+		}
 	}
 
 	public $acceptEncodingChanged(uriComponents: UriComponents, encoding: string): void {

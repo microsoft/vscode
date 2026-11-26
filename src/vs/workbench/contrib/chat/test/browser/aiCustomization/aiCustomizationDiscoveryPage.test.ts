@@ -3445,7 +3445,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
-	test('Manage Marketplaces opens the marketplace management quick pick', async () => {
+	test('Manage Marketplaces uses the shared marketplace management command', async () => {
 		const fixture = createPage(['agentFinder']);
 		await fixture.configureMarketplaces();
 		assert.deepStrictEqual(fixture.commands, [{

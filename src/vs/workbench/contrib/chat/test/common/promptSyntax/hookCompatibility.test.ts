@@ -6,55 +6,28 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { getCanonicalAgentHookName, HOOKS_BY_TARGET, HookType } from '../../../common/promptSyntax/hookTypes.js';
-import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat, buildNewHookFile, getLocalFormatHookEvents } from '../../../common/promptSyntax/hookCompatibility.js';
+import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat, buildNewCopilotHookFile, getLocalFormatHookEvents } from '../../../common/promptSyntax/hookCompatibility.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
 suite('HookCompatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('buildNewHookFile', () => {
-		const copilotHookNames: [HookType, string][] = [
-			[HookType.SessionStart, 'sessionStart'],
-			[HookType.SessionEnd, 'sessionEnd'],
-			[HookType.UserPromptSubmit, 'userPromptSubmitted'],
-			[HookType.UserPromptTransformed, 'userPromptTransformed'],
-			[HookType.PreToolUse, 'preToolUse'],
-			[HookType.PostToolUse, 'postToolUse'],
-			[HookType.PreCompact, 'preCompact'],
-			[HookType.SubagentStart, 'subagentStart'],
-			[HookType.SubagentStop, 'subagentStop'],
-			[HookType.Stop, 'agentStop'],
-			[HookType.ErrorOccurred, 'errorOccurred'],
-		];
-
-		for (const [hookType, eventName] of copilotHookNames) {
-			test(`creates a versioned Copilot file for ${hookType}`, () => {
-				assert.deepStrictEqual(buildNewHookFile(HookSourceFormat.Copilot, hookType), {
-					version: 1,
-					hooks: {
-						[eventName]: [{ type: 'command', command: '' }]
-					}
-				});
-			});
-		}
-
-		test('generated Copilot events remain discoverable', () => {
-			assert.deepStrictEqual(copilotHookNames.map(([hookType]) => {
-				const file = buildNewHookFile(HookSourceFormat.Copilot, hookType);
-				return [...parseCopilotHooks(file, undefined, '').keys()];
-			}), copilotHookNames.map(([hookType]) => [hookType]));
-		});
-
-		test('preserves the Claude file format', () => {
-			assert.deepStrictEqual(buildNewHookFile(HookSourceFormat.Claude, HookType.PreToolUse), {
+	suite('buildNewCopilotHookFile', () => {
+		test('creates a versioned Copilot file', () => {
+			assert.deepStrictEqual(buildNewCopilotHookFile('preToolUse'), {
+				version: 1,
 				hooks: {
-					PreToolUse: [{
-						matcher: '',
-						hooks: [{ type: 'command', command: '' }]
-					}]
+					preToolUse: [{ type: 'command', command: '' }]
 				}
 			});
+		});
+
+		test('new files for Copilot events VS Code parses are discoverable', () => {
+			const eventNames = Object.keys(HOOKS_BY_TARGET[Target.GitHubCopilot]);
+			assert.deepStrictEqual(
+				eventNames.map(eventName => [...parseCopilotHooks(buildNewCopilotHookFile(eventName), undefined, '').values()].map(entry => entry.originalId)),
+				eventNames.map(eventName => [eventName]));
 		});
 	});
 

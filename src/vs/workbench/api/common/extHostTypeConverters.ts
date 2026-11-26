@@ -39,6 +39,7 @@ import { IExtensionDescription, IRelaxedExtensionDescription } from '../../../pl
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers.js';
 import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
+import { WorkbenchMode as InternalWorkbenchMode } from '../../../platform/workspace/common/workspace.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
@@ -1548,6 +1549,18 @@ export namespace TextDocumentSaveReason {
 			case SaveReason.FOCUS_CHANGE:
 			case SaveReason.WINDOW_CHANGE:
 				return types.TextDocumentSaveReason.FocusOut;
+		}
+	}
+}
+
+export namespace WorkbenchMode {
+	export function to(mode: InternalWorkbenchMode): vscode.WorkbenchMode {
+		switch (mode) {
+			case InternalWorkbenchMode.Agents:
+				return types.WorkbenchMode.Agents;
+			case InternalWorkbenchMode.Editor:
+			default:
+				return types.WorkbenchMode.Editor;
 		}
 	}
 }

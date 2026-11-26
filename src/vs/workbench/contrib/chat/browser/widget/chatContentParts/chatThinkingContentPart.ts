@@ -25,7 +25,7 @@ import { marked, type Token, type Tokens, type TokensList } from '../../../../..
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { extractCodeblockUrisFromText, extractEditCodeblockUrisFromText } from '../../../common/widget/annotations.js';
 import { basename } from '../../../../../../base/common/resources.js';
-import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinkingStyleContentPart.js';
+import { ChatThinkingStyleContentPart, createThinkingIcon, setThinkingIcon } from './chatThinkingStyleContentPart.js';
 export { createThinkingIcon };
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { localize } from '../../../../../../nls.js';
@@ -87,11 +87,6 @@ function isGenericEditToolId(toolId: string): boolean {
 		lowerToolId.includes('insertedit') ||
 		lowerToolId.includes('insert_edit') ||
 		lowerToolId.includes('editfile');
-}
-
-function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
-	iconElement.className = 'chat-thinking-icon';
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
@@ -432,6 +427,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	readonly isToolChain: boolean;
 	private readonly isVerboseToolChain: boolean;
 	private readonly isPersistentReasoning: boolean;
+	/** A reasoning section of the Verbose progress layout, which stays open until the user collapses it. */
+	private readonly isVerboseReasoning: boolean;
 	/** Reasoning and tool calls share this collapsed section in the Conversation progress layout. */
 	private readonly isConversation: boolean;
 	/** The latest reasoning or tool call in a conversation section, which its collapsed title names. */
@@ -580,9 +577,11 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		super(initialTitle, context, undefined, hoverService, configurationService, telemetryService);
 
 		this.isToolChain = !!context.suppressProgressShimmer && !!context.isToolChain;
-		this.isVerboseToolChain = this.isToolChain && configurationService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) === ChatProgressVerbosity.Verbose;
+		const isVerbose = configurationService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) === ChatProgressVerbosity.Verbose;
+		this.isVerboseToolChain = this.isToolChain && isVerbose;
 		this.isConversation = !!context.suppressProgressShimmer && !!context.isConversation && !this.isToolChain;
 		this.isPersistentReasoning = !!context.suppressProgressShimmer && !this.isToolChain && !this.isConversation;
+		this.isVerboseReasoning = this.isPersistentReasoning && isVerbose;
 		this.conversationTitleTransition = this.isConversation ? this._register(this.instantiationService.createInstance(ChatActivityLabelTransition, {
 			getElement: () => this.getConversationTitleElement(),
 			shouldAnimate: () => {
@@ -625,7 +624,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			alert(localize('chat.thinking.started', 'Thinking'));
 		}
 
-		if (this.isVerboseToolChain) {
+		if (this.isVerboseToolChain || this.isVerboseReasoning) {
 			this.setExpanded(true);
 		} else if (configuredMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
@@ -954,7 +953,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			return Codicon.chevronRightCompact;
 		}
 		if (this.context.suppressProgressShimmer) {
-			return this.isToolChain ? Codicon.tools : Codicon.thinking;
+			return getCompactCodicon(this.isToolChain ? Codicon.tools : Codicon.thinking);
 		}
 		if (this.streamingCompleted || this.element.isComplete) {
 			return Codicon.checkCompact;
@@ -1767,10 +1766,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	/**
 	 * Collapses the content once keyboard focus leaves it, so an auto-collapse never makes the
-	 * element a user is interacting with inert.
+	 * element a user is interacting with inert. Verbose progress never collapses on its own.
 	 */
 	public collapseContentWhenUnfocused(): void {
-		if (this.isVerboseToolChain || this._store.isDisposed) {
+		if (this.isVerboseToolChain || this.isVerboseReasoning || this._store.isDisposed) {
 			return;
 		}
 		if (!isAncestorOfActiveElement(this.domNode)) {
@@ -2660,14 +2659,14 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 					const currentState = toolInvocationOrMarkdown.state.read(reader);
 					this.updateWorkingSpinnerVisibility(reader);
 
+					const currentIconElement = this.toolIconsByCallId.get(toolCallId);
+					if (currentIconElement && currentState.type !== IChatToolInvocation.StateKind.Completed && currentState.type !== IChatToolInvocation.StateKind.Cancelled) {
+						setThinkingIcon(currentIconElement, getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown));
+					}
+
 					// queue item to be removed if it was streaming and presentation is hidden
 					if (isStreaming && currentState.type !== IChatToolInvocation.StateKind.Streaming) {
 						isStreaming = false;
-
-						const iconElement = this.toolIconsByCallId.get(toolCallId);
-						if (iconElement) {
-							setThinkingIcon(iconElement, getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown));
-						}
 
 						if (toolInvocationOrMarkdown.presentation === 'hidden') {
 							this.pendingRemovals.push(toolInvocationOrMarkdown.toolCallId);

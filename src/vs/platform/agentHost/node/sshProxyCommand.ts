@@ -9,6 +9,7 @@ import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { killTree } from '../../../base/node/processes.js';
 import { localize } from '../../../nls.js';
+import { formatSSHProxyCommandExit } from '../common/sshRemoteAgentHost.js';
 import { ILogService } from '../../log/common/log.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 
@@ -104,6 +105,6 @@ export class SSHProxyCommand extends Disposable {
 	}
 
 	private _describeExit(status: string | number): string {
-		return localize('sshProxyExited', "SSH ProxyCommand exited ({0}): {1}", status, this._stderr.trim());
+		return formatSSHProxyCommandExit(status, this._stderr.trim());
 	}
 }

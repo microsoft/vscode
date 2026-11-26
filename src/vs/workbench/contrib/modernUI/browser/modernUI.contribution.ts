@@ -35,6 +35,7 @@ import './media/keyboardFocusOnly.css';
 import './media/notificationsDialogs.css';
 import './media/padding.css';
 import './media/paneHeaders.css';
+import './sidebarColors.js';
 import './media/roundedCorners.css';
 import './media/sashHandles.css';
 import './media/shadows.css';

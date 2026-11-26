@@ -47,8 +47,16 @@ class OriginDocumentMergeConflictTracker implements interfaces.IDocumentMergeCon
 export default class DocumentMergeConflictTracker implements vscode.Disposable, interfaces.IDocumentMergeConflictTrackerService {
 	private cache: Map<string, ScanTask> = new Map();
 	private delayExpireTime: number = 0;
+	private readonly conflictFreeVersions = new WeakMap<vscode.TextDocument, number>();
+	private readonly changeListener: vscode.Disposable;
 
-	constructor(private readonly telemetryReporter: TelemetryReporter) { }
+	constructor(private readonly telemetryReporter: TelemetryReporter) {
+		this.changeListener = vscode.workspace.onDidChangeTextDocument(e => {
+			if (this.conflictFreeVersions.get(e.document) === e.document.version - 1 && !MergeConflictParser.mayHaveAddedConflict(e)) {
+				this.conflictFreeVersions.set(e.document, e.document.version);
+			}
+		});
+	}
 
 	getConflicts(document: vscode.TextDocument, origin: string): PromiseLike<interfaces.IDocumentMergeConflict[]> {
 		// Attempt from cache
@@ -109,15 +117,22 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 	}
 
 	dispose() {
+		this.changeListener.dispose();
 		this.cache.clear();
 	}
 
 	private readonly seenDocumentsWithConflicts = new Set<string>();
 
 	private getConflictsOrEmpty(document: vscode.TextDocument, _origins: string[]): interfaces.IDocumentMergeConflict[] {
+		const version = document.version;
+		if (this.conflictFreeVersions.get(document) === version) {
+			return [];
+		}
+
 		const containsConflict = MergeConflictParser.containsConflict(document);
 
 		if (!containsConflict) {
+			this.conflictFreeVersions.set(document, version);
 			return [];
 		}
 

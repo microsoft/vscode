@@ -4,8 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append } from '../../../../../../base/browser/dom.js';
+import type { IDelayedHoverOptions } from '../../../../../../base/browser/ui/hover/hover.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
-import { derived, observableValue } from '../../../../../../base/common/observable.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -22,7 +27,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { ChatLiveResponseStats } from '../../../browser/widget/chatLiveResponseStats.js';
 import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatResponseStats, ChatResponseStatsTokens } from '../../../common/constants.js';
-import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -121,4 +126,42 @@ suite('ChatLiveResponseStats', () => {
 			otherChat: undefined,
 		});
 	}));
+
+	test('its hover shows the stats in full while its host truncates them', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration(ChatConfiguration.ResponseStats, ChatResponseStats.ProgressWithMessage);
+		await configurationService.setUserConfiguration(ChatConfiguration.ResponseStatsTokens, ChatResponseStatsTokens.Count);
+		instantiationService.stub(IConfigurationService, configurationService);
+		let hoverOptions: (() => IDelayedHoverOptions) | IDelayedHoverOptions | undefined;
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupDelayedHover: (_target, options) => {
+				hoverOptions = options;
+				return Disposable.None;
+			},
+		});
+		// The response has worked for 2m 43s and waits for a confirmation, which keeps that time still.
+		const response = upcastPartial<IChatResponseModel>({
+			isIncomplete: constObservable(true),
+			confirmationAdjustedTimestamp: constObservable(1000),
+			isPendingConfirmation: constObservable({ startedWaitingAt: 164_000 }),
+			completionTokenCountObs: constObservable(12_840),
+		});
+		const stats = store.add(instantiationService.createInstance(ChatLiveResponseStats, ChatResponseStats.ProgressWithMessage, constObservable(response)));
+		const row = append(mainWindow.document.body, $('div', { style: 'display: flex; width: 400px;' }));
+		store.add(toDisposable(() => row.remove()));
+		row.appendChild(stats.element);
+		const hover = () => (typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions)?.content;
+		const whole = hover();
+		// As a host does that leaves the stats only part of its row.
+		stats.element.style.overflow = 'hidden';
+		stats.element.style.width = '30px';
+		const truncated = hover();
+
+		assert.deepStrictEqual({ whole, truncated }, {
+			whole: 'Time spent working and the output tokens of the response so far',
+			truncated: '2m 43s \u00b7 12.8k tokens\nTime spent working and the output tokens of the response so far',
+		});
+	});
 });

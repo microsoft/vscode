@@ -771,6 +771,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
 				: { kind: 'systemNotification', content: markdown };
+		case AgentSystemNotificationKind.WorktreeGitLfsUnavailable:
+			return { kind: 'warning', content: markdown, keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.WorkspaceTransition:
 			if (!meta.workspaceName || !meta.workspaceKind) {
 				return { kind: 'systemNotification', content: markdown };
@@ -2489,9 +2491,17 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 	}
 }
 
-function toolCallOriginMessage(tc: ToolCallState): string | undefined {
+function toolCallMcpServerName(tc: ToolCallState): string | undefined {
 	const meta = readToolCallMeta(tc);
-	const serverName = (meta['vscode.mcpServerDisplayName'] ?? meta.mcpServerName)?.trim();
+	return (meta['vscode.mcpServerDisplayName'] ?? meta.mcpServerName)?.trim() || undefined;
+}
+
+function isMcpToolCall(tc: ToolCallState): boolean {
+	return tc.contributor?.kind === ToolCallContributorKind.MCP || !!toolCallMcpServerName(tc);
+}
+
+function toolCallOriginMessage(tc: ToolCallState): string | undefined {
+	const serverName = toolCallMcpServerName(tc);
 	const origin = serverName ? localize('agentHost.mcpServer.origin', "{0} (MCP Server)", serverName) : undefined;
 	// A hook's own reason stays visible beside the collapsed row. A failed hook gave none; its title names the hook.
 	const denial = getToolCallHookDenial(tc);
@@ -2574,6 +2584,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			toolCallId: tc.toolCallId,
 			toolId: tc.toolName,
 			source: ToolDataSource.Internal,
+			icon: isMcpToolCall(tc) ? Codicon.mcp : undefined,
 			invocationMessage: invocationMsg,
 			originMessage: toolCallOriginMessage(tc),
 			pastTenseMessage: hookDenialPastTenseMessage(tc, false) ?? pastTenseMsg,
@@ -2638,6 +2649,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		toolCallId: tc.toolCallId,
 		toolId: tc.toolName,
 		source: ToolDataSource.Internal,
+		icon: isMcpToolCall(tc) ? Codicon.mcp : undefined,
 		invocationMessage: invocationMsg,
 		originMessage: toolCallOriginMessage(tc),
 		pastTenseMessage: isTerminal ? undefined : hookDenialPastTenseMessage(tc, false) ?? pastTenseMsg,
@@ -3066,6 +3078,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
+		icon: isMcpToolCall(tc) ? Codicon.mcp : undefined,
 		displayName: tc.displayName,
 		modelDescription: tc.toolName,
 	};
@@ -3267,6 +3280,7 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 		toolData: {
 			id: tc.toolName,
 			source: ToolDataSource.Internal,
+			icon: isMcpToolCall(tc) ? Codicon.mcp : undefined,
 			displayName: tc.displayName,
 			modelDescription: tc.toolName,
 		},
@@ -3299,6 +3313,9 @@ export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: 
 		return undefined;
 	}
 	existing.originMessage = toolCallOriginMessage(tc) ?? existing.originMessage;
+	if (isMcpToolCall(tc)) {
+		existing.updateIcon(Codicon.mcp);
+	}
 	// Partial read paths render as misleading file links, so wait for the complete input.
 	if (getToolKind(tc) === 'read') {
 		existing.updatePartialInput(undefined);
@@ -3328,6 +3345,7 @@ export function toolCallStateToPreparedInvocation(tc: ToolCallState, sessionReso
 	return {
 		invocationMessage: built.invocationMessage,
 		originMessage: built.originMessage,
+		icon: built.icon,
 		pastTenseMessage: built.pastTenseMessage,
 		confirmationMessages: built.confirmationMessages,
 		presentation: built.presentation,
@@ -3348,6 +3366,9 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	}
 	existing.invocationMessage = stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority) ?? existing.invocationMessage;
 	existing.originMessage = toolCallOriginMessage(tc) ?? existing.originMessage;
+	if (isMcpToolCall(tc)) {
+		existing.updateIcon(Codicon.mcp);
+	}
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		existing.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
 		existing.presentation = ToolInvocationPresentation.HiddenAfterComplete;
@@ -3504,6 +3525,9 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
 		invocation.invocationMessage = stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority) ?? invocation.invocationMessage;
 		invocation.originMessage = toolCallOriginMessage(tc) ?? invocation.originMessage;
+	}
+	if (isMcpToolCall(tc)) {
+		invocation.updateIcon(Codicon.mcp);
 	}
 	// Tools that render a bespoke, client-authored message override the
 	// invocation text here. Add new per-tool cases alongside this branch.

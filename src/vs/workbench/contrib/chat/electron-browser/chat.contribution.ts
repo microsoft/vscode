@@ -34,6 +34,7 @@ import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/c
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import '../browser/aiCustomization/copilotCanvases.contribution.js';
+import '../browser/chatManagement/modelRouters.contribution.js';
 import './codexCustomizationSettings.contribution.js';
 import './agentSessions/computerUseHelperApp.contribution.js';
 import './actions/chatAppWindowScreenshotActions.js';
@@ -49,6 +50,7 @@ import { IChatService } from '../common/chatService/chatService.js';
 import { ChatModeKind } from '../common/constants.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
+import { OpenModelRoutersFolderAction } from './actions/openModelRoutersFolderAction.js';
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
 import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
@@ -264,6 +266,7 @@ registerAction2(StopReadChatItemAloud);
 registerAction2(StopReadAloud);
 
 registerChatDeveloperActions();
+registerAction2(OpenModelRoutersFolderAction);
 registerChatExportZipAction();
 registerExportAgentTracesDbAction();
 registerInstallDictationModelAction();

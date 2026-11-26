@@ -37,23 +37,23 @@ const MAX_CONCURRENT_LOADS = 3;
 /** A load that takes longer is abandoned, so one hung provider cannot occupy a load slot forever. */
 const MAX_LOAD_TIME_MS = 30_000;
 
-interface SCMStructuralDiffElementBase {
+interface SCMStructuralDiffElementBase<T extends object> {
 	/**
 	 * Identifies the item or status that the element shows. It stays the same when the structural
 	 * changes of a file are reloaded, so the tree keeps focus, selection and collapse state.
 	 */
 	readonly id: string;
-	/** Identifies the result that contains the element, see {@link SCMStructuralDiffModel.isCurrent}. */
+	/** Identifies the result that contains the element, see {@link StructuralDiffModel.isCurrent}. */
 	readonly generation: number;
-	readonly resource: ISCMResource;
+	readonly resource: T;
 	readonly order: number;
 }
 
-export interface SCMStructuralDiffNode extends SCMStructuralDiffElementBase {
+export interface SCMStructuralDiffNode<T extends object = ISCMResource> extends SCMStructuralDiffElementBase<T> {
 	readonly type: 'structuralDiff';
 	readonly node: StructuralDiffNode;
-	readonly parent: ISCMResource | SCMStructuralDiffNode;
-	readonly children: readonly SCMStructuralDiffNode[];
+	readonly parent: T | SCMStructuralDiffNode<T>;
+	readonly children: readonly SCMStructuralDiffNode<T>[];
 	/**
 	 * For an item that only exists in the original document, the position in the modified document where it was
 	 * deleted. An inline diff only shows the modified document, so it shows a deleted item there.
@@ -61,13 +61,27 @@ export interface SCMStructuralDiffNode extends SCMStructuralDiffElementBase {
 	readonly deletedAt?: IPosition;
 }
 
-export interface SCMStructuralDiffStatus extends SCMStructuralDiffElementBase {
+export interface SCMStructuralDiffStatus<T extends object = ISCMResource> extends SCMStructuralDiffElementBase<T> {
 	readonly type: 'structuralDiffStatus';
 	readonly status: 'incomplete' | 'error' | 'timedOut';
-	readonly parent: ISCMResource;
+	readonly parent: T;
 }
 
-export type SCMStructuralDiffElement = SCMStructuralDiffNode | SCMStructuralDiffStatus;
+export type SCMStructuralDiffElement<T extends object = ISCMResource> = SCMStructuralDiffNode<T> | SCMStructuralDiffStatus<T>;
+
+/** Where structural changes are shown, which is reported with the outcome of their requests. */
+export type StructuralDiffLocation = 'scm' | 'multiDiffEditor';
+
+/**
+ * Describes the files of a view that shows their structural changes, such as the resources of the Source Control view.
+ */
+export interface IStructuralDiffResourceAdapter<T extends object> {
+	readonly location: StructuralDiffLocation;
+	/** The documents to compare. A file that lacks one of them has no structural changes. */
+	getDocuments(resource: T): { readonly original: URI | undefined; readonly modified: URI | undefined };
+	/** Identifies the file in the ids of its elements, see {@link SCMStructuralDiffElementBase.id}. */
+	getIdentity(resource: T): readonly string[];
+}
 
 /**
  * A step from a parent to a structural item: its kind and name, whether it was added, where it starts in the original
@@ -75,9 +89,8 @@ export type SCMStructuralDiffElement = SCMStructuralDiffNode | SCMStructuralDiff
  */
 type ItemKey = readonly [kind: SymbolKind, name: string, added: boolean, line: number, column: number, ordinal: number];
 
-function createElementId(resource: ISCMResource, path: readonly (ItemKey | string)[]): string {
-	const group = resource.resourceGroup;
-	return SCM_STRUCTURAL_DIFF_ID_PREFIX + JSON.stringify([group.provider.id, group.id, resource.sourceUri.toString(), ...path]);
+function createElementId(identity: readonly string[], path: readonly (ItemKey | string)[]): string {
+	return SCM_STRUCTURAL_DIFF_ID_PREFIX + JSON.stringify([...identity, ...path]);
 }
 
 export function isSCMStructuralDiffElement(element: unknown): element is SCMStructuralDiffElement {
@@ -85,7 +98,7 @@ export function isSCMStructuralDiffElement(element: unknown): element is SCMStru
 		&& (element.type === 'structuralDiff' || element.type === 'structuralDiffStatus');
 }
 
-export function getSCMStructuralDiffLabel(element: SCMStructuralDiffElement): string {
+export function getSCMStructuralDiffLabel(element: SCMStructuralDiffElement<object>): string {
 	if (element.type === 'structuralDiffStatus') {
 		return element.status === 'incomplete'
 			? localize('structuralDiff.incomplete', "Partial structural changes")
@@ -96,7 +109,7 @@ export function getSCMStructuralDiffLabel(element: SCMStructuralDiffElement): st
 	return (element.node.modifiedItem ?? element.node.originalItem)!.name;
 }
 
-export function getSCMStructuralDiffChange(element: SCMStructuralDiffElement): { readonly type: 'added' | 'deleted' | 'modified' | 'renamed'; readonly label: string } | undefined {
+export function getSCMStructuralDiffChange(element: SCMStructuralDiffElement<object>): { readonly type: 'added' | 'deleted' | 'modified' | 'renamed'; readonly label: string } | undefined {
 	if (element.type === 'structuralDiffStatus') {
 		return undefined;
 	}
@@ -118,7 +131,7 @@ export function getSCMStructuralDiffChange(element: SCMStructuralDiffElement): {
 	return undefined;
 }
 
-export function getSCMStructuralDiffChangeAnnotation(element: SCMStructuralDiffElement): { readonly label: string; readonly description: string } | undefined {
+export function getSCMStructuralDiffChangeAnnotation(element: SCMStructuralDiffElement<object>): { readonly label: string; readonly description: string } | undefined {
 	if (element.type === 'structuralDiffStatus' || !element.node.originalItem || !element.node.modifiedItem
 		|| element.node.originalItem.name !== element.node.modifiedItem.name) {
 		return undefined;
@@ -147,7 +160,7 @@ export function getSCMStructuralDiffChangeAnnotation(element: SCMStructuralDiffE
 	return undefined;
 }
 
-export function getSCMStructuralDiffDescription(element: SCMStructuralDiffElement): string | undefined {
+export function getSCMStructuralDiffDescription(element: SCMStructuralDiffElement<object>): string | undefined {
 	if (element.type === 'structuralDiffStatus') {
 		return undefined;
 	}
@@ -156,7 +169,7 @@ export function getSCMStructuralDiffDescription(element: SCMStructuralDiffElemen
 	return [status, details].filter(value => !!value).join(', ') || undefined;
 }
 
-export function getSCMStructuralDiffAriaLabel(element: SCMStructuralDiffElement): string {
+export function getSCMStructuralDiffAriaLabel(element: SCMStructuralDiffElement<object>): string {
 	if (element.type === 'structuralDiffStatus') {
 		return getSCMStructuralDiffLabel(element);
 	}
@@ -167,7 +180,22 @@ export function getSCMStructuralDiffAriaLabel(element: SCMStructuralDiffElement)
 		: localize('structuralDiff.ariaLabel', "{0}, {1}", item.name, symbolKindNames[item.kind]);
 }
 
-class StructuralDiffEntry extends Disposable {
+/**
+ * Returns where a diff editor shows a structural item: its name in the modified document, or in the original document
+ * for a deleted item, unless the diff is inline, which shows deleted text in the modified document where it was deleted.
+ */
+export function getSCMStructuralDiffTarget(element: SCMStructuralDiffNode<object>, renderSideBySide: boolean): { readonly side: 'original' | 'modified'; readonly range: Range } {
+	const { originalItem, modifiedItem } = element.node;
+	if (modifiedItem) {
+		return { side: 'modified', range: Range.lift(modifiedItem.selectionRange ?? modifiedItem.range) };
+	}
+	if (renderSideBySide || !element.deletedAt) {
+		return { side: 'original', range: Range.lift(originalItem!.selectionRange ?? originalItem!.range) };
+	}
+	return { side: 'modified', range: Range.fromPositions(element.deletedAt) };
+}
+
+class StructuralDiffEntry<T extends object> extends Disposable {
 	readonly cancellation = this._register(new CancellationTokenSource());
 	readonly listeners = this._register(new DisposableStore());
 	readonly references = this._register(new DisposableStore());
@@ -176,14 +204,14 @@ class StructuralDiffEntry extends Disposable {
 	readonly whenDisposed = this.disposal.p;
 	/** Measures the time from the request until its outcome. */
 	readonly stopWatch = StopWatch.create();
-	pending?: Promise<readonly SCMStructuralDiffElement[]>;
-	children?: readonly SCMStructuralDiffElement[];
+	pending?: Promise<readonly SCMStructuralDiffElement<T>[]>;
+	children?: readonly SCMStructuralDiffElement<T>[];
 	disposed = false;
 	timedOut = false;
 	/** Whether a provider failed, returned an invalid result or cancelled on its own, see {@link StructuralDiffs.compute}. */
 	providerFailed = false;
 
-	constructor(readonly resource: ISCMResource, readonly generation: number) {
+	constructor(readonly resource: T, readonly generation: number) {
 		super();
 	}
 
@@ -200,7 +228,7 @@ class StructuralDiffEntry extends Disposable {
 /**
  * Whether any structural diff provider is registered, regardless of the languages it supports.
  * This decides whether the feature is offered at all. Whether a file can show structural
- * changes is decided per resource by {@link SCMStructuralDiffModel.hasChildren}, so changes
+ * changes is decided per resource by {@link StructuralDiffModel.hasChildren}, so changes
  * that span many languages need no special handling.
  */
 export function hasSCMStructuralDiffProvider(languageFeaturesService: ILanguageFeaturesService): boolean {
@@ -214,18 +242,24 @@ type StructuralDiffRequestedEvent = {
 	languageId: string;
 	durationMs: number;
 	incomplete: 0 | 1;
+	location: StructuralDiffLocation;
 };
 
 type StructuralDiffRequestedClassification = {
 	owner: 'dbaeumer';
-	comment: 'Reports the outcome of requesting the structural changes of a file that was expanded in the Source Control view, to understand how often they are used and how often they can be shown.';
+	comment: 'Reports the outcome of requesting the structural changes of a file that was expanded in the Source Control view or in the file list of the multi-file diff editor, to understand how often they are used and how often they can be shown.';
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'success if structural changes were computed, noResult if no provider supplied any, providerFailed if a provider failed, timedOut if computing them took too long, and error if, for example, a document could not be loaded.' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the file.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds from the request until its outcome.' };
 	incomplete: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the provider marked its result as incomplete, otherwise 0.' };
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the file was expanded: scm for the Source Control view, and multiDiffEditor for the file list of the multi-file diff editor.' };
 };
 
-export class SCMStructuralDiffModel extends Disposable {
+/**
+ * Loads the structural changes of the files of a view when they are expanded, and reloads them when their documents
+ * change. The adapter tells which documents a file compares.
+ */
+export class StructuralDiffModel<T extends object> extends Disposable {
 	private _enabled = false;
 	get enabled(): boolean { return this._enabled; }
 	private visible = true;
@@ -233,20 +267,20 @@ export class SCMStructuralDiffModel extends Disposable {
 	/** Whether any structural diff provider is registered, see {@link hasSCMStructuralDiffProvider}. */
 	readonly hasProvider: IObservable<boolean>;
 
-	private readonly entries = this._register(new DisposableMap<ISCMResource, StructuralDiffEntry>());
-	private readonly loadLimiter = this._register(new Limiter<readonly SCMStructuralDiffElement[]>(MAX_CONCURRENT_LOADS));
-	private readonly _onDidChange = this._register(new Emitter<ISCMResource | undefined>());
+	private readonly entries = this._register(new DisposableMap<T, StructuralDiffEntry<T>>());
+	private readonly loadLimiter = this._register(new Limiter<readonly SCMStructuralDiffElement<T>[]>(MAX_CONCURRENT_LOADS));
+	private readonly _onDidChange = this._register(new Emitter<T | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 	private generation = 0;
 	/**
 	 * Files whose expansion was reported. Each expansion is reported once, by the first request that completes after
 	 * it. Reloads of an expanded file are not new expansions, so they are not reported, whether an edit, hiding and
 	 * showing the view, or a provider or language change causes them. Collapsing a file or turning structural diffs off
-	 * ends its expansion. Resources that their group removes or replaces, for example because their status changed, are
+	 * ends its expansion. Resources that their view removes or replaces, for example because their status changed, are
 	 * not used again, so they need no cleanup, and the first request of a new resource object is reported.
 	 */
-	private reportedResources = new WeakSet<ISCMResource>();
-	private readonly pendingChanges = new Set<ISCMResource>();
+	private reportedResources = new WeakSet<T>();
+	private readonly pendingChanges = new Set<T>();
 	private readonly changeScheduler = this._register(new RunOnceScheduler(() => {
 		const resources = [...this.pendingChanges];
 		this.pendingChanges.clear();
@@ -256,6 +290,7 @@ export class SCMStructuralDiffModel extends Disposable {
 	}, 150));
 
 	constructor(
+		private readonly adapter: IStructuralDiffResourceAdapter<T>,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -280,8 +315,8 @@ export class SCMStructuralDiffModel extends Disposable {
 				return;
 			}
 			for (const [resource] of this.entries) {
-				if (this.uriIdentityService.extUri.isEqual(resource.multiDiffEditorModifiedUri, model.uri)
-					|| this.uriIdentityService.extUri.isEqual(resource.multiDiffEditorOriginalUri, model.uri)) {
+				const { original, modified } = this.adapter.getDocuments(resource);
+				if (this.uriIdentityService.extUri.isEqual(modified, model.uri) || this.uriIdentityService.extUri.isEqual(original, model.uri)) {
 					this.entries.deleteAndDispose(resource);
 				}
 			}
@@ -318,7 +353,7 @@ export class SCMStructuralDiffModel extends Disposable {
 		}
 	}
 
-	hasChildren(resource: ISCMResource): boolean {
+	hasChildren(resource: T): boolean {
 		if (!this.enabled) {
 			return false;
 		}
@@ -329,7 +364,7 @@ export class SCMStructuralDiffModel extends Disposable {
 		return this.canProvide(resource);
 	}
 
-	getChildren(resource: ISCMResource): Promise<readonly SCMStructuralDiffElement[]> {
+	getChildren(resource: T): Promise<readonly SCMStructuralDiffElement<T>[]> {
 		if (this._store.isDisposed || !this.visible || !this.canProvide(resource)) {
 			return Promise.resolve([]);
 		}
@@ -347,46 +382,21 @@ export class SCMStructuralDiffModel extends Disposable {
 		return entry.pending;
 	}
 
-	isCurrent(element: SCMStructuralDiffElement): boolean {
+	isCurrent(element: SCMStructuralDiffElement<T>): boolean {
 		const entry = this.entries.get(element.resource);
 		return entry !== undefined && !entry.disposed && entry.generation === element.generation;
 	}
 
-	release(resource: ISCMResource): void {
+	release(resource: T): void {
 		this.reportedResources.delete(resource);
 		this.entries.deleteAndDispose(resource);
 		this._onDidChange.fire(resource);
 	}
 
-	/** Releases the cached results of all resources in the group, for example because the group was removed. */
-	invalidateGroup(group: ISCMResourceGroup): void {
+	/** Releases the cached results of the resources that the predicate selects, for example because the view removed them. */
+	releaseWhere(predicate: (resource: T) => boolean): void {
 		for (const [resource] of this.entries) {
-			if (resource.resourceGroup === group) {
-				this.entries.deleteAndDispose(resource);
-			}
-		}
-	}
-
-	/**
-	 * Releases the cached results of resources that are no longer in the group, for example because
-	 * their status changed. Results of the remaining resources are kept, because content changes
-	 * already invalidate them.
-	 */
-	releaseRemovedResources(group: ISCMResourceGroup): void {
-		let resources: Set<ISCMResource> | undefined;
-		for (const [resource] of this.entries) {
-			if (resource.resourceGroup === group) {
-				resources ??= new Set(group.resources);
-				if (!resources.has(resource)) {
-					this.entries.deleteAndDispose(resource);
-				}
-			}
-		}
-	}
-
-	invalidateProvider(provider: ISCMProvider): void {
-		for (const [resource] of this.entries) {
-			if (resource.resourceGroup.provider === provider) {
+			if (predicate(resource)) {
 				this.entries.deleteAndDispose(resource);
 			}
 		}
@@ -403,12 +413,12 @@ export class SCMStructuralDiffModel extends Disposable {
 		return this._enabled && hasSCMStructuralDiffProvider(this.languageFeaturesService);
 	}
 
-	private canProvide(resource: ISCMResource): boolean {
+	private canProvide(resource: T): boolean {
 		if (!this.enabled) {
 			return false;
 		}
-		const modified = resource.multiDiffEditorModifiedUri;
-		if (!resource.multiDiffEditorOriginalUri || !modified) {
+		const { original, modified } = this.adapter.getDocuments(resource);
+		if (!original || !modified) {
 			return false;
 		}
 		const model = this.modelService.getModel(modified);
@@ -417,7 +427,7 @@ export class SCMStructuralDiffModel extends Disposable {
 			: registry.hasForResource(modified, this.languageService.guessLanguageIdByFilepathOrFirstLine(modified) ?? 'plaintext');
 	}
 
-	private invalidate(entry: StructuralDiffEntry): void {
+	private invalidate(entry: StructuralDiffEntry<T>): void {
 		if (!entry.disposed && this.entries.get(entry.resource) === entry) {
 			this.entries.deleteAndDispose(entry.resource);
 			this.pendingChanges.add(entry.resource);
@@ -425,14 +435,14 @@ export class SCMStructuralDiffModel extends Disposable {
 		}
 	}
 
-	private checkCancellation(entry: StructuralDiffEntry): void {
+	private checkCancellation(entry: StructuralDiffEntry<T>): void {
 		if (entry.disposed || entry.cancellation.token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 	}
 
 	/** Keeps the document loaded while the entry exists and invalidates the entry when the document changes, also after a failure. */
-	private async resolveModel(entry: StructuralDiffEntry, resource: URI): Promise<ITextModel> {
+	private async resolveModel(entry: StructuralDiffEntry<T>, resource: URI): Promise<ITextModel> {
 		this.checkCancellation(entry);
 		const reference = await this.textModelService.createModelReference(resource);
 		if (entry.disposed || entry.cancellation.token.isCancellationRequested) {
@@ -451,7 +461,7 @@ export class SCMStructuralDiffModel extends Disposable {
 	 * Cancelling an entry does not interrupt loading its documents, so a cancelled load stops waiting for them and frees
 	 * its slot right away. Documents that are loaded later are released when they arrive.
 	 */
-	private async loadWithinBudget(entry: StructuralDiffEntry): Promise<readonly SCMStructuralDiffElement[]> {
+	private async loadWithinBudget(entry: StructuralDiffEntry<T>): Promise<readonly SCMStructuralDiffElement<T>[]> {
 		const children = await raceTimeout(raceCancellation(this.load(entry), entry.cancellation.token, []), MAX_LOAD_TIME_MS, () => {
 			entry.timedOut = true;
 			entry.cancellation.cancel();
@@ -459,13 +469,14 @@ export class SCMStructuralDiffModel extends Disposable {
 		return children && !entry.timedOut ? children : this.fail(entry, 'timedOut');
 	}
 
-	private async load(entry: StructuralDiffEntry): Promise<readonly SCMStructuralDiffElement[]> {
+	private async load(entry: StructuralDiffEntry<T>): Promise<readonly SCMStructuralDiffElement<T>[]> {
 		const resource = entry.resource;
+		const documents = this.adapter.getDocuments(resource);
 		try {
 			// Both documents are loaded even when one of them cannot be, so that every document that can be loaded is watched.
 			const [original, modified] = await Promises.settled([
-				this.resolveModel(entry, resource.multiDiffEditorOriginalUri!),
-				this.resolveModel(entry, resource.multiDiffEditorModifiedUri!),
+				this.resolveModel(entry, documents.original!),
+				this.resolveModel(entry, documents.modified!),
 			]);
 			const result = await this.computeStructuralDiff(entry, original, modified);
 			this.checkCancellation(entry);
@@ -473,21 +484,22 @@ export class SCMStructuralDiffModel extends Disposable {
 			const toOriginal = toModified.reverse();
 			// A position in changed text maps to the start of the change in the other document.
 			const startOf = (mapped: PositionOrRange) => mapped.range?.getStartPosition() ?? mapped.position!;
-			const wrap = (nodes: readonly StructuralDiffNode[], parent: ISCMResource | SCMStructuralDiffNode, path: readonly ItemKey[]): SCMStructuralDiffNode[] => {
+			const identity = this.adapter.getIdentity(resource);
+			const wrap = (nodes: readonly StructuralDiffNode[], parent: T | SCMStructuralDiffNode<T>, path: readonly ItemKey[]): SCMStructuralDiffNode<T>[] => {
 				const ordinals = new Map<string, number>();
 				return nodes.map((node, order) => {
 					const item = (node.originalItem ?? node.modifiedItem)!;
 					// Edits of the working file do not change the original document, so a position in it identifies an item,
 					// even when siblings with the same name start or stop changing. An added item is located through the text changes.
 					const start = node.originalItem ? Range.getStartPosition(node.originalItem.range) : startOf(toOriginal.mapPosition(Range.getStartPosition(node.modifiedItem!.range)));
-					const identity = [item.kind, item.name, !node.originalItem, start.lineNumber, start.column] as const;
-					const key = JSON.stringify(identity);
+					const itemIdentity = [item.kind, item.name, !node.originalItem, start.lineNumber, start.column] as const;
+					const key = JSON.stringify(itemIdentity);
 					const ordinal = ordinals.get(key) ?? 0;
 					ordinals.set(key, ordinal + 1);
-					const nodePath: ItemKey[] = [...path, [...identity, ordinal]];
-					const children: SCMStructuralDiffNode[] = [];
-					const element: SCMStructuralDiffNode = {
-						type: 'structuralDiff', id: createElementId(resource, nodePath),
+					const nodePath: ItemKey[] = [...path, [...itemIdentity, ordinal]];
+					const children: SCMStructuralDiffNode<T>[] = [];
+					const element: SCMStructuralDiffNode<T> = {
+						type: 'structuralDiff', id: createElementId(identity, nodePath),
 						generation: entry.generation, resource, node, parent, order, children,
 						...(node.modifiedItem ? {} : { deletedAt: startOf(toModified.mapPosition(start)) }),
 					};
@@ -495,7 +507,7 @@ export class SCMStructuralDiffModel extends Disposable {
 					return element;
 				});
 			};
-			const children: SCMStructuralDiffElement[] = result ? wrap(result.root.children, resource, []) : [];
+			const children: SCMStructuralDiffElement<T>[] = result ? wrap(result.root.children, resource, []) : [];
 			if (result?.isIncomplete) {
 				children.push(this.createStatus(entry, 'incomplete', children.length));
 			}
@@ -512,10 +524,10 @@ export class SCMStructuralDiffModel extends Disposable {
 				return [];
 			}
 			if (error instanceof StructuralDiffs.TimeoutError) {
-				this.logService.info('[SCM] Structural changes took too long to compute', resource.sourceUri, error.message);
+				this.logService.info('[SCM] Structural changes took too long to compute', documents.modified, error.message);
 				return this.fail(entry, 'timedOut');
 			}
-			this.logService.error('[SCM] Error loading structural changes', resource.sourceUri, error);
+			this.logService.error('[SCM] Error loading structural changes', documents.modified, error);
 			return this.fail(entry, 'error');
 		}
 	}
@@ -525,7 +537,7 @@ export class SCMStructuralDiffModel extends Disposable {
 	 * when its language server restarts. Like a provider that fails, it then supplies no result, and the documents remain
 	 * watched, so an edit analyzes the file again.
 	 */
-	private async computeStructuralDiff(entry: StructuralDiffEntry, original: ITextModel, modified: ITextModel): Promise<StructuralDiffResult | undefined> {
+	private async computeStructuralDiff(entry: StructuralDiffEntry<T>, original: ITextModel, modified: ITextModel): Promise<StructuralDiffResult | undefined> {
 		try {
 			return await StructuralDiffs.compute(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token, () => {
 				entry.providerFailed = true;
@@ -543,7 +555,7 @@ export class SCMStructuralDiffModel extends Disposable {
 	 * Shows a status row instead of structural changes until the entry is invalidated. Like a result, a failure keeps the
 	 * documents that could be loaded, so editing one of them analyzes the file again.
 	 */
-	private fail(entry: StructuralDiffEntry, status: 'error' | 'timedOut'): readonly SCMStructuralDiffElement[] {
+	private fail(entry: StructuralDiffEntry<T>, status: 'error' | 'timedOut'): readonly SCMStructuralDiffElement<T>[] {
 		if (entry.disposed) {
 			return [];
 		}
@@ -553,25 +565,71 @@ export class SCMStructuralDiffModel extends Disposable {
 		return children;
 	}
 
-	/** Reports the outcome of the first request that completes after its file was expanded, see {@link SCMStructuralDiffModel.reportedResources}. */
-	private report(entry: StructuralDiffEntry, outcome: StructuralDiffRequestOutcome, incomplete = false): void {
+	/** Reports the outcome of the first request that completes after its file was expanded, see {@link StructuralDiffModel.reportedResources}. */
+	private report(entry: StructuralDiffEntry<T>, outcome: StructuralDiffRequestOutcome, incomplete = false): void {
 		if (this.reportedResources.has(entry.resource)) {
 			return;
 		}
 		this.reportedResources.add(entry.resource);
-		const modified = entry.resource.multiDiffEditorModifiedUri!;
+		const modified = this.adapter.getDocuments(entry.resource).modified!;
 		this.telemetryService.publicLog2<StructuralDiffRequestedEvent, StructuralDiffRequestedClassification>('scmStructuralDiffRequested', {
 			outcome,
 			languageId: this.modelService.getModel(modified)?.getLanguageId() ?? this.languageService.guessLanguageIdByFilepathOrFirstLine(modified) ?? 'plaintext',
 			durationMs: Math.round(entry.stopWatch.elapsed()),
 			incomplete: incomplete ? 1 : 0,
+			location: this.adapter.location,
 		});
 	}
 
-	private createStatus(entry: StructuralDiffEntry, status: SCMStructuralDiffStatus['status'], order: number): SCMStructuralDiffStatus {
+	private createStatus(entry: StructuralDiffEntry<T>, status: SCMStructuralDiffStatus['status'], order: number): SCMStructuralDiffStatus<T> {
 		return {
-			type: 'structuralDiffStatus', id: createElementId(entry.resource, ['status', status]),
+			type: 'structuralDiffStatus', id: createElementId(this.adapter.getIdentity(entry.resource), ['status', status]),
 			generation: entry.generation, resource: entry.resource, parent: entry.resource, order, status,
 		};
+	}
+}
+
+const scmResourceAdapter: IStructuralDiffResourceAdapter<ISCMResource> = {
+	location: 'scm',
+	getDocuments: resource => ({ original: resource.multiDiffEditorOriginalUri, modified: resource.multiDiffEditorModifiedUri }),
+	getIdentity: resource => [resource.resourceGroup.provider.id, resource.resourceGroup.id, resource.sourceUri.toString()],
+};
+
+/**
+ * Loads the structural changes of the resources of the Source Control view.
+ */
+export class SCMStructuralDiffModel extends StructuralDiffModel<ISCMResource> {
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService modelService: IModelService,
+		@ILanguageService languageService: ILanguageService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@ILogService logService: ILogService,
+		@ITelemetryService telemetryService: ITelemetryService,
+	) {
+		super(scmResourceAdapter, textModelService, modelService, languageService, languageFeaturesService, editorWorkerService, configurationService, uriIdentityService, logService, telemetryService);
+	}
+
+	/** Releases the cached results of all resources in the group, for example because the group was removed. */
+	invalidateGroup(group: ISCMResourceGroup): void {
+		this.releaseWhere(resource => resource.resourceGroup === group);
+	}
+
+	/**
+	 * Releases the cached results of resources that are no longer in the group, for example because
+	 * their status changed. Results of the remaining resources are kept, because content changes
+	 * already invalidate them.
+	 */
+	releaseRemovedResources(group: ISCMResourceGroup): void {
+		let resources: Set<ISCMResource> | undefined;
+		this.releaseWhere(resource => resource.resourceGroup === group && !(resources ??= new Set(group.resources)).has(resource));
+	}
+
+	invalidateProvider(provider: ISCMProvider): void {
+		this.releaseWhere(resource => resource.resourceGroup.provider === provider);
 	}
 }

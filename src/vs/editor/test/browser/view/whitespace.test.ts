@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestColorTheme } from '../../../../platform/theme/test/common/testThemeService.js';
 import { HorizontalPosition, IViewLines, RenderingContext } from '../../../browser/view/renderingContext.js';
@@ -12,6 +13,7 @@ import { EditorOption, IEditorOptions } from '../../../common/config/editorOptio
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import { Selection } from '../../../common/core/selection.js';
 import { CursorChangeReason } from '../../../common/cursorEvents.js';
+import { TextModel } from '../../../common/model/textModel.js';
 import { ViewCursorStateChangedEvent } from '../../../common/viewEvents.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
@@ -118,6 +120,16 @@ suite('WhitespaceOverlay', () => {
 
 	test('respects stopRenderingLineAfter', () => {
 		assert.deepStrictEqual(renderWhitespace(['    text'], { stopRenderingLineAfter: 2 }).map(glyphCount), [2]);
+	});
+
+	test('reads no decorations from the model', () => {
+		const getDecorationsInRange = sinon.spy(TextModel.prototype, 'getDecorationsInRange');
+		try {
+			renderWhitespace(text);
+		} finally {
+			getDecorationsInRange.restore();
+		}
+		assert.strictEqual(getDecorationsInRange.callCount, 0);
 	});
 
 	test('leaves font rendering unchanged', () => {

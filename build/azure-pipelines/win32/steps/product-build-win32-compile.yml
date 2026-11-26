@@ -12,11 +12,10 @@ parameters:
     type: boolean
     default: false
   # Whether to include the steps and jobs that need a privileged service
-  # connection (signing, CDN uploads, Copilot test setup). Only
-  # sdk-validation-build.yml sets this to false.
+  # connection (signing, CDN uploads, Copilot test setup). Required: only
+  # builds of main and release/* branches pass true.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
-    default: true
   # What the job builds. The product and flaky-smoke builds build everything; a CI test job builds
   # only what its tests use (see product-build-win32-ci.yml).
   - name: VSCODE_BUILD_CLIENT

@@ -4920,6 +4920,11 @@ declare namespace monaco.editor {
 		 */
 		selectionMode?: 'always' | 'never' | 'whenTriggerCharacter' | 'whenQuickSuggestion';
 		/**
+		 * Show suggestions again when Backspace follows their closing because nothing matched what
+		 * was typed, and keep them open when it deletes back to a trigger character. Defaults to false.
+		 */
+		reopenOnDelete?: boolean;
+		/**
 		 * Enable or disable icons in suggestions. Defaults to true.
 		 */
 		showIcons?: boolean;

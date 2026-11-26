@@ -22,7 +22,7 @@ import { MobileAgentHostFilterService } from '../../browser/mobileAgentHostFilte
 
 suite('MobileAgentHostFilterService isolation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const cloud = { id: 'githubsandbox', label: 'GitHub Sandboxes', connectable: false, sessionCreationProviderId: 'cloud-creation', order: 1 };
+	const cloud = { id: 'githubsandbox', label: 'Cloud', icon: Codicon.cloud, connectable: false, sessionCreationProviderId: 'cloud-creation', order: 1 };
 
 	function create(mobile: boolean) {
 		const changed = store.add(new Emitter<ISessionsProvidersChangeEvent>());
@@ -49,7 +49,7 @@ suite('MobileAgentHostFilterService isolation', () => {
 	}
 
 	for (const mobile of [false, true]) {
-		test(`${mobile ? 'mobile' : 'full'} default and label stay entry-specific after delayed Cloud discovery`, () => {
+		test(`${mobile ? 'mobile' : 'full'} preserves the Cloud label without repeating it when discovery changes the available hosts`, () => {
 			const service = create(mobile);
 			const before = service.selectedHostId;
 			const registration = store.add(service.registerHostGroup(cloud));
@@ -60,8 +60,8 @@ suite('MobileAgentHostFilterService isolation', () => {
 				before: isWeb ? 'agenthost-computer' : undefined,
 				after: isWeb ? mobile ? cloud.id : 'agenthost-computer' : undefined,
 				removed: isWeb ? 'agenthost-computer' : undefined,
-				label: mobile ? 'Cloud' : 'GitHub Sandboxes',
-				description: mobile ? 'GitHub Sandboxes' : undefined,
+				label: 'Cloud',
+				description: undefined,
 			});
 		});
 

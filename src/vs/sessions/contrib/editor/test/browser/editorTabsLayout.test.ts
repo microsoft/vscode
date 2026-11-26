@@ -145,12 +145,12 @@ suite('Sessions - Editor tabs trailing layout', () => {
 	}
 
 	function trailingBounds(strip: HTMLElement) {
-		const add = strip.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
-		const addButton = add.querySelector<HTMLElement>('.action-label')!;
+		const add = strip.querySelector<HTMLElement>('.tabs-bar-add-tab');
+		const addButton = add?.querySelector<HTMLElement>('.action-label');
 		const contextual = strip.querySelector<HTMLElement>('.editor-actions')!;
 		const layout = strip.querySelector<HTMLElement>('.editor-layout-actions')!;
 		const separator = strip.querySelector<HTMLElement>('.editor-actions-separator')!;
-		const items = [addButton, contextual, separator, layout].filter(item => item.getBoundingClientRect().width > 0);
+		const items = [addButton, contextual, separator, layout].filter((item): item is HTMLElement => !!item && item.getBoundingClientRect().width > 0);
 		const bounds = strip.getBoundingClientRect();
 		const tabs = Array.from(strip.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
 		return {
@@ -165,7 +165,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 				const rect = item.getBoundingClientRect();
 				return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 && rect.top >= bounds.top - 1 && rect.bottom <= bounds.bottom + 1;
 			}),
-			addPosition: mainWindow.getComputedStyle(add).position,
+			addPosition: add ? mainWindow.getComputedStyle(add).position : undefined,
 			tabsClear: !strip.classList.contains('wrapping') || tabs.every(tab => items.every(item => {
 				const a = tab.getBoundingClientRect();
 				const b = item.getBoundingClientRect();
@@ -285,11 +285,11 @@ suite('Sessions - Editor tabs trailing layout', () => {
 				finalTabReservation: parseFloat(mainWindow.getComputedStyle(finalTab).marginInlineEnd),
 				addMarker: strip.classList.contains('has-add-tab'),
 				addFollowsLastTab: strip.classList.contains('add-tab-follows-last-tab'),
-				addWidth: strip.querySelector<HTMLElement>('.tabs-bar-add-tab')!.offsetWidth,
+				addWidth: strip.querySelector<HTMLElement>('.tabs-bar-add-tab')?.offsetWidth ?? 0,
 			});
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
-			...result, actions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], visibleActions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], overlaps: false, inBounds: true, addPosition: 'relative', tabsClear: true,
+			...result, actions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], visibleActions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], overlaps: false, inBounds: true, addPosition: result.add ? 'relative' : undefined, tabsClear: true,
 			separatorVisible: result.contextual && result.trailing,
 			reservedWidth: result.wrapperWidth,
 			// Following the last tab, the Add Tab control and the toolbars share its row

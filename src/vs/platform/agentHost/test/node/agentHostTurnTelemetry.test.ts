@@ -45,6 +45,8 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostPullRequestAutopilotService } from '../../node/agentHostPullRequestAutopilot.js';
+import { nullPullRequestAutopilotService } from './pullRequestAutopilotTestUtils.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -324,6 +326,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
 		services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+		services.set(IAgentHostPullRequestAutopilotService, nullPullRequestAutopilotService);
 		services.set(IAgentHostArtifactIntegrationDirectory, disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry()))));
 		services.set(IAgentHostSessionPromptService, {
 			_serviceBrand: undefined,

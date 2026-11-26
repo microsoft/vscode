@@ -14,7 +14,7 @@ import { DisposableStore, disposeIfDisposable, MutableDisposable } from '../../.
 import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
-import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor, ExtensionBlockingOrigin } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IGalleryExtension, IExtensionGalleryService, IExtensionManagementService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor, ExtensionBlockingOrigin } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { areSameExtensions, getExtensionBlockedMessage, getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -60,7 +60,7 @@ import { isIOS, isWeb, language } from '../../../../base/common/platform.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
-import { createCommandUri, escapeMarkdownSyntaxTokens, escapeUntrustedMarkdown, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeMarkdownLinkText, escapeMarkdownSyntaxTokens, escapeUntrustedMarkdown, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { getLocale } from '../../../../platform/languagePacks/common/languagePacks.js';
@@ -587,19 +587,22 @@ export class InstallAction extends ExtensionAction {
 						return DeprecationChoice.ConfigureSettings;
 					}
 				});
-			} else if (this.extension.deprecationInfo.additionalInfo) {
+			} else if (this.extension.deprecationInfo.additionalInfo && this.extension.deprecationInfo.source !== 'marketplace') {
 				detail = new MarkdownString(`${detail} ${this.extension.deprecationInfo.additionalInfo}`);
 			}
+
+			const publisherMessage = this.extension.deprecationInfo.source === 'marketplace' && this.extension.deprecationInfo.additionalInfo
+				? new MarkdownString(this.extension.deprecationInfo.additionalInfo)
+				: undefined;
+			const markdownDetails = publisherMessage
+				? [{ markdown: new MarkdownString().appendText(isString(detail) ? detail : detail.value) }, { markdown: publisherMessage }]
+				: isString(detail) ? undefined : [{ markdown: detail }];
 
 			const { result } = await this.dialogService.prompt({
 				type: Severity.Warning,
 				message: localize('install confirmation', "Are you sure you want to install '{0}'?", this.extension.displayName),
-				detail: isString(detail) ? detail : undefined,
-				custom: isString(detail) ? undefined : {
-					markdownDetails: [{
-						markdown: detail
-					}]
-				},
+				detail: isString(detail) && !markdownDetails ? detail : undefined,
+				custom: markdownDetails ? { markdownDetails } : undefined,
 				buttons,
 				cancelButton: {
 					run: () => DeprecationChoice.Cancel
@@ -2827,7 +2830,7 @@ export class ToggleSyncExtensionAction extends DropDownExtensionAction {
 	}
 }
 
-export type ExtensionStatus = { readonly message: IMarkdownString; readonly icon?: ThemeIcon };
+export type ExtensionStatus = { readonly message: IMarkdownString; readonly additionalMessage?: IMarkdownString; readonly icon?: ThemeIcon };
 
 function getExtensionBlockedStatusMessage(extension: IExtension): IMarkdownString | undefined {
 	if (extension.blockingInfo && extension.state === ExtensionState.Uninstalled) {
@@ -2928,18 +2931,24 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		if (this.extension.deprecationInfo) {
+			const additionalMessage = this.extension.deprecationInfo.source === 'marketplace' && this.extension.deprecationInfo.additionalInfo
+				? new MarkdownString(this.extension.deprecationInfo.additionalInfo)
+				: undefined;
 			if (this.extension.deprecationInfo.extension) {
-				const link = `[${this.extension.deprecationInfo.extension.displayName}](${createCommandUri('extension.open', this.extension.deprecationInfo.extension.id)})`;
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "This extension is deprecated. Use the {0} extension instead.", link)) }, true);
+				const displayName = this.extension.deprecationInfo.source === 'marketplace'
+					? escapeMarkdownLinkText(this.extension.deprecationInfo.extension.displayName)
+					: this.extension.deprecationInfo.extension.displayName;
+				const link = `[${displayName}](${createCommandUri('extension.open', this.extension.deprecationInfo.extension.id)})`;
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "This extension is deprecated. Use the {0} extension instead.", link)), additionalMessage }, true);
 			} else if (this.extension.deprecationInfo.settings) {
 				const link = `[${localize('settings', "settings")}](${createCommandUri('workbench.action.openSettings', this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' '))}})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated as this functionality is now built-in to VS Code. Configure these {0} to use this functionality.", link)) }, true);
 			} else {
 				const message = new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained."));
-				if (this.extension.deprecationInfo.additionalInfo) {
+				if (this.extension.deprecationInfo.additionalInfo && !additionalMessage) {
 					message.appendMarkdown(` ${this.extension.deprecationInfo.additionalInfo}`);
 				}
-				this.updateStatus({ icon: warningIcon, message }, true);
+				this.updateStatus({ icon: warningIcon, message, additionalMessage }, true);
 			}
 			return;
 		}
@@ -3192,7 +3201,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 	private updateStatus(status: ExtensionStatus | undefined, updateClass: boolean): void {
 		if (status) {
-			if (this._status.some(s => s.message.value === status.message.value && s.icon?.id === status.icon?.id)) {
+			if (this._status.some(s => s.message.value === status.message.value && s.additionalMessage?.value === status.additionalMessage?.value && s.icon?.id === status.icon?.id)) {
 				return;
 			}
 		} else {
@@ -3518,6 +3527,42 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 		}
 	}
 }
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.extensions.uninstallExtension',
+	metadata: {
+		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
+		args: [
+			{
+				name: localize('workbench.extensions.uninstallExtension.arg.name', "Id of the extension to uninstall"),
+				schema: {
+					'type': 'string'
+				}
+			}
+		]
+	},
+	handler: async (accessor, id: string) => {
+		if (!id) {
+			throw new Error(localize('id required', "Extension id required."));
+		}
+		const extensionManagementService = accessor.get(IExtensionManagementService);
+		const installed = await extensionManagementService.getInstalled();
+		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+		if (!extensionToUninstall) {
+			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
+		}
+		if (extensionToUninstall.isBuiltin) {
+			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be uninstalled", id));
+		}
+
+		try {
+			await extensionManagementService.uninstall(extensionToUninstall);
+		} catch (e) {
+			onUnexpectedError(e);
+			throw e;
+		}
+	}
+});
 
 CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForLanguage', function (accessor: ServicesAccessor, fileExtension: string) {
 	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);

@@ -14,7 +14,6 @@ name = "code"
 [dependencies]
 futures = "0.3.28"
 clap = { version = "4.3.0", features = ["derive", "env"] }
-open = "4.1.0"
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "native-tls"] }
 tokio = { version = "1.52", features = ["fs", "io-util", "io-std", "macros", "net", "process", "rt", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7.8", features = ["compat", "codec"] }

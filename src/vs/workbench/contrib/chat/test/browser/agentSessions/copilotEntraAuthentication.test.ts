@@ -11,8 +11,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
+import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -119,6 +122,14 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		});
 	});
 
+	test('forwards the ID token of a session that has one', async () => {
+		const f = fixture();
+		f.authentication.sessions = [{ ...selected, idToken: 'synthetic-id-token' }];
+		assert.deepStrictEqual(await f.resolve(), {
+			resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, accountId: '["microsoft","selected",null]', idToken: 'synthetic-id-token',
+		});
+	});
+
 	test('does not substitute another account or its display label for a missing default identity', async () => {
 		const f = fixture();
 		const credentials = [];
@@ -162,6 +173,324 @@ suite('Agent Host Microsoft credential acquisition', () => {
 			microsoft: [copilotEntraDiscoveryResource], github: [], interactive: [],
 		});
 	});
+
+	test('no service credential is forwarded only while the agent offers more than one named Microsoft service', async () => {
+		const f = fixture();
+		const services = [...copilotEntraResources].map(([audience, serviceResource]): ProtectedResourceMetadata => ({
+			resource: serviceResource,
+			resource_name: `Service ${audience}`,
+			authorization_servers: [copilotEntraAuthorizationServer],
+			scopes_supported: [`${audience}/.default`], required: false,
+		}));
+		const unnamed = services.map(({ resource_name, ...service }) => service);
+		f.authentication.sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		const forwarded: string[] = [];
+		const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.resource); } };
+		const offered: Record<string, string[]> = {};
+		const offer = async (name: string, protectedResources: ProtectedResourceMetadata[]) => {
+			forwarded.length = 0;
+			await f.instantiation.invokeFunction(authenticateProtectedResources, [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [{ ...resource, required: false }, ...protectedResources] }], options);
+			offered[name] = [...forwarded];
+		};
+		await offer('twoNamed', services);
+		await offer('oneNamedOneUnnamed', [services[0], unnamed[1]]);
+		await offer('twoUnnamed', unnamed);
+		assert.deepStrictEqual(offered, {
+			twoNamed: [copilotEntraDiscoveryResource],
+			oneNamedOneUnnamed: [copilotEntraDiscoveryResource, services[0].resource, services[1].resource],
+			twoUnnamed: [copilotEntraDiscoveryResource, services[0].resource, services[1].resource],
+		});
+	});
+
+	function namedServices(): ProtectedResourceMetadata[] {
+		return [...copilotEntraResources].map(([audience, serviceResource]) => ({
+			resource: serviceResource,
+			resource_name: `Service ${audience}`,
+			authorization_servers: [copilotEntraAuthorizationServer],
+			scopes_supported: [`${audience}/.default`], required: false,
+		}));
+	}
+
+	function offerAgents(...services: ProtectedResourceMetadata[]) {
+		return [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [{ ...resource, required: false }, ...services] }];
+	}
+
+	test('forwards only the service remembered for the default account while the agent offers several', async () => {
+		const f = fixture();
+		const services = namedServices();
+		f.authentication.sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		const forwarded: string[] = [];
+		const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.resource); } };
+		const offered: Record<string, string[]> = {};
+		for (const service of ['github', 'm365'] as const) {
+			f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, copilotService: service };
+			forwarded.length = 0;
+			await f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(...services), options);
+			offered[service] = [...forwarded];
+		}
+		assert.deepStrictEqual(offered, {
+			github: [copilotEntraDiscoveryResource, services[0].resource],
+			m365: [copilotEntraDiscoveryResource, services[1].resource],
+		});
+	});
+
+	for (const keys of ['same', 'different'] as const) {
+		test(`the remembered service is sent once through the cache whether the host already holds a credential for the ${keys} key, and the pass after it sends nothing`, async () => {
+			const f = fixture();
+			const [service] = namedServices();
+			const held = keys === 'same' ? service : { ...service, scopes_supported: ['held/.default'] };
+			f.authentication.sessions = keys === 'same'
+				? [selected, { ...selected, scopes: service.scopes_supported!, accessToken: 'cached-service' }]
+				: [selected,
+					{ ...selected, scopes: held.scopes_supported!, accessToken: 'cached-held' },
+					{ ...selected, scopes: service.scopes_supported!, accessToken: 'cached-service' }];
+			f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, copilotService: 'github' };
+			const sent: string[] = [];
+			const options = {
+				logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+				authenticate: async (request: IAgentHostAuthenticateRequest) => { sent.push(`${request.resource}:${request.token}`); },
+			};
+			const pass = async (...offered: ProtectedResourceMetadata[]) => {
+				const before = sent.length;
+				await f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(...offered), options);
+				return sent.slice(before).filter(entry => entry.startsWith(service.resource));
+			};
+			const held1 = await pass(held);
+			const twoNamed = await pass(service, namedServices()[1]);
+			const oneNamed = await pass(service);
+			assert.deepStrictEqual({ held: held1, twoNamed, oneNamed }, {
+				held: [`${service.resource}:${keys === 'same' ? 'cached-service' : 'cached-held'}`],
+				twoNamed: [`${service.resource}:cached-service`],
+				oneNamed: [],
+			});
+		});
+	}
+
+	test('a pass that sees one named service shares the send of a pass that saw two', async () => {
+		const f = fixture();
+		const services = namedServices();
+		f.authentication.sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, copilotService: 'github' };
+		const release = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		const sent: string[] = [];
+		const options = {
+			logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async (request: IAgentHostAuthenticateRequest) => {
+				if (request.resource === services[0].resource) {
+					sent.push(request.token);
+					started.complete();
+					await release.p;
+				}
+			},
+		};
+		const first = f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(...services), options);
+		await started.p;
+		const second = f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(services[0]), options);
+		release.complete();
+		await Promise.all([first, second]);
+		assert.deepStrictEqual(sent, ['cached-0']);
+	});
+
+	test('no service credential is forwarded for a GitHub default account or without a default account while the agent offers several', async () => {
+		const f = fixture();
+		const services = namedServices();
+		f.authentication.sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		const forwarded: string[] = [];
+		const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.resource); } };
+		const outcome: Record<string, string[]> = {};
+		for (const [name, account] of [
+			['github', { ...f.defaults.currentDefaultAccount!, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false }, copilotService: 'github' as const }],
+			['none', null],
+		] as const) {
+			f.defaults.currentDefaultAccount = account;
+			forwarded.length = 0;
+			await f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(...services), options);
+			outcome[name] = [...forwarded];
+		}
+		assert.deepStrictEqual(outcome, { github: [], none: [] });
+	});
+
+	test('a pass that still sees several named services after the first send completed sends again', async () => {
+		const f = fixture();
+		const services = namedServices();
+		f.authentication.sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, copilotService: 'github' };
+		const release = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		const sent: string[] = [];
+		const options = {
+			logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async (request: IAgentHostAuthenticateRequest) => {
+				if (request.resource === services[0].resource) {
+					sent.push(request.token);
+					started.complete();
+					await release.p;
+				}
+			},
+		};
+		const run = () => f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(...services), options);
+		const first = run();
+		await started.p;
+		const second = run();
+		release.complete();
+		const settled = await Promise.allSettled([first, second]);
+		const before = sent.length;
+		await f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(services[0]), options);
+		assert.deepStrictEqual({ sent, settled: settled.map(result => result.status), sentByFollowingPass: sent.length - before }, {
+			sent: ['cached-0', 'cached-0'], settled: ['fulfilled', 'fulfilled'], sentByFollowingPass: 0,
+		});
+	});
+
+	test('two passes that both see several named services overlap: two sends, the first pass is cancelled', async () => {
+		const f = fixture();
+		const services = namedServices();
+		f.authentication.sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, copilotService: 'github' };
+		const release = new DeferredPromise<void>();
+		const firstStarted = new DeferredPromise<void>();
+		const secondStarted = new DeferredPromise<void>();
+		const sent: string[] = [];
+		const options = {
+			logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async (request: IAgentHostAuthenticateRequest) => {
+				if (request.resource === services[0].resource) {
+					sent.push(request.token);
+					(sent.length === 1 ? firstStarted : secondStarted).complete();
+					await release.p;
+				}
+			},
+		};
+		const run = () => f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(...services), options);
+		const first = run();
+		await firstStarted.p;
+		const second = run();
+		await secondStarted.p;
+		release.complete();
+		const settled = await Promise.allSettled([first, second]);
+		const before = sent.length;
+		await f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(services[0]), options);
+		assert.deepStrictEqual({ sent, settled: settled.map(result => result.status), sentByFollowingPass: sent.length - before }, {
+			sent: ['cached-0', 'cached-0'], settled: ['rejected', 'fulfilled'], sentByFollowingPass: 0,
+		});
+	});
+
+	test('a pass forwards only the service remembered when it started, also when another one is remembered during its credential lookup', async () => {
+		const f = fixture();
+		const services = namedServices();
+		const sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		f.authentication.sessions = sessions;
+		f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, copilotService: 'github' };
+		const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
+		const lookupStarted = new DeferredPromise<void>();
+		const forwarded: string[] = [];
+		const options = {
+			logPrefix: '[test]',
+			authenticate: async (request: IAgentHostAuthenticateRequest) => {
+				forwarded.push(request.resource);
+				if (request.resource === copilotEntraDiscoveryResource) {
+					// The lookup that follows is the one for the first service, the one remembered at the start.
+					f.authentication.pending = lookup;
+					f.authentication.pendingStarted = lookupStarted;
+				}
+			},
+		};
+		const pass = f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(...services), options);
+		await lookupStarted.p;
+		f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, copilotService: 'm365' };
+		f.authentication.pending = undefined;
+		await lookup.complete(sessions);
+		await pass;
+		assert.deepStrictEqual(forwarded, [copilotEntraDiscoveryResource, services[0].resource]);
+	});
+
+	test('a Microsoft default account is granted a named service of either kind by its sign-in', async () => {
+		const f = fixture();
+		const services = namedServices();
+		f.authentication.sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		const forwarded: string[] = [];
+		const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.resource); } };
+		for (const service of services) {
+			await f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(service), options);
+		}
+		assert.deepStrictEqual(forwarded, services.flatMap(service => [copilotEntraDiscoveryResource, service.resource]));
+	});
+
+	test('named Microsoft services that the host requires are all forwarded', async () => {
+		const f = fixture();
+		const services = [...copilotEntraResources].map(([audience, serviceResource], index): ProtectedResourceMetadata => ({
+			resource: serviceResource,
+			resource_name: `Service ${audience}`,
+			authorization_servers: [copilotEntraAuthorizationServer],
+			scopes_supported: [`${audience}/.default`],
+			...(index === 0 ? { required: true } : {}),
+		}));
+		f.authentication.sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		const forwarded: string[] = [];
+		const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.resource); } };
+		await f.instantiation.invokeFunction(authenticateProtectedResources, [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [{ ...resource, required: false }, ...services] }], options);
+		assert.deepStrictEqual(forwarded, [copilotEntraDiscoveryResource, ...services.map(service => service.resource)]);
+	});
+
+	test('recovery answers optional Microsoft requirements only for a window on a Microsoft account', async () => {
+		const f = fixture();
+		const serviceAudience = [...copilotEntraResources.keys()][0];
+		const service: ProtectedResourceMetadata = {
+			resource: copilotEntraResources.get(serviceAudience)!, resource_name: 'Service',
+			authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: [`${serviceAudience}/.default`], required: false,
+		};
+		const copilot: ProtectedResourceMetadata = { ...gitHubCopilotResource(deriveGitHubEndpoints(undefined)), required: false };
+		const gitHubSession: AuthenticationSession = { id: 'github', account: { id: 'github', label: 'GitHub' }, scopes: copilot.scopes_supported!, accessToken: 'synthetic-github-token' };
+		const microsoftSession = (scopes: readonly string[]): AuthenticationSession => ({ ...selected, scopes, accessToken: `synthetic-${scopes[0]}` });
+		const accounts: Record<string, IDefaultAccount | null> = {
+			microsoft: f.defaults.currentDefaultAccount,
+			github: { authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false }, sessionId: gitHubSession.id, accountName: gitHubSession.account.label, enterprise: false },
+			none: null,
+		};
+		const requirements: Record<string, { requirement: ProtectedResourceMetadata; sessions: AuthenticationSession[]; provider: string }> = {
+			optionalDiscovery: { requirement: { ...resource, required: false }, sessions: [microsoftSession(resource.scopes_supported!)], provider: 'microsoft' },
+			optionalService: { requirement: service, sessions: [microsoftSession(service.scopes_supported!)], provider: 'microsoft' },
+			graphNotOptional: { requirement: resource, sessions: [microsoftSession(resource.scopes_supported!)], provider: 'microsoft' },
+			githubCopilot: { requirement: copilot, sessions: [gitHubSession], provider: 'github' },
+		};
+		const answered: Record<string, Record<string, number>> = {};
+		const configuration = f.instantiation.get(IConfigurationService) as TestConfigurationService;
+		for (const [accountName, account] of [...Object.entries(accounts), ...['github', 'none'].map((name): [string, IDefaultAccount | null] => [`${name}SettingOff`, accounts[name]])]) {
+			await configuration.setUserConfiguration(AgentHostCopilotM365EnabledSettingId, !accountName.endsWith('SettingOff'));
+			answered[accountName] = {};
+			for (const [name, { requirement, sessions, provider }] of Object.entries(requirements)) {
+				f.defaults.currentDefaultAccount = account;
+				f.authentication.sessions = sessions;
+				f.authentication.getOrActivateProviderIdForServer = async () => provider;
+				const forwarded: string[] = [];
+				const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.resource); } };
+				await f.instantiation.invokeFunction(accessor => f.instantiation.createInstance(AgentHostAuthenticationRecovery).recover(accessor, requirement, options));
+				answered[accountName][name] = forwarded.length;
+			}
+		}
+		assert.deepStrictEqual(answered, {
+			microsoft: { optionalDiscovery: 1, optionalService: 1, graphNotOptional: 1, githubCopilot: 1 },
+			github: { optionalDiscovery: 0, optionalService: 0, graphNotOptional: 1, githubCopilot: 1 },
+			none: { optionalDiscovery: 0, optionalService: 0, graphNotOptional: 1, githubCopilot: 1 },
+			githubSettingOff: { optionalDiscovery: 0, optionalService: 0, graphNotOptional: 1, githubCopilot: 1 },
+			noneSettingOff: { optionalDiscovery: 0, optionalService: 0, graphNotOptional: 1, githubCopilot: 1 },
+		});
+	});
+
+	for (const remembered of [undefined, 'github', 'm365'] as const) {
+		test(`recovery answers every service challenge as it does without a remembered service (remembered=${remembered})`, async () => {
+			const f = fixture();
+			f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, copilotService: remembered };
+			const services = namedServices();
+			const answered: string[] = [];
+			const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { answered.push(request.resource); } };
+			for (const service of services) {
+				f.authentication.sessions = [{ ...selected, scopes: service.scopes_supported! }];
+				await f.instantiation.invokeFunction(accessor => f.instantiation.createInstance(AgentHostAuthenticationRecovery).recover(accessor, service, options));
+			}
+			assert.deepStrictEqual(answered, services.map(service => service.resource));
+		});
+	}
 
 	test('rejects a returned session for the wrong resource scopes', async () => {
 		const f = fixture();
@@ -413,6 +742,19 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		assert.deepStrictEqual({ tokens: forwarded.map(request => request.token), prompts: f.authentication.created }, { tokens: [selected.accessToken], prompts: [] });
+	});
+
+	test('an ID token that becomes available is forwarded once for an unchanged access token', async () => {
+		const f = fixture();
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const forward = () => f.instantiation.invokeFunction(authenticateProtectedResources,
+			[{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }], options);
+		await forward();
+		f.authentication.sessions = [{ ...selected, idToken: 'synthetic-id-token' }];
+		await forward();
+		await forward();
+		assert.deepStrictEqual(forwarded.map(request => [request.token, request.idToken]), [[selected.accessToken, undefined], [selected.accessToken, 'synthetic-id-token']]);
 	});
 
 	test('repeated challenges never prompt for a Microsoft credential and accept a later silent replacement', async () => {

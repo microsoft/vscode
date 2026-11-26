@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -16,7 +17,7 @@ import { workbenchInstantiationService } from '../../../test/browser/workbenchTe
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchMode, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../platform/workspace/test/common/testWorkspace.js';
 import { IFolderLocation, IFolderLocationChangeEvent, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceFolderLocationsDto } from '../../common/extHost.protocol.js';
@@ -37,7 +38,7 @@ suite('MainThreadWorkspace', () => {
 			onDidChangeLocations: Event.None,
 			onDidChangeProviders: Event.None,
 			getLocations: async () => [],
-			getFolderLocations: async folder => [{ uri: folder.uri, label: folder.name }]
+			getFolderLocations: async folder => [{ uri: folder.uri, label: folder.name, icon: Codicon.folder }]
 		});
 	});
 
@@ -173,7 +174,7 @@ suite('MainThreadWorkspace', () => {
 		const folder = URI.file('/work/repo');
 
 		function location(uri: URI): IFolderLocation {
-			return { uri, label: uri.path };
+			return { uri, label: uri.path, icon: Codicon.folder };
 		}
 
 		async function setup2(context?: Partial<IWorkspaceContextService>, requested = true) {
@@ -201,6 +202,8 @@ suite('MainThreadWorkspace', () => {
 					getWorkbenchState() { return WorkbenchState.FOLDER; }
 					onDidChangeWorkspaceFolders = Event.None;
 					onDidChangeWorkbenchState = Event.None;
+					getWorkbenchMode() { return WorkbenchMode.Editor; }
+					onDidChangeWorkbenchMode = Event.None;
 				} as unknown as IWorkspaceContextService);
 			}
 			const pushed: IWorkspaceFolderLocationsDto[][] = [];
@@ -260,7 +263,9 @@ suite('MainThreadWorkspace', () => {
 				getCompleteWorkspace: () => complete.p,
 				getWorkbenchState: () => WorkbenchState.FOLDER,
 				onDidChangeWorkspaceFolders: Event.None,
-				onDidChangeWorkbenchState: Event.None
+				onDidChangeWorkbenchState: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				onDidChangeWorkbenchMode: Event.None
 			}, false);
 			mtw.dispose();
 			complete.complete(testWorkspace(folder));
@@ -279,7 +284,9 @@ suite('MainThreadWorkspace', () => {
 				getCompleteWorkspace: () => Promise.resolve(current),
 				getWorkbenchState: () => WorkbenchState.FOLDER,
 				onDidChangeWorkspaceFolders: removed.event,
-				onDidChangeWorkbenchState: Event.None
+				onDidChangeWorkbenchState: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				onDidChangeWorkbenchMode: Event.None
 			});
 			assert.strictEqual(requests.length, 1);
 
@@ -299,7 +306,7 @@ suite('MainThreadWorkspace', () => {
 
 		test('the pushed model comes from the location service', async () => {
 			const { requests, pushed } = await setup2();
-			requests[0].complete([{ uri: folder, label: 'repo' }, location(URI.file('/work/wt'))]);
+			requests[0].complete([{ uri: folder, label: 'repo', icon: Codicon.folder }, location(URI.file('/work/wt'))]);
 			await tick();
 			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => [l.uri.path, l.name])), [[['/work/repo', 'repo'], ['/work/wt', '/work/wt']]]);
 		});

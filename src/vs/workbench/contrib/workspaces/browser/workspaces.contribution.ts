@@ -25,7 +25,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import './recentRemoteFolderPruner.js';
 import { FolderLocationStatusBarContribution } from './folderLocationStatusBar.js';
-import { FolderLocationExplorerBadgeContribution } from './folderLocationExplorerBadge.js';
+import { FolderLocationTitleBadgeContribution } from './folderLocationTitleBadge.js';
 
 /**
  * A workbench contribution that will look for `.code-workspace` files in the root of the
@@ -108,7 +108,7 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspacesFinderContribution, LifecyclePhase.Eventually);
 registerWorkbenchContribution2(FolderLocationStatusBarContribution.ID, FolderLocationStatusBarContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(FolderLocationExplorerBadgeContribution.ID, FolderLocationExplorerBadgeContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(FolderLocationTitleBadgeContribution.ID, FolderLocationTitleBadgeContribution, WorkbenchPhase.AfterRestored);
 
 // Render "Open Workspace" button in *.code-workspace files
 

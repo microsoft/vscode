@@ -476,7 +476,7 @@ import './browser/parts/sessionsPartContent.registration.js';
 import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsWindowUsageService.js';
 import './services/sessions/browser/sessionsServices.registration.js';
-import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
+import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.registration.js';
 import './services/mcp/browser/mcpWorkspaceInstallTargetService.js';
 import './services/customView/browser/customViewService.registration.js';
 import './services/activity/common/sessionActivityBarActivityService.registration.js';

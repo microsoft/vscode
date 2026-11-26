@@ -30,7 +30,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
-import { bindChangesetOperations, ChangesHeaderChangesetOperationsActionContribution } from '../../browser/changesActions.js';
+import { bindChangesetOperations, ChangesHeaderChangesetOperationsActionContribution } from '../../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
@@ -75,6 +75,39 @@ suite('Changes Actions', () => {
 
 		await instantiationService.invokeFunction(accessor =>
 			CommandsRegistry.getCommand('workbench.agentSessions.changes.openFile')!.handler(accessor, modifiedSnapshot));
+
+		assert.deepStrictEqual(opened, [workspaceResource.toString()]);
+	});
+
+	test('Open File from a Changes editor that follows its own session, as in an editor window, opens the file of the chat of its diffs', async () => {
+		const workspaceResource = URI.file('/workspace/side.ts');
+		const modifiedSnapshot = URI.parse('readonly-content:/after/side.ts');
+		const opened: string[] = [];
+		const editor = Object.create(SessionChangesEditor.prototype) as SessionChangesEditor;
+		Object.defineProperty(editor, 'followsInputSession', { value: true });
+		Object.defineProperty(editor, 'group', { value: upcastPartial<IEditorGroup>({ id: 1 }) });
+		Object.defineProperty(editor, 'changesScope', {
+			value: upcastPartial<IChangesSessionScope>({
+				session: constObservable(upcastPartial<ITestSessionWithChat>({ sessionId: 'a', resource: URI.parse('agent-host:a') })),
+				chat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host:a/side') })),
+				changes: upcastPartial<IChangesSessionObservables>({
+					changesObs: constObservable([{ uri: workspaceResource, originalUri: URI.parse('readonly-content:/before/side.ts'), modifiedUri: modifiedSnapshot, insertions: 1, deletions: 1 }]),
+				}),
+			}),
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() { }());
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override readonly mainPart = upcastPartial<IEditorGroupsService['mainPart']>({ groups: [upcastPartial<IEditorGroup>({ id: 1 })] });
+		}());
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				opened.push((args[0] as { readonly resource: URI }).resource.toString());
+				return undefined;
+			}
+		}());
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.changes.openFile')!.handler(accessor, modifiedSnapshot, { editor }));
 
 		assert.deepStrictEqual(opened, [workspaceResource.toString()]);
 	});

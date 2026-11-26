@@ -171,6 +171,12 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 	}
 
 	stage(entry: IRemoteAgentHostEntry, connection: MockProtocolClient, transportDisposable?: IDisposable, reconnectTransfersTransportOwnership = false): void {
+		this.stageConnection(entry, connection, transportDisposable, reconnectTransfersTransportOwnership);
+		this.publishEntry(entry);
+	}
+
+	/** Queues the next connection for an entry without republishing it, as an automatic reconnect of an unchanged entry does. */
+	stageConnection(entry: IRemoteAgentHostEntry, connection: MockProtocolClient, transportDisposable?: IDisposable, reconnectTransfersTransportOwnership = false): void {
 		const address = getEntryAddress(entry);
 		const createdConnections = this._createdConnections.get(address) ?? [];
 		createdConnections.push({
@@ -180,7 +186,6 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 			reconnectManagedByClient: this.reconnectManagedByClient,
 		});
 		this._createdConnections.set(address, createdConnections);
-		this.publishEntry(entry);
 	}
 
 	/** Stages a factory-level rejection, as a failed precondition check would produce. */
@@ -2231,6 +2236,27 @@ suite('RemoteAgentHostService', () => {
 			assert.deepStrictEqual(
 				service.connections.find(connection => connection.address === 'cloud:name')?.name,
 				'My Cloud Sandbox');
+		});
+
+		test('keeps the name of a host that is disconnected but still configured when it reconnects', async () => {
+			const factory = createFactory(RemoteAgentHostEntryType.Tunnel);
+			const entry: IRemoteAgentHostEntry = { name: 'agents-3', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'quick-ocean-0ns5qbp', clusterId: 'test' } };
+			const address = getEntryAddress(entry);
+			await reconnectStagedConnection(factory, entry, new MockProtocolClient(address));
+			await service.removeRemoteAgentHost(address);
+
+			const client = new MockProtocolClient(address);
+			factory.stageConnection(entry, client);
+			service.reconnect(address, false);
+			const wait = service.waitForConnection(address);
+			await waitForFactoryConnection(factory, 2);
+			client.connectDeferred.complete();
+			const connection = await wait;
+
+			assert.deepStrictEqual({
+				name: connection.name,
+				label: registeredFormatters.find(formatter => formatter.authority === agentHostAuthority(address))?.formatting.workspaceSuffix,
+			}, { name: 'agents-3', label: 'agents-3' });
 		});
 	});
 

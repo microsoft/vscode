@@ -55,7 +55,7 @@ import { Link } from '../../../../../platform/opener/browser/link.js';
 import product from '../../../../../platform/product/common/product.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorRegistry.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -113,6 +113,7 @@ import { ChatListWidget } from './chatListWidget.js';
 import { ChatFindWidget, IChatFindHost } from './chatFind/chatFindWidget.js';
 import { ChatEditorOptions, SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
+import { chatWelcomeContentRegistry } from '../viewsWelcome/chatWelcomeContent.js';
 import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeContext } from '../aiCustomization/chatCustomizationMigrationNotice.js';
 import { hasImmutablePrimaryWorkingDirectory, resolveFolderPickerDecisionUpdate, IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -494,6 +495,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _scheduledRequestEdit: { id: string; state: IChatScheduledRequestEditing } | undefined;
 
 	private welcomeMessageContainer!: HTMLElement;
+	/** Content that contributions show in the center of the empty Chat, below the welcome message. */
+	private readonly welcomeContentContainer = $('.chat-welcome-content');
+	/** Below the content, as tall as the view above the widget, so the content centers on the whole view. */
+	private readonly welcomeContentSpacer = $('.chat-welcome-content-spacer');
+	private readonly _welcomeShown = observableValue(this, false);
+	private readonly _welcomeContentHeight = observableValue(this, 0);
+	/** Height of the content that contributions show in the center of the empty Chat, 0 when there is none. */
+	readonly welcomeContentHeight: IObservable<number> = this._welcomeContentHeight;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 
 	private readonly _gettingStartedTip = this._register(new MutableDisposable<ChatInputTipPresenter>());
@@ -590,6 +599,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
+		// The list must never keep the disposed view model: it still lists its chat's live pending requests.
+		this.listWidget.setViewModel(viewModel);
 		this._requestActiveForStateIndicator = false;
 		this._hasUnvisitedCompletion = false;
 		if (viewModel) {
@@ -685,7 +696,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatPasteTargetService private readonly chatPasteTargetService: IChatPasteTargetService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@ILogService private readonly logService: ILogService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -1241,7 +1251,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.editorOverflowWidgetsDomNode = this.editorOverflowWidgetsHost.element;
 		}
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
-		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, () => this.focusInput()));
+		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, e => {
+			// The contributed content has its own actions
+			if (!dom.isAncestor(e.target, this.welcomeContentContainer)) {
+				this.focusInput();
+			}
+		}));
+		this.renderWelcomeContent();
 
 		this._register(this.chatSuggestNextWidget.onDidChangeHeight(() => {
 			if (this.bodyDimension) {
@@ -1633,6 +1649,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (showWelcome !== undefined) {
 			dom.setVisibility(showWelcome, this.welcomeMessageContainer);
 			dom.setVisibility(!showWelcome, this.listContainer);
+			this._welcomeShown.set(showWelcome, undefined);
 
 			// Re-evaluate the getting-started tip. When the empty state goes away the
 			// presenter drops the cached tip so the next empty state picks a fresh
@@ -1783,7 +1800,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							firstLinkToButton: !!this._agentEmptyChatMessage,
 						}
 					);
-					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
+					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element, this.welcomeContentContainer, this.welcomeContentSpacer);
 				}
 			}
 
@@ -1791,6 +1808,38 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} finally {
 			this._isRenderingWelcome = false;
 		}
+	}
+
+	/**
+	 * Centers the content in the center of the empty Chat on the whole view that
+	 * hosts this widget, when the view shows more above the widget, such as sessions.
+	 * The content moves down instead of overlapping what is above it.
+	 * @param offset The height of the view above this widget.
+	 */
+	setWelcomeContentOffset(offset: number): void {
+		this.welcomeContentSpacer.style.flexBasis = `${Math.max(0, offset)}px`;
+	}
+
+	private renderWelcomeContent(): void {
+		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
+			return;
+		}
+		const store = this._register(new DisposableStore());
+		const visible = derived(this, reader => this._visible.read(reader) && this._welcomeShown.read(reader));
+		const render = () => {
+			store.clear();
+			dom.clearNode(this.welcomeContentContainer);
+			for (const contribution of chatWelcomeContentRegistry.get()) {
+				const container = dom.append(this.welcomeContentContainer, $('.chat-welcome-content-item'));
+				store.add(contribution.render(container, { widget: this, visible }));
+			}
+		};
+		render();
+		this._register(chatWelcomeContentRegistry.onDidChange(render));
+
+		// Contributions render when their content applies, so the size tells whether there is any
+		const observer = this._register(new dom.DisposableResizeObserver('chatWelcomeContent', () => this._welcomeContentHeight.set(this.welcomeContentContainer.offsetHeight, undefined), dom.getWindow(this.container)));
+		this._register(observer.observe(this.welcomeContentContainer));
 	}
 
 	private renderGettingStartedTipIfNeeded(): void {
@@ -2995,9 +3044,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 
 		if (!isInput) {
-			// The inline editor is self-contained: it shows the model its request ran on, submits
-			// with it (see `acceptInput`, which reads the model from here before this runs), and
-			// disappears. The bottom input keeps whatever the user left it on.
 			this.inputPart?.toggleChatInputOverlay(false);
 			this.disposeInlineInput();
 		}
@@ -3307,8 +3353,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private onDidStyleChange(): void {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
-		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
-		this.container.style.setProperty('--vscode-chat-list-background', this.themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
+		this.container.style.setProperty('--vscode-interactive-session-foreground', asCssVariable(this.styles.listForeground));
+		this.container.style.setProperty('--vscode-chat-list-background', asCssVariable(this.styles.listBackground));
 	}
 
 	/**
@@ -3346,6 +3392,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Updating editorOptions fires onDidChange which triggers onDidStyleChange
 			// and also propagates the new colors to subscribers like CodeBlockPart.
 			this.editorOptions.setColors(styles.listForeground, styles.inputEditorBackground, styles.resultEditorBackground);
+		} else if (listColorsChanged && this.container) {
+			this.onDidStyleChange();
 		}
 	}
 
@@ -3469,7 +3517,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.viewModelDisposables.add(this.autoMigratePolicySession(model, archived));
 
-		this.listWidget.setViewModel(this.viewModel);
 		CloudSandboxSessionTrace.get(model)?.record('widgetBound');
 		this.chatOpenDiagnosticsService.mark(model.sessionResource, 'modelAttached');
 		// Armed only once the list is bound, so a render triggered while the
@@ -4283,13 +4330,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus, forkPromptSourceInput?.clear)) {
 			return;
 		}
-		const isEditing = this.viewModel?.editing;
+		const editingViewModel = this.viewModel;
+		const isEditing = editingViewModel.editing;
 		const submittedFromEditing = shouldUnlockChatPetRequestRevision(isEditing !== undefined, isUserQuery);
-		// Captured before `finishedEditing` tears the inline editor down, while `this.input` still
-		// resolves to it. The inline editor owns the model and mode for a resubmit — those are the
-		// pickers the user actually chose in — so these stay authoritative over the bottom input.
+		// Capture the inline pickers before `finishedEditing` tears them down.
 		const isInlineEdit = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input';
 		const editedModelRequestOptions = isInlineEdit ? this.getSelectedModelRequestOptions() : undefined;
+		const editedModelId = editedModelRequestOptions?.userSelectedModelId;
+		const modelToKeep = isUserQuery && !options.preserveInput && editedModelId && isEditing
+			&& isEditing.pendingKind === undefined && editedModelId !== isEditing.modelId && this.input.hasUserSelectedModel
+			? {
+				id: editedModelId,
+				configuration: editedModelRequestOptions?.userSelectedModelConfiguration,
+				previousComposerModelId: this.inputPart.currentLanguageModel,
+				composerModelSelectionRevision: this.inputPart.modelSelectionRevision,
+			}
+			: undefined;
 		const editedModeKind = isInlineEdit ? this.input.currentModeKind : undefined;
 		const editedModeInfo = isInlineEdit ? this.input.currentModeInfo : undefined;
 		// Tools and instruction routing belong to the mode, so they come from the same editor at the
@@ -4485,6 +4541,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 			return;
+		}
+
+		if (modelToKeep && !this._store.isDisposed && this.viewModel === editingViewModel && !this.viewModel.editing
+			&& this.inputPart.currentLanguageModel === modelToKeep.previousComposerModelId
+			&& this.inputPart.modelSelectionRevision === modelToKeep.composerModelSelectionRevision) {
+			if (!this.inputPart.switchModelByIdentifier(modelToKeep.id, false, true, modelToKeep.configuration)) {
+				this.logService.debug('[ChatWidget] The model chosen for the revised request is no longer selectable in the composer');
+			}
 		}
 
 		this.logThinkingStyleUsage('submit');

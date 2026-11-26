@@ -11,7 +11,6 @@ import { decodeBase64 } from '../../../util/vs/base/common/buffer';
 import { isAbsolutePath, isEqual } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ChatMcpToolInvocationData, ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatSubagentToolInvocationData, ChatToolInvocationPart, Location, MarkdownString, McpToolInvocationContentData, Range, Uri } from '../../../vscodeTypes';
-import type { MCP } from '../../common/modelContextProtocol';
 import { formatUriForFileWidget } from '../../tools/common/toolUtils';
 import { ToolEventHandlers } from './sessionEventRenderer';
 
@@ -434,7 +433,7 @@ export function getAffectedUrisForEditTool(data: { toolName: string; arguments?:
 }
 
 /**
- * Converts MCP {@link MCP.ContentBlock}[] values produced by MCP tool execution into
+ * Converts MCP content blocks produced by MCP tool execution into
  * VS Code {@link McpToolInvocationContentData}[] objects for rendering in the chat UI.
  *
  * MCP ContentBlocks represent heterogeneous pieces of tool output such as text, images,

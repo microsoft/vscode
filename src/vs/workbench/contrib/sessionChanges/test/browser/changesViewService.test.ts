@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { readSessionGitState, SESSION_META_GIT_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatDeletedEvent, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
@@ -19,8 +20,9 @@ import { IAgentFeedbackService } from '../../../sessions/browser/agentFeedback.j
 import { AgentFeedbackState, IAgentFeedback } from '../../../sessions/browser/agentFeedbackModel.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../sessions/browser/codeReviewService.js';
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
-import { createChangesEditorScope } from '../../browser/changesView.js';
-import { getChangesOfSession, IChangesSessionScope } from '../../../sessions/common/changesViewService.js';
+import { createChangesEditorScope, createChangesPickerLabelObservable } from '../../browser/changesView.js';
+import { getActiveSessionChanges, getChangesOfSession, IChangesSessionScope } from '../../../sessions/common/changesViewService.js';
+import { buildAgentHostSessionWorkspace } from '../../../sessions/common/agentHostSessionWorkspace.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ChangesViewMode } from '../../../sessions/common/changes.js';
@@ -76,7 +78,7 @@ suite('ChangesViewService', () => {
 		});
 	}
 
-	function createWorkspace(root: string, baseBranchFullName?: string): ISessionWorkspace {
+	function createWorkspace(root: string, baseBranchRef?: string): ISessionWorkspace {
 		const uri = URI.file(root);
 		return upcastPartial<ISessionWorkspace>({
 			uri,
@@ -89,7 +91,7 @@ suite('ChangesViewService', () => {
 					uri,
 					branchName: 'feature',
 					baseBranchName: 'main',
-					baseBranchFullName,
+					baseBranchRef,
 				}),
 			})],
 		});
@@ -313,6 +315,44 @@ suite('ChangesViewService', () => {
 		}, {
 			detailsViewState,
 			draftDetailsViewState: undefined,
+		});
+	});
+
+	test('a Changes editor that follows its input, as in an editor window, is of the session of its input whichever session the window shows, of the chat it names, else of the chat the window shows of it while it shows it, as are its diffs, and is not of the main window, whose workspace is the one mounted', () => {
+		const createChat = (id: string) => upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: `/${id}` }),
+			changes: constObservable([]),
+			workspace: constObservable(undefined),
+			changesets: constObservable([createChangeset([])]),
+		});
+		const chatA1 = createChat('a1');
+		const chatA2 = createChat('a2');
+		const chatB = createChat('b');
+		const sessionA = createSession('a', { chats: constObservable([chatA1, chatA2]), activeChat: constObservable(chatA1), mainChat: constObservable(chatA1) });
+		const sessionB = createSession('b', { chats: constObservable([chatB]), activeChat: constObservable(chatB), mainChat: constObservable(chatB) });
+		const { service } = createHarness(sessionA);
+		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getSession: resource => [sessionA, sessionB].find(session => session.resource.toString() === resource.toString()) });
+		const windowSession = observableValue<ITestSessionWithChat | undefined>('windowSession', sessionA);
+		const windowChat = observableValue<IChat | undefined>('windowChat', chatA2);
+		const mainWindowHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: windowSession, chat: windowChat, contextKeyService: upcastPartial<IContextKeyService>({}) });
+		const ofSession = createChangesEditorScope(service, sessionsManagementService, mainWindowHost, constObservable({ session: sessionA.resource, chat: undefined }), true);
+		const ofChat = createChangesEditorScope(service, sessionsManagementService, mainWindowHost, constObservable({ session: sessionA.resource, chat: chatA2.resource }), true);
+		const describe = (scope: IChangesSessionScope) => ({ session: scope.session.get()?.resource.path, chat: scope.chat.get()?.resource.path, isMainWindow: scope.isMainWindow });
+		const describeAll = () => ({ ofSession: describe(ofSession), ofChat: describe(ofChat) });
+
+		const shown = describeAll();
+		windowSession.set(sessionB, undefined);
+		windowChat.set(chatB, undefined);
+		const anotherShown = describeAll();
+		windowSession.set(sessionA, undefined);
+		windowChat.set(chatA1, undefined);
+		const mainChatShown = describeAll();
+
+		const a = sessionA.resource.path;
+		assert.deepStrictEqual({ shown, anotherShown, mainChatShown }, {
+			shown: { ofSession: { session: a, chat: '/a2', isMainWindow: false }, ofChat: { session: a, chat: '/a2', isMainWindow: false } },
+			anotherShown: { ofSession: { session: undefined, chat: undefined, isMainWindow: false }, ofChat: { session: a, chat: '/a2', isMainWindow: false } },
+			mainChatShown: { ofSession: { session: a, chat: '/a1', isMainWindow: false }, ofChat: { session: a, chat: '/a2', isMainWindow: false } },
 		});
 	});
 
@@ -1198,7 +1238,7 @@ suite('ChangesViewService', () => {
 		});
 		const { activeSession, service } = createHarness(createSession('first', { workspace: createWorkspace('/repo', 'origin/main'), changesets: [createChangeset([])] }));
 		const snapshot = () => ({
-			baseBranch: service.activeSessionBaseBranchFullNameObs.get(),
+			baseBranch: service.activeSessionBaseBranchRefObs.get(),
 			catalogueLoading: service.activeSessionChangesetsLoadingObs.get(),
 			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
 		});
@@ -1210,6 +1250,28 @@ suite('ChangesViewService', () => {
 		assert.deepStrictEqual({ beforeSwitch, loadingCatalogue }, {
 			beforeSwitch: { baseBranch: 'origin/main', catalogueLoading: false, changesets: ['branch'] },
 			loadingCatalogue: { baseBranch: 'origin/release', catalogueLoading: true, changesets: ['branch'] },
+		});
+	});
+
+	test('labels Branch Changes with the base branch ref a host reports, and plainly when the host omits it', () => {
+		const options = { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description: undefined, branchProtectionPatterns: [], group: undefined };
+		const createHostSession = (id: string, git: Record<string, unknown>) => createSession(id, {
+			workspace: buildAgentHostSessionWorkspace(undefined, [URI.file(`/${id}`)], options, constObservable(undefined), readSessionGitState({ [SESSION_META_GIT_KEY]: git })),
+			changesets: [createChangeset([])],
+		});
+		const omitted = createHostSession('omitted', { branchName: 'feature', baseBranchName: 'main' });
+		const reported = createHostSession('reported', { branchName: 'feature', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
+		const { activeSession, service } = createHarness(omitted);
+		const label = createChangesPickerLabelObservable({}, getActiveSessionChanges(service));
+		const snapshot = () => ({ baseBranchRef: service.activeSessionBaseBranchRefObs.get(), label: label.get()?.label });
+
+		const withoutRef = snapshot();
+		activeSession.set(reported, undefined);
+		const withRef = snapshot();
+
+		assert.deepStrictEqual({ withoutRef, withRef }, {
+			withoutRef: { baseBranchRef: undefined, label: 'Branch Changes' },
+			withRef: { baseBranchRef: 'refs/remotes/origin/main', label: 'Branch Changes → origin/main' },
 		});
 	});
 

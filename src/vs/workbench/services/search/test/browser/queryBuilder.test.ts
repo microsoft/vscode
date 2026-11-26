@@ -19,8 +19,13 @@ import { TestPathService, TestEnvironmentService } from '../../../../test/browse
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { ExtUri, extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../editor/common/editorGroupsService.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
@@ -1114,6 +1119,55 @@ suite('QueryBuilder', () => {
 				});
 
 			assert(query.contentPattern.isCaseSensitive);
+		});
+	});
+
+	test('ignoreGlobCaseForResources follows the case sensitivity of the searched file systems', () => {
+		instantiationService.stub(IUriIdentityService, { extUri: new ExtUri(uri => uri.scheme === 'insensitive') });
+		instantiationService.stub(IPathService, new TestPathService(undefined, 'insensitive'));
+		const builder = instantiationService.createInstance(QueryBuilder);
+		const insensitiveFolder = URI.from({ scheme: 'insensitive', path: '/root' });
+		const sensitiveFolder = URI.from({ scheme: 'sensitive', path: '/root' });
+
+		assert.deepStrictEqual({
+			insensitive: builder.ignoreGlobCaseForResources([insensitiveFolder]),
+			sensitive: builder.ignoreGlobCaseForResources([sensitiveFolder]),
+			mixed: builder.ignoreGlobCaseForResources([insensitiveFolder, sensitiveFolder]),
+			noFoldersUsesDefaultScheme: builder.ignoreGlobCaseForResources([]),
+		}, {
+			insensitive: true,
+			sensitive: false,
+			mixed: false,
+			noFoldersUsesDefaultScheme: true,
+		});
+	});
+
+	test('only searches open files using the case sensitivity of their file systems', () => {
+		instantiationService.stub(IUriIdentityService, { extUri: new ExtUri(uri => uri.scheme === 'insensitive') });
+		instantiationService.stub(IPathService, new TestPathService(undefined, 'insensitive'));
+		const insensitiveFolder = URI.from({ scheme: 'insensitive', path: '/remote' });
+		const localFile = URI.file('/local/a.ts');
+		const editors = [upcastPartial<EditorInput>({ resource: localFile })];
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
+			groups: [upcastPartial<IEditorGroup>({
+				editors
+			})]
+		}));
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ trace: () => { } }));
+		const builder = instantiationService.createInstance(QueryBuilder);
+
+		const localQuery = builder.text(PATTERN_INFO, [insensitiveFolder], {
+			ignoreGlobCase: true,
+			includePattern: 'A.ts',
+			onlyOpenEditors: true
+		});
+
+		assert.deepStrictEqual({
+			localIgnoreGlobCase: localQuery.ignoreGlobCase,
+			localFolderQueries: localQuery.folderQueries
+		}, {
+			localIgnoreGlobCase: false,
+			localFolderQueries: []
 		});
 	});
 

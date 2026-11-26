@@ -10,7 +10,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { editorBackground, foreground, inputBackground, inputForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground, editorHoverLinkForeground, foreground, inputBackground, inputForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ColorThemeData } from '../../common/colorThemeData.js';
 
 suite('ColorThemeData - loading', () => {
@@ -36,6 +36,23 @@ suite('ColorThemeData - loading', () => {
 	});
 });
 
+suite('ColorThemeData - hover link color', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('accepts a customization without defining a default in any theme', () => {
+		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(id => {
+			const theme = ColorThemeData.createUnloadedTheme(id);
+			const fallback = theme.getColor(editorHoverLinkForeground);
+			theme.setCustomColors({ [editorHoverLinkForeground]: '#abcdef' });
+			const customized = theme.getColor(editorHoverLinkForeground)?.toString();
+			theme.setCustomColors({});
+			return { fallback, customized, restored: theme.getColor(editorHoverLinkForeground) };
+		});
+
+		assert.deepStrictEqual(results, Array(4).fill({ fallback: undefined, customized: '#abcdef', restored: undefined }));
+	});
+});
+
 suite('ColorThemeData - transient colors', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -55,6 +72,38 @@ suite('ColorThemeData - transient colors', () => {
 			defines: true,
 			tokenBackground: '#28221E',
 			tokensInvalidated: true,
+		});
+	});
+
+	test('resolves theme colors independently of user and transient overrides', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#202020' });
+		theme.setCustomColors({ [editorBackground]: '#123456', [foreground]: '#abcdef' });
+		theme.setTransientColors({ [editorBackground]: Color.fromHex('#654321') });
+
+		assert.deepStrictEqual({
+			active: theme.getColor(editorBackground)?.toString(),
+			theme: theme.getColor(editorBackground, false, true)?.toString(),
+			fallback: theme.getColor(foreground, true, true)?.toString(),
+			missing: theme.getColor(foreground, false, true),
+		}, {
+			active: '#654321',
+			theme: '#202020',
+			fallback: '#cccccc',
+			missing: undefined,
+		});
+	});
+
+	test('preserves default-color customization semantics', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#202020' });
+		theme.setCustomColors({ [editorBackground]: 'default' });
+		assert.deepStrictEqual({
+			active: theme.getColor(editorBackground)?.toString(),
+			explicit: theme.getColor(editorBackground, false),
+			theme: theme.getColor(editorBackground, false, true)?.toString(),
+		}, {
+			active: '#1e1e1e',
+			explicit: undefined,
+			theme: '#202020',
 		});
 	});
 

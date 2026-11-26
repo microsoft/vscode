@@ -547,7 +547,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				id: workspace.id,
 				name: this._labelService.getWorkspaceLabel(workspace),
 				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
-				transient: workspace.transient
+				transient: workspace.transient,
+				mode: this._contextService.getWorkbenchMode()
 			},
 			remote: {
 				authority: this._environmentService.remoteAuthority,

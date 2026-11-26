@@ -102,7 +102,8 @@ import { IUserDataProfile } from '../../../../platform/userDataProfile/common/us
 import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { TestContextService } from '../../common/workbenchTestServices.js';
+import { IActivityService } from '../../../services/activity/common/activity.js';
+import { TestActivityService, TestContextService } from '../../common/workbenchTestServices.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -169,6 +170,23 @@ sourceMapSupport.install({
 		return null;
 	},
 });
+
+// Parsing a source map sorts with Math.random, millions of times for a large bundle. Format stacks
+// with the native generator, so that a fixture's seeded Math.random (pushRandomOverwrite) yields
+// the same values whether or not an earlier fixture on the page has already parsed the map.
+const nativeRandom = Math.random;
+const sourceMappedPrepareStackTrace = Error.prepareStackTrace;
+if (sourceMappedPrepareStackTrace) {
+	Error.prepareStackTrace = (error, stackTraces) => {
+		const random = Math.random;
+		Math.random = nativeRandom;
+		try {
+			return sourceMappedPrepareStackTrace(error, stackTraces);
+		} finally {
+			Math.random = random;
+		}
+	};
+}
 
 /**
  * A storage service that never stores anything and always returns the default/fallback value.
@@ -735,6 +753,8 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		refresh: async () => null,
 		signIn: async () => null,
 		signOut: async () => { },
+		rememberMicrosoftAccount: async () => { },
+		forgetMicrosoftAccount: async () => { },
 	});
 
 	const overrideFocus = disposables instanceof FixtureDisposableStore ? disposables.overrideFocus : true;
@@ -948,6 +968,8 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 	registration.define(IWorkspaceContextService, TestContextService);
 	registration.define(IMenuService, TestMenuService);
 	registration.define(IActionViewItemService, NullActionViewItemService);
+	// View panes render their title badge from the activity service; fixtures show none
+	registration.defineInstance(IActivityService, new TestActivityService());
 
 	// No-op phone presenter so chat-input fixtures don't crash on
 	// `chatPhoneInputPresenter.enabled.get()`. The real impl is in

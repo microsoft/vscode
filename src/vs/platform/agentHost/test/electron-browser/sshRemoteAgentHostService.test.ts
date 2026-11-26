@@ -31,7 +31,7 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWo
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
-import { addSSHRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectionInfo } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, removeSSHRemoteAgentHostEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, JsonRpcErrorCodes, ProtocolError, ReconnectResultType, isJsonRpcRequest, type JsonRpcRequest, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { IRemoteAgentHostLocationPreferenceService, type RemoteAgentHostLocationPreference } from '../../common/remoteAgentHostLocationPreference.js';
@@ -474,6 +474,10 @@ class MockRemoteAgentHostService extends Disposable {
 		return toDisposable(() => this._factories.delete(factory.kind));
 	}
 
+	getFactory(kind: RemoteAgentHostEntryType): IRemoteAgentHostConnectionFactory | undefined {
+		return this._factories.get(kind);
+	}
+
 	reconnect(address: string, userInitiated = true): void {
 		if (this._pendingConnections.has(address)) {
 			return;
@@ -865,6 +869,81 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 			stored: [],
 			disconnectCalls: ['ssh:remote.example'],
 		});
+	});
+
+	test('disconnect keeping the entry stops dialing it until cleared, then dials it as user-initiated', async () => {
+		const connectPromise = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await connectPromise;
+		const factory = remoteAgentHostService.getFactory(RemoteAgentHostEntryType.SSH)!;
+		const snapshot = () => ({
+			connectable: factory.entries.get().map(getEntryAddress),
+			disconnected: service.disconnectedEntries.get().map(getEntryAddress),
+			stored: readSSHRemoteAgentHostEntries(sshStorageService).map(getEntryAddress),
+		});
+
+		await service.disconnect('ssh:remote.example', { keepEntry: true });
+		const afterDisconnect = snapshot();
+		service.clearDisconnected('ssh:remote.example');
+		const entry = factory.entries.get()[0];
+
+		assert.deepStrictEqual({
+			afterDisconnect,
+			afterClear: snapshot(),
+			pendingInitiation: factory.getPendingConnectionInitiation?.(entry),
+			disconnectCalls: mainService.disconnectCalls,
+		}, {
+			afterDisconnect: { connectable: [], disconnected: ['ssh:remote.example'], stored: ['ssh:remote.example'] },
+			afterClear: { connectable: ['ssh:remote.example'], disconnected: [], stored: ['ssh:remote.example'] },
+			pendingInitiation: true,
+			disconnectCalls: ['ssh:remote.example'],
+		});
+	});
+
+	test('disconnect flags and removes a legacy entry by its saved address while tearing down its SSH key', async () => {
+		addSSHRemoteAgentHostEntry(sshStorageService, {
+			name: 'Legacy',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:1234', sshConfigHost: 'host', hostName: 'host.example' },
+		});
+		const factory = remoteAgentHostService.getFactory(RemoteAgentHostEntryType.SSH)!;
+		const snapshot = () => ({
+			connectable: factory.entries.get().map(getEntryAddress),
+			disconnected: service.disconnectedEntries.get().map(getEntryAddress),
+			stored: readSSHRemoteAgentHostEntries(sshStorageService).map(getEntryAddress),
+		});
+
+		await service.disconnect('ssh:host', { keepEntry: true });
+		const afterDisconnect = snapshot();
+		service.clearDisconnected('ssh:host');
+		const afterClear = snapshot();
+		await service.disconnect('ssh:host');
+
+		assert.deepStrictEqual({ afterDisconnect, afterClear, afterRemove: snapshot(), disconnectCalls: mainService.disconnectCalls }, {
+			afterDisconnect: { connectable: [], disconnected: ['localhost:1234'], stored: ['localhost:1234'] },
+			afterClear: { connectable: ['localhost:1234'], disconnected: [], stored: ['localhost:1234'] },
+			afterRemove: { connectable: [], disconnected: [], stored: [] },
+			disconnectCalls: ['ssh:host', 'ssh:host'],
+		});
+	});
+
+	test('forgetting a disconnected legacy entry before tearing down its SSH key clears its disconnected flag', async () => {
+		const legacy: IRemoteAgentHostEntry = {
+			name: 'Legacy',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:1234', sshConfigHost: 'host', hostName: 'host.example' },
+		};
+		addSSHRemoteAgentHostEntry(sshStorageService, legacy);
+		const factory = remoteAgentHostService.getFactory(RemoteAgentHostEntryType.SSH)!;
+		await service.disconnect('ssh:host', { keepEntry: true });
+
+		// The Remotes editor removes the saved entry first, so the SSH key no longer resolves to it.
+		removeSSHRemoteAgentHostEntry(sshStorageService, 'localhost:1234');
+		await service.disconnect('ssh:host');
+		addSSHRemoteAgentHostEntry(sshStorageService, legacy);
+
+		assert.deepStrictEqual({
+			connectable: factory.entries.get().map(getEntryAddress),
+			disconnected: service.disconnectedEntries.get().map(getEntryAddress),
+		}, { connectable: ['localhost:1234'], disconnected: [] });
 	});
 
 	test('connect threads the stored location preference for the stable connection key into the main-process config', async () => {

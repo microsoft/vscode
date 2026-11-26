@@ -5,6 +5,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
 import { sep } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
@@ -17,7 +18,7 @@ import { SnippetParser, Variable, VariableResolver } from '../../browser/snippet
 import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from '../../browser/snippetVariables.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder, WorkbenchMode, getWorkspaceScope } from '../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { toWorkspaceFolders } from '../../../../../platform/workspaces/common/workspaces.js';
 
@@ -388,12 +389,16 @@ suite('Snippet Variables Resolver', function () {
 			declare readonly _serviceBrand: undefined;
 			_throw = () => { throw new Error(); };
 			onDidChangeWorkbenchState = this._throw;
+			onDidChangeWorkbenchScope = Event.None;
+			onDidChangeWorkbenchMode = Event.None;
 			onDidChangeWorkspaceName = this._throw;
 			onWillChangeWorkspaceFolders = this._throw;
 			onDidChangeWorkspaceFolders = this._throw;
 			getCompleteWorkspace = this._throw;
 			getWorkspace(): IWorkspace { return workspace; }
 			getWorkbenchState = this._throw;
+			getWorkbenchScope = () => getWorkspaceScope(workspace);
+			getWorkbenchMode = () => WorkbenchMode.Editor;
 			hasWorkspaceData = this._throw;
 			getWorkspaceFolder = this._throw;
 			isCurrentWorkspace = this._throw;

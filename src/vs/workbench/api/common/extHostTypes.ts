@@ -2575,6 +2575,11 @@ export enum ExtensionKind {
 	Workspace = 2
 }
 
+export enum WorkbenchMode {
+	Editor = 1,
+	Agents = 2
+}
+
 export class FileDecoration {
 
 	static validate(d: FileDecoration): boolean {
@@ -3576,6 +3581,8 @@ export class ChatToolInvocationPart {
 }
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
+	isRequestHidden?: boolean;
+
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,

@@ -99,10 +99,10 @@ suite('Component fixture TextMate syntax highlighting', () => {
 			hasBlueRule: host.querySelector('style')?.textContent?.includes('#569cd6'),
 			hasCoralRule: host.querySelector('style')?.textContent?.includes('#ff7b72'),
 		}, {
-			import: '#c586c0',
+			import: '#569cd6',
 			private: '#569cd6',
 			readonly: '#569cd6',
-			const: '#ff7b72',
+			const: '#569cd6',
 			hasPurpleRule: true,
 			hasBlueRule: true,
 			hasCoralRule: true,
@@ -129,7 +129,7 @@ suite('Component fixture TextMate syntax highlighting', () => {
 		}, {
 			stateChanged: true,
 			continuedComment: '#8b949e',
-			constAfterComment: '#ff7b72',
+			constAfterComment: '#569cd6',
 			embeddedLanguages: ['javascript'],
 		});
 	});
@@ -172,7 +172,7 @@ suite('Component fixture TextMate syntax highlighting', () => {
 			};
 		}), rendered.map(({ name, foreground }) => ({
 			name,
-			color: name === 'Dark' ? 'rgb(197, 134, 192)' : Color.Format.CSS.formatRGB(foreground),
+			color: name === 'Dark' ? 'rgb(86, 156, 214)' : Color.Format.CSS.formatRGB(foreground),
 			fontStyle: name === 'Dark' ? 'italic' : 'normal',
 			fontWeight: name === 'Dark' ? '700' : '400',
 			textDecoration: name === 'Dark' ? 'underline line-through' : 'none',

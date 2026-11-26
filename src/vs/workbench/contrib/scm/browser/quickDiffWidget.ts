@@ -394,7 +394,6 @@ class QuickDiffWidget extends PeekViewWidget {
 			renderOverviewRuler: false,
 			renderSideBySide: false,
 			scrollbar: {
-				verticalScrollbarSize: 14,
 				horizontal: 'auto',
 				useShadows: true,
 				verticalHasArrows: false,
@@ -539,6 +538,11 @@ export class QuickDiffEditorController extends Disposable implements IEditorCont
 					bottom: 0;
 					border-top-width: 0;
 					border-bottom-width: 0;
+				}
+
+				.monaco-editor .margin-view-overlays .dirty-diff-deleted.top:hover::after {
+					top: 0;
+					bottom: auto;
 				}
 			`;
 		} else {

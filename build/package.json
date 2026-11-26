@@ -46,7 +46,6 @@
     "@types/vinyl": "^2.0.12",
     "@types/vinyl-fs": "^2.4.9",
     "@types/xml2js": "0.0.33",
-    "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/vsce": "4.1.1",
     "ansi-colors": "^3.2.3",
     "debug": "^4.3.2",

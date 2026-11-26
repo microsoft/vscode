@@ -6,9 +6,13 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../nls.js';
+import { modelContextTiers } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { getReasoningEffortLabel, reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IRemoteSessionService, parseCreateRemoteSessionOptions, remoteSessionToolsWhen } from '../common/remoteSessions.js';
+import { areRemoteSessionModelOptionsEnabled, IRemoteSessionHostName, IRemoteSessionService, parseCreateRemoteSessionOptions, remoteSessionToolsWhen } from '../common/remoteSessions.js';
 import { assertRemoteSessionCaller } from './remoteSessionSource.js';
 
 export class ListAgentHostsTool implements IToolImpl {
@@ -48,18 +52,34 @@ export class ListAgentHostsTool implements IToolImpl {
 	}
 }
 
+/** `create_remote_session`'s model option properties while agents can choose them (`chat.agentHost.sessionModelOptions` isn't `off`). */
+const createRemoteSessionModelOptionsProperties: Record<string, IJSONSchema> = {
+	reasoningEffort: {
+		type: 'string',
+		enum: [...reasoningEffortLevels],
+		description: 'Optional reasoning effort for `model` (`xhigh` is shown as Extra High); requires `model`. Supported values depend on the model on the selected host. Higher effort is slower and can cost more; `ultra` also delegates parts of the task automatically. Omit to keep this chat\'s effort when `model` is this chat\'s model, else the user\'s saved choice for the model.',
+	},
+	contextTier: {
+		type: 'string',
+		enum: [...modelContextTiers],
+		description: 'Optional context window for `model`; requires `model`. `long_context` uses the model\'s larger window when it offers one, which can cost more. Omit to keep this chat\'s context window when `model` is this chat\'s model, else the user\'s saved choice for the model.',
+	},
+};
+
 export class CreateRemoteSessionTool implements IToolImpl {
 	constructor(
 		@IRemoteSessionService private readonly remoteSessionsService: IRemoteSessionService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	getToolData(): IToolData {
+		const modelOptions = areRemoteSessionModelOptionsEnabled(this.configurationService);
 		return {
 			id: 'vscode_create_remote_session',
 			toolReferenceName: 'create_remote_session',
 			displayName: localize('remoteSessions.create.displayName', "Create Remote Session"),
 			userDescription: localize('remoteSessions.create.description', "Delegate work to a matching remote agent host"),
-			modelDescription: 'Start a task on a connected remote agent host; use create_session for same-host work. Requires an Agent Host originating chat. Selects the matching host with the fewest running sessions and pending creations. Omitted workspace creates a workspace-less session; omitted model uses the target default. Workspaces must already exist and be trusted on the target; nothing is cloned, copied, or inherited from the origin. Ask for results or blockers via send_remote_message with session "origin"; final answers are not forwarded. Returns on prompt acceptance, not completion; replies arrive as new turns. Keep the coordinating Agents window connected. Normal approval applies. Continue independent work or end your turn; do not sleep or poll for replies. Do not retry an uncertain creation.',
+			modelDescription: `Start a task on a connected remote agent host; use create_session for same-host work. Requires an Agent Host originating chat. Prefers hosts where the target folder is already trusted, then the host with the fewest running sessions and pending creations. Omitted workspace creates a workspace-less session. Omitted model continues on this chat's model with its options, such as reasoning effort and context window, where the target offers that model, else uses the target default; a named model starts with ${modelOptions ? 'this chat\'s options when it is this chat\'s model, else ' : ''}the user's saved options for it. The directory must already exist; nothing is cloned or copied from the origin. Ask for results or blockers via send_remote_message with session "origin"; final answers are not forwarded. Returns on prompt acceptance, not completion; replies arrive as new turns. Use the returned openLink as the Markdown link target and as the session argument to get_remote_session or send_remote_message. Keep the coordinating Agents window connected. Normal tool approval applies; an untrusted folder requires separate user approval. Continue independent work or end your turn; do not sleep or poll for replies. Do not retry an uncertain creation.`,
 			source: ToolDataSource.Internal,
 			icon: Codicon.remote,
 			when: remoteSessionToolsWhen,
@@ -78,12 +98,13 @@ export class CreateRemoteSessionTool implements IToolImpl {
 						type: 'object',
 						additionalProperties: false,
 						required: ['provider', 'id'],
-						description: 'Exact provider/model pair from list_agent_hosts; no substitution.',
+						description: 'Exact provider/model pair from list_agent_hosts; no substitution. Omit to continue on this chat\'s model.',
 						properties: {
 							provider: { type: 'string', description: 'Host-advertised agent provider.' },
 							id: { type: 'string', description: 'Provider-native model ID.' },
 						},
 					},
+					...(modelOptions ? createRemoteSessionModelOptionsProperties : {}),
 					requirements: {
 						type: 'object',
 						additionalProperties: false,
@@ -108,23 +129,42 @@ export class CreateRemoteSessionTool implements IToolImpl {
 		};
 	}
 
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
-		const options = parseCreateRemoteSessionOptions(context.parameters);
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation> {
+		const modelOptions = areRemoteSessionModelOptionsEnabled(this.configurationService);
+		const options = parseCreateRemoteSessionOptions(context.parameters, modelOptions);
 		if (!context.chatSessionResource) {
 			throw new Error(localize('remoteSessions.create.missingContext', "Remote session creation requires an originating session."));
 		}
 		assertRemoteSessionCaller(context.chatSessionResource);
-		const message = new MarkdownString().appendText(localize(
-			'remoteSessions.create.confirmation',
-			"Start this task on {0}? The host is selected from your connected remote agent hosts using the requested resources and current workload. The new session can send messages back to this chat.",
-			options.hostId ?? localize('remoteSessions.create.automaticHost', "a matching remote host"),
-		));
+		const sourceModel = await this.remoteSessionsService.getSourceModel(context.chatSessionResource, token);
+		const destination = this.remoteSessionsService.getRequestedDestination(options);
+		// A pinned host that is not available is named by what pins it: creation fails rather than choosing another host.
+		const host = destination.host ?? (destination.pinnedBy !== undefined ? { label: destination.pinnedBy } : undefined);
+		const message = new MarkdownString().appendText(!host
+			? localize('remoteSessions.create.confirmationAutomatic', "Start this task on a matching remote host? The host is selected from your connected remote agent hosts using the requested resources and current workload. The new session can send messages back to this chat.")
+			: host.containerHost !== undefined
+				? localize('remoteSessions.create.confirmationContainer', "Start this task in {0} on {1}? The new session can send messages back to this chat.", host.label, host.containerHost)
+				: localize('remoteSessions.create.confirmationHost', "Start this task on {0}? The new session can send messages back to this chat.", host.label));
 		message.appendText(`\n\n${options.prompt}`);
-		message.appendText(`\n\n${options.workspace
-			? localize('remoteSessions.create.workspace', "Workspace: {0} ({1})", options.workspace.uri.toString(), options.workspace.isolation)
+		message.appendText(`\n\n${options.workspace && destination.workspace !== undefined
+			? localize('remoteSessions.create.workspace', "Workspace: {0} ({1})", destination.workspace, options.workspace.isolation)
 			: localize('remoteSessions.create.noWorkspace', "No workspace or files are inherited from this session.")}`);
 		if (options.model) {
 			message.appendText(`\n\n${localize('remoteSessions.create.model', "Model: {0}/{1}", options.model.provider, options.model.id)}`);
+		} else if (sourceModel) {
+			message.appendText(`\n\n${localize('remoteSessions.create.sourceModel', "Model: {0}/{1} from this chat, if the host offers it", sourceModel.provider, sourceModel.id)}`);
+		}
+		const keepsSourceOptions = !options.model
+			|| (modelOptions && options.model.provider === sourceModel?.provider && options.model.id === sourceModel.id);
+		if (options.reasoningEffort) {
+			message.appendText(`\n\n${localize('remoteSessions.create.reasoningEffort', "Reasoning effort: {0}", getReasoningEffortLabel(options.reasoningEffort))}`);
+		} else if (keepsSourceOptions && sourceModel?.reasoningEffort) {
+			message.appendText(`\n\n${localize('remoteSessions.create.sourceReasoningEffort', "Reasoning effort: {0} from this chat, if the model on the host supports it", getReasoningEffortLabel(sourceModel.reasoningEffort))}`);
+		}
+		if (options.contextTier) {
+			message.appendText(`\n\n${localize('remoteSessions.create.contextWindow', "Context window: {0}", options.contextTier === 'long_context'
+				? localize('remoteSessions.create.longContext', "Long context")
+				: localize('remoteSessions.create.defaultContext', "Default"))}`);
 		}
 		if (options.workspace?.branch) {
 			message.appendText(`\n\n${localize('remoteSessions.create.baseBranch', "Worktree base branch: {0}", options.workspace.branch)}`);
@@ -143,16 +183,19 @@ export class CreateRemoteSessionTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const options = parseCreateRemoteSessionOptions(invocation.parameters);
+		const options = parseCreateRemoteSessionOptions(invocation.parameters, areRemoteSessionModelOptionsEnabled(this.configurationService));
 		const source = invocation.context?.sessionResource;
 		if (!source) {
 			throw new Error(localize('remoteSessions.create.missingContext', "Remote session creation requires an originating session."));
 		}
 		assertRemoteSessionCaller(source);
-		const created = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);
+		const { status, openLink, host, model, workspace, placement } = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);
+		const hostName: IRemoteSessionHostName = this.remoteSessionsService.getRequestedDestination({ ...options, hostId: host.id }).host ?? host;
 		return {
-			content: [{ kind: 'text', value: JSON.stringify(created) }],
-			toolResultMessage: new MarkdownString().appendLink(created.openLink, localize('remoteSessions.create.result', "Created remote session on {0}", created.host.label)),
+			content: [{ kind: 'text', value: JSON.stringify({ status, openLink, host, model, workspace, placement }) }],
+			toolResultMessage: new MarkdownString().appendLink(openLink, hostName.containerHost !== undefined
+				? localize('remoteSessions.create.resultContainer', "Created remote session in {0} on {1}", hostName.label, hostName.containerHost)
+				: localize('remoteSessions.create.result', "Created remote session on {0}", hostName.label)),
 		};
 	}
 }

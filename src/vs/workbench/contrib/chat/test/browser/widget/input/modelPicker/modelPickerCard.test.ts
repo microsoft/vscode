@@ -1161,6 +1161,25 @@ suite('ModelCard', () => {
 		}, { description: 'A model for careful reasoning.', context: '200K', settings: 0 });
 	});
 
+	test('a warning given as the model\'s tooltip is shown once, as its banner, and HydraFusion keeps its Learn More link', () => {
+		const deprecation = 'This model has a planned deprecation date of 2026-12-14.';
+		const results = [
+			{ id: 'gemini-3.8-flash', modelGroup: undefined },
+			{ id: 'hydrafusion', modelGroup: { id: 'copilotcli' } },
+		].map(({ id, modelGroup }) => {
+			const { card } = createCard({}, { model: createModel({ id, modelGroup, configurationSchema: undefined, tooltip: deprecation, warningText: { model_pending_deprecation: deprecation } }) });
+			return {
+				descriptions: Array.from(card.element.querySelectorAll('.chat-model-card-description'), element => element.textContent?.trim()),
+				learnMore: card.element.querySelector('.chat-model-card-description a')?.getAttribute('href'),
+				warnings: Array.from(card.element.querySelectorAll('.chat-model-hover-warning-text'), element => element.textContent?.trim()),
+			};
+		});
+		assert.deepStrictEqual(results, [
+			{ descriptions: [], learnMore: undefined, warnings: [deprecation] },
+			{ descriptions: ['Learn more'], learnMore: 'https://aka.ms/hydrafusion-blog', warnings: [deprecation] },
+		]);
+	});
+
 	test('routing models retain their descriptive badge without advertising a fixed context window', () => {
 		const result = createCard({}, {
 			model: createModel({

@@ -11,23 +11,20 @@
   "main": "./out/node/htmlServerMain",
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
-    "vscode-css-languageservice": "^7.0.0-next.2",
-    "vscode-html-languageservice": "^6.0.0-next.2",
-    "vscode-languageserver": "^10.1.1",
-    "vscode-languageserver-textdocument": "^1.0.14",
+    "vscode-css-languageservice": "^7.0.0-next.4",
+    "vscode-html-languageservice": "^6.0.0-next.3",
+    "vscode-languageserver": "^11.0.0",
+    "vscode-languageserver-textdocument": "^1.0.16",
     "vscode-uri": "^3.2.0"
   },
   "devDependencies": {
     "@types/node": "24.x",
-    "glob": "^5.0.13"
+    "glob": "^14.0.6"
   },
   "scripts": {
     "compile": "pnpm exec gulp compile-extension:html-language-features-server",
     "watch": "pnpm exec gulp watch-extension:html-language-features-server",
-    "install-service-next": "pnpm add vscode-css-languageservice@next && pnpm add vscode-html-languageservice@next",
-    "install-service-local": "pnpm add vscode-css-languageservice && pnpm add vscode-html-languageservice",
-    "install-server-next": "pnpm add vscode-languageserver@next",
-    "install-server-local": "pnpm add vscode-languageserver",
+    "update-dependencies": "pnpm install vscode-languageserver@latest &&pnpm install vscode-css-languageservice@next && pnpm install vscode-html-languageservice@next",
     "test": "pnpm run compile && node ./test/index.js"
   }
 }
