@@ -4870,6 +4870,27 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('detachSessionsFromWorkspace restores a loaded session\'s workspace, live and persisted, right after its catalog cannot be written', async () => {
+		const db = new TestSessionDatabase();
+		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(localService, agent);
+		const multiRoot = { workspaceFile: 'file:///work/agents.code-workspace' };
+		const session = await localService.createSession({ legacyChatUris: true, provider: agent.id, _meta: { multiRoot } });
+		const persistedBefore = await db.getMetadata(SESSION_META_MULTI_ROOT_KEY);
+		// The session's own record is written before the catalog, whose write fails
+		const catalogSync = (localService as unknown as { _catalogSyncService: { synchronizeWithFactory(...args: unknown[]): Promise<unknown> } })._catalogSyncService;
+		catalogSync.synchronizeWithFactory = () => Promise.reject(new Error('catalog unavailable'));
+
+		await assert.rejects(localService.detachSessionsFromWorkspace([URI.parse(multiRoot.workspaceFile)]), /Failed to detach 1 of 1/);
+
+		assert.deepStrictEqual({
+			live: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta),
+			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+		}, { live: multiRoot, persisted: persistedBefore });
+	});
+
 	test('detachSessionsFromWorkspace matches a workspace file with another casing as the file system does', async () => {
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = new MockAgent('copilot');
