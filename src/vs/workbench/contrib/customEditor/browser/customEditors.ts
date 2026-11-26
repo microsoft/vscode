@@ -142,6 +142,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	private withActiveCustomEditor(f: (editor: CustomEditorUndoRedoInput) => void | Promise<void>): boolean | Promise<void> {
 		const editor = this.getActiveCustomEditorUndoRedoInput();
 		if (editor) {
+			if (editor.isReadonly()) {
+				return true;
+			}
 			const result = f(editor);
 			if (result) {
 				return result;

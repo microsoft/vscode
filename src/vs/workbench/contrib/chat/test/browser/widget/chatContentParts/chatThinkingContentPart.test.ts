@@ -45,6 +45,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { chatSessionResourceToId } from '../../../../common/model/chatUri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { getCompactCodicon } from '../../../../browser/chatIcons.js';
 import { resolveResponseSelection } from '../../../../browser/responseSelectionResolver.js';
 import '../../../../browser/widget/media/chat.css';
 
@@ -225,6 +226,32 @@ suite('ChatThinkingContentPart', () => {
 		});
 	});
 
+	test('uses the compact edit icon for file editing tools', () => {
+		assert.deepStrictEqual(
+			['edit_file', 'create_file', 'replace_string', 'apply_patch'].map(toolId => getCompactCodicon(getToolInvocationIcon(toolId)).id),
+			Array(4).fill(Codicon.editCompact.id),
+		);
+	});
+
+	for (const isToolChain of [false, true]) {
+		test(`uses a compact persistent header icon (isToolChain=${isToolChain})`, () => {
+			const context = { ...createMockRenderContext(), suppressProgressShimmer: true, isToolChain };
+			const part = createThinkingContentPart(createThinkingPart('Reasoning'), context);
+			const iconClass = () => part.domNode.querySelector('.chat-used-context-label .monaco-button > .codicon')?.className;
+			const streaming = iconClass();
+			part.expandContent();
+			const expanded = iconClass();
+			part.finalizeTitleIfDefault();
+
+			const expected = `codicon codicon-${isToolChain ? Codicon.toolsCompact.id : Codicon.thinkingCompact.id}`;
+			assert.deepStrictEqual({ streaming, expanded, completed: iconClass() }, {
+				streaming: expected,
+				expanded: expected,
+				completed: expected,
+			});
+		});
+	}
+
 	test('resolves known tool icons when a provider supplies only the generic tool icon', () => {
 		const tools = ['read', 'read_file', 'view', 'search', 'rg', 'glob', 'terminal', 'bash', 'powershell', 'custom_tool'];
 		const icons = [Codicon.book, Codicon.book, Codicon.book, Codicon.search, Codicon.search, Codicon.search, Codicon.terminal, Codicon.terminal, Codicon.terminal, Codicon.tools];
@@ -258,6 +285,23 @@ suite('ChatThinkingContentPart', () => {
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			return part;
 		}
+
+		test('updates a tool row when its MCP icon arrives during execution', () => {
+			const part = createToolChain();
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Search tools' },
+				{ id: 'search', displayName: 'Search tools', modelDescription: 'Search tools', source: ToolDataSource.Internal },
+				'call-mcp', undefined, undefined,
+			);
+			part.appendItem(() => ({ domNode: $('div', undefined, 'Search tools') }), tool.toolId, tool);
+			const icon = () => part.domNode.querySelector('.chat-thinking-tool-wrapper > .chat-thinking-icon')?.className;
+			const before = icon();
+			tool.updateIcon(Codicon.mcp);
+			assert.deepStrictEqual([before, icon()], [
+				'chat-thinking-icon codicon codicon-search-compact',
+				'chat-thinking-icon codicon codicon-mcp-compact',
+			]);
+		});
 
 		function appendVisibilityControlledTool(part: ChatThinkingContentPart, id: string, visible: boolean) {
 			const tool = new ChatToolInvocation(

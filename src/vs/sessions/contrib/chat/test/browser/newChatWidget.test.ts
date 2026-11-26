@@ -31,7 +31,7 @@ import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } fr
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
-import { BackgroundSendStatus, NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
+import { BackgroundSendStatus, composesForAllSessions, NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
 import { INewSessionWorktreeSendChoiceProvider, NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/browser/onboardingService.js';
@@ -459,6 +459,8 @@ interface IRenderSessionTypePickerHarness {
 }
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
+	readonly _inEditorWindowHost?: boolean;
+	readonly _composesForAllSessions?: IObservable<boolean>;
 	readonly _environment: ReturnType<typeof observableValue<ISessionCreationEnvironment | undefined>>;
 	readonly _environmentPicker: { readonly isVisible: IObservable<boolean>; render(container: HTMLElement): IDisposable & { readonly element: HTMLElement } };
 	readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
@@ -2237,18 +2239,27 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('workspace opt-out triggers in both experiment arms only for an eligible workspace and updates live', () => {
+	test('workspace opt-out follows composer scope and placement in both experiment arms and updates live', () => {
+		const composers = [
+			{ inEditorWindow: false, inChatArea: false, workbenchScope: undefined },
+			{ inEditorWindow: true, inChatArea: true, workbenchScope: undefined },
+			{ inEditorWindow: true, inChatArea: true, workbenchScope: URI.file('/workspace') },
+			{ inEditorWindow: true, inChatArea: false, workbenchScope: undefined },
+		];
 		const results = [];
-		for (const enabled of [false, true]) {
+		for (const { composer, enabled } of composers.flatMap(composer => [false, true].map(enabled => ({ composer, enabled })))) {
 			const container = append(mainWindow.document.body, $('div'));
 			disposables.add(toDisposable(() => container.remove()));
 			const selectionChanged = disposables.add(new Emitter<void>());
 			const target = observableValue<IPreferredSessionType | undefined>('target', undefined);
+			const scope = observableValue<URI | undefined>('scope', composer.workbenchScope);
 			let selectedFolderUri: URI | undefined;
 			let clearable: IObservable<boolean> | undefined;
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const harness: IRenderWorkspacePickerHarness = {
 				...createDefaultPresentationHarness(disposables, telemetryService, true),
+				_inEditorWindowHost: composer.inEditorWindow,
+				_composesForAllSessions: derived(reader => composesForAllSessions({ ...composer, workbenchScope: scope.read(reader) })),
 				_environment: observableValue('environment', undefined),
 				_environmentPicker: { isVisible: constObservable(false), render: () => assert.fail('No environment picker expected') },
 				agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
@@ -2286,19 +2297,28 @@ suite('NewChatWidget', () => {
 			harness._workspaceOptOutEnabled.set(!enabled, undefined);
 			selectionChanged.fire();
 			states.push(snapshot());
+			scope.set(URI.file('/scoped'), undefined);
+			states.push(snapshot());
+			scope.set(undefined, undefined);
+			states.push(snapshot());
 			selectedFolderUri = undefined;
 			selectionChanged.fire();
 			states.push(snapshot());
 			results.push(states);
 		}
 		const trigger = `config.${WORKSPACE_OPT_OUT_SETTING}`;
-		assert.deepStrictEqual(results, [false, true].map(enabled => [
-			{ clearable: false, triggers: [] },
-			{ clearable: false, triggers: [] },
-			{ clearable: enabled, triggers: [trigger] },
-			{ clearable: !enabled, triggers: [trigger] },
-			{ clearable: false, triggers: [trigger] },
-		]));
+		assert.deepStrictEqual(results, composers.flatMap((composer, index) => [false, true].map(enabled => {
+			const eligible = index < 2;
+			return [
+				{ clearable: false, triggers: [] },
+				{ clearable: false, triggers: [] },
+				{ clearable: eligible && enabled, triggers: eligible ? [trigger] : [] },
+				{ clearable: eligible && !enabled, triggers: eligible ? [trigger] : [] },
+				{ clearable: index === 0 && !enabled, triggers: eligible ? [trigger] : [] },
+				{ clearable: index < 3 && !enabled, triggers: index < 3 ? [trigger] : [] },
+				{ clearable: false, triggers: index < 3 ? [trigger] : [] },
+			];
+		})));
 	});
 
 	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
@@ -3017,6 +3037,41 @@ suite('NewChatWidget', () => {
 				{ description: 'Start without a backing workspace', isSelected: false },
 				{ description: 'Start without a backing workspace', isSelected: true },
 			]);
+	});
+
+	test('offers Chat in an all-sessions chat area, but not a folder window or the Chat view, and follows scope changes', () => {
+		const cases = {
+			allSessionsChatArea: { inEditorWindow: true, inChatArea: true, workbenchScope: undefined },
+			folderWindowChatArea: { inEditorWindow: true, inChatArea: true, workbenchScope: URI.file('/workspace') },
+			allSessionsChatView: { inEditorWindow: true, inChatArea: false, workbenchScope: undefined },
+			agentsWindow: { inEditorWindow: false, inChatArea: false, workbenchScope: undefined },
+		};
+		const results = Object.fromEntries(Object.entries(cases).map(([name, composer]) => {
+			const scope = observableValue<URI | undefined>('scope', composer.workbenchScope);
+			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_inEditorWindowHost: composer.inEditorWindow,
+				_composesForAllSessions: derived(reader => composesForAllSessions({ ...composer, workbenchScope: scope.read(reader) })),
+				_environment: constObservable(undefined),
+				_isWorkspacePickerQuickChat: constObservable(false),
+				_session: constObservable(undefined),
+				sessionsProvidersService: { getProviders: () => [] },
+				sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			});
+			const offersChat = () => !!getNoWorkspaceOption.call(widget);
+			const states = [offersChat()];
+			scope.set(URI.file('/scoped'), undefined);
+			states.push(offersChat());
+			scope.set(undefined, undefined);
+			states.push(offersChat());
+			return [name, states];
+		}));
+
+		assert.deepStrictEqual(results, {
+			allSessionsChatArea: [!isWeb, false, !isWeb],
+			folderWindowChatArea: [false, false, !isWeb],
+			allSessionsChatView: [false, false, false],
+			agentsWindow: [!isWeb, !isWeb, !isWeb],
+		});
 	});
 
 	test('offers quick chat providers as a host submenu and forwards the selection', async () => {

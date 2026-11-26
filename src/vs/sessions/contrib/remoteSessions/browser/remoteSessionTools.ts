@@ -57,12 +57,12 @@ const createRemoteSessionModelOptionsProperties: Record<string, IJSONSchema> = {
 	reasoningEffort: {
 		type: 'string',
 		enum: [...reasoningEffortLevels],
-		description: 'Optional reasoning effort for `model` (`xhigh` is shown as Extra High); requires `model`. Supported values depend on the model on the selected host. Higher effort is slower and can cost more; `ultra` also delegates parts of the task automatically. Omit to use the user\'s saved choice for the model.',
+		description: 'Optional reasoning effort for `model` (`xhigh` is shown as Extra High); requires `model`. Supported values depend on the model on the selected host. Higher effort is slower and can cost more; `ultra` also delegates parts of the task automatically. Omit to keep this chat\'s effort when `model` is this chat\'s model, else the user\'s saved choice for the model.',
 	},
 	contextTier: {
 		type: 'string',
 		enum: [...modelContextTiers],
-		description: 'Optional context window for `model`; requires `model`. `long_context` uses the model\'s larger window when it offers one, which can cost more. Omit to use the user\'s saved choice for the model.',
+		description: 'Optional context window for `model`; requires `model`. `long_context` uses the model\'s larger window when it offers one, which can cost more. Omit to keep this chat\'s context window when `model` is this chat\'s model, else the user\'s saved choice for the model.',
 	},
 };
 
@@ -79,7 +79,7 @@ export class CreateRemoteSessionTool implements IToolImpl {
 			toolReferenceName: 'create_remote_session',
 			displayName: localize('remoteSessions.create.displayName', "Create Remote Session"),
 			userDescription: localize('remoteSessions.create.description', "Delegate work to a matching remote agent host"),
-			modelDescription: 'Start a task on a connected remote agent host; use create_session for same-host work. Requires an Agent Host originating chat. Prefers hosts where the target folder is already trusted, then the host with the fewest running sessions and pending creations. Omitted workspace creates a workspace-less session; omitted model uses the target default, and a named model starts with the user\'s saved options for it, such as reasoning effort and context window. The directory must already exist; nothing is cloned, copied, or inherited from the origin. Ask for results or blockers via send_remote_message with session "origin"; final answers are not forwarded. Returns on prompt acceptance, not completion; replies arrive as new turns. Use the returned openLink as the Markdown link target and as the session argument to get_remote_session or send_remote_message. Keep the coordinating Agents window connected. Normal tool approval applies; an untrusted folder requires separate user approval. Continue independent work or end your turn; do not sleep or poll for replies. Do not retry an uncertain creation.',
+			modelDescription: `Start a task on a connected remote agent host; use create_session for same-host work. Requires an Agent Host originating chat. Prefers hosts where the target folder is already trusted, then the host with the fewest running sessions and pending creations. Omitted workspace creates a workspace-less session. Omitted model continues on this chat's model with its options, such as reasoning effort and context window, where the target offers that model, else uses the target default; a named model starts with ${modelOptions ? 'this chat\'s options when it is this chat\'s model, else ' : ''}the user's saved options for it. The directory must already exist; nothing is cloned or copied from the origin. Ask for results or blockers via send_remote_message with session "origin"; final answers are not forwarded. Returns on prompt acceptance, not completion; replies arrive as new turns. Use the returned openLink as the Markdown link target and as the session argument to get_remote_session or send_remote_message. Keep the coordinating Agents window connected. Normal tool approval applies; an untrusted folder requires separate user approval. Continue independent work or end your turn; do not sleep or poll for replies. Do not retry an uncertain creation.`,
 			source: ToolDataSource.Internal,
 			icon: Codicon.remote,
 			when: remoteSessionToolsWhen,
@@ -98,7 +98,7 @@ export class CreateRemoteSessionTool implements IToolImpl {
 						type: 'object',
 						additionalProperties: false,
 						required: ['provider', 'id'],
-						description: 'Exact provider/model pair from list_agent_hosts; no substitution.',
+						description: 'Exact provider/model pair from list_agent_hosts; no substitution. Omit to continue on this chat\'s model.',
 						properties: {
 							provider: { type: 'string', description: 'Host-advertised agent provider.' },
 							id: { type: 'string', description: 'Provider-native model ID.' },
@@ -129,12 +129,14 @@ export class CreateRemoteSessionTool implements IToolImpl {
 		};
 	}
 
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
-		const options = parseCreateRemoteSessionOptions(context.parameters, areRemoteSessionModelOptionsEnabled(this.configurationService));
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation> {
+		const modelOptions = areRemoteSessionModelOptionsEnabled(this.configurationService);
+		const options = parseCreateRemoteSessionOptions(context.parameters, modelOptions);
 		if (!context.chatSessionResource) {
 			throw new Error(localize('remoteSessions.create.missingContext', "Remote session creation requires an originating session."));
 		}
 		assertRemoteSessionCaller(context.chatSessionResource);
+		const sourceModel = await this.remoteSessionsService.getSourceModel(context.chatSessionResource, token);
 		const destination = this.remoteSessionsService.getRequestedDestination(options);
 		// A pinned host that is not available is named by what pins it: creation fails rather than choosing another host.
 		const host = destination.host ?? (destination.pinnedBy !== undefined ? { label: destination.pinnedBy } : undefined);
@@ -149,9 +151,15 @@ export class CreateRemoteSessionTool implements IToolImpl {
 			: localize('remoteSessions.create.noWorkspace', "No workspace or files are inherited from this session.")}`);
 		if (options.model) {
 			message.appendText(`\n\n${localize('remoteSessions.create.model', "Model: {0}/{1}", options.model.provider, options.model.id)}`);
+		} else if (sourceModel) {
+			message.appendText(`\n\n${localize('remoteSessions.create.sourceModel', "Model: {0}/{1} from this chat, if the host offers it", sourceModel.provider, sourceModel.id)}`);
 		}
+		const keepsSourceOptions = !options.model
+			|| (modelOptions && options.model.provider === sourceModel?.provider && options.model.id === sourceModel.id);
 		if (options.reasoningEffort) {
 			message.appendText(`\n\n${localize('remoteSessions.create.reasoningEffort', "Reasoning effort: {0}", getReasoningEffortLabel(options.reasoningEffort))}`);
+		} else if (keepsSourceOptions && sourceModel?.reasoningEffort) {
+			message.appendText(`\n\n${localize('remoteSessions.create.sourceReasoningEffort', "Reasoning effort: {0} from this chat, if the model on the host supports it", getReasoningEffortLabel(sourceModel.reasoningEffort))}`);
 		}
 		if (options.contextTier) {
 			message.appendText(`\n\n${localize('remoteSessions.create.contextWindow', "Context window: {0}", options.contextTier === 'long_context'

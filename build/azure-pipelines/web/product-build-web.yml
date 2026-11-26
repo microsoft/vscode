@@ -6,10 +6,10 @@ parameters:
     type: boolean
     default: false
   # Whether to include the steps that need a privileged service connection
-  # (CDN uploads). Dev builds of product-build.yml set this to false.
+  # (CDN uploads). Required: only builds of main and release/* branches
+  # pass true.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
-    default: true
 
 jobs:
   - job: ${{ iif(parameters.mobile, 'Mobile', 'Web') }}

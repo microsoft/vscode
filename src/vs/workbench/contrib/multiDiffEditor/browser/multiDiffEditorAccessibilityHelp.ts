@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { ISCMViewService } from '../../scm/common/scm.js';
+import { hasSCMStructuralDiffProvider } from '../../scm/common/scmStructuralDiff.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { isMultiDiffEditorFileListHost, MultiDiffEditorFileListFocusedContext } from '../common/multiDiffEditor.js';
@@ -31,10 +34,12 @@ class MultiDiffEditorFileListAccessibilityHelp implements IAccessibleViewImpleme
 				? localize('multiDiffEditor.fileListHelp.agentsWindowActions', "Use Toggle Details in the editor toolbar{0} to show or hide the changed files, and the dropdown beside it to switch between a list and a folder tree, or to move them to the left or right of the diffs. In a chat window, the Files View & Position submenu in the tab bar's More Actions menu offers the same options.", '<keybinding:workbench.action.agentSessions.toggleDetails>')
 				: localize('multiDiffEditor.fileListHelp.actions', "Use Toggle Files in the editor toolbar or Command Palette to show or hide the changed files, and the dropdown beside it to switch between a list and a folder tree, or to move them to the left or right of the diffs.");
 
+		const showsStructuralChanges = accessor.get(ISCMViewService).showStructuralDiff.get() && hasSCMStructuralDiffProvider(accessor.get(ILanguageFeaturesService));
 		const content = [
 			localize('multiDiffEditor.fileListHelp.overview', "You are in the changed files list of a multi diff editor."),
 			localize('multiDiffEditor.fileListHelp.navigation', "Use the Up and Down Arrow keys to navigate files. In tree mode, use the Left and Right Arrow keys to collapse or expand folders."),
 			localize('multiDiffEditor.fileListHelp.open', "Press Enter to reveal the selected file and move focus to its diff."),
+			...(showsStructuralChanges ? [localize('multiDiffEditor.fileListHelp.structuralChanges', "Use the Right Arrow key to expand a file and list the symbols that changed in it, and press Enter on a symbol to reveal it in the diff.")] : []),
 			actionsHelp,
 		].join('\n');
 

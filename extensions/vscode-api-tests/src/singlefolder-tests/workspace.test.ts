@@ -54,6 +54,16 @@ suite('vscode API - workspace', () => {
 		assert.ok(!vscode.workspace.workspaceFile);
 	});
 
+	test('isAgentManaged, previous name still works at runtime', () => {
+		assert.deepStrictEqual({
+			isAgentManaged: vscode.workspace.isAgentManaged,
+			isAgentSessionsWorkspace: Reflect.get(vscode.workspace, 'isAgentSessionsWorkspace'),
+		}, {
+			isAgentManaged: false,
+			isAgentSessionsWorkspace: false,
+		});
+	});
+
 	test('workspaceFolders', () => {
 		if (vscode.workspace.workspaceFolders) {
 			assert.strictEqual(vscode.workspace.workspaceFolders.length, 1);

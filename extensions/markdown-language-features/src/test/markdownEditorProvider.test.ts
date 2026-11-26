@@ -187,6 +187,8 @@ suite('Markdown editor initial state', () => {
 			highlightActiveBlock: false,
 			renderWhitespace: true,
 			lineBreak: '\r\n' as const,
+			documentReadonly: false,
+			readonlyMessage: 'Cannot edit in read-only editor',
 			linkPresentationRules: [],
 		};
 		const encoded = encodeWebviewInitialState(state);

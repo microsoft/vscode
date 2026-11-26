@@ -22,7 +22,7 @@ import { IResourceEditorInput, ITextEditorOptions } from '../../../../../platfor
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IResolvedTextFileEditorModel, ITextFileService } from '../../../textfile/common/textfiles.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { isLinux } from '../../../../../base/common/platform.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
@@ -31,7 +31,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder, Workspace } from '../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 suite('HistoryService', function () {
@@ -808,11 +808,17 @@ suite('HistoryService', function () {
 				return reloaded;
 			};
 
-			return { contextService, historyService, instantiationService, open, openSideBySide, closeAll, reload };
+			const fileService = instantiationService.invokeFunction(accessor => accessor.get(IFileService)) as TestFileService;
+
+			return { contextService, historyService, instantiationService, fileService, open, openSideBySide, closeAll, reload };
 		}
 
 		function paths(historyService: IHistoryService): (string | undefined)[] {
 			return historyService.getHistory().map(editor => editor.resource?.path);
+		}
+
+		function stat(path: string, isFile: boolean): IFileStatWithMetadata {
+			return { resource: URI.file(path), name: path.substring(path.lastIndexOf('/') + 1), isFile, isDirectory: !isFile, isSymbolicLink: false, mtime: 0, ctime: 0, etag: '', size: 0, readonly: false, locked: false, executable: false, children: undefined };
 		}
 
 		test('a folder location switch puts away the list of the folder and restores the list of the new location', async () => {
@@ -874,6 +880,176 @@ suite('HistoryService', function () {
 			const backAtFolder = paths(historyService);
 
 			assert.deepStrictEqual({ atWorktree, backAtFolder }, { atWorktree: ['/repo/.worktrees/one/nested.txt'], backAtFolder: ['/repo/current.txt'] });
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('editors of every folder that switches left are not added', async () => {
+			const otherWorktree = URI.file('/worktree2');
+			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			contextService.setFolders([otherWorktree], { isFolderLocationChange: true });
+
+			// The editor of the folder is still open and gets focus again
+			await open('/worktree2/b.txt');
+			await open('/repo/a.txt');
+			const atOtherWorktree = paths(historyService);
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const backAtFolder = paths(historyService);
+
+			assert.deepStrictEqual({ atOtherWorktree, backAtFolder }, { atOtherWorktree: ['/worktree2/b.txt'], backAtFolder: ['/repo/a.txt'] });
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('deleting and moving files updates the put away lists', async () => {
+			const { contextService, instantiationService, fileService, open, closeAll, reload } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			await open('/repo/b.txt');
+			await open('/repo/c.txt');
+			await open('/repo/e.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/a.txt'), FileOperation.DELETE));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/b.txt'), FileOperation.MOVE, stat('/repo/d.txt', true)));
+			fileService.fireFileChanges(new FileChangesEvent([{ resource: URI.file('/repo/e.txt'), type: FileChangeType.DELETED }], !isLinux));
+
+			const reloaded = reload();
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(paths(reloaded), ['/repo/c.txt', '/repo/d.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a folder updates the entries of its files in the put away lists', async () => {
+			const { contextService, instantiationService, fileService, open, closeAll, reload } = await createFolderServices(folder);
+
+			await open('/repo/src/a.txt');
+			await open('/repo/b.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/src'), FileOperation.MOVE, stat('/repo/lib', false)));
+
+			const reloaded = reload();
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(paths(reloaded), ['/repo/b.txt', '/repo/lib/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a file to another location moves its entry to the list of that location', async () => {
+			const { contextService, historyService, instantiationService, fileService, open, closeAll } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			await open('/repo/b.txt');
+			await open('/repo/c.txt');
+			contextService.setFolders([nestedWorktree], { isFolderLocationChange: true });
+			await open('/repo/.worktrees/one/n.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			// Into the nested worktree, into the open location, and out of the nested worktree
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/a.txt'), FileOperation.MOVE, stat('/repo/.worktrees/one/a.txt', true)));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/b.txt'), FileOperation.MOVE, stat('/worktree/b.txt', true)));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/.worktrees/one/n.txt'), FileOperation.MOVE, stat('/repo/n.txt', true)));
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const atFolder = paths(historyService);
+			contextService.setFolders([nestedWorktree], { isFolderLocationChange: true });
+			const atNestedWorktree = paths(historyService);
+
+			assert.deepStrictEqual({ atFolder, atNestedWorktree }, { atFolder: ['/repo/n.txt', '/repo/c.txt'], atNestedWorktree: ['/repo/.worktrees/one/a.txt'] });
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a folder matches the paths of its files with the casing rules of the file system', async () => {
+			const share = URI.file('//server/share');
+			const { contextService, instantiationService, fileService, open, closeAll, reload } = await createFolderServices(folder, share);
+
+			await open('/repo/Src/a.txt');
+			await open('//server/share/src/b.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/src'), FileOperation.MOVE, stat('/repo/lib', false)));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('//server/share/src'), FileOperation.MOVE, stat('//server/share/lib', false)));
+
+			const reloaded = reload();
+			contextService.setFolders([folder, share], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(paths(reloaded), ['/share/lib/b.txt', isLinux ? '/repo/Src/a.txt' : '/repo/lib/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a file to a location that was left without entries moves its entry to that location', async () => {
+			const { contextService, historyService, instantiationService, fileService, open, closeAll } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			await open('/repo/b.txt');
+			contextService.setFolders([nestedWorktree], { isFolderLocationChange: true });
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/a.txt'), FileOperation.MOVE, stat('/repo/.worktrees/one/a.txt', true)));
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const atFolder = paths(historyService);
+			contextService.setFolders([nestedWorktree], { isFolderLocationChange: true });
+			const atNestedWorktree = paths(historyService);
+
+			assert.deepStrictEqual({ atFolder, atNestedWorktree }, { atFolder: ['/repo/b.txt'], atNestedWorktree: ['/repo/.worktrees/one/a.txt'] });
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a folder whose URI ends with a separator or is a root keeps the names of its files', async () => {
+			const { contextService, instantiationService, fileService, open, closeAll, reload } = await createFolderServices(folder);
+
+			await open('/repo/src/a.txt');
+			await open('/repo/b.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/src/'), FileOperation.MOVE, stat('/repo/lib', false)));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/'), FileOperation.MOVE, stat('/moved', false)));
+
+			const reloaded = reload();
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(paths(reloaded), ['/moved/repo/b.txt', '/moved/repo/lib/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a folder before the history is used is saved', async () => {
+			const { contextService, historyService, instantiationService, fileService, open, closeAll } = await createFolderServices(folder);
+
+			await open('/repo/src/a.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+			(historyService as unknown as { saveState(): void }).saveState(); // the test editor parts cannot save their state
+			historyService.dispose();
+
+			// A new window that has not used the history yet
+			const fresh = disposables.add(instantiationService.createInstance(HistoryService));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/src'), FileOperation.MOVE, stat('/repo/lib', false)));
+			(fresh as unknown as { saveState(): void }).saveState();
+			fresh.dispose();
+
+			const reloaded = disposables.add(instantiationService.createInstance(HistoryService));
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(paths(reloaded), ['/repo/lib/a.txt']);
 
 			return workbenchTeardown(instantiationService);
 		});

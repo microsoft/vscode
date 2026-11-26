@@ -723,6 +723,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			this.saveCurrentEditorViewState();
 		}
 		this._paneVisible.set(visible, undefined);
+		this.fileListWidget?.setVisible(visible);
 		super.setEditorVisible(visible);
 	}
 

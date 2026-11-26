@@ -20,14 +20,15 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ContextSizeConfigKey, modelConfigurationSourceKey } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
-import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostSessionModelOptionsSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { withAgentHostResources } from '../../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { readRemoteSessionOrigin, toRemoteSessionMessageMetadata, withRemoteSessionsCapability } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { ReasoningEffortConfigKey } from '../../../../../platform/agentHost/common/reasoningEffort.js';
 import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PolicyState, RootState } from '../../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { buildChatUri, ChatSummary, ComponentToState, readSessionSpawnDepth, SessionState, StateComponents, withSessionSpawnDepth } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ActiveTurn, buildChatUri, ChatState, ChatSummary, ComponentToState, MessageKind, ModelSelection, readSessionSpawnDepth, SessionState, StateComponents, UsageInfo, withSessionSpawnDepth } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { modelRouterModelId } from '../../../../../platform/agentHost/common/modelRouter.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -130,6 +131,11 @@ suite('RemoteSessionService', () => {
 			inspectionError: undefined as Error | undefined,
 			sourceConnected: true,
 			sourceClientId: 'test-client',
+			/** The model of the source chat's turn in progress, which called the tool. */
+			sourceChatModel: undefined as ModelSelection | undefined,
+			sourceChatUsage: undefined as UsageInfo | undefined,
+			/** The model of the source chat's draft, which the user picked for its next message. */
+			sourceChatDraftModel: undefined as ModelSelection | undefined,
 		};
 		const models = new Map<string, ILanguageModelChatMetadata>(hosts.flatMap(host => host.root.agents.flatMap(agent => {
 			const vendor = remoteAgentHostSessionTypeId(agentHostAuthority(host.remoteAddress), agent.provider);
@@ -198,8 +204,16 @@ suite('RemoteSessionService', () => {
 			private readonly subscriptions: { [K in StateComponents]?: () => IAgentSubscription<ComponentToState[K]> } = {
 				[StateComponents.Session]: () => upcastPartial<IAgentSubscription<SessionState>>({
 					value: upcastPartial<SessionState>({
+						provider: 'copilot',
 						_meta: state.sourceMetadata._meta,
 						chats: [upcastPartial<ChatSummary>({ resource: buildChatUri(sourceMetadata.session, 'origin-chat') })],
+					}),
+				}),
+				[StateComponents.Chat]: () => upcastPartial<IAgentSubscription<ChatState>>({
+					value: upcastPartial<ChatState>({
+						turns: [],
+						activeTurn: upcastPartial<ActiveTurn>({ message: { text: 'Delegate', origin: { kind: MessageKind.User }, model: state.sourceChatModel }, usage: state.sourceChatUsage }),
+						draft: state.sourceChatDraftModel && { text: '', origin: { kind: MessageKind.User }, model: state.sourceChatDraftModel },
 					}),
 				}),
 			};
@@ -395,6 +409,78 @@ suite('RemoteSessionService', () => {
 				[ReasoningEffortConfigKey]: 'low', [modelConfigurationSourceKey(ReasoningEffortConfigKey)]: 'explicit',
 				[ContextSizeConfigKey]: 200_000, [modelConfigurationSourceKey(ContextSizeConfigKey)]: 'explicit',
 			},
+		]);
+	});
+
+	test('an omitted model continues on the source chat\'s model and options where a host\'s agent offers it', async () => {
+		const offering = new RemoteProvider('offering', 0);
+		const other = new RemoteProvider('other', 1);
+		offering.supportsModelConfigurationForCreation = true;
+		// An earlier agent without the model would be the default choice.
+		offering.root.agents.unshift({ ...offering.root.agents[0], provider: 'claude', models: [{ provider: 'claude', id: 'claude-model', name: 'Claude Model' }] });
+		offering.sessionTypes.unshift({ ...offering.sessionTypes[0], id: 'claude', chatSessionType: remoteAgentHostSessionTypeId(agentHostAuthority(offering.remoteAddress), 'claude') });
+		other.root.agents[0].models[0] = { provider: 'copilot', id: 'other-model', name: 'Other Model' };
+		const { create, calls, state } = setup([offering, other]);
+		// A value that was a default on the source host is handed on too, as the session's own choice.
+		state.sourceChatModel = {
+			id: 'test-model',
+			config: {
+				[ReasoningEffortConfigKey]: 'xhigh', [modelConfigurationSourceKey(ReasoningEffortConfigKey)]: 'explicit',
+				[ContextSizeConfigKey]: 1_000_000, [modelConfigurationSourceKey(ContextSizeConfigKey)]: 'default',
+			},
+		};
+		const config = { [ReasoningEffortConfigKey]: 'xhigh', [ContextSizeConfigKey]: 1_000_000 };
+		const results = [await create(), await create({ hostId: other.id }, 'pinned')];
+		assert.deepStrictEqual(calls.map(({ options }, index) => ({
+			sessionType: options?.sessionTypeId,
+			modelId: options?.modelId,
+			modelConfiguration: options?.modelConfiguration,
+			reported: results[index].model,
+		})), [
+			{ sessionType: 'copilot', modelId: `${offering.sessionTypes[1].chatSessionType}:test-model`, modelConfiguration: config, reported: { provider: 'copilot', id: 'test-model' } },
+			{ sessionType: 'copilot', modelId: undefined, modelConfiguration: undefined, reported: { provider: 'copilot', id: null } },
+		]);
+	});
+
+	test('a source chat on a model router continues on the model the router chose', async () => {
+		const host = new RemoteProvider('host');
+		host.supportsModelConfigurationForCreation = true;
+		const { create, calls, state } = setup([host]);
+		state.sourceChatModel = { id: modelRouterModelId('fast') };
+		state.sourceChatUsage = upcastPartial<UsageInfo>({ _meta: { modelRouted: { router: 'fast', chosenModel: 'test-model', effort: 'high', contextSize: 'long', contextTokens: 1_000_000 } } });
+		const result = await create();
+		assert.deepStrictEqual({ modelId: calls[0].options?.modelId, modelConfiguration: calls[0].options?.modelConfiguration, reported: result.model }, {
+			modelId: `${host.sessionTypes[0].chatSessionType}:test-model`,
+			modelConfiguration: { [ReasoningEffortConfigKey]: 'high', [ContextSizeConfigKey]: 1_000_000 },
+			reported: { provider: 'copilot', id: 'test-model' },
+		});
+	});
+
+	test('a source turn on the host default does not hand on the model of the chat\'s draft', async () => {
+		const host = new RemoteProvider('host');
+		const { create, calls, state } = setup([host]);
+		state.sourceChatDraftModel = { id: 'test-model' };
+		await create();
+		assert.strictEqual(calls[0].options?.modelId, undefined);
+	});
+
+	test('a named model that is the source chat\'s model keeps its options only while agents can choose model options', async () => {
+		const host = new RemoteProvider('host');
+		host.supportsModelConfigurationForCreation = true;
+		const { service, calls, sourceChat, models, savedModelConfigurations, state, configuration } = setup([host]);
+		savedModelConfigurations.set(withModelOptions(host, models), { [ReasoningEffortConfigKey]: 'high' });
+		const config = { [ReasoningEffortConfigKey]: 'low', [ContextSizeConfigKey]: 1_000_000 };
+		state.sourceChatModel = { id: 'test-model', config };
+		const model = { provider: 'copilot', id: 'test-model' };
+		await service.createSession(parseCreateRemoteSessionOptions({ prompt: 'Run tests', model }), sourceChat.resource, 'off', CancellationToken.None);
+		await configuration.setUserConfiguration(AgentHostSessionModelOptionsSettingId, 'inline');
+		for (const [id, input] of Object.entries({ inline: { model }, requested: { model, reasoningEffort: 'medium' } })) {
+			await service.createSession(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }, true), sourceChat.resource, id, CancellationToken.None);
+		}
+		assert.deepStrictEqual(calls.map(call => call.options?.modelConfiguration), [
+			{ [ReasoningEffortConfigKey]: 'high', [ContextSizeConfigKey]: 200_000 },
+			config,
+			{ [ReasoningEffortConfigKey]: 'medium', [modelConfigurationSourceKey(ReasoningEffortConfigKey)]: 'explicit', [ContextSizeConfigKey]: 1_000_000 },
 		]);
 	});
 

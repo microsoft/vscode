@@ -107,13 +107,16 @@
 	overflow: hidden;
 }
 
-/* Workspace and branch names shown beside their icons. */
+/*
+ * Workspace and branch names shown beside their icons. These must be block
+ * boxes: `text-overflow: ellipsis` has no effect on the text of a flex
+ * container, so a flex label would be clipped without an ellipsis. The
+ * parent group (a flex container with `align-items: center`) centers them.
+ */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace,
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-branch {
-	display: flex;
-	align-items: center;
+	display: block;
 	flex: 0 1 auto;
-	height: 100%;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
