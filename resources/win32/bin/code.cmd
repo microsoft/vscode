@@ -2,6 +2,14 @@
 setlocal
 set VSCODE_DEV=
 set ELECTRON_RUN_AS_NODE=1
+
+if defined NODE_OPTIONS (
+	set VSCODE_NODE_OPTIONS=%NODE_OPTIONS%
+)
+if defined NODE_REPL_EXTERNAL_MODULE (
+	set VSCODE_NODE_REPL_EXTERNAL_MODULE=%NODE_REPL_EXTERNAL_MODULE%
+)
+
 "%~dp0..\@@NAME@@.exe" "%~dp0..\resources\app\out\cli.js" %*
 IF %ERRORLEVEL% NEQ 0 EXIT /b %ERRORLEVEL%
 endlocal
