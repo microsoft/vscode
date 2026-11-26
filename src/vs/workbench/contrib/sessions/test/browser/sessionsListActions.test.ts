@@ -28,15 +28,15 @@ suite('Sessions list actions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, workingDirectory: URI): ISession {
+	function createSession(id: string, root: URI, workingDirectory: URI = root): ISession {
 		const workspace: ISessionWorkspace = {
-			uri: workingDirectory, label: id, icon: undefined!, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
-			folders: [{ root: workingDirectory, workingDirectory, name: id, description: undefined, gitRepository: undefined }],
+			uri: root, label: id, icon: undefined!, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+			folders: [{ root, workingDirectory, name: id, description: undefined, gitRepository: undefined }],
 		};
 		return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace) };
 	}
 
-	test('opens the one local folder of a folder section in a new editor window, in a window that lists all sessions', async () => {
+	test('opens the one local root folder of a folder section in a new editor window, in a window that lists all sessions', async () => {
 		const registrations = new DisposableStore();
 		try {
 			registrations.add(registerSessionsListActions());
@@ -55,12 +55,15 @@ suite('Sessions list actions', () => {
 				},
 			}));
 			const repo = URI.file('/work/repo');
-			const worktree = URI.file('/work/repo.worktrees/feature');
+			const otherRepo = URI.file('/work/other');
+			const worktree = createSession('w1', repo, URI.file('/work/repo.worktrees/feature'));
+			const otherWorktree = createSession('w2', repo, URI.file('/work/repo.worktrees/fix'));
 			const remote = createSession('remote', URI.from({ scheme: 'vscode-agent-host', path: '/work/repo' }));
 			const section = (...sessions: ISession[]) => upcastPartial<ISessionSection>({ id: 'workspace:repo', label: 'repo', sessions });
 			const runOn = (arg: ISessionSection) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(commandId)!.handler(accessor, arg));
 			await runOn(section(createSession('a', repo), createSession('b', repo)));
-			await runOn(section(createSession('a', repo), createSession('c', worktree)));
+			await runOn(section(worktree, otherWorktree));
+			await runOn(section(createSession('a', repo), createSession('c', otherRepo)));
 			await runOn(section(remote));
 
 			assert.deepStrictEqual({
@@ -71,8 +74,9 @@ suite('Sessions list actions', () => {
 				noLocalFolder: shown('workspace', { [SessionSectionHasLocalFolderContext.key]: false }),
 				folders: {
 					oneFolder: getSessionSectionLocalFolder(section(createSession('a', repo)))?.path,
-					worktree: getSessionSectionLocalFolder(section(createSession('c', worktree)))?.path,
-					differentFolders: getSessionSectionLocalFolder(section(createSession('a', repo), createSession('c', worktree))),
+					worktree: getSessionSectionLocalFolder(section(worktree))?.path,
+					worktreesOfOneRepo: getSessionSectionLocalFolder(section(createSession('a', repo), worktree, otherWorktree))?.path,
+					differentRoots: getSessionSectionLocalFolder(section(createSession('a', repo), createSession('c', otherRepo))),
 					remote: getSessionSectionLocalFolder(section(remote)),
 				},
 				opened,
@@ -82,9 +86,9 @@ suite('Sessions list actions', () => {
 				workspaceScope: false,
 				aiDisabled: false,
 				noLocalFolder: false,
-				folders: { oneFolder: '/work/repo', worktree: '/work/repo.worktrees/feature', differentFolders: undefined, remote: undefined },
-				// Only the section whose sessions work in one local folder
-				opened: [{ folder: '/work/repo', forceNewWindow: true }],
+				folders: { oneFolder: '/work/repo', worktree: '/work/repo', worktreesOfOneRepo: '/work/repo', differentRoots: undefined, remote: undefined },
+				// Only the sections whose sessions belong to one local root, which opens even for sessions in its worktrees
+				opened: [{ folder: '/work/repo', forceNewWindow: true }, { folder: '/work/repo', forceNewWindow: true }],
 			});
 		} finally {
 			registrations.dispose();

@@ -75,15 +75,16 @@ export function getSessionSectionType(sectionId: string): string {
 }
 
 /**
- * The one local folder that all the sessions of a section work in (their worktree or their folder), if they have one:
- * not for sessions with several folders, a remote folder or none, nor for a section whose sessions work in different folders.
+ * The one local root folder (the project or repository folder, never a session's worktree) that all the sessions of a section
+ * belong to, if they have one: sessions in different worktrees of one repository share its root. Not for sessions with several
+ * folders, a remote folder or none, nor for a section whose sessions belong to different roots.
  */
 export function getSessionSectionLocalFolder(section: ISessionSection): URI | undefined {
 	let result: URI | undefined;
 	for (const session of section.sessions) {
 		const workspace = getSessionPresentationWorkspace(session, undefined);
 		const folder = workspace?.folders.length === 1 ? workspace.folders[0] : undefined;
-		const uri = folder?.workingDirectory ?? folder?.root;
+		const uri = folder?.root;
 		if (uri?.scheme !== Schemas.file || (result && !extUriBiasedIgnorePathCase.isEqual(result, uri))) {
 			return undefined;
 		}
