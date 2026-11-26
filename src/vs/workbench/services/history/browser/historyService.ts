@@ -295,6 +295,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private remove(event: FileOperationEvent): void;
 	private remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent): void {
 		this.removeFromHistory(arg1);
+		if (!isEditorInput(arg1)) {
+			this.removeFromPutAwayHistory(arg1);
+		}
 		this.removeFromEditorNavigationStacks(arg1);
 		this.removeFromRecentlyClosedEditors(arg1);
 		this.removeFromRecentlyOpened(arg1);
@@ -870,9 +873,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private historyLoaded = false;
 
 	// The lists of workspace folders that left the window, by folder URI, least recently put away first
-	private putAwayHistory: Map<string, ISerializedEditorHistoryEntry[]> | undefined = undefined;
+	private putAwayHistory: Map<string, IResourceEditorInput[]> | undefined = undefined;
 
-	// The folders that the last change of the workspace folders left, if it was a folder location switch
+	// The folders that folder location switches left since the last other change of the workspace folders, least recently left first
 	private leftFolders: readonly URI[] = [];
 
 	private readonly editorHistoryListeners = this._register(new DisposableMap<EditorInput, DisposableStore>());
@@ -1011,6 +1014,28 @@ export class HistoryService extends Disposable implements IHistoryService {
 			if (removed) {
 				this.addToHistory({ resource: event.target.resource });
 			}
+
+			this.updatePutAwayHistory(entries => {
+				const moved = entries.map(entry => this.editorHelper.matchesEditor(event, entry) ? { ...entry, resource: event.target.resource } : entry);
+
+				return moved.filter((entry, index) => moved.findIndex(other => this.editorHelper.matchesEditor(entry, other)) === index);
+			});
+		}
+	}
+
+	private removeFromPutAwayHistory(event: FileChangesEvent | FileOperationEvent): void {
+		this.updatePutAwayHistory(entries => entries.filter(entry => !this.editorHelper.matchesEditor(event, entry)));
+	}
+
+	private updatePutAwayHistory(update: (entries: IResourceEditorInput[]) => IResourceEditorInput[]): void {
+		const putAwayHistory = this.ensurePutAwayHistoryLoaded();
+		for (const [key, entries] of putAwayHistory) {
+			const updated = update(entries);
+			if (!updated.length) {
+				putAwayHistory.delete(key);
+			} else {
+				putAwayHistory.set(key, updated);
+			}
 		}
 	}
 
@@ -1094,7 +1119,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const removed = event.removed.map(folder => folder.uri);
 		const added = event.added.map(folder => folder.uri);
-		this.leftFolders = removed;
+		this.addLeftFolders(removed, added);
 
 		if (!this.historyLoaded) {
 			return; // loading the history compares the folders it was stored for with the current ones
@@ -1139,7 +1164,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			removedFolders.forEach((folder, index) => {
 				const key = this.uriIdentityService.extUri.getComparisonKey(folder);
-				const entries = this.serializeHistory(entriesByFolder[index]);
+				const entries = entriesByFolder[index].filter((entry): entry is IResourceEditorInput => !isEditorInput(entry) && isResourceEditorInput(entry));
 				putAwayHistory.delete(key);
 				if (entries.length) {
 					putAwayHistory.set(key, entries);
@@ -1157,9 +1182,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 			putAwayHistory.delete(key);
 
 			// Restored entries come first, in their order
-			const editors = this.deserializeHistory(entries);
-			for (let i = editors.length - 1; i >= 0; i--) {
-				const editor = editors[i];
+			for (let i = entries.length - 1; i >= 0; i--) {
+				const editor = entries[i];
 				if (this.includeInHistory(editor) && !this.history.some(entry => this.editorHelper.matchesEditor(editor, entry))) {
 					this.addToHistory(editor);
 				}
@@ -1189,6 +1213,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private getPrimaryResource(editor: EditorInput | IResourceEditorInput): URI | undefined {
 		return isEditorInput(editor) ? EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : editor.resource;
+	}
+
+	private addLeftFolders(removed: readonly URI[], added: readonly URI[]): void {
+		const extUri = this.uriIdentityService.extUri;
+		const stillLeft = this.leftFolders.filter(folder => ![...removed, ...added].some(other => extUri.isEqual(other, folder)));
+		this.leftFolders = [...stillLeft, ...removed].slice(-HistoryService.MAX_PUT_AWAY_FOLDERS);
 	}
 
 	private isInLeftFolder(editor: EditorInput | IResourceEditorInput): boolean {
@@ -1305,7 +1335,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			const removed = storedFolders.filter(storedFolder => !currentFolders.some(currentFolder => this.uriIdentityService.extUri.isEqual(storedFolder, currentFolder)));
 			const added = currentFolders.filter(currentFolder => !storedFolders.some(storedFolder => this.uriIdentityService.extUri.isEqual(storedFolder, currentFolder)));
 			if (removed.length || added.length) {
-				this.leftFolders = removed;
+				this.addLeftFolders(removed, added);
 				this.swapFolderHistory(storedFolders, removed, added);
 			}
 		}
@@ -1327,7 +1357,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return undefined; // stored before folders were stored: it belongs to the current folders
 	}
 
-	private ensurePutAwayHistoryLoaded(): Map<string, ISerializedEditorHistoryEntry[]> {
+	private ensurePutAwayHistoryLoaded(): Map<string, IResourceEditorInput[]> {
 		if (!this.putAwayHistory) {
 			this.putAwayHistory = new Map();
 
@@ -1338,7 +1368,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 					if (putAwayParsed?.version === 1 && Array.isArray(putAwayParsed.folders)) {
 						for (const { folder, entries } of putAwayParsed.folders) {
 							if (typeof folder === 'string' && Array.isArray(entries)) {
-								this.putAwayHistory.set(folder, [...entries]);
+								this.putAwayHistory.set(folder, this.deserializeHistory(entries));
 							}
 						}
 					}
@@ -1422,7 +1452,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		if (this.putAwayHistory) {
 			if (this.putAwayHistory.size) {
-				const putAwayHistory: ISerializedPutAwayHistory = { version: 1, folders: [...this.putAwayHistory].map(([folder, entries]) => ({ folder, entries })) };
+				const putAwayHistory: ISerializedPutAwayHistory = { version: 1, folders: [...this.putAwayHistory].map(([folder, entries]) => ({ folder, entries: this.serializeHistory(entries) })) };
 				this.storageService.store(HistoryService.PUT_AWAY_HISTORY_STORAGE_KEY, JSON.stringify(putAwayHistory), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			} else {
 				this.storageService.remove(HistoryService.PUT_AWAY_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);

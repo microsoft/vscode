@@ -22,7 +22,7 @@ import { IResourceEditorInput, ITextEditorOptions } from '../../../../../platfor
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IResolvedTextFileEditorModel, ITextFileService } from '../../../textfile/common/textfiles.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { isLinux } from '../../../../../base/common/platform.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
@@ -31,7 +31,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder, Workspace } from '../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 suite('HistoryService', function () {
@@ -808,7 +808,9 @@ suite('HistoryService', function () {
 				return reloaded;
 			};
 
-			return { contextService, historyService, instantiationService, open, openSideBySide, closeAll, reload };
+			const fileService = instantiationService.invokeFunction(accessor => accessor.get(IFileService)) as TestFileService;
+
+			return { contextService, historyService, instantiationService, fileService, open, openSideBySide, closeAll, reload };
 		}
 
 		function paths(historyService: IHistoryService): (string | undefined)[] {
@@ -874,6 +876,50 @@ suite('HistoryService', function () {
 			const backAtFolder = paths(historyService);
 
 			assert.deepStrictEqual({ atWorktree, backAtFolder }, { atWorktree: ['/repo/.worktrees/one/nested.txt'], backAtFolder: ['/repo/current.txt'] });
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('editors of every folder that switches left are not added', async () => {
+			const otherWorktree = URI.file('/worktree2');
+			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			contextService.setFolders([otherWorktree], { isFolderLocationChange: true });
+
+			// The editor of the folder is still open and gets focus again
+			await open('/worktree2/b.txt');
+			await open('/repo/a.txt');
+			const atOtherWorktree = paths(historyService);
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const backAtFolder = paths(historyService);
+
+			assert.deepStrictEqual({ atOtherWorktree, backAtFolder }, { atOtherWorktree: ['/worktree2/b.txt'], backAtFolder: ['/repo/a.txt'] });
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('deleting and moving files updates the put away lists', async () => {
+			const { contextService, instantiationService, fileService, open, closeAll, reload } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			await open('/repo/b.txt');
+			await open('/repo/c.txt');
+			await open('/repo/e.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			const target: IFileStatWithMetadata = { resource: URI.file('/repo/d.txt'), name: 'd.txt', isFile: true, isDirectory: false, isSymbolicLink: false, mtime: 0, ctime: 0, etag: '', size: 0, readonly: false, locked: false, executable: false, children: undefined };
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/a.txt'), FileOperation.DELETE));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/b.txt'), FileOperation.MOVE, target));
+			fileService.fireFileChanges(new FileChangesEvent([{ resource: URI.file('/repo/e.txt'), type: FileChangeType.DELETED }], !isLinux));
+
+			const reloaded = reload();
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(paths(reloaded), ['/repo/c.txt', '/repo/d.txt']);
 
 			return workbenchTeardown(instantiationService);
 		});
