@@ -59,6 +59,7 @@ export const DevContainerCloseConnectionNotification = 'vscode/devContainers/clo
 export const DevContainerOutputNotification = 'vscode/devContainers/output';
 export const DevContainerSandboxSupportNotification = 'vscode/devContainers/sandboxSupport';
 export const DevContainerUserStateNotification = 'vscode/devContainers/userState';
+export const DevContainerConnectFailureNotification = 'vscode/devContainers/connectFailure';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
 export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
@@ -72,6 +73,8 @@ export const devContainerUserStateValidator = vObj({
 	stage: vEnum('mount', 'up', 'link', 'userCommands'),
 	outcome: vString(),
 	reason: vOptionalProp(vString()),
+	errorCause: vOptionalProp(vString()),
+	lifecycleInUp: vOptionalProp(vBoolean()),
 	step: vOptionalProp(vString()),
 	exitCode: vOptionalProp(vNumber()),
 	target: vOptionalProp(vString()),
@@ -94,6 +97,10 @@ export const devContainerUserStateValidator = vObj({
 	readonlyRootfs: vOptionalProp(vBoolean()),
 	runtime: vOptionalProp(vString()),
 	errorMessage: vOptionalProp(vString()),
+});
+export const devContainerConnectFailureValidator = vObj({
+	connectionId: vString(),
+	stage: vEnum('readConfig', 'prepare', 'mount', 'up', 'link', 'userCommands', 'agentHostStart', 'connect', 'timeout'),
 });
 export const devContainerConnectResultValidator = vObj({
 	connectionId: vString(),
@@ -492,6 +499,7 @@ export interface IAgentHostExtensionNotificationMap {
 	[DevContainerOutputNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 	[DevContainerSandboxSupportNotification]: ValidatorType<typeof devContainerSandboxSupportValidator>;
 	[DevContainerUserStateNotification]: ValidatorType<typeof devContainerUserStateValidator>;
+	[DevContainerConnectFailureNotification]: ValidatorType<typeof devContainerConnectFailureValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {
