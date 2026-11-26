@@ -1590,8 +1590,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const suggestedIndex = this._touched.has(question.id) ? -1 : orderedOptions.findIndex(({ option }) => this.isSuggestedOption(question, option.label));
 		if (suggestedIndex !== -1) {
 			selectedIndex = suggestedIndex;
-		} else if (this.suggestedOwnWords(question) && previousSelectedValue === undefined) {
-			// A suggested answer in the user's own words selects no option, so it isn't mistaken for the agent's default.
+		} else if (this.suggestedOwnWords(question)) {
+			// A suggested answer in the user's own words selects no option, so it isn't mistaken for the agent's default
+			// or for the option the carousel selected before the suggestion came. A user's own pick marks the question
+			// answered, so it never gets here.
 			selectedIndex = -1;
 		}
 
@@ -1815,11 +1817,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Until the user answers it, the suggested picks are the selection, so submitting as is sends them.
 		const suggestedPicks = !this._touched.has(question.id) && orderedOptions.some(({ option }) => this.isSuggestedOption(question, option.label));
+		// A suggested answer only in the user's own words checks no option, not even the agent's defaults.
+		const ownWordsOnly = !suggestedPicks && !!this.suggestedOwnWords(question);
 		orderedOptions.forEach(({ option }, index) => {
 			// Determine initial checked state
 			let isChecked = false;
 			if (suggestedPicks) {
 				isChecked = this.isSuggestedOption(question, option.label);
+			} else if (ownWordsOnly) {
+				isChecked = false;
 			} else if (previousSelectedValues && previousSelectedValues.length > 0) {
 				isChecked = previousSelectedValues.includes(option.value);
 			} else if (!previousFreeform && defaultOptionIds.includes(option.id)) {
@@ -1973,9 +1979,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		}));
 
-		// Focus on the appropriate row when rendered or the custom answer editor if it has content
+		// Focus on the appropriate row when rendered or the custom answer editor if it has content or a suggested answer in the user's own words
 		if (this._shouldAutoFocus()) {
-			if (freeformEditor && previousFreeform) {
+			if (freeformEditor && (previousFreeform || ownWordsOnly)) {
 				const capturedFreeform = freeformEditor;
 				this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(capturedFreeform.domNode), () => {
 					capturedFreeform.focus();

@@ -2193,6 +2193,31 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.deepStrictEqual(s.reported, [{ kind: 'answer', selected: [], text: 'jest, as the other repos use' }]);
 		});
 
+		test('a suggested answer in the user\'s own words that comes after the carousel shows clears the option selected before it', () => {
+			const s = stubSuggestions({});
+			createWidget(createMockCarousel([runner()]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+			assert.deepStrictEqual(items().map(i => i.getAttribute('aria-selected')), ['true', 'false'], 'the agent\'s default, before any suggestion');
+
+			s.suggest({ freeform: 'jest' });
+			assert.deepStrictEqual(items().map(i => i.getAttribute('aria-selected')), ['false', 'false']);
+			submit();
+			assert.deepStrictEqual(submittedAnswers?.get('q1'), { selectedValue: undefined, freeformValue: 'jest' });
+		});
+
+		test('a multi-select question answered only in the user\'s own words checks none of the agent\'s defaults, even when the suggestion comes later', () => {
+			const s = stubSuggestions({});
+			createWidget(createMockCarousel([{
+				id: 'q1', type: 'multiSelect', title: 'Which features?', defaultValue: ['a'],
+				options: [{ id: 'a', label: 'Recurring tasks', value: 'recurring' }, { id: 'b', label: 'Subtasks', value: 'subtasks' }],
+			}]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+			assert.deepStrictEqual(items().map(i => i.classList.contains('checked')), [true, false], 'the agent\'s default, before any suggestion');
+
+			s.suggest({ freeform: 'a weekly review view' });
+			assert.deepStrictEqual(items().map(i => i.classList.contains('checked')), [false, false]);
+			submit();
+			assert.deepStrictEqual(submittedAnswers?.get('q1'), { selectedValues: [], freeformValue: 'a weekly review view' });
+		});
+
 		test('a user\'s pick wins over a suggested answer in their own words', () => {
 			const s = stubSuggestions({ freeform: 'jest' });
 			createWidget(createMockCarousel([runner(), { id: 'q2', type: 'text', title: 'Why?' }]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
