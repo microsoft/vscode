@@ -143,6 +143,7 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_REPOSITORY_ROOT', count: 3, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_SYMLINK_PATTERNS', count: 2, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_SYMLINK_SOURCE_ROOT', count: 2, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
+	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_GIT_LFS_POINTER_FILES', count: 3, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_CREATION_FAILURE', count: 1, removedBy: 'permanent', reason: 'readers use worktreeMetadataSource (the store for a session, a detached record\'s own db)' },
 ];
 
