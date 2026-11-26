@@ -971,6 +971,70 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
+		test('moving a folder matches the paths of its files with the casing rules of the file system', async () => {
+			const share = URI.file('//server/share');
+			const { contextService, instantiationService, fileService, open, closeAll, reload } = await createFolderServices(folder, share);
+
+			await open('/repo/Src/a.txt');
+			await open('//server/share/src/b.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/src'), FileOperation.MOVE, stat('/repo/lib', false)));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('//server/share/src'), FileOperation.MOVE, stat('//server/share/lib', false)));
+
+			const reloaded = reload();
+			contextService.setFolders([folder, share], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(paths(reloaded), ['/share/lib/b.txt', isLinux ? '/repo/Src/a.txt' : '/repo/lib/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a file to a location that was left without entries moves its entry to that location', async () => {
+			const { contextService, historyService, instantiationService, fileService, open, closeAll } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			await open('/repo/b.txt');
+			contextService.setFolders([nestedWorktree], { isFolderLocationChange: true });
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/a.txt'), FileOperation.MOVE, stat('/repo/.worktrees/one/a.txt', true)));
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const atFolder = paths(historyService);
+			contextService.setFolders([nestedWorktree], { isFolderLocationChange: true });
+			const atNestedWorktree = paths(historyService);
+
+			assert.deepStrictEqual({ atFolder, atNestedWorktree }, { atFolder: ['/repo/b.txt'], atNestedWorktree: ['/repo/.worktrees/one/a.txt'] });
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('moving a folder before the history is used is saved', async () => {
+			const { contextService, historyService, instantiationService, fileService, open, closeAll } = await createFolderServices(folder);
+
+			await open('/repo/src/a.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+			(historyService as unknown as { saveState(): void }).saveState(); // the test editor parts cannot save their state
+			historyService.dispose();
+
+			// A new window that has not used the history yet
+			const fresh = disposables.add(instantiationService.createInstance(HistoryService));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/src'), FileOperation.MOVE, stat('/repo/lib', false)));
+			(fresh as unknown as { saveState(): void }).saveState();
+			fresh.dispose();
+
+			const reloaded = disposables.add(instantiationService.createInstance(HistoryService));
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(paths(reloaded), ['/repo/lib/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
 		test('adding and removing folders of a multi-root workspace keeps the list', async () => {
 			const other = URI.file('/other');
 			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder, other);

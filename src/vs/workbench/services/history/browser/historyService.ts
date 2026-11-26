@@ -34,6 +34,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { indexOfPath } from '../../../../base/common/extpath.js';
 
 interface ISerializedEditorHistoryEntry {
 	readonly editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
@@ -1035,7 +1036,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const extUri = this.uriIdentityService.extUri;
 		const currentFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
-		const folders = [...currentFolders, ...[...putAwayHistory.keys()].map(key => URI.parse(key))];
+
+		// Folders that were left without entries have no list yet, but still own their files
+		const folders = [...currentFolders, ...[...putAwayHistory.keys()].map(key => URI.parse(key)), ...this.leftFolders];
 
 		const updated = new Map<string, IResourceEditorInput[]>();
 		const transferred = new Map<string, IResourceEditorInput[]>();
@@ -1080,6 +1083,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 				putAwayHistory.delete(key);
 			}
 		}
+
+		this.evictPutAwayHistory();
+	}
+
+	private evictPutAwayHistory(): void {
+		const putAwayHistory = this.ensurePutAwayHistoryLoaded();
+		for (const key of putAwayHistory.keys()) {
+			if (putAwayHistory.size <= HistoryService.MAX_PUT_AWAY_FOLDERS) {
+				break;
+			}
+
+			putAwayHistory.delete(key); // least recently put away first
+		}
 	}
 
 	private getMovedResource(resource: URI, source: URI, target: URI): URI | undefined {
@@ -1092,9 +1108,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return target;
 		}
 
-		const relativePath = extUri.relativePath(source, resource);
+		// Match the path of the source with the same casing rules as the check above
+		const index = indexOfPath(resource.path, source.path, extUri.ignorePathCasing(resource));
 
-		return relativePath ? extUri.joinPath(target, relativePath) : undefined;
+		return index === -1 ? undefined : extUri.joinPath(target, resource.path.substring(index + source.path.length + 1));
 	}
 
 	private dedupePutAwayEntries(entries: readonly IResourceEditorInput[]): IResourceEditorInput[] {
@@ -1279,13 +1296,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Evict after restoring, so that the list of an added folder is never evicted
-		for (const key of putAwayHistory.keys()) {
-			if (putAwayHistory.size <= HistoryService.MAX_PUT_AWAY_FOLDERS) {
-				break;
-			}
-
-			putAwayHistory.delete(key); // least recently put away first
-		}
+		this.evictPutAwayHistory();
 	}
 
 	private findClosestFolder(resource: URI, folders: readonly URI[]): URI | undefined {
@@ -1524,6 +1535,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private saveState(): void {
+
+		// The put away lists can change without the history being used, e.g. when files are moved or deleted
+		if (this.putAwayHistory) {
+			if (this.putAwayHistory.size) {
+				const putAwayHistory: ISerializedPutAwayHistory = { version: 1, folders: [...this.putAwayHistory].map(([folder, entries]) => ({ folder, entries: this.serializeHistory(entries) })) };
+				this.storageService.store(HistoryService.PUT_AWAY_HISTORY_STORAGE_KEY, JSON.stringify(putAwayHistory), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			} else {
+				this.storageService.remove(HistoryService.PUT_AWAY_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+			}
+		}
+
 		if (!this.history) {
 			return; // nothing to save because history was not used
 		}
@@ -1536,15 +1558,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 			this.storageService.store(HistoryService.HISTORY_FOLDERS_STORAGE_KEY, JSON.stringify(folders.map(folder => folder.uri.toString())), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(HistoryService.HISTORY_FOLDERS_STORAGE_KEY, StorageScope.WORKSPACE);
-		}
-
-		if (this.putAwayHistory) {
-			if (this.putAwayHistory.size) {
-				const putAwayHistory: ISerializedPutAwayHistory = { version: 1, folders: [...this.putAwayHistory].map(([folder, entries]) => ({ folder, entries: this.serializeHistory(entries) })) };
-				this.storageService.store(HistoryService.PUT_AWAY_HISTORY_STORAGE_KEY, JSON.stringify(putAwayHistory), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			} else {
-				this.storageService.remove(HistoryService.PUT_AWAY_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
-			}
 		}
 	}
 
