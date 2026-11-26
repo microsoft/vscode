@@ -211,7 +211,8 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				&& range.startLineNumber <= endLineNumber + 1
 				&& startLineNumber - 1 <= range.endLineNumber
 				&& startLineNumber !== lastLine
-				&& textModel.isValidRange(new Range(startLineNumber, 1, endLineNumber, 1))
+				// Folding based ranges end one line after the scope, so check the lines the candidate covers
+				&& textModel.isValidRange(new Range(startLineNumber, 1, endLineNumber - 1, 1))
 			) {
 				lastLine = startLineNumber;
 				const lineHeight = this._editor.getLineHeightForPosition(new Position(startLineNumber, 1));
