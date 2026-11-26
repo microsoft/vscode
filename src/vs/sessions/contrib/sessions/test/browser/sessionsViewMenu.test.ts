@@ -621,7 +621,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('the Grouping menu offers the groupings of its view: Time, Environment and Worktree in the editor window', () => {
+	test('the Grouping menu offers the groupings of its view: Time and Environment in the editor window', () => {
 		const { snapshot, contextKeyService } = createMenu();
 		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
 		const offered = (isSessionsWindow: boolean, groupings: readonly SessionsGrouping[]) => {
@@ -635,7 +635,7 @@ suite('Sessions - View Menu', () => {
 			sessionsWindowOffering: offered(true, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
 		}, {
 			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment'],
-			editorWindow: ['Time', 'Environment', 'Worktree'],
+			editorWindow: ['Time', 'Environment'],
 			sessionsWindowOffering: ['Time', 'Environment'],
 		});
 	});
@@ -1566,6 +1566,40 @@ suite('Sessions - View Menu', () => {
 			mostRecent: ['newer'],
 			remembered: ['older'],
 			alreadyShown: [],
+		});
+	});
+
+	test('a worktree row keeps picking its own folder when the folders offered change while the menu shows it', async () => {
+		const inFolder = (id: string, path: string, minutesAgo: number): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id, minutesAgo }).session, workspace: constObservable(workspace) };
+		};
+		const main = inFolder('main', '/work/vscode', 1);
+		const first = inFolder('first', '/work/vscode.worktrees/first', 20);
+		const second = inFolder('second', '/work/vscode.worktrees/second', 10);
+		const menu = createMenu([main, first, second]);
+		menu.shown.set(main, undefined);
+		const rows = () => MenuRegistry.getMenuItems(Menus.SessionsViewWorktree).filter(isIMenuItem).map(item => ({
+			label: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+			command: item.command.id,
+			order: item.order ?? 0,
+		}));
+		const [earlier, later] = rows().filter(row => row.label === 'first' || row.label === 'second').sort((a, b) => a.order - b.order);
+		// The earlier folder goes away while the menu still shows the later one's row
+		menu.setSessions([main, earlier.label === 'first' ? second : first]);
+		await menu.run(later.command);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sameCommand: rows().find(row => row.label === later.label)?.command === later.command,
+			opened: menu.opened,
+		}, {
+			sameCommand: true,
+			opened: [later.label],
 		});
 	});
 

@@ -104,6 +104,8 @@ interface ILayoutState {
 enum LayoutClasses {
 	SIDEBAR_HIDDEN = 'nosidebar',
 	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
+	// Set with `MAIN_EDITOR_AREA_HIDDEN` when the chat part fills the editor area, so the parts beside it keep their gap and separator.
+	EDITOR_AREA_HIDDEN_BY_CHAT = 'editor-hidden-by-chat',
 	PANEL_HIDDEN = 'nopanel',
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	ACTIVITYBAR_HIDDEN = 'noactivitybar',
@@ -2054,6 +2056,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.mainContainer.classList.toggle(LayoutClasses.PANEL_HIDDEN, !this.isVisible(Parts.PANEL_PART));
 			this.mainContainer.classList.toggle(LayoutClasses.AUXILIARYBAR_HIDDEN, !this.isVisible(Parts.AUXILIARYBAR_PART));
 			this.mainContainer.classList.toggle(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN, !this.isVisible(Parts.EDITOR_PART, mainWindow));
+			this.mainContainer.classList.toggle(LayoutClasses.EDITOR_AREA_HIDDEN_BY_CHAT, this.isEditorHiddenByChat());
 			if (state.panel.position !== previousPanelPosition) {
 				const panelPart = this.getPart(Parts.PANEL_PART);
 				panelPart.getContainer()?.classList.replace(positionToString(previousPanelPosition), positionToString(state.panel.position));
@@ -2404,6 +2407,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			this.mainContainer.classList.remove(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN);
 		}
+		this.mainContainer.classList.toggle(LayoutClasses.EDITOR_AREA_HIDDEN_BY_CHAT, this.isEditorHiddenByChat());
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
@@ -2413,6 +2417,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				chatPart.fillsEditorArea = false;
 			}
 		}
+		// The sashes beside it move, and where they meet the panel's depends on what fills the editor area
+		this.updateSashEndpoints();
 
 		// The editor and panel cannot be hidden at the same time
 		// unless we have a maximized auxiliary bar or a chat part shows
@@ -2425,6 +2431,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return coalesce([
 			!this.isVisible(Parts.SIDEBAR_PART) ? LayoutClasses.SIDEBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.EDITOR_PART, mainWindow) ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
+			this.isEditorHiddenByChat() ? LayoutClasses.EDITOR_AREA_HIDDEN_BY_CHAT : undefined,
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.ACTIVITYBAR_PART) ? LayoutClasses.ACTIVITYBAR_HIDDEN : undefined,
@@ -3005,6 +3012,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private clearEditorHiddenByChat(): void {
 		if (this.isEditorHiddenByChat()) {
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
+			this.mainContainer.classList.remove(LayoutClasses.EDITOR_AREA_HIDDEN_BY_CHAT);
 			const chatPart = this.getChatHostPart();
 			if (chatPart) {
 				chatPart.fillsEditorArea = false;
@@ -3668,6 +3676,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Hidden for the chat part, the editor area stays hidden only while a chat part shows again
 		if (this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT) && !(this.chatPartView && this.readChatPartLayout().visible)) {
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
+			this.mainContainer.classList.remove(LayoutClasses.EDITOR_AREA_HIDDEN_BY_CHAT);
 			if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
 				// The maximized secondary side bar keeps the editor hidden, and showing the editor again restores it
 				const state = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
@@ -3676,6 +3685,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 			} else {
 				this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
+				this.mainContainer.classList.remove(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN);
 			}
 		}
 

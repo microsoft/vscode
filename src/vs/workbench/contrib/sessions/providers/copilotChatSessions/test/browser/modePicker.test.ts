@@ -18,6 +18,7 @@ import { IActionWidgetService } from '../../../../../../../platform/actionWidget
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestTelemetryService } from '../../../../../../../platform/telemetry/test/common/testTelemetryService.js';
@@ -280,6 +281,7 @@ suite('ModePicker', () => {
 					},
 				}),
 				fileService,
+				upcastPartial<IProductService>({}),
 			));
 			store.add(picker.onDidSelect(mode => calls.push(`select:${mode.id}`)));
 			picker.showPicker(document.createElement('button'));
@@ -343,6 +345,7 @@ suite('ModePicker', () => {
 			upcastPartial<IChatService>({}), new MockChatSessionsService(),
 			upcastPartial<IEditorService>({}),
 			fileService,
+			upcastPartial<IProductService>({}),
 		));
 		const container = document.createElement('div');
 		document.body.appendChild(container);
@@ -451,6 +454,7 @@ suite('ModePicker', () => {
 			chatSessionsService,
 			upcastPartial<IEditorService>({}),
 			fileService,
+			upcastPartial<IProductService>({}),
 		));
 		const container = document.createElement('div');
 		document.body.appendChild(container);

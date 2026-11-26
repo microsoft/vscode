@@ -8,7 +8,7 @@ import '../media/sessionsList.css';
 import '../media/disclosure.css';
 import { ISessionSearchHint } from './sessionsListSearch.js';
 import { CANVASES_SECTION_ID, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, IsSessionPinnedContext, SessionItemStatusContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionItemCanImportContext, SessionSectionTypeContext, SessionSectionHasGitHubRepositoryContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem } from './sessionsListCommon.js';
-import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, EXTERNAL_SESSIONS_SECTION_ID, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, WORKTREE_SECTION_PREFIX, WORKTREE_OTHER_SECTION_ID, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionRowApproval, QUICK_CHATS_SECTION_ID, isQuickChatSession, isWorktreeSection } from './sessionsListHelpers.js';
+import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, EXTERNAL_SESSIONS_SECTION_ID, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionRowApproval, QUICK_CHATS_SECTION_ID, isQuickChatSession } from './sessionsListHelpers.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
@@ -187,8 +187,8 @@ function getSessionRowUpdatedAt(session: ISession, mainChat: IChat, reader: IRea
 	return (grouping === SessionsGrouping.Inbox ? session.updatedAt : mainChat.updatedAt).read(reader);
 }
 
-/** The icon of a section's header. `sessions` are the section's sessions, which tell a worktree section from a main checkout's. */
-function getSessionSectionIcon(sectionId: string, sessions: readonly ISession[] = []): ThemeIcon | undefined {
+/** The icon of a section's header. */
+function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 	switch (sectionId) {
 		case NEW_SESSION_SECTION_ID:
 			return Codicon.plus;
@@ -223,13 +223,7 @@ function getSessionSectionIcon(sectionId: string, sessions: readonly ISession[] 
 			return Codicon.history;
 		case 'older':
 			return Codicon.calendar;
-		case WORKTREE_OTHER_SECTION_ID:
-			return Codicon.cloud;
 		default:
-			if (sectionId.startsWith(WORKTREE_SECTION_PREFIX)) {
-				// A worktree shows the icon of the new-session isolation picker's Branch option; a main checkout, a folder's.
-				return isWorktreeSection(sessions) ? Codicon.gitBranchCheckout : Codicon.folder;
-			}
 			if (sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX)) {
 				return sectionId === `${ENVIRONMENT_SECTION_PREFIX}local` ? Codicon.deviceDesktop
 					: sectionId === `${ENVIRONMENT_SECTION_PREFIX}cloud` ? Codicon.cloud
@@ -2654,7 +2648,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				}
 			}));
 		} else if (!element.pinnedCanvas) {
-			const defaultIcon = getSessionSectionIcon(element.id, element.sessions);
+			const defaultIcon = getSessionSectionIcon(element.id);
 			const appearance = isSessionGroupingSection(element.id) ? this.getAppearance(element.id) : undefined;
 			const icon = appearance ? {
 				id: appearance.icon ?? defaultIcon?.id ?? Codicon.folder.id,
@@ -2673,9 +2667,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 
 		template.label.textContent = element.label;
-		if (element.hover) {
-			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, { content: element.hover }));
-		}
 		template.countLabel.style.display = '';
 		if (this.hideSectionCount && !element.pendingItems && !sessionInboxSections.some(id => id === element.id) || shortcut || element.id === CANVASES_SECTION_ID) {
 			template.countLabel.textContent = '';
@@ -3290,7 +3281,7 @@ export class SessionsAccessibilityProvider {
 			if (isShortcutSection(element.id) || element.id === CANVASES_SECTION_ID) {
 				return element.label;
 			}
-			return this.getSectionAriaLabel(element.hover ? localize('sessionSectionWithHoverAria', "{0}, {1}", element.label, element.hover) : element.label, element.sessions);
+			return this.getSectionAriaLabel(element.label, element.sessions);
 		}
 		if (isSessionShowMore(element)) {
 			if (element.mode === 'less') {

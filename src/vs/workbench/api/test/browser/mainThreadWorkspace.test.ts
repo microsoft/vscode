@@ -17,7 +17,7 @@ import { workbenchInstantiationService } from '../../../test/browser/workbenchTe
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchMode, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../platform/workspace/test/common/testWorkspace.js';
 import { IFolderLocation, IFolderLocationChangeEvent, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceFolderLocationsDto } from '../../common/extHost.protocol.js';
@@ -202,6 +202,8 @@ suite('MainThreadWorkspace', () => {
 					getWorkbenchState() { return WorkbenchState.FOLDER; }
 					onDidChangeWorkspaceFolders = Event.None;
 					onDidChangeWorkbenchState = Event.None;
+					getWorkbenchMode() { return WorkbenchMode.Editor; }
+					onDidChangeWorkbenchMode = Event.None;
 				} as unknown as IWorkspaceContextService);
 			}
 			const pushed: IWorkspaceFolderLocationsDto[][] = [];
@@ -261,7 +263,9 @@ suite('MainThreadWorkspace', () => {
 				getCompleteWorkspace: () => complete.p,
 				getWorkbenchState: () => WorkbenchState.FOLDER,
 				onDidChangeWorkspaceFolders: Event.None,
-				onDidChangeWorkbenchState: Event.None
+				onDidChangeWorkbenchState: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				onDidChangeWorkbenchMode: Event.None
 			}, false);
 			mtw.dispose();
 			complete.complete(testWorkspace(folder));
@@ -280,7 +284,9 @@ suite('MainThreadWorkspace', () => {
 				getCompleteWorkspace: () => Promise.resolve(current),
 				getWorkbenchState: () => WorkbenchState.FOLDER,
 				onDidChangeWorkspaceFolders: removed.event,
-				onDidChangeWorkbenchState: Event.None
+				onDidChangeWorkbenchState: Event.None,
+				getWorkbenchMode: () => WorkbenchMode.Editor,
+				onDidChangeWorkbenchMode: Event.None
 			});
 			assert.strictEqual(requests.length, 1);
 

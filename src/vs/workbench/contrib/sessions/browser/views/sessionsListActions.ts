@@ -1953,39 +1953,5 @@ function createSessionsListActions(): DisposableStore {
 		}));
 	}
 
-	const OffersWorktreeGroupingContext = ContextKeyExpr.and(IsSessionsWindowContext.negate(), sessionsViewOffersGrouping(SessionsGrouping.Worktree));
-	const GroupedByWorktreeContext = ContextKeyExpr.and(OffersWorktreeGroupingContext, SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree));
-
-	store.add(registerAction2(class GroupByWorktreeAction extends Action2 {
-		constructor() {
-			super({
-				id: 'sessionsViewPane.groupByWorktree',
-				title: localize2('groupByWorktree', "Worktree"),
-				category: SessionsCategories.Sessions,
-				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree),
-				precondition: OffersWorktreeGroupingContext,
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: OffersWorktreeGroupingContext }],
-			});
-		}
-		override run(accessor: ServicesAccessor) {
-			const view = getActiveSessionsView(accessor);
-			view?.setGrouping(SessionsGrouping.Worktree);
-		}
-	}));
-
-	// Worktree grouping caps its sections as the other groupings by section do, which Show switches between Recent and All
-	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
-		command: { id: 'sessionsViewPane.showRecentSessions', title: localize2('recent', "Recent"), toggled: IsWorkspaceGroupCappedContext },
-		group: SessionsViewShowGroup.Capping,
-		order: 0,
-		when: GroupedByWorktreeContext,
-	}));
-	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
-		command: { id: 'sessionsViewPane.showAllSessions', title: localize2('all', "All"), toggled: IsWorkspaceGroupCappedContext.negate() },
-		group: SessionsViewShowGroup.Capping,
-		order: 1,
-		when: GroupedByWorktreeContext,
-	}));
-
 	return store;
 }

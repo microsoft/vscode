@@ -98,8 +98,8 @@
 	margin-bottom: var(--modern-ui-floating-card-outer-margin);
 }
 
-/* A bottom panel below the editor keeps the inter-card gap. */
-.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel):not(.nomaineditorarea) .part.panel.bottom {
+/* A bottom panel below the editor, or below the chat part filling the editor area, keeps the inter-card gap. */
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel):is(:not(.nomaineditorarea), .editor-hidden-by-chat) .part.panel.bottom {
 	margin-top: var(--modern-ui-floating-card-margin);
 }
 
@@ -166,7 +166,7 @@
 	margin-top: var(--modern-ui-floating-card-outer-margin);
 }
 
-.monaco-workbench.floating-panels.top-window-edge.nomaineditorarea .part.panel.bottom {
+.monaco-workbench.floating-panels.top-window-edge.nomaineditorarea:not(.editor-hidden-by-chat) .part.panel.bottom {
 	margin-top: var(--modern-ui-floating-card-outer-margin);
 }
 
