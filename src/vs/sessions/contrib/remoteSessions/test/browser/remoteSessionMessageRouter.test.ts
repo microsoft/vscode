@@ -20,8 +20,8 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostAgentOrchestrationLimitsSettingId, IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { getPendingSteeringMessages } from '../../../../../platform/agentHost/common/agentSessionMessage.js';
-import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
-import { withRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
+import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { getAgentMessageSenderChat, readAgentMessageSender, withRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -573,6 +573,58 @@ suite('RemoteSessionMessageRouter', () => {
 		});
 	});
 
+	test('replies bind to a turn\'s exact sender across a nested A -> B -> C -> B -> A chain', async () => {
+		const { router, local, first, second, sessions } = setup();
+		const [a, b, c] = [sessions[0].chats.get()[1].resource, sessions[1].resource, sessions[2].chats.get()[2].resource];
+		await router.send(a, { session: b.toString(), message: 'Task' }, 'a-to-b', CancellationToken.None);
+		await router.send(b, { session: c.toString(), message: 'Subtask' }, 'b-to-c', CancellationToken.None);
+		await router.send(c, { session: 'sender', message: 'Subresult' }, 'c-to-b', CancellationToken.None);
+		const channel = buildDefaultChatUri(backendSession);
+		const state = first.chatStates.get(channel)!;
+		state.set(chatReducer(state.verifiedValue!, chatTurnComplete('turn-0', 1)));
+		first.drain(channel);
+		// B's current turn answers C's reply; the turn A started still names A.
+		const toC = await router.send(b, { session: 'sender', message: 'Thanks' }, 'b-to-c-again', CancellationToken.None);
+		const taskSender = readAgentMessageSender(state.verifiedValue!.turns[0].message)!;
+		const toA = await router.send(b, { session: getAgentMessageSenderChat(taskSender).toString(), message: 'Result' }, 'b-to-a', CancellationToken.None);
+		assert.deepStrictEqual({
+			toC: toC.chat, toA: toA.chat,
+			delivered: [local, first, second].map(host => host.dispatched.map(({ channel, action }) => `${action.message.text}->${channel}`)),
+		}, {
+			toC: c.toString(), toA: a.toString(),
+			delivered: [
+				[`Result->${buildChatUri(backendSession, 'original-chat')}`],
+				[`Task->${channel}`, `Subresult->${channel}`],
+				[`Subtask->${buildChatUri(backendSession, 'other-chat')}`, `Thanks->${buildChatUri(backendSession, 'other-chat')}`],
+			],
+		});
+	});
+
+	test('"sender" requires a current turn started by another chat', async () => {
+		const { router, first, sessions } = setup();
+		await assert.rejects(router.send(sessions[1].resource, { session: 'sender', message: 'No' }, 'idle', CancellationToken.None), /not started by a message from another chat/);
+		const state = first.chatStates.get(buildDefaultChatUri(backendSession))!;
+		state.set(chatReducer(state.verifiedValue!, chatTurnStarted('user', 'User prompt', new Date(0).toISOString())));
+		await assert.rejects(router.send(sessions[1].resource, { session: 'sender', message: 'No' }, 'user', CancellationToken.None), /not started by a message from another chat/);
+	});
+
+	test('"sender" qualifies a same-host sender with the source chat\'s host', async () => {
+		const { router, first, sessions, connections } = setup();
+		assert.strictEqual(connections.registerSessionResource(backendSession, 'first', 'copilot').toString(), sessions[1].resource.toString());
+		const state = first.chatStates.get(buildDefaultChatUri(backendSession))!;
+		state.set(chatReducer(state.verifiedValue!, {
+			...chatTurnStarted('peer', 'From a peer', new Date(0).toISOString()),
+			message: {
+				text: 'From a peer', origin: { kind: MessageKind.Agent },
+				_meta: toAgentMessageDelegationMeta({ sourceSession: backendSession.toString(), sourceChat: buildChatUri(backendSession, 'other-chat') }),
+			},
+		}));
+		const result = await router.send(sessions[1].resource, { session: 'sender', message: 'Reply' }, 'same-host', CancellationToken.None);
+		assert.deepStrictEqual({ chat: result.chat, channel: first.dispatched[0].channel }, {
+			chat: sessions[1].chats.get()[2].resource.toString(), channel: buildChatUri(backendSession, 'other-chat'),
+		});
+	});
+
 	test('rejects self messages, unqualified references, unknown origins and invalid input', async () => {
 		const { router, sessions, local } = setup();
 		for (const target of [sessions[0].resource.toString(), 'copilot:/same-id', 'agent-host-session://copilot/same-id', 'origin']) {
@@ -1086,18 +1138,19 @@ suite('RemoteSessionMessageRouter', () => {
 		});
 	});
 
-	test('tool guidance explains exact origins, queueing, target permissions and uncertain delivery', () => {
+	test('tool guidance explains exact senders and origins, queueing, target permissions and uncertain delivery', () => {
 		const { tool } = setup();
 		const description = tool.getToolData().modelDescription;
 		assert.deepStrictEqual({
-			exactOrigin: description.includes('exact originating chat'),
+			exactSender: description.includes('exact chat whose message started your current turn with session "sender"'),
+			earlierSender: description.includes('`from.chat` that get_session_context reports'),
 			savedOrigin: description.includes('session "origin"'),
 			fifo: description.includes('FIFO queue'),
 			permissions: description.includes('target chat\'s existing permissions'),
 			noResponse: description.includes('never a response'),
 			uncertain: description.includes('Do not retry uncertain delivery'),
 			agentHostSource: description.includes('Requires an Agent Host originating chat'),
-		}, { exactOrigin: true, savedOrigin: true, fifo: true, permissions: true, noResponse: true, uncertain: true, agentHostSource: true });
+		}, { exactSender: true, earlierSender: true, savedOrigin: true, fifo: true, permissions: true, noResponse: true, uncertain: true, agentHostSource: true });
 	});
 
 	test('messaging rejects unsupported sources before confirmation without requiring a visible chat widget', async () => {

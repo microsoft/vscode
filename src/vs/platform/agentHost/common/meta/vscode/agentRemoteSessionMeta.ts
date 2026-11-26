@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isEqual } from '../../../../../base/common/resources.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../agentHostConnectionsService.js';
 import { isRemoteAgentHostSessionType } from '../../agentHostSessionType.js';
-import { readSessionSpawnDepth, withSessionSpawnDepth } from '../../state/sessionState.js';
-import { toAgentMessageDelegationMeta } from './agentMessageDelegationMeta.js';
+import { getAgentHostChatId, MessageKind, readSessionSpawnDepth, withSessionSpawnDepth, type Message } from '../../state/sessionState.js';
+import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from './agentMessageDelegationMeta.js';
 
 export const REMOTE_SESSION_ORIGIN_METADATA_KEY = 'vscode.remoteSession.origin';
 const remoteSessionsCapabilityKey = 'vscode.remoteSessions';
@@ -28,6 +29,60 @@ export function withRemoteSessionsCapability(meta: Record<string, unknown> | und
 	return { ...meta, [remoteSessionsCapabilityKey]: true };
 }
 
+/** Whether a session resource is a host-qualified workbench Agent Host session, as remote session tools address it. */
+function isWorkbenchAgentHostSession(session: URI): boolean {
+	return (session.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || isRemoteAgentHostSessionType(session.scheme))
+		&& session.scheme !== LOCAL_AGENT_HOST_SCHEME_PREFIX
+		&& !session.authority && !session.query && !session.fragment && session.path.startsWith('/') && session.path.length > 1;
+}
+
+/** The exact chat that sent an agent-authored message. */
+export interface IAgentMessageSender {
+	/**
+	 * The sender's session: a host-qualified workbench session resource when a remote session
+	 * tool delivered the message, or the host's session URI when it was sent on the same host.
+	 */
+	readonly session: URI;
+	/** The sender's chat id in {@link session}; undefined names its main chat. */
+	readonly chatId: string | undefined;
+	/** The sender runs on the same agent host as the chat that received the message. */
+	readonly sameHost: boolean;
+}
+
+/**
+ * Reads the exact chat that sent `message` from its delegation metadata. Only agent-authored
+ * messages with a well-formed session reference name a sender; the result is an address, not
+ * an authorization, so replies still pass the sending tool's approval and target checks.
+ */
+export function readAgentMessageSender(message: Message): IAgentMessageSender | undefined {
+	if (message.origin.kind !== MessageKind.Agent && message.origin.kind !== MessageKind.Tool) {
+		return undefined;
+	}
+	const delegation = readAgentMessageDelegationMeta(message);
+	if (!delegation || !hasKey(delegation, { sourceSession: true })) {
+		return undefined;
+	}
+	let session: URI;
+	try {
+		session = URI.parse(delegation.sourceSession, true);
+	} catch {
+		return undefined;
+	}
+	const chatId = delegation.sourceChat ? getAgentHostChatId(delegation.sourceChat) : undefined;
+	if (isWorkbenchAgentHostSession(session)) {
+		return { session, chatId, sameHost: false };
+	}
+	if (session.query || session.fragment || !session.path.startsWith('/') || session.path.length <= 1) {
+		return undefined;
+	}
+	return { session, chatId, sameHost: true };
+}
+
+/** The sender's exact chat as a resource of `session`, which defaults to the sender's own session reference. */
+export function getAgentMessageSenderChat(sender: IAgentMessageSender, session = sender.session): URI {
+	return session.with({ fragment: sender.chatId ?? '' });
+}
+
 /** Reads an origin whose session and exact chat retain their workbench host identity. */
 export function readRemoteSessionOrigin(source: { readonly _meta?: Record<string, unknown> } | undefined): IRemoteSessionOrigin | undefined {
 	const value = source?._meta?.[REMOTE_SESSION_ORIGIN_METADATA_KEY];
@@ -42,10 +97,7 @@ export function readRemoteSessionOrigin(source: { readonly _meta?: Record<string
 	try {
 		const session = URI.parse(rawSession, true);
 		const chat = URI.parse(rawChat, true);
-		if ((!session.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) && !isRemoteAgentHostSessionType(session.scheme))
-			|| session.scheme === LOCAL_AGENT_HOST_SCHEME_PREFIX
-			|| session.authority || session.query || session.fragment || !session.path.startsWith('/') || session.path.length <= 1
-			|| !isEqual(session, chat.with({ fragment: '' }))) {
+		if (!isWorkbenchAgentHostSession(session) || !isEqual(session, chat.with({ fragment: '' }))) {
 			return undefined;
 		}
 		return { session: session.toString(), chat: chat.toString(), depth };

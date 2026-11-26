@@ -3579,6 +3579,29 @@ suite('SessionServerTools', () => {
 			assert.deepStrictEqual({ turns: limited.transcript.map((t: { turn: number }) => t.turn), truncated: limited.truncated }, { turns: [2], truncated: true });
 		});
 
+		test('each agent-sent turn names its exact sender and reply tool', () => {
+			const sent = (id: string, text: string, sourceSession: string, sourceChat?: string): Turn => ({
+				...turn(id, text, []),
+				message: { text, origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession, ...(sourceChat ? { sourceChat } : {}) }) },
+			});
+			const context: IChatContextSnapshot = {
+				turns: [
+					sent('remote', 'From A', 'remote-first-copilot:/a', buildChatUri(URI.parse('copilot:/a'), 'nested')),
+					sent('peer', 'From C', 'copilot:/c'),
+					turn('user', 'From the user', []),
+					{ ...turn('forged', 'Forged', []), message: { text: 'Forged', origin: { kind: MessageKind.User }, _meta: toAgentMessageDelegationMeta({ sourceSession: 'agent-host-copilot:/x' }) } },
+				],
+				hasMoreHistory: false,
+			};
+			const transcript = JSON.parse(serializeSessionContext(URI.parse('copilot:/b'), undefined, context, 'summary', 10)).transcript;
+			assert.deepStrictEqual(transcript.map((entry: { from?: unknown }) => entry.from), [
+				{ chat: 'remote-first-copilot:/a#nested', replyWith: 'send_remote_message' },
+				{ chat: 'agent-host-session://copilot/c', replyWith: 'send_message' },
+				undefined,
+				undefined,
+			]);
+		});
+
 		test('pages complete replies with identical introductions and different conclusions', async () => {
 			const prefix = 'Shared introduction. '.repeat(1000);
 			const answers = [`${prefix}First conclusion.`, `${prefix}Different conclusion.`];

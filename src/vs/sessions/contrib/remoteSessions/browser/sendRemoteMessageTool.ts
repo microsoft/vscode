@@ -31,7 +31,7 @@ export class SendRemoteMessageTool extends Disposable implements IToolImpl {
 			toolReferenceName: SendRemoteMessageToolReferenceName,
 			displayName: localize('remoteMessage.displayName', "Send Remote Message"),
 			userDescription: localize('remoteMessage.description', "Send a message to a session on a connected agent host"),
-			modelDescription: 'Send a message to a known remote session/chat, or reply to the exact originating chat with session "origin". Use send_message for ordinary same-host messaging. Requires an Agent Host originating chat and a target connected to this Agents window. Starts an agent-authored turn with the target chat\'s existing permissions/configuration, or joins its FIFO queue. Returns delivery status, never a response. When assigning work, request a reply; final answers are not forwarded. Normal approval applies. Only claim delivery after "sent" or "queued"; report failures here. Do not retry uncertain delivery or acknowledge messages with no new task or question. Continue independent work or end your turn; do not sleep or poll for replies.',
+			modelDescription: 'Send a message to a known remote session/chat. Reply to the exact chat whose message started your current turn with session "sender", or to the chat that created this session with session "origin"; for an earlier turn, use the `from.chat` that get_session_context reports for it. Use send_message for ordinary same-host messaging. Requires an Agent Host originating chat and a target connected to this Agents window. Starts an agent-authored turn with the target chat\'s existing permissions/configuration, or joins its FIFO queue. Returns delivery status, never a response. When assigning work, request a reply; final answers are not forwarded. Normal approval applies. Only claim delivery after "sent" or "queued"; report failures here. Do not retry uncertain delivery or acknowledge messages with no new task or question. Continue independent work or end your turn; do not sleep or poll for replies.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.send,
 			when: remoteSessionToolsWhen,
@@ -43,7 +43,7 @@ export class SendRemoteMessageTool extends Disposable implements IToolImpl {
 				additionalProperties: false,
 				required: ['session', 'message'],
 				properties: {
-					session: { type: 'string', minLength: 1, description: '"origin", or an exact host-qualified session/chat URI or openLink from the remote tools. No bare IDs.' },
+					session: { type: 'string', minLength: 1, description: '"sender", "origin", or an exact host-qualified session/chat URI or openLink from the remote tools. No bare IDs.' },
 					message: { type: 'string', minLength: 1, maxLength: maxRemoteMessageLength },
 				},
 			},
