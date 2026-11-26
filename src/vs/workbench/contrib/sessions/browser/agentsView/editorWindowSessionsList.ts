@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -47,9 +47,14 @@ export function createEditorWindowSessionsView(scoped: IObservable<boolean>, hea
 	};
 }
 
-/** Whether the window has folders, whose sessions the providers then list only; not in an empty window. */
+/**
+ * Whether the window has folders, whose sessions the providers then list only; not in an empty window, and not while the
+ * window is about all sessions (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}), which lists every session.
+ */
 export function createEditorWindowSessionsScope(owner: object, workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
-	return observableFromEvent(owner, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.length > 0);
+	const hasFolders = observableFromEvent(owner, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.length > 0);
+	const allSessions = observableFromEvent(owner, workspaceContextService.onDidChangeWorkbenchScope, () => !workspaceContextService.getWorkbenchScope());
+	return derived(owner, reader => hasFolders.read(reader) && !allSessions.read(reader));
 }
 
 /**

@@ -13,7 +13,7 @@ import { ServicesAccessor } from '../../../platform/instantiation/common/instant
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { IWorkspaceContextService, toWorkspaceFolder, WorkbenchMode, WorkbenchScope, WorkbenchState, type IWorkspaceFoldersChangeEvent } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, toWorkspaceFolder, WorkbenchMode, WorkbenchState, type IWorkspaceFoldersChangeEvent } from '../../../platform/workspace/common/workspace.js';
 import { testIWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import '../../browser/actions/layoutActions.js';
 import '../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
@@ -55,8 +55,8 @@ suite('Workbench Context Keys', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
-		const onDidChangeWorkbenchScope = disposables.add(new Emitter<WorkbenchScope>());
-		let scope = WorkbenchScope.WORKSPACE;
+		const onDidChangeWorkbenchScope = disposables.add(new Emitter<URI | undefined>());
+		let scope: URI | undefined = URI.file('/workspace');
 		const onDidChangeWorkbenchMode = disposables.add(new Emitter<WorkbenchMode>());
 		let mode = WorkbenchMode.Editor;
 		const workspace = { folders: [localFolder, virtualFolder] };
@@ -78,7 +78,7 @@ suite('Workbench Context Keys', () => {
 			workspace.folders = folders;
 			onDidChangeWorkspaceFolders.fire(event);
 		};
-		const setScope = (value: WorkbenchScope) => {
+		const setScope = (value: URI | undefined) => {
 			scope = value;
 			onDidChangeWorkbenchScope.fire(value);
 		};
@@ -107,9 +107,9 @@ suite('Workbench Context Keys', () => {
 		layoutService.editorHidden = true;
 		const { contextKeyService, setFolders, setScope, setMode } = create(layoutService);
 		const scopes = [WorkbenchScopeContext.getValue(contextKeyService)];
-		setScope(WorkbenchScope.ALL);
+		setScope(undefined);
 		scopes.push(WorkbenchScopeContext.getValue(contextKeyService));
-		setScope(WorkbenchScope.WORKSPACE);
+		setScope(URI.file('/workspace'));
 		scopes.push(WorkbenchScopeContext.getValue(contextKeyService));
 		assert.deepStrictEqual(scopes, ['workspace', 'all', 'workspace']);
 		const modes = [WorkbenchModeContext.getValue(contextKeyService)];
