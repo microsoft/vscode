@@ -16,7 +16,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSess
 import { IRemoteSessionOrigin, readRemoteSessionDepth, readRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
-import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents, type ModelSelection } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { isAgentHostSessionResource } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -28,11 +28,21 @@ export interface IRemoteSessionChat {
 	readonly clientId: string;
 }
 
+/** The model a source chat runs on, as its agent host recorded it. */
+export interface IRemoteSessionSourceModel {
+	/** The agent provider backing the source chat. */
+	readonly provider: string;
+	/** The provider-native model ID and its configuration, such as reasoning effort and context size. */
+	readonly selection: ModelSelection;
+}
+
 export interface IRemoteSessionSource extends IRemoteSessionChat {
 	readonly depth: number;
 	readonly origin: IRemoteSessionOrigin | undefined;
 	/** The source chat's recorded resource in the backend session's chat list. */
 	readonly sourceChat: string;
+	/** The source chat's model, when requested and its host recorded one. */
+	readonly model?: IRemoteSessionSourceModel;
 }
 
 export function assertRemoteSessionCaller(resource: URI): void {
@@ -101,12 +111,16 @@ export function assertRemoteSessionSource(source: IRemoteSessionChat, sessionsSe
 	}
 }
 
-/** Resolves the caller's exact chat and persisted cumulative depth without retaining a subscription. */
+/**
+ * Resolves the caller's exact chat and persisted cumulative depth without retaining a subscription.
+ * @param readModel Whether to also read the model the chat runs on ({@link IRemoteSessionSource.model}).
+ */
 export async function resolveRemoteSessionSource(
 	sourceResource: URI,
 	sessionsService: ISessionsManagementService,
 	connectionsService: IAgentHostConnectionsService,
 	token: CancellationToken,
+	readModel = false,
 ): Promise<IRemoteSessionSource> {
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
@@ -142,7 +156,19 @@ export async function resolveRemoteSessionSource(
 		if (!chatResource) {
 			throw new Error(localize('remoteMessage.sourceChatMissing', "The exact originating chat no longer exists on its agent host."));
 		}
-		return { ...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state), sourceChat: chatResource };
+		let model: IRemoteSessionSourceModel | undefined;
+		if (readModel) {
+			const chatSubscription = store.add(source.host.connection.getSubscription(StateComponents.Chat, URI.parse(chatResource), 'RemoteSessionSource'));
+			const chat = await readRemoteSessionState(chatSubscription.object, cancellation.token);
+			if (cancellation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			checkSource();
+			// The turn in progress is the one delegating; otherwise the chat continues on its draft's or latest turn's model.
+			const selection = chat.activeTurn?.message.model ?? chat.draft?.model ?? chat.turns.at(-1)?.message.model;
+			model = selection && { provider: chat.provider ?? state.provider, selection };
+		}
+		return { ...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state), sourceChat: chatResource, ...(model ? { model } : {}) };
 	} catch (error) {
 		throw failure ?? error;
 	} finally {
