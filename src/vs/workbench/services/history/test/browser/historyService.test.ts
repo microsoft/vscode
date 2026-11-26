@@ -810,7 +810,7 @@ suite('HistoryService', function () {
 
 			const fileService = instantiationService.invokeFunction(accessor => accessor.get(IFileService)) as TestFileService;
 
-			return { contextService, historyService, instantiationService, fileService, open, openSideBySide, closeAll, reload };
+			return { contextService, historyService, instantiationService, fileService, part, open, openSideBySide, closeAll, reload };
 		}
 
 		function paths(historyService: IHistoryService): (string | undefined)[] {
@@ -820,6 +820,82 @@ suite('HistoryService', function () {
 		function stat(path: string, isFile: boolean): IFileStatWithMetadata {
 			return { resource: URI.file(path), name: path.substring(path.lastIndexOf('/') + 1), isFile, isDirectory: !isFile, isSymbolicLink: false, mtime: 0, ctime: 0, etag: '', size: 0, readonly: false, locked: false, executable: false, children: undefined };
 		}
+
+		function editorPaths(part: EditorPart): (string | undefined)[] {
+			return part.activeGroup.editors.map(editor => editor.resource?.path);
+		}
+
+		/**
+		 * Closes all editors like the switch of the editors of a folder location switch does: by applying a working set.
+		 */
+		async function closeAllBySwitch(part: EditorPart): Promise<void> {
+			const applying = part as unknown as { isApplyingWorkingSet: boolean }; // the test editor part implements the editor groups service
+			applying.isApplyingWorkingSet = true;
+			try {
+				await part.activeGroup.closeAllEditors();
+			} finally {
+				applying.isApplyingWorkingSet = false;
+			}
+		}
+
+		/**
+		 * Reopens the last closed editors twice and returns the editors that are open then.
+		 */
+		async function reopenTwice(historyService: IHistoryService, part: EditorPart): Promise<(string | undefined)[]> {
+			await historyService.reopenLastClosedEditor();
+			await historyService.reopenLastClosedEditor();
+
+			return editorPaths(part);
+		}
+
+		test('reopen closed editor only reopens the editors closed at the current location, and not the ones the switch closed', async () => {
+			const { contextService, historyService, instantiationService, part, open } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			await part.activeGroup.closeAllEditors();
+			await open('/repo/b.txt');
+			await open('/outside.txt');
+
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAllBySwitch(part);
+			await open('/worktree/c.txt');
+			await part.activeGroup.closeAllEditors();
+			const atWorktree = await reopenTwice(historyService, part);
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			await closeAllBySwitch(part);
+			const backAtFolder = await reopenTwice(historyService, part);
+
+			assert.deepStrictEqual({ atWorktree, backAtFolder }, {
+				atWorktree: ['/worktree/c.txt'],
+				backAtFolder: ['/repo/a.txt']
+			});
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('deleting files updates the put away recently closed editors', async () => {
+			const { contextService, historyService, instantiationService, fileService, part, open } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			await part.activeGroup.closeAllEditors();
+			await open('/repo/b.txt');
+			await part.activeGroup.closeAllEditors();
+
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/b.txt'), FileOperation.DELETE));
+			const atWorktree = await reopenTwice(historyService, part);
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const backAtFolder = await reopenTwice(historyService, part);
+
+			assert.deepStrictEqual({ atWorktree, backAtFolder }, {
+				atWorktree: [],
+				backAtFolder: ['/repo/a.txt']
+			});
+
+			return workbenchTeardown(instantiationService);
+		});
 
 		test('a folder location switch puts away the list of the folder and restores the list of the new location', async () => {
 			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder);

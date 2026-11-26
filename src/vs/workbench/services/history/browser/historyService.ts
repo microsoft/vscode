@@ -128,6 +128,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Editor group changes
 		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e)));
+		this._register(this.editorGroupService.onDidChangeApplyingWorkingSet(applying => {
+			if (!applying) {
+				this.folderLocationSwitchClosesEditors = false;
+			}
+		}));
 
 		// File changes
 		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
@@ -334,6 +339,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Recently closed editors
 		this.recentlyClosedEditors = [];
+		this.putAwayRecentlyClosedEditors.clear();
 
 		// Context Keys
 		this.updateContextKeys();
@@ -686,6 +692,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private recentlyClosedEditorsBatchId = 0;
 	private recentlyClosedEditorsBatchScheduled = false;
 
+	// The recently closed editors of the folders that folder location switches left, by folder URI,
+	// least recently put away first. Only kept in memory, for the lifetime of the window.
+	private readonly putAwayRecentlyClosedEditors = new Map<string, IRecentlyClosedEditor[]>();
+
+	// Set by a folder location switch until the next working set apply ends: the editors it closes are switched, not closed
+	private folderLocationSwitchClosesEditors = false;
+
 	private handleEditorCloseEventInReopen(event: IEditorCloseEvent): void {
 		if (this.ignoreEditorCloseEvent) {
 			return; // blocked
@@ -694,6 +707,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const { editor, context } = event;
 		if (context === EditorCloseContext.REPLACE || context === EditorCloseContext.MOVE) {
 			return; // ignore if editor was replaced or moved
+		}
+
+		if ((this.folderLocationSwitchClosesEditors && this.editorGroupService.isApplyingWorkingSet) || this.isInLeftFolder(editor)) {
+			return; // ignore editors that a folder location switch closes, and editors of the folder it left
 		}
 
 		if (!editor.canReopen()) {
@@ -845,7 +862,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private removeFromRecentlyClosedEditors(arg1: EditorInput | FileChangesEvent | FileOperationEvent): void {
-		this.recentlyClosedEditors = this.recentlyClosedEditors.filter(recentlyClosedEditor => {
+		const keep = (recentlyClosedEditor: IRecentlyClosedEditor) => {
 			if (isEditorInput(arg1) && recentlyClosedEditor.editorId !== arg1.editorId) {
 				return true; // keep: different editor identifiers
 			}
@@ -859,7 +876,80 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 
 			return true; // keep
-		});
+		};
+
+		this.recentlyClosedEditors = this.recentlyClosedEditors.filter(keep);
+
+		// Also from the lists of the folders that folder location switches left
+		for (const [key, entries] of this.putAwayRecentlyClosedEditors) {
+			const updated = entries.filter(keep);
+			if (!updated.length) {
+				this.putAwayRecentlyClosedEditors.delete(key);
+			} else {
+				this.putAwayRecentlyClosedEditors.set(key, updated);
+			}
+		}
+
+		// Update context
+		this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
+	}
+
+	/**
+	 * Puts away the recently closed editors of each removed folder under its URI, and restores the
+	 * ones that were put away for each added folder, so that Reopen Closed Editor only reopens editors
+	 * closed at the current location. An editor belongs to the closest of the previous folders that
+	 * contains its resource.
+	 */
+	private swapRecentlyClosedEditors(previousFolders: readonly URI[], removedFolders: readonly URI[], addedFolders: readonly URI[]): void {
+		const extUri = this.uriIdentityService.extUri;
+
+		if (removedFolders.length) {
+			const entriesByFolder = removedFolders.map(() => new Array<IRecentlyClosedEditor>());
+			this.recentlyClosedEditors = this.recentlyClosedEditors.filter(recentlyClosedEditor => {
+				const resource = recentlyClosedEditor.resource ?? recentlyClosedEditor.associatedResources.at(0);
+				const folder = resource ? this.findClosestFolder(resource, previousFolders) : undefined;
+				const index = folder ? removedFolders.findIndex(removedFolder => extUri.isEqual(removedFolder, folder)) : -1;
+				if (index === -1) {
+					return true;
+				}
+
+				entriesByFolder[index].push(recentlyClosedEditor);
+
+				return false;
+			});
+
+			removedFolders.forEach((folder, index) => {
+				const key = extUri.getComparisonKey(folder);
+				this.putAwayRecentlyClosedEditors.delete(key);
+				if (entriesByFolder[index].length) {
+					this.putAwayRecentlyClosedEditors.set(key, entriesByFolder[index]);
+				}
+			});
+		}
+
+		for (const folder of addedFolders) {
+			const key = extUri.getComparisonKey(folder);
+			const entries = this.putAwayRecentlyClosedEditors.get(key);
+			if (!entries) {
+				continue;
+			}
+
+			this.putAwayRecentlyClosedEditors.delete(key);
+
+			// Merge in the order of closing, so that editors closed together stay together
+			this.recentlyClosedEditors = [...this.recentlyClosedEditors, ...entries]
+				.sort((a, b) => a.batchId - b.batchId)
+				.slice(-HistoryService.MAX_RECENTLY_CLOSED_EDITORS);
+		}
+
+		// Evict after restoring, so that the list of an added folder is never evicted
+		for (const key of this.putAwayRecentlyClosedEditors.keys()) {
+			if (this.putAwayRecentlyClosedEditors.size <= HistoryService.MAX_PUT_AWAY_FOLDERS) {
+				break;
+			}
+
+			this.putAwayRecentlyClosedEditors.delete(key); // least recently put away first
+		}
 
 		// Update context
 		this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
@@ -1232,14 +1322,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const added = event.added.map(folder => folder.uri);
 		this.addLeftFolders(removed, added);
 
-		if (!this.historyLoaded) {
-			return; // loading the history compares the folders it was stored for with the current ones
-		}
-
 		const previous = [
 			...this.contextService.getWorkspace().folders.map(folder => folder.uri).filter(folder => !added.some(addedFolder => this.uriIdentityService.extUri.isEqual(addedFolder, folder))),
 			...removed
 		];
+
+		// The editors that the switch closes are not recently closed, and the recently closed editors are per location
+		this.folderLocationSwitchClosesEditors = true;
+		this.swapRecentlyClosedEditors(previous, removed, added);
+
+		if (!this.historyLoaded) {
+			return; // loading the history compares the folders it was stored for with the current ones
+		}
+
 		this.swapFolderHistory(previous, removed, added);
 	}
 
