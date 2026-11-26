@@ -33,7 +33,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IMicCaptureService } from '../../../chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../chat/browser/voiceClient/ttsPlaybackService.js';
-import { IVoiceSessionController } from '../../../chat/browser/voiceClient/voiceSessionController.js';
+import { IVoiceSessionController, isVoiceSessionActiveForInput } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
 import { ChatContentMarkdownRenderer } from '../../../chat/browser/widget/chatContentMarkdownRenderer.js';
@@ -442,6 +442,15 @@ export class ChatView extends AbstractChatView {
 	private _isVisible: boolean | undefined;
 	private readonly _isVisibleObs = observableValue(this, false);
 	private _lastLayout: { width: number; height: number } | undefined;
+	private readonly _ownsVoiceSession = derived(this, reader => {
+		const current = this._currentChatResourceObs.read(reader);
+		return isVoiceSessionActiveForInput(
+			this._isActiveObs.read(reader) && !!current && isEqual(current, this.newChatVoiceTargetService.currentVoiceInputResource.read(reader)),
+			this.voiceSessionController.targetSession.read(reader),
+			this.voiceSessionController.hasDraftTarget.read(reader),
+			current,
+		);
+	});
 	private _chatItemHorizontalPadding: number;
 	private readonly _composerOnly: boolean;
 
@@ -746,16 +755,11 @@ export class ChatView extends AbstractChatView {
 		// Voice transcript overlay + input glow.
 		this._setupVoiceOverlay();
 
-		// Anchor post-connect voice controls to this active voice view.
+		// An explicit target can own voice in an unfocused, visible split group.
 		this._register(autorun(reader => {
-			const active = this._isActiveObs.read(reader);
 			const voiceActive = this.voiceSessionController.isConnected.read(reader)
 				|| this.voiceSessionController.isConnecting.read(reader);
-			const target = this.voiceSessionController.targetSession.read(reader);
-			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
-			const current = this._currentChatResourceObs.read(reader);
-			const ownsVoice = !hasDraftTarget && (!target || (!!current && isEqual(target, current)));
-			this._voiceInitiatedHereKey.set(active && voiceActive && ownsVoice);
+			this._voiceInitiatedHereKey.set(this._isVisibleObs.read(reader) && voiceActive && this._ownsVoiceSession.read(reader));
 		}));
 	}
 
@@ -1517,9 +1521,8 @@ export class ChatView extends AbstractChatView {
 			accessibilityService: this.accessibilityService,
 		}, {
 			inputContainer: inputContainerEl,
-			isActive: this._isActiveObs,
-			getCurrentResource: reader => this._currentChatResourceObs.read(reader),
-			currentVoiceInputResource: this.newChatVoiceTargetService.currentVoiceInputResource,
+			isActive: this._isVisibleObs,
+			isOwner: this._ownsVoiceSession,
 		}));
 	}
 

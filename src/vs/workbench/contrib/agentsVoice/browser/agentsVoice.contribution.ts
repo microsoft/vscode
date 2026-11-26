@@ -22,7 +22,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -58,6 +57,7 @@ import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatExecuteActionContext } from '../../chat/browser/actions/chatExecuteActions.js';
+import { retargetVoiceToInput } from '../../chat/browser/voiceClient/voiceInputUtils.js';
 
 // --- Context Keys ---
 
@@ -277,23 +277,9 @@ registerAction2(class extends Action2 {
 
 		// An explicit press in another composer transfers Voice Mode ownership to
 		// that composer. The draft sentinel deliberately clears the concrete target.
-		const widget = accessor.get(IWorkbenchEnvironmentService).isSessionsWindow
-			? undefined : context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
-		const currentSession = widget?.viewModel?.sessionResource.toString()
-			?? await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
-		if (currentSession) {
-			try {
-				const resource = URI.parse(currentSession);
-				if (resource.scheme === 'sessions-voice') {
-					voiceController.setDraftTarget();
-				} else {
-					voiceController.setTargetSession(resource);
-					voiceController.activateSession(resource);
-				}
-			} catch {
-				// The routing command owns validation; leave the current target unchanged.
-			}
-		}
+		const widget = context?.widget ?? (accessor.get(IWorkbenchEnvironmentService).isSessionsWindow
+			? undefined : accessor.get(IChatWidgetService).lastFocusedWidget);
+		await retargetVoiceToInput(widget, accessor.get(ICommandService), voiceController);
 
 		// Ensure the session is connected before we start recording. The mic
 		// button's first press connects; a held keybinding also connects here so

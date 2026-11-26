@@ -6,6 +6,34 @@
 import { IChatResponseModel } from '../../common/model/chatModel.js';
 import { IChatWidget } from '../chat.js';
 import { ChatRequestQueueKind } from '../../common/chatService/chatService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IVoiceSessionController } from './voiceSessionController.js';
+
+/** An explicit input wins over focus; only context-free invocations consult the host's current session. */
+export async function retargetVoiceToInput(widget: IChatWidget | undefined, commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
+	let resource: URI | undefined;
+	if (widget) {
+		resource = widget.resolveVoiceTarget();
+		if (!resource) {
+			throw new Error(localize('voiceInputUnavailable', "The selected chat input is not available for Voice Mode."));
+		}
+	} else {
+		const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+		resource = currentSession ? URI.parse(currentSession) : undefined;
+	}
+	if (!resource) {
+		return false;
+	}
+	if (resource.scheme === 'sessions-voice') {
+		controller.setDraftTarget();
+	} else {
+		controller.setTargetSession(resource);
+		controller.activateSession(resource);
+	}
+	return true;
+}
 
 /** Submit through the owning widget, preserving its input state and normal request options. */
 export function acceptVoiceInput(widget: IChatWidget | undefined, text: string, isVoiceModeInput: boolean): boolean | Promise<IChatResponseModel | undefined> {

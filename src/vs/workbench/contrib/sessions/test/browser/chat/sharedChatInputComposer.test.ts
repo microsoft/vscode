@@ -1163,10 +1163,12 @@ suite('SharedChatInputComposer', () => {
 		assert.deepStrictEqual(busy.filter(value => value !== ''), []);
 	}));
 
-	test('renders without an overflow widgets element of its own, so suggest shows in the window its chat widget is attached to later, such as the Agents Launcher\'s', () => {
+	function renderComposer(voiceTarget?: boolean) {
 		const renderStore = store.add(new DisposableStore());
 		const windowContainer = dom.$('.monaco-workbench');
 		let widgetOptions: IChatWidgetViewOptions | undefined;
+		let selectedComposer: SharedChatInputComposer | undefined;
+		const transitions: string[] = [];
 		const widget = {
 			render: () => { },
 			setVisible: () => { },
@@ -1182,7 +1184,14 @@ suite('SharedChatInputComposer', () => {
 		};
 		const composer: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_store: renderStore,
-			options: { session: constObservable(undefined) },
+			options: { session: constObservable(undefined), voiceTarget },
+			newChatVoiceTargetService: {
+				beginVoiceTransition: () => {
+					transitions.push('begin');
+					return toDisposable(() => transitions.push('end'));
+				},
+				setActive: (target: SharedChatInputComposer) => { selectedComposer = target; },
+			},
 			contextKeyService: new MockContextKeyService(),
 			layoutService: { getContainer: () => windowContainer },
 			sessionsProvidersService: { onDidChangeProviders: Event.None },
@@ -1206,10 +1215,14 @@ suite('SharedChatInputComposer', () => {
 			_renderAttachmentOffset: () => { },
 		});
 
+		composer.render(dom.$('div'), dom.$('div'));
+		return { composer, widgetOptions, windowContainer, transitions, get selectedComposer() { return selectedComposer; } };
+	}
+
+	test('renders without an overflow widgets element of its own, so suggest shows in the window its chat widget is attached to later, such as the Agents Launcher\'s', () => {
 		// Rendered detached, as its view renders before a window, such as the Agents Launcher's, attaches it. An element the
 		// composer put into a window's container now would stay in the main window; the chat widget's own one follows it.
-		composer.render(dom.$('div'), dom.$('div'));
-
+		const { widgetOptions, windowContainer } = renderComposer();
 		assert.deepStrictEqual({
 			overflowWidgetsElement: widgetOptions?.editorOverflowWidgetsDomNode,
 			windowContainerChildren: windowContainer.childElementCount,
@@ -1218,4 +1231,20 @@ suite('SharedChatInputComposer', () => {
 			windowContainerChildren: 0,
 		});
 	});
+
+	for (const enabled of [true, false]) {
+		test(`a voice invocation ${enabled ? 'selects its own draft composer' : 'refuses a host excluded from voice'}`, () => {
+			const rendered = renderComposer(enabled);
+			const target = rendered.widgetOptions!.resolveVoiceTarget!();
+			assert.deepStrictEqual({
+				target: target?.toString(),
+				selected: rendered.selectedComposer === rendered.composer,
+				transitions: rendered.transitions,
+			}, {
+				target: enabled ? 'sessions-voice://new-chat/composer' : undefined,
+				selected: enabled,
+				transitions: enabled ? ['begin', 'end'] : [],
+			});
+		});
+	}
 });

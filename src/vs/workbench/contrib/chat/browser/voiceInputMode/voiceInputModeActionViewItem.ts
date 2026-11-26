@@ -16,7 +16,6 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -44,6 +43,9 @@ import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoi
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
 import { AGENTS_VOICE_ENABLED, AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID } from '../../../agentsVoice/common/agentsVoice.js';
+import { IChatExecuteActionContext } from '../actions/chatExecuteActions.js';
+import { retargetVoiceToInput } from '../voiceClient/voiceInputUtils.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 
 /** Built-in on-device dictation toggle (start/stop). */
 const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
@@ -51,25 +53,6 @@ const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
 /** Command that starts Voice Mode from the segmented voice control. */
 const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
 const VOICE_DISCONNECT_COMMAND_ID = 'agentsVoice.disconnect';
-
-async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
-	const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
-	if (!currentSession) {
-		return false;
-	}
-	try {
-		const resource = URI.parse(currentSession);
-		if (resource.scheme === 'sessions-voice') {
-			controller.setDraftTarget();
-		} else {
-			controller.setTargetSession(resource);
-			controller.activateSession(resource);
-		}
-		return true;
-	} catch {
-		return false;
-	}
-}
 
 /** Number of strokes in the 12px `voice-mode-compact` codicon. */
 const WAVEFORM_BAR_COUNT = 4;
@@ -173,7 +156,7 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 
 		this._holdActive = true;
 		try {
-			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller);
+			await retargetVoiceToInput(undefined, accessor.get(ICommandService), controller);
 			// Auto-connect on the first hold so users can start talking with one shortcut.
 			if (!controller.isConnected.get() && !controller.isConnecting.get()) {
 				await controller.connect(win);
@@ -461,9 +444,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		// in hands-free mode.
 		this._register(dom.addDisposableListener(this._voiceCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
-			void this._onClickVoicePowerToggle();
+			this._onClickVoicePowerToggle().catch(onUnexpectedError);
 		}));
-		this._registerActivationKeys(this._voiceCell, () => this._onClickVoicePowerToggle());
+		this._registerActivationKeys(this._voiceCell, () => this._onClickVoicePowerToggle().catch(onUnexpectedError));
 		this._register(addMicButtonContextMenuListener(
 			this._voiceCell,
 			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, this._getVoicePowerCommandId()),
@@ -768,15 +751,15 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 	/**
 	 * Toggle built-in on-device dictation. By default this runs the shared
-	 * {@link DICTATION_TOGGLE_COMMAND_ID} command (which targets the last focused
-	 * chat widget); a host that isn't an `IChatWidget` (e.g. the agents-window
+	 * {@link DICTATION_TOGGLE_COMMAND_ID} command with the owning toolbar's context;
+	 * a host that isn't an `IChatWidget` (e.g. the agents-window
 	 * composer) can inject its own toggle via {@link IVoiceInputModePillOptions}.
 	 */
 	private _toggleDictation(): void {
 		if (this._options?.toggleDictation) {
 			this._options.toggleDictation();
 		} else {
-			this.commandService.executeCommand(DICTATION_TOGGLE_COMMAND_ID);
+			this.commandService.executeCommand(DICTATION_TOGGLE_COMMAND_ID, this._context);
 		}
 	}
 
@@ -824,15 +807,16 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 
 		const controller = this.voiceSessionController;
+		const widget = (this._context as IChatExecuteActionContext | undefined)?.widget;
 		const targetWindow = getWindow(this._voiceCell);
 		if (controller.isConnected.get() || controller.isConnecting.get()) {
 			if (this._options?.isVoiceActive?.get() === false) {
-				await retargetVoiceToCurrentSession(this.commandService, controller);
+				await retargetVoiceToInput(widget, this.commandService, controller);
 				return;
 			}
 			controller.disconnect();
 		} else {
-			await retargetVoiceToCurrentSession(this.commandService, controller);
+			await retargetVoiceToInput(widget, this.commandService, controller);
 			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}
 	}

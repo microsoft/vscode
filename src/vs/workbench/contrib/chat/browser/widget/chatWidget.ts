@@ -623,6 +623,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._viewModel;
 	}
 
+	resolveVoiceTarget(): URI | undefined {
+		return this.viewOptions.resolveVoiceTarget ? this.viewOptions.resolveVoiceTarget() : this.viewModel?.sessionResource;
+	}
+
 	private readonly _editingSession = observableValue<IChatEditingSession | undefined>(this, undefined);
 	private readonly _viewModelObs = observableFromEvent(this, this.onDidChangeViewModel, () => this.viewModel);
 	// Requests must not retain the widget through this observable's debug owner.
