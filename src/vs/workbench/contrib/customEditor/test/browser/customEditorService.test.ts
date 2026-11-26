@@ -77,12 +77,14 @@ suite('CustomEditorService', () => {
 		});
 		const editorService = new class extends mock<IEditorService>() {
 			override readonly activeEditor = activeEditor;
+			override readonly activeEditorPane = undefined;
 		}();
 		disposables.add(new CustomEditorService(fileService, editorService, editorGroupsService));
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ICodeEditorService, { getFocusedCodeEditor: () => null });
+		instantiationService.stub(IEditorService, editorService);
 		instantiationService.invokeFunction(accessor => {
 			UndoCommand.runCommand(accessor, {});
 			RedoCommand.runCommand(accessor, {});
