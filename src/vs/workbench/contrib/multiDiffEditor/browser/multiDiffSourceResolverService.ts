@@ -38,7 +38,9 @@ export class MultiDiffEditorItem {
 		readonly modifiedUri: URI | undefined,
 		readonly goToFileUri: URI | undefined,
 		readonly goToFileEditorTitle?: string | undefined,
-		readonly contextKeys?: Record<string, ContextKeyValue>
+		readonly contextKeys?: Record<string, ContextKeyValue>,
+		/** Identifies the diff while its URIs change, unlike {@link getKey}. */
+		readonly key?: string,
 	) {
 		if (!originalUri && !modifiedUri) {
 			throw new BugIndicatingError('Invalid arguments');

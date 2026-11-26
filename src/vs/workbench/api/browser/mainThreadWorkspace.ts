@@ -82,6 +82,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		this._register(this._folderLocationService.onDidChangeLocations(() => this._updateFolderLocations()));
 		this._register(this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this));
 		this._register(this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this));
+		this._register(this._contextService.onDidChangeWorkbenchMode(this._onDidChangeWorkspace, this));
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this));
 		this._register(this._workspaceTrustManagementService.onDidChangeTrustedFolders(this._onDidChangeWorkspaceTrustedFolders, this));
 	}
@@ -203,6 +204,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace),
 			transient: workspace.transient,
+			mode: this._contextService.getWorkbenchMode(),
 		};
 	}
 

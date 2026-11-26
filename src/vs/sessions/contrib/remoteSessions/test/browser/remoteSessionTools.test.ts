@@ -136,7 +136,7 @@ suite('RemoteSessionTools', () => {
 		assert.deepStrictEqual({
 			noWorkspace: description.includes('Omitted workspace creates a workspace-less session'),
 			noInheritance: description.includes('nothing is cloned, copied, or inherited from the origin'),
-			trustedWorkspace: description.includes('already exist and be trusted on the target'),
+			trustedWorkspace: description.includes('an untrusted folder requires separate user approval'),
 			replies: description.includes('send_remote_message with session "origin"'),
 			shareLink: description.includes('openLink as the Markdown link target'),
 			reuseLink: description.includes('as the session argument to get_remote_session or send_remote_message'),

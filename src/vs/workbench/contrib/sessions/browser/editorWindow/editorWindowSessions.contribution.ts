@@ -51,6 +51,7 @@ import { FocusedSessionHostService, SessionHostService } from '../sessionHostSer
 import { ISessionWorktreeCleanupService, SessionWorktreeCleanupService } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditor } from '../sessionInputBanners/sessionWorktreeCleanupEditor.js';
 import { ISessionsListModelService, SessionsListModelService } from '../sessionsListModelService.js';
+import { ISessionsListUndoService, SessionsListUndoService } from '../sessionsListUndoService.js';
 import { ISessionDraftsService, SessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService, ScheduledChatsService } from '../scheduledChatsService.js';
 import { IChatWindowService } from '../../../chatWindow/browser/chatWindow.js';
@@ -115,6 +116,7 @@ registerEditorWindowSessionsSingleton(IDiffEditorOptionsService, DiffEditorOptio
 // The sessions UI that a feature hosts in an editor window, such as a sessions list or the chat part: its hosts, its
 // composers' drafts and scheduled requests, and the changes of its sessions, as the Agents window has them
 registerEditorWindowSessionsSingleton(ISessionsListModelService, SessionsListModelService, InstantiationType.Delayed);
+registerEditorWindowSessionsSingleton(ISessionsListUndoService, SessionsListUndoService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);

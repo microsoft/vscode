@@ -1263,6 +1263,16 @@ suite('WorkspaceContextService - Folder', () => {
 			{ opened: { uri: folder, folder: folder.toString() }, restored: { uri: folder, folder: alternate.toString(), isCurrent: true } });
 	});
 
+	test('setFolderLocation() marks the workspace folders change as a folder location change', async () => {
+		const alternate = joinPath(ROOT, 'Alternate');
+		const events: { removed: string[]; added: string[]; isFolderLocationChange: boolean | undefined }[] = [];
+		disposables.add(testObject.onDidChangeWorkspaceFolders(e => events.push({ removed: e.removed.map(f => f.uri.toString()), added: e.added.map(f => f.uri.toString()), isFolderLocationChange: e.isFolderLocationChange })));
+
+		await testObject.setFolderLocation(alternate);
+
+		assert.deepStrictEqual(events, [{ removed: [folder.toString()], added: [alternate.toString()], isFolderLocationChange: true }]);
+	});
+
 	test('setFolderLocation() loads the destination with its own trust, never applying restricted settings of an untrusted destination', async () => {
 		const settingKey = 'configurationService.folder.restrictedSetting';
 		const alternate = joinPath(ROOT, 'Alternate');

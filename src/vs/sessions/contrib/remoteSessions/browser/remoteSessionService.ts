@@ -25,7 +25,7 @@ import { withSessionCreationReference } from '../../../../platform/agentHost/com
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget } from '../../../../workbench/contrib/chat/common/modelSelection.js';
@@ -80,6 +80,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IRemoteSessionChatService private readonly backgroundChats: IRemoteSessionChatService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -325,10 +326,11 @@ export class RemoteSessionService implements IRemoteSessionService {
 		}
 	}
 
-	private async candidates(options: ICreateRemoteSessionOptions, token: CancellationToken): Promise<IRemoteSessionCandidate[]> {
+	private async candidates(options: ICreateRemoteSessionOptions, token: CancellationToken): Promise<(IRemoteSessionCandidate & { needsTrust: boolean })[]> {
 		const rejected: { hostId: string; reasons: string[] }[] = [];
 		const candidates = await Promise.all(this.remoteProviders().map(async provider => {
 			const { candidate, reasons } = this.getCandidate(provider, options);
+			let needsTrust = false;
 			if (candidate?.workspace) {
 				try {
 					const [stat, trust] = await raceCancellationError(Promise.all([
@@ -338,9 +340,12 @@ export class RemoteSessionService implements IRemoteSessionService {
 					if (!stat.isDirectory) {
 						reasons.push(localize('remoteSessions.workspaceNotDirectory', "The workspace is not a directory."));
 					}
-					if (!trust.trusted) {
-						reasons.push(localize('remoteSessions.workspaceNotTrusted', "The workspace is not trusted. Trust it before starting an unattended session."));
+					const directory = candidate.connection.resourceUris.toAgentHost(candidate.workspace);
+					if (directory.path !== candidate.workspace.path || (!trust.trusted && directory.authority)) {
+						// The trust store keys remote folders by host and visible path, not by wrapper query metadata.
+						reasons.push(localize('remoteSessions.ambiguousTrustFolder', "Workspace Trust cannot identify this remote folder unambiguously."));
 					}
+					needsTrust = !trust.trusted;
 				} catch (error) {
 					if (token.isCancellationRequested) {
 						throw new CancellationError();
@@ -353,7 +358,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 				rejected.push({ hostId: provider.id, reasons });
 				return undefined;
 			}
-			return candidate;
+			return { ...candidate, needsTrust };
 		}));
 		const eligible = candidates.filter(candidate => candidate !== undefined);
 		if (!eligible.length) {
@@ -378,27 +383,44 @@ export class RemoteSessionService implements IRemoteSessionService {
 			throw new CancellationError();
 		}
 		const load = (candidate: IRemoteSessionCandidate) => (candidate.provider.getRootState()?.activeSessions ?? Number.POSITIVE_INFINITY) + (this.pendingCreations.get(candidate.host.id) ?? 0);
-		candidates.sort((a, b) => load(a) - load(b)
+		candidates.sort((a, b) => Number(a.needsTrust) - Number(b.needsTrust)
+			|| load(a) - load(b)
 			|| (this.lastSelected.get(a.host.id) ?? 0) - (this.lastSelected.get(b.host.id) ?? 0)
 			|| a.host.id.localeCompare(b.host.id));
 		const selected = candidates[0];
 		this.assertTargetConnection(selected);
-		const { candidate: target, reasons } = this.getCandidate(selected.provider, options);
-		if (!target) {
-			throw new Error(localize('remoteSessions.hostNoLongerMatches', "Remote agent host {0} no longer matches this request. {1}", selected.host.label, JSON.stringify(reasons)));
-		}
-		if (!isEqual(target.workspace, selected.workspace)) {
-			throw new Error(localize('remoteSessions.workspaceChanged', "Remote agent host {0} workspace changed during session creation.", target.host.label));
-		}
-		const pendingCreations = this.pendingCreations.get(target.host.id) ?? 0;
-		const runningSessions = target.host.runningSessions;
-		if (runningSessions === undefined) {
-			throw new Error(localize('remoteSessions.workloadLost', "Remote agent host {0} no longer reports its workload.", target.host.label));
-		}
-		this.pendingCreations.set(target.host.id, pendingCreations + 1);
-		this.lastSelected.set(target.host.id, ++this.selectionSequence);
+		const pendingCreations = this.pendingCreations.get(selected.host.id) ?? 0;
+		this.pendingCreations.set(selected.host.id, pendingCreations + 1);
+		this.lastSelected.set(selected.host.id, ++this.selectionSequence);
 		let background: IRemoteSessionChatReference | undefined;
 		try {
+			if (selected.needsTrust && selected.workspace) {
+				const trusted = await raceCancellationError(this.workspaceTrustRequestService.requestResourcesTrust({
+					uri: selected.workspace,
+					remoteHostLabel: selected.host.label,
+					message: localize('remoteSessions.trustFolder', "An agent session will be able to read files, run commands, and make changes in this folder."),
+				}), token);
+				if (!trusted) {
+					throw new Error(localize('remoteSessions.workspaceNotTrusted', "The remote session was not created because the folder on {0} was not trusted.", selected.host.label));
+				}
+				this.checkEnabled();
+				assertRemoteSessionSource(source, this.sessionsService, this.connectionsService);
+				this.assertTargetConnection(selected);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+			}
+			const { candidate: target, reasons } = this.getCandidate(selected.provider, options);
+			if (!target) {
+				throw new Error(localize('remoteSessions.hostNoLongerMatches', "Remote agent host {0} no longer matches this request. {1}", selected.host.label, JSON.stringify(reasons)));
+			}
+			if (!isEqual(target.workspace, selected.workspace)) {
+				throw new Error(localize('remoteSessions.workspaceChanged', "Remote agent host {0} workspace changed during session creation.", target.host.label));
+			}
+			const runningSessions = target.host.runningSessions;
+			if (runningSessions === undefined) {
+				throw new Error(localize('remoteSessions.workloadLost', "Remote agent host {0} no longer reports its workload.", target.host.label));
+			}
 			const origin = { session: source.session.resource.toString(), chat: source.chat.resource.toString(), depth };
 			const metadata = withSessionCreationReference(withRemoteSessionOrigin(undefined, origin), {
 				session: origin.session,
@@ -461,11 +483,11 @@ export class RemoteSessionService implements IRemoteSessionService {
 			};
 		} finally {
 			background?.dispose();
-			const remaining = (this.pendingCreations.get(target.host.id) ?? 1) - 1;
+			const remaining = (this.pendingCreations.get(selected.host.id) ?? 1) - 1;
 			if (remaining) {
-				this.pendingCreations.set(target.host.id, remaining);
+				this.pendingCreations.set(selected.host.id, remaining);
 			} else {
-				this.pendingCreations.delete(target.host.id);
+				this.pendingCreations.delete(selected.host.id);
 			}
 		}
 	}

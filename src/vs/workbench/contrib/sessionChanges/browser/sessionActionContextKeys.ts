@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { autorun, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -56,14 +56,27 @@ export function registerSessionActionContextKeyBinder(binder: SessionActionConte
  * on their own scoped context key service, so every window sees its session.
  */
 export function bindSessionActionContextKeys(instantiationService: IInstantiationService, source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService): IDisposable {
-	const store = new DisposableStore();
-	store.add(instantiationService.invokeFunction(accessor => bindChangesetOperationContextKeys(source, contextKeyService, accessor.get(ILogService))));
-	store.add(instantiationService.invokeFunction(accessor => bindArtifactIntegrationsContextKey(source, contextKeyService, accessor.get(IConfigurationService))));
-	store.add(bindSessionCIChecksContextKeys(source.pullRequest, contextKeyService));
-	for (const binder of sessionActionContextKeyBinders) {
-		store.add(instantiationService.invokeFunction(accessor => binder(accessor, source, contextKeyService)));
+	return instantiationService.createInstance(SessionActionContextKeys, source, { contextKeyService });
+}
+
+/** The session action context keys of {@link bindSessionActionContextKeys}, bound until disposed. */
+class SessionActionContextKeys extends Disposable {
+	constructor(
+		source: ISessionActionContextKeysSource,
+		{ contextKeyService }: { readonly contextKeyService: IContextKeyService },
+		@ILogService logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(bindChangesetOperationContextKeys(source, contextKeyService, logService));
+		this._register(bindArtifactIntegrationsContextKey(source, contextKeyService, configurationService));
+		this._register(bindSessionCIChecksContextKeys(source.pullRequest, contextKeyService));
+		// The binders that providers register take the services they need, as command handlers do.
+		for (const binder of sessionActionContextKeyBinders) {
+			this._register(instantiationService.invokeFunction(accessor => binder(accessor, source, contextKeyService)));
+		}
 	}
-	return store;
 }
 
 function bindArtifactIntegrationsContextKey(source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService, configurationService: IConfigurationService): IDisposable {

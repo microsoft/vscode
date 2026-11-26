@@ -30,6 +30,11 @@ export interface IWorkspaceContextService {
 	readonly onDidChangeWorkbenchScope: Event<WorkbenchScope>;
 
 	/**
+	 * An event which fires on workbench mode changes.
+	 */
+	readonly onDidChangeWorkbenchMode: Event<WorkbenchMode>;
+
+	/**
 	 * An event which fires on workspace name changes.
 	 */
 	readonly onDidChangeWorkspaceName: Event<void>;
@@ -68,6 +73,11 @@ export interface IWorkspaceContextService {
 	 * Returns whether the workbench is scoped to its own workspace or spans all workspaces.
 	 */
 	getWorkbenchScope(): WorkbenchScope;
+
+	/**
+	 * Returns the mode the workbench is in: the editor or the agents experience.
+	 */
+	getWorkbenchMode(): WorkbenchMode;
 
 	/**
 	 * Returns the folder for the given resource from the workspace.
@@ -257,6 +267,16 @@ export const enum WorkbenchScope {
 	ALL
 }
 
+/**
+ * The mode of the workbench: the experience it presents, independently of its workspace and scope.
+ */
+export const enum WorkbenchMode {
+	/** The workbench presents the editor experience. */
+	Editor = 1,
+	/** The workbench presents the agents experience. */
+	Agents
+}
+
 export interface IWorkspaceFoldersWillChangeEvent {
 
 	readonly changes: IWorkspaceFoldersChangeEvent;
@@ -275,6 +295,12 @@ export interface IWorkspaceFoldersChangeEvent {
 	added: IWorkspaceFolder[];
 	removed: IWorkspaceFolder[];
 	changed: IWorkspaceFolder[];
+
+	/**
+	 * Whether the change moves the single folder to another location: the removed
+	 * folder is its previous location and the added folder its new location.
+	 */
+	readonly isFolderLocationChange?: boolean;
 }
 
 export interface IWorkspace {

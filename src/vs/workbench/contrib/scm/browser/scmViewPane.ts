@@ -1480,10 +1480,11 @@ class ToggleShowStructuralDiffAction extends ViewAction<SCMViewPane> {
 		});
 	}
 
-	runInView(accessor: ServicesAccessor, view: SCMViewPane): void {
-		const show = !view.showStructuralDiff;
-		view.showStructuralDiff = show;
-		// Reported here rather than in the setter, which also runs when another window changes the choice.
+	runInView(accessor: ServicesAccessor): void {
+		const scmViewService = accessor.get(ISCMViewService);
+		const show = !scmViewService.showStructuralDiff.get();
+		scmViewService.setShowStructuralDiff(show);
+		// Reported here rather than in the service, which also updates when another window changes the choice.
 		accessor.get(ITelemetryService).publicLog2<StructuralDiffToggledEvent, StructuralDiffToggledClassification>('scmStructuralDiffToggled', { enabled: show ? 1 : 0 });
 	}
 }
@@ -1621,19 +1622,7 @@ export class SCMViewPane extends ViewPane {
 	private readonly _onDidChangeViewSortKey = this._register(new Emitter<ViewSortKey>());
 	readonly onDidChangeViewSortKey = this._onDidChangeViewSortKey.event;
 
-	/** The user's choice from the View & Sort menu. Structural diffs are only shown while `scm.structuralDiff.enabled` is also set. */
-	get showStructuralDiff(): boolean { return this._showStructuralDiff; }
-	set showStructuralDiff(show: boolean) {
-		if (this._showStructuralDiff === show) {
-			return;
-		}
-		this._showStructuralDiff = show;
-		this.storageService.store('scm.showStructuralDiff', show, StorageScope.WORKSPACE, StorageTarget.USER);
-		this.updateStructuralDiffEnablement();
-	}
-
-	private updateStructuralDiffEnablement(): void {
-		const enabled = this._showStructuralDiff && this.configurationService.getValue<boolean>('scm.structuralDiff.enabled') === true;
+	private updateStructuralDiffEnablement(enabled: boolean): void {
 		if (this.structuralDiff.enabled === enabled) {
 			return;
 		}
@@ -1658,7 +1647,6 @@ export class SCMViewPane extends ViewPane {
 
 	private viewModeContextKey: IContextKey<ViewMode>;
 	private viewSortKeyContextKey: IContextKey<ViewSortKey>;
-	private _showStructuralDiff: boolean;
 	private showStructuralDiffContextKey: IContextKey<boolean>;
 	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
 	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
@@ -1692,7 +1680,6 @@ export class SCMViewPane extends ViewPane {
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.structuralDiff = this.disposables.add(instantiationService.createInstance(SCMStructuralDiffModel));
-		this._showStructuralDiff = this.getShowStructuralDiff();
 
 		// View mode and sort key
 		this._viewMode = this.getViewMode();
@@ -1704,8 +1691,7 @@ export class SCMViewPane extends ViewPane {
 		this.viewSortKeyContextKey = ContextKeys.SCMViewSortKey.bindTo(contextKeyService);
 		this.viewSortKeyContextKey.set(this.viewSortKey);
 		this.showStructuralDiffContextKey = ContextKeys.SCMViewShowStructuralDiff.bindTo(contextKeyService);
-		this.updateStructuralDiffEnablement();
-		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.structuralDiff.enabled'), this.disposables)(() => this.updateStructuralDiffEnablement(), this, this.disposables);
+		this.disposables.add(autorun(reader => this.updateStructuralDiffEnablement(this.scmViewService.showStructuralDiff.read(reader))));
 		this.disposables.add(bindContextKey(ContextKeys.SCMViewHasStructuralDiffProvider, contextKeyService, reader => this.structuralDiff.hasProvider.read(reader)));
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.SCMViewAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.SCMViewIsAnyRepositoryCollapsible.bindTo(contextKeyService);
@@ -1723,9 +1709,6 @@ export class SCMViewPane extends ViewPane {
 					break;
 				case 'scm.viewSortKey':
 					this.viewSortKey = this.getViewSortKey();
-					break;
-				case 'scm.showStructuralDiff':
-					this.showStructuralDiff = this.getShowStructuralDiff();
 					break;
 			}
 		}, this, this.disposables);
@@ -2247,11 +2230,6 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		return viewSortKey;
-	}
-
-	/** Structural diffs are shown by default once `scm.structuralDiff.enabled` is set, unless the user hid them in this workspace. */
-	private getShowStructuralDiff(): boolean {
-		return this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, true);
 	}
 
 	private loadTreeViewState(): IAsyncDataTreeViewState | undefined {

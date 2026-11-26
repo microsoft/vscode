@@ -1184,6 +1184,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'agentSessionsWorkspace');
 				return !!initData.environment.isSessionsWindow;
 			},
+			get mode() {
+				checkProposedApiEnabled(extension, 'workbenchMode');
+				return typeConverters.WorkbenchMode.to(extHostWorkspace.workbenchMode);
+			},
+			onDidChangeMode: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'workbenchMode');
+				return _asExtensionEvent(Event.map(extHostWorkspace.onDidChangeWorkbenchMode, mode => typeConverters.WorkbenchMode.to(mode)))(listener, thisArgs, disposables);
+			},
 			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
 				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
 			},
@@ -2096,6 +2104,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineCompletionsDisposeReasonKind: extHostTypes.InlineCompletionsDisposeReasonKind,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
+			WorkbenchMode: extHostTypes.WorkbenchMode,
 			ExtensionMode: extHostTypes.ExtensionMode,
 			ExternalUriOpenerPriority: extHostTypes.ExternalUriOpenerPriority,
 			FileChangeType: extHostTypes.FileChangeType,

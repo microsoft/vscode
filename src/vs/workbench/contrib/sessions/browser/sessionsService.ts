@@ -144,6 +144,16 @@ export interface ICloseChatOptions {
 	readonly skipHistory?: boolean;
 }
 
+/** Options for {@link ISessionsService.closeSession}. */
+export interface ICloseSessionOptions {
+	/**
+	 * Do not remember the session as the most recently closed item, keeping
+	 * what is remembered. Used for a session that is going away, such as one
+	 * being deleted, which reopening must not bring back.
+	 */
+	readonly skipHistory?: boolean;
+}
+
 export interface IOpenSessionOptions {
 	readonly preserveFocus?: boolean;
 	readonly source?: SessionOpenSource;
@@ -338,6 +348,13 @@ export interface ISessionsService extends ISessionGridPanes {
 	reopenLastClosedItem(): Promise<void>;
 
 	/**
+	 * Stop remembering `session` or a chat of it as the most recently closed
+	 * item, such as while deleting it can still be undone, so that reopening
+	 * does not bring it back.
+	 */
+	forgetClosedSession(session: ISession): void;
+
+	/**
 	 * Open the new-session composer.
 	 *
 	 * - Without `options.folderUri`: switch to the new-session view, restoring
@@ -420,7 +437,7 @@ export interface ISessionsService extends ISessionGridPanes {
 	 * the new-session view is opened. Passing `undefined` closes the empty
 	 * (new-session) slot if it is currently visible.
 	 */
-	closeSession(session: ISession | undefined): void;
+	closeSession(session: ISession | undefined, options?: ICloseSessionOptions): void;
 
 	/**
 	 * Close all sessions currently shown in the grid and land on the
@@ -1488,6 +1505,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._closedItems.reopenLast();
 	}
 
+	forgetClosedSession(session: ISession): void {
+		this._closedItems.forgetSession(session);
+	}
+
 	/**
 	 * Persist a chat's closed/open state into the session's stored view state so
 	 * it survives switching the session out of the grid (which disposes its
@@ -2367,7 +2388,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return hold;
 	}
 
-	closeSession(session: ISession | undefined): void {
+	closeSession(session: ISession | undefined, options?: ICloseSessionOptions): void {
 		this._cancelRestore();
 		this._startOpenSession();
 		const sessionId = session?.sessionId;
@@ -2385,7 +2406,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// Remember the slot so Reopen Closed Chat or Session can put it back
 		// exactly where it was.
-		if (session) {
+		if (session && !options?.skipHistory) {
 			this._closedItems.recordClosedSession(session);
 		}
 

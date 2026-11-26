@@ -146,7 +146,7 @@ export function updateSashEndpoints(gridElement: HTMLElement, enabled: boolean):
 	const topLevel = !gridElement.closest('.part');
 	const root = gridElement.closest('.monaco-workbench');
 	const panelHasNoGap = root?.classList.contains('nopanel')
-		|| (root?.classList.contains('floating-panels') && root.classList.contains('nomaineditorarea'));
+		|| (root?.classList.contains('floating-panels') && root.classList.contains('nomaineditorarea') && !root.classList.contains('editor-hidden-by-chat'));
 	const sashes = elements.flatMap(element => {
 		const vertical = element.classList.contains('vertical');
 		const parent = element.parentElement;

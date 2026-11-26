@@ -9,6 +9,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { getOrSet } from '../../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
@@ -40,7 +41,7 @@ import { SessionsGrouping, SessionsSorting } from './sessionsListCommon.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
+import { getSessionFilterActionId, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -77,6 +78,7 @@ import { CustomizationsNavigationState } from '../customizationsNavigationState.
 import { createSessionsListNotices, ISessionsListNoticeHost } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
+import { ISessionsListUndoService } from '../sessionsListUndoService.js';
 import { SessionsInboxScope } from './sessionsInboxScope.js';
 import { readPaneSessions } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ChatCustomizationsLocation, resolveChatCustomizationsLocation } from '../../../chat/common/customizationsLocation.js';
@@ -175,39 +177,31 @@ export const ChatViewSessionsListContext = new RawContextKey<boolean>('chatViewS
 export const ChatViewSessionsListTitleContext = ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatViewSessionsListContext, ChatContextKeys.enabled, ChatContextKeys.agentSessionsViewerVisible)!;
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
-/** The groupings a Sessions view offers by default, as the Agents window's does: all but {@link SessionsGrouping.Worktree}. */
-export const DEFAULT_SESSIONS_GROUPINGS: readonly SessionsGrouping[] = Object.values(SessionsGrouping).filter(grouping => grouping !== SessionsGrouping.Worktree);
+/** The groupings a Sessions view offers by default, as the Agents window's does: all of them. */
+export const DEFAULT_SESSIONS_GROUPINGS: readonly SessionsGrouping[] = Object.values(SessionsGrouping);
 
 /**
- * Per grouping, the context key that says whether the Sessions view offers it. Where no Sessions view binds them, such as
- * in the Command Palette outside one, a view offers {@link DEFAULT_SESSIONS_GROUPINGS}: those say whether they are
- * unavailable, the others whether they are offered.
+ * Per grouping, the context key that says whether the Sessions view does not offer it. Where no Sessions view binds them,
+ * such as in the Command Palette outside one, a view offers {@link DEFAULT_SESSIONS_GROUPINGS}.
  */
-const groupingContexts = new Map(Object.values(SessionsGrouping).map(grouping => [grouping, DEFAULT_SESSIONS_GROUPINGS.includes(grouping)
-	? { unavailable: new RawContextKey<boolean>(`sessionsViewPane.groupingUnavailable.${grouping}`, false) }
-	: { offered: new RawContextKey<boolean>(`sessionsViewPane.groupingOffered.${grouping}`, false) }]));
+const groupingUnavailableContexts = new Map(Object.values(SessionsGrouping).map(grouping => [grouping, new RawContextKey<boolean>(`sessionsViewPane.groupingUnavailable.${grouping}`, false)]));
 
 /** Whether the Sessions view offers `grouping`, such as in its Grouping menu. */
 export function sessionsViewOffersGrouping(grouping: SessionsGrouping): ContextKeyExpression {
-	const context = groupingContexts.get(grouping)!;
-	return context.unavailable ? context.unavailable.negate() : context.offered!;
+	return groupingUnavailableContexts.get(grouping)!.negate();
 }
 
 /** Binds in `contextKeyService` that a Sessions view offers the `offered` groupings, and no others. */
 export function bindSessionsViewGroupings(contextKeyService: IContextKeyService, offered: readonly SessionsGrouping[]): void {
-	for (const [grouping, context] of groupingContexts) {
-		if (context.unavailable) {
-			context.unavailable.bindTo(contextKeyService).set(!offered.includes(grouping));
-		} else {
-			context.offered!.bindTo(contextKeyService).set(offered.includes(grouping));
-		}
+	for (const [grouping, context] of groupingUnavailableContexts) {
+		context.bindTo(contextKeyService).set(!offered.includes(grouping));
 	}
 }
 
 /**
  * The grouping a stored value names, or `undefined` for a value this build does not know or this view does not offer:
- * a view keeps its default for a grouping that another view sharing the stored grouping offers, such as Worktree, which
- * only the Agents view of an editor window offers, or Workspace, which it does not. The stored value stays as it is.
+ * a view keeps its default for a grouping that another view sharing the stored grouping offers, such as Workspace, which
+ * the Sessions view of an editor window does not offer. The stored value stays as it is.
  */
 export function getStoredSessionsGrouping(stored: string | undefined, groupings: readonly SessionsGrouping[]): SessionsGrouping | undefined {
 	return groupings.find(grouping => grouping === stored);
@@ -370,6 +364,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsViewLocator sessionsViewLocator: ISessionsViewLocator,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ISessionsListUndoService private readonly undoService: ISessionsListUndoService,
 	) {
 		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.headerInTitle = !!options.headerInTitle;
@@ -616,7 +611,15 @@ export class SessionsView extends ViewPane {
 			bottom: createNoticeHost(sessionsContent),
 		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
-		this.listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
+		const listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
+		this.listNotification = listNotification;
+		// A collapsed view, or one in a hidden part of the window, would count down a notice the user can't see.
+		listNotification.setVisible(this.isBodyVisible());
+		this._register(this.onDidChangeBodyVisibility(() => listNotification.setVisible(this.isBodyVisible())));
+		this._register(this.undoService.registerPresenter({
+			isVisible: () => this.isBodyVisible(),
+			show: notice => listNotification.show(notice),
+		}));
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {
@@ -954,6 +957,8 @@ export class SessionsView extends ViewPane {
 			session => this.sessionsService.openSession(session.resource, { preserveFocus: false, source: 'sessionsList', forceMainChat: true }).then(() => this._handleSessionOpened(session)).catch(onUnexpectedError),
 			sessionsControl.filters.onDidChange,
 		));
+		// Keeps each filter's command id across rebuilds, since a menu still open resolves the command of a row when it is clicked
+		const filterActionIds = new Map<string, number>();
 		const changed = observableSignalFromEvent(this, Event.any(
 			this.sessionsManagementService.onDidChangeSessions,
 			this.sessionsManagementService.onDidChangeSessionTypes,
@@ -1047,7 +1052,7 @@ export class SessionsView extends ViewPane {
 					: option.filter.kind === 'application' ? Menus.SessionsViewSource
 						: option.filter.kind === 'worktree' ? Menus.SessionsViewWorktree
 							: Menus.SessionsViewHarness;
-				const id = `sessionsViewPane.filter.${encodeURIComponent(sessionFilterKey(option.filter))}`;
+				const id = getSessionFilterActionId(option.filter, getOrSet(filterActionIds, sessionFilterKey(option.filter), filterActionIds.size));
 				const contextKey = new RawContextKey(id, option.checked).bindTo(this.scopedContextKeyService);
 				contextKey.set(option.checked);
 				reader.store.add(toDisposable(() => contextKey.reset()));
@@ -1142,8 +1147,10 @@ export class SessionsView extends ViewPane {
 		}
 		const restore = sessionsControl.resetFilters();
 		this.syncFilterContextKeys(sessionsControl);
-		this.listNotification?.show({
-			message: localize('filtersReset', "Filters reset"),
+		this.undoService.offerUndo({
+			kind: 'resetFilters',
+			count: 1,
+			message: () => localize('filtersReset', "Filters reset"),
 			help: localize('filtersResetHelp', "This notice appears after resetting the filters. Undo restores the previous filters, including which sessions are shown and how many each section lists."),
 			undo: async () => {
 				restore();
