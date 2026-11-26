@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
+import type { IAgentHostCredentialSource } from '../../../common/agentHostCredentials.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { getPendingSteeringMessages } from '../../../common/agentSessionMessage.js';
 import { withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../../../common/meta/agentMessageMeta.js';
@@ -24,8 +25,11 @@ export const IFolderIsolationContinuationService = createDecorator<IFolderIsolat
  */
 export interface IFolderIsolationContinuationService {
 	readonly _serviceBrand: undefined;
-	/** Continues the chat once `turnId` ends successfully, telling the agent where `folder` is now. */
-	schedule(chat: URI, turnId: string, folder: URI, isolated: URI): void;
+	/**
+	 * Continues the chat once `turnId` ends successfully, telling the agent where `folder` is now. `credentials`, the
+	 * source of the turn that isolated the folder, sponsors the continuation, as a client's message sponsors its turn.
+	 */
+	schedule(chat: URI, turnId: string, folder: URI, isolated: URI, credentials: IAgentHostCredentialSource | undefined): void;
 	/** Starts the continuation of a turn that ended, if one was scheduled; drops it when the turn did not succeed. */
 	onTurnEnd(turn: ITurnEnd): void;
 }
@@ -34,7 +38,7 @@ export class FolderIsolationContinuationService extends Disposable implements IF
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _pending = new Map<string, { readonly turnId: string; readonly folders: { readonly folder: URI; readonly isolated: URI }[] }>();
+	private readonly _pending = new Map<string, { readonly turnId: string; readonly folders: { readonly folder: URI; readonly isolated: URI }[]; credentials: IAgentHostCredentialSource | undefined }>();
 
 	constructor(
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
@@ -47,15 +51,16 @@ export class FolderIsolationContinuationService extends Disposable implements IF
 		this._register(toDisposable(() => this._pending.clear()));
 	}
 
-	schedule(chat: URI, turnId: string, folder: URI, isolated: URI): void {
+	schedule(chat: URI, turnId: string, folder: URI, isolated: URI, credentials: IAgentHostCredentialSource | undefined): void {
 		const key = chat.toString();
 		const pending = this._pending.get(key);
 		if (pending?.turnId === turnId) {
 			if (!pending.folders.some(entry => entry.isolated.toString() === isolated.toString())) {
 				pending.folders.push({ folder, isolated });
 			}
+			pending.credentials = credentials ?? pending.credentials;
 		} else {
-			this._pending.set(key, { turnId, folders: [{ folder, isolated }] });
+			this._pending.set(key, { turnId, folders: [{ folder, isolated }], credentials });
 		}
 	}
 
@@ -77,7 +82,7 @@ export class FolderIsolationContinuationService extends Disposable implements IF
 			this._turnService.startTurnMessage(URI.parse(turn.channel), withMessageRequestHiddenFromTranscript(withMessageSystemInitiatedLabel({
 				text: `Continue the task. Folders moved into worktrees of their own: ${folders}. Make every change to them in their worktree paths only.`,
 				origin: { kind: MessageKind.SystemNotification },
-			}, localize('agentHost.continueInFolderWorktree', "Continue in Worktree")), true));
+			}, localize('agentHost.continueInFolderWorktree', "Continue in Worktree")), true), pending.credentials);
 		} catch (error) {
 			this._logService.error(`[FolderIsolationContinuation] Failed to continue ${turn.channel} after isolating its folders`, error);
 		}

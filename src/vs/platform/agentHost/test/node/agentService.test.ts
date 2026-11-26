@@ -5192,6 +5192,7 @@ suite('AgentService (node dispatcher)', () => {
 
 	test('a worktree session for all folders creates a worktree for every other Git folder on its first send, and leaves other folders in place', async () => {
 		const app = URI.file('/work/app');
+		const appPackage = URI.file('/work/app/packages/core');
 		const protocol = URI.file('/work/protocol');
 		const protocolDocs = URI.file('/work/protocol/docs');
 		const notes = URI.file('/work/notes');
@@ -5211,6 +5212,7 @@ suite('AgentService (node dispatcher)', () => {
 				return primaryWorktree;
 			},
 			getResolvedWorktree: () => primaryWorktree,
+			readWorktreeMetadata: async () => primaryWorktree && { branchName: 'agents/task', worktreePath: primaryWorktree, repositoryRoot: app, symlinkSourceRoot: app },
 			createDetachedWorktree: async request => {
 				created.push(request.workingDirectory!.toString());
 				return { handle: generateUuid(), worktree: worktreeOf(request.workingDirectory!) };
@@ -5233,19 +5235,19 @@ suite('AgentService (node dispatcher)', () => {
 		disposables.add(toDisposable(() => agent.dispose()));
 		registerTestAgentProvider(service, agent);
 
-		const session = await service.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [app, protocol, protocolDocs, notes] });
+		const session = await service.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [app, protocol, protocolDocs, appPackage, notes] });
 		getStateManager(service).setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeFolders]: 'all' } });
 		const chat = buildDefaultChatUri(session.toString());
 		service.dispatchAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'first', origin: { kind: MessageKind.User } } }, 'client-1', 1);
 		await sent.p;
 
-		const expected = [worktreeOf(app), worktreeOf(protocol), joinPath(worktreeOf(protocol), 'docs'), notes].map(folder => folder.toString());
+		const expected = [worktreeOf(app), worktreeOf(protocol), joinPath(worktreeOf(protocol), 'docs'), joinPath(worktreeOf(app), 'packages/core'), notes].map(folder => folder.toString());
 		assert.deepStrictEqual({
 			created,
 			sends,
 			sessionFolders: getStateManager(service).getSessionSummary(session.toString())?.workingDirectories,
 		}, {
-			// Folders in the same checkout share one worktree; a folder not in a Git repository stays in place
+			// Folders in the same checkout share one worktree, the primary's too; a folder not in a Git repository stays in place
 			created: [protocol.toString()],
 			sends: [expected],
 			// The session's own worktree replaces its first folder through the worktree isolation, which this test fakes
@@ -12496,6 +12498,134 @@ suite('AgentService (node dispatcher)', () => {
 				records: [protocolWorktree.toString()],
 				deleted: [],
 				failedWrites: 1,
+			});
+		});
+
+		test('isolating a folder in the checkout of the primary folder moves it into the session\'s own worktree', async () => {
+			const app = URI.file('/work/app');
+			const primary = URI.file('/work/app.worktrees/session');
+			const appPackage = URI.file('/work/app/packages/core');
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async directory => isEqualOrParent(directory, app) ? app : isEqualOrParent(directory, primary) ? primary : undefined,
+				getCurrentBranch: async () => 'feature',
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = disposables.add(new MockAgent('copilot', { multipleWorkingDirectories: { immutablePrimary: true } }));
+			registerTestAgentProvider(svc, agent);
+			const created: string[] = [];
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				supported: true,
+				readWorktreeMetadata: async () => ({ branchName: 'agents/task', worktreePath: primary, repositoryRoot: app, symlinkSourceRoot: app }),
+				createDetachedWorktree: async request => {
+					created.push(request.workingDirectory!.toString());
+					return { handle: generateUuid(), worktree: URI.file('/work/other.worktrees/task') };
+				},
+				claimDetachedWorktree: async () => { },
+			}));
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary, appPackage] });
+			const chat = URI.parse(buildDefaultChatUri(session));
+			getStateManager(svc).setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+
+			const isolated = await svc.isolateChatFolder(session, chat, appPackage, 'turn-1');
+
+			assert.deepStrictEqual({ isolated: isolated.toString(), created, sessionFolders: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories }, {
+				isolated: joinPath(primary, 'packages/core').toString(),
+				created: [],
+				sessionFolders: [primary.toString(), joinPath(primary, 'packages/core').toString()],
+			});
+		});
+
+		test('isolating a folder waits for a change to the chat\'s folders that holds the chat catalog lock, and leaves a folder the chat no longer works in', async () => {
+			const primary = URI.file('/work/app.worktrees/session');
+			const protocol = URI.file('/work/protocol');
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async directory => isEqualOrParent(directory, protocol) ? protocol : undefined,
+				getCurrentBranch: async () => 'feature',
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = disposables.add(new MockAgent('copilot', { multipleWorkingDirectories: { immutablePrimary: true } }));
+			registerTestAgentProvider(svc, agent);
+			const created = new DeferredPromise<void>();
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				supported: true,
+				createDetachedWorktree: async () => {
+					created.complete();
+					return { handle: generateUuid(), worktree: URI.file('/work/protocol.worktrees/task') };
+				},
+				claimDetachedWorktree: async () => { },
+			}));
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary, protocol] });
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const stateManager = getStateManager(svc);
+			stateManager.setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+
+			// As setting the chat's workspace, which rebinds its folders under the chat catalog lock.
+			let isolation: Promise<URI> | undefined;
+			const createdDuringRebind = await svc.runWithChatCatalogLock(session, async () => {
+				isolation = svc.isolateChatFolder(session, chat, protocol, 'turn-1');
+				const createdEarly = await raceTimeout(created.p.then(() => true), 50) ?? false;
+				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: [primary.toString()] } });
+				return createdEarly;
+			});
+			const outcome = await Promise.allSettled([isolation!]);
+
+			assert.deepStrictEqual({
+				createdDuringRebind,
+				outcome: outcome.map(result => result.status === 'rejected' ? String(result.reason.message) : 'fulfilled'),
+				created: created.isSettled,
+				records: await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session),
+			}, {
+				createdDuringRebind: false,
+				outcome: [`${protocol.fsPath} is not a folder of this chat.`],
+				created: false,
+				records: [],
+			});
+		});
+
+		test('isolating a folder of a session bound to a principal sponsors the continuation with the calling chat\'s source', async () => {
+			const primary = URI.file('/work/app.worktrees/session');
+			const protocol = URI.file('/work/protocol');
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async directory => isEqualOrParent(directory, protocol) ? protocol : undefined,
+				getCurrentBranch: async () => 'feature',
+			};
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = disposables.add(new ScopedAgent('copilot', { multipleWorkingDirectories: { immutablePrimary: true } }));
+			registerTestAgentProvider(svc, agent);
+			const worktreeCredentials: (string | undefined)[] = [];
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				supported: true,
+				createDetachedWorktree: async request => {
+					worktreeCredentials.push(request.credentialSource?.principal?.userId);
+					return { handle: generateUuid(), worktree: URI.file('/work/protocol.worktrees/task') };
+				},
+				claimDetachedWorktree: async () => { },
+			}));
+			await svc.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'desktop' });
+			const remote = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' }));
+			await svc.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote' }, remote);
+			const session = await svc.createSession({ legacyChatUris: false, provider: 'copilot', credentials: remote, workingDirectories: [primary, protocol] });
+			const chat = URI.parse(getStateManager(svc).getDefaultChat(session.toString())!);
+			getStateManager(svc).setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Observe the sponsor handed to the continuation without exposing a test-only API.
+			const schedule = stub(svc['_folderIsolationContinuation'], 'schedule');
+
+			const isolated = await svc.isolateChatFolder(session, chat, protocol, 'turn-1');
+
+			assert.deepStrictEqual({
+				isolated: isolated.toString(),
+				worktreeCredentials,
+				continuationSponsor: schedule.getCalls().map(call => call.args[4]?.principal?.userId),
+			}, {
+				isolated: URI.file('/work/protocol.worktrees/task').toString(),
+				worktreeCredentials: ['1'],
+				continuationSponsor: ['1'],
 			});
 		});
 

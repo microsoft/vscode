@@ -1146,7 +1146,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				],
 				enumDescriptions: [
 					localize('agentHost.sessionConfig.worktreeFolders.primaryDescription', "Create a worktree for the main folder; the agent asks before changing another folder"),
-					localize('agentHost.sessionConfig.worktreeFolders.allDescription', "Create a worktree for every folder in a Git repository"),
+					localize('agentHost.sessionConfig.worktreeFolders.allDescription', "Create a worktree for every folder in a Git repository that the session starts with; the agent asks before changing a folder added later"),
 				],
 				default: 'primary',
 				sessionMutable: false,

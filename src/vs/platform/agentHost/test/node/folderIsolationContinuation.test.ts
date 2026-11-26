@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MessageKind, PendingMessageKind, type ChatState, type Message, type PendingMessage } from '../../common/state/sessionState.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { AgentHostStateManager, IChatRegistration } from '../../node/agentHostStateManager.js';
 import type { IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { FolderIsolationContinuationService } from '../../node/chatContributions/folderIsolation/folderIsolationContinuation.js';
@@ -24,9 +25,11 @@ suite('FolderIsolationContinuationService', () => {
 	const docsWorktree = URI.file('/work/docs.worktrees/task');
 
 	function setup(activeTurn?: string, queuedMessages: PendingMessage[] = []) {
-		const started: { chat: string; text: string }[] = [];
+		const started: { chat: string; text: string; sponsor?: string }[] = [];
 		const turnService: Partial<IAgentHostTurnService> = {
-			startTurnMessage: (target: URI, message: Message) => { started.push({ chat: target.toString(), text: message.text }); },
+			startTurnMessage: (target: URI, message: Message, credentials?: IAgentHostCredentialSource) => {
+				started.push({ chat: target.toString(), text: message.text, ...(credentials ? { sponsor: credentials.principal?.userId } : {}) });
+			},
 		};
 		const unregister = disposables.add(new Emitter<IChatRegistration>());
 		const stateManager: Partial<AgentHostStateManager> = {
@@ -41,8 +44,9 @@ suite('FolderIsolationContinuationService', () => {
 
 	test('continues the chat once after the turn that isolated its folders, naming each worktree', () => {
 		const { service, started, end } = setup();
-		service.schedule(chat, 'turn-1', protocol, protocolWorktree);
-		service.schedule(chat, 'turn-1', docs, docsWorktree);
+		service.schedule(chat, 'turn-1', protocol, protocolWorktree, undefined);
+		// The source of the turn that isolated the folders sponsors the continuation, as for a session bound to a principal.
+		service.schedule(chat, 'turn-1', docs, docsWorktree, { principal: { apiOrigin: 'https://api.github.com', userId: '1' } } as IAgentHostCredentialSource);
 		end('turn-0', 'success');
 		end('turn-1', 'success');
 		end('turn-1', 'success');
@@ -51,21 +55,22 @@ suite('FolderIsolationContinuationService', () => {
 			chat: chat.toString(),
 			// Hidden from the transcript, as the host's own message
 			text: `<!-- vscode-request-hidden-from-transcript -->\nContinue the task. Folders moved into worktrees of their own: ${JSON.stringify(protocol.fsPath)} is now ${JSON.stringify(protocolWorktree.fsPath)}; ${JSON.stringify(docs.fsPath)} is now ${JSON.stringify(docsWorktree.fsPath)}. Make every change to them in their worktree paths only.`,
+			sponsor: '1',
 		}]);
 	});
 
 	test('does not continue a cancelled turn, a chat with a message the user started or queued, or a removed chat', () => {
 		const cancelled = setup();
-		cancelled.service.schedule(chat, 'turn-1', protocol, protocolWorktree);
+		cancelled.service.schedule(chat, 'turn-1', protocol, protocolWorktree, undefined);
 		cancelled.end('turn-1', 'cancelled');
 		const busy = setup('turn-2');
-		busy.service.schedule(chat, 'turn-1', protocol, protocolWorktree);
+		busy.service.schedule(chat, 'turn-1', protocol, protocolWorktree, undefined);
 		busy.end('turn-1', 'success');
 		const queued = setup(undefined, [{ id: 'queued', kind: PendingMessageKind.Queued, message: { text: 'Next task', origin: { kind: MessageKind.User } } } as PendingMessage]);
-		queued.service.schedule(chat, 'turn-1', protocol, protocolWorktree);
+		queued.service.schedule(chat, 'turn-1', protocol, protocolWorktree, undefined);
 		queued.end('turn-1', 'success');
 		const removed = setup();
-		removed.service.schedule(chat, 'turn-1', protocol, protocolWorktree);
+		removed.service.schedule(chat, 'turn-1', protocol, protocolWorktree, undefined);
 		removed.unregisterChat();
 		removed.end('turn-1', 'success');
 
