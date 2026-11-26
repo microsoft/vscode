@@ -102,11 +102,11 @@ suite('ChatPetWidget', () => {
 			this.targets.clear();
 		}
 
-		setVisible(visible: boolean): void {
+		setVisible(visible: boolean, element?: Element): void {
 			if (this.targets.size === 0) {
 				return;
 			}
-			this.callback([...this.targets].map(target => new class extends mock<IntersectionObserverEntry>() {
+			this.callback([...this.targets].filter(target => !element || target === element).map(target => new class extends mock<IntersectionObserverEntry>() {
 				override readonly target = target;
 				override readonly isIntersecting = visible;
 				override readonly boundingClientRect = target.getBoundingClientRect();
@@ -3769,6 +3769,49 @@ suite('ChatPetWidget', () => {
 		tool.toolSpecificData = { kind: 'subagent', isActive: false };
 		changed.fire({ reason: 'other' });
 		assert.ok(overlay.querySelector('.chat-subagent-pet-despawning img')?.getAttribute('src')?.endsWith('-96.png'));
+	});
+
+	test('subagent pets pause invisible sprites, resume independently, and unobserve after despawning', async () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+		disposables.add(toDisposable(() => clock.restore()));
+		let visibilityObserver: TestIntersectionObserver | undefined;
+		class VisibilityObserver extends TestIntersectionObserver {
+			constructor(callback: IntersectionObserverCallback) {
+				super(callback);
+				visibilityObserver = this;
+			}
+		}
+		const { widget, firstHost, overlay } = createHostTransitionHarness(false, 'teleport', 'stable', VisibilityObserver);
+		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool], responseChanged.event)) });
+		const pet = overlay.querySelector<HTMLElement>('.chat-subagent-pet')!;
+		pet.getAnimations().forEach(animation => animation.cancel());
+		await whenSpriteLoaded(pet.querySelector<HTMLImageElement>('img')!);
+		const draws = sinon.spy(pet.querySelector('canvas')!.getContext('2d')!, 'drawImage');
+		disposables.add(toDisposable(() => draws.restore()));
+		assert.ok(visibilityObserver);
+		const unobserve = sinon.spy(visibilityObserver, 'unobserve');
+		const snapshots: number[] = [];
+		clock.tick(800);
+		snapshots.push(draws.callCount);
+		visibilityObserver.setVisible(false);
+		clock.tick(1_200);
+		snapshots.push(draws.callCount);
+		// A subagent pet can be visible while the main pet remains outside the viewport.
+		visibilityObserver.setVisible(true, pet);
+		snapshots.push(draws.callCount);
+		clock.tick(800);
+		snapshots.push(draws.callCount);
+		visibilityObserver.setVisible(false, pet);
+		tool.toolSpecificData = { kind: 'subagent', isActive: false };
+		responseChanged.fire({ reason: 'other' });
+		const observedWhileDespawning = !unobserve.calledWith(pet);
+		clock.tick(2_000);
+		assert.deepStrictEqual({ snapshots, observedWhileDespawning, removed: !pet.isConnected, unobserved: unobserve.calledWith(pet) }, {
+			snapshots: [1, 1, 2, 3], observedWhileDespawning: true, removed: true, unobserved: true,
+		});
 	});
 
 	test('subagent pets blink and move their eyes with their own idle frames', async () => {

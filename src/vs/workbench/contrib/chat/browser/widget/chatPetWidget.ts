@@ -247,6 +247,7 @@ interface SubagentPetHost {
 	readonly scale: number;
 	readonly random: () => number;
 	isAnimationVisible(element: HTMLElement): boolean;
+	observeAnimationVisibility(element: HTMLElement): IDisposable;
 	getDragBounds(): DOMRect;
 	getMovementBounds(): DOMRect;
 	getLanding(size: number): { left: number; top: number };
@@ -1357,6 +1358,7 @@ class SubagentPet extends Disposable {
 		const size = getSubagentPetSize(_host.scale);
 		this.element = dom.append(_host.layer, dom.$('.chat-subagent-pet', { 'aria-hidden': 'true' }));
 		this._register(toDisposable(() => this.element.remove()));
+		this._register(_host.observeAnimationVisibility(this.element));
 		this.element.style.left = `${this._left}px`;
 		this.element.style.top = `${this._top}px`;
 		this.element.style.transform = `scale(${scale})`;
@@ -1503,9 +1505,8 @@ class SubagentPet extends Disposable {
 		if (this._respawnPhase === 'despawning' || this._respawnPhase === 'respawning') {
 			this._eyes.classList.remove('tracking', 'bobbed');
 			this._host.startAnimation(this._getSpriteSource(), this._sprite, this._spriteAnimation, () => this._advanceRespawn(), this._respawnPhase === 'despawning');
-			if (this._host.motionReduced) {
-				this._respawnTimer.schedule();
-			}
+			// Relocation must finish even when its sprite is outside the viewport.
+			this._respawnTimer.schedule(this._host.motionReduced ? RESPAWN_EFFECT_REDUCED_MOTION_DURATION : RESPAWN_EFFECT_DURATION);
 			return;
 		}
 		if (this._state === 'splat' && this._host.motionReduced) {
@@ -1644,6 +1645,7 @@ export class ChatPetWidget extends Disposable {
 	private _dragOrigin: readonly [number, number] | undefined;
 	private _dragPosition: readonly [number, number] | undefined;
 	private readonly _animationVisibility = new Map<Element, boolean>();
+	private readonly _animationObserver: IntersectionObserver | undefined;
 	private readonly _onDidChangeAnimationVisibility = this._register(new Emitter<void>());
 	private readonly _dragMonitor = this._register(new GlobalPointerMoveMonitor());
 	private readonly _idleExpired = observableValue(this, false);
@@ -1860,16 +1862,19 @@ export class ChatPetWidget extends Disposable {
 					return;
 				}
 				for (const entry of entries) {
-					this._animationVisibility.set(entry.target, entry.isIntersecting && entry.boundingClientRect.width > 0 && entry.boundingClientRect.height > 0);
+					if (this._animationVisibility.has(entry.target)) {
+						this._animationVisibility.set(entry.target, entry.isIntersecting && entry.boundingClientRect.width > 0 && entry.boundingClientRect.height > 0);
+					}
 				}
 				this._updateAnimationVisibility();
 			});
+			this._animationObserver = observer;
 			this._register(toDisposable(() => {
 				observer.disconnect();
 				this._animationVisibility.clear();
 			}));
 			for (const element of [this._visual, ...this._sprites.map(sprite => sprite.container), this._speechBubble.container, this._respawnEffect.container]) {
-				observer.observe(element);
+				this._register(this._observeAnimationVisibility(element));
 			}
 		}
 		this._register(dom.addDisposableListener(dom.getWindow(this._button.element).document, dom.EventType.POINTER_MOVE, (event: PointerEvent) => {
@@ -2470,6 +2475,16 @@ export class ChatPetWidget extends Disposable {
 		}
 		this._handleHostLayoutChange();
 		this._updateAnimationVisibility();
+	}
+
+	/** Tracks sprite visibility until its owning element is disposed. */
+	private _observeAnimationVisibility(element: HTMLElement): IDisposable {
+		this._animationVisibility.set(element, true);
+		this._animationObserver?.observe(element);
+		return toDisposable(() => {
+			this._animationObserver?.unobserve(element);
+			this._animationVisibility.delete(element);
+		});
 	}
 
 	private _isAnimationVisible(element: HTMLElement): boolean {
@@ -3433,6 +3448,7 @@ export class ChatPetWidget extends Disposable {
 				get scale() { return widget._scale; },
 				random: this._random,
 				isAnimationVisible: element => this._isAnimationVisible(this._visual) && this._isAnimationVisible(element),
+				observeAnimationVisibility: element => this._observeAnimationVisibility(element),
 				getDragBounds: () => this.dragBounds.getBoundingClientRect(),
 				getMovementBounds: () => this.movementBounds.getBoundingClientRect(),
 				getLanding: size => this._getSubagentPetLanding(size),
