@@ -239,3 +239,6 @@
 
 #### workbench/statusBar/statusBar/DefaultDensity/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/efe99c6ca61388dc0c84b3de79ffcc182cd513da5b32960134d3764b935c0603)
+
+#### workbench/statusBar/statusBar/ZoomedOutDockedCorners/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/5dec89dec735f24b9e503838d6714627a7fe9d9c44f16e74517de81b471a635c)
