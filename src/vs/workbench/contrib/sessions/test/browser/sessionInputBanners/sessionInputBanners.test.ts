@@ -226,8 +226,8 @@ suite('SessionInputBanners', () => {
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidChangeFeedback = onDidChangeFeedback.event;
 			override getFeedback(): readonly IAgentFeedback[] { return feedbackItems; }
-			override acceptFeedback(_sessionResource: URI, feedbackId: string): void {
-				feedbackItems = feedbackItems.map(item => item.id === feedbackId ? { ...item, state: AgentFeedbackState.Accepted } : item);
+			override acceptFeedback(_sessionResource: URI, feedbackIds: readonly string[]): void {
+				feedbackItems = feedbackItems.map(item => feedbackIds.includes(item.id) ? { ...item, state: AgentFeedbackState.Accepted } : item);
 				onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 			}
 			override async submitFeedback(sessionResource: URI, options?: ISubmitFeedbackOptions): Promise<boolean> {

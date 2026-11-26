@@ -863,7 +863,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		if (comment.source !== SessionEditorCommentSource.AgentFeedback) {
 			return;
 		}
-		this._agentFeedbackService.acceptFeedback(this._sessionResource, comment.sourceId);
+		this._agentFeedbackService.acceptFeedback(this._sessionResource, [comment.sourceId]);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, comment.id);
 	}
 

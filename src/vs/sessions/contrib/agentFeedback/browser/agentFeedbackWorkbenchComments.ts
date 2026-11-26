@@ -426,7 +426,7 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 				if (comment.canConvertToAgentFeedback) {
 					this._convertToAgentFeedback(comment, comment.text);
 				} else if (comment.source === SessionEditorCommentSource.AgentFeedback) {
-					this._agentFeedbackService.acceptFeedback(comment.sessionResource, comment.sourceId);
+					this._agentFeedbackService.acceptFeedback(comment.sessionResource, [comment.sourceId]);
 					this._agentFeedbackService.setNavigationAnchor(comment.sessionResource, comment.id);
 				}
 				return;

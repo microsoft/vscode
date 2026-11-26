@@ -152,17 +152,19 @@ export interface IAgentFeedbackService {
 	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind, state?: AgentFeedbackState, sourcePullRequest?: IFeedbackPullRequest, sourcePRReviewCommentAuthor?: string): IAgentFeedback;
 
 	/**
-	 * Accept a feedback item that is currently in the
-	 * {@link AgentFeedbackState.Created} state, transitioning it to
-	 * {@link AgentFeedbackState.Accepted} so it becomes submittable and is
-	 * attached to the chat input.
+	 * Accept the given feedback items that are currently in the
+	 * {@link AgentFeedbackState.Created} state, transitioning them to
+	 * {@link AgentFeedbackState.Accepted} so they become submittable and are
+	 * attached to the chat input. Items that are missing or not in the created
+	 * state are ignored. All items are updated together, so listeners are
+	 * notified once.
 	 *
-	 * When {@link IAcceptFeedbackOptions.revealToAgent} is set, the item is
+	 * When {@link IAcceptFeedbackOptions.revealToAgent} is set, the items are
 	 * additionally flagged as pending reveal to the agent so the
 	 * `viewUnreviewedComments` server tool returns exactly the comments the user
 	 * chose to reveal for that invocation.
 	 */
-	acceptFeedback(sessionResource: URI, feedbackId: string, options?: IAcceptFeedbackOptions): void;
+	acceptFeedback(sessionResource: URI, feedbackIds: readonly string[], options?: IAcceptFeedbackOptions): void;
 
 	/**
 	 * Remove a single feedback item.

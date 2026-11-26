@@ -104,8 +104,8 @@ suite('Agent Feedback Workbench Comments', () => {
 				calls.push(`addFeedback:${text}`);
 				return { id: 'added', text, resourceUri: resource, range: new Range(5, 1, 5, 5), sessionResource, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted };
 			}
-			override acceptFeedback(_sessionResource: URI, feedbackId: string): void {
-				calls.push(`acceptFeedback:${feedbackId}`);
+			override acceptFeedback(_sessionResource: URI, feedbackIds: readonly string[]): void {
+				calls.push(`acceptFeedback:${feedbackIds.join(',')}`);
 			}
 			override updateFeedback(_sessionResource: URI, feedbackId: string, text: string): void {
 				calls.push(`updateFeedback:${feedbackId}:${text}`);
