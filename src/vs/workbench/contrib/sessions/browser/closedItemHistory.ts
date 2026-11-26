@@ -69,11 +69,14 @@ export class ClosedItemHistory extends Disposable {
 		this._register(autorun(reader => hasClosedItem.set(this._item.read(reader) !== undefined)));
 
 		// A deleted session has nothing left to reopen.
-		this._register(this._sessionsManagementService.onDidDeleteSession(session => {
-			if (this._item.get()?.session.sessionId === session.sessionId) {
-				this._item.set(undefined, undefined);
-			}
-		}));
+		this._register(this._sessionsManagementService.onDidDeleteSession(session => this.forgetSession(session)));
+	}
+
+	/** Forget the remembered item when it is `session` or a chat of it. */
+	forgetSession(session: ISession): void {
+		if (this._item.get()?.session.sessionId === session.sessionId) {
+			this._item.set(undefined, undefined);
+		}
 	}
 
 	/** Remember a chat that was hidden from its session's tab strip. */

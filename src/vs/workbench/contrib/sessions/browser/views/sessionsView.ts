@@ -77,6 +77,7 @@ import { CustomizationsNavigationState } from '../customizationsNavigationState.
 import { createSessionsListNotices, ISessionsListNoticeHost } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
+import { ISessionsListUndoService } from '../sessionsListUndoService.js';
 import { SessionsInboxScope } from './sessionsInboxScope.js';
 import { readPaneSessions } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ChatCustomizationsLocation, resolveChatCustomizationsLocation } from '../../../chat/common/customizationsLocation.js';
@@ -370,6 +371,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsViewLocator sessionsViewLocator: ISessionsViewLocator,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ISessionsListUndoService private readonly undoService: ISessionsListUndoService,
 	) {
 		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.headerInTitle = !!options.headerInTitle;
@@ -616,7 +618,15 @@ export class SessionsView extends ViewPane {
 			bottom: createNoticeHost(sessionsContent),
 		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
-		this.listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
+		const listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
+		this.listNotification = listNotification;
+		// A collapsed view, or one in a hidden part of the window, would count down a notice the user can't see.
+		listNotification.setVisible(this.isBodyVisible());
+		this._register(this.onDidChangeBodyVisibility(() => listNotification.setVisible(this.isBodyVisible())));
+		this._register(this.undoService.registerPresenter({
+			isVisible: () => this.isBodyVisible(),
+			show: notice => listNotification.show(notice),
+		}));
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {
@@ -1142,8 +1152,10 @@ export class SessionsView extends ViewPane {
 		}
 		const restore = sessionsControl.resetFilters();
 		this.syncFilterContextKeys(sessionsControl);
-		this.listNotification?.show({
-			message: localize('filtersReset', "Filters reset"),
+		this.undoService.offerUndo({
+			kind: 'resetFilters',
+			count: 1,
+			message: () => localize('filtersReset', "Filters reset"),
 			help: localize('filtersResetHelp', "This notice appears after resetting the filters. Undo restores the previous filters, including which sessions are shown and how many each section lists."),
 			undo: async () => {
 				restore();

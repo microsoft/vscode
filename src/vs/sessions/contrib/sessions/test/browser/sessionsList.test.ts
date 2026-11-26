@@ -138,7 +138,7 @@ import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPrio
 import { ITestSessionWithChat, ITestShownChat, stubSessionHosts, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
+import { ISessionsListChange, ISessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { SessionAttentionService } from '../../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
 import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
@@ -12143,9 +12143,9 @@ suite('Sessions - SessionsList', () => {
 				configure?.(harness);
 				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 				harness.instantiationService.stub(ISessionsListModelService, model);
-				const notices: ISessionsListNotice[] = [];
-				harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-					upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+				const notices: ISessionsListChange[] = [];
+				harness.instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { notices.push(change); return true; } }));
+				harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => upcastPartial<SessionsView>({}));
 				const commands = sinon.stub(harness.commandService, 'executeCommand').callsFake(async (id, ...args) => {
 					if (['sessionsViewPane.inboxHold', 'sessionsViewPane.inboxResume'].includes(id)) {
 						return CommandsRegistry.getCommand(id)!.handler(harness.instantiationService, ...args);
@@ -12188,7 +12188,7 @@ suite('Sessions - SessionsList', () => {
 					await timeout(0);
 					h.refresh();
 					const moved = h.sections().find(section => section.id === SessionInboxSection.OnHold)?.sessions;
-					await h.notices[0].undo!();
+					await h.notices[0].undo();
 					h.refresh();
 					assert.deepStrictEqual({
 						highlighted, moved,

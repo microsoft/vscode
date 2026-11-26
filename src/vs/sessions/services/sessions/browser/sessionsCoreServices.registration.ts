@@ -13,6 +13,7 @@ import { ISessionHostService, IFocusedSessionHostService } from '../../../../wor
 import { SessionHostService, FocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHostService.js';
 import { IChatHostOpenerService, ChatHostOpenerService } from '../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsListUndoService, SessionsListUndoService } from '../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { ISessionGroupsService, SessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionComparisonService } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { SessionComparisonService } from '../../../../workbench/contrib/sessions/browser/sessionComparisonService.js';
@@ -34,6 +35,7 @@ registerSingleton(IAgentHostCustomizationService, AgentHostCustomizationService,
 registerSingleton(IChatHostOpenerService, ChatHostOpenerService, InstantiationType.Delayed);
 registerSingleton(ISideChatPlacementService, SideChatPlacementService, InstantiationType.Delayed);
 registerSingleton(ISessionsListModelService, SessionsListModelService, InstantiationType.Delayed);
+registerSingleton(ISessionsListUndoService, SessionsListUndoService, InstantiationType.Delayed);
 registerSingleton(ISessionChangesStatsCache, SessionChangesStatsCache, InstantiationType.Delayed);
 registerSingleton(ISessionOpenTelemetryService, SessionOpenTelemetryService, InstantiationType.Delayed);
 registerSingleton(ISessionsService, SessionsService, InstantiationType.Eager);
