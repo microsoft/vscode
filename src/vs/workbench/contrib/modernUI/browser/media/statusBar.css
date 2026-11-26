@@ -98,3 +98,36 @@
 	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size40);
 }
+
+/*
+ * The items at either end of the status bar sit in the native window's rounded
+ * bottom corners, which clip their pill backgrounds. Round the window-facing
+ * corner concentric with the native frame instead: the frame radius minus the
+ * item's horizontal and vertical distance from the window edge, never tighter
+ * than the control radius. The insets are provided by floating panels
+ * (floatingPanels.css); a docked status bar sits flush with the frame.
+ */
+.monaco-workbench.mac.modern-ui:not(.web):not(.fullscreen) .part.statusbar {
+	--modern-ui-statusbar-window-corner-radius:
+		max(var(--vscode-cornerRadius-small), calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-statusbar-inline-inset, 0px)))
+		max(var(--vscode-cornerRadius-small), calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-statusbar-block-end-inset, 0px)));
+	--modern-ui-statusbar-window-label-corner-radius:
+		max(var(--vscode-cornerRadius-small), calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-statusbar-inline-inset, 0px) - var(--modern-ui-statusbar-edge-label-inset, var(--vscode-spacing-size20))))
+		max(var(--vscode-cornerRadius-small), calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-statusbar-block-end-inset, 0px)));
+
+	> .items-container > .statusbar-item.left.first-visible-item {
+		border-bottom-left-radius: var(--modern-ui-statusbar-window-corner-radius);
+	}
+
+	> .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+		border-bottom-left-radius: var(--modern-ui-statusbar-window-label-corner-radius);
+	}
+
+	> .items-container > .statusbar-item.right.last-visible-item {
+		border-bottom-right-radius: var(--modern-ui-statusbar-window-corner-radius);
+	}
+
+	> .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+		border-bottom-right-radius: var(--modern-ui-statusbar-window-label-corner-radius);
+	}
+}
