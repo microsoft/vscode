@@ -215,6 +215,13 @@ suite('WebviewElement', () => {
 		});
 	});
 
+	test('a remount before the previous remount attaches the iframe still attaches it to its container', async () => {
+		const { webview, frame, container, remount, activeMountListeners } = await createWebview();
+		webview.reinitializeAfterDismount();
+		await remount();
+		assert.deepStrictEqual({ parent: frame.parentElement === container, listeners: activeMountListeners() }, { parent: true, listeners: 4 });
+	});
+
 	test('repeated remounts replace their DOM listeners and disposal releases them', async () => {
 		const { webview, remount, activeMountListeners } = await createWebview();
 		const counts = [activeMountListeners()];
