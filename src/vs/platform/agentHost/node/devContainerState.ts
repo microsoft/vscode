@@ -695,14 +695,15 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 }
 
 const parenthesizedPathStartPattern = /\((?:[a-zA-Z]:)?[\\/]/y;
-const parenthesizedErrorCodePattern = /^[A-Z][A-Z0-9_]*$/;
+// Node.js error codes that can follow a path, e.g., "(ENOENT)".
+const parenthesizedErrorCodes = new Set(['ENOENT', 'EACCES', 'EPERM', 'EEXIST', 'ENOTDIR', 'EISDIR', 'ENOTEMPTY', 'EBUSY', 'EROFS', 'ENOSPC', 'EMFILE', 'ELOOP', 'ENAMETOOLONG', 'EINVAL', 'EIO', 'EXDEV', 'EPIPE', 'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH']);
 
 /**
  * Replaces paths in parentheses, e.g., the config file in "Dev container config (<path>) not found.", since the telemetry
  * service only partially redacts paths with spaces. Folder names can contain parentheses, so the end of a path can be
  * ambiguous. After the path's balanced closing parenthesis, the redaction extends over unmatched closing parentheses
- * and parenthesized text other than error codes (e.g., "(ENOENT)") up to the next path. An unclosed parenthesis extends
- * it to the end of the line. Scans the line once.
+ * and parenthesized text other than known error codes (e.g., "(ENOENT)") up to the next path. An unclosed parenthesis
+ * extends it to the end of the line. Scans the line once.
  */
 function redactParenthesizedPaths(line: string): string {
 	const isPathStart = (index: number) => {
@@ -732,7 +733,7 @@ function redactParenthesizedPaths(line: string): string {
 				depth++;
 			} else if (line[i] === ')') {
 				depth--;
-				if (end === undefined ? depth === 0 : depth < 0 || (depth === 0 && !parenthesizedErrorCodePattern.test(line.substring(groupStart + 1, i)))) {
+				if (end === undefined ? depth === 0 : depth < 0 || (depth === 0 && !parenthesizedErrorCodes.has(line.substring(groupStart + 1, i)))) {
 					end = i + 1;
 					depth = 0;
 				}
