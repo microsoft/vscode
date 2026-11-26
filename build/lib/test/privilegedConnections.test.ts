@@ -67,8 +67,9 @@ test('only builds of main and release/* branches get the privileged service conn
 		});
 	}
 
-	// The universal job only merges and signs, and its stage would be empty without it, so the stage itself must require
-	// the switch, directly or through a variable defined in the same file.
+	// These templates can't drop their only job when the switch is off, because the stage would be empty, so every stage
+	// running one must require the switch itself, directly or through a variable defined in the same file.
+	const stageGated = ['darwin/product-build-darwin-universal.yml', 'win32/sdl-scan-win32.yml'];
 	for (const [file, document] of files) {
 		const definitions = new Map<string, string>();
 		visit(document, node => {
@@ -78,15 +79,26 @@ test('only builds of main and release/* branches get the privileged service conn
 		});
 		const requiresSwitch = (condition: string) => condition.includes(parameter)
 			|| [...condition.matchAll(/variables(?:\['(?<bracket>\w+)'\]|\.(?<dot>\w+))/g)].some(match => definitions.get(match.groups?.bracket ?? match.groups?.dot ?? '')?.includes(parameter));
-		visit(document, node => {
-			for (const [key, value] of Object.entries(node)) {
-				const condition = /^\$\{\{ if (?<condition>.+) \}\}$/.exec(key)?.groups?.condition;
-				const signs = Array.isArray(value) && value.some(stage => JSON.stringify((stage as YamlObject | null)?.jobs ?? []).includes('darwin/product-build-darwin-universal.yml@self'));
-				if (condition && signs && !requiresSwitch(condition)) {
-					violations.push(`${file}: macOS universal stage runs without ${parameter}`);
+		const checkStages = (node: YamlNode, conditions: string[]): void => {
+			if (Array.isArray(node)) {
+				node.forEach(child => checkStages(child, conditions));
+			} else if (node && typeof node === 'object') {
+				if (typeof node.stage === 'string') {
+					const jobs = JSON.stringify(node.jobs ?? []);
+					for (const template of stageGated.filter(template => jobs.includes(`${template}@self`))) {
+						if (!conditions.some(requiresSwitch)) {
+							violations.push(`${file}: stage ${node.stage} runs ${template} without ${parameter}`);
+						}
+					}
+					return;
+				}
+				for (const [key, value] of Object.entries(node)) {
+					const condition = /^\$\{\{ if (?<condition>.+) \}\}$/.exec(key)?.groups?.condition;
+					checkStages(value, condition ? [...conditions, condition] : conditions);
 				}
 			}
-		});
+		};
+		checkStages(document, []);
 	}
 
 	const branches = '${{ or(eq(variables[\'Build.SourceBranch\'], \'refs/heads/main\'), startsWith(variables[\'Build.SourceBranch\'], \'refs/heads/release/\')) }}';

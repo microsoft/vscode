@@ -1033,7 +1033,8 @@ stages:
                     parameters:
                       VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_APISCAN, true)) }}:
+      # APIScan authenticates through the vscode-apiscan connection, so builds without the privileged connections skip it.
+      - ${{ if and(eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true), eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_APISCAN, true)) }}:
         - stage: APIScan
           dependsOn: []
           pool:
