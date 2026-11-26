@@ -192,6 +192,10 @@ export const editorHoverForeground = registerColor('editorHoverWidget.foreground
 	editorWidgetForeground,
 	nls.localize('hoverForeground', 'Foreground color of the editor hover.'));
 
+export const editorHoverLinkForeground = registerColor('editorHoverWidget.linkForeground',
+	null,
+	nls.localize('hoverLinkForeground', 'Foreground color of links in hovers. When not set, the text link colors are used.'));
+
 export const editorHoverBorder = registerColor('editorHoverWidget.border',
 	editorWidgetBorder,
 	nls.localize('hoverBorder', 'Border color of the editor hover.'));

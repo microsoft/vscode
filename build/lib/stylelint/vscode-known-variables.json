@@ -305,6 +305,7 @@
 		"--vscode-editorHoverWidget-border",
 		"--vscode-editorHoverWidget-foreground",
 		"--vscode-editorHoverWidget-highlightForeground",
+		"--vscode-editorHoverWidget-linkForeground",
 		"--vscode-editorHoverWidget-statusBarBackground",
 		"--vscode-editorIndentGuide-activeBackground",
 		"--vscode-editorIndentGuide-activeBackground1",
