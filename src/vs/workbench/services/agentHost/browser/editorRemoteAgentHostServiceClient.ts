@@ -11,7 +11,7 @@
 
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
 import { env } from '../../../../base/common/process.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -25,6 +25,7 @@ import type { AgentChatMoveDestination } from '../../../../platform/agentHost/co
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { getSSHRemoteAuthorityConnectionKey } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import type { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
@@ -249,6 +250,15 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	openTcpConnection(target: { host: string; port: number }) {
 		return this._requireClient().openTcpConnection(target);
+	}
+
+	/** Forwards renderer-owned BYOK models to the remote agent host over the WS bridge. */
+	registerByokLmHandler(handler: IAgentHostByokLmHandler): IDisposable {
+		if (!this._protocolClient) {
+			this._logService.warn(`${LOG_PREFIX} No remote agent host connection; ignoring BYOK language model registration.`);
+			return Disposable.None;
+		}
+		return this._protocolClient.registerByokLmHandler(handler);
 	}
 
 	get supportsConversationImport(): boolean {

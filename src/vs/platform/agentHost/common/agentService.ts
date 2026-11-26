@@ -34,6 +34,7 @@ import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.
 import type { IConnectionDiagnosticError } from './connectionDiagnostics.js';
 import type { IAgentHostGitHubEnvironmentRegistration, IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
 import type { IAgentHostGitHubEnvironmentStatus } from './meta/agentHostGitHubEnvironmentMeta.js';
+import type { IAgentHostByokLmHandler } from './agentHostByokLm.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
@@ -1486,6 +1487,8 @@ export interface IAgentConnection {
 	reportUserInteraction?(timing: IChatUserInteractionTiming): Promise<void>;
 	/** Registers a connection-scoped handler that supplies MCP authentication without prompting. */
 	registerMcpAuthenticationHandler?(handler: (request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>): IDisposable;
+	/** Registers a renderer-owned BYOK Language Model handler for capable remote hosts. */
+	registerByokLmHandler?(handler: IAgentHostByokLmHandler): IDisposable;
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;

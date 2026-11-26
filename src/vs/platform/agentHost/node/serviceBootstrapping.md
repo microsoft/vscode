@@ -1,6 +1,6 @@
 # Agent Host service construction
 
-> **Status: CURRENT** (2026-08-24)
+> **Status: CURRENT** (2026-11-01)
 
 ## Maintaining this document
 
@@ -46,6 +46,8 @@ The items in [Known warts](#known-warts) are not target patterns. They remain be
 Bootstrap creates the pre-DI foundation, awaits telemetry, registers lazy descriptors, creates the strict instantiation service, composes `AgentService`, and finally activates contributions.
 
 The Node child-process IPC server is constructed after runtime initialization, with its channels registered synchronously before yielding. Construction announces IPC readiness to the parent, so asynchronous initialization must not separate that handshake from channel registration. The Electron utility-process transport is attached early to receive MessagePorts during startup.
+
+The standalone WebSocket Agent Host can use the same renderer-served BYOK bridge: its runtime and `ProtocolServerHandler` share a `ByokLmBridgeRegistry`, the host advertises `vscode.byokLmBridge` only to direct clients when extension methods are enabled, and each client pushes model snapshots while chat requests travel back to that renderer over AHP. Language Model API calls, policy checks, and provider credentials remain in the renderer; the host receives only model metadata and inference request/response data. The per-client registry entry is disposed with its AHP connection.
 
 WSL and desktop-local Dev Container clients advertise the optional `vscode.clientCertificates` capability. Dev Container locality follows Docker's endpoint precedence: `DOCKER_HOST`, then the active context; an unknown endpoint is treated as remote. The Agent Host requests trust roots on demand through `vscode/loadCertificates`, backed by the client's existing request service. Remote-editor connections use the server's `useHostProxy` default; SSH, tunnels, remote containers, and non-advertising clients do not serve certificates. Connecting does not wait for a certificate transfer; AH networking and Copilot startup await the cached pull when needed. Requests are coalesced per connection and invalidated on reconnect, with disconnected or superseded replies discarded. A failed load, including a timeout or malformed response, is logged and leaves native and previously loaded trust intact; it is not retried until the client reconnects. Changed certificates refresh AH networking and follow the existing Copilot runtime restart lifecycle.
 
