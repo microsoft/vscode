@@ -1418,11 +1418,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	/**
-	 * The suggestion's own words for this choice question's custom answer, until the user answers the question: shown
-	 * as ghost text in its custom answer box, and what submitting as is sends there.
+	 * The suggestion's own words for this question, until the user answers it: shown as ghost text in its answer box (a
+	 * choice question's custom answer box), and what submitting as is sends there, as a suggested pick is.
 	 */
 	private suggestedOwnWords(question: IChatQuestion): string | undefined {
-		if (this._touched.has(question.id) || (question.type !== 'singleSelect' && question.type !== 'multiSelect') || question.allowFreeformInput === false) {
+		if (this._touched.has(question.id) || question.password || (question.type !== 'text' && question.allowFreeformInput === false)) {
 			return undefined;
 		}
 		return this.suggestionFor(question)?.freeform?.trim() || undefined;
@@ -2008,6 +2008,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					return this._passwordInputs.get(question.id)?.value;
 				}
 				const answerEditor = this._textAnswerEditors.get(question.id);
+				const suggested = answerEditor && !answerEditor.value ? this.suggestedOwnWords(question) : undefined;
+				if (suggested) {
+					return suggested;
+				}
 				return answerEditor?.value ?? (typeof question.defaultValue === 'string' ? question.defaultValue : Array.isArray(question.defaultValue) ? { selectedValues: question.defaultValue } : undefined);
 			}
 

@@ -2273,6 +2273,15 @@ suite('ChatQuestionCarouselPart', () => {
 			submit();
 			assert.deepStrictEqual(submittedAnswers?.get('q1'), { selectedValue: 'vitest', freeformValue: undefined });
 			assert.deepStrictEqual((submittedAnswers?.get('q2') as { selectedValues: string[] }).selectedValues, ['reminders']);
+			assert.strictEqual(submittedAnswers?.get('q3'), 'Personal', 'a text question\'s suggested words are sent as is, as a suggested pick is');
+		});
+
+		test('a text question sends what the user typed, not the suggested words', () => {
+			const s = stubSuggestions({ freeform: 'greet.rs' });
+			createWidget(createMockCarousel([{ id: 'q1', type: 'text', title: 'Script name' }]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+			setAnswer('hello.rs');
+			submit();
+			assert.strictEqual(submittedAnswers?.get('q1'), 'hello.rs');
 		});
 
 		test('a newer suggestion re-picks only questions the user hasn\'t answered', () => {
