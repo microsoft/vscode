@@ -9,6 +9,8 @@ import { Event } from '../../../../base/common/event.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { readChangesetFolderFailures } from '../../common/meta/agentChangesetFolderFailuresMeta.js';
+import { withSessionRepositories } from '../../common/meta/agentSessionRepositoriesMeta.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -16,12 +18,12 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, type IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
-import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri } from '../../common/changesetUri.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri, parseTurnChangesetUri } from '../../common/changesetUri.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
-import { ChangesetFileStatus, ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
+import { ChangesetFileStatus, ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, withSessionMultiRootMetadata, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
@@ -1981,6 +1983,37 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
+	test('a multi-folder branch changeset publishes the repositories that loaded and records the one that failed, and computes it again', async () => {
+		let failRepoB = true;
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async workingDirectory => URI.parse(workingDirectory.toString());
+		git.getBranchDiffFingerprint = async () => 'tree-1';
+		git.computeSessionFileDiffs = async workingDirectory => {
+			if (failRepoB && workingDirectory.path === '/repoB') {
+				throw new Error('fatal: bad object');
+			}
+			return [gitDiff(`${workingDirectory.path}/file.ts`)];
+		};
+		const workingDirectories = ['file:///repoA', 'file:///repoB'];
+		const { svc, stateManager } = build({ workingDirectories, git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(workingDirectories)));
+		const read = () => ({
+			files: stateManager.getChangesetState(changesetUri)?.files.map(file => URI.parse(file.id).path).sort(),
+			failures: readChangesetFolderFailures(stateManager.getSessionState(sessionStr)?._meta)[changesetUri]?.map(failure => ({ folder: failure.folder, detail: failure.detail })),
+		});
+
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+		const partial = read();
+		failRepoB = false;
+		await refreshBranch(svc, sessionStr, { workingDirectories });
+
+		assert.deepStrictEqual({ partial, recovered: read() }, {
+			partial: { files: ['/repoA/file.ts'], failures: [{ folder: 'file:///repoB', detail: 'fatal: bad object' }] },
+			// Not kept by its fingerprint: the failed repository is diffed again
+			recovered: { files: ['/repoA/file.ts', '/repoB/file.ts'], failures: undefined },
+		});
+	});
+
 	test('a forced branch refresh arriving during a computation is not satisfied by that computation', async () => {
 		const release = new DeferredPromise<void>();
 		const diffStarted = new DeferredPromise<void>();
@@ -2380,6 +2413,72 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			new Set([URI.file('/repoA/a.ts').toString(), URI.file('/repoB/b.ts').toString()]),
 			'the turn changeset must contain files from every folder',
 		);
+	});
+
+	test('a multi-root turn records a folder whose git diff and tracked-edit fallback both fail, and keeps the other folders\' changes', async () => {
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		git.computeFileDiffsBetweenRefs = async wd => wd.toString() === 'file:///repoA' ? [gitDiff('/repoA/a.ts')] : undefined;
+		const db = new class extends TestSessionDatabase {
+			override async getFileEditsByTurn(): Promise<never> {
+				throw new Error('database is locked');
+			}
+		}();
+		const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint, db });
+		stateManager.dispatchServerAction(buildDefaultChatUri(sessionStr), chatTurnStarted('turn-1', 'edit', new Date(0).toISOString()));
+		stateManager.dispatchServerAction(buildDefaultChatUri(sessionStr), chatTurnComplete('turn-1', 1));
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		assert.deepStrictEqual({
+			files: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+			failures: readChangesetFolderFailures(stateManager.getSessionState(sessionStr)?._meta)[turnUri]?.map(failure => ({ folder: failure.folder, detail: failure.detail })),
+		}, {
+			files: [URI.file('/repoA/a.ts').toString()],
+			failures: [{ folder: 'file:///repoB', detail: 'database is locked' }],
+		});
+	});
+
+	test('an older, removed or paged-out turn\'s failed folders do not replace those of a newer turn, and a newer turn\'s replace an older one\'s', async () => {
+		const peer = buildChatUri(sessionStr, 'peer');
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		git.computeFileDiffsBetweenRefs = async wd => wd.toString() === 'file:///repoA' ? [gitDiff('/repoA/a.ts')] : undefined;
+		const db = new class extends TestSessionDatabase {
+			override async getFileEditsByTurn(): Promise<never> {
+				throw new Error('database is locked');
+			}
+		}();
+		const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repoA'],
+			git,
+			checkpoint,
+			peer: { resource: peer, db, turnId: 'turn-1', workingDirectories: ['file:///repoA', 'file:///repoB'] },
+		});
+		stateManager.dispatchServerAction(peer, chatTurnStarted('turn-2', 'peer', new Date(0).toISOString()));
+		stateManager.dispatchServerAction(peer, chatTurnComplete('turn-2', 1));
+		const recordedTurns = () => Object.keys(readChangesetFolderFailures(stateManager.getSessionState(sessionStr)?._meta)).map(key => parseTurnChangesetUri(key)?.turnId).sort();
+
+		await svc.computeTurnChangeset(peer, 'turn-2');
+		await svc.computeTurnChangeset(peer, 'turn-1');
+		const afterOlderTurn = recordedTurns();
+		await svc.computeTurnChangeset(peer, 'turn-2');
+		const afterLatestTurn = recordedTurns();
+		// E.g. a stale subscription to a turn that an edit and resend dropped
+		await svc.computeTurnChangeset(peer, 'turn-removed');
+		const afterRemovedTurn = recordedTurns();
+		// With older turns paged out, an unlisted turn is an older one
+		stateManager.dispatchServerAction(peer, { type: ActionType.ChatTurnsLoaded, turns: [], turnsNextCursor: 'older' });
+		await svc.computeTurnChangeset(peer, 'turn-paged-out');
+
+		assert.deepStrictEqual({ afterOlderTurn, afterLatestTurn, afterRemovedTurn, afterPagedOutTurn: recordedTurns() }, {
+			afterOlderTurn: ['turn-1', 'turn-2'],
+			afterLatestTurn: ['turn-2'],
+			afterRemovedTurn: ['turn-2'],
+			afterPagedOutTurn: ['turn-2', 'turn-paged-out'],
+		});
 	});
 
 	test('peer-folder turn changesets ask checkpoints for the peer checkout', async () => {
@@ -5036,6 +5135,186 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				});
 			}
 		}
+
+		test('uncommitted changes of a session removed while its folders are diffed are not published', async () => {
+			const reads = new DeferredPromise<readonly ISessionFileDiff[]>();
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async directory => directory;
+			git.hasGitRoot = () => constObservable(true);
+			git.computeSessionFileDiffs = () => reads.p;
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA', 'file:///repoB'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				subscriptions: [buildUncommittedChangesetUri(sessionStr)],
+			});
+
+			const computing = svc.computeUncommittedChangeset(sessionStr);
+			await timeout(0);
+			stateManager.removeSession(sessionStr);
+			reads.complete([gitDiff('/repoA/changed.ts')]);
+			const changeset = await computing;
+
+			assert.deepStrictEqual(stateManager.getChangesetState(changeset)?.files ?? [], []);
+		});
+
+		test('a session of several folders lists the uncommitted changes of every repository, with or without a project', async () => {
+			const results: Record<string, readonly string[] | undefined> = {};
+			for (const project of [true, false]) {
+				const git = createNoopGitService();
+				git.getRepositoryRoot = async directory => directory.path.endsWith('repoN') ? undefined : directory;
+				git.hasGitRoot = () => constObservable(true);
+				git.computeSessionFileDiffs = async directory => [gitDiff(`${directory.path}/changed.ts`)];
+				const { svc, stateManager } = build({
+					workingDirectories: ['file:///repoA', 'file:///repoB', 'file:///repoN'],
+					git,
+					checkpoint: NULL_CHECKPOINT_SERVICE,
+					subscriptions: [buildUncommittedChangesetUri(sessionStr)],
+				});
+				if (project) {
+					stateManager.setSessionMeta(sessionStr, withSessionMultiRootMetadata(undefined, { workspaceFile: 'file:///shop.code-workspace' }));
+				}
+				const changeset = await svc.computeUncommittedChangeset(sessionStr);
+				results[project ? 'project' : 'editorMultiRoot'] = stateManager.getChangesetState(changeset)?.files.map(file => URI.parse(file.id).path).sort();
+			}
+
+			assert.deepStrictEqual(results, {
+				project: ['/repoA/changed.ts', '/repoB/changed.ts'],
+				// Every session of several folders lists each repository's changes
+				editorMultiRoot: ['/repoA/changed.ts', '/repoB/changed.ts'],
+			});
+		});
+
+		test('a session of several folders lists the uncommitted changes of the repositories that loaded and records the one that failed', async () => {
+			const results: Record<string, unknown> = {};
+			for (const failing of ['none', 'repoB', 'single']) {
+				const git = createNoopGitService();
+				git.getRepositoryRoot = async directory => directory;
+				git.hasGitRoot = () => constObservable(true);
+				git.computeSessionFileDiffs = async directory => {
+					if ((failing === 'repoB' && directory.path === '/repoB') || failing === 'single') {
+						throw new Error('fatal: index file corrupt');
+					}
+					return [gitDiff(`${directory.path}/changed.ts`)];
+				};
+				const { svc, stateManager } = build({
+					workingDirectories: failing === 'single' ? ['file:///repoA'] : ['file:///repoA', 'file:///repoB'],
+					git,
+					checkpoint: NULL_CHECKPOINT_SERVICE,
+					subscriptions: [buildUncommittedChangesetUri(sessionStr)],
+				});
+				const changeset = await svc.computeUncommittedChangeset(sessionStr);
+				const state = stateManager.getChangesetState(changeset);
+				results[failing] = {
+					status: state?.status,
+					files: state?.files.map(file => URI.parse(file.id).path).sort(),
+					failures: readChangesetFolderFailures(stateManager.getSessionState(sessionStr)?._meta)[changeset]?.map(failure => ({ folder: failure.folder, detail: failure.detail })),
+				};
+			}
+
+			assert.deepStrictEqual(results, {
+				none: { status: ChangesetStatus.Ready, files: ['/repoA/changed.ts', '/repoB/changed.ts'], failures: undefined },
+				repoB: { status: ChangesetStatus.Ready, files: ['/repoA/changed.ts'], failures: [{ folder: 'file:///repoB', detail: 'fatal: index file corrupt' }] },
+				// A session of one folder fails as a whole, as before
+				single: { status: ChangesetStatus.Error, files: [], failures: undefined },
+			});
+		});
+
+		test('a folder lists the uncommitted changes of the repositories found inside it, and records a failing one by its root', async () => {
+			const results: Record<string, unknown> = {};
+			for (const failNested of [false, true]) {
+				const git = createNoopGitService();
+				git.getRepositoryRoot = async directory => directory.path === '/work' ? directory : undefined;
+				git.hasGitRoot = () => constObservable(true);
+				git.computeSessionFileDiffs = async directory => {
+					if (failNested && directory.path === '/work/docs') {
+						throw new Error('fatal: not a git repository');
+					}
+					return [gitDiff(`${directory.path}/changed.ts`)];
+				};
+				const { svc, stateManager } = build({
+					workingDirectories: ['file:///work'],
+					git,
+					checkpoint: NULL_CHECKPOINT_SERVICE,
+					subscriptions: [buildUncommittedChangesetUri(sessionStr)],
+				});
+				stateManager.setSessionMeta(sessionStr, withSessionRepositories(stateManager.getSessionState(sessionStr)?._meta, {
+					[getWorkingDirectoryKey('file:///work')]: [{ root: 'file:///work', kind: 'folder' }, { root: 'file:///work/docs', kind: 'nested' }],
+				}));
+				const changeset = await svc.computeUncommittedChangeset(sessionStr);
+				results[failNested ? 'nestedFails' : 'allLoad'] = {
+					files: stateManager.getChangesetState(changeset)?.files.map(file => URI.parse(file.id).path).sort(),
+					failures: readChangesetFolderFailures(stateManager.getSessionState(sessionStr)?._meta)[changeset]?.map(failure => failure.folder),
+				};
+			}
+
+			assert.deepStrictEqual(results, {
+				allLoad: { files: ['/work/changed.ts', '/work/docs/changed.ts'], failures: undefined },
+				nestedFails: { files: ['/work/changed.ts'], failures: ['file:///work/docs'] },
+			});
+		});
+
+		test('a folder changeset owner of a root the host did not record runs no Git there', async () => {
+			const diffed: string[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async directory => directory;
+			git.hasGitRoot = () => constObservable(true);
+			git.computeSessionFileDiffs = async directory => {
+				diffed.push(directory.path);
+				return [];
+			};
+			// E.g. a client crafting the owner of a directory outside the session
+			const crafted = buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///etc']));
+			const recorded = buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///work/docs']));
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///work'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				subscriptions: [buildUncommittedChangesetUri(crafted), buildUncommittedChangesetUri(recorded)],
+			});
+			stateManager.setSessionMeta(sessionStr, withSessionRepositories(stateManager.getSessionState(sessionStr)?._meta, {
+				[getWorkingDirectoryKey('file:///work')]: [{ root: 'file:///work', kind: 'folder' }, { root: 'file:///work/docs', kind: 'nested' }],
+			}));
+
+			await svc.computeUncommittedChangeset(crafted);
+			const afterCrafted = [...diffed];
+			await svc.computeUncommittedChangeset(recorded);
+
+			assert.deepStrictEqual({ afterCrafted, afterRecorded: diffed.slice(afterCrafted.length) }, {
+				afterCrafted: [],
+				afterRecorded: ['/work/docs'],
+			});
+		});
+
+		test('a failed folder whose error text varies does not rewrite the session metadata on each computation', async () => {
+			let attempt = 0;
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async directory => directory;
+			git.hasGitRoot = () => constObservable(true);
+			git.computeSessionFileDiffs = async directory => {
+				if (directory.path === '/repoB') {
+					throw new Error(`fatal: lock held by pid ${++attempt}`);
+				}
+				return [gitDiff('/repoA/changed.ts')];
+			};
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA', 'file:///repoB'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				subscriptions: [buildUncommittedChangesetUri(sessionStr)],
+			});
+			let metaWrites = 0;
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.SessionMetaChanged) {
+					metaWrites++;
+				}
+			}));
+
+			await svc.computeUncommittedChangeset(sessionStr);
+			await svc.computeUncommittedChangeset(sessionStr);
+
+			assert.deepStrictEqual({ attempt, metaWrites }, { attempt: 2, metaWrites: 1 });
+		});
 
 		test('suppressed non-repository recomputations do not report phantom compute telemetry', async () => {
 			const telemetry = new CapturingTelemetryService();

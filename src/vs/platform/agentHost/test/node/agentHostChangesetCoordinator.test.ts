@@ -566,8 +566,9 @@ suite('ChangesetSessionCoordinator', () => {
 			operationRefreshes: environment.updateOperationsCalls.slice(baseline),
 			chatSummaryRefreshes: environment.changesets.chatSummaryRefreshes.slice(summaryBaseline),
 		}, {
-			// Each chat is requested by its working-directory change and again by its announced Git refresh; both run as one update.
-			operationRefreshes: [session, buildDefaultChatUri(session), buildDefaultChatUri(session), peer, peer],
+			// The session and each chat are requested by the working-directory change and again by their announced Git refresh (the
+			// session's refreshes the Git state of its other folders); both run as one update.
+			operationRefreshes: [session, session, buildDefaultChatUri(session), buildDefaultChatUri(session), peer, peer],
 			chatSummaryRefreshes: [buildDefaultChatUri(session), peer],
 		});
 
@@ -589,7 +590,7 @@ suite('ChangesetSessionCoordinator', () => {
 			operationRefreshes: environment.updateOperationsCalls.slice(afterAdd),
 			chatSummaryRefreshes: environment.changesets.chatSummaryRefreshes.slice(summariesAfterAdd),
 		}, {
-			// Each chat is requested by its working-directory change and again by its announced Git refresh; both run as one update.
+			// Back to one folder: no Git state of other folders to refresh.
 			operationRefreshes: [session, buildDefaultChatUri(session), buildDefaultChatUri(session), peer, peer],
 			chatSummaryRefreshes: [buildDefaultChatUri(session), peer],
 		});
@@ -796,8 +797,8 @@ suite('ChangesetSessionCoordinator', () => {
 
 		assert.deepStrictEqual(
 			[...environment.updateOperationsCalls.slice(baseline)].sort(),
-			[parentSession, buildDefaultChatUri(parentSession), buildDefaultChatUri(parentSession), subagentSession].sort(),
-			'a parent root change refreshes every parent operation owner and its inheriting subagent, the default chat again for its Git refresh',
+			[parentSession, parentSession, buildDefaultChatUri(parentSession), buildDefaultChatUri(parentSession), subagentSession].sort(),
+			'a parent root change refreshes every parent operation owner and its inheriting subagent, the session and the default chat again for their Git refresh',
 		);
 	});
 

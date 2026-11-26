@@ -746,6 +746,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			return;
 		}
 		this._changesetOperationService.scheduleRelatedOperationsUpdate(sessionStr);
+		// Each folder of a session of several folders gets its own Git state.
+		if ((this._stateManager.getSessionSummary(sessionStr)?.workingDirectories?.length ?? 0) > 1) {
+			void this._gitStateService.refreshSessionGitState(sessionStr);
+		}
 		if (this._changesetSubscriptions.getSessionSubscriptions(sessionStr).has(sessionStr)
 			&& getSummaryChangesetKind(this._stateManager.getSessionState(sessionStr)?.config?.values) === ChangesetKind.Branch) {
 			const defaultChat = this._chatOwnership.getDefaultChat(sessionStr);

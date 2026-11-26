@@ -275,7 +275,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		// The session's saved Git state describes the session folder only.
 		const storedGitState = gitHubFolder.isSessionFolder ? readSessionGitState(sessionState._meta) : undefined;
-		const recordedBaseBranch = await this._resolveBaseBranch(scope.sourceUri);
+		// A folder of the session on its own uses its own base branch (read below), not that of the conversation's folder.
+		const recordedBaseBranch = scope.isSessionFolder ? undefined : await this._resolveBaseBranch(scope.sourceUri);
 		const baseBranch = recordedBaseBranch ? await this._gitService.resolveBaseBranch(workingDirectory, recordedBaseBranch) : undefined;
 
 		const currentGitState = await this._gitService.getSessionGitState(workingDirectory, recordedBaseBranch);

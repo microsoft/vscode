@@ -13,8 +13,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { withSessionRepositories } from '../../common/meta/agentSessionRepositoriesMeta.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, type IChangesetOperationContribution, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildWorkingSetChangesetUri } from '../../common/changesetUri.js';
 import { LIST_BASE_BRANCHES_OPERATION_ID, SET_BASE_BRANCH_OPERATION_ID } from '../../common/meta/agentBaseBranchOperationMeta.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../../common/meta/agentPullRequestOperationMeta.js';
@@ -23,7 +24,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, SessionStatus, buildChatUri, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, SessionStatus, buildChatUri, buildDefaultChatUri, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostAcceptChangesOperationContribution } from '../../node/agentHostAcceptChangesOperationProvider.js';
@@ -35,6 +36,7 @@ import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from '
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { resolveBranchChangesetScopeForOwner } from '../../node/agentHostBranchChangesetScope.js';
 
 const testOperationId = 'test-operation';
 
@@ -386,6 +388,37 @@ suite('AgentHostChangesetOperationService', () => {
 			result: { message: { markdown: 'Committed' } },
 			refreshes: ['agent:/session'],
 			status: ChangesetOperationStatus.Idle,
+		});
+	});
+
+	test('a folder of the session on its own gets operations from its own Git and GitHub state', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/project';
+		const app = 'file:///app';
+		const api = 'file:///api';
+		const apiGitState: ISessionGitState = { branchName: 'api-feature', baseBranchName: 'master', hasGitHubRemote: true };
+		const apiGitHubState: ISessionGitHubState = { owner: 'contoso', repo: 'api' };
+		stateManager.createSession({ resource: sessionKey, provider: 'agent', title: 'Project', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(sessionKey), workingDirectories: [app, api] });
+		stateManager.setSessionMeta(sessionKey, withFolderScopeGitState(
+			withFolderGitHubState(withSessionGitState(undefined, sampleGitState), getWorkingDirectoryKey(api), apiGitHubState, api),
+			getWorkingDirectoryScopeId([api]), apiGitState, [api]));
+		const service = createService(stateManager);
+		const contribution = new RecordingOperationsContribution(sampleOperations);
+		disposables.add(service.registerContribution(contribution));
+		const apiOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([api]));
+
+		// The caller passes the conversation folder's state, as the operation refresh does.
+		service.getOperations(sessionKey, buildBranchChangesetUri(apiOwner), sampleGitState);
+
+		const scope = resolveBranchChangesetScopeForOwner(stateManager, apiOwner);
+		assert.deepStrictEqual({
+			scope: scope && { workingDirectories: scope.workingDirectories, sourceUri: scope.sourceUri, isSessionFolder: scope.isSessionFolder },
+			context: contribution.contexts.map(context => ({ ownerKey: context.ownerKey, gitState: context.gitState, gitHubState: context.gitHubState })),
+			unknownFolder: resolveBranchChangesetScopeForOwner(stateManager, buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///elsewhere']))),
+		}, {
+			scope: { workingDirectories: [api], sourceUri: buildDefaultChatUri(sessionKey), isSessionFolder: true },
+			context: [{ ownerKey: apiOwner, gitState: apiGitState, gitHubState: apiGitHubState }],
+			unknownFolder: undefined,
 		});
 	});
 
@@ -1015,6 +1048,47 @@ suite('AgentHostChangesetOperationService', () => {
 			defaultTurn: [testOperationId],
 			defaultCompare: [testOperationId],
 			otherScopeBranch: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID],
+		});
+	});
+
+	test('keeps merge with the default chat\'s own folders, not a single folder of a session of several folders', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const primaryFolder = 'file:///app';
+		const otherFolder = 'file:///api';
+		stateManager.createSession({
+			resource: sessionKey,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+			workingDirectories: [primaryFolder, otherFolder],
+			defaultChat: buildDefaultChatUri(sessionKey),
+		});
+		// The primary folder on its own reads the session's Git state; another folder, and a repository found inside one, its own
+		const nestedRepository = 'file:///app/docs';
+		let meta = withFolderScopeGitState(withSessionGitState(stateManager.getSessionState(sessionKey)?._meta, sampleGitState), getWorkingDirectoryScopeId([otherFolder]), sampleGitState, [otherFolder]);
+		meta = withFolderScopeGitState(meta, getWorkingDirectoryScopeId([nestedRepository]), sampleGitState, [nestedRepository]);
+		stateManager.setSessionMeta(sessionKey, withSessionRepositories(meta, { [getWorkingDirectoryKey(primaryFolder)]: [{ root: primaryFolder, kind: 'folder' }, { root: nestedRepository, kind: 'nested' }] }));
+		const operations: readonly ChangesetOperation[] = [
+			{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+			{ id: AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, label: 'Merge Changes', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+		];
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new OperationsContribution(operations)));
+		const branchOf = (folders: readonly string[]) => service.getOperations(sessionKey, buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(folders))), sampleGitState).map(operation => operation.id);
+
+		assert.deepStrictEqual({
+			defaultChat: branchOf([primaryFolder, otherFolder]),
+			primaryFolder: branchOf([primaryFolder]),
+			otherFolder: branchOf([otherFolder]),
+			nestedRepository: branchOf([nestedRepository]),
+		}, {
+			defaultChat: [testOperationId, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID],
+			primaryFolder: [testOperationId],
+			otherFolder: [testOperationId],
+			nestedRepository: [testOperationId],
 		});
 	});
 

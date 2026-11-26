@@ -5,8 +5,9 @@
 
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
-import { ChatOriginKind, isAhpChatChannel, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, readFolderScopeGitState, readSessionGitState, type ISessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { readSessionRepositories } from '../common/meta/agentSessionRepositoriesMeta.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 
 export interface IBranchChangesetScope {
@@ -14,6 +15,12 @@ export interface IBranchChangesetScope {
 	readonly sessionUri: ProtocolURI;
 	readonly sourceUri: ProtocolURI;
 	readonly workingDirectories: readonly ProtocolURI[];
+	/**
+	 * Set for the scope of one folder of the session that no chat works in alone, such as a folder of a project other
+	 * than the first: its Git state and base branch are the folder's own (see {@link readSessionFolderScopeGitState}), not
+	 * those of {@link sourceUri}, which only provides the conversation.
+	 */
+	readonly isSessionFolder?: true;
 }
 
 export function resolveChangesetOwnerScope(stateManager: AgentHostStateManager, ownerUri: ProtocolURI): IBranchChangesetScope {
@@ -89,7 +96,34 @@ export function resolveBranchChangesetScopeForOwner(stateManager: AgentHostState
 			return scope;
 		}
 	}
+	// One folder of a session of several folders on its own, which no chat's folders match. A session of one folder has
+	// no such scope: its folder's changes are its chats'.
+	const sessionFolders = (stateManager.getSessionSummary(parsed.sessionUri)?.workingDirectories ?? []).filter(candidate => !stateManager.isScratchFolder(candidate));
+	const folder = sessionFolders.length > 1 ? sessionFolders.find(candidate => getWorkingDirectoryScopeId([candidate]) === parsed.scopeId) : undefined;
+	// Or a repository found inside one of its folders, which is its own folder for its changes
+	const repository = folder ?? Object.values(readSessionRepositories(stateManager.getSessionState(parsed.sessionUri)?._meta) ?? {}).flat()
+		.find(candidate => candidate.kind !== 'folder' && getWorkingDirectoryScopeId([candidate.root]) === parsed.scopeId)?.root;
+	if (repository !== undefined) {
+		return {
+			ownerUri,
+			sessionUri: parsed.sessionUri,
+			sourceUri: defaultChatSource(stateManager, parsed.sessionUri),
+			workingDirectories: [repository],
+			isSessionFolder: true,
+		};
+	}
 	return undefined;
+}
+
+/**
+ * The Git state of a {@link IBranchChangesetScope.isSessionFolder} scope: the session's for its first folder, and
+ * otherwise the state recorded for the folder alone.
+ */
+export function readSessionFolderScopeGitState(stateManager: AgentHostStateManager, scope: IBranchChangesetScope): ISessionGitState | undefined {
+	const meta = stateManager.getSessionState(scope.sessionUri)?._meta;
+	return scope.workingDirectories[0] === stateManager.getSessionSummary(scope.sessionUri)?.workingDirectories?.[0]
+		? readSessionGitState(meta)
+		: readFolderScopeGitState(meta, getWorkingDirectoryScopeId(scope.workingDirectories));
 }
 
 /** The folder whose GitHub and pull request state a session, chat or folder changeset owner uses. */
