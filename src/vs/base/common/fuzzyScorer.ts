@@ -62,7 +62,7 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, al
 	return res;
 }
 
-const maxCachedMatrixCells = 1024 * 1024; // 8 MiB across both buffers
+const maxCachedMatrixCells = 64 * 1024; // 512 KiB across both buffers
 let cachedMatrix = { scores: new Int32Array(0), matches: new Int32Array(0) };
 
 function getScoreMatrix(size: number) {
