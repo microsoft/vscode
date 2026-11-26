@@ -119,7 +119,7 @@ import { getSessionAgentMergeConfigurationObservable } from '../sessionAgentMerg
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
 import { IInboxSessionAttention, ISessionAttentionService, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext } from '../pinnedCanvases.js';
-import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
+import { getSessionsTelemetryEnvironmentId, logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { getInboxPullRequestMergeOperation, getSessionInboxDescription, getSessionInboxPriority, getSessionInboxSection, SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
 import { IShownChat } from '../../../../services/sessions/common/sessionPane.js';
 
@@ -5854,7 +5854,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return [];
 		}
 		return sources.map(({ environment }) => toAction({
-			id: `${NEW_SESSION_IN_ENVIRONMENT_ACTION_ID}.${environment.id}`,
+			id: `${NEW_SESSION_IN_ENVIRONMENT_ACTION_ID}.${getSessionsTelemetryEnvironmentId(environment.id)}`,
 			label: environment.id === 'cloud'
 				? localize('newSessionInCloud', "New Session in {0}", environment.label)
 				: localize('newSessionOnEnvironment', "New Session on {0}", environment.label),
