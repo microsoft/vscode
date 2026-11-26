@@ -7,6 +7,8 @@ import { clamp } from '../../../../base/common/numbers.js';
 
 /** Room kept between an automatically placed widget and the edges of the editor or other widgets. */
 export const EDGE_MARGIN = 8;
+/** How far from a widget beside the code the connector turns toward it. */
+const CONNECTOR_BEND_INSET = 2 * EDGE_MARGIN;
 /** Room kept between the commented code and a widget that is placed next to it. */
 const CODE_GAP = 24;
 export const MIN_WIDTH = 240;
@@ -100,6 +102,39 @@ export interface IFloatingWidgetChosenSize {
 }
 
 /**
+ * Where the connector from the code meets a widget, and whether it enters the widget through a side edge
+ * (`horizontal`) or through its top or bottom edge (`vertical`).
+ */
+export interface IConnectorAnchor extends IPoint {
+	readonly direction: 'horizontal' | 'vertical';
+}
+
+/**
+ * Computes the rounded, right-angled SVG path connecting the commented code to the anchor point of a widget. The code is given as
+ * the areas of its lines. The path starts at the point of the code's outline that is closest to the anchor, turns
+ * close to a widget beside the code or halfway to a widget above or below it, and ends entering the widget in the
+ * anchor's direction. It is `undefined` when the anchor lies within the outline.
+ */
+export function getConnectorPath(codeLines: readonly IRect[], anchor: IConnectorAnchor, cornerRadius: number): string | undefined {
+	const points = getConnectorPoints(codeLines, anchor);
+	if (!points) {
+		return undefined;
+	}
+	const { from } = points;
+	const to: IPoint = { x: anchor.x, y: anchor.y };
+	if (from.x === to.x || from.y === to.y) {
+		return getRoundedPath([from, to], cornerRadius, false);
+	}
+	if (anchor.direction === 'horizontal') {
+		// Turn close to the widget, so that the long run of the connector is in the space beside the widget rather than over the code.
+		const middleX = Math.round(to.x - Math.sign(to.x - from.x) * Math.min(CONNECTOR_BEND_INSET, Math.abs(to.x - from.x) / 2));
+		return getRoundedPath([from, { x: middleX, y: from.y }, { x: middleX, y: to.y }, to], cornerRadius, false);
+	}
+	const middleY = Math.round(from.y + (to.y - from.y) / 2);
+	return getRoundedPath([from, { x: from.x, y: middleY }, { x: to.x, y: middleY }, to], cornerRadius, false);
+}
+
+/**
  * Computes the line connecting the commented code to the anchor point of a widget. The code is given as the
  * areas of its lines. The line starts at the point of the code's outline that is closest to the anchor, and is
  * `undefined` when the anchor lies within the outline.
@@ -168,12 +203,17 @@ export function getRowsOutlinePath(rows: readonly IRect[], cornerRadius: number)
 		}
 	}
 
+	return getRoundedPath(corners, cornerRadius, true);
+}
+
+function getRoundedPath(corners: readonly IPoint[], cornerRadius: number, closed: boolean): string {
 	const commands: string[] = [];
 	for (let i = 0; i < corners.length; i++) {
 		const previous = corners[(i + corners.length - 1) % corners.length];
 		const current = corners[i];
 		const next = corners[(i + 1) % corners.length];
-		const radius = Math.min(cornerRadius, Math.hypot(current.x - previous.x, current.y - previous.y) / 2, Math.hypot(next.x - current.x, next.y - current.y) / 2);
+		const isEndpoint = !closed && (i === 0 || i === corners.length - 1);
+		const radius = isEndpoint ? 0 : Math.min(cornerRadius, Math.hypot(current.x - previous.x, current.y - previous.y) / 2, Math.hypot(next.x - current.x, next.y - current.y) / 2);
 		const command = i === 0 ? 'M' : 'L';
 		if (radius <= 0) {
 			commands.push(`${command} ${current.x} ${current.y}`);
@@ -190,7 +230,9 @@ export function getRowsOutlinePath(rows: readonly IRect[], cornerRadius: number)
 		const end = towards(next);
 		commands.push(`${command} ${start.x} ${start.y} Q ${current.x} ${current.y} ${end.x} ${end.y}`);
 	}
-	commands.push('Z');
+	if (closed) {
+		commands.push('Z');
+	}
 	return commands.join(' ');
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -99,6 +100,18 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditor = this._register(this._scopedInstatiationService.createInstance(SimpleCommentEditor, this._form, SimpleCommentEditor.getEditorOptions(configurationService), _contextKeyService, this._parentThread));
 		this._progressBar = this._register(new ProgressBar(dom.append(this._container, dom.$('.comment-form-progress')), defaultProgressBarStyles));
 		this._progressBar.hide();
+		if (container.closest('.comment-thread-floating-widget')) {
+			this.commentEditor.updateOptions({
+				fontFamily: DEFAULT_FONT_FAMILY,
+				fontWeight: 'normal',
+				wrappingStrategy: 'advanced',
+				padding: { top: 4, bottom: 4 },
+				scrollbar: { vertical: 'auto' },
+				overviewRulerLanes: 0,
+				overviewRulerBorder: false,
+				hideCursorInOverviewRuler: true
+			});
+		}
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 
