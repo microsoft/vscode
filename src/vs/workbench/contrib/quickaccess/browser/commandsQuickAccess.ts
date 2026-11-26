@@ -15,7 +15,8 @@ import { IEditor } from '../../../../editor/common/editorCommon.js';
 import { AbstractEditorCommandsQuickAccessProvider } from '../../../../editor/contrib/quickAccess/browser/commandsQuickAccess.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { isLocalizedString } from '../../../../platform/action/common/action.js';
-import { Action2, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { getEnabledMenuItems } from '../../../../platform/actions/common/menuService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -66,7 +67,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IExtensionService extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -226,37 +226,34 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	private getGlobalCommandPicks(): ICommandQuickPick[] {
 		const globalCommandPicks: ICommandQuickPick[] = [];
 		const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
-		const globalCommandsMenu = this.menuService.getMenuActions(MenuId.CommandPalette, scopedContextKeyService);
-		const globalCommandsMenuActions = globalCommandsMenu
-			.reduce((r, [, actions]) => [...r, ...actions], <Array<MenuItemAction | SubmenuItemAction | string>>[])
-			.filter(action => action instanceof MenuItemAction && action.enabled) as MenuItemAction[];
 
-		for (const action of globalCommandsMenuActions) {
+		// The commands only, creating menu actions for thousands of them on every query is expensive
+		for (const { command } of getEnabledMenuItems(MenuId.CommandPalette, scopedContextKeyService)) {
 
 			// Label
-			let label = (typeof action.item.title === 'string' ? action.item.title : action.item.title.value) || action.item.id;
+			let label = (typeof command.title === 'string' ? command.title : command.title.value) || command.id;
 
 			// Category
-			const category = typeof action.item.category === 'string' ? action.item.category : action.item.category?.value;
+			const category = typeof command.category === 'string' ? command.category : command.category?.value;
 			if (category) {
 				label = localize('commandWithCategory', "{0}: {1}", category, label);
 			}
 
 			// Alias
-			const aliasLabel = typeof action.item.title !== 'string' ? action.item.title.original : undefined;
-			const aliasCategory = (category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : undefined;
+			const aliasLabel = typeof command.title !== 'string' ? command.title.original : undefined;
+			const aliasCategory = (category && command.category && typeof command.category !== 'string') ? command.category.original : undefined;
 			const commandAlias = (aliasLabel && category) ?
 				aliasCategory ? `${aliasCategory}: ${aliasLabel}` : `${category}: ${aliasLabel}` :
 				aliasLabel;
 
-			const metadataDescription = action.item.metadata?.description;
+			const metadataDescription = command.metadata?.description;
 			const commandDescription = metadataDescription === undefined || isLocalizedString(metadataDescription)
 				? metadataDescription
 				// TODO: this type will eventually not be a string and when that happens, this should simplified.
 				: { value: metadataDescription, original: metadataDescription };
 			globalCommandPicks.push({
-				commandId: action.item.id,
-				commandWhen: action.item.precondition?.serialize(),
+				commandId: command.id,
+				commandWhen: command.precondition?.serialize(),
 				commandAlias,
 				label: stripIcons(label),
 				commandDescription,
