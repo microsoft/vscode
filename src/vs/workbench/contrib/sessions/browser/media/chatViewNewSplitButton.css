@@ -35,9 +35,27 @@ icon actions, and styled as the Agents window's New button. */
 	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
+/* Out of the layout but measurable, so that its width, which the button observes, does not change with the button's size */
+.chat-view-new-split-button.icon-only .chat-view-new-split-button-label {
+	position: absolute;
+	visibility: hidden;
+}
+
+.chat-view-new-split-button:not(.icon-only) .chat-view-new-split-button-icon,
+.chat-view-new-split-button.icon-only .chat-view-new-split-button-keybinding,
+.chat-view-new-split-button.compact .chat-view-new-split-button-keybinding {
+	display: none;
+}
+
 .chat-view-new-split-button > .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
 	padding: 0 var(--vscode-spacing-size20);
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+/* Without room for the label, or in a title that does not make room for it, such as when the Chat view is moved: the icon
+of New Chat. Its glyphs keep their own space, so that it is as compact as the width that the title reserves for a split button. */
+.chat-view-new-split-button.icon-only > .monaco-button-dropdown > .monaco-button {
+	padding: 0;
 }
 
 .chat-view-new-split-button > .monaco-button-dropdown > .monaco-button:focus {
@@ -52,12 +70,6 @@ icon actions, and styled as the Agents window's New button. */
 
 .chat-view-new-split-button .chat-view-new-split-button-keybinding.hidden {
 	display: none;
-}
-
-/* Out of the layout but measurable, for when the button has room for it again */
-.chat-view-new-split-button.narrow .chat-view-new-split-button-keybinding {
-	position: absolute;
-	visibility: hidden;
 }
 
 .chat-view-new-split-button .chat-view-new-split-button-keybinding .monaco-keybinding {

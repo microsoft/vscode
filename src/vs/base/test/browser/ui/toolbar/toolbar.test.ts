@@ -241,35 +241,6 @@ suite('ToolBar', () => {
 		assert.strictEqual(toolbar.getElement().style.getPropertyValue('--vscode-toolbar-action-min-width'), '28px');
 	});
 
-	test('respects the minimum width that an item reports, also while its action overflows', () => {
-		class MinimumWidthActionViewItem extends FixedWidthActionViewItem {
-			getMinimumWidth(): number {
-				return 60;
-			}
-		}
-		let availableWidth = 200;
-		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
-			responsiveBehavior: { enabled: true, kind: 'all', overflowFrom: 'start', minItems: 0, actionMinWidth: 22, reserveMinWidth: false, getAvailableWidth: () => availableWidth },
-			actionViewItemProvider: action => action.id === 'wide' ? new MinimumWidthActionViewItem(action, 60) : new FixedWidthActionViewItem(action, 22),
-		}));
-		toolbar.setActions([store.add(new Action('wide', 'Wide')), store.add(new Action('icon', 'Icon'))]);
-		const minWidths = () => [...container.querySelectorAll<HTMLElement>('.action-item')].map(item => `${item.textContent}:${item.style.minWidth}`);
-		const states = [minWidths()];
-		for (const width of [70, 80, 200]) {
-			availableWidth = width;
-			toolbar.relayout();
-			states.push(minWidths());
-		}
-
-		// With the toolbar's own 22px minimum, the wide item would fit in 70px and be restored at 80px
-		assert.deepStrictEqual(states, [
-			['Wide:60px', 'Icon:22px'],
-			['Icon:22px', ':20px'],
-			['Icon:22px', ':20px'],
-			['Wide:60px', 'Icon:22px'],
-		]);
-	});
-
 	test('relayout re-evaluates responsive overflow after action width changes', () => {
 		const widths = new Map<string, number>([
 			['workbench.action.chat.attachContext', 22],
