@@ -223,6 +223,22 @@ suite('Gridview', function () {
 		assert.deepStrictEqual(nodesToArrays(gridview.getView()), [[views[0], views[2]], [views[1], views[3]]]);
 	});
 
+	test('removing a view with distribute sizing evens the row its flattened branch joins', function () {
+		const gridview = store.add(new GridView());
+		gridview.orientation = Orientation.HORIZONTAL;
+		gridview.layout(1200, 800);
+		const [a, m, b, c] = Array.from({ length: 4 }, () => store.add(new TestView(50, Number.POSITIVE_INFINITY, 50, Number.POSITIVE_INFINITY)));
+		gridview.addView(a, Sizing.Distribute, [0]);
+		gridview.addView(m, Sizing.Distribute, [1]);
+		gridview.addView(b, Sizing.Distribute, [1, 1]);
+		gridview.addView(c, Sizing.Distribute, [1, 1, 1]);
+
+		// a | (m above b | c): removing m flattens b | c into the root row.
+		gridview.removeView([1, 0], Sizing.Distribute);
+
+		assert.deepStrictEqual([a, b, c].map(view => view.width), [400, 400, 400]);
+	});
+
 	test('empty gridview is empty', function () {
 		const gridview = createGridView();
 		assert.deepStrictEqual(nodesToArrays(gridview.getView()), []);

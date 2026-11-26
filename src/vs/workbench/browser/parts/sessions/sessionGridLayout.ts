@@ -6,7 +6,7 @@
 import { $, getActiveElement, getWindow, isAncestor, isHTMLElement, runAtThisOrScheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { Direction, GridNode, IGridStyles, ISerializableView, ISerializedGrid, ISerializedNode, IView, IViewSize, SerializableGrid, Sizing, isGridBranchNode } from '../../../../base/browser/ui/grid/grid.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isSessionGridLeafData, projectSessionGrid, ISessionGridPlacement } from './sessionGridState.js';
 import { Color } from '../../../../base/common/color.js';
@@ -37,8 +37,9 @@ interface ILayout {
 class SessionGridLeaf extends Disposable implements ISerializableView {
 	readonly element = $('.session-grid-leaf');
 	private insets = NO_GRID_EDGE_INSETS;
-	private readonly _onDidChangeConstraints = this._register(new Emitter<IViewSize | undefined>());
-	readonly onDidChange: Event<IViewSize | undefined>;
+	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
+	readonly onDidChange = this._onDidChange.event;
+	private readonly viewListener = this._register(new MutableDisposable());
 	private projected = false;
 	private active = false;
 	private visible = true;
@@ -51,19 +52,25 @@ class SessionGridLeaf extends Disposable implements ISerializableView {
 	private contentsDirty = false;
 
 	constructor(
-		readonly id: string,
-		readonly view: ISessionGridView,
+		public id: string,
+		public view: ISessionGridView,
 		private readonly requestLayout: (leaf: SessionGridLeaf) => void,
 	) {
 		super();
-		this.onDidChange = Event.any(
-			Event.map(view.onDidChange, size => size && ({
-				width: size.width + this.insets.left + this.insets.right,
-				height: size.height + this.insets.top + this.insets.bottom,
-			})),
-			this._onDidChangeConstraints.event,
-		);
+		this.show(id, view);
+	}
+
+	/** Shows `view` as the pane `id` in this leaf's place, which keeps its size: two panes swap places by swapping leaves. */
+	show(id: string, view: ISessionGridView): void {
+		this.id = id;
+		this.view = view;
+		this.viewListener.value = view.onDidChange(size => this._onDidChange.fire(size && {
+			width: size.width + this.insets.left + this.insets.right,
+			height: size.height + this.insets.top + this.insets.bottom,
+		}));
 		this.element.appendChild(view.element);
+		this.appliedLayout = this.appliedVisible = undefined;
+		this.notifyConstraintsChanged();
 	}
 
 	get minimumWidth() { return this.view.minimumWidth + this.insets.left + this.insets.right; }
@@ -82,7 +89,7 @@ class SessionGridLeaf extends Disposable implements ISerializableView {
 	}
 
 	notifyConstraintsChanged(): void {
-		this._onDidChangeConstraints.fire(undefined);
+		this._onDidChange.fire(undefined);
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
@@ -199,7 +206,8 @@ export class SessionGridLayout extends Disposable {
 		this.projectionHost.style.display = 'none';
 	}
 
-	reconcile(entries: readonly ISessionGridEntry[], active: string): void {
+	/** Shows `entries`, sizing the row or column that a pane opens in, moves within or into, or leaves with `sizing`. */
+	reconcile(entries: readonly ISessionGridEntry[], active: string, sizing: Sizing = Sizing.Split): void {
 		if (!entries.length) {
 			throw new Error('A Sessions grid must have at least one leaf');
 		}
@@ -227,7 +235,7 @@ export class SessionGridLayout extends Disposable {
 						this.setGrid(new SerializableGrid(leaf));
 					} else {
 						const reference = entry.placement && this.leaves.get(entry.placement.reference);
-						this.grid.value.addView(leaf, Sizing.Split, reference ?? this.orderedLeaves().at(-1)!, entry.placement?.direction ?? Direction.Right);
+						this.grid.value.addView(leaf, sizing, reference ?? this.orderedLeaves().at(-1)!, entry.placement?.direction ?? Direction.Right);
 					}
 					this.placements.set(entry.id, entry.placement && this.leaves.has(entry.placement.reference) ? entry.placement : undefined);
 				}
@@ -237,7 +245,7 @@ export class SessionGridLayout extends Disposable {
 					this.leaves.delete(id);
 					this.pendingLayouts.delete(leaf);
 					leaf.project(undefined, false);
-					this.grid.value!.removeView(leaf);
+					this.grid.value!.removeView(leaf, sizing);
 					leaf.dispose();
 					this.placements.delete(id);
 				}
@@ -245,8 +253,15 @@ export class SessionGridLayout extends Disposable {
 			for (const entry of entries) {
 				if (entry.placement && this.placements.get(entry.id) !== entry.placement) {
 					const reference = this.leaves.get(entry.placement.reference);
-					if (reference && reference.id !== entry.id) {
-						this.grid.value!.moveView(this.leaves.get(entry.id)!, Sizing.Split, reference, entry.placement.direction);
+					const leaf = this.leaves.get(entry.id)!;
+					if (reference && reference !== leaf) {
+						if (sizing === Sizing.Distribute) {
+							// Moving within a row or column keeps its sizes: removing and adding evens it as well.
+							this.grid.value!.removeView(leaf, sizing);
+							this.grid.value!.addView(leaf, sizing, reference, entry.placement.direction);
+						} else {
+							this.grid.value!.moveView(leaf, sizing, reference, entry.placement.direction);
+						}
 					}
 				}
 				this.placements.set(entry.id, entry.placement);
@@ -370,6 +385,40 @@ export class SessionGridLayout extends Disposable {
 						: { groups: items.map(data => ({ data, size: 1 })), size: 1 };
 				})
 			}));
+		});
+	}
+
+	/** Gives the panes of each row and column equal sizes, keeping their arrangement. */
+	evenSizes(): void {
+		if (!this.grid.value || this.phone) {
+			return;
+		}
+		this.preserveFocus(() => {
+			this.setMaximized(undefined);
+			this.grid.value!.distributeViewSizes();
+		});
+	}
+
+	/**
+	 * Swaps the places of the panes `first` and `second`, each place keeping its size and every other pane its view. With
+	 * `reordered`, their recorded order swaps too, so an update that gives them in their new order does not reorder the grid.
+	 */
+	swap(first: string, second: string, reordered: boolean): void {
+		const a = this.leaves.get(first);
+		const b = this.leaves.get(second);
+		if (!a || !b || a === b) {
+			return;
+		}
+		this.preserveFocus(() => {
+			this.setMaximized(undefined);
+			this.leaves.set(first, b).set(second, a);
+			const view = a.view;
+			a.show(second, b.view);
+			b.show(first, view);
+			if (reordered) {
+				this.entryOrder = this.entryOrder.map(id => id === first ? second : id === second ? first : id);
+			}
+			this.layoutViews();
 		});
 	}
 

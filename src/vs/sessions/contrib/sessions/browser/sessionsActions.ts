@@ -41,9 +41,9 @@ import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workben
 import { Menus, SessionHeaderMenus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionInChatEditorContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionHasSplitChatsContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionInChatEditorContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
-import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, EVEN_SESSION_SIZES_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_FOCUS_COMMANDS, SESSION_GRID_MOVE_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISideChatPlacementService } from '../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -2353,7 +2353,10 @@ registerAction2(class CloseSessionAction extends Action2 {
 	}
 });
 
-const sessionGridWhen = ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), MultipleSessionsVisibleContext);
+const sessionLayoutWhen = ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, ChatContextKeys.enabled, IsPhoneLayoutContext.negate());
+const sessionGridWhen = ContextKeyExpr.and(sessionLayoutWhen, MultipleSessionsVisibleContext);
+// Moving or unmaximizing a pane ends the edit of a plain text field in it, such as an inline rename; the chat input, an editor, keeps its own.
+const notInPlainTextFieldWhen = ContextKeyExpr.or(InputFocusedContext.negate(), EditorContextKeys.textInputFocus);
 
 for (const menu of SessionHeaderMenus) {
 	MenuRegistry.appendMenuItem(menu, {
@@ -2361,7 +2364,7 @@ for (const menu of SessionHeaderMenus) {
 		title: localize('sessionGridLayout', "Session Layout"),
 		group: 'secondary/0_pane',
 		order: 30,
-		when: sessionGridWhen,
+		when: ContextKeyExpr.and(sessionLayoutWhen, ContextKeyExpr.or(MultipleSessionsVisibleContext, SessionHasSplitChatsContext)),
 	});
 }
 
@@ -2373,7 +2376,7 @@ registerAction2(class ArrangeSessionsAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			f1: true,
 			precondition: sessionGridWhen,
-			menu: { id: Menus.SessionGridLayout, group: '0_arrange', order: 0 },
+			menu: { id: Menus.SessionGridLayout, group: '0_arrange', order: 0, when: MultipleSessionsVisibleContext },
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -2384,11 +2387,37 @@ registerAction2(class ArrangeSessionsAction extends Action2 {
 	}
 });
 
+registerAction2(class EvenSessionSizesAction extends Action2 {
+	constructor() {
+		super({
+			id: EVEN_SESSION_SIZES_COMMAND_ID,
+			title: localize2('evenSessionSizes', "Reset Session Sizes"),
+			metadata: { description: localize2('evenSessionSizesDescription', "Give the session panes, and the chats split within each session, equal sizes without changing their arrangement.") },
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: sessionLayoutWhen,
+			menu: { id: Menus.SessionGridLayout, group: '0_arrange', order: 1 },
+			keybinding: {
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.Equal),
+				weight: KeybindingWeight.SessionsContrib,
+				// Anywhere in the Agents window, as the precondition allows, not only in a focused session pane.
+				when: notInPlainTextFieldWhen,
+			},
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		if (isChatWindowFocused(accessor)) {
+			return;
+		}
+		accessor.get(ISessionsService).evenSessionSizes();
+	}
+});
+
 const sessionGridActions = [
-	{ direction: Direction.Left, key: KeyCode.LeftArrow, focus: SESSION_GRID_FOCUS_COMMANDS.left, focusTitle: localize2('focusSessionLeft', "Focus Session to the Left"), move: 'sessions.moveSessionLeft', moveTitle: localize2('moveSessionLeft', "Move Session Left"), resize: 'sessions.narrowSession', resizeTitle: localize2('narrowSession', "Decrease Session Width") },
-	{ direction: Direction.Right, key: KeyCode.RightArrow, focus: SESSION_GRID_FOCUS_COMMANDS.right, focusTitle: localize2('focusSessionRight', "Focus Session to the Right"), move: 'sessions.moveSessionRight', moveTitle: localize2('moveSessionRight', "Move Session Right"), resize: 'sessions.widenSession', resizeTitle: localize2('widenSession', "Increase Session Width") },
-	{ direction: Direction.Up, key: KeyCode.UpArrow, focus: SESSION_GRID_FOCUS_COMMANDS.up, focusTitle: localize2('focusSessionAbove', "Focus Session Above"), move: 'sessions.moveSessionUp', moveTitle: localize2('moveSessionUp', "Move Session Above"), resize: 'sessions.shortenSession', resizeTitle: localize2('shortenSession', "Decrease Session Height") },
-	{ direction: Direction.Down, key: KeyCode.DownArrow, focus: SESSION_GRID_FOCUS_COMMANDS.down, focusTitle: localize2('focusSessionBelow', "Focus Session Below"), move: 'sessions.moveSessionDown', moveTitle: localize2('moveSessionDown', "Move Session Below"), resize: 'sessions.heightenSession', resizeTitle: localize2('heightenSession', "Increase Session Height") },
+	{ direction: Direction.Left, key: KeyCode.LeftArrow, focus: SESSION_GRID_FOCUS_COMMANDS.left, focusTitle: localize2('focusSessionLeft', "Focus Session to the Left"), move: SESSION_GRID_MOVE_COMMANDS.left, moveTitle: localize2('moveSessionLeft', "Move Session Left"), dock: SESSION_GRID_DOCK_COMMANDS.left, dockTitle: localize2('dockSessionLeft', "Dock Session to the Left"), resize: 'sessions.narrowSession', resizeTitle: localize2('narrowSession', "Decrease Session Width") },
+	{ direction: Direction.Right, key: KeyCode.RightArrow, focus: SESSION_GRID_FOCUS_COMMANDS.right, focusTitle: localize2('focusSessionRight', "Focus Session to the Right"), move: SESSION_GRID_MOVE_COMMANDS.right, moveTitle: localize2('moveSessionRight', "Move Session Right"), dock: SESSION_GRID_DOCK_COMMANDS.right, dockTitle: localize2('dockSessionRight', "Dock Session to the Right"), resize: 'sessions.widenSession', resizeTitle: localize2('widenSession', "Increase Session Width") },
+	{ direction: Direction.Up, key: KeyCode.UpArrow, focus: SESSION_GRID_FOCUS_COMMANDS.up, focusTitle: localize2('focusSessionAbove', "Focus Session Above"), move: SESSION_GRID_MOVE_COMMANDS.up, moveTitle: localize2('moveSessionUp', "Move Session Above"), dock: SESSION_GRID_DOCK_COMMANDS.up, dockTitle: localize2('dockSessionAbove', "Dock Session Above"), resize: 'sessions.shortenSession', resizeTitle: localize2('shortenSession', "Decrease Session Height") },
+	{ direction: Direction.Down, key: KeyCode.DownArrow, focus: SESSION_GRID_FOCUS_COMMANDS.down, focusTitle: localize2('focusSessionBelow', "Focus Session Below"), move: SESSION_GRID_MOVE_COMMANDS.down, moveTitle: localize2('moveSessionDown', "Move Session Below"), dock: SESSION_GRID_DOCK_COMMANDS.down, dockTitle: localize2('dockSessionBelow', "Dock Session Below"), resize: 'sessions.heightenSession', resizeTitle: localize2('heightenSession', "Increase Session Height") },
 ] as const;
 
 const sessionGridNavigationWhen = ContextKeyExpr.and(sessionGridWhen, SessionsFocusContext)!;
@@ -2397,20 +2426,30 @@ for (const item of sessionGridActions) {
 }
 
 for (const item of sessionGridActions) {
-	for (const operation of ['focus', 'move', 'resize'] as const) {
+	for (const operation of ['focus', 'move', 'dock', 'resize'] as const) {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: item[operation],
-					title: operation === 'focus' ? item.focusTitle : operation === 'move' ? item.moveTitle : item.resizeTitle,
+					title: item[`${operation}Title`],
 					category: SessionsCategories.Sessions,
 					f1: true,
 					precondition: sessionGridWhen,
-					menu: { id: Menus.SessionGridLayout, group: operation === 'focus' ? '1_focus' : operation === 'move' ? '2_move' : '3_size', order: item.direction },
+					menu: {
+						id: Menus.SessionGridLayout,
+						group: operation === 'focus' ? '1_focus' : operation === 'resize' ? '3_size' : '2_move',
+						order: operation === 'dock' ? 4 + item.direction : item.direction,
+						when: MultipleSessionsVisibleContext,
+					},
 					keybinding: operation === 'focus' ? {
 						primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | item.key),
 						weight: KeybindingWeight.SessionsContrib,
 						when: SessionsFocusContext,
+					} : operation !== 'resize' ? {
+						// Move: the chords of Move Editor Group, which take precedence while a session pane has focus. Dock adds Shift.
+						primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, (operation === 'dock' ? KeyMod.Shift : 0) | item.key),
+						weight: KeybindingWeight.SessionsContrib,
+						when: ContextKeyExpr.and(SessionsFocusContext, notInPlainTextFieldWhen),
 					} : undefined,
 				});
 			}
@@ -2418,17 +2457,14 @@ for (const item of sessionGridActions) {
 				if (isChatWindowFocused(accessor)) {
 					return;
 				}
-				const service = accessor.get(ISessionsService);
 				const target = resolvePaneCommandTarget(accessor, args);
-				if (!target?.view || !target.pane) {
-					return;
-				}
-				if (operation === 'focus') {
-					service.focusPaneInDirection(target.pane, item.direction);
-				} else if (operation === 'move') {
-					service.movePaneInDirection(target.pane, item.direction);
-				} else {
-					service.resizePaneInDirection(target.pane, item.direction);
+				if (target?.view && target.pane) {
+					const service = accessor.get(ISessionsService);
+					if (operation === 'dock') {
+						service.movePaneInDirection(target.pane, item.direction, true);
+					} else {
+						service[`${operation}PaneInDirection`](target.pane, item.direction);
+					}
 				}
 			}
 		});

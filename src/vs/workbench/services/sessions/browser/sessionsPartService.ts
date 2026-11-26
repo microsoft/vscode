@@ -22,7 +22,8 @@ export interface ISessionGridSlot {
 	readonly placement?: ISessionGridPlacement;
 }
 
-export type SessionGridRequest = { readonly type: 'arrange' } | { readonly type: 'restore'; readonly grid: ISerializedGrid };
+/** A one-time change of the grid's geometry, delivered with its panes; a `reordered` swap's panes already give them swapped. */
+export type SessionGridRequest = { readonly type: 'arrange' | 'even' } | { readonly type: 'swap'; readonly first: string; readonly second: string; readonly reordered: boolean } | { readonly type: 'restore'; readonly grid: ISerializedGrid };
 
 /**
  * A session view hosted by the Sessions part, as seen by services and actions.

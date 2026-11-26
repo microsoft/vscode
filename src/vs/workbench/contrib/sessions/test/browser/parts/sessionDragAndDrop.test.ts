@@ -31,7 +31,8 @@ import { isInputDropTarget } from '../../../../../browser/dnd.js';
 import { IEditorGroupsView, IEditorGroupView } from '../../../../../browser/parts/editor/editor.js';
 import { EditorDropTarget } from '../../../../../browser/parts/editor/editorDropTarget.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
-import { ISession } from '../../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../../services/sessions/browser/sessionGridPane.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatGroupDropTarget } from '../../../browser/parts/chatGroupDropTarget.js';
 import { SessionDropTarget } from '../../../browser/parts/sessionDropTarget.js';
@@ -379,18 +380,26 @@ suite('Chat Editor Drop Feedback', () => {
 suite('Sessions - Session Drop Zones', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	/** Drags the sessions `dragged` over a 400x300 view of the session `target`, and drops them at `x`, `y`. */
-	function dropAt(dragged: readonly string[], x: number, y: number) {
+	/**
+	 * Drags the sessions `dragged` over a 400x300 view of the session `target`, and drops them at `x`, `y`. The grid shows
+	 * the sessions `inGrid` in slots of their own, the target's included when it is listed, and those of them in `drafts` as drafts.
+	 */
+	function dropAt(dragged: readonly string[], x: number, y: number, inGrid: readonly string[] = [], drafts: readonly string[] = []) {
 		const services = workbenchInstantiationService(undefined, store);
 		const opened: string[] = [];
+		const slotPanes = inGrid.map(id => upcastPartial<ISessionGridPane>({ id: `${id}-slot`, kind: SessionGridPaneKind.Slot, session: constObservable(upcastPartial<ISession>({ sessionId: id, status: constObservable(drafts.includes(id) ? SessionStatus.Untitled : SessionStatus.Completed) })) }));
 		services.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly slotPanes: ISessionsService['slotPanes'] = constObservable([]);
+			override readonly slotPanes: ISessionsService['slotPanes'] = constObservable(slotPanes);
 			override async openSessionInSlot(session: ISession, targetSessionId: string | undefined): Promise<void> {
 				opened.push(`${session.sessionId} in ${targetSessionId}`);
 			}
 			override async openSessionsAt(sessions: readonly ISession[], referenceSessionId: string | undefined, direction: SessionGridDirection): Promise<void> {
 				opened.push(`${sessions.map(session => session.sessionId).join(',')} ${direction} of ${referenceSessionId}`);
 			}
+			override swapPanes(first: ISessionGridPane, second: ISessionGridPane): void {
+				opened.push(`${first.session.get()?.sessionId} swaps with ${second.session.get()?.sessionId}`);
+			}
+			override focusActiveSession(): void { opened.push('focus'); }
 		}());
 		services.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override getSession(resource: URI): ISession {
@@ -418,17 +427,25 @@ suite('Sessions - Session Drop Zones', () => {
 		return { shown, opened };
 	}
 
-	test('one session dropped in the middle of a view opens in it, in place of what it shows, and near an edge beside it; several only open beside it', () => {
+	test('one session dropped in the middle of a view opens in it, in place of what it shows, or swaps places with it when another slot shows it, a draft too; near an edge it opens beside it; several only open beside it', () => {
 		const whole = { left: '0px', top: '0px', width: '100%', height: '100%' };
 		const leftHalf = { left: '0px', top: '0px', width: '50%', height: '100%' };
 		assert.deepStrictEqual({
 			middle: dropAt(['dragged'], 200, 150),
 			nearEdge: dropAt(['dragged'], 60, 150),
 			several: dropAt(['a', 'b'], 200, 150),
+			shownMiddle: dropAt(['dragged'], 200, 150, ['dragged', 'target']),
+			shownNearEdge: dropAt(['dragged'], 60, 150, ['dragged', 'target']),
+			draftMiddle: dropAt(['dragged'], 200, 150, ['dragged', 'target'], ['dragged']),
+			targetOnlyMiddle: dropAt(['dragged'], 200, 150, ['target']),
 		}, {
 			middle: { shown: whole, opened: ['dragged in target'] },
 			nearEdge: { shown: leftHalf, opened: ['dragged left of target'] },
 			several: { shown: leftHalf, opened: ['a,b left of target'] },
+			shownMiddle: { shown: whole, opened: ['dragged swaps with target', 'focus'] },
+			shownNearEdge: { shown: leftHalf, opened: ['dragged left of target'] },
+			draftMiddle: { shown: whole, opened: ['dragged swaps with target', 'focus'] },
+			targetOnlyMiddle: { shown: whole, opened: ['dragged in target'] },
 		});
 	});
 });

@@ -8,7 +8,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { agentsPanelBorder } from '../../common/theme.js';
-import { Direction, ISerializedGrid } from '../../../../../base/browser/ui/grid/grid.js';
+import { Direction, ISerializedGrid, Sizing } from '../../../../../base/browser/ui/grid/grid.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
 import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, isHTMLElement, trackFocus } from '../../../../../base/browser/dom.js';
 import { SessionView } from './sessionView.js';
@@ -26,6 +26,8 @@ import type { ISessionHost } from '../../../../services/sessions/browser/session
 import { SessionGridLayout } from '../../../../browser/parts/sessions/sessionGridLayout.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISessionsPartContent, ISessionsPartContentHost, ISessionsPartContentLayout } from '../../../../browser/parts/sessions/sessionsPartContent.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { SESSIONS_SPLIT_SIZING_SETTING } from '../../common/sessionConfig.js';
 
 interface IGridSlot {
 	readonly id: string;
@@ -88,6 +90,7 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -202,17 +205,24 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 			slot.view.setActive(isActive);
 		}
 
-		this._gridWidget.reconcile(next.map((slot, index) => ({ id: slot.id, view: slot.view, placement: gridSlots?.[index].placement })), activeSlot?.id ?? next[0].id);
+		const newRequest = request !== this._gridRequest ? request : undefined;
+		this._gridRequest = request ?? this._gridRequest;
+		// The panes already give swapped slots in their new order: swapping their places first leaves no reorder to do.
+		if (newRequest?.type === 'swap') {
+			this._gridWidget.swap(newRequest.first, newRequest.second, newRequest.reordered);
+		}
+		const sizing = this.configurationService.getValue(SESSIONS_SPLIT_SIZING_SETTING) === 'distribute' ? Sizing.Distribute : Sizing.Split;
+		this._gridWidget.reconcile(next.map((slot, index) => ({ id: slot.id, view: slot.view, placement: gridSlots?.[index].placement })), activeSlot?.id ?? next[0].id, sizing);
 		for (const slot of oldSlots.values()) {
 			slot.disposables.dispose();
 		}
-		if (request && request !== this._gridRequest) {
-			this._gridRequest = request;
-			if (request.type === 'arrange') {
-				this._gridWidget.arrange();
-			} else {
-				this._gridWidget.restore(request.grid);
-			}
+		if (newRequest?.type === 'arrange') {
+			this._gridWidget.arrange();
+		} else if (newRequest?.type === 'even') {
+			this._gridWidget.evenSizes();
+			this._slots.forEach(slot => slot.view.evenChatGroupSizes());
+		} else if (newRequest?.type === 'restore') {
+			this._gridWidget.restore(newRequest.grid);
 		}
 		this._updateMaximizedState();
 		this.host.requestLayout();

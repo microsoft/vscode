@@ -39,6 +39,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../platform/t
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { EVEN_SESSION_SIZES_COMMAND_ID, SESSION_GRID_DOCK_COMMANDS, SESSION_GRID_MOVE_COMMANDS } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
@@ -642,16 +643,19 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const sessionGridHelp = content.split('\n').find(line => line.includes('Session panes form a separate grid'));
 
 		assert.deepStrictEqual({
-			navigation: [
+			missingKeybindings: [
 				'workbench.action.navigateLeft',
 				'workbench.action.navigateRight',
 				'workbench.action.navigateUp',
 				'workbench.action.navigateDown',
-			].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)),
+				...Object.values(SESSION_GRID_MOVE_COMMANDS),
+				...Object.values(SESSION_GRID_DOCK_COMMANDS),
+				EVEN_SESSION_SIZES_COMMAND_ID,
+			].filter(commandId => !sessionGridHelp?.includes(`<keybinding:${commandId}>`)),
 			openInGrid: content.includes('Open in Grid'),
 			splitView: content.includes('choose Split View from the Open in submenu of the session row\'s context menu'),
 			editorWindow: content.includes('choose Editor Window from the Open in submenu of its context menu in the Sessions list'),
-		}, { navigation: [true, true, true, true], openInGrid: false, splitView: true, editorWindow: true });
+		}, { missingKeybindings: [], openInGrid: false, splitView: true, editorWindow: true });
 	});
 
 	test('provides the focused Judge result as plain text and restores focus', () => {
