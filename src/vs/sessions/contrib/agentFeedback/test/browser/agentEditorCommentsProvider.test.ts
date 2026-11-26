@@ -132,8 +132,8 @@ suite('AgentEditorCommentsProviderContribution', () => {
 			override hideFeedbackInEditor(_sessionResource: URI, feedbackId: string): void {
 				hiddenFeedbackIds.push(feedbackId);
 			}
-			override removeFeedback(_sessionResource: URI, feedbackId: string): void {
-				removedFeedbackIds.push(feedbackId);
+			override removeFeedback(_sessionResource: URI, feedbackIds: readonly string[]): void {
+				removedFeedbackIds.push(...feedbackIds);
 			}
 		}();
 		const planReviewFeedbackService = new class extends mock<IPlanReviewFeedbackService>() {

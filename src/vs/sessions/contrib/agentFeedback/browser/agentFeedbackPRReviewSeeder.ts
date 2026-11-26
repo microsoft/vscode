@@ -104,7 +104,7 @@ export function syncPRReviewFeedback(agentFeedbackService: IAgentFeedbackService
 		}
 	}
 	for (const duplicate of duplicateCreatedMirrors) {
-		agentFeedbackService.removeFeedback(sessionResource, duplicate.id);
+		agentFeedbackService.removeFeedback(sessionResource, [duplicate.id]);
 	}
 
 	for (const comment of comments) {
@@ -165,7 +165,7 @@ export function syncPRReviewFeedback(agentFeedbackService: IAgentFeedbackService
 			) {
 				continue;
 			}
-			agentFeedbackService.removeFeedback(sessionResource, item.id);
+			agentFeedbackService.removeFeedback(sessionResource, [item.id]);
 		}
 	}
 }

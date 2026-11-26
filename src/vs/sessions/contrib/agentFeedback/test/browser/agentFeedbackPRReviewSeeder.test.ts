@@ -70,11 +70,13 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 				onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 				return feedback;
 			}
-			override removeFeedback(_sessionResource: URI, feedbackId: string): void {
-				const idx = feedbackItems.findIndex(i => i.id === feedbackId);
-				if (idx >= 0) {
-					feedbackItems.splice(idx, 1);
-					onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
+			override removeFeedback(_sessionResource: URI, feedbackIds: readonly string[]): void {
+				for (const feedbackId of feedbackIds) {
+					const idx = feedbackItems.findIndex(i => i.id === feedbackId);
+					if (idx >= 0) {
+						feedbackItems.splice(idx, 1);
+						onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
+					}
 				}
 			}
 			override updateFeedback(_sessionResource: URI, feedbackId: string, newText: string): void {

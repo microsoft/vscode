@@ -115,7 +115,7 @@ export function registerAgentFeedbackReviewCommands(): IDisposable {
 		if (item?.kind === AgentFeedbackKind.PRReview && item.sourcePRReviewCommentId) {
 			codeReviewService.dismissPRReviewComment(resource, item.sourcePRReviewCommentId);
 		}
-		feedbackService.removeFeedback(resource, commentId);
+		feedbackService.removeFeedback(resource, [commentId]);
 	}));
 
 	registrations.add(CommandsRegistry.registerCommand(AgentFeedbackReviewCommandId.Accept, (accessor, sessionOrChatResource: UriComponents, commentIds: readonly string[]): void => {

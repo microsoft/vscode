@@ -123,9 +123,7 @@ class FeedbackFileRenderer implements ITreeRenderer<IFeedbackFileElement, void, 
 				ThemeIcon.asClassName(Codicon.close),
 				true,
 				() => {
-					for (const item of element.items) {
-						service.removeFeedback(sessionResource, item.id);
-					}
+					service.removeFeedback(sessionResource, element.items.map(item => item.id));
 				}
 			), { icon: true, label: false });
 		}
@@ -197,7 +195,7 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 				ThemeIcon.asClassName(Codicon.close),
 				true,
 				() => {
-					service.removeFeedback(sessionResource, element.id);
+					service.removeFeedback(sessionResource, [element.id]);
 				}
 			), { icon: true, label: false });
 		}

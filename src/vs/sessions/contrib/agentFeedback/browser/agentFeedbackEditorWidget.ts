@@ -625,7 +625,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		if (comment.kind === AgentFeedbackKind.PRReview && comment.sourcePRReviewCommentId) {
 			this._codeReviewService.dismissPRReviewComment(this._sessionResource, comment.sourcePRReviewCommentId);
 		}
-		this._agentFeedbackService.removeFeedback(this._sessionResource, comment.sourceId);
+		this._agentFeedbackService.removeFeedback(this._sessionResource, [comment.sourceId]);
 	}
 
 	private _hideComment(comment: ISessionEditorComment): void {

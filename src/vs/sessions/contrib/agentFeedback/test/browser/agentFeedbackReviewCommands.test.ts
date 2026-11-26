@@ -52,8 +52,8 @@ suite('AgentFeedbackReviewCommands', () => {
 				operations.push(`reveal:${resource.toString()}:${feedbackId}`);
 			}
 
-			override removeFeedback(resource: URI, feedbackId: string): void {
-				operations.push(`remove:${resource.toString()}:${feedbackId}`);
+			override removeFeedback(resource: URI, feedbackIds: readonly string[]): void {
+				operations.push(`remove:${resource.toString()}:${feedbackIds.join(',')}`);
 			}
 
 			override acceptFeedback(resource: URI, feedbackId: string, options?: { readonly revealToAgent?: boolean }): void {
