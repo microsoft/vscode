@@ -58,7 +58,7 @@ suite('ChatWidget Slash Commands', () => {
 
 	test('fork prompt cleanup clears only the unchanged agent-host source input model', () => {
 		const sourceState = observableValue('sourceInput', {
-			inputText: '/fork prompt preserve this',
+			inputText: '/fork preserve this',
 			attachments: [{ id: 'source-attachment' }],
 		});
 		const targetState = observableValue('targetInput', {
@@ -94,15 +94,15 @@ suite('ChatWidget Slash Commands', () => {
 		assert.deepStrictEqual(sourceState.get(), { inputText: '', attachments: [] });
 		assert.deepStrictEqual(targetState.get(), { inputText: 'new target typing', attachments: [{ id: 'target-attachment' }] });
 
-		sourceState.set({ inputText: '/fork prompt preserve this', attachments: [{ id: 'source-attachment' }] }, undefined);
-		input = '/fork prompt preserve this';
+		sourceState.set({ inputText: '/fork preserve this', attachments: [{ id: 'source-attachment' }] }, undefined);
+		input = '/fork preserve this';
 		attachmentIds = new Set(['source-attachment']);
 		const editedCleanup = privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined)!;
 		sourceState.set({ ...sourceState.get(), inputText: 'new source typing' }, undefined);
 		editedCleanup.clear();
 		assert.strictEqual(sourceState.get().inputText, 'new source typing');
 
-		sourceState.set({ inputText: '/fork prompt preserve this', attachments: [{ id: 'source-attachment' }] }, undefined);
+		sourceState.set({ inputText: '/fork preserve this', attachments: [{ id: 'source-attachment' }] }, undefined);
 		attachmentIds = new Set(['source-attachment']);
 		const attachmentCleanup = privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined)!;
 		sourceState.set({ ...sourceState.get(), attachments: [{ id: 'new-attachment' }] }, undefined);
@@ -119,12 +119,12 @@ suite('ChatWidget Slash Commands', () => {
 		widgetModel.sessionResource = URI.parse('remote-example-copilot:/source');
 		assert.ok(privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined), 'remote agent-host sessions own fork-prompt cleanup');
 
-		input = '  @agent /fork prompt prefixed';
+		input = '  @agent /fork prefixed';
 		(widget as unknown as { parsedInput: IParsedChatRequest }).parsedInput = upcastPartial<IParsedChatRequest>({
 			parts: [new ChatRequestSlashCommandPart(new OffsetRange(9, 14), new Range(1, 10, 1, 15), { command: 'fork', detail: 'Fork', locations: [ChatAgentLocation.Chat] })],
 		});
 		assert.ok(privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined), 'a global fork after whitespace and an agent mention owns its prompt');
-		input = 'plain text /fork prompt mention';
+		input = 'plain text /fork mention';
 		(widget as unknown as { parsedInput: IParsedChatRequest }).parsedInput = upcastPartial<IParsedChatRequest>({ parts: [] });
 		assert.strictEqual(privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined), undefined);
 	});
@@ -132,7 +132,7 @@ suite('ChatWidget Slash Commands', () => {
 	test('fork prompt cleanup preserves changed attachment content with unchanged IDs', () => {
 		const original = toPasteVariableEntry('Pasted text', 'original content', { id: 'same-id' });
 		const updated = toPasteVariableEntry('Pasted text', 'edited content', { id: 'same-id' });
-		const inputText = '/fork prompt preserve this';
+		const inputText = '/fork preserve this';
 		const state = observableValue('sourceInput', { inputText, attachments: [original] });
 		const inputModel = {
 			state,
@@ -219,7 +219,7 @@ suite('ChatWidget Slash Commands', () => {
 			_getAttachedContextForConcurrentSlashCommand(preserveInput: boolean | undefined): NonNullable<IChatSendRequestOptions['attachedContext']>;
 			_executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean>;
 		};
-		// Owned /fork prompt input deliberately does not use preserveInput: its
+		// Owned /fork <prompt> input deliberately does not use preserveInput: its
 		// source attachments remain part of the request both before and during an
 		// active request. A true preserveInput remains an unrelated-draft path.
 		const idleForkPromptContext = privateMethods._getAttachedContextForConcurrentSlashCommand.call(widget, false);

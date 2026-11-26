@@ -694,8 +694,7 @@ suite('SlashCommandCompletions fork variants', () => {
 		locations: [ChatAgentLocation.Chat],
 		completionVariants: [
 			{ label: '/fork', insertText: '/fork ', executeImmediately: true },
-			{ label: '/fork <title>', insertText: '/fork ', argumentHint: 'title' },
-			{ label: '/fork prompt <prompt>', insertText: '/fork prompt ', argumentHint: 'prompt' },
+			{ label: '/fork <prompt>', insertText: '/fork ', argumentHint: 'prompt' },
 		],
 	};
 
@@ -749,8 +748,7 @@ suite('SlashCommandCompletions fork variants', () => {
 			filterText: suggestion.filterText,
 		})), [
 			{ label: { label: '/fork', description: 'Fork this chat' }, insertText: '/fork ', submitsImmediately: true, range: { insert: new Range(1, 1, 1, 4), replace: new Range(1, 1, 1, 4) }, filterText: '/fork' },
-			{ label: { label: '/fork <title>', description: 'Fork this chat' }, insertText: '/fork ', submitsImmediately: false, range: { insert: new Range(1, 1, 1, 4), replace: new Range(1, 1, 1, 4) }, filterText: '/fork' },
-			{ label: { label: '/fork prompt <prompt>', description: 'Fork this chat' }, insertText: '/fork prompt ', submitsImmediately: false, range: { insert: new Range(1, 1, 1, 4), replace: new Range(1, 1, 1, 4) }, filterText: '/fork' },
+			{ label: { label: '/fork <prompt>', description: 'Fork this chat' }, insertText: '/fork ', submitsImmediately: false, range: { insert: new Range(1, 1, 1, 4), replace: new Range(1, 1, 1, 4) }, filterText: '/fork' },
 		]);
 		for (const suggestion of suggestions) {
 			model.setValue('/fo');
@@ -761,10 +759,9 @@ suite('SlashCommandCompletions fork variants', () => {
 		}
 	});
 
-	test('accepts fork title and prompt completion commands through the input editor', async () => {
+	test('accepts the fork prompt completion command through the input editor', async () => {
 		const cases = [
-			{ label: '/fork <title>', insertText: '/fork ', argumentHint: 'title', cursorColumn: 7 },
-			{ label: '/fork prompt <prompt>', insertText: '/fork prompt ', argumentHint: 'prompt', cursorColumn: 14 },
+			{ label: '/fork <prompt>', insertText: '/fork ', argumentHint: 'prompt', cursorColumn: 7 },
 		];
 
 		for (const testCase of cases) {
