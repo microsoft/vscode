@@ -259,8 +259,9 @@ export class MultiDiffEditorFileList extends Disposable {
 				horizontalScrolling: false,
 				// A file that can expand shows its twistie before its structural changes are loaded.
 				hideTwistiesOfChildlessElements: false,
-				// Files and their structural changes open when clicked, so they only expand through their twistie.
-				expandOnlyOnTwistieClick: element => !isFolder(element),
+				// Files and their structural changes open when clicked, so they only expand through their twistie. Like in the
+				// Source Control view, folders follow `workbench.tree.expandMode`.
+				expandOnlyOnTwistieClick: element => !isFolder(element) || configurationService.getValue<string>('workbench.tree.expandMode') === 'doubleClick',
 				twistieAdditionalCssClass: element => this._getTwistieCssClass(element),
 			}
 		));
@@ -268,7 +269,7 @@ export class MultiDiffEditorFileList extends Disposable {
 
 		// A change of all files, such as turning structural changes on or off, renders the files again, which also updates
 		// whether they keep their twistie space, see `_getTwistieCssClass`.
-		this._register(this._structuralDiff.onDidChange(item => item ? this._updateStructuralChanges(item) : this._renderFiles()));
+		this._register(this._structuralDiff.onDidChange(item => item ? this._updateStructuralChanges(item) : this._updatePreservingSelection(() => this._renderFiles())));
 		this._register(this._tree.onDidChangeCollapseState(e => {
 			const element = e.node.element;
 			// A file whose structural changes turn out to be empty stops being collapsible, which needs no update.
@@ -278,7 +279,7 @@ export class MultiDiffEditorFileList extends Disposable {
 			if (e.node.collapsed) {
 				// Like in the Source Control view, a collapsed file keeps no structural changes and loads them again when it is expanded.
 				this._structuralChanges.delete(element);
-				this._tree.setChildren(element, []);
+				this._updatePreservingSelection(() => this._tree.setChildren(element, []));
 				this._structuralDiff.release(element);
 			} else {
 				this._loadStructuralChanges(element);
@@ -345,8 +346,9 @@ export class MultiDiffEditorFileList extends Disposable {
 	}
 
 	/**
-	 * Called when the editor of the list is shown or hidden. Like the Source Control view, a hidden list keeps no
-	 * structural changes, so it loads those of its expanded files again when it is shown.
+	 * Called when the editor of the list is shown or hidden. Like the Source Control view, a hidden list keeps no results
+	 * of the structural diff model and analyzes no files. Its expanded files keep showing their structural changes, so
+	 * that switching editors does not make them flicker or move the list, and load them again when the list is shown.
 	 */
 	setVisible(visible: boolean): void {
 		if (this._visible === visible) {
@@ -474,13 +476,30 @@ export class MultiDiffEditorFileList extends Disposable {
 				return;
 			}
 			this._structuralChanges.set(item, changes);
-			this._tree.setChildren(item, changes.map(toStructuralChangeElement));
+			this._updatePreservingSelection(() => this._tree.setChildren(item, changes.map(toStructuralChangeElement)));
 		} catch (error) {
 			onUnexpectedError(error);
 		} finally {
 			slowTimeout.dispose();
 			this._setSlow(item, false);
 		}
+	}
+
+	/**
+	 * Updates the elements of the tree. Removing the selected structural change, for example because its file collapsed or
+	 * structural changes were turned off, clears the selection of the tree, so the list then selects its file instead.
+	 */
+	private _updatePreservingSelection(update: () => void): void {
+		const selected = this._tree.getSelection()[0];
+		update();
+		if (!selected || !isStructuralChange(selected) || this._tree.getSelection().length > 0 || !this._tree.hasElement(selected.resource)) {
+			return;
+		}
+		this._tree.setSelection([selected.resource]);
+		if (this._tree.getFocus().length === 0) {
+			this._tree.setFocus([selected.resource]);
+		}
+		this._tree.reveal(selected.resource);
 	}
 
 	private _setSlow(item: DocumentDiffItemViewModel, slow: boolean): void {

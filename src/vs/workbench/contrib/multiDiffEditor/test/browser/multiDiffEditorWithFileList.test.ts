@@ -143,6 +143,80 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		}, instantiationService));
 	}
 
+	/**
+	 * Lists `a.ts`, whose function `run` changed, and `notes.md`, with a structural diff provider for TypeScript files
+	 * that reports the change of `run` while the documents of `a.ts` differ.
+	 */
+	async function createStructuralDiffFileList() {
+		const modelService = instantiationService.get(IModelService);
+		const createModels = (path: string, original: string, modified: string) => [
+			disposables.add(modelService.createModel(original, null, URI.from({ scheme: 'original', path }))),
+			disposables.add(modelService.createModel(modified, null, URI.file(path))),
+		] as const;
+		const [original, modified] = createModels('/repo/a.ts', 'function run() {\n\treturn 1;\n}', 'function run() {\n\treturn 2;\n}');
+		const notes = createModels('/repo/notes.md', 'old', 'new');
+		instantiationService.stub(IEditorWorkerService, new class extends TestEditorWorkerService {
+			override async computeDiff(originalUri: URI, modifiedUri: URI, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
+				const result = linesDiffComputers.getDefault().computeDiff(modelService.getModel(originalUri)!.getLinesContent(), modelService.getModel(modifiedUri)!.getLinesContent(), options);
+				return { identical: result.changes.length === 0, quitEarly: result.hitTimeout, changes: result.changes, moves: result.moves };
+			}
+		}());
+		const run = { name: 'run', kind: SymbolKind.Function, range: new Range(1, 1, 3, 2), selectionRange: new Range(1, 10, 1, 13) };
+		const change = { textChangeIndex: 0, range: new Range(2, 9, 2, 10), classification: StructuralDiffClassification.Implementation };
+		disposables.add(instantiationService.get(ILanguageFeaturesService).structuralDiffProvider.register({ pattern: '**/*.ts' }, new class implements StructuralDiffProvider {
+			provideStructuralDiff(): StructuralDiff {
+				return {
+					root: {
+						id: 'file', originalChanges: [], modifiedChanges: [],
+						originalItem: { name: 'a.ts', kind: SymbolKind.File, range: original.getFullModelRange() },
+						modifiedItem: { name: 'a.ts', kind: SymbolKind.File, range: modified.getFullModelRange() },
+						children: original.getValue() === modified.getValue() ? [] : [{ id: 'run', originalItem: run, modifiedItem: run, originalChanges: [change], modifiedChanges: [change], children: [] }],
+					},
+					isIncomplete: false,
+				};
+			}
+		}()));
+		const { container, composite } = createComposite(constObservable(true));
+		const widget = composite.multiDiffEditorWidget;
+		composite.layout(new Dimension(1000, 400));
+		const documentItems = [[original, modified], notes].map(([original, modified]) => disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(original.uri, original),
+			modified: new DiffItemSource(modified.uri, modified),
+		}, { dispose() { } })));
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) }));
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel, { preserveFocus: true });
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		const listRows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index));
+		return {
+			composite,
+			widget,
+			original,
+			modified,
+			listRows,
+			rows: () => listRows().map(row => {
+				const expanded = row.getAttribute('aria-expanded');
+				return [
+					row.querySelector('.label-name')?.textContent,
+					row.querySelector('.multi-diff-file-list-item-status, .scm-structural-change-status')?.textContent,
+					row.querySelector('.scm-structural-change-annotation')?.textContent,
+					expanded === null ? 'leaf' : expanded === 'true' ? 'expanded' : 'collapsed',
+					row.querySelector('.monaco-tl-twistie.force-twistie') ? 'keeps twistie space' : undefined,
+				].filter(part => !!part).join(' ');
+			}),
+			selection: () => listRows().filter(row => row.classList.contains('selected')).map(row => `${row.querySelector('.label-name')?.textContent}${row.classList.contains('focused') ? ' (focused)' : ''}`),
+			clickTwistie: (row: HTMLElement) => row.querySelector('.monaco-tl-twistie')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })),
+			/** Waits for the list to show a number of rows: structural changes load asynchronously, through the documents, the text diff and the provider. */
+			async waitForRows(count: number) {
+				for (let attempt = 0; listRows().length !== count; attempt++) {
+					assert.ok(attempt < 50, 'The structural changes did not load');
+					await timeout(0);
+				}
+			},
+		};
+	}
+
 	test('offers the file list unless the input opts out', async () => {
 		stubBinaryDocuments();
 		const { editor } = createEditor(300);
@@ -389,73 +463,18 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 	});
 
 	test('expands files to the symbols that changed in them while structural changes are shown, keeping the twistie space of all files in the list, reveals a symbol in its diff and drops the symbols of a collapsed file', async () => {
-		const modelService = instantiationService.get(IModelService);
-		const createModels = (path: string, original: string, modified: string) => [
-			disposables.add(modelService.createModel(original, null, URI.from({ scheme: 'original', path }))),
-			disposables.add(modelService.createModel(modified, null, URI.file(path))),
-		] as const;
-		const [original, modified] = createModels('/repo/a.ts', 'function run() {\n\treturn 1;\n}', 'function run() {\n\treturn 2;\n}');
-		const notes = createModels('/repo/notes.md', 'old', 'new');
-		instantiationService.stub(IEditorWorkerService, new class extends TestEditorWorkerService {
-			override async computeDiff(originalUri: URI, modifiedUri: URI, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
-				const result = linesDiffComputers.getDefault().computeDiff(modelService.getModel(originalUri)!.getLinesContent(), modelService.getModel(modifiedUri)!.getLinesContent(), options);
-				return { identical: false, quitEarly: result.hitTimeout, changes: result.changes, moves: result.moves };
-			}
-		}());
-		const run = { name: 'run', kind: SymbolKind.Function, range: new Range(1, 1, 3, 2), selectionRange: new Range(1, 10, 1, 13) };
-		const change = { textChangeIndex: 0, range: new Range(2, 9, 2, 10), classification: StructuralDiffClassification.Implementation };
-		disposables.add(instantiationService.get(ILanguageFeaturesService).structuralDiffProvider.register({ pattern: '**/*.ts' }, new class implements StructuralDiffProvider {
-			provideStructuralDiff(): StructuralDiff {
-				return {
-					root: {
-						id: 'file', originalChanges: [], modifiedChanges: [],
-						originalItem: { name: 'a.ts', kind: SymbolKind.File, range: original.getFullModelRange() },
-						modifiedItem: { name: 'a.ts', kind: SymbolKind.File, range: modified.getFullModelRange() },
-						children: [{ id: 'run', originalItem: run, modifiedItem: run, originalChanges: [change], modifiedChanges: [change], children: [] }],
-					},
-					isIncomplete: false,
-				};
-			}
-		}()));
-		const { container, composite } = createComposite(constObservable(true));
-		const widget = composite.multiDiffEditorWidget;
-		composite.layout(new Dimension(1000, 400));
-		const documentItems = [[original, modified], notes].map(([original, modified]) => disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			original: new DiffItemSource(original.uri, original),
-			modified: new DiffItemSource(modified.uri, modified),
-		}, { dispose() { } })));
-		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) }));
-		await waitForState(viewModel.items, items => items.length === documentItems.length);
-		widget.setViewModel(viewModel, { preserveFocus: true });
-		await waitForState(viewModel.isLoading, isLoading => !isLoading);
-
-		const listRows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index));
-		const rows = () => listRows().map(row => {
-			const expanded = row.getAttribute('aria-expanded');
-			return [
-				row.querySelector('.label-name')?.textContent,
-				row.querySelector('.multi-diff-file-list-item-status, .scm-structural-change-status')?.textContent,
-				row.querySelector('.scm-structural-change-annotation')?.textContent,
-				expanded === null ? 'leaf' : expanded === 'true' ? 'expanded' : 'collapsed',
-				row.querySelector('.monaco-tl-twistie.force-twistie') ? 'keeps twistie space' : undefined,
-			].filter(part => !!part).join(' ');
-		});
-
+		const { widget, listRows, rows, clickTwistie, waitForRows } = await createStructuralDiffFileList();
 		try {
 			const hidden = rows();
 			showStructuralDiff.set(true, undefined);
 			const shown = rows();
-			listRows()[0].querySelector('.monaco-tl-twistie')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
-			// The structural changes load asynchronously, through the documents, the text diff and the provider.
-			for (let attempt = 0; rows().length === 2; attempt++) {
-				assert.ok(attempt < 50, 'The structural changes did not load');
-				await timeout(0);
-			}
+			clickTwistie(listRows()[0]);
+			await waitForRows(3);
 			const expanded = rows();
 			listRows()[1].dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
 			const editor = widget.getActiveControl()?.getModifiedEditor();
 			const opened = { file: editor?.getModel()?.uri.path, selection: editor?.getSelection()?.toString(), focused: editor?.hasTextFocus() };
-			listRows()[0].querySelector('.monaco-tl-twistie')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			clickTwistie(listRows()[0]);
 			const collapsed = rows();
 			showStructuralDiff.set(false, undefined);
 
@@ -466,6 +485,62 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 				opened: { file: '/repo/a.ts', selection: '[1,10 -> 1,13]', focused: true },
 				collapsed: ['a.ts M collapsed keeps twistie space', 'notes.md M leaf keeps twistie space'],
 				hiddenAgain: ['a.ts M leaf', 'notes.md M leaf'],
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('selects the file of the selected symbol when the list stops showing the symbol, because the file collapses or structural changes are turned off', async () => {
+		const { widget, listRows, selection, clickTwistie, waitForRows } = await createStructuralDiffFileList();
+		const clickSymbol = () => listRows()[1].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+		try {
+			showStructuralDiff.set(true, undefined);
+			clickTwistie(listRows()[0]);
+			await waitForRows(3);
+			clickSymbol();
+			const symbolSelected = selection();
+			clickTwistie(listRows()[0]);
+			const collapsed = selection();
+			clickTwistie(listRows()[0]);
+			await waitForRows(3);
+			clickSymbol();
+			showStructuralDiff.set(false, undefined);
+
+			assert.deepStrictEqual({ symbolSelected, collapsed, turnedOff: selection() }, {
+				symbolSelected: ['run (focused)'],
+				collapsed: ['a.ts (focused)'],
+				turnedOff: ['a.ts (focused)'],
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('keeps showing the symbols of expanded files while its editor is hidden, without analyzing edits, and loads them again when it is shown', async () => {
+		const { composite, widget, original, modified, listRows, rows, selection, clickTwistie, waitForRows } = await createStructuralDiffFileList();
+		try {
+			showStructuralDiff.set(true, undefined);
+			clickTwistie(listRows()[0]);
+			await waitForRows(3);
+			listRows()[1].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			composite.setVisible(false);
+			// Reverting the change of `run` removes its symbol. A shown list loads the symbols of the file again 150 ms after an edit.
+			modified.setValue(original.getValue());
+			await timeout(300);
+			const editorHidden = { rows: rows(), selection: selection() };
+			composite.setVisible(true);
+			await waitForRows(2);
+
+			assert.deepStrictEqual({ editorHidden, editorShown: { rows: rows(), selection: selection() } }, {
+				editorHidden: {
+					rows: ['a.ts M expanded keeps twistie space', 'run M impl leaf keeps twistie space', 'notes.md M leaf keeps twistie space'],
+					selection: ['run (focused)'],
+				},
+				editorShown: {
+					rows: ['a.ts M leaf keeps twistie space', 'notes.md M leaf keeps twistie space'],
+					selection: ['a.ts (focused)'],
+				},
 			});
 		} finally {
 			widget.setViewModel(undefined);
@@ -556,6 +631,39 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 				treeAfterClick: [' docs', '>c.png D', ' lib/util/deep', ' d.png A', ' src/app', ' a.png M', ' b.png M'],
 				list: ['>c.png D (path)', ' d.png A (path)', ' a.png M (path)', ' b.png M (path)'],
 			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('expands and collapses folders when they are clicked, unless `workbench.tree.expandMode` asks for a double click', async () => {
+		const configurationService = new TestConfigurationService({ 'workbench.tree.expandMode': 'doubleClick' });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		const { container, composite } = createComposite(constObservable(true), constObservable('tree'));
+		const widget = composite.multiDiffEditorWidget;
+		composite.layout(new Dimension(1000, 300));
+		const documentItems = [
+			createBinaryItem(URI.file('/repo/docs/a.png'), URI.file('/repo/docs/a.png')),
+			createBinaryItem(URI.file('/repo/src/b.png'), URI.file('/repo/src/b.png')),
+		];
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) }));
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel, { preserveFocus: true });
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		const clickFirstFolder = () => {
+			const folder = container.querySelector<HTMLElement>('.monaco-list-row[data-index="0"]')!;
+			folder.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			return `${folder.querySelector('.label-name')?.textContent} ${folder.getAttribute('aria-expanded') === 'true' ? 'expanded' : 'collapsed'}`;
+		};
+
+		try {
+			const doubleClickMode = clickFirstFolder();
+			await configurationService.setUserConfiguration('workbench.tree.expandMode', 'singleClick');
+			const singleClickMode = clickFirstFolder();
+
+			assert.deepStrictEqual({ doubleClickMode, singleClickMode }, { doubleClickMode: 'docs expanded', singleClickMode: 'docs collapsed' });
 		} finally {
 			widget.setViewModel(undefined);
 		}
