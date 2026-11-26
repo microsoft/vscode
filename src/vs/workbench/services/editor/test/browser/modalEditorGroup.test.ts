@@ -40,6 +40,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
+import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 
 class TestModalOptionsEditorInput extends TestFileEditorInput implements IModalEditorOptionsProvider {
@@ -1284,11 +1285,14 @@ suite('Modal Editor Group', () => {
 
 	suite('modal editor options', () => {
 
-		async function createParts(useModal: string, useScopedContextKeys = false) {
+		async function createParts(useModal: string, useScopedContextKeys = false, configuration?: { [key: string]: unknown }) {
 			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => useScopedContextKeys ? disposables.add(new ContextKeyService(new TestConfigurationService())) : instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 			const configurationService = new TestConfigurationService();
 			await configurationService.setUserConfiguration('workbench.editor.useModal', useModal);
+			for (const key in configuration) {
+				await configurationService.setUserConfiguration(key, configuration[key]);
+			}
 			instantiationService.stub(IConfigurationService, configurationService);
 			Memento.clear(StorageScope.PROFILE); // start from the default modal size, position and maximized state
 			const parts = await createEditorParts(instantiationService, disposables);
@@ -1427,6 +1431,36 @@ suite('Modal Editor Group', () => {
 			await modalPart.activeGroup.closeEditor(otherInput);
 
 			assert.deepStrictEqual({ withTabs, withoutTabs: pane.lastLayoutSize }, { withTabs: { width: 500, height: 300 }, withoutTabs: { width: 500, height: 300 } });
+
+			await modalPart.close();
+		});
+
+		test('an editor that fits its content keeps its size when its editor group adds a row of tabs', async () => {
+			const { parts } = await createParts('all', false, { 'workbench': { editor: { useModal: 'all', pinnedTabsOnSeparateRow: true } } });
+			const modalPart = await parts.createModalEditorPart();
+
+			const otherInput = createTestFileEditorInput(URI.file('foo/default'), TEST_EDITOR_INPUT_ID);
+			await modalPart.activeGroup.openEditor(otherInput, { pinned: true });
+			await modalPart.activeGroup.openEditor(createFitToContentInput({ width: 500, height: 300 }), { pinned: true });
+			const pane = modalPart.activeGroup.activeEditorPane as TestFitToContentEditorPane;
+			const groupView = modalPart.activeGroup as IEditorGroupView;
+			const titleHeight = groupView.titleHeight.total;
+			modalPart.activeGroup.stickEditor(otherInput);
+			await new Promise(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(resolve))); // the tabs lay out in an animation frame
+
+			assert.deepStrictEqual({ addedRow: groupView.titleHeight.total > titleHeight, size: pane.lastLayoutSize }, { addedRow: true, size: { width: 500, height: 300 } });
+
+			await modalPart.close();
+		});
+
+		test('an editor that fits its content keeps the width of the modal sidebar when the content is narrower than the modal minimum', async () => {
+			const { parts } = await createParts('some');
+			const modalPart = await parts.createModalEditorPart({ sidebar: { render: () => toDisposable(() => { }) } });
+
+			await modalPart.activeGroup.openEditor(createFitToContentInput({ width: 300, height: 300 }), { pinned: true });
+			const sidebar = (modalPart.modalElement as HTMLElement).querySelector<HTMLElement>('.modal-editor-sidebar')!;
+
+			assert.deepStrictEqual({ sidebarWidth: sidebar.style.width, modalWidth: getModalBounds(modalPart).width }, { sidebarWidth: '260px', modalWidth: '562px' });
 
 			await modalPart.close();
 		});
