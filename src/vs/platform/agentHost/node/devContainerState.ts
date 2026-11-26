@@ -643,16 +643,24 @@ const failedCommandPattern = String.raw`\b(Command(?: in \w+)? failed): (\S+)(?:
 // Other commands' arguments and other subcommands can contain local values.
 const errorMessageCommands = ['docker', 'podman', 'docker-compose'];
 const errorMessageSubcommands = ['build', 'buildx', 'compose', 'container', 'cp', 'create', 'down', 'exec', 'image', 'inspect', 'network', 'ps', 'pull', 'rm', 'run', 'start', 'stop', 'up', 'volume'];
+// Commands that Dev Containers runs itself. Other command names can be user content (e.g., an initializeCommand) or part of a path with a space.
+const errorMessageKnownCommands = [...errorMessageCommands, 'sh', 'bash', 'cmd', 'set', 'test', 'id'];
+// Node.js network errors are followed by the host name or address.
+const networkErrorAddressPattern = /\b(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH) \S+/g;
+const ipv4AddressPattern = /\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g;
 
 /**
  * Builds an error message for telemetry from parts such as an error message and a command's stderr. Removes command
- * lines, Dev Containers CLI log entries, ids and the container user. The telemetry service redacts paths and secrets.
+ * lines, Dev Containers CLI log entries, paths in parentheses, network addresses, ids and the container user. The
+ * telemetry service redacts other paths, URLs and secrets.
  */
 export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | undefined)[], values: IDevContainerStateErrorValues = {}): string | undefined {
 	const replacements: [RegExp, string][] = [
 		// State volume names include the folder name.
 		[/vscode-state-[a-z0-9_.-]*[a-z0-9]/g, 'vscode-state-<name>'],
 		[/\b(?:[0-9a-f]{64}|[0-9a-f]{12})\b/g, '<id>'],
+		[networkErrorAddressPattern, '$1 <address>'],
+		[ipv4AddressPattern, '<address>'],
 	];
 	const homeFolder = values.homeFolder?.replace(/\/+$/, '');
 	if (homeFolder) {
@@ -662,9 +670,10 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 		replacements.push([new RegExp(`(?<![\\w.-])${escapeRegExp(values.user)}(?![\\w.-])`, 'g'), '<user>']);
 	}
 	const summarizeCommand = (_match: string, prefix: string, command: string, subcommand: string | undefined, args: string) => {
-		const name = command.split(/[\\/]/).pop();
-		const keep = !!subcommand && errorMessageCommands.includes(name?.replace(/\.exe$/i, '') || '') && errorMessageSubcommands.includes(subcommand);
-		return `${prefix}: ${name}${keep ? ` ${subcommand}` : ''}${(subcommand && !keep) || args.trim() ? ' <args>' : ''}`;
+		const name = command.split(/[\\/]/).pop() || '';
+		const knownName = name.replace(/\.exe$/i, '').toLowerCase();
+		const keep = !!subcommand && errorMessageCommands.includes(knownName) && errorMessageSubcommands.includes(subcommand);
+		return `${prefix}: ${errorMessageKnownCommands.includes(knownName) ? name : '<command>'}${keep ? ` ${subcommand}` : ''}${(subcommand && !keep) || args.trim() ? ' <args>' : ''}`;
 	};
 	const lines = parts.flatMap(part => {
 		let text = (part || '').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
@@ -674,7 +683,7 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 		return text.split(/\r?\n/)
 			// CLI log entries include command lines. The link command's messages are informational.
 			.map(line => line.replace(/\[\d+ ms\].*/, '').replace(/(^|: )\s*(?:Persisting|Not persisting) ~\/.*/, '$1'))
-			.map(line => replacements.reduce((value, [pattern, replacement]) => value.replace(pattern, replacement), line).trim())
+			.map(line => replacements.reduce((value, [pattern, replacement]) => value.replace(pattern, replacement), redactParenthesizedPaths(line)).trim())
 			.filter(line => !!line);
 	});
 	const message = lines.join('\n');
@@ -683,6 +692,56 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 	}
 	// The specific error is usually at the end.
 	return `${message.substring(0, errorMessageHeadLength)}\n…\n${message.substring(message.length - (maxErrorMessageLength - errorMessageHeadLength - 3))}`;
+}
+
+const parenthesizedPathStartPattern = /\((?:[a-zA-Z]:)?[\\/]/y;
+// Node.js error codes that can follow a path, e.g., "(ENOENT)".
+const parenthesizedErrorCodes = new Set(['ENOENT', 'EACCES', 'EPERM', 'EEXIST', 'ENOTDIR', 'EISDIR', 'ENOTEMPTY', 'EBUSY', 'EROFS', 'ENOSPC', 'EMFILE', 'ELOOP', 'ENAMETOOLONG', 'EINVAL', 'EIO', 'EXDEV', 'EPIPE', 'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH']);
+
+/**
+ * Replaces paths in parentheses, e.g., the config file in "Dev container config (<path>) not found.", since the telemetry
+ * service only partially redacts paths with spaces. Folder names can contain parentheses, so the end of a path can be
+ * ambiguous. After the path's balanced closing parenthesis, the redaction extends over unmatched closing parentheses
+ * and parenthesized text other than known error codes (e.g., "(ENOENT)") up to the next path. An unclosed parenthesis
+ * extends it to the end of the line. Scans the line once.
+ */
+function redactParenthesizedPaths(line: string): string {
+	const isPathStart = (index: number) => {
+		parenthesizedPathStartPattern.lastIndex = index;
+		return parenthesizedPathStartPattern.test(line);
+	};
+	let result = '';
+	let kept = 0;
+	let i = line.indexOf('(');
+	while (i !== -1 && i < line.length) {
+		if (!isPathStart(i)) {
+			i = line.indexOf('(', i + 1);
+			continue;
+		}
+		result += `${line.substring(kept, i)}(<path>)`;
+		let depth = 0;
+		let end: number | undefined;
+		let groupStart = i;
+		for (; i < line.length; i++) {
+			if (line[i] === '(') {
+				if (end !== undefined && depth === 0) {
+					if (isPathStart(i)) {
+						break;
+					}
+					groupStart = i;
+				}
+				depth++;
+			} else if (line[i] === ')') {
+				depth--;
+				if (end === undefined ? depth === 0 : depth < 0 || (depth === 0 && !parenthesizedErrorCodes.has(line.substring(groupStart + 1, i)))) {
+					end = i + 1;
+					depth = 0;
+				}
+			}
+		}
+		kept = end === undefined || depth > 0 ? line.length : end;
+	}
+	return result + line.substring(kept);
 }
 
 function escapeRegExp(value: string): string {
