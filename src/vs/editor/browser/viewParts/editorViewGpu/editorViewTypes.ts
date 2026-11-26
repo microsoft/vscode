@@ -11,6 +11,8 @@
 export interface EditorViewConfig {
 	fontFamily: string;
 	fontSize: number;
+	/** Newer than 0.0.2, which ignores it. */
+	fontWeight?: number | string;
 	lineHeight: number;
 	fontLigatures?: boolean;
 	monospaceWidth?: number;

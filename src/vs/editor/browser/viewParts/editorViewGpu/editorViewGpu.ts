@@ -565,6 +565,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		return {
 			fontFamily: fontInfo.fontFamily,
 			fontSize: fontInfo.fontSize,
+			fontWeight: fontInfo.fontWeight,
 			lineHeight: fontInfo.lineHeight,
 			fontLigatures,
 			monospaceWidth: !fontLigatures && hasVerifiedAsciiCellWidth ? fontInfo.spaceWidth : undefined,
