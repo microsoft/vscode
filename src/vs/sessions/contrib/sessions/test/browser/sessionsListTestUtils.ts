@@ -307,6 +307,8 @@ export interface IListHarnessOptions {
 	readonly pinnedSessionIds?: ReadonlySet<string>;
 	/** Automation sessions shown in the Sessions list. The harness updates the set as the real service does. */
 	readonly shownAutomationSessionIds?: ReadonlySet<string>;
+	/** Sessions left out of the Sessions list while their canvas is in the sidebar. */
+	readonly hiddenCanvasSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
 	/** Apply pin and unpin changes and fire change events, as the real service does. */
@@ -335,6 +337,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const livePinnedSessionIds = new Set<string>();
 	const liveUnpinnedSessionIds = new Set<string>();
 	const shownAutomationSessionIds = new Set(options.shownAutomationSessionIds);
+	const hiddenCanvasSessionIds = options.hiddenCanvasSessionIds ?? new Set();
 	const provisionallyHiddenSessionIds = new Map<string, number>();
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
@@ -394,7 +397,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		}
 		override migrateLegacyReadState(): void { }
 		override isSessionListed(session: ISession, reader?: IReader): boolean {
-			return !provisionallyHiddenSessionIds.has(session.sessionId) && (!session.isAutomation?.read(reader) || shownAutomationSessionIds.has(session.sessionId));
+			return !provisionallyHiddenSessionIds.has(session.sessionId) && (session.isAutomation?.read(reader) ? shownAutomationSessionIds.has(session.sessionId) : !hiddenCanvasSessionIds.has(session.sessionId));
 		}
 		override hideSessionsProvisionally(sessions: readonly ISession[]): IDisposable {
 			const update = (delta: number) => {

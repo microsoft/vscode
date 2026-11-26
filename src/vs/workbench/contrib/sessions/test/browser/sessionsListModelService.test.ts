@@ -965,6 +965,87 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
+	// -- Sessions whose canvas is in the sidebar --
+
+	test('leaves a session started from the Canvases section out of the list before it is listed, through its replacement and reloads, until the user replies', () => {
+		const draft = createSession('draft');
+		const committed = createSession('committed');
+		const changes: string[] = [];
+		const observe = () => disposables.add(service.onDidChange(event => changes.push(...event.changes.map(change => `${change.kind} ${change.sessionId}`))));
+		observe();
+
+		service.hideCanvasSessionById(draft.sessionId);
+		const beforeListed = service.isSessionListed(draft);
+		sessionReplacedEmitter.fire({ from: draft, to: committed });
+		const replaced = { draft: service.isSessionListed(draft), committed: service.isSessionListed(committed) };
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		observe();
+		const reloaded = service.isSessionListed(committed);
+		service.showRepliedCanvasSession(committed);
+
+		assert.deepStrictEqual({
+			beforeListed, replaced, reloaded,
+			replied: service.isSessionListed(committed),
+			stored: storageService.get('sessionsListControl.hiddenCanvasSessions', StorageScope.PROFILE),
+			changes,
+		}, {
+			beforeListed: false,
+			replaced: { draft: true, committed: false },
+			reloaded: false,
+			replied: true,
+			stored: undefined,
+			changes: [`${SessionListModelChangeKind.CanvasListing} draft`, `${SessionListModelChangeKind.CanvasListing} committed`],
+		});
+	});
+
+	test('a message does not list a session the user hid while its canvas is in the sidebar, and undoing a hide restores each session except those changed since', () => {
+		const [byDefault, listed, hidden, shownSince] = ['byDefault', 'listed', 'hidden', 'shownSince'].map(id => createSession(id));
+		const sessions = [byDefault, listed, hidden, shownSince];
+		const state = () => sessions.filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+		service.hideCanvasSessionById(byDefault.sessionId);
+		service.hideCanvasSessions([hidden, shownSince]);
+		const before = state();
+
+		const undo = service.hideCanvasSessions(sessions);
+		const afterHide = state();
+		service.showRepliedCanvasSession(byDefault);
+		service.showCanvasSessions([shownSince]);
+		const afterReply = state();
+		undo();
+		const undone = { listed: state(), stored: storageService.get('sessionsListControl.hiddenCanvasSessions', StorageScope.PROFILE) };
+		service.showRepliedCanvasSession(byDefault);
+
+		assert.deepStrictEqual({ before, afterHide, afterReply, undone, repliedAfterUndo: state() }, {
+			before: ['listed'],
+			afterHide: [],
+			afterReply: ['shownSince'],
+			undone: { listed: ['listed', 'shownSince'], stored: JSON.stringify([['byDefault', 'default'], ['hidden', 'explicit']]) },
+			repliedAfterUndo: ['byDefault', 'listed', 'shownSince'],
+		});
+	});
+
+	test('lists automation sessions by their own rules, skips malformed stored entries, and forgets a hidden session once it is deleted', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const [kept, deleted] = ['kept', 'deleted'].map(id => createSession(id));
+		storageService.store('sessionsListControl.hiddenCanvasSessions', JSON.stringify([['kept', 'default'], ['deleted', 'explicit'], ['automation', 'explicit'], ['bogus', 'unknown'], [1, 'default'], 'malformed']), StorageScope.PROFILE, StorageTarget.USER);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		service.showAutomationSessions([automation]);
+		const listed = () => [automation, kept, deleted].filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+		const loaded = listed();
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+
+		sessionDeletedEmitter.fire(deleted);
+
+		assert.deepStrictEqual({ loaded, events, stored: storageService.get('sessionsListControl.hiddenCanvasSessions', StorageScope.PROFILE) }, {
+			loaded: ['automation'],
+			events: [{ changes: [{ sessionId: 'deleted', kind: SessionListModelChangeKind.CanvasListing }] }],
+			stored: JSON.stringify([['kept', 'default'], ['automation', 'explicit']]),
+		});
+	});
+
 	// -- onDidChange --
 
 	test('onDidChange includes changes array with sessionId and kind', () => {

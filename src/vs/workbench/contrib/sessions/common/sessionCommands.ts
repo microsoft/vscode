@@ -58,6 +58,12 @@ export const SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID = 'sessionsViewPane.show
 /** Lists automation sessions only in Automations again. Registered in `sessionsViewActions.ts`. */
 export const HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID = 'sessionsViewPane.hideAutomationSessionFromList';
 
+/**
+ * Leaves sessions out of the Sessions list while their canvas is in the sidebar, offering to undo it. Registered in
+ * `sessionsListActions.ts`; the sidebar's pinned canvases run it for their session.
+ */
+export const HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID = 'sessionsViewPane.hideCanvasSessionFromList';
+
 export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.showApplicationFilters';
 
 export {

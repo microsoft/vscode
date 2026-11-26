@@ -846,6 +846,11 @@ export interface ISessionCanvasClosedEvent {
  * Disposing it before a canvas opens, or a canvas that does not open, leaves nothing behind.
  */
 export interface ICanvasSessionDraft extends IDisposable {
+	/**
+	 * The ID of the draft's session, so that list state can apply to the session before it is listed. The session that
+	 * opening a canvas starts replaces it under another ID; see {@link ISessionsManagementService.onDidReplaceSession}.
+	 */
+	readonly sessionId: string;
 	/** The canvas types the draft can open; `undefined` when its extensions did not settle in time. */
 	readonly canvases: Promise<SessionCanvasDefinitionSnapshot>;
 	/**

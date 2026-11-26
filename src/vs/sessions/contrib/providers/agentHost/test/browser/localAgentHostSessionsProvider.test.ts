@@ -1407,6 +1407,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.canvasDefinitions = [{ canvasId: 'plan', extensionId: 'user:agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: 'Plans.', requiresInput: false, actionCount: 0 }];
 
 			const draft = provider.createCanvasDraft();
+			const replaced: string[] = [];
+			disposables.add(provider.onDidReplaceSession(({ from, to }) => replaced.push(`${from.sessionId === draft.sessionId ? 'draft' : from.sessionId} -> ${to.sessionId}`)));
 			const canvases = await draft.canvases;
 			const listedBeforeOpen = provider.getSessions().length;
 			const committed = await draft.open(canvas, 'plan-instance');
@@ -1420,6 +1422,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				opened: agentHost.canvasOpenRequests.map(open => ({ session: open.session.toString(), chat: open.chat.toString(), request: open.request })),
 				committed: { rawId: AgentSession.id(committed.resource), sessionType: committed.sessionType, title: committed.title.get() },
 				listed: provider.getSessions().map(session => session.sessionId),
+				replaced,
 				titles: agentHost.dispatchedActions.filter(dispatched => dispatched.action.type === ActionType.SessionTitleChanged).map(dispatched => ({ channel: dispatched.channel, action: dispatched.action })),
 			}, {
 				canvases: ['plan'],
@@ -1428,6 +1431,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				opened: [{ session: backend.toString(), chat: buildDefaultChatUri(backend), request: { canvasId: 'plan', extensionId: 'user:agent-plan', instanceId: 'plan-instance' } }],
 				committed: { rawId: AgentSession.id(backend), sessionType: 'copilotcli', title: 'Agent Plan' },
 				listed: [committed.sessionId],
+				replaced: [`draft -> ${committed.sessionId}`],
 				titles: [{ channel: backend.toString(), action: { type: ActionType.SessionTitleChanged, title: 'Agent Plan' } }],
 			});
 		});

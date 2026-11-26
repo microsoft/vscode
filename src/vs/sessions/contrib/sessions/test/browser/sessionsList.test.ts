@@ -93,7 +93,7 @@ import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
-import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasSessionCanToggleListingContext, PinnedCanvasSessionInSessionsListContext, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
@@ -107,7 +107,7 @@ import { SessionsList, SessionsListSnapshotNode } from '../../../../../workbench
 import { SessionsFlatList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFlatList.js';
 import { SessionSectionRenderer } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
 import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, limitSessionsForList, QUICK_CHATS_SECTION_ID, sortSessions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
-import { ISessionChatItem, ISessionSection, NEW_CANVAS_SESSION_COMMAND_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionToolbarMenuId, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListFocusedChatItemContext, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
+import { ISessionChatItem, ISessionSection, NEW_CANVAS_SESSION_COMMAND_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemContextMenuId, SessionItemHasPinnedCanvasContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionToolbarMenuId, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListFocusedChatItemContext, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -1767,6 +1767,7 @@ suite('Sessions - SessionsList', () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const createPin = (id: string, title: string) => upcastPartial<IPinnedCanvas>({
 				id,
+				identity: { providerId: 'test', session: URI.parse(`test-session://${id}`), chat: URI.parse(`test-session://${id}#main`), extensionId: 'user:canvases', canvasId: id, instanceId: id },
 				title: constObservable(title),
 				chatTitle: constObservable('Fix login bug'),
 				state: constObservable(PinnedCanvasState.Live),
@@ -1925,6 +1926,78 @@ suite('Sessions - SessionsList', () => {
 				actions: [['Remove from Sidebar'], ['Remove from Sidebar']],
 				calls: [{ commandId: 'test.removeCanvasFromSidebar', args: ['timeline'] }],
 				opened: [],
+			})));
+		});
+
+		test('tells the context menus of a pinned canvas and of a session whether the session can be shown in or hidden from the list, in both sidebar layouts', () => {
+			const hideCanvasSession = 'test.hideCanvasSession';
+			disposables.add(MenuRegistry.appendMenuItem(SessionItemContextMenuId, { command: { id: hideCanvasSession, title: 'Hide Canvas Session' }, when: SessionItemHasPinnedCanvasContext }));
+			const results = [];
+			for (const separateNavigation of [false, true]) {
+				const [listed, hidden, archived, unpinned] = ['Listed', 'Hidden', 'Archived', 'Unpinned'].map(title => createTestSession(title, { isArchived: title === 'Archived' }).session);
+				const pins = [listed, hidden, archived].map(session => upcastPartial<IPinnedCanvas>({
+					id: session.sessionId,
+					identity: { providerId: session.providerId, session: session.resource, chat: session.mainChat.get().resource, extensionId: 'user:canvases', canvasId: 'plan', instanceId: session.sessionId },
+					title: constObservable(`Canvas ${session.sessionId}`),
+					chatTitle: constObservable(undefined),
+					state: constObservable(PinnedCanvasState.Live),
+					canvas: constObservable(undefined),
+				}));
+				const menus: unknown[] = [];
+				const harness = createListHarness(disposables, [listed, hidden, archived, unpinned], { hiddenCanvasSessionIds: new Set([hidden.sessionId]) });
+				const contextKeyService = harness.store.add(new ContextKeyService(new TestConfigurationService()));
+				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+				harness.instantiationService.stub(IContextKeyService, contextKeyService);
+				(harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
+				harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
+				harness.instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = constObservable(undefined);
+				});
+				harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+					override showContextMenu(delegate: IContextMenuMenuDelegate): void {
+						menus.push(delegate.menuId === Menus.SidebarCanvasContext ? {
+							canToggle: delegate.contextKeyService?.getContextKeyValue(PinnedCanvasSessionCanToggleListingContext.key),
+							listed: delegate.contextKeyService?.getContextKeyValue(PinnedCanvasSessionInSessionsListContext.key),
+						} : delegate.getActions?.().filter(action => action.id === hideCanvasSession).map(action => action.label));
+					}
+				});
+				const container = harness.createContainer(300, 600);
+				const navigationContainer = mainWindow.document.createElement('div');
+				const listContainer = mainWindow.document.createElement('div');
+				container.append(navigationContainer, listContainer);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					showNavigationShortcuts: () => separateNavigation,
+					navigationContainer,
+					pinnedCanvases: upcastPartial<IPinnedCanvasService>({ enabled: constObservable(true), entries: constObservable(pins), selected: constObservable(undefined) }),
+					onSessionOpen: () => { },
+				}));
+				list.layout(600, 300);
+				const contextMenu = (label: string) => {
+					const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+						.find(row => (row.querySelector('.session-section-label') ?? row.querySelector('.session-title'))?.textContent === label);
+					assert.ok(row, `Expected a row for "${label}"`);
+					row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+					return menus.at(-1);
+				};
+				results.push({
+					separateNavigation,
+					sessions: list.getVisibleSessions().map(session => session.sessionId),
+					pins: Object.fromEntries(pins.map(pin => [pin.id, contextMenu(`Canvas ${pin.id}`)])),
+					sessionMenus: Object.fromEntries([listed, unpinned].map(session => [session.sessionId, contextMenu(session.title.get())])),
+				});
+			}
+
+			assert.deepStrictEqual(results, [false, true].map(separateNavigation => ({
+				separateNavigation,
+				sessions: ['Listed', 'Unpinned'],
+				pins: {
+					Listed: { canToggle: true, listed: true },
+					Hidden: { canToggle: true, listed: false },
+					Archived: { canToggle: false, listed: false },
+				},
+				sessionMenus: { Listed: ['Hide Canvas Session'], Unpinned: [] },
 			})));
 		});
 

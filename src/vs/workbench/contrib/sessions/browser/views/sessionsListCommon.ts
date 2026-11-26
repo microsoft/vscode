@@ -70,6 +70,8 @@ export const SessionItemIsCloudContext = new RawContextKey<boolean>('sessionItem
 export const SessionItemCanImportContext = new RawContextKey<boolean>('sessionItem.canImport', false);
 /** Whether the session item is the session of an automation run. */
 export const SessionItemIsAutomationContext = new RawContextKey<boolean>('sessionItem.isAutomation', false);
+/** Whether a canvas of the session item is pinned to the sidebar. */
+export const SessionItemHasPinnedCanvasContext = new RawContextKey<boolean>('sessionItem.hasPinnedCanvas', false);
 /** Whether the session item belongs in the Sessions list. Automation sessions only do once they are shown there. */
 export const SessionItemIsInSessionsListContext = new RawContextKey<boolean>('sessionItem.isInSessionsList', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
