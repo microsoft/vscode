@@ -291,6 +291,13 @@ export function createAgentServiceComposition(
 						}
 						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
 					},
+					supportsFolderIsolation: session => agentService?.supportsChatFolderIsolation(session) === true,
+					isolateChatFolder: (session, chat, folder, turnId) => {
+						if (!agentService) {
+							throw new Error('The agent service is unavailable.');
+						}
+						return agentService.isolateChatFolder(session, chat, folder, turnId);
+					},
 				},
 				{
 					isEnabled: () => isArtifactIntegrationsEnabled() && !!hostArtifactIntegrations.value,

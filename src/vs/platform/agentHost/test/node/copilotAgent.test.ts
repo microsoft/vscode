@@ -14656,6 +14656,26 @@ suite('CopilotAgent', () => {
 				});
 			});
 
+			test('the next send of a live chat applies an additional folder replaced by its worktree, as isolate_folder leaves it', async () => {
+				const fixture = await createFixture(true);
+				afterTest(() => fixture.dispose());
+				const { agent, session, chats, resources, previous, next, secondary } = fixture;
+				const context = exactChatContext(session, chats[1], resources[1]);
+				await agent.chats.sendMessage(chats[1], 'Read the secondary folder', [previous, secondary], undefined, undefined, undefined, context);
+				const appliedBefore = getPeerChatStub(agent, chats[1])?.appliedAdditionalDirectories.map(directory => directory.toString());
+
+				// `next` stands for the worktree that replaced `secondary` in the chat's folders.
+				await agent.chats.sendMessage(chats[1], 'Continue the task.', [previous, next], undefined, undefined, undefined, context);
+
+				assert.deepStrictEqual({
+					appliedBefore,
+					appliedAfter: getPeerChatStub(agent, chats[1])?.appliedAdditionalDirectories.map(directory => directory.toString()),
+				}, {
+					appliedBefore: [secondary.toString()],
+					appliedAfter: [next.toString()],
+				});
+			});
+
 			test('replaces the inherited roots of a live multi-root peer', async () => {
 				const fixture = await createFixture(true);
 				afterTest(() => fixture.dispose());

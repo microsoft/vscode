@@ -37,6 +37,12 @@ export const enum SessionConfigKey {
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 	/** `'worktreeSymlinkFolders'` — host-owned `.gitignore`-syntax patterns for git-ignored folders symlinked into a new worktree. */
 	WorktreeSymlinkFolders = 'worktreeSymlinkFolders',
+	/**
+	 * `'worktreeFolders'` — host-owned folders that worktree isolation gives a worktree of their own: `'primary'`, the
+	 * session's first folder only (the default), or `'all'`, every folder in a Git repository, each created on the
+	 * first send. Folders not in a Git repository stay in place.
+	 */
+	WorktreeFolders = 'worktreeFolders',
 	/** `'pullRequestUrl'` — host-owned pull request the session is created from; implies worktree isolation. */
 	PullRequestUrl = 'pullRequestUrl',
 	/** `'agentMerge'` — client-owned Agent Merge enablement and session overrides. */

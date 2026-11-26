@@ -6,6 +6,7 @@
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLifecycle/additionalWorktreeLifecycleContribution.js';
+import { FolderIsolationContinuationContribution } from './folderIsolation/folderIsolationContinuation.js';
 import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
 import { ArtifactRunsContribution } from './artifactRuns/artifactRunsContribution.js';
 import { ChatArchiveContribution } from './chatArchive/chatArchiveContribution.js';
@@ -62,6 +63,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(WorktreeGitLfsContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
+	registrations.add(contributions.registerContribution(FolderIsolationContinuationContribution));
 	registrations.add(contributions.registerContribution(ScheduledChatMovesContribution));
 	registrations.add(contributions.registerContribution(QueueDrainContribution));
 	registrations.add(contributions.registerContribution(SessionInputNeededContribution));

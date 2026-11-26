@@ -77,6 +77,7 @@ import { AgentHostSessionPromptService, IAgentHostSessionPromptService } from '.
 import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { FolderIsolationContinuationService, IFolderIsolationContinuationService } from './chatContributions/folderIsolation/folderIsolationContinuation.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
@@ -155,6 +156,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
 	services.set(IAgentHostWorktreeCleanupService, new SyncDescriptor(AgentHostWorktreeCleanupService, [undefined]));
 	services.set(IAdditionalWorktreeLifecycleService, new SyncDescriptor(AdditionalWorktreeLifecycleService));
+	services.set(IFolderIsolationContinuationService, new SyncDescriptor(FolderIsolationContinuationService));
 }
 
 export interface IAgentHostHostServiceInputs {

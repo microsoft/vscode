@@ -6,14 +6,19 @@
 import { Limiter } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, readSessionGitHubState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, isSubagentSession, readSessionGitHubState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
+import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
+import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
+import { readSessionAdditionalWorktrees } from '../../shared/sessionAdditionalWorktrees.js';
 
 /** The folder list last sent to the chat's agent, so that it is sent again only when the folders change. */
 const sentFoldersMemento = createChatMementoKey<string | undefined>('workingDirectoriesContext.sent', () => undefined);
@@ -25,6 +30,13 @@ interface IWorkingDirectoryContext {
 	readonly repositoryRoot: string | undefined;
 	/** The folder's GitHub repository, as `owner/repo`, when known. */
 	readonly gitHubRepository: string | undefined;
+	/**
+	 * Whether the folder is the user's own checkout in a session whose worktree isolates only its primary folder: the
+	 * agent asks the user before changing it whether to move it into a worktree of its own or to work in place.
+	 */
+	readonly sharedCheckout?: boolean;
+	/** Whether the folder is not in a Git repository in a session that gives every Git folder a worktree, so it is changed in place. */
+	readonly inPlace?: boolean;
 }
 
 /** At most this many folders' repositories are resolved at once, so a chat of many cold folders does not flood Git. */
@@ -57,6 +69,7 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 		private readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostTurnTracker turnTracker: AgentHostTurnTracker,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -80,7 +93,8 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 			this._pending.delete(turn.chat);
 			return undefined;
 		}
-		const meta = this._stateManager.getSessionState(turn.session)?._meta;
+		const sessionState = this._stateManager.getSessionState(turn.session);
+		const meta = sessionState?._meta;
 		const limiter = new Limiter<URI | undefined>(REPOSITORY_LOOKUP_CONCURRENCY);
 		const repositoryRoots = await Promise.all(workingDirectories.map(directory => limiter.queue(async () => {
 			try {
@@ -90,6 +104,12 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 				return undefined;
 			}
 		})));
+		// With a worktree for the primary folder only, an additional Git folder outside the session's worktrees is shared
+		const worktreeSession = sessionState?.config?.values[SessionConfigKey.Isolation] === 'worktree' && !isSubagentSession(turn.session);
+		const allFolders = worktreeSession && sessionState?.config?.values[SessionConfigKey.WorktreeFolders] === 'all';
+		const isolatedRoots = worktreeSession
+			? await this._getIsolatedRoots(turn.session, repositoryRoots[0])
+			: undefined;
 		const folders = workingDirectories.map((directory, index): IWorkingDirectoryContext => {
 			const repositoryRoot = repositoryRoots[index];
 			const gitHub = repositoryRoot ? readSessionGitHubState(meta, directory.toString()) : undefined;
@@ -97,6 +117,8 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 				path: this._toDisplayPath(directory),
 				repositoryRoot: repositoryRoot && this._toDisplayPath(repositoryRoot),
 				gitHubRepository: gitHub?.owner && gitHub.repo ? `${gitHub.owner}/${gitHub.repo}` : undefined,
+				sharedCheckout: index > 0 && !!repositoryRoot && !!isolatedRoots && !isolatedRoots.some(root => extUriBiasedIgnorePathCase.isEqual(root, repositoryRoot)),
+				inPlace: index > 0 && !repositoryRoot && allFolders,
 			};
 		});
 		// The chat may have been removed while its folders' repositories were looked up, or a later turn started
@@ -105,6 +127,20 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 		}
 		this._pending.set(turn.chat, { turnId: turn.turnId, key, isCurrent });
 		return { instructions: [this._renderWorkingDirectories(folders)] };
+	}
+
+	/**
+	 * The checkouts the session isolates: the primary folder's, which is the session's worktree, and the worktrees it
+	 * created for additional folders.
+	 */
+	private async _getIsolatedRoots(session: string, primaryRoot: URI | undefined): Promise<readonly URI[]> {
+		let additional: readonly URI[] = [];
+		try {
+			additional = (await readSessionAdditionalWorktrees(this._sessionStateStore, URI.parse(session))).map(record => URI.parse(record.workingDirectory));
+		} catch (error) {
+			this._logService.warn(`[WorkingDirectoriesContext] Failed to read the additional worktrees of ${session}`, error);
+		}
+		return primaryRoot ? [primaryRoot, ...additional] : additional;
 	}
 
 	private _onTurnDispatched(chat: ProtocolURI, turnId: string): void {
@@ -153,7 +189,13 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 			'<working_directories>',
 			'You have read and write access to all of the following folders. Use absolute paths to work in a folder other than the current working directory.',
 			`* Primary folder: ${quote(primary.path)} (the current working directory). ${describe(primary)}`,
-			...additional.map(folder => `* Additional folder: ${quote(folder.path)}. ${describe(folder)}`),
+			...additional.map(folder => `* Additional folder${folder.sharedCheckout ? ' (shared checkout, not isolated)' : ''}: ${quote(folder.path)}. ${describe(folder)}`),
+			...(additional.some(folder => folder.sharedCheckout) ? [
+				`A shared checkout is the user's own copy of the folder. Read it in place. Before creating, editing or deleting files in it, or running commands that change files in it, ask the user whether to isolate it in a worktree of its own or to work in place, and wait for the answer. To isolate it, call the \`${SessionServerToolName.IsolateFolder}\` tool with its path, on its own, then end the turn: the host continues the task, and you work only in the path that tool returned. To work in place, change it where it is.`,
+			] : []),
+			...(additional.some(folder => folder.inPlace) ? [
+				'Folders that are not in a Git repository are not isolated in a worktree: changes to them are made in the user\'s own folder.',
+			] : []),
 			'</working_directories>',
 		].join('\n');
 	}

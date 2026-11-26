@@ -54,6 +54,7 @@ import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../n
 import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
+import { IFolderIsolationContinuationService } from '../../node/chatContributions/folderIsolation/folderIsolationContinuation.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from '../../node/agentHostClientConnectionService.js';
@@ -258,6 +259,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAgentHostAuthenticationService, authenticationService],
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
+			[IFolderIsolationContinuationService, { _serviceBrand: undefined, schedule: () => { }, onTurnEnd: () => { } } satisfies IFolderIsolationContinuationService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],

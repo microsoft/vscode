@@ -83,6 +83,7 @@ import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContribut
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
+import { IFolderIsolationContinuationService } from '../../node/chatContributions/folderIsolation/folderIsolationContinuation.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
@@ -275,6 +276,7 @@ function createTestSideEffects(
 	const services = new ServiceCollection(
 		[IAgentHostAuthenticationService, authenticationService],
 		[ILogService, logService],
+		[IFolderIsolationContinuationService, { _serviceBrand: undefined, schedule: () => { }, onTurnEnd: () => { } } satisfies IFolderIsolationContinuationService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
 		[IAgentHostCheckpointService, checkpointService],
