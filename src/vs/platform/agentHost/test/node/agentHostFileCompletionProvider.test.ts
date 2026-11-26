@@ -328,6 +328,22 @@ suite('AgentHostFileCompletionProvider', () => {
 			]);
 		});
 
+		test('offers parent directories above a nested logical root', async () => {
+			const root = URI.file('/project');
+			const nested = URI.file('/project/src/nested');
+			const { sessionUri, provider } = setup({
+				workingDirectories: [root, nested],
+				results: new Map<string, readonly URI[] | Error>([[root.path, [URI.joinPath(nested, 'util.ts')]]]),
+			});
+			const result = await provider.provideCompletionItems(
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '#src', offset: 4 },
+				{ chat: undefined }, CancellationToken.None,
+			);
+			assert.deepStrictEqual(result.flatMap(item => item.attachment.type === MessageAttachmentKind.Resource && item.attachment.displayKind === 'directory' ? [item.attachment.uri] : []), [
+				URI.joinPath(root, 'src').toString(),
+			]);
+		});
+
 		test('returns the first MAX_RESULTS files in enumeration order for an empty token', async () => {
 			const wd = URI.file('/wd');
 			const files = Array.from({ length: 100 }, (_, i) => URI.joinPath(wd, `file${i}.ts`));

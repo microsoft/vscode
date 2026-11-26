@@ -164,15 +164,20 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 				if (relativePath === undefined) {
 					continue;
 				}
-				const segments = relativePath.split('/');
+				const outermostRoot = roots.logicalRoots
+					.filter(root => extUriBiasedIgnorePathCase.isEqualOrParent(uri, root))
+					.reduce((outer, root) => extUriBiasedIgnorePathCase.isEqualOrParent(outer, root) ? root : outer);
+				const segments = (extUriBiasedIgnorePathCase.relativePath(outermostRoot, uri) ?? relativePath).split('/');
 				for (let i = 1; i < segments.length; i++) {
-					const directoryRelativePath = segments.slice(0, i).join('/');
-					const directory = joinPath(owner, directoryRelativePath);
+					const directory = joinPath(outermostRoot, segments.slice(0, i).join('/'));
 					const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(directory);
-					if (!seen.has(directoryKey)) {
-						seen.add(directoryKey);
-						candidates.push({ uri: directory, owner, ownerIndex, relativePath: directoryRelativePath, isDirectory: true });
+					const directoryOwner = findDeepestContainingWorkingDirectory(directory, roots.logicalRoots);
+					const directoryRelativePath = directoryOwner && extUriBiasedIgnorePathCase.relativePath(directoryOwner, directory);
+					if (!directoryOwner || !directoryRelativePath || seen.has(directoryKey)) {
+						continue;
 					}
+					seen.add(directoryKey);
+					candidates.push({ uri: directory, owner: directoryOwner, ownerIndex: roots.logicalRoots.indexOf(directoryOwner), relativePath: directoryRelativePath, isDirectory: true });
 				}
 				seen.add(key);
 				candidateCountByOwner[ownerIndex]++;
