@@ -6,14 +6,14 @@
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { IAgentHostEntryRegistration, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 
 /**
  * Registers remote agent host terminal entries with
  * {@link IAgentHostTerminalService}.
  */
 class RemoteAgentHostTerminalContribution extends Disposable {
-	private readonly _remoteEntries = this._register(new DisposableMap<string>());
+	private readonly _remoteEntries = this._register(new DisposableMap<string, IAgentHostEntryRegistration>());
 
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -22,6 +22,7 @@ class RemoteAgentHostTerminalContribution extends Disposable {
 		super();
 
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcileRemote()));
+		this._register(this._remoteAgentHostService.onDidChangeDisplayName(() => this._reconcileRemote()));
 		this._reconcileRemote();
 	}
 
@@ -37,9 +38,13 @@ class RemoteAgentHostTerminalContribution extends Disposable {
 				continue;
 			}
 			connectedAddresses.add(info.address);
-			if (!this._remoteEntries.has(info.address)) {
+			const name = info.name || info.address;
+			const registration = this._remoteEntries.get(info.address);
+			if (registration) {
+				registration.setName(name);
+			} else {
 				this._remoteEntries.set(info.address, this._agentHostTerminalService.registerEntry({
-					name: info.name || info.address,
+					name,
 					address: info.address,
 					getConnection: () => connection,
 				}));
