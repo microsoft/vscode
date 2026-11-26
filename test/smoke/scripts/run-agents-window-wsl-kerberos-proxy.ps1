@@ -32,7 +32,9 @@
 	for a local Agent Host and one in WSL, and with -ProxyAuth Kerberos for one in WSL. A sandboxed shell command fetches
 	a URL of the mock server, which only Squid can reach, through the network proxy of the sandbox, which forwards it to
 	the proxy the client resolves, with the credentials or Kerberos ticket of the client. The distribution additionally
-	needs bubblewrap, slirp4netns and iptables.
+	needs bubblewrap, slirp4netns and iptables. With the legacy iptables backend, which the Dev Container smoke tests
+	select for Docker, the sandbox installs its network rules without privilege only when /run/xtables.lock is writable,
+	so the default user owns that lock during the run.
 
 	Every change is reverted afterwards, and logs are kept in .build/logs/agents-window-wsl-<auth>-proxy, with a -sandbox
 	suffix for -Sandbox.
@@ -581,6 +583,8 @@ $savedProxySettings = $null
 $script:WindowsConfigured = $false
 $kdcProcess = $null
 $squidProcess = $null
+# The owner and mode of /run/xtables.lock, or 'absent', before the default user took it over.
+$xtablesLock = $null
 $pacProcess = $null
 $smokeProcess = $null
 $smokeStarted = $false
@@ -752,6 +756,26 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts"
 	}
 	if (-not (Test-TcpPort '127.0.0.1' $ProxyPort)) {
 		throw "Windows cannot reach Squid at localhost:$ProxyPort; WSL localhost forwarding must be enabled"
+	}
+	if ($Sandbox) {
+		# The Copilot runtime checks the lock when it starts. /run is reset when the distribution stops, which Squid
+		# prevents until the cleanup.
+		$state = (Invoke-WslScript -AsRoot @"
+WSL_USER=$(ConvertTo-ShellLiteral $wslUser)
+legacy=
+for tool in iptables ip6tables; do
+	case "`$("`$tool" -V)" in *nf_tables*) ;; *) legacy=1 ;; esac
+done
+if [ -n "`$legacy" ]; then
+	if [ -e /run/xtables.lock ]; then stat -c '%u:%g %a' /run/xtables.lock; else echo absent; fi
+	touch /run/xtables.lock
+	chown "`$WSL_USER" /run/xtables.lock
+fi
+"@) -join ''
+		if ($state -and $state -notmatch '^(absent|\d+:\d+ [0-7]+)$') {
+			throw "Unexpected /run/xtables.lock state in WSL: $state"
+		}
+		$xtablesLock = $state
 	}
 
 	Invoke-ElevatedConfiguration 'Setup'
@@ -945,6 +969,18 @@ exit `$LASTEXITCODE
 	}
 	if ($pacProcess -and -not $pacProcess.HasExited) {
 		$pacProcess.Kill()
+	}
+	if ($xtablesLock) {
+		try {
+			# Before Squid stops, while /run still has the lock.
+			$restore = if ($xtablesLock -eq 'absent') { 'rm -f /run/xtables.lock' } else {
+				$owner, $mode = $xtablesLock -split ' '
+				"if [ -e /run/xtables.lock ]; then chown $owner /run/xtables.lock; chmod $mode /run/xtables.lock; fi"
+			}
+			Invoke-WslScript -AsRoot $restore | Out-Null
+		} catch {
+			Write-Warning "Could not restore /run/xtables.lock in WSL: $_"
+		}
 	}
 	Stop-WslProcess $squidProcess "$WslRoot/wrapper.pid"
 	Stop-WslProcess -AsRoot $kdcProcess "$WslRoot/kdc/wrapper.pid"
