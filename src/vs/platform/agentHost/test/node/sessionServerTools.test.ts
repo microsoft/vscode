@@ -1925,7 +1925,8 @@ suite('SessionServerTools', () => {
 				}
 				return `${[...results].join(',')} x${count}`;
 			};
-			return { store, stateManager, questions, send, sendMany, nextQuestion, answer, sent: () => sent };
+			const sendRaw = (chat: string) => Promise.resolve(group.execute(stateManager, { sessionUri: session, chatUri: chat, turnId: 'turn-1' }, SessionServerToolName.SendMessage, messageArgs));
+			return { store, stateManager, questions, send, sendRaw, sendMany, nextQuestion, answer, sent: () => sent };
 		}
 
 		async function answered(t: ReturnType<typeof setup>, value: string | undefined, run: () => Promise<string>) {
@@ -2125,6 +2126,25 @@ suite('SessionServerTools', () => {
 
 			assert.deepStrictEqual({ waiting: await waiting, created }, { waiting: 'allowed', created: 51 });
 			onDidChange.dispose();
+			t.store.dispose();
+		});
+
+		test('the result of a call the user let through says so', async () => {
+			const t = setup();
+			const note = (result: string) => result.split('\n').slice(1).join('\n');
+			const before = note(await t.sendRaw(mainChat));
+			await t.sendMany(99);
+			const allowedMore = note(await answered(t, 'allowMore', () => t.sendRaw(mainChat)));
+			const next = note(await t.sendRaw(mainChat));
+			await t.sendMany(98);
+			const allowedForSession = note(await answered(t, 'allowUnlimited', () => t.sendRaw(mainChat)));
+
+			assert.deepStrictEqual({ before, allowedMore, next, allowedForSession }, {
+				before: '',
+				allowedMore: 'This session reached its limit of 100 in 60 minutes, and the user allowed it to send more messages: another 100 before they are asked again.',
+				next: '',
+				allowedForSession: 'This session reached its limit of 100 in 60 minutes, and the user allowed it to send more messages without a limit until the agent host restarts.',
+			});
 			t.store.dispose();
 		});
 

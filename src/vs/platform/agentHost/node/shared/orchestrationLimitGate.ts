@@ -40,6 +40,11 @@ interface IOrchestrationLimiter {
 	readonly action: string;
 }
 
+export interface IOrchestrationLimitAdmission {
+	readonly reservation: ISessionActionReservation | undefined;
+	readonly userAllowedMore: string | undefined;
+}
+
 export class OrchestrationLimitGate {
 
 	private readonly _questions = new Map<string, Event<OrchestrationLimitAnswer>>();
@@ -53,14 +58,15 @@ export class OrchestrationLimitGate {
 		this._onDidTurnOff = Event.filter(onDidChangeEnabled, () => !_isEnabled());
 	}
 
-	async check(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, { kind, limiter, action }: IOrchestrationLimiter, session: string): Promise<ISessionActionReservation | undefined> {
+	async check(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, { kind, limiter, action }: IOrchestrationLimiter, session: string): Promise<IOrchestrationLimitAdmission> {
+		let userAllowedMore: string | undefined;
 		while (true) {
 			if (!this._isEnabled()) {
-				return undefined;
+				return { reservation: undefined, userAllowedMore };
 			}
 			const limit = limiter.getLimit(session);
 			if (!limit) {
-				return limiter.reserve(session);
+				return { reservation: limiter.reserve(session), userAllowedMore };
 			}
 			if (context.turnId === undefined || !this._canAskUser(context)) {
 				throw new Error(formatSessionActionLimit(action, limit));
@@ -76,6 +82,11 @@ export class OrchestrationLimitGate {
 			const answer = await whileCallerRuns(stateManager, context, context.turnId, this._getQuestion(stateManager, context, context.turnId, kind, limiter, session, limit));
 			if (answer === OrchestrationLimitChoice.Deny || answer === undefined || stateManager.getActiveTurnId(context.chatUri) !== context.turnId) {
 				throw new Error(`Refusing to ${action}: this session reached its limit of ${limit.max} in ${limit.windowMinutes} minutes and the user did not allow more. Do not retry unless the user asks you to.`);
+			}
+			if (answer === OrchestrationLimitChoice.AllowMore) {
+				userAllowedMore = `This session reached its limit of ${limit.max} in ${limit.windowMinutes} minutes, and the user allowed it to ${action}: another ${limit.max} before they are asked again.`;
+			} else if (answer === OrchestrationLimitChoice.AllowUnlimited) {
+				userAllowedMore = `This session reached its limit of ${limit.max} in ${limit.windowMinutes} minutes, and the user allowed it to ${action} without a limit until the agent host restarts.`;
 			}
 		}
 	}

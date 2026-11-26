@@ -26,7 +26,7 @@ import { PolicyState } from '../../common/state/protocol/channels-root/state.js'
 import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type ConfigPropertySchema, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
-import { maxSentMessages, orchestrationLimitWindowMs, SessionActionLimiter, type ISessionActionReservation } from '../../common/sessionActionLimiter.js';
+import { maxSentMessages, orchestrationLimitWindowMs, SessionActionLimiter } from '../../common/sessionActionLimiter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -34,7 +34,7 @@ import { chatUriFormatOf, mintPeerChatUri } from '../../common/agentHostChatMint
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../agentHostSessionTitleController.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
-import { OrchestrationLimitGate, OrchestrationLimitKind } from './orchestrationLimitGate.js';
+import { OrchestrationLimitGate, OrchestrationLimitKind, type IOrchestrationLimitAdmission } from './orchestrationLimitGate.js';
 
 /**
  * Maximum `create_session` recursion depth. A user/top-level session is depth 0;
@@ -2470,12 +2470,16 @@ function getSessionToolDisplay(toolName: string, args: unknown, result?: IServer
 	}
 }
 
-function recordAction(reservation: ISessionActionReservation | undefined, limiter: SessionActionLimiter, session: string): void {
-	if (reservation) {
-		reservation.record();
+function recordAction(admission: IOrchestrationLimitAdmission | undefined, limiter: SessionActionLimiter, session: string): void {
+	if (admission?.reservation) {
+		admission.reservation.record();
 	} else {
 		limiter.record(session);
 	}
+}
+
+function withUserAllowedMore(result: string, admission: IOrchestrationLimitAdmission | undefined): string {
+	return admission?.userAllowedMore ? `${result}\n${admission.userAllowedMore}` : result;
 }
 
 /**
@@ -2603,24 +2607,24 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					const sourceSession = sourceSessionUri.toString();
 					const relationship = getCreateSessionRelationship(rawArgs, accessor.supportsChatWorkingDirectories(sourceSessionUri));
 					const limit = relationship === 'currentSession' ? chatsLimit : sessionsLimit;
-					const reservation = enforceAgentOrchestrationLimits ? await limitGate.check(stateManager, context, limit, sourceSession) : undefined;
+					const admission = enforceAgentOrchestrationLimits ? await limitGate.check(stateManager, context, limit, sourceSession) : undefined;
 					try {
 						const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, areAgentOrchestrationLimitsEnabled());
-						recordAction(reservation, limit.limiter, sourceSession);
-						return formatCreateSessionResult(result);
+						recordAction(admission, limit.limiter, sourceSession);
+						return withUserAllowedMore(formatCreateSessionResult(result), admission);
 					} finally {
-						reservation?.dispose();
+						admission?.reservation?.dispose();
 					}
 				}
 				case SessionServerToolName.CreateChat: {
 					const sourceSession = currentSessionUri(accessor, currentChannel).toString();
-					const reservation = enforceAgentOrchestrationLimits ? await limitGate.check(stateManager, context, chatsLimit, sourceSession) : undefined;
+					const admission = enforceAgentOrchestrationLimits ? await limitGate.check(stateManager, context, chatsLimit, sourceSession) : undefined;
 					try {
 						const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
-						recordAction(reservation, createdChats, sourceSession);
-						return formatCreateChatResult(result);
+						recordAction(admission, createdChats, sourceSession);
+						return withUserAllowedMore(formatCreateChatResult(result), admission);
 					} finally {
-						reservation?.dispose();
+						admission?.reservation?.dispose();
 					}
 				}
 				case SessionServerToolName.RenameChat:
@@ -2630,15 +2634,15 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				case SessionServerToolName.SendMessage: {
 					const operation = (rawArgs as ISendMessageArgs | undefined)?.operation ?? 'send';
 					const sendingSession = currentSessionUri(accessor, currentChannel).toString();
-					const reservation = operation === 'send' && enforceAgentOrchestrationLimits ? await limitGate.check(stateManager, context, messagesLimit, sendingSession) : undefined;
+					const admission = operation === 'send' && enforceAgentOrchestrationLimits ? await limitGate.check(stateManager, context, messagesLimit, sendingSession) : undefined;
 					try {
 						const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
 						if (operation === 'send') {
-							recordAction(reservation, sentMessages, sendingSession);
+							recordAction(admission, sentMessages, sendingSession);
 						}
-						return result;
+						return withUserAllowedMore(result, admission);
 					} finally {
-						reservation?.dispose();
+						admission?.reservation?.dispose();
 					}
 				}
 				case SessionServerToolName.GetSessionContext:
