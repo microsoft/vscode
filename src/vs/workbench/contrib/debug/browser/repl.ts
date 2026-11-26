@@ -56,11 +56,12 @@ import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listSe
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { editorForeground, resolveColorValue } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, editorForeground, resolveColorValue } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { FilterViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../common/views.js';
+import { SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -412,6 +413,9 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			});
 
 			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
+			// Side bar colors can be rescoped by Modern UI, so follow the variable there.
+			const locationBackground = this.getLocationBasedColors().background;
+			const replInputBackground = locationBackground === SIDE_BAR_BACKGROUND ? asCssVariable(locationBackground) : this.replOptions.replConfiguration.backgroundColor;
 
 			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
 			this.styleElement.textContent = `
@@ -420,7 +424,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				}
 
 				.repl .repl-input-wrapper .monaco-editor .lines-content {
-					background-color: ${this.replOptions.replConfiguration.backgroundColor};
+					background-color: ${replInputBackground};
 				}
 			`;
 			const cssFontFamily = this.replOptions.replConfiguration.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : this.replOptions.replConfiguration.fontFamily;

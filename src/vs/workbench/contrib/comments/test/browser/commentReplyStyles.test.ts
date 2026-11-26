@@ -107,7 +107,7 @@ suite('Floating comment reply styles', () => {
 			paddingLeft: expandedStyle.paddingLeft,
 			paddingRight: expandedStyle.paddingRight,
 			paddingTop: expandedStyle.paddingTop,
-			focus: expandedStyle.outline,
+			focus: [expandedStyle.outlineColor, expandedStyle.outlineStyle, expandedStyle.outlineWidth],
 		}, {
 			background: replyStyle.backgroundColor,
 			textBackground: replyStyle.backgroundColor,
@@ -117,7 +117,7 @@ suite('Floating comment reply styles', () => {
 			paddingLeft: replyStyle.paddingLeft,
 			paddingRight: replyStyle.paddingRight,
 			paddingTop: '0px',
-			focus: 'rgb(0, 120, 200) solid 1px',
+			focus: ['rgb(0, 120, 200)', 'solid', '1px'],
 		});
 	});
 });

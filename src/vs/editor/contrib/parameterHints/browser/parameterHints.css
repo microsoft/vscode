@@ -88,11 +88,11 @@
 }
 
 .monaco-editor .parameter-hints-widget .docs a {
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-editorHoverWidget-linkForeground, var(--vscode-textLink-foreground));
 }
 
 .monaco-editor .parameter-hints-widget .docs a:hover {
-	color: var(--vscode-textLink-activeForeground);
+	color: var(--vscode-editorHoverWidget-linkForeground, var(--vscode-textLink-activeForeground));
 	cursor: pointer;
 }
 

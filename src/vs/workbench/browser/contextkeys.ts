@@ -10,7 +10,7 @@ import { SplitEditorsVertically, InEditorZenModeContext, AuxiliaryBarVisibleCont
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../services/environment/common/environmentService.js';
-import { WorkbenchState, WorkbenchScope, WorkbenchMode, IWorkspaceContextService, isTemporaryWorkspace } from '../../platform/workspace/common/workspace.js';
+import { WorkbenchState, WorkbenchMode, IWorkspaceContextService, isTemporaryWorkspace } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchLayoutService, Parts, positionToString } from '../services/layout/browser/layoutService.js';
 import { getRemoteName } from '../../platform/remote/common/remoteHosts.js';
 import { getVirtualWorkspaceScheme, hasVirtualWorkspaceContent } from '../../platform/workspace/common/virtualWorkspace.js';
@@ -351,7 +351,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private updateWorkbenchScopeContextKey(): void {
-		this.workbenchScopeContext.set(this.contextService.getWorkbenchScope() === WorkbenchScope.ALL ? 'all' : 'workspace');
+		this.workbenchScopeContext.set(this.contextService.getWorkbenchScope() ? 'workspace' : 'all');
 	}
 
 	private updateWorkbenchModeContextKey(): void {

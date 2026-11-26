@@ -27,7 +27,7 @@ export interface IWorkspaceContextService {
 	/**
 	 * An event which fires on workbench scope changes.
 	 */
-	readonly onDidChangeWorkbenchScope: Event<WorkbenchScope>;
+	readonly onDidChangeWorkbenchScope: Event<URI | undefined>;
 
 	/**
 	 * An event which fires on workbench mode changes.
@@ -70,9 +70,11 @@ export interface IWorkspaceContextService {
 	getWorkbenchState(): WorkbenchState;
 
 	/**
-	 * Returns whether the workbench is scoped to its own workspace or spans all workspaces.
+	 * Returns the scope of the workbench, independently of its workspace's folder structure: the URI of the workspace the
+	 * workbench is about (see {@link getWorkspaceScope}), or `undefined` when the workbench spans all workspaces, as an
+	 * empty window does and as a window whose folders change with the active context does.
 	 */
-	getWorkbenchScope(): WorkbenchScope;
+	getWorkbenchScope(): URI | undefined;
 
 	/**
 	 * Returns the mode the workbench is in: the editor or the agents experience.
@@ -258,13 +260,17 @@ export const enum WorkbenchState {
 }
 
 /**
- * The scope of the workbench, independently of its workspace's folder structure.
+ * The scope URI of a workbench that is about the given workspace: its workspace file for a multi-root workspace, its folder
+ * for a single folder, and `undefined` for an empty window, which, not being about a workspace, spans all of them.
  */
-export const enum WorkbenchScope {
-	/** The workbench is scoped to its own workspace folders. */
-	WORKSPACE = 1,
-	/** The workbench spans all workspaces; its folders may change with the active context. */
-	ALL
+export function getWorkspaceScope(workspace: IWorkspace): URI | undefined {
+	if (workspace.configuration) {
+		return workspace.configuration;
+	}
+	if (workspace.folders.length === 1) {
+		return workspace.folders[0].uri;
+	}
+	return undefined;
 }
 
 /**

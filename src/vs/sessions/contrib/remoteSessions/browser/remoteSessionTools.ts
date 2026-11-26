@@ -79,7 +79,7 @@ export class CreateRemoteSessionTool implements IToolImpl {
 			toolReferenceName: 'create_remote_session',
 			displayName: localize('remoteSessions.create.displayName', "Create Remote Session"),
 			userDescription: localize('remoteSessions.create.description', "Delegate work to a matching remote agent host"),
-			modelDescription: 'Start a task on a connected remote agent host; use create_session for same-host work. Requires an Agent Host originating chat. Prefers hosts where the target folder is already trusted, then the host with the fewest running sessions and pending creations. Omitted workspace creates a workspace-less session; omitted model uses the target default, and a named model starts with the user\'s saved options for it, such as reasoning effort and context window. The directory must already exist; nothing is cloned, copied, or inherited from the origin. Ask for results or blockers via send_remote_message with session "origin"; final answers are not forwarded. Returns on prompt acceptance, not completion; replies arrive as new turns. Keep the coordinating Agents window connected. Normal tool approval applies; an untrusted folder requires separate user approval. Continue independent work or end your turn; do not sleep or poll for replies. Do not retry an uncertain creation.',
+			modelDescription: 'Start a task on a connected remote agent host; use create_session for same-host work. Requires an Agent Host originating chat. Prefers hosts where the target folder is already trusted, then the host with the fewest running sessions and pending creations. Omitted workspace creates a workspace-less session; omitted model uses the target default, and a named model starts with the user\'s saved options for it, such as reasoning effort and context window. The directory must already exist; nothing is cloned, copied, or inherited from the origin. Ask for results or blockers via send_remote_message with session "origin"; final answers are not forwarded. Returns on prompt acceptance, not completion; replies arrive as new turns. Use the returned openLink as the Markdown link target and as the session argument to get_remote_session or send_remote_message. Keep the coordinating Agents window connected. Normal tool approval applies; an untrusted folder requires separate user approval. Continue independent work or end your turn; do not sleep or poll for replies. Do not retry an uncertain creation.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.remote,
 			when: remoteSessionToolsWhen,
@@ -181,13 +181,13 @@ export class CreateRemoteSessionTool implements IToolImpl {
 			throw new Error(localize('remoteSessions.create.missingContext', "Remote session creation requires an originating session."));
 		}
 		assertRemoteSessionCaller(source);
-		const created = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);
-		const host: IRemoteSessionHostName = this.remoteSessionsService.getRequestedDestination({ ...options, hostId: created.host.id }).host ?? { label: created.host.label };
+		const { status, openLink, host, model, workspace, placement } = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);
+		const hostName: IRemoteSessionHostName = this.remoteSessionsService.getRequestedDestination({ ...options, hostId: host.id }).host ?? host;
 		return {
-			content: [{ kind: 'text', value: JSON.stringify(created) }],
-			toolResultMessage: new MarkdownString().appendLink(created.openLink, host.containerHost !== undefined
-				? localize('remoteSessions.create.resultContainer', "Created remote session in {0} on {1}", host.label, host.containerHost)
-				: localize('remoteSessions.create.result', "Created remote session on {0}", host.label)),
+			content: [{ kind: 'text', value: JSON.stringify({ status, openLink, host, model, workspace, placement }) }],
+			toolResultMessage: new MarkdownString().appendLink(openLink, hostName.containerHost !== undefined
+				? localize('remoteSessions.create.resultContainer', "Created remote session in {0} on {1}", hostName.label, hostName.containerHost)
+				: localize('remoteSessions.create.result', "Created remote session on {0}", hostName.label)),
 		};
 	}
 }

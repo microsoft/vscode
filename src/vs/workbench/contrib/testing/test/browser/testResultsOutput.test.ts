@@ -18,7 +18,12 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ShellIntegrationAddon } from '../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IViewDescriptorService } from '../../../../common/views.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestColorTheme } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { MODERN_SIDE_BAR_BACKGROUND, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../common/theme.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { IDetachedTerminalInstance, IDetachedXTermOptions, IDetachedXtermTerminal, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { writeP } from '../../../terminal/browser/terminalTestHelpers.js';
 import { ITerminalFont } from '../../../terminal/common/terminal.js';
@@ -47,6 +52,9 @@ suite('Testing output terminal', () => {
 	let selected: sinon.SinonSpy;
 	let terminal: IDetachedTerminalInstance;
 	let terminalCreation: DeferredPromise<IDetachedTerminalInstance> | undefined;
+	let terminalOptions: IDetachedXTermOptions | undefined;
+	let configurationService: TestConfigurationService;
+	let viewLocation: ViewContainerLocation;
 
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
@@ -67,6 +75,9 @@ suite('Testing output terminal', () => {
 			override getFont = () => upcastPartial<ITerminalFont>({});
 		};
 		terminalCreation = undefined;
+		terminalOptions = undefined;
+		configurationService = new TestConfigurationService();
+		viewLocation = ViewContainerLocation.Panel;
 		terminal = new class extends mock<IDetachedTerminalInstance>() {
 			override xterm = xterm;
 			override attachToElement = () => { };
@@ -75,14 +86,17 @@ suite('Testing output terminal', () => {
 		peek = store.add(new TerminalMessagePeek(mainWindow.document.createElement('div'), false,
 			new class extends mock<ITerminalService>() {
 				override async createDetachedTerminal(options: IDetachedXTermOptions) {
+					terminalOptions = options;
 					store.add(options.capabilities!);
 					integration = store.add(new ShellIntegrationAddon('', options.disableShellIntegrationReporting, undefined, telemetryService, logService));
 					raw.loadAddon(integration);
 					return terminalCreation ? terminalCreation.p : terminal;
 				}
 			},
-			new class extends mock<IViewDescriptorService>() { },
+			new class extends mock<IViewDescriptorService>() { override getViewLocationById = () => viewLocation; },
 			new class extends mock<IWorkspaceContextService>() { override getWorkspace = () => (testIWorkspace({ id: 'workspace', folders: [] })); },
+			configurationService,
+			new class extends mock<IWorkbenchEnvironmentService>() { override isSessionsWindow = false; },
 		));
 		result = store.add(new LiveTestResult('result', false, { group: TestRunProfileBitset.Run, targets: [] }, 0, NullTelemetryService));
 		result.addTask({ id: 'task', name: 'task', running: true, ctrlId: 'ctrl' });
@@ -114,6 +128,21 @@ suite('Testing output terminal', () => {
 			}
 		});
 	}
+
+	test('side bar output background follows Modern UI side bar colors', async () => {
+		await peek.update(new TaskSubject(result, 0));
+		const theme = new TestColorTheme({
+			[PANEL_BACKGROUND]: '#112233',
+			[SIDE_BAR_BACKGROUND]: '#101010',
+			[MODERN_SIDE_BAR_BACKGROUND]: '#123456',
+		});
+		const read = () => terminalOptions!.colorProvider.getBackgroundColor(theme)?.toString();
+		const panel = read();
+		viewLocation = ViewContainerLocation.AuxiliaryBar;
+		const legacy = read();
+		await configurationService.setUserConfiguration(LayoutSettings.MODERN_UI, true);
+		assert.deepStrictEqual({ panel, legacy, modern: read() }, { panel: '#112233', legacy: '#101010', modern: '#123456' });
+	});
 
 	test('whole-run output does not create hidden per-message markers', async () => {
 		await peek.update(new TaskSubject(result, 0));

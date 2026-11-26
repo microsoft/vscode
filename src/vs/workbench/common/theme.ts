@@ -8,7 +8,7 @@ import { registerColor, editorBackground, contrastBorder, transparent, opaque, o
 import { foreground } from '../../platform/theme/common/colors/baseColors.js';
 import { IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Color } from '../../base/common/color.js';
-import { ColorScheme } from '../../platform/theme/common/theme.js';
+import { ColorScheme, isDark } from '../../platform/theme/common/theme.js';
 
 // < --- Workbench (not customizable) --- >
 
@@ -696,6 +696,38 @@ export const SURFACE_BORDER = registerColor('surface.border', {
 export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, localize('editorBorder', "Border color of the editor surface in the modern layout."));
 
 export const MODERN_PANEL_BORDER = registerColor('modernPanel.border', SURFACE_BORDER, localize('modernPanelBorder', "Border color of the panel surface when the modern UI is enabled."));
+
+export const MODERN_SIDE_BAR_BACKGROUND = registerColor('modernSideBar.background', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('modernSideBarBackground', "Background color of the primary and secondary side bar surfaces when the modern UI is enabled."));
+
+export function getModernSideBarBackground(theme: IColorTheme): Color | undefined {
+	const background = theme.getColor(MODERN_SIDE_BAR_BACKGROUND);
+	if (!background) {
+		return undefined;
+	}
+	const fallback = isDark(theme.type) ? Color.black : Color.white;
+	const editor = (theme.getColor(editorBackground) ?? fallback).makeOpaque(fallback);
+	const sidebar = (theme.getColor(SIDE_BAR_BACKGROUND) ?? editor).makeOpaque(editor);
+	return background.makeOpaque(sidebar);
+}
+
+export const MODERN_SIDE_BAR_FOREGROUND = registerColor('modernSideBar.foreground', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('modernSideBarForeground', "Foreground color of the primary and secondary side bar surfaces when the modern UI is enabled."));
+
+export const MODERN_SIDE_BAR_BORDER = registerColor('modernSideBar.border', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('modernSideBarBorder', "Border color of the primary and secondary side bar surfaces when the modern UI is enabled."));
 
 // Dark and light themes use `foreground` at 40% alpha.
 // High contrast themes keep the foreground opaque so the grips stay legible.

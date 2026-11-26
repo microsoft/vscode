@@ -265,6 +265,41 @@ suite('DevContainerState', () => {
 		]);
 	});
 
+	test('removes values from error messages that the telemetry service does not redact', () => {
+		const sanitize = (message: string) => sanitizeDevContainerStateErrorMessage([message]);
+		assert.deepStrictEqual({
+			commandPathWithSpace: sanitize('Command failed: C:\\Users\\John Doe\\bin\\docker.exe run --sig-proxy=false alpine'),
+			userCommand: sanitize('Command failed: /home/jdoe/bin/acme-init.sh --region eu'),
+			configPath: sanitize('Dev container config (C:\\Users\\jdoe\\Acme Merger Plan (2)\\.devcontainer\\devcontainer.json) not found.'),
+			configPathWithCode: sanitize('Dev container config (/workspaces/Acme Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			twoPaths: sanitize('Mounting (/home/jdoe/Acme Plan) at (/workspaces/Acme Plan) failed.'),
+			nestedParentheses: sanitize('Dev container config (/workspaces/Acme Plan (Review (2))/.devcontainer/devcontainer.json) not found.'),
+			unmatchedClosing: sanitize('Dev container config (/workspaces/Acme) Merger Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			unmatchedOpening: sanitize('Dev container config (/workspaces/Acme (Merger Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			reversedParentheses: sanitize('Dev container config (/workspaces/Acme) Merger (Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			reversedParenthesesLastFolder: sanitize('Workspace folder (/workspaces/Acme) Merger (Plan) not found.'),
+			reversedParenthesesUppercaseLastFolder: sanitize('Workspace folder (/workspaces/Acme) Merger (PLAN) not found.'),
+			hostName: sanitize('getaddrinfo ENOTFOUND registry.acme-corp.internal'),
+			address: sanitize('connect ECONNREFUSED 10.1.2.3:443'),
+			dockerHost: sanitize('dial tcp 10.1.2.3:2376: connect: connection refused'),
+		}, {
+			commandPathWithSpace: 'Command failed: <command> <args>',
+			userCommand: 'Command failed: <command> <args>',
+			configPath: 'Dev container config (<path>) not found.',
+			configPathWithCode: 'Dev container config (<path>) not found. (ENOENT)',
+			twoPaths: 'Mounting (<path>) at (<path>) failed.',
+			nestedParentheses: 'Dev container config (<path>) not found.',
+			unmatchedClosing: 'Dev container config (<path>) not found. (ENOENT)',
+			unmatchedOpening: 'Dev container config (<path>)',
+			reversedParentheses: 'Dev container config (<path>) not found. (ENOENT)',
+			reversedParenthesesLastFolder: 'Workspace folder (<path>) not found.',
+			reversedParenthesesUppercaseLastFolder: 'Workspace folder (<path>) not found.',
+			hostName: 'getaddrinfo ENOTFOUND <address>',
+			address: 'connect ECONNREFUSED <address>',
+			dockerHost: 'dial tcp <address>: connect: connection refused',
+		});
+	});
+
 	test('keeps the start and end of long error messages', () => {
 		const message = sanitizeDevContainerStateErrorMessage([`start ${'x'.repeat(2000)} end`]);
 		assert.deepStrictEqual({ length: message?.length, start: message?.startsWith('start x'), end: message?.endsWith('x end'), elided: message?.includes('\n…\n') }, { length: 1000, start: true, end: true, elided: true });

@@ -201,7 +201,7 @@ suite('Floating comment heading styles', () => {
 			comment.focus();
 			const style = mainWindow.getComputedStyle(comment);
 			return {
-				...(canAssertFocusStyles ? { outline: style.outline, offset: style.outlineOffset, onlyFocusedMessageOutlined: comments.filter(element => mainWindow.getComputedStyle(element).outlineStyle === 'solid').length === 1 } : {}),
+				...(canAssertFocusStyles ? { outline: [style.outlineColor, style.outlineStyle, style.outlineWidth], offset: style.outlineOffset, onlyFocusedMessageOutlined: comments.filter(element => mainWindow.getComputedStyle(element).outlineStyle === 'solid').length === 1 } : {}),
 				radius: style.borderRadius,
 				focused: mainWindow.document.activeElement === comment,
 			};
@@ -209,7 +209,7 @@ suite('Floating comment heading styles', () => {
 
 		assert.deepStrictEqual({ states, after: bounds() }, {
 			states: comments.map(() => ({
-				...(canAssertFocusStyles ? { outline: 'rgb(0, 120, 212) solid 1px', offset: '-4px', onlyFocusedMessageOutlined: true } : {}),
+				...(canAssertFocusStyles ? { outline: ['rgb(0, 120, 212)', 'solid', '1px'], offset: '-4px', onlyFocusedMessageOutlined: true } : {}),
 				radius: '6px',
 				focused: true,
 			})),

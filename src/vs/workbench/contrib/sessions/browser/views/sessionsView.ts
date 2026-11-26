@@ -61,7 +61,7 @@ import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Menus, SessionsViewShowGroup } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
@@ -480,7 +480,6 @@ export class SessionsView extends ViewPane {
 		));
 		// In the view's context, so that its keys, such as `inSessionsView`, apply in the list, also where a host embeds the view
 		const listInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-		const inSessionsWindow = this.scopedContextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) === true;
 		const sessionsControl = this.sessionsControl = this._register(listInstantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
 			pendingSections: derived(this, reader => {
 				const claimedDraftIds = this.scheduledChatsService.claimedDraftIds.read(reader);
@@ -535,9 +534,9 @@ export class SessionsView extends ViewPane {
 				return this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', forceMainChat: true }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
-			offersWorktreeFilter: !inSessionsWindow,
-			// An editor window shows no chats without a workspace while it has a folder
-			listsQuickChats: listsQuickChatsIn(inSessionsWindow, this.workspaceContextService),
+			offersWorktreeFilter: this.workspaceContextService.getWorkbenchMode() !== WorkbenchMode.Agents,
+			// A window about its own folders shows no chats without a workspace while it has a folder
+			listsQuickChats: listsQuickChatsIn(this.workspaceContextService),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
@@ -949,7 +948,7 @@ export class SessionsView extends ViewPane {
 	private registerSessionFilters(sessionsControl: SessionsList): void {
 		// The Worktrees filter, of an editor window only, whose picked folder opens a session of it once allowed to, as a click
 		// in the list does
-		const offersWorktrees = this.scopedContextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true;
+		const offersWorktrees = this.workspaceContextService.getWorkbenchMode() !== WorkbenchMode.Agents;
 		const worktreeOpener = this._register(this.instantiationService.createInstance(SessionsWorktreeOpener,
 			this._mainWindowHost.session,
 			() => this.sessionsManagementService.getSessions().filter(session => sessionsControl.isSessionListed(session)),

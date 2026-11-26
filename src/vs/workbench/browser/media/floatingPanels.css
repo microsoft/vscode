@@ -14,8 +14,8 @@
  * must match `FLOATING_PANEL_MARGIN`, `FLOATING_PANEL_INNER_MARGIN` and the border
  * inset used there. The outermost
  * card on a cluster edge gets the density-specific outer gutter (`.floating-part-outer-*`).
- * Colors come from the generic `surface.*` tokens, with dedicated border
- * tokens for parts that need independent theming.
+ * Colors come from the shared surface and side bar tokens, with optional
+ * Modern UI tokens for independently themed side bars and panel borders.
  *
  * The default and compact gutter variables below must stay in sync with
  * `FLOATING_PANEL_MARGIN` and `COMPACT_FLOATING_PANEL_MARGIN` in code.
@@ -51,6 +51,13 @@
 	border-radius: var(--vscode-primarySideBar-cornerRadius, var(--vscode-cornerRadius-large));
 	background-color: var(--vscode-surface-background) !important;
 	color: var(--vscode-surface-foreground);
+}
+
+.monaco-workbench.modern-ui.floating-panels .part.sidebar,
+.monaco-workbench.modern-ui.floating-panels .part.auxiliarybar {
+	--modern-ui-floating-card-edge-color: var(--modern-ui-floating-card-border-color, var(--vscode-modernSideBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))));
+	background-color: var(--modern-ui-opaque-sidebar-background, var(--vscode-modernSideBar-background, var(--vscode-surface-background))) !important;
+	color: var(--vscode-modernSideBar-foreground, var(--modern-ui-sidebar-foreground, var(--vscode-surface-foreground))) !important;
 }
 
 /*
@@ -141,6 +148,10 @@
 .monaco-workbench.floating-panels .part.auxiliarybar {
 	border-radius: var(--vscode-secondarySideBar-cornerRadius, var(--vscode-cornerRadius-large));
 	background-color: var(--vscode-sideBar-background) !important;
+}
+
+.monaco-workbench.modern-ui.floating-panels .part.auxiliarybar {
+	background-color: var(--modern-ui-opaque-sidebar-background, var(--vscode-modernSideBar-background, var(--modern-ui-sidebar-background, var(--vscode-sideBar-background)))) !important;
 }
 
 /* With no title bar and no banner above them (`.top-window-edge`, e.g. native fullscreen
@@ -482,6 +493,10 @@
 	--modern-ui-floating-card-stroke-color: var(--vscode-surface-border, var(--vscode-widget-border, transparent));
 	--modern-ui-floating-card-left-border-color: transparent;
 	--modern-ui-floating-card-top-border-color: transparent;
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact.modern-ui .part:is(.sidebar, .auxiliarybar) {
+	--modern-ui-floating-card-stroke-color: var(--vscode-modernSideBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)));
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .part.panel {

@@ -105,6 +105,8 @@ suite('Comment thread floating widget', () => {
 			const body = card.querySelector<HTMLElement>('.comments-container')!;
 			const action = card.querySelector<HTMLElement>('.review-actions .action-item')!;
 			const control = dom.append(body, dom.$('button'));
+			// This focus-only control must not change the card's measured content height.
+			control.style.position = 'absolute';
 			const outside = dom.append(mainWindow.document.body, dom.$('button'));
 			store.add(toDisposable(() => outside.remove()));
 

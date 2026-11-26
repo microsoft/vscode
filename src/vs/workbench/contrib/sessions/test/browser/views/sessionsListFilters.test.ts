@@ -738,27 +738,33 @@ suite('SessionsListFilters', () => {
 		]);
 	});
 
-	test('lists quick chats in the Agents window, and in an editor window only while it has no folder, following its folders', () => {
+	test('lists quick chats while the window is about all sessions, and otherwise only while it has no folder, following its folders and scope', () => {
 		const folders: URI[] = [];
+		// A plain empty window: no folder and no scope
+		let scope: URI | undefined = undefined;
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeWorkbenchScope = store.add(new Emitter<URI | undefined>());
 		const workspace = upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchScope: onDidChangeWorkbenchScope.event,
+			getWorkbenchScope: () => scope,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		});
 		const changeFolders = (change: () => void) => { change(); onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] }); };
-		const editorWindow = listsQuickChatsIn(false, workspace);
-		const agentsWindow = listsQuickChatsIn(true, workspace);
+		const changeScope = (value: URI | undefined) => { scope = value; onDidChangeWorkbenchScope.fire(value); };
+		const listsQuickChats = listsQuickChatsIn(workspace);
 		const seen: boolean[] = [];
-		store.add(autorun(reader => { seen.push(editorWindow.read(reader)); }));
+		store.add(autorun(reader => { seen.push(listsQuickChats.read(reader)); }));
 
 		changeFolders(() => folders.push(URI.file('/work/vscode')));
-		const withFolder = { editorWindow: editorWindow.get(), agentsWindow: agentsWindow.get() };
+		changeScope(URI.file('/work/vscode'));
+		changeScope(undefined);
+		changeScope(URI.file('/work/vscode'));
 		changeFolders(() => folders.pop());
 
-		assert.deepStrictEqual({ seen, withFolder }, {
-			// Empty, a folder added, the last folder removed
-			seen: [true, false, true],
-			withFolder: { editorWindow: false, agentsWindow: true },
-		});
+		assert.deepStrictEqual(seen, [
+			// Plain empty window, a folder added (still all sessions, no change), scoped to its folder, all sessions, its own folder again, the last folder removed
+			true, false, true, false, true,
+		]);
 	});
 });
