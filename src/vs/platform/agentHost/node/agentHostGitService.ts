@@ -76,6 +76,10 @@ const MAX_FINGERPRINTED_CHANGED_PATHS = 2000;
  */
 const GIT_LFS_DISABLED_CONFIG = ['-c', 'filter.lfs.process=', '-c', 'filter.lfs.smudge=', '-c', 'filter.lfs.required=false'];
 
+/** Another git process holds `index.lock` only briefly, so an index refresh retries a few times. */
+const INDEX_REFRESH_MAX_ATTEMPTS = 5;
+const INDEX_REFRESH_RETRY_DELAY_MS = 200;
+
 export class AgentHostGitService extends Disposable implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
@@ -433,12 +437,40 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			}
 		}
 
-		// Git rehashes files changed in the same second the index was written
-		// ("racily clean") through the filter, so every later read fails until
-		// the index is rewritten, without the filter, in a later second.
-		await timeout(1000 - Date.now() % 1000);
-		await this._runGit(worktree, [...GIT_LFS_DISABLED_CONFIG, 'update-index', '-q', '--refresh']);
+		await this._refreshPointerFileIndex(worktree);
 		return { gitLfsPointerFiles: true };
+	}
+
+	/**
+	 * Rewrites the index of a worktree with Git LFS pointer files without the
+	 * filter, then checks that an ordinary `git status` can read it. Git
+	 * rehashes files changed in the same second the index was written ("racily
+	 * clean") through the filter, so every later read fails until the index is
+	 * rewritten in a later second. `-q` is not passed: it also hides the error
+	 * when another git process holds `index.lock`.
+	 */
+	private async _refreshPointerFileIndex(worktree: URI): Promise<void> {
+		const options: IRunGitOptions = { throwOnError: true, env: { LANG: 'C', LC_ALL: 'C' } };
+		await timeout(1000 - Date.now() % 1000);
+		for (let attempt = 1; ; attempt++) {
+			try {
+				await this._runGit(worktree, [...GIT_LFS_DISABLED_CONFIG, 'update-index', '--refresh'], options);
+				break;
+			} catch (error) {
+				if (isIndexNeedsUpdateError(error)) {
+					break;
+				}
+				if (attempt === INDEX_REFRESH_MAX_ATTEMPTS || !isGitLockError(error)) {
+					throw toWorktreeAddError(error);
+				}
+				await timeout(INDEX_REFRESH_RETRY_DELAY_MS);
+			}
+		}
+		try {
+			await this._runGit(worktree, ['status', '--porcelain', '--untracked-files=no'], options);
+		} catch (error) {
+			throw toWorktreeAddError(error);
+		}
 	}
 
 	private _isCreatedWorktree(worktree: URI): Promise<boolean> {
@@ -2295,8 +2327,13 @@ function hasWorktreePathCollision(file: string, worktreeFiles: ReadonlySet<strin
  */
 export function isRetryableWorktreeRemovalError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
-	return /directory not empty/i.test(message)
-		|| /\bindex\.lock\b/i.test(message)
+	return /directory not empty/i.test(message) || isGitLockError(error);
+}
+
+/** Whether a git command failed because another git process holds a lock file. */
+function isGitLockError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return /\bindex\.lock\b/i.test(message)
 		|| /unable to (?:create|write|append)[^\n]*\.lock/i.test(message)
 		|| /could not lock/i.test(message);
 }
@@ -2360,6 +2397,11 @@ function isGitLfsMissing(line: string): boolean {
 
 function isGitLfsMissingError(error: unknown): boolean {
 	return error instanceof GitCommandError && error.stderr.split(/[\r\n]+/).some(isGitLfsMissing);
+}
+
+/** Whether `git update-index --refresh` exited only because files differ from the index, which it still rewrites. */
+function isIndexNeedsUpdateError(error: unknown): boolean {
+	return error instanceof GitCommandError && (error.cause as cp.ExecFileException | undefined)?.code === 1;
 }
 
 function toWorktreeAddError(error: unknown): unknown {
