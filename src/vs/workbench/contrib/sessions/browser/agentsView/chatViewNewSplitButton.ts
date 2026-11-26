@@ -6,6 +6,7 @@
 import '../media/chatViewNewSplitButton.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -75,11 +76,25 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 		this.element = container;
 		container.classList.add('chat-view-new-split-button');
 
-		// The menu's actions run as the title runs them: with its runner and the context of the title
+		// The menu's actions run as the title runs them: with its runner and the context of the title. That runner reports
+		// a failure as an event rather than rejecting, so it is rethrown for the menu to report it.
 		const actionRunner = this._register(new class extends ActionRunner {
 			constructor(private readonly item: ChatViewNewSplitButtonActionViewItem) { super(); }
 			protected override async runAction(action: IAction): Promise<void> {
-				await this.item.actionRunner.run(action, this.item._context);
+				let error: unknown;
+				const listener = this.item.actionRunner.onDidRun(e => {
+					if (e.action === action) {
+						error = e.error;
+					}
+				});
+				try {
+					await this.item.actionRunner.run(action, this.item._context);
+				} finally {
+					listener.dispose();
+				}
+				if (error) {
+					throw error;
+				}
 			}
 		}(this));
 		const button = this.button = this._register(new ButtonWithDropdown(container, {
@@ -119,6 +134,10 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 				void this.actionRunner.run(this.primaryAction, this._context);
 			}
 		}));
+		// As the title's other actions do, a tap is consumed, so that a pane header that contains the button does not toggle
+		for (const part of [button.primaryButton, button.dropdownButton]) {
+			this._register(DOM.addDisposableListener(part.element, TouchEventType.Tap, event => DOM.EventHelper.stop(event, true)));
+		}
 		this._register(DOM.addDisposableListener(button.primaryButton.element, DOM.EventType.KEY_DOWN, event => {
 			if (new StandardKeyboardEvent(event).equals(KeyCode.RightArrow)) {
 				this.focus(true);

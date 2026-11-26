@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
@@ -114,6 +115,37 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 			ariaLabel: 'New Chat (Control+N)',
 			sameMenu: true,
 			runs: [{ id: 'newChat', context: 'titleContext' }, { id: 'newChatWindow', context: 'titleContext' }],
+		});
+	});
+
+	test('reports a failing menu action to the menu, and consumes taps so that a containing pane header does not toggle', async () => {
+		const container = DOM.$('div');
+		const { item, actions, runner, contextMenuService } = createItem(container);
+		const failure = new Error('failed');
+		item.actionRunner = store.add(new class extends ActionRunner {
+			protected override async runAction(): Promise<void> { throw failure; }
+		}());
+		const [primary, dropdown] = container.querySelectorAll<HTMLElement>('.monaco-button');
+
+		dropdown.click();
+		const menuErrors: unknown[] = [];
+		store.add(contextMenuService.delegate!.actionRunner!.onDidRun(e => menuErrors.push(e.error)));
+		await contextMenuService.delegate?.actionRunner?.run(actions[1]);
+		item.actionRunner = runner;
+		const tap = (element: HTMLElement) => {
+			const event = new CustomEvent(TouchEventType.Tap, { bubbles: true, cancelable: true });
+			element.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+
+		assert.deepStrictEqual({
+			menuErrors,
+			tapsConsumed: [tap(primary), tap(dropdown)],
+			runs: runner.runs.map(run => run.id),
+		}, {
+			menuErrors: [failure],
+			tapsConsumed: [true, true],
+			runs: ['newChat'],
 		});
 	});
 
