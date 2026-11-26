@@ -16,7 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFil
 import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { CustomizationLoadStatus, CustomizationType } from '../../../common/state/protocol/channels-session/state.js';
-import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills } from '../../../node/codex/codexCustomizations.js';
+import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexInstructions, discoverCodexWorkspaceAgents, discoverCodexWorkspaceSkills } from '../../../node/codex/codexCustomizations.js';
 import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
 import type { SkillMetadata } from '../../../node/codex/protocol/generated/v2/SkillMetadata.js';
 import type { SkillScope } from '../../../node/codex/protocol/generated/v2/SkillScope.js';
@@ -230,13 +230,14 @@ suite('codexCustomizations', () => {
 	test('surfaces each workspace root AGENTS.md as an always-on rule', async () => {
 		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+		const codexHome = URI.from({ scheme: Schemas.inMemory, path: '/home/.codex' });
 		await fileService.createFolder(workspace);
 		await Promise.all([
 			fileService.writeFile(URI.joinPath(workspace, 'AGENTS.md'), VSBuffer.fromString('Use workspace instructions.')),
 			fileService.writeFile(URI.joinPath(workspace, 'CLAUDE.md'), VSBuffer.fromString('Not loaded by Codex.')),
 		]);
 
-		const containers = await discoverCodexWorkspaceInstructions([workspace, workspace], fileService);
+		const containers = await discoverCodexInstructions([workspace, workspace], codexHome, fileService);
 
 		assert.deepStrictEqual(containers.map(container => ({
 			uri: container.uri,
@@ -249,6 +250,53 @@ suite('codexCustomizations', () => {
 			writable: false,
 			children: [{ type: CustomizationType.Rule, name: 'AGENTS.md', uri: URI.joinPath(workspace, 'AGENTS.md').toString(), alwaysApply: true }],
 		}]);
+	});
+
+	test('surfaces the user-level CODEX_HOME AGENTS.md before workspace rules', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
+		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+		const codexHome = URI.from({ scheme: Schemas.inMemory, path: '/home/.codex' });
+		await fileService.createFolder(workspace);
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(workspace, 'AGENTS.md'), VSBuffer.fromString('Use workspace instructions.')),
+			fileService.writeFile(URI.joinPath(codexHome, 'AGENTS.md'), VSBuffer.fromString('Use global instructions.')),
+		]);
+
+		const containers = await discoverCodexInstructions([workspace], codexHome, fileService);
+
+		assert.deepStrictEqual(containers.map(container => ({
+			uri: container.uri,
+			name: container.name,
+			contents: container.contents,
+			writable: container.writable,
+			children: container.children?.map(child => ({ type: child.type, name: child.name, uri: child.uri, alwaysApply: child.type === CustomizationType.Rule ? child.alwaysApply : undefined })),
+		})), [
+			{
+				uri: codexHome.toString(),
+				name: '.codex',
+				contents: CustomizationType.Rule,
+				writable: false,
+				children: [{ type: CustomizationType.Rule, name: 'AGENTS.md', uri: URI.joinPath(codexHome, 'AGENTS.md').toString(), alwaysApply: true }],
+			},
+			{
+				uri: workspace.toString(),
+				name: 'workspace',
+				contents: CustomizationType.Rule,
+				writable: false,
+				children: [{ type: CustomizationType.Rule, name: 'AGENTS.md', uri: URI.joinPath(workspace, 'AGENTS.md').toString(), alwaysApply: true }],
+			},
+		]);
+	});
+
+	test('ignores a missing user-level AGENTS.md', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
+		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+		const codexHome = URI.from({ scheme: Schemas.inMemory, path: '/home/.codex' });
+		await fileService.writeFile(URI.joinPath(workspace, 'AGENTS.md'), VSBuffer.fromString('Use workspace instructions.'));
+
+		const containers = await discoverCodexInstructions([workspace], codexHome, fileService);
+
+		assert.deepStrictEqual(containers.map(container => container.uri), [workspace.toString()]);
 	});
 
 	test('groups skills by scope into read-only containers, sorted by name', () => {
