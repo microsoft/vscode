@@ -2545,8 +2545,15 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	}
 
 	renderShortcut(element: ISessionSection, template: ISessionSectionTemplate): void {
-		template.container.closest('.monaco-list-row')?.classList.add('session-list-shortcut-row');
-		this.renderSection(element, false, false, template);
+		const row = template.container.closest('.monaco-list-row');
+		row?.classList.add('session-list-shortcut-row');
+		this.renderSection(element, element.navigationCollapsed !== undefined, element.navigationCollapsed ?? false, template);
+		if (element.navigationCollapsed !== undefined) {
+			row?.setAttribute('role', 'button');
+			row?.setAttribute('aria-expanded', String(!element.navigationCollapsed));
+		} else {
+			row?.removeAttribute('aria-expanded');
+		}
 	}
 
 	private renderSection(element: ISessionSection, collapsible: boolean, collapsed: boolean, template: ISessionSectionTemplate): void {
