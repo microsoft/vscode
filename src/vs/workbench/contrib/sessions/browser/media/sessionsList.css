@@ -379,7 +379,7 @@
 		display: none !important;
 	}
 
-	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
+	.monaco-list-row :is(.session-chat-twistie, .session-created-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
 		position: absolute;
 		top: var(--vscode-spacing-size80);
 		left: var(--vscode-spacing-size120);
@@ -393,7 +393,7 @@
 		z-index: 1;
 	}
 
-	.monaco-list-row :is(.session-comparison-twistie, .session-comparison-attempt-twistie) {
+	.monaco-list-row :is(.session-created-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
 		left: var(--vscode-spacing-size360);
 	}
 
@@ -402,7 +402,7 @@
 	}
 
 	/* Replace the status icon with the twistie only while hovering the session row. */
-	.monaco-list-row:is(:hover, .hovered) :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie).collapsible {
+	.monaco-list-row:is(:hover, .hovered) :is(.session-chat-twistie, .session-created-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie).collapsible {
 		opacity: 1;
 		pointer-events: auto;
 	}
@@ -985,7 +985,7 @@
 }
 
 .sessions-list-control.compact {
-	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
+	.monaco-list-row :is(.session-chat-twistie, .session-created-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
 		top: var(--vscode-spacing-size60);
 	}
 
@@ -1264,7 +1264,7 @@
 	left: calc(var(--vscode-spacing-size360) + var(--vscode-spacing-size80));
 }
 
-.sessions-list-control .monaco-list-row .session-chat-item.session-comparison-chat {
+.sessions-list-control .monaco-list-row .session-chat-item.session-connected-chat {
 	padding-left: calc(var(--vscode-spacing-size360) + var(--vscode-spacing-size240));
 
 	&::before,
@@ -1272,7 +1272,7 @@
 		left: calc(var(--vscode-spacing-size360) + var(--vscode-spacing-size80));
 	}
 
-	> .session-comparison-chat-connector {
+	> .session-connected-chat-connector {
 		position: absolute;
 		top: 0;
 		bottom: calc(-1 * var(--vscode-spacing-size20));
@@ -1825,16 +1825,16 @@
  * depth so its guides connect. A comparison in a section is at depth 0 and steps
  * in like the section's sessions; one in a custom group is already a level below it.
  */
-.sessions-list-control.indent-items :is(.session-comparison-group, .session-item[data-session-group-connector], .session-chat-item.session-comparison-chat) {
+.sessions-list-control.indent-items :is(.session-comparison-group, .session-item[data-session-group-connector]:not(.session-created-child), .session-chat-item.session-connected-chat:not(.session-created-child)) {
 	margin-left: calc(max(var(--session-group-depth, 0), 1) * var(--session-group-indent, 0px));
 }
 
 /* Session twisties are positioned within the row, so they step in by the same amount as the row's contents. */
-.sessions-list-control .monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
+.sessions-list-control .monaco-list-row :is(.session-chat-twistie, .session-created-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
 	translate: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px)) 0;
 }
 
-.sessions-list-control.indent-items .monaco-list-row .session-chat-twistie {
+.sessions-list-control.indent-items .monaco-list-row :is(.session-chat-twistie, .session-created-twistie) {
 	translate: calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent, 0px)) 0;
 }
 
@@ -2098,7 +2098,7 @@
 		left: var(--vscode-spacing-size200);
 	}
 
-	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie).collapsible {
+	.monaco-list-row :is(.session-chat-twistie, .session-created-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie).collapsible {
 		opacity: 1;
 		pointer-events: auto;
 		top: var(--vscode-spacing-size100);
@@ -2116,8 +2116,8 @@
 		padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 		font-size: var(--vscode-fontSize-body1);
 
-		&.session-comparison-chat::before,
-		&.session-comparison-chat::after {
+		&.session-connected-chat::before,
+		&.session-connected-chat::after {
 			left: var(--vscode-spacing-size200);
 		}
 	}

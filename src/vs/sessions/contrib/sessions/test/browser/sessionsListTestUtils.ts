@@ -191,6 +191,8 @@ export interface ITestSessionOptions {
 	/** Defaults to {@link createdAt}. */
 	readonly updatedAt?: Date;
 	readonly changesSummary?: ISessionChangesSummary;
+	/** The session that created this session. */
+	readonly createdBySession?: ISession;
 }
 
 export function createTestSession(title: string, options: ITestSessionOptions = {}): ITestSession {
@@ -260,6 +262,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		chats: constObservable<readonly IChat[]>([]),
 		mainChat: constObservable(mainChat),
 		capabilities,
+		createdBySession: options.createdBySession ? constObservable({ session: options.createdBySession.resource }) : undefined,
 	};
 	return { session, capabilities, status, isArchived, isRead, isExternal };
 }

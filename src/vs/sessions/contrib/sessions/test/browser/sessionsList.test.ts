@@ -8610,6 +8610,53 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('sessions created by another session', () => {
+		test('connect below their creator only while listed right below it', () => {
+			const now = Date.now();
+			const session = (title: string, minutesAgo: number, createdBySession?: ISession) => createTestSession(title, { workspaceLabel: 'vscode', createdAt: new Date(now - minutesAgo * 60_000), createdBySession }).session;
+			const creator = session('Creator', 1);
+			const child = session('Child', 2, creator);
+			const grandchild = session('Grandchild', 3, child);
+			const other = session('Other', 4);
+			const moved = session('Moved', 5, creator);
+			const groupCreator = session('Group creator', 6);
+			const groupChild = session('Group child', 7, groupCreator);
+			const group = { id: 'group-1', name: 'My Group', createdAt: 1 };
+			const harness = createListHarness(disposables, [creator, child, grandchild, other, moved, groupCreator, groupChild], {
+				groups: [group],
+				memberships: new Map([groupCreator, groupChild].map(session => [session.sessionId, group.id])),
+			});
+			void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_INDENT_ITEMS_SETTING, true);
+			const container = harness.createContainer(400, 800);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(400, 800);
+
+			const rows = [...container.querySelectorAll<HTMLElement>('.session-item')].map(item => ({ item, title: item.querySelector('.session-title')?.textContent ?? '' }));
+			const marginOf = (title: string) => mainWindow.getComputedStyle(rows.find(row => row.title === title)!.item).marginLeft;
+			assert.deepStrictEqual({
+				rows: rows.map(({ item, title }) => `${title}: ${item.dataset.sessionGroupConnector ?? '-'}${item.classList.contains('session-created-child') ? ' (created)' : ''}`),
+				groupChildKeepsCreatorMargin: marginOf('Group child') === marginOf('Group creator'),
+				sectionChildKeepsCreatorMargin: marginOf('Child') === marginOf('Creator'),
+			}, {
+				rows: [
+					'Group creator: -',
+					'Group child: last (created)',
+					'Creator: -',
+					'Child: middle (created)',
+					'Grandchild: last (created)',
+					'Other: -',
+					'Moved: -',
+				],
+				groupChildKeepsCreatorMargin: true,
+				sectionChildKeepsCreatorMargin: true,
+			});
+		});
+	});
+
 	suite('archived filter default', () => {
 		function getExcludeArchived(settingValue: boolean, storedValue?: boolean): boolean {
 			const harness = createListHarness(disposables, []);
@@ -11143,10 +11190,10 @@ suite('Sessions - SessionsList', () => {
 				list.layout(600, 400);
 				list.setItemCollapsed({ session: session.resource }, false);
 				list.setFocusedItem({ session: session.resource });
-				const chats = [...container.querySelectorAll<HTMLElement>('.session-comparison-chat')];
+				const chats = [...container.querySelectorAll<HTMLElement>('.session-connected-chat')];
 
 				assert.deepStrictEqual(chats.map(chat => {
-					const trunk = chat.querySelector<HTMLElement>('.session-comparison-chat-connector');
+					const trunk = chat.querySelector<HTMLElement>('.session-connected-chat-connector');
 					const style = trunk && mainWindow.getComputedStyle(trunk);
 					return {
 						title: chat.querySelector('.session-chat-title')?.textContent,
@@ -11191,7 +11238,7 @@ suite('Sessions - SessionsList', () => {
 				const focused = appearance();
 				list.setFocusedItem({ session: judge.session.resource });
 
-				const chat = container.querySelector<HTMLElement>('.session-comparison-chat')!;
+				const chat = container.querySelector<HTMLElement>('.session-connected-chat')!;
 				const chatIcon = chat.querySelector<HTMLElement>('.session-chat-icon')!;
 				const elbow = mainWindow.getComputedStyle(chat, '::after');
 				const chatIconLeft = chatIcon.getBoundingClientRect().left - chat.getBoundingClientRect().left;
@@ -11200,7 +11247,7 @@ suite('Sessions - SessionsList', () => {
 					chatTrunk: mainWindow.getComputedStyle(chat, '::before').left,
 					chatElbow: elbow.left,
 					guideBeforeIcon: parseFloat(elbow.left) + parseFloat(elbow.width) <= chatIconLeft,
-					outerTrunk: chat.querySelector('.session-comparison-chat-connector'),
+					outerTrunk: chat.querySelector('.session-connected-chat-connector'),
 				}, {
 					outgoingGuide: presentation.phone ? '20px' : '44px',
 					chatTrunk: presentation.phone ? '20px' : '44px',

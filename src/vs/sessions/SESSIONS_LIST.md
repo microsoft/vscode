@@ -58,7 +58,10 @@ Archived
   immediately after its creator. While it has neither custom-group membership
   nor an explicit ungrouped preference, it inherits the creator's custom group
   when one becomes available. Subsequent user grouping, ungrouping, and
-  reordering are ordinary persisted list state.
+  reordering are ordinary persisted list state. While created sessions are
+  listed contiguously below their creator, they are drawn one level in with the
+  comparison-participant connector; deeper descendants share that level. A
+  created session listed elsewhere renders as an ordinary row.
 - A session a nested chat was moved to joins the custom group of the session it was moved from, whatever started the move, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
 The active session remains visible even when an ordinary filter, the "+N more" cap of its section, or the "+N more" entry that holds less recent folders would otherwise exclude it. Inbox workspace/environment scope is strict: an out-of-scope active session is hidden from the list without closing its conversation.

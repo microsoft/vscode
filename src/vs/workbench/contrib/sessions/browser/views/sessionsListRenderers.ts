@@ -131,6 +131,13 @@ export type SessionContextKeyProvider = (session: ISession, reader: IReader | un
 
 export type SessionGroupConnectorPosition = 'middle' | 'last';
 
+/** How a session row, and its chat rows, connect to the row above that they are listed under. */
+export interface ISessionRowConnector {
+	readonly position: SessionGroupConnectorPosition;
+	/** Whether the session is listed under the session that created it, rather than as an attempt under its comparison's header. */
+	readonly createdSession: boolean;
+}
+
 export function formatSessionListTime(date: Date): string {
 	const seconds = Math.round((Date.now() - date.getTime()) / 1000);
 	return seconds < 60 ? localize('secondsDuration', "now") : fromNow(date, true);
@@ -587,7 +594,7 @@ export class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, F
 		private readonly activeGuideSessionIds: IObservable<ReadonlySet<string>> = constObservable(EMPTY_GUIDE_SESSION_IDS),
 		/** How many groups deep the custom group whose rows include a chat row is nested; the row steps in by that many levels. */
 		private readonly getGroupDepth: (item: ISessionChatItem) => number = () => 0,
-		private readonly getComparisonConnectorPosition: (session: ISession) => SessionGroupConnectorPosition | undefined = () => undefined,
+		private readonly getSessionConnector: (session: ISession) => ISessionRowConnector | undefined = () => undefined,
 		/** The Agent Merge configuration of the chat's folder, which decides how its pull request icon reads. */
 		private readonly getAgentMergeConfiguration: (item: ISessionChatItem) => IObservable<ISessionAgentMergeConfiguration | undefined> = () => constObservable(undefined),
 		/** While searching, the field a standalone chat matched in that neither its row, through `shownTexts`, nor its section headers show. */
@@ -662,10 +669,11 @@ export class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, F
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		template.container.classList.toggle('last-chat', element.isLast);
 		template.container.classList.toggle('standalone', !!element.standalone);
-		const comparisonConnectorPosition = element.standalone ? undefined : this.getComparisonConnectorPosition(element.session);
-		template.container.classList.toggle('session-comparison-chat', comparisonConnectorPosition !== undefined);
-		if (comparisonConnectorPosition === 'middle') {
-			const connector = DOM.append(template.container, $('span.session-comparison-chat-connector', { 'aria-hidden': 'true' }));
+		const sessionConnector = element.standalone ? undefined : this.getSessionConnector(element.session);
+		template.container.classList.toggle('session-connected-chat', sessionConnector !== undefined);
+		template.container.classList.toggle('session-created-child', !!sessionConnector?.createdSession);
+		if (sessionConnector?.position === 'middle') {
+			const connector = DOM.append(template.container, $('span.session-connected-chat-connector', { 'aria-hidden': 'true' }));
 			template.elementDisposables.add(toDisposable(() => connector.remove()));
 		}
 		template.isStandaloneContext.set(!!element.standalone);
@@ -1319,7 +1327,7 @@ export class SessionItemRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 
 	constructor(
 		private readonly options: {
-			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; slotPanes: IObservable<readonly ISessionGridPane[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; onDidChangeHoverVisibility?: (visible: boolean) => void; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnector?: (session: ISession) => ISessionRowConnector | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; slotPanes: IObservable<readonly ISessionGridPane[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; onDidChangeHoverVisibility?: (visible: boolean) => void; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			/** The chat the main window shows, whose row is the open one. */
@@ -1528,11 +1536,12 @@ export class SessionItemRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 				}
 			}));
 		}
-		const groupConnectorPosition = this.options.getGroupConnectorPosition?.(element);
+		const groupConnector = this.options.getGroupConnector?.(element);
 		const comparisonAttemptLabel = this.options.getComparisonAttemptLabel?.(element);
 		template.container.classList.toggle('session-comparison-attempt', comparisonAttemptLabel !== undefined);
-		if (groupConnectorPosition) {
-			template.container.dataset.sessionGroupConnector = groupConnectorPosition;
+		template.container.classList.toggle('session-created-child', !!groupConnector?.createdSession);
+		if (groupConnector) {
+			template.container.dataset.sessionGroupConnector = groupConnector.position;
 		} else {
 			delete template.container.dataset.sessionGroupConnector;
 		}

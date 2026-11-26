@@ -11,7 +11,7 @@ import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISession
 import { ISessionRowIndent, SessionRowIndent, SessionsListIndentGuides } from './sessionsListIndentGuides.js';
 import { CANVASES_SECTION_ID, SessionItemContextMenuId, SessionItemOrganizeMenuGroup, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_CANVASES_SECTION_SETTING, NEW_CANVAS_SESSION_COMMAND_ID, IsSessionPinnedContext, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemHasUnreadNestedSessionsContext, SessionChatItemCanRenameContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext, SessionItemHasMoveDestinationContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionChatItemCanMoveUpContext, SessionChatItemCanMoveDownContext, SessionsListFocusedChatItemContext, SessionItemInGroupContext, SessionItemInExternalSectionContext, SessionItemCanImportContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, SessionChatItem, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem, SessionsListSearchOpenContext } from './sessionsListCommon.js';
 import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, PINNED_CANVAS_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, DATE_SECTION_IDS, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, sessionMatchesFolder, sortSessions, sortSessionListChats, sortComparisonGroupMembers, isComparisonLaunchPending, getComparisonGroupConfiguration, getComparisonGroupSummary, limitSessionsForList, computeReorderSortChanges, QUICK_CHATS_SECTION_ID, isQuickChatSession, groupingHasQuickChatsSection, isAutomationSession, groupSessionsForList, IInboxPlacement, inboxPlacementsEqual, sessionWorkspaceLabel, isGroupingSpecificCollapseStateId, getSessionRepository, getRepositorySectionId, getSessionGroupingSectionId, getSessionWorktreeSection, compareWorktreeSections, labelRepositorySections, getNewSessionSources, RECENTLY_UPDATED_SESSION_THRESHOLD_MS, partitionByDate } from './sessionsListHelpers.js';
-import { SESSION_SHORTCUT_SECTION_TEMPLATE_ID, SESSION_SHORTCUT_ROW_HEIGHT, EMPTY_GUIDE_SESSION_IDS, SessionGroupConnectorPosition, isOpenChat, getSessionRowStatus, INSET_ROW_GAP, DEFAULT_APPROVAL_ROW_MAX_LINES, SessionsTreeDelegate, withSessionsListHoverPresentation, getCreatorHoverData, SessionChatItemRenderer, SessionItemActionRunner, ISessionOnboardingTarget, SessionItemRenderer, getSessionArchiveOnboardingTargetId, getSessionOnboardingTargetId, getWorkspaceSectionOnboardingTargetId, logDefaultSettingExperimentTrigger, ISessionHeaderStatusTrigger, SessionSectionRenderer, SessionShortcutListDelegate, SessionShortcutListRenderer, SessionGroupRenderer, SessionShowMoreRenderer, SessionPlaceholderRenderer, SessionsAccessibilityProvider } from './sessionsListRenderers.js';
+import { SESSION_SHORTCUT_SECTION_TEMPLATE_ID, SESSION_SHORTCUT_ROW_HEIGHT, EMPTY_GUIDE_SESSION_IDS, ISessionRowConnector, isOpenChat, getSessionRowStatus, INSET_ROW_GAP, DEFAULT_APPROVAL_ROW_MAX_LINES, SessionsTreeDelegate, withSessionsListHoverPresentation, getCreatorHoverData, SessionChatItemRenderer, SessionItemActionRunner, ISessionOnboardingTarget, SessionItemRenderer, getSessionArchiveOnboardingTargetId, getSessionOnboardingTargetId, getWorkspaceSectionOnboardingTargetId, logDefaultSettingExperimentTrigger, ISessionHeaderStatusTrigger, SessionSectionRenderer, SessionShortcutListDelegate, SessionShortcutListRenderer, SessionGroupRenderer, SessionShowMoreRenderer, SessionPlaceholderRenderer, SessionsAccessibilityProvider } from './sessionsListRenderers.js';
 import { SessionListPlacement, getPlacementState, getSectionPlacement, isSamePlacement, getPlacementHeader, ISessionDropAnchor, ISessionDropDestination, SessionDropEffect, ISessionDropTargetHeader, IDraggedHeader, SessionHeaderDrop, SessionsListDragAndDrop, isDateSectionPlacement, keepDateSectionOrder, sectorToPosition, findLastVisible } from './sessionsListDragAndDrop.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
@@ -651,7 +651,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * Maximum number of sessions shown per workspace section or user group.
 	 */
 	private readonly sessionGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_SESSION_GROUP_LIMIT);
-	private readonly renderedComparisonParticipantConnectorPositions = new Map<string, SessionGroupConnectorPosition>();
+	/**
+	 * Session rows that connect to a row above them, by session id: the attempts of a
+	 * comparison connect to its header, and a session listed right below the session
+	 * that created it connects to that session.
+	 */
+	private readonly renderedSessionConnectors = new Map<string, ISessionRowConnector>();
 	private readonly renderedComparisonAttemptLabels = new Map<string, string>();
 	/** How many groups each rendered custom group is nested in, by group id. */
 	private readonly groupDepths = new Map<string, number>();
@@ -871,7 +876,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				isWorkspaceScoped: () => this.filters.hasInboxWorkspaceScope,
 				isPinned: s => this.isSessionPinned(s),
 				isRenderedInCustomGroup: s => this.isRenderedInCustomGroup(s),
-				getGroupConnectorPosition: s => this.renderedComparisonParticipantConnectorPositions.get(s.sessionId),
+				getGroupConnector: s => this.renderedSessionConnectors.get(s.sessionId),
 				getComparisonAttemptLabel: s => this.getComparisonAttemptLabel(s),
 				shouldShowComparisonAttemptStatus: (s, reader) => this.shouldShowComparisonAttemptStatus(s, reader),
 				isRenderedInExternalSection: s => this.isRenderedInExternalSection(s),
@@ -979,7 +984,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			},
 			this.activeGuideSessionIds,
 			item => this.getRowGroupDepth(item),
-			session => this.renderedComparisonParticipantConnectorPositions.get(session.sessionId),
+			session => this.renderedSessionConnectors.get(session.sessionId),
 			item => getSessionAgentMergeConfigurationObservable(item.session, this._sessionsProvidersService, this.configurationService, item.chat),
 			getSearchHint,
 			(session, chat) => this.getComparisonAttemptLabel(session, chat),
@@ -1287,7 +1292,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					if (this.getComparisonAttemptLabel(element) !== undefined) {
 						return 'session-comparison-attempt-twistie';
 					}
-					return this.renderedComparisonParticipantConnectorPositions.has(element.sessionId) ? 'session-comparison-twistie' : 'session-chat-twistie';
+					const connector = this.renderedSessionConnectors.get(element.sessionId);
+					return !connector ? 'session-chat-twistie' : connector.createdSession ? 'session-created-twistie' : 'session-comparison-twistie';
 				},
 			}
 		));
@@ -1936,7 +1942,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				? sortComparisonGroupMembers(comparison, members, sorting, sortKeyForGrouping)
 				: sortSessions(members, sorting, sortKeyForGrouping)];
 		}));
-		this.renderedComparisonParticipantConnectorPositions.clear();
+		this.renderedSessionConnectors.clear();
 		this.renderedComparisonAttemptLabels.clear();
 		this.comparisonSectionIds.clear();
 		this.groupDepths.clear();
@@ -2248,6 +2254,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (limited.showMore) {
 				children.push({ element: limited.showMore });
 			}
+			this.connectCreatedSessions(children.map(child => child.element));
 			return children;
 		};
 
@@ -2351,13 +2358,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? { stateId: sectionId, expandedByDefault: true }
 					: undefined);
 			const visibleGroupSessions = sessionChildren.map(child => child.element).filter(isSessionItem);
-			const connectorSessions = groupItem.comparison ? visibleGroupSessions : [];
-			if (connectorSessions.length > 0) {
-				for (let index = 0; index < connectorSessions.length; index++) {
-					this.renderedComparisonParticipantConnectorPositions.set(
-						connectorSessions[index].sessionId,
-						index === connectorSessions.length - 1 ? 'last' : 'middle',
-					);
+			if (groupItem.comparison) {
+				for (let index = 0; index < visibleGroupSessions.length; index++) {
+					this.renderedSessionConnectors.set(visibleGroupSessions[index].sessionId, {
+						position: index === visibleGroupSessions.length - 1 ? 'last' : 'middle',
+						createdSession: false,
+					});
 				}
 			}
 			return {
@@ -5704,6 +5710,40 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.getRenderedSessionGroup(session) !== undefined;
 	}
 
+	/**
+	 * Connects each session row in `rows` that directly follows the session that
+	 * created it, or another session that session created directly or indirectly, to the
+	 * creator's row. These sessions all step in by one level below the first creator,
+	 * however many levels deep they were created. A session moved away from its
+	 * creator, or listed in another section or group, stays at its section's indent.
+	 */
+	private connectCreatedSessions(rows: readonly SessionListItem[]): void {
+		let createdSessions: ISession[] = [];
+		const connect = () => {
+			createdSessions.forEach((session, index) => this.renderedSessionConnectors.set(session.sessionId, {
+				position: index === createdSessions.length - 1 ? 'last' : 'middle',
+				createdSession: true,
+			}));
+			createdSessions = [];
+		};
+		const connectedSessionIds = new Set<string>();
+		for (const row of rows) {
+			const creatorResource = isSessionItem(row) ? row.createdBySession?.get()?.session : undefined;
+			const creatorId = creatorResource && this._sessionsManagementService.getSession(creatorResource)?.sessionId;
+			if (isSessionItem(row) && creatorId !== undefined && connectedSessionIds.has(creatorId)) {
+				createdSessions.push(row);
+				connectedSessionIds.add(row.sessionId);
+				continue;
+			}
+			connect();
+			connectedSessionIds.clear();
+			if (isSessionItem(row)) {
+				connectedSessionIds.add(row.sessionId);
+			}
+		}
+		connect();
+	}
+
 	/** How the row of `element` steps in below its header, which decides the indent guides it draws. */
 	private getRowIndent(element: SessionListItem): ISessionRowIndent {
 		if (isPendingSessionItem(element)) {
@@ -5723,9 +5763,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (isSessionPlaceholder(element)) {
 			return { depth: this.getRowGroupDepth(element), indent: SessionRowIndent.Item };
 		}
-		// A comparison's attempts and their nested chats step in with the comparison.
+		// A comparison's attempts and their nested chats step in with the comparison. A session
+		// listed under the session that created it keeps that session's indent and draws a connector.
 		const session = isSessionChatItem(element) ? element.standalone ? undefined : element.session : element;
-		const isComparison = session !== undefined && this.renderedComparisonParticipantConnectorPositions.has(session.sessionId);
+		const isComparison = session !== undefined && this.renderedSessionConnectors.get(session.sessionId)?.createdSession === false;
 		return { depth: this.getRowGroupDepth(element), indent: isComparison ? SessionRowIndent.Comparison : SessionRowIndent.Item };
 	}
 
