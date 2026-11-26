@@ -13,7 +13,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { ContextSizeConfigKey, getContextSizeForTier, withExplicitModelConfiguration } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { ContextSizeConfigKey, ContextTierConfigKey, CopilotReasoningEffortConfigKey, getContextSizeForTier, withExplicitModelConfiguration } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { readAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { supportsRemoteSessions, toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -268,7 +268,8 @@ export class RemoteSessionService implements IRemoteSessionService {
 		const properties = this.languageModelsService.lookupLanguageModel(modelIdentifier)?.configurationSchema?.properties;
 		const requested: Record<string, JsonPrimitive> = {};
 		if (options.reasoningEffort !== undefined) {
-			const property = properties?.[ReasoningEffortConfigKey];
+			const key = properties?.[ReasoningEffortConfigKey] ? ReasoningEffortConfigKey : CopilotReasoningEffortConfigKey;
+			const property = properties?.[key];
 			if (!property?.enum?.includes(options.reasoningEffort)) {
 				reasons.push(property?.enum?.length
 					? localize('remoteSessions.unsupportedReasoningEffort', "Model {0} does not support reasoning effort {1}. Use one of: {2}.", modelLabel, options.reasoningEffort, property.enum.join(', '))
@@ -276,18 +277,21 @@ export class RemoteSessionService implements IRemoteSessionService {
 			} else if (property.readOnly) {
 				reasons.push(localize('remoteSessions.reasoningEffortLocked', "Reasoning effort is locked for model {0}.", modelLabel));
 			} else {
-				requested[ReasoningEffortConfigKey] = options.reasoningEffort;
+				requested[key] = options.reasoningEffort;
 			}
 		}
 		if (options.contextTier !== undefined) {
-			const property = properties?.[ContextSizeConfigKey];
-			const size = property?.enum && property.enum.length > 1 ? getContextSizeForTier(property, options.contextTier) : undefined;
-			if (!property || size === undefined) {
+			const key = properties?.[ContextSizeConfigKey] ? ContextSizeConfigKey : ContextTierConfigKey;
+			const property = properties?.[key];
+			const value = key === ContextSizeConfigKey ? getContextSizeForTier(property, options.contextTier) : options.contextTier;
+			if (!property || (key === ContextSizeConfigKey && (property.enum?.length ?? 0) < 2)) {
 				reasons.push(localize('remoteSessions.singleContextWindow', "Model {0} has a single context window, so a context tier does not apply.", modelLabel));
+			} else if (value === undefined || !property.enum?.includes(value)) {
+				reasons.push(localize('remoteSessions.unsupportedContextTier', "Model {0} does not support context tier {1}.", modelLabel, options.contextTier));
 			} else if (property.readOnly) {
 				reasons.push(localize('remoteSessions.contextSizeLocked', "Context size is locked for model {0}.", modelLabel));
 			} else {
-				requested[ContextSizeConfigKey] = size;
+				requested[key] = value;
 			}
 		}
 		if (reasons.length) {

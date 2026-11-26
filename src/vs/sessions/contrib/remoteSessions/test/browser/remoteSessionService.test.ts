@@ -363,18 +363,14 @@ suite('RemoteSessionService', () => {
 		}, { hostId: hosts[1].id, modelId: `${hosts[1].sessionTypes[0].chatSessionType}:test-model`, permissionLevel: undefined, sessionTemplate: undefined });
 	});
 
-	function withModelOptions(host: RemoteProvider, models: Map<string, ILanguageModelChatMetadata>, properties?: ILanguageModelConfigurationSchema['properties']): string {
+	function withModelOptions(host: RemoteProvider, models: Map<string, ILanguageModelChatMetadata>, properties: ILanguageModelConfigurationSchema['properties'] = {
+		[ReasoningEffortConfigKey]: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' },
+		[ContextSizeConfigKey]: { type: 'number', enum: [200_000, 1_000_000], default: 200_000 },
+	}): string {
 		const identifier = `${host.sessionTypes[0].chatSessionType}:test-model`;
 		models.set(identifier, {
 			...models.get(identifier)!,
-			configurationSchema: {
-				type: 'object',
-				properties: {
-					[ReasoningEffortConfigKey]: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' },
-					[ContextSizeConfigKey]: { type: 'number', enum: [200_000, 1_000_000], default: 200_000 },
-					...properties,
-				},
-			},
+			configurationSchema: { type: 'object', properties },
 		});
 		return identifier;
 	}
@@ -396,6 +392,26 @@ suite('RemoteSessionService', () => {
 				[ContextSizeConfigKey]: 200_000, [modelConfigurationSourceKey(ContextSizeConfigKey)]: 'explicit',
 			},
 		]);
+	});
+
+	test('explicit options use the host\'s advertised effort and tier keys instead of conflicting saved aliases', async () => {
+		const host = new RemoteProvider('host');
+		host.supportsModelConfigurationForCreation = true;
+		const { service, calls, sourceChat, models, savedModelConfigurations } = setup([host]);
+		const identifier = withModelOptions(host, models, {
+			reasoningEffort: { type: 'string', enum: ['low', 'high'] },
+			contextTier: { type: 'string', enum: ['default', 'long_context'] },
+		});
+		savedModelConfigurations.set(identifier, {
+			thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit',
+			contextSize: 200_000, [modelConfigurationSourceKey('contextSize')]: 'explicit',
+		});
+		const options = parseCreateRemoteSessionOptions({ prompt: 'Run tests', model: { provider: 'copilot', id: 'test-model' }, reasoningEffort: 'high', contextTier: 'long_context' }, true);
+		await service.createSession(options, sourceChat.resource, 'request', CancellationToken.None);
+		assert.deepStrictEqual(calls[0].options?.modelConfiguration, {
+			reasoningEffort: 'high', [modelConfigurationSourceKey('reasoningEffort')]: 'explicit',
+			contextTier: 'long_context', [modelConfigurationSourceKey('contextTier')]: 'explicit',
+		});
 	});
 
 	test('invalid saved model options reject only the affected host', async () => {
@@ -427,9 +443,11 @@ suite('RemoteSessionService', () => {
 		};
 		assert.deepStrictEqual({
 			unsupportedEffort: await reasons({ reasoningEffort: 'xhigh' }),
-			lockedEffort: await reasons({ reasoningEffort: 'high' }, { [ReasoningEffortConfigKey]: { type: 'string', enum: ['high'], readOnly: true } }),
-			singleWindow: await reasons({ contextTier: 'long_context' }, { [ContextSizeConfigKey]: { type: 'number', enum: [200_000] } }),
+			lockedEffort: await reasons({ reasoningEffort: 'high' }, { thinkingLevel: { type: 'string', enum: ['high'], readOnly: true }, reasoningEffort: { type: 'string', enum: ['high'] } }),
+			singleWindow: await reasons({ contextTier: 'long_context' }, { contextSize: { type: 'number', enum: [200_000] }, contextTier: { type: 'string', enum: ['default', 'long_context'] } }),
 			lockedContext: await reasons({ contextTier: 'long_context' }, { [ContextSizeConfigKey]: { type: 'number', enum: [200_000, 1_000_000], readOnly: true } }),
+			unsupportedTier: await reasons({ contextTier: 'long_context' }, { contextTier: { type: 'string', enum: ['default'] } }),
+			lockedTier: await reasons({ contextTier: 'default' }, { contextTier: { type: 'string', enum: ['default', 'long_context'], readOnly: true } }),
 			unsupportedHost: await reasons({ contextTier: 'long_context' }, undefined, false),
 			calls,
 		}, {
@@ -437,6 +455,8 @@ suite('RemoteSessionService', () => {
 			lockedEffort: ['Reasoning effort is locked for model copilot/test-model.'],
 			singleWindow: ['Model copilot/test-model has a single context window, so a context tier does not apply.'],
 			lockedContext: ['Context size is locked for model copilot/test-model.'],
+			unsupportedTier: ['Model copilot/test-model does not support context tier long_context.'],
+			lockedTier: ['Context size is locked for model copilot/test-model.'],
 			unsupportedHost: ['The host cannot apply a reasoning effort or context tier to a new session.'],
 			calls: [],
 		});

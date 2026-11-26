@@ -30,7 +30,9 @@ export type ModelContextTier = typeof modelContextTiers[number];
 /** Other keys that carry the same option as a key, which an explicit value of that key supersedes. */
 const modelConfigurationAliasKeys: Readonly<Record<string, readonly string[]>> = {
 	[ContextSizeConfigKey]: [ContextTierConfigKey],
+	[ContextTierConfigKey]: [ContextSizeConfigKey],
 	[ReasoningEffortConfigKey]: [CopilotReasoningEffortConfigKey],
+	[CopilotReasoningEffortConfigKey]: [ReasoningEffortConfigKey],
 };
 
 export const agentModelConfigurationReportKey = 'vscode.modelConfiguration';
@@ -143,7 +145,7 @@ export function isModelConfigurationDefault(configuration: Readonly<Record<strin
 
 /**
  * Sets model options as explicit choices, so a provider applies them even where a managed default owns the option,
- * and removes each option's legacy alias, which could otherwise override or contradict it. Other options are kept.
+ * and removes each option's alias, which could otherwise override or contradict it. Other options are kept.
  */
 export function withExplicitModelConfiguration(selection: ModelSelection, values: Readonly<Record<string, JsonPrimitive>>): ModelSelection {
 	const config = { ...selection.config };
