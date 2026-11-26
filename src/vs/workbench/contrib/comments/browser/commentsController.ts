@@ -29,7 +29,7 @@ import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZon
 import { CommentWidgetFocus, ICommentThreadEditorWidget } from './commentThreadEditorWidget.js';
 import { ICommentThreadFloatingWidgetHost, ReviewFloatingWidget } from './commentThreadFloatingWidget.js';
 import { FloatingWidgetRoom } from './commentThreadFloatingWidgetRoom.js';
-import { ICommentThreadFloatingWidgetLayout } from './commentThreadFloatingWidgetLayout.js';
+import { ICommentThreadFloatingWidgetLayout, IFloatingWidgetChosenSize } from './commentThreadFloatingWidgetLayout.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
@@ -472,6 +472,11 @@ export class CommentController extends Disposable implements IEditorContribution
 	 * they are recreated during the window session.
 	 */
 	private static readonly _floatingWidgetLayouts = new LRUCache<string, ICommentThreadFloatingWidgetLayout>(500);
+	/**
+	 * The size that the user last resized a floating comment thread widget to, which the widgets that are placed after
+	 * that start out at during the window session.
+	 */
+	private static _floatingWidgetChosenSize: IFloatingWidgetChosenSize = {};
 
 	private readonly localToDispose: DisposableStore = this._register(new DisposableStore());
 	private editor: ICodeEditor | undefined;
@@ -501,6 +506,10 @@ export class CommentController extends Disposable implements IEditorContribution
 	private readonly _floatingWidgetHost: ICommentThreadFloatingWidgetHost = {
 		getLayout: widget => CommentController._floatingWidgetLayouts.get(this._getFloatingWidgetLayoutKey(widget)),
 		setLayout: (widget, layout) => CommentController._floatingWidgetLayouts.set(this._getFloatingWidgetLayoutKey(widget), layout),
+		getLastChosenSize: () => CommentController._floatingWidgetChosenSize,
+		setLastChosenSize: size => {
+			CommentController._floatingWidgetChosenSize = size;
+		},
 		addWidget: widget => {
 			this._floatingWidgets.add(widget);
 			return toDisposable(() => this._floatingWidgets.delete(widget));
