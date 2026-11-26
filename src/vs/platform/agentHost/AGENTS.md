@@ -206,7 +206,7 @@ Behind the startup-effective M365 gate, authenticating the [Microsoft discovery 
 
 - **Account state stays in the host.** Runtime selection handles and [account state](common/copilotAccountContext.ts) never enter protocol metadata or root configuration. Clients use ordinary AHP authentication, including revocation, with no window-specific ownership requirement.
 - **A service is ready only once the runtime confirms it.** A service the runtime activates on its own is accepted only after confirming the active derived account, and an empty selected-account catalog is an error rather than a reason to invent models. Readiness does not prove the account has no other usable service.
-- **Optional credentials never choose the account.** Passive forwarding sends an optional resource only when the primary default sign-in already grants its scopes, including as a broader superset; cached optional credentials do not select another service.
+- **A credential's availability never chooses the service.** Passive forwarding sends an optional resource only when the primary default sign-in already grants its scopes, including as a broader superset. When the host offers several Copilot services, it sends only the one the user picked at setup, and none without a recorded pick; the host takes it as the choice.
 
 The SDK binds Microsoft authentication to a session, so the catalog comes from the setup session's `rpc.model.list()`, not the global token-based API. The runtime cannot resolve managed settings for a Microsoft account yet, so the host applies none to that account's catalog; do not read policy from the setup session to compensate.
 

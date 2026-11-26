@@ -27,7 +27,7 @@ import product from '../../../platform/product/common/product.js';
 import { IProgress, IProgressStep } from '../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, WillSaveStateReason } from '../../../platform/storage/common/storage.js';
 import { toUserDataProfile } from '../../../platform/userDataProfile/common/userDataProfile.js';
-import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchState, Workspace } from '../../../platform/workspace/common/workspace.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchState, WorkbenchScope, Workspace } from '../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, ResourceTrustRequestOptions, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
@@ -96,6 +96,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState>;
 	get onDidChangeWorkbenchState(): Event<WorkbenchState> { return this._onDidChangeWorkbenchState.event; }
+	readonly onDidChangeWorkbenchScope: Event<WorkbenchScope> = Event.None;
 
 	constructor(workspace = TestWorkspace, options = null) {
 		this.workspace = workspace;
@@ -108,6 +109,10 @@ export class TestContextService implements IWorkspaceContextService {
 
 	getFolders(): IWorkspaceFolder[] {
 		return this.workspace ? this.workspace.folders : [];
+	}
+
+	getWorkbenchScope(): WorkbenchScope {
+		return WorkbenchScope.WORKSPACE;
 	}
 
 	getWorkbenchState(): WorkbenchState {

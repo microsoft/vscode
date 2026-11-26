@@ -13,7 +13,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
+import { CopilotServiceKind, IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AuthenticateParams } from '../../../../../../platform/agentHost/common/agent.js';
 import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraEmuAudience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
@@ -82,7 +82,7 @@ suite('Microsoft Copilot resource setup UI', () => {
 			consentError: undefined as Error | undefined, finishDiscoveryOnCredential: false, progress: false,
 			cancelProgress: undefined as (() => void) | undefined,
 			picks: [] as (readonly IQuickPickItem[])[],
-			defaultAccount: null as IDefaultAccount | null, accountKept: true, remembered: [] as string[], forgotten: 0, started: 0, deliveredBeforeInstall: undefined as number | undefined,
+			defaultAccount: null as IDefaultAccount | null, accountKept: true, remembered: [] as { id: string; service: CopilotServiceKind }[], forgotten: 0, started: 0, deliveredBeforeInstall: undefined as number | undefined,
 			/** While set, the remembered account is stored at once but the update that follows it does not finish. */
 			rememberPending: undefined as DeferredPromise<void> | undefined,
 		};
@@ -182,8 +182,8 @@ suite('Microsoft Copilot resource setup UI', () => {
 		instantiation.stub(IDefaultAccountService, {
 			getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }),
 			get currentDefaultAccount() { return state.defaultAccount; },
-			rememberMicrosoftAccount: async remembered => {
-				state.remembered.push(remembered.id);
+			rememberMicrosoftAccount: async (remembered, service) => {
+				state.remembered.push({ id: remembered.id, service });
 				state.defaultAccount = state.accountKept ? { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, sessionId: 'microsoft-session', accountName: remembered.label, enterprise: false } : null;
 				void rememberStarted.complete();
 				await state.rememberPending?.p;
@@ -555,15 +555,27 @@ suite('Microsoft Copilot resource setup UI', () => {
 			assert.deepStrictEqual({
 				success: result.success, completed: f.context.state.completed, calls: f.calls,
 				choices: f.state.picks.map(items => items.map(item => item.label)), delivered: f.deliveries,
+				remembered: f.state.remembered,
 			}, {
 				success: true, completed: true, calls: ['signIn', 'install'], choices: [['GitHub Copilot', 'Microsoft 365 Copilot']],
 				delivered: [discovery, services[pick]].map(resource => ({
 					resource: resource.resource, scopes: resource.scopes_supported, token: 'synthetic', expiresIn: 120,
 					accountId: '["microsoft","opaque-account",null]',
 				})),
+				remembered: [{ id: f.account.id, service: pick === 0 ? 'github' : 'm365' }],
 			});
 		});
 	}
+
+	test('setup sends no credential of its own for a challenge once the host names the services', async () => {
+		const f = fixture();
+		f.state.pick = 1;
+		f.state.challenge = requirement;
+		const result = await f.run();
+		assert.deepStrictEqual({ success: result.success, answered: f.challengeAnswered.isResolved, delivered: f.deliveries.map(request => request.resource) }, {
+			success: true, answered: false, delivered: [discovery.resource, services[1].resource],
+		});
+	});
 
 	test('waits for resource publication after the accepted discovery response', async () => {
 		const f = fixture();
@@ -793,7 +805,7 @@ suite('Microsoft Copilot resource setup UI', () => {
 		f.state.sessions = [f.credential(['User.Read'])];
 		f.state.offered = [services[0]];
 		const result = await f.run();
-		assert.deepStrictEqual({ success: result.success, remembered: f.state.remembered, forgotten: f.state.forgotten }, { success: true, remembered: [f.account.id], forgotten: 0 });
+		assert.deepStrictEqual({ success: result.success, remembered: f.state.remembered, forgotten: f.state.forgotten }, { success: true, remembered: [{ id: f.account.id, service: 'github' }], forgotten: 0 });
 	});
 
 	/** The continuation after a pending remember outlives the setup that started it, so these tests let it run to its end with a timer before asserting. */
@@ -841,6 +853,6 @@ suite('Microsoft Copilot resource setup UI', () => {
 		f.state.offered = [services[0]];
 		f.state.accountKept = false;
 		const result = await f.run();
-		assert.deepStrictEqual({ success: result.success, calls: f.calls, remembered: f.state.remembered, forgotten: f.state.forgotten }, { success: false, calls: ['install', 'retry'], remembered: [f.account.id], forgotten: 1 });
+		assert.deepStrictEqual({ success: result.success, calls: f.calls, remembered: f.state.remembered, forgotten: f.state.forgotten }, { success: false, calls: ['install', 'retry'], remembered: [{ id: f.account.id, service: 'github' }], forgotten: 1 });
 	});
 });
