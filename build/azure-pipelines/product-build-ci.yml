@@ -45,8 +45,6 @@ variables:
     value: true
   - name: VSCODE_PUBLISH
     value: false
-  - name: VSCODE_STEP_ON_IT
-    value: false
   # The day of the workspace images of the CI test jobs (see build/azure-pipelines/common/workspaceImage.ts):
   # the first CI build of a day builds a new one. The same in every job of a run, unlike the clock.
   - name: VSCODE_WORKSPACE_IMAGE_DAY
