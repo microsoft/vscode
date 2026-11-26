@@ -89,7 +89,7 @@ import { createArtifactIntegrationsInstruction } from '../../node/shared/artifac
 import { constObservable } from '../../../../base/common/observable.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
-import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
+import { buildWorktreeAnnouncementText, buildWorktreeGitLfsNotification, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 import { gitLfsPointerFilesInstruction } from '../../node/chatContributions/worktreeGitLfs/worktreeGitLfsContribution.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence, createTestSessionStateStore, seedSessionAdditionalWorktrees, createTestChatRows } from './chatMetadataTestHelpers.js';
@@ -3563,8 +3563,45 @@ suite('AgentHostChatContributions', () => {
 			},
 			warnings,
 		}, {
-			instructed: { defaultFirst: true, defaultRetry: true, defaultAfterSuccess: false, peerInFolder: false, peerConvertedToWorktree: true, restored: false },
+			instructed: { defaultFirst: true, defaultRetry: true, defaultAfterSuccess: false, peerInFolder: false, peerConvertedToWorktree: true, restored: true },
 			warnings: [defaultChat],
+		});
+	});
+
+	test('tells a restored chat about Git LFS pointer files after its worktree is recreated with them, and warns unless its history shows the warning', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const defaultChat = buildDefaultChatUri(contributions.session);
+		const worktreeDirectory = URI.file('/workspace/repository.worktrees/feature');
+		const metadataKey = URI.parse(contributions.session).toString();
+		const warnedTurns: string[] = [];
+		disposables.add(contributions.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatResponsePart && envelope.action.part.kind === ResponsePartKind.SystemNotification) {
+				warnedTurns.push(envelope.action.turnId);
+			}
+		}));
+		const restore = async (history: Turn) => {
+			contributions.service.disposeChatState(defaultChat);
+			await contributions.service.hydrateTurns({ session: contributions.session, chat: defaultChat, isDefaultChat: true, storageResource: creationTimeChatStorageResource(contributions.session, defaultChat, defaultChat) }, [history]);
+		};
+		const instructed = async (turnId: string) => {
+			contributions.stateManager.dispatchServerAction(defaultChat, chatTurnStarted(turnId, 'Fix it', '2025-01-01T00:00:00.000Z'));
+			const result = await contributions.service.outgoingTurn({ session: contributions.session, chat: defaultChat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId, workingDirectories: [worktreeDirectory] });
+			contributions.service.turnEnd({ session: contributions.session, channel: defaultChat, turnId, reason: { kind: 'success' } });
+			contributions.stateManager.dispatchServerAction(defaultChat, chatTurnComplete(turnId, 1));
+			return result.instructions?.includes(gitLfsPointerFilesInstruction) ?? false;
+		};
+
+		contributions.worktree.metadata.set(metadataKey, { branchName: 'agents/feature', worktreePath: worktreeDirectory });
+		await restore(hydrationTurn('with-contents'));
+		contributions.worktree.metadata.set(metadataKey, { branchName: 'agents/feature', worktreePath: worktreeDirectory, gitLfsPointerFiles: true });
+		const afterRecreation = await instructed('after-recreation');
+		await restore({ ...hydrationTurn('with-warning'), responseParts: [buildWorktreeGitLfsNotification()] });
+		const afterRestoreWithWarning = await instructed('after-restore');
+
+		assert.deepStrictEqual({ afterRecreation, afterRestoreWithWarning, warnedTurns }, {
+			afterRecreation: true,
+			afterRestoreWithWarning: true,
+			warnedTurns: ['after-recreation'],
 		});
 	});
 
