@@ -648,9 +648,6 @@ const errorMessageKnownCommands = [...errorMessageCommands, 'sh', 'bash', 'cmd',
 // Node.js network errors are followed by the host name or address.
 const networkErrorAddressPattern = /\b(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH) \S+/g;
 const ipv4AddressPattern = /\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g;
-// For example, the config file in "Dev container config (<path>) not found." Paths with spaces are only partially redacted by the telemetry service.
-// Ends at the path's closing parenthesis, allowing parentheses in folder names (e.g., "Plan (2)").
-const parenthesizedPathPattern = /\((?:[a-zA-Z]:)?[\\/](?:[^()\r\n]|\([^()\r\n]*\))*\)/g;
 
 /**
  * Builds an error message for telemetry from parts such as an error message and a command's stderr. Removes command
@@ -662,7 +659,6 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 		// State volume names include the folder name.
 		[/vscode-state-[a-z0-9_.-]*[a-z0-9]/g, 'vscode-state-<name>'],
 		[/\b(?:[0-9a-f]{64}|[0-9a-f]{12})\b/g, '<id>'],
-		[parenthesizedPathPattern, '(<path>)'],
 		[networkErrorAddressPattern, '$1 <address>'],
 		[ipv4AddressPattern, '<address>'],
 	];
@@ -687,7 +683,7 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 		return text.split(/\r?\n/)
 			// CLI log entries include command lines. The link command's messages are informational.
 			.map(line => line.replace(/\[\d+ ms\].*/, '').replace(/(^|: )\s*(?:Persisting|Not persisting) ~\/.*/, '$1'))
-			.map(line => replacements.reduce((value, [pattern, replacement]) => value.replace(pattern, replacement), line).trim())
+			.map(line => replacements.reduce((value, [pattern, replacement]) => value.replace(pattern, replacement), redactParenthesizedPaths(line)).trim())
 			.filter(line => !!line);
 	});
 	const message = lines.join('\n');
@@ -696,6 +692,42 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 	}
 	// The specific error is usually at the end.
 	return `${message.substring(0, errorMessageHeadLength)}\n…\n${message.substring(message.length - (maxErrorMessageLength - errorMessageHeadLength - 3))}`;
+}
+
+/**
+ * Replaces paths in parentheses, e.g., the config file in "Dev container config (<path>) not found.", since the telemetry
+ * service only partially redacts paths with spaces. Folder names can contain nested parentheses. A path whose
+ * parentheses don't balance is redacted up to an unmatched closing parenthesis after it or to the end of the line.
+ */
+function redactParenthesizedPaths(line: string): string {
+	const pathStart = /\((?:[a-zA-Z]:)?[\\/]/g;
+	let result = '';
+	let end = 0;
+	let match: RegExpExecArray | null;
+	while ((match = pathStart.exec(line))) {
+		result += `${line.substring(end, match.index)}(<path>)`;
+		end = findParenthesizedPathEnd(line, match.index);
+		pathStart.lastIndex = end;
+	}
+	return result + line.substring(end);
+}
+
+function findParenthesizedPathEnd(line: string, start: number): number {
+	let depth = 0;
+	let end: number | undefined;
+	for (let i = start; i < line.length; i++) {
+		if (line[i] === '(') {
+			depth++;
+		} else if (line[i] === ')') {
+			depth--;
+			// After the balanced end, an unmatched closing parenthesis means the path likely contains one.
+			if (end === undefined ? depth === 0 : depth < 0) {
+				end = i + 1;
+				depth = 0;
+			}
+		}
+	}
+	return end ?? line.length;
 }
 
 function escapeRegExp(value: string): string {
