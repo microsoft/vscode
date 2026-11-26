@@ -438,6 +438,30 @@ suite('Content Part', () => {
 			}, { vetoed: ['cannot move'], allowed: [], movableListed: false, pinnedListed: false });
 		});
 
+		test('does not veto unload for editors that close with the window, such as the chats of a chat window', async () => {
+			const parts = await createServices();
+			const { onBeforeUnload, onUnload, window } = createWindow();
+
+			const part = parts.createEditorPart({ container: createContainer() });
+			const chat = createInput('/content/chat.txt');
+			chat.canMove = () => 'chat cannot move';
+			const pinned = createInput('/content/pinned.txt');
+			pinned.canMove = () => 'cannot move';
+			await part.activeGroup.openEditor(chat, { pinned: true });
+			await part.activeGroup.openEditor(pinned, { pinned: true });
+
+			disposables.add(bindEditorPartsToWindow(window, [part], parts, editor => editor === chat));
+
+			const vetoes: string[] = [];
+			const fire = () => onBeforeUnload.fire({ veto: (reason: string | true) => { if (typeof reason === 'string') { vetoes.push(reason); } } } as never);
+			fire();
+			pinned.canMove = () => true;
+			fire();
+			onUnload.fire();
+
+			assert.deepStrictEqual(vetoes, ['cannot move']);
+		});
+
 		test('a part whose editors cannot move back is still closed and released when its window unloads', async () => {
 			const parts = await createServices();
 			const { onUnload, window } = createWindow();

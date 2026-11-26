@@ -1104,8 +1104,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		disposables.add(auxiliaryWindow.onUnload(() => unloading = true));
 		// What shows in its other parts, such as terminals, leaves the window as it unloads, before its parts close.
 		disposables.add(Event.once(auxiliaryWindow.onUnload)(() => window?.willUnload()));
+		// Its chats close with it rather than moving, in any of its parts, so that a chat that cannot leave the window, such
+		// as a new session not sent yet, does not keep it open.
+		const closesWithWindow = (editor: EditorInput) => !!window?.isChatEditor(editor);
 		// Closes the parts as the window unloads, unless the chat window closed them first.
-		const partsBinding = disposables.add(bindEditorPartsToWindow(auxiliaryWindow, [chatPart, mainPart], this._editorGroupsService));
+		const partsBinding = disposables.add(bindEditorPartsToWindow(auxiliaryWindow, [chatPart, mainPart], this._editorGroupsService, closesWithWindow));
 		const gridRef = observableValue<ChatWindowGrid | undefined>(this, undefined);
 
 		const editorGroupsService = this._editorGroupsService;
@@ -1196,7 +1199,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// regions that move the window, such as the empty space of a tab row at its top, take the drop instead.
 		disposables.add(bindDraggingClass(host, [auxiliaryWindow.window, mainWindow]));
 		// Parts for editors dropped on an edge of the window, like its main part
-		const partFactory = disposables.add(this._instantiationService.createInstance(ChatWindowPartFactory, auxiliaryWindow, services, look));
+		const partFactory = disposables.add(this._instantiationService.createInstance(ChatWindowPartFactory, auxiliaryWindow, services, look, closesWithWindow));
 		const grid = disposables.add(this._instantiationService.createInstance(ChatWindowGrid, host, {
 			main: mainPart,
 			chat: chatPart,
