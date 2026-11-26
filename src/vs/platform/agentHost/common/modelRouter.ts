@@ -178,6 +178,93 @@ export function modelRouterNameFromFileName(fileName: string): string | undefine
 	return suffix ? fileName.slice(0, -suffix.length) : undefined;
 }
 
+/** The router name a display name implies: `Daily Driver` → `daily-driver`. Empty when it has no letters or digits. */
+export function modelRouterNameFromDisplayName(displayName: string): string {
+	return displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+/** The file of a new router named `name` in `folder`. */
+export function modelRouterFile(folder: URI, name: string): URI {
+	return joinPath(folder, `${name}${MODEL_ROUTER_FILE_SUFFIXES[0]}`);
+}
+
+/**
+ * What a router file is written from: a router as {@link parseModelRouter} reads one, where what has a default can be
+ * left out. The `name` is for a router whose name is not its file's.
+ */
+type IModelRouterDraft = Pick<IModelRouter, 'description' | 'routes'> & Partial<Pick<IModelRouter, 'name' | 'displayName' | 'effort' | 'contextSize' | 'switching' | 'guidance'>>;
+
+/**
+ * The text of a router file for `draft`. {@link parseModelRouter} reads the same router back from it, so a router
+ * can be read, changed and written again. Comments and keys the format does not know are not part of a router.
+ */
+export function writeModelRouter(draft: IModelRouterDraft): string {
+	const lines = [`version: ${MODEL_ROUTER_VERSION}`];
+	if (draft.name) {
+		lines.push(`name: ${draft.name}`);
+	}
+	if (draft.displayName) {
+		lines.push(`display-name: ${yamlText(draft.displayName)}`);
+	}
+	lines.push(`description: ${yamlText(draft.description, '  ')}`);
+	// What the parser assumes for a missing key is left out.
+	if (draft.effort && draft.effort !== 'auto') {
+		lines.push(`effort: ${draft.effort}`);
+	}
+	if (draft.contextSize) {
+		lines.push(`context-size: ${draft.contextSize}`);
+	}
+	if (draft.switching && draft.switching !== 'first-turn') {
+		lines.push(`switching: ${draft.switching}`);
+	}
+	if (draft.guidance) {
+		lines.push(`guidance: ${yamlText(draft.guidance, '  ')}`);
+	}
+	lines.push('routes:');
+	for (const route of draft.routes) {
+		const keys = [
+			...(route.name ? [`name: ${route.name}`] : []),
+			// Several models are a list in preference order, on one line.
+			`model: ${route.models.length === 1 ? yamlText(route.models[0]) : `[${route.models.map(model => /^[\w.:/@-]+$/.test(model) ? model : JSON.stringify(model)).join(', ')}]`}`,
+			...(route.effort ? [`effort: ${route.effort}`] : []),
+			...(route.contextSize ? [`context-size: ${route.contextSize}`] : []),
+			// A router's only route can leave `when` out, and an empty one does not read back.
+			...(route.when ? [`when: ${yamlText(route.when, '      ')}`] : []),
+			...(route.examples.length ? ['examples:', ...route.examples.map(example => `  - ${yamlText(example)}`)] : []),
+			...(route.mainAgentGuidance ? [`guidance: ${yamlText(route.mainAgentGuidance, '      ')}`] : []),
+		];
+		lines.push(...keys.map((key, index) => `${index === 0 ? '  - ' : '    '}${key}`));
+	}
+	return `${lines.join('\n')}\n`;
+}
+
+/** The text of a router file with `switching` set, added before its routes when the file has none. The rest of the file, comments included, is kept. */
+export function withModelRouterSwitching(content: string, switching: ModelRouterSwitching): string {
+	// Offsets are into the text the parser reads, which is without a byte order mark.
+	const start = content.charCodeAt(0) === 0xFEFF ? 1 : 0;
+	const root = parse(content.slice(start), []);
+	const properties = root?.type === 'map' ? root.properties : [];
+	const replace = (from: number, to: number, text: string) => `${content.slice(0, start + from)}${text}${content.slice(start + to)}`;
+	const existing = properties.find(property => property.key.value === 'switching');
+	if (existing) {
+		return replace(existing.value.startOffset, existing.value.endOffset, switching);
+	}
+	const routes = properties.find(property => property.key.value === 'routes');
+	return routes ? replace(routes.key.startOffset, routes.key.startOffset, `switching: ${switching}${content.includes('\r\n') ? '\r\n' : '\n'}`) : content;
+}
+
+/**
+ * Text as a YAML value, quoted unless plain YAML reads it back unchanged. With `blockIndent`, several lines are
+ * written as a `|` block, when a block keeps them as they are: one that starts or ends a line with white space does not.
+ */
+function yamlText(text: string, blockIndent?: string): string {
+	const lines = text.split('\n');
+	if (blockIndent !== undefined && lines.length > 1 && !/^\s/.test(lines[0]) && !lines.some(line => /\s$/.test(line))) {
+		return ['|', ...lines.map(line => line ? `${blockIndent}${line}` : '')].join('\n');
+	}
+	return /^[A-Za-z][\w ,.()/'-]*$/.test(text) && !text.endsWith(' ') && !/^(true|false|null|yes|no|on|off)$/i.test(text) ? text : JSON.stringify(text);
+}
+
 export function modelRouterModelId(name: string): string {
 	return `${MODEL_ROUTER_MODEL_ID_PREFIX}${name}`;
 }
@@ -921,7 +1008,7 @@ export interface IModelRouterResolution {
 }
 
 /** Whether a router may pick `model`: models that route themselves never are. */
-export function isRoutableModel(model: IAgentModelInfo): boolean {
+export function isRoutableModel(model: Pick<IAgentModelInfo, 'id'>): boolean {
 	return model.id !== 'auto' && !isModelRouterModelId(model.id) && !isCopilotHydraFusionModelId(model.id);
 }
 
@@ -1041,6 +1128,7 @@ export function summarizeModelRouterRoutes(router: IModelRouter, routes: readonl
 		return {
 			...(route.name ? { name: route.name } : {}),
 			model: model.name,
+			...(route.when ? { when: route.when } : {}),
 			...(effort ? { effort } : choosesEffort && supportedEfforts.length ? { effort: 'auto' } : {}),
 			...(contextTokens ? { contextTokens } : {}),
 		};
