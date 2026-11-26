@@ -427,7 +427,7 @@
 	}
 }
 
-.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools, .codicon-chevron-right-compact) {
+.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-thinking-compact, .codicon-tools, .codicon-tools-compact, .codicon-chevron-right-compact) {
 	display: inline-flex;
 	width: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
@@ -437,7 +437,7 @@
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress > .chat-progress-icon,
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress-anchor > .chat-working-progress > .chat-progress-icon,
 .interactive-session .chat-sticky-progress > .chat-working-progress > .chat-progress-icon,
-.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools, .codicon-chevron-right-compact) {
+.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-thinking-compact, .codicon-tools, .codicon-tools-compact, .codicon-chevron-right-compact) {
 	margin-right: calc(var(--vscode-spacing-size240) - var(--vscode-codiconFontSize-compact) - 0.2em);
 }
 

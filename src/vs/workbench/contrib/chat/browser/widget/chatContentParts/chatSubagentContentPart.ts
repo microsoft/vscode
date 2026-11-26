@@ -31,7 +31,7 @@ import { IChatContentPart, IChatContentPartDiffData, IChatContentPartDiffSource,
 import { aggregateChatEditDiffs } from './chatEditStatsButton.js';
 import { CollapsibleListPool } from './chatReferencesContentPart.js';
 import { buildPhrasePool } from './chatThinkingContentPart.js';
-import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinkingStyleContentPart.js';
+import { ChatThinkingStyleContentPart, createThinkingIcon, setThinkingIcon } from './chatThinkingStyleContentPart.js';
 import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocationPart.js';
 import { getToolInvocationIcon } from './toolInvocationParts/chatToolPartUtilities.js';
 import { FusionPhasePillActionViewItem, type ISubagentPhaseContext } from './fusionPhasePillActionViewItem.js';
@@ -851,7 +851,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				const activePresentation = this.activeToolPresentations.get(toolInvocation.toolCallId);
 				const recentPresentation = this.mostRecentToolPresentation?.callId === toolInvocation.toolCallId ? this.mostRecentToolPresentation : undefined;
 				const presentation = activePresentation ?? recentPresentation;
-				if (presentation && !equals(subagent, presentation.subagent)) {
+				if (presentation && (!equals(subagent, presentation.subagent) || !equals(this.getToolIcon(toolInvocation, presentation.label), presentation.icon))) {
 					const updatedPresentation = {
 						label: this.getToolLabel(toolInvocation, state) ?? presentation.label,
 						icon: this.getToolIcon(toolInvocation, presentation.label),
@@ -1449,6 +1449,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			const shouldUseCarouselForTool = this._shouldUseCarouselForTool;
 			const iconAutorun = autorun(r => {
 				const state = toolInvocation.state.read(r);
+				setThinkingIcon(iconElement, getToolInvocationIcon(toolInvocation.toolId, toolInvocation, content.textContent ?? undefined));
 				const isVisible = part.isVisible.read(r);
 				const hasConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
 					state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
