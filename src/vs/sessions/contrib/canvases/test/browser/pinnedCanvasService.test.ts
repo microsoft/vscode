@@ -73,6 +73,7 @@ suite('PinnedCanvasService', () => {
 			resource: URI.parse(resource),
 			chats: observableValue('chats', chats),
 			mainChat: constObservable(chats[0]),
+			status: observableValue('status', SessionStatus.Completed),
 			isArchived: observableValue('isArchived', false),
 		});
 	}
@@ -325,6 +326,20 @@ suite('PinnedCanvasService', () => {
 		});
 	});
 
+	test('does not mark a session done while the session reports work that none of its loaded chats report', async () => {
+		const canvas = createCanvas('plan');
+		const { chat } = createChat('chat:/main', [canvas]);
+		const session = createSession('session:/a', [chat]);
+		const harness = createHarness({ sessions: [session] });
+		harness.service.pin(reference(session, chat, canvas));
+		harness.setLive(canvas, canvas.resource);
+
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.NeedsInput, undefined);
+		await harness.service.closeCanvas(reference(session, chat, canvas), { markChatDone: true });
+
+		assert.deepStrictEqual(harness.lifecycle, ['close ahp-canvas:/chat/plan']);
+	});
+
 	test('removes pins of a session reported removed, but not of a session replaced under the same resource', () => {
 		const [removedCanvas, replacedCanvas] = [createCanvas('removed'), createCanvas('replaced')];
 		const removedChat = createChat('chat:/removed', [removedCanvas]);
@@ -484,7 +499,7 @@ suite('PinnedCanvasService', () => {
 		harness.service.pin(reference(session, chat, canvas));
 		harness.setLive(canvas, canvas.resource);
 
-		const closing = harness.service.closeCanvas(reference(session, chat, canvas));
+		const closing = harness.service.closeCanvas(reference(session, chat, canvas), { markChatDone: true });
 		// Before the close completes, the chat opens the same instance again as a new canvas.
 		const reopened = createCanvas('plan', { resource: URI.parse('ahp-canvas:/chat/plan-reopened') });
 		membership.set([reopened], undefined);
@@ -492,7 +507,11 @@ suite('PinnedCanvasService', () => {
 		await closeCompleted.complete();
 		await closing;
 
-		assert.deepStrictEqual(harness.snapshot(), [{ title: 'Canvas plan', chatTitle: 'Chat chat:/a', state: PinnedCanvasState.Live, canvas: 'ahp-canvas:/chat/plan-reopened' }]);
+		// The pin follows the reopened canvas, so its chat is not marked done.
+		assert.deepStrictEqual({ entries: harness.snapshot(), lifecycle: harness.lifecycle }, {
+			entries: [{ title: 'Canvas plan', chatTitle: 'Chat chat:/a', state: PinnedCanvasState.Live, canvas: 'ahp-canvas:/chat/plan-reopened' }],
+			lifecycle: ['close ahp-canvas:/chat/plan'],
+		});
 	});
 
 	test('keeps a pin while its session leaves the catalog and observes it again through the returning session', () => {

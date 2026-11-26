@@ -630,7 +630,16 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 			return;
 		}
 		if (options?.markChatDone) {
-			await this.markChatDone(session, chat);
+			// The pin stays when it moved on to a canvas its chat reopened meanwhile, and that chat is not done.
+			const pin = this.pins.get().find(candidate => candidate.id === entry.id);
+			if (pin && !isEqual(pin.lastBoundCanvas, canvas.resource)) {
+				return;
+			}
+			const currentSession = this.sessionsManagementService.getSession(entry.identity.session);
+			const currentChat = currentSession?.chats.get().find(candidate => isEqual(candidate.resource, entry.identity.chat));
+			if (currentSession && currentChat) {
+				await this.markChatDone(currentSession, currentChat);
+			}
 		}
 	}
 
@@ -638,7 +647,8 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 		try {
 			if (isEqual(chat.resource, session.mainChat.get().resource)) {
 				// Marking a session done stops all of its chats, and closing a canvas must not stop work that is still running.
-				if (!session.isArchived.get() && !session.chats.get().some(candidate => isActiveSessionStatus(candidate.status.get()))) {
+				const running = isActiveSessionStatus(session.status.get()) || session.chats.get().some(candidate => isActiveSessionStatus(candidate.status.get()));
+				if (!session.isArchived.get() && !running) {
 					await this.sessionsManagementService.archiveSession(session);
 				}
 			} else if (!chat.isArchived.get() && !isActiveSessionStatus(chat.status.get()) && getChatCapabilities(chat, session, undefined).canArchive) {
