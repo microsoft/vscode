@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
+import { IWorkspaceFolderLabelService } from '../../../services/workspaces/common/workspaceFolderLabelService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
-import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionFolder } from '../../../../workbench/services/sessions/common/session.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ISessionFolder } from '../../../services/sessions/common/session.js';
 
 export class SessionsWorkspaceFolderLabelService implements IWorkspaceFolderLabelService {
 
@@ -45,5 +44,3 @@ export class SessionsWorkspaceFolderLabelService implements IWorkspaceFolderLabe
 		return this.uriIdentityService.extUri.isEqual(folder.workingDirectory, workspaceFolder.uri);
 	}
 }
-
-registerSingleton(IWorkspaceFolderLabelService, SessionsWorkspaceFolderLabelService, InstantiationType.Delayed);

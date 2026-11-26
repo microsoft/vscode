@@ -4,66 +4,66 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { deepClone } from '../../../../../base/common/objects.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IPolicyService, NullPolicyService, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
-import { NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
-import { ManagedSettingsPresentationService } from '../../../../../workbench/services/configuration/common/managedSettingsPresentation.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { joinPath } from '../../../../../base/common/resources.js';
-import { Schemas } from '../../../../../base/common/network.js';
-import { AGENTS_WINDOW_PROFILE_ID, InMemoryUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { UserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfileService.js';
-import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
-import { TestEnvironmentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../base/test/common/mock.js';
-import { IPolicyData } from '../../../../../base/common/defaultAccount.js';
-import { PolicyCategory } from '../../../../../base/common/policy.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { ConfigurationService } from '../../browser/configurationService.js';
-import { SessionsWorkspaceContextService } from '../../../workspace/browser/workspaceContextService.js';
-import { getWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { isNative } from '../../../../../base/common/platform.js';
-import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
-import { IConfigurationCache } from '../../../../../workbench/services/configuration/common/configuration.js';
-import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { AccountPolicyService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
-import { LayoutSettings, ModernUIDensity, ModernUIFrostedGlassOpacity } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { SettingsTreeGroupElement, SettingsTreeSettingElement } from '../../../../../workbench/contrib/preferences/browser/settingsTreeModels.js';
-import { ExperimentalSettingsService } from '../../../../../workbench/services/configuration/common/experimentalSettings.js';
-import { DefaultConfiguration } from '../../../../../workbench/services/configuration/browser/configuration.js';
-import { ISetting } from '../../../../../workbench/services/preferences/common/preferences.js';
-import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { INotificationHandle, INotificationService, IPromptChoice, NotificationMessage, Severity } from '../../../../../platform/notification/common/notification.js';
-import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
-import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
-import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../../../workbench/services/configuration/common/configurationEditing.js';
-import '../../../../../workbench/browser/workbench.contribution.js';
-import '../../../../../workbench/browser/actions/layoutDensityActions.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { deepClone } from '../../../../../../base/common/objects.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationPropertySchema } from '../../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IPolicyService, NullPolicyService, PolicyValueSource } from '../../../../../../platform/policy/common/policy.js';
+import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { ManagedSettingsPresentationService } from '../../../common/managedSettingsPresentation.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { UriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { joinPath } from '../../../../../../base/common/resources.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { AGENTS_WINDOW_PROFILE_ID, InMemoryUserDataProfilesService } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../../../../userDataProfile/common/userDataProfileService.js';
+import { FileUserDataProvider } from '../../../../../../platform/userData/common/fileUserDataProvider.js';
+import { TestEnvironmentService } from '../../../../../test/browser/workbenchTestServices.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { IPolicyData } from '../../../../../../base/common/defaultAccount.js';
+import { PolicyCategory } from '../../../../../../base/common/policy.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { AgentsConfigurationService } from '../../../browser/agents/agentsConfigurationService.js';
+import { AgentsWorkspaceContextService } from '../../../browser/agents/agentsWorkspaceContextService.js';
+import { getWorkspaceIdentifier } from '../../../../../../platform/workspaces/common/workspaceIdentifier.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { isNative } from '../../../../../../base/common/platform.js';
+import { IUserDataProfileService } from '../../../../userDataProfile/common/userDataProfile.js';
+import { IConfigurationCache } from '../../../common/configuration.js';
+import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { AccountPolicyService } from '../../../../policies/common/accountPolicyService.js';
+import { LayoutSettings, ModernUIDensity, ModernUIFrostedGlassOpacity } from '../../../../layout/browser/layoutService.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { SettingsTreeGroupElement, SettingsTreeSettingElement } from '../../../../../contrib/preferences/browser/settingsTreeModels.js';
+import { ExperimentalSettingsService } from '../../../common/experimentalSettings.js';
+import { DefaultConfiguration } from '../../../browser/configuration.js';
+import { ISetting } from '../../../../preferences/common/preferences.js';
+import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
+import { IWorkbenchEnvironmentService } from '../../../../environment/common/environmentService.js';
+import { INotificationHandle, INotificationService, IPromptChoice, NotificationMessage, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
+import { IEditorService } from '../../../../editor/common/editorService.js';
+import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../common/configurationEditing.js';
+import '../../../../../browser/workbench.contribution.js';
+import '../../../../../browser/actions/layoutDensityActions.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
-suite('Sessions ConfigurationService', () => {
+suite('AgentsConfigurationService', () => {
 
-	let testObject: ConfigurationService;
-	let workspaceService: SessionsWorkspaceContextService;
+	let testObject: AgentsConfigurationService;
+	let workspaceService: AgentsWorkspaceContextService;
 	let fileService: FileService;
 	let fileReadsBarrier: Promise<void> | undefined;
 	let fileWriteError: Error | undefined;
@@ -76,13 +76,13 @@ suite('Sessions ConfigurationService', () => {
 	const logService = new NullLogService();
 	const nullConfigurationCache: IConfigurationCache = { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } };
 
-	function createConfigurationService(policyService: IPolicyService, configurationCache = nullConfigurationCache): ConfigurationService {
-		const configurationService = disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, policyService, logService, configurationCache, TestEnvironmentService));
+	function createConfigurationService(policyService: IPolicyService, configurationCache = nullConfigurationCache): AgentsConfigurationService {
+		const configurationService = disposables.add(new AgentsConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, policyService, logService, configurationCache, TestEnvironmentService));
 		configurationService.acquireInstantiationService(createInstantiationService(configurationService));
 		return configurationService;
 	}
 
-	function createInstantiationService(configurationService: ConfigurationService, notificationService: INotificationService = new TestNotificationService(), editorService: IEditorService = new class extends mock<IEditorService>() { }()): TestInstantiationService {
+	function createInstantiationService(configurationService: AgentsConfigurationService, notificationService: INotificationService = new TestNotificationService(), editorService: IEditorService = new class extends mock<IEditorService>() { }()): TestInstantiationService {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -224,7 +224,7 @@ suite('Sessions ConfigurationService', () => {
 		workspaceConfigResource = configResource;
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify({ folders: [] })));
 
-		workspaceService = disposables.add(new SessionsWorkspaceContextService(getWorkspaceIdentifier(configResource), uriIdentityService));
+		workspaceService = disposables.add(new AgentsWorkspaceContextService(getWorkspaceIdentifier(configResource), uriIdentityService));
 		testObject = createConfigurationService(new NullPolicyService());
 		await testObject.initialize();
 	});
@@ -811,7 +811,7 @@ suite('Sessions ConfigurationService', () => {
 	}));
 
 	test('updateValue throws before the instantiation service is acquired', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const configurationService = disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, new NullPolicyService(), logService, nullConfigurationCache, TestEnvironmentService));
+		const configurationService = disposables.add(new AgentsConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, new NullPolicyService(), logService, nullConfigurationCache, TestEnvironmentService));
 		await configurationService.initialize();
 
 		await assert.rejects(configurationService.updateValue('sessionsConfigurationService.testSetting', 'value', ConfigurationTarget.USER_LOCAL), /not yet ready to accept writes/);

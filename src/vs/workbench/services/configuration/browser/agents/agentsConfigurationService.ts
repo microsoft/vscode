@@ -3,45 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
-import { URI } from '../../../../base/common/uri.js';
-import { Promises, Queue } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { JSONPath, ParseError, parse } from '../../../../base/common/json.js';
-import { applyEdits, setProperty } from '../../../../base/common/jsonEdit.js';
-import { Edit, FormattingOptions } from '../../../../base/common/jsonFormatter.js';
-import { deepClone, equals } from '../../../../base/common/objects.js';
-import { distinct, equals as arrayEquals } from '../../../../base/common/arrays.js';
-import { OS, OperatingSystem } from '../../../../base/common/platform.js';
-import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
-import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
-import { ConfigurationChangeEvent, ConfigurationModel } from '../../../../platform/configuration/common/configurationModels.js';
-import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
-import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, keyFromOverrideIdentifiers } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { IPolicyService, NullPolicyService } from '../../../../platform/policy/common/policy.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFolder, WorkbenchState, Workspace } from '../../../../platform/workspace/common/workspace.js';
-import { DefaultConfiguration, FolderConfiguration, UserConfiguration, WorkspaceConfiguration } from '../../../../workbench/services/configuration/browser/configuration.js';
-import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IConfigurationCache, IWorkbenchConfigurationService, RestrictedSettings } from '../../../../workbench/services/configuration/common/configuration.js';
-import { Configuration } from '../../../../workbench/services/configuration/common/configurationModels.js';
-import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../../workbench/services/configuration/common/configurationEditing.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
-import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
+import { localize } from '../../../../../nls.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Promises, Queue } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { JSONPath, ParseError, parse } from '../../../../../base/common/json.js';
+import { applyEdits, setProperty } from '../../../../../base/common/jsonEdit.js';
+import { Edit, FormattingOptions } from '../../../../../base/common/jsonFormatter.js';
+import { deepClone, equals } from '../../../../../base/common/objects.js';
+import { distinct, equals as arrayEquals } from '../../../../../base/common/arrays.js';
+import { OS, OperatingSystem } from '../../../../../base/common/platform.js';
+import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { ConfigurationChangeEvent, ConfigurationModel } from '../../../../../platform/configuration/common/configurationModels.js';
+import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
+import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, keyFromOverrideIdentifiers } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { IFileService, FileOperationError, FileOperationResult } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IPolicyService, NullPolicyService } from '../../../../../platform/policy/common/policy.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFolder, WorkbenchState, Workspace } from '../../../../../platform/workspace/common/workspace.js';
+import { DefaultConfiguration, FolderConfiguration, UserConfiguration, WorkspaceConfiguration } from '../configuration.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IConfigurationCache, IWorkbenchConfigurationService, RestrictedSettings } from '../../common/configuration.js';
+import { Configuration } from '../../common/configurationModels.js';
+import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../common/configurationEditing.js';
+import { IEditorService } from '../../../editor/common/editorService.js';
+import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../environment/browser/environmentService.js';
 
 // Import to register configuration contributions
-import '../../../../workbench/services/configuration/browser/configurationService.js';
+import '../configurationService.js';
 
-class SessionsDefaultConfiguration extends DefaultConfiguration {
+class AgentsDefaultConfiguration extends DefaultConfiguration {
 
 	protected override getDefaultValue(_key: string, propertySchema: IRegisteredConfigurationPropertySchema): unknown {
 		if (propertySchema.agentsWindow && propertySchema.defaultValueSource !== 'experiments') {
@@ -52,7 +52,7 @@ class SessionsDefaultConfiguration extends DefaultConfiguration {
 
 }
 
-export class ConfigurationService extends Disposable implements IWorkbenchConfigurationService {
+export class AgentsConfigurationService extends Disposable implements IWorkbenchConfigurationService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -89,7 +89,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		super();
 
 		this.settingsResource = userDataProfileService.currentProfile.settingsResource;
-		this.defaultConfiguration = this._register(new SessionsDefaultConfiguration(userDataProfileService.currentProfile.id, configurationCache, environmentService, logService));
+		this.defaultConfiguration = this._register(new AgentsDefaultConfiguration(userDataProfileService.currentProfile.id, configurationCache, environmentService, logService));
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
 		this.initAgentsWindowReadOnlyKeys();
 		this.userConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, userDataProfileService.currentProfile.mcpResource, { exclude: [...this.agentsWindowReadOnlyKeys] }, fileService, uriIdentityService, logService));

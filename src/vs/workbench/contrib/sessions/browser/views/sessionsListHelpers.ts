@@ -486,7 +486,9 @@ export function groupSessionsForList(
 	}
 
 	if (archived.length > 0) {
-		sections.push({ id: 'archived', label: archivedSectionLabel, sessions: archived });
+		// Done cannot be reordered and lists the most recently updated first whatever the sorting, ignoring manual sort keys from
+		// before archiving. Providers that count archiving as an update thereby list the most recently archived first.
+		sections.push({ id: 'archived', label: archivedSectionLabel, sessions: sortSessions(archived, SessionsSorting.Updated) });
 	}
 
 	return sections;

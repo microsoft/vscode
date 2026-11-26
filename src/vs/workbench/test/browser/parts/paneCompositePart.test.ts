@@ -23,6 +23,10 @@ import { PanelPart } from '../../../browser/parts/panel/panelPart.js';
 import { CompositeBar } from '../../../browser/parts/compositeBar.js';
 import { CompositeBarAction } from '../../../browser/parts/compositeBarActions.js';
 import { IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { IActivityService } from '../../../services/activity/common/activity.js';
+import { ActivityService } from '../../../services/activity/browser/activityService.js';
+import { PaneComposite } from '../../../browser/panecomposite.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { TestLayoutService, workbenchInstantiationService } from '../workbenchTestServices.js';
 
 class TestPaneCompositeLayoutService extends TestLayoutService {
@@ -94,6 +98,10 @@ class TestPanelPart extends PanelPart {
 
 	get floatingContentDimension() {
 		return assertReturnsDefined(this.contentDimension);
+	}
+
+	updateTitleForTesting(id: string, title: string): void {
+		this.titleLabel!.updateTitle(id, title);
 	}
 }
 
@@ -315,5 +323,50 @@ suite('Pane composite part layout', () => {
 				outerEdges: { left: false, right: false, top: false, bottom: false },
 			},
 		});
+	});
+
+	test('the title shows the badge of the only view of the active composite while that view is merged with it, and follows the badge', () => {
+		const root = append(mainWindow.document.body, $('.monaco-workbench'));
+		store.add(toDisposable(() => root.remove()));
+		const container = append(root, $('.part.panel'));
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IWorkbenchLayoutService, new TestPaneCompositeLayoutService(root));
+		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+		const activityService = store.add(instantiationService.createInstance(ActivityService));
+		instantiationService.stub(IActivityService, activityService);
+		const part = store.add(instantiationService.createInstance(TestPanelPart));
+		part.create(container);
+		let merged = true;
+		const composite = Object.assign(Object.create(PaneComposite.prototype), { getViewPaneContainer: () => ({ isViewMergedWithContainer: () => merged, panes: [{ id: 'test.view' }] }) });
+		sinon.stub(part, 'getActivePaneComposite').returns(composite);
+		const titleLabel = container.querySelector('.title-label')!;
+		const state = () => ({
+			badge: titleLabel.querySelector('.view-title-badge-container:not(.hidden)')?.textContent ?? null,
+			hasBadge: titleLabel.classList.contains('has-title-badge'),
+			aria: titleLabel.querySelector('h2')!.getAttribute('aria-label'),
+		});
+
+		const shown = activityService.showViewTitleBadge('test.view', { icon: Codicon.worktree, label: 'fix', tooltip: 'tooltip', ariaLabel: 'Folder Location, fix' });
+		part.updateTitleForTesting('test.composite', 'vscode');
+		const states = [state()];
+		const updated = activityService.showViewTitleBadge('test.view', { icon: Codicon.worktree, label: 'other', tooltip: 'tooltip', ariaLabel: 'Folder Location, other' });
+		states.push(state());
+		merged = false;
+		part.updateTitleForTesting('test.composite', 'vscode');
+		states.push(state());
+		merged = true;
+		part.updateTitleForTesting('test.composite', 'vscode');
+		shown.dispose();
+		states.push(state());
+		updated.dispose();
+		states.push(state());
+
+		assert.deepStrictEqual(states, [
+			{ badge: 'fix', hasBadge: true, aria: 'vscode, Folder Location, fix' },
+			{ badge: 'other', hasBadge: true, aria: 'vscode, Folder Location, other' },
+			{ badge: null, hasBadge: false, aria: null },
+			{ badge: 'other', hasBadge: true, aria: 'vscode, Folder Location, other' },
+			{ badge: null, hasBadge: false, aria: null },
+		]);
 	});
 });

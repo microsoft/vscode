@@ -4040,7 +4040,7 @@ suite('Sessions - SessionsList', () => {
 			const storageService = disposables.add(new InMemoryStorageService());
 			const store = (key: string, value: object) => storageService.store(key, JSON.stringify(value), StorageScope.PROFILE, StorageTarget.USER);
 			const read = (key: string) => JSON.parse(storageService.get(key, StorageScope.PROFILE) ?? 'null');
-			store('sessionsListControl.groups', {
+			store('sessionsListControl.localGroups', {
 				groups: [{ id: 'work', name: 'Work', createdAt: 1 }, { id: 'other', name: 'Other', createdAt: 2 }],
 				membership: {},
 				sectionMembership: {
@@ -4060,7 +4060,7 @@ suite('Sessions - SessionsList', () => {
 					'workspace:microsoft/vscode-docs': { icon: 'book' },
 				},
 			});
-			store('sessionsListControl.sectionOrder', {
+			store('sessionsListControl.localSectionOrder', {
 				order: ['workspace:osortega/simple-server', 'group:work', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
 				promoted: ['workspace:osortega/simple-server', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
 			});
@@ -8068,6 +8068,19 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['archived-pinned']);
 		});
 
+		test('orders Done by update time whatever the sorting, ignoring manual sort keys', () => {
+			const archivedLast = createSession('archived-last', { isArchived: true, createdAt: new Date('2024-06-01'), updatedAt: new Date('2024-06-05') });
+			const archivedFirst = createSession('archived-first', { isArchived: true, createdAt: new Date('2024-06-03'), updatedAt: new Date('2024-06-04') });
+			const manualSortKey = (session: ISession) => session.sessionId === archivedFirst.sessionId ? Date.parse('2024-07-01') : session.updatedAt.get().getTime();
+			const sections = (sorting: SessionsSorting) => groupSessionsForList([archivedFirst, archivedLast], SessionsGrouping.Workspace, sorting, () => false, manualSortKey)
+				.map(section => ({ id: section.id, sessions: section.sessions.map(session => session.sessionId) }));
+
+			assert.deepStrictEqual({ created: sections(SessionsSorting.Created), updated: sections(SessionsSorting.Updated) }, {
+				created: [{ id: 'archived', sessions: ['archived-last', 'archived-first'] }],
+				updated: [{ id: 'archived', sessions: ['archived-last', 'archived-first'] }],
+			});
+		});
+
 		test('sorts pinned sessions using supplied sort keys', () => {
 			const first = createSession('first', { createdAt: new Date('2024-01-01') });
 			const second = createSession('second', { createdAt: new Date('2024-06-01') });
@@ -8848,9 +8861,9 @@ suite('Sessions - SessionsList', () => {
 			}
 			if (liveGroups) {
 				const storageService = harness.instantiationService.get(IStorageService);
-				storageService.store('sessionsListControl.groups', JSON.stringify({
+				storageService.store('sessionsListControl.localGroups', JSON.stringify({
 					groups, membership: Object.fromEntries(memberships), sectionMembership: Object.fromEntries(sectionMemberships),
-				}), StorageScope.PROFILE, StorageTarget.USER);
+				}), StorageScope.PROFILE, StorageTarget.MACHINE);
 				const orderService = harness.store.add(new SessionSectionOrderService(storageService));
 				harness.instantiationService.stub(ISessionSectionOrderService, orderService);
 				harness.instantiationService.stub(ISessionGroupsService, harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
@@ -9324,7 +9337,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, sessions);
 			const storageService = harness.instantiationService.get(IStorageService);
 			// Release work holds Hotfixes and Docs, and Triage holds Flaky and Perf, newest first by default.
-			storageService.store('sessionsListControl.groups', JSON.stringify({
+			storageService.store('sessionsListControl.localGroups', JSON.stringify({
 				groups: [
 					{ id: 'release', name: 'Release work', createdAt: 4 },
 					{ id: 'hotfixes', name: 'Hotfixes', createdAt: 8, parentId: 'release' },
@@ -9334,13 +9347,13 @@ suite('Sessions - SessionsList', () => {
 					{ id: 'perf', name: 'Perf', createdAt: 5, parentId: 'triage' },
 				],
 				membership: {},
-			}), StorageScope.PROFILE, StorageTarget.USER);
+			}), StorageScope.PROFILE, StorageTarget.MACHINE);
 			// One flat order of every level, as stored before subgroups had an order of their own. Merging a
 			// reorder into it carries the entries that follow a moved header along with it.
-			storageService.store('sessionsListControl.sectionOrder', JSON.stringify({
+			storageService.store('sessionsListControl.localSectionOrder', JSON.stringify({
 				order: ['group:release', 'group:hotfixes', 'group:flaky', 'group:triage', 'group:docs', 'group:perf'],
 				promoted: [],
-			}), StorageScope.PROFILE, StorageTarget.USER);
+			}), StorageScope.PROFILE, StorageTarget.MACHINE);
 			const orderService = harness.store.add(new SessionSectionOrderService(storageService));
 			const groupsService = harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,
@@ -9400,9 +9413,9 @@ suite('Sessions - SessionsList', () => {
 			];
 			const harness = createListHarness(disposables, sessions);
 			const storageService = harness.instantiationService.get(IStorageService);
-			storageService.store('sessionsListControl.groups', JSON.stringify({ groups: [release, triage], membership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store('sessionsListControl.localGroups', JSON.stringify({ groups: [release, triage], membership: {} }), StorageScope.PROFILE, StorageTarget.MACHINE);
 			if (sectionOrder) {
-				storageService.store('sessionsListControl.sectionOrder', JSON.stringify({ order: sectionOrder, promoted: [] }), StorageScope.PROFILE, StorageTarget.USER);
+				storageService.store('sessionsListControl.localSectionOrder', JSON.stringify({ order: sectionOrder, promoted: [] }), StorageScope.PROFILE, StorageTarget.MACHINE);
 			}
 			const orderService = harness.store.add(new SessionSectionOrderService(storageService));
 			const groupsService = harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
@@ -9490,7 +9503,7 @@ suite('Sessions - SessionsList', () => {
 			];
 			const harness = createListHarness(disposables, sessions);
 			const storageService = harness.instantiationService.get(IStorageService);
-			storageService.store('sessionsListControl.groups', JSON.stringify({ groups: [triage], membership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store('sessionsListControl.localGroups', JSON.stringify({ groups: [triage], membership: {} }), StorageScope.PROFILE, StorageTarget.MACHINE);
 			const orderService = harness.store.add(new SessionSectionOrderService(storageService));
 			harness.instantiationService.stub(ISessionSectionOrderService, orderService);
 			harness.instantiationService.stub(ISessionGroupsService, harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
@@ -14934,8 +14947,8 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('lists done nested chats of a session that is not done as standalone rows in the Done section', async () => {
-			const createSessionWithChats = (title: string, options?: { readonly isArchived?: boolean; readonly createdAt?: Date }): ISession => {
+		test('lists done nested chats of a session that is not done as standalone rows in the Done section, most recently updated first', async () => {
+			const createSessionWithChats = (title: string, options?: { readonly isArchived?: boolean; readonly createdAt?: Date; readonly updatedAt?: Date }): ISession => {
 				const main = createChat(`${title} main`);
 				const active = createChat(`${title} active`, ChatOriginKind.User);
 				const done: IChat = { ...createChat(`${title} done`, ChatOriginKind.User), isArchived: constObservable(true) };
@@ -14948,7 +14961,8 @@ suite('Sessions - SessionsList', () => {
 			};
 			const now = Date.now();
 			const parent = createSessionWithChats('Parent', { createdAt: new Date(now - 2000) });
-			const doneSession = createSessionWithChats('Finished', { isArchived: true, createdAt: new Date(now - 1000) });
+			// Created before the done chat of Parent, but archived after it.
+			const doneSession = createSessionWithChats('Finished', { isArchived: true, createdAt: new Date(now - 1000), updatedAt: new Date(now + 1000) });
 			const opened: string[] = [];
 			const harness = createListHarness(disposables, [parent, doneSession]);
 			const container = harness.createContainer();
@@ -14972,10 +14986,10 @@ suite('Sessions - SessionsList', () => {
 					'  Parent',
 					'    Parent active',
 					'Archived',
-					'  Parent done (standalone)',
 					'  Finished (done)',
 					'    Finished active',
 					'    Finished done',
+					'  Parent done (standalone)',
 				],
 				opened: [parent.resource.toString()],
 			});

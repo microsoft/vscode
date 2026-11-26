@@ -6,7 +6,8 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IMigratedSessionsListState, readMachineSessionsListState, storeMachineSessionsListState } from '../common/sessionsListStorage.js';
 
 /**
  * Service that owns the manual ordering of the sessions list's top-level
@@ -17,8 +18,9 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
  * The order is stored as one flat list of opaque identities (`group:<id>` for
  * groups, see `getSessionGroupSectionId`, `workspace:<label>` for workspace
  * sections, and `recent`/`older` for the date sections), from which the visible
- * headers resolve their relative order. It is purely local (persisted to
- * profile storage) and not synced to providers.
+ * headers resolve their relative order. It is purely local: persisted to the
+ * profile's machine storage, it is neither synced to providers nor roamed across
+ * devices by Settings Sync.
  * Identities the user has never moved fall back to a caller-provided default
  * order, so newly created groups / discovered workspaces appear in their
  * natural place until the user drags them.
@@ -102,11 +104,29 @@ interface ISerializedState {
 	readonly promoted: readonly string[];
 }
 
+/** Whether a stored order holds anything, which only the user makes by ordering sections. */
+function isUserMadeOrderState(state: Partial<ISerializedState> | null | undefined): boolean {
+	return !!state && ((Array.isArray(state.order) && state.order.length > 0) || (Array.isArray(state.promoted) && state.promoted.length > 0));
+}
+
+/** Adopts the order that older builds synced when it holds any, and keeps this device's otherwise. */
+function migrateSyncedOrderState(syncedRaw: string, raw: string | undefined): IMigratedSessionsListState {
+	try {
+		if (isUserMadeOrderState(JSON.parse(syncedRaw))) {
+			return { value: syncedRaw, userMade: true };
+		}
+	} catch {
+		// ignore corrupt data
+	}
+	return { value: raw, userMade: false };
+}
+
 export class SessionSectionOrderService extends Disposable implements ISessionSectionOrderService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly STORAGE_KEY = 'sessionsListControl.sectionOrder';
+	private static readonly STORAGE_KEY = 'sessionsListControl.localSectionOrder';
+	private static readonly LEGACY_SYNCED_STORAGE_KEY = 'sessionsListControl.sectionOrder';
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -199,7 +219,7 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 	// -- Storage --
 
 	private load(): void {
-		const raw = this.storageService.get(SessionSectionOrderService.STORAGE_KEY, StorageScope.PROFILE);
+		const raw = readMachineSessionsListState(this.storageService, SessionSectionOrderService.STORAGE_KEY, SessionSectionOrderService.LEGACY_SYNCED_STORAGE_KEY, migrateSyncedOrderState);
 		if (!raw) {
 			return;
 		}
@@ -217,12 +237,9 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 	}
 
 	private save(): void {
-		if (this._order.length === 0 && this._promoted.size === 0) {
-			this.storageService.remove(SessionSectionOrderService.STORAGE_KEY, StorageScope.PROFILE);
-			return;
-		}
 		const state: ISerializedState = { order: this._order, promoted: [...this._promoted] };
-		this.storageService.store(SessionSectionOrderService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		const userMade = isUserMadeOrderState(state);
+		storeMachineSessionsListState(this.storageService, SessionSectionOrderService.STORAGE_KEY, userMade ? JSON.stringify(state) : undefined, userMade);
 	}
 }
 

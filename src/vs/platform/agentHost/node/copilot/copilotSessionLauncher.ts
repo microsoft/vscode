@@ -1606,6 +1606,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			HYDRAFUSION: true,
 			HYDRAFUSION_ROLLOUT: true,
 			HYDRAFUSION_INTERRUPTED_COMMIT: true,
+			// A staged Fusion phase streams its output, which the session shows under that phase; the runtime defaults this off for non-CLI hosts.
+			HYDRAFUSION_STAGED_STREAMING: true,
 			// The runtime regroups the system prompt into global, repository and
 			// per-session cache blocks so a new session reuses the stable prefix.
 			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),

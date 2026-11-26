@@ -62,7 +62,7 @@ suite('Sessions - Sessions list tools', () => {
 		const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
 		void configurationService.setUserConfiguration(SESSIONS_LIST_AGENT_TOOLS_SETTING, true);
 		const storageService = harness.instantiationService.get(IStorageService);
-		storageService.store('sessionsListControl.groups', JSON.stringify({ groups: options.groups ?? [], membership: options.memberships ?? {}, sectionMembership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('sessionsListControl.localGroups', JSON.stringify({ groups: options.groups ?? [], membership: options.memberships ?? {}, sectionMembership: {} }), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const orderService = harness.store.add(new SessionSectionOrderService(storageService));
 		harness.instantiationService.stub(ISessionSectionOrderService, orderService);
 		harness.instantiationService.stub(ISessionGroupsService, harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
