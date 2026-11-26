@@ -11,7 +11,7 @@ import { equals, stableStringify } from '../../../base/common/objects.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, changesetSession, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { getWorkingDirectoryScopeId, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { readSessionRepositories } from '../common/meta/agentSessionRepositoriesMeta.js';
-import { readSessionFolderScopeGitState, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { isFolderOnlyScope, readSessionFolderScopeGitState, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
@@ -132,7 +132,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		// A folder of the session on its own has its own Git state, whatever state the caller read for the source; until
 		// it is read the folder has none, never the source's (the first folder's).
-		if (scope.isSessionFolder) {
+		if (isFolderOnlyScope(this._stateManager, scope)) {
 			gitState = readSessionFolderScopeGitState(this._stateManager, scope);
 		} else if (!gitState) {
 			gitState = this._gitStateService.getSessionGitState?.(sourceKey)

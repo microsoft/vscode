@@ -81,7 +81,7 @@ import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { getSessionSummarySources } from './agentHostChatsInUse.js';
-import { readSessionFolderScopeGitState, resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { isFolderOnlyScope, readSessionFolderScopeGitState, resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
 
@@ -2975,7 +2975,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private async _resolveBranchBaseBranch(session: ProtocolURI): Promise<string | undefined> {
 		const scope = resolveBranchChangesetScopeForOwner(this._stateManager, session);
 		// A folder of the session on its own is diffed against its own base, not the conversation's folder's.
-		if (scope?.isSessionFolder) {
+		if (scope && isFolderOnlyScope(this._stateManager, scope)) {
 			return readSessionFolderScopeGitState(this._stateManager, scope)?.baseBranchName;
 		}
 		const source = scope?.sourceUri ?? session;

@@ -36,7 +36,7 @@ import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from '
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
-import { resolveBranchChangesetScopeForOwner } from '../../node/agentHostBranchChangesetScope.js';
+import { isFolderOnlyScope, readSessionFolderScopeGitState, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from '../../node/agentHostBranchChangesetScope.js';
 
 const testOperationId = 'test-operation';
 
@@ -412,13 +412,51 @@ suite('AgentHostChangesetOperationService', () => {
 
 		const scope = resolveBranchChangesetScopeForOwner(stateManager, apiOwner);
 		assert.deepStrictEqual({
-			scope: scope && { workingDirectories: scope.workingDirectories, sourceUri: scope.sourceUri, isSessionFolder: scope.isSessionFolder },
+			scope: scope && { workingDirectories: scope.workingDirectories, sourceUri: scope.sourceUri, folderOnly: isFolderOnlyScope(stateManager, scope) },
 			context: contribution.contexts.map(context => ({ ownerKey: context.ownerKey, gitState: context.gitState, gitHubState: context.gitHubState })),
 			unknownFolder: resolveBranchChangesetScopeForOwner(stateManager, buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///elsewhere']))),
 		}, {
-			scope: { workingDirectories: [api], sourceUri: buildDefaultChatUri(sessionKey), isSessionFolder: true },
+			scope: { workingDirectories: [api], sourceUri: buildDefaultChatUri(sessionKey), folderOnly: true },
 			context: [{ ownerKey: apiOwner, gitState: apiGitState, gitHubState: apiGitHubState }],
 			unknownFolder: undefined,
+		});
+	});
+
+	test('folder-only scopes are derived from their folders and read their own Git state; chat scopes are unchanged', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/project';
+		const app = 'file:///app';
+		const api = 'file:///api';
+		const apiGitState: ISessionGitState = { branchName: 'api-feature', baseBranchName: 'master', hasGitHubRemote: true };
+		const chatGitState: ISessionGitState = { branchName: 'chat-branch', baseBranchName: 'develop', hasGitHubRemote: true };
+		stateManager.createSession({ resource: sessionKey, provider: 'agent', title: 'Project', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(sessionKey), workingDirectories: [app, api] });
+		stateManager.setSessionMeta(sessionKey, withFolderScopeGitState(withSessionGitState(undefined, sampleGitState), getWorkingDirectoryScopeId([api]), apiGitState, [api]));
+		const service = createService(stateManager);
+		const contribution = new RecordingOperationsContribution(sampleOperations);
+		disposables.add(service.registerContribution(contribution));
+		const appOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([app]));
+		const apiOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([api]));
+		const chatScope = resolveBranchChangesetScopeForSource(stateManager, buildDefaultChatUri(sessionKey));
+
+		// Each caller passes the chat's state; only the chat's own scope uses it.
+		for (const owner of [appOwner, apiOwner, chatScope.ownerUri]) {
+			service.getOperations(sessionKey, buildBranchChangesetUri(owner), chatGitState);
+		}
+
+		const describe = (owner: string) => {
+			const scope = resolveBranchChangesetScopeForOwner(stateManager, owner)!;
+			return { folderOnly: isFolderOnlyScope(stateManager, scope), gitState: readSessionFolderScopeGitState(stateManager, scope) };
+		};
+		assert.deepStrictEqual({
+			firstFolder: describe(appOwner),
+			otherFolder: describe(apiOwner),
+			chat: { workingDirectories: chatScope.workingDirectories, folderOnly: isFolderOnlyScope(stateManager, chatScope) },
+			contextGitStates: contribution.contexts.map(context => context.gitState),
+		}, {
+			firstFolder: { folderOnly: true, gitState: sampleGitState },
+			otherFolder: { folderOnly: true, gitState: apiGitState },
+			chat: { workingDirectories: [app, api], folderOnly: false },
+			contextGitStates: [sampleGitState, apiGitState, chatGitState],
 		});
 	});
 

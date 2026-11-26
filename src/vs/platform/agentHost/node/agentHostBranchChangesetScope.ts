@@ -13,14 +13,24 @@ import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 export interface IBranchChangesetScope {
 	readonly ownerUri: ProtocolURI;
 	readonly sessionUri: ProtocolURI;
+	/**
+	 * The chat whose changes the scope has. For a folder-only scope (see {@link isFolderOnlyScope}), the chat that only
+	 * provides the conversation: its Git state and recorded base branch are not the folder's.
+	 */
 	readonly sourceUri: ProtocolURI;
 	readonly workingDirectories: readonly ProtocolURI[];
-	/**
-	 * Set for the scope of one folder of the session that no chat works in alone, such as a folder of a project other
-	 * than the first: its Git state and base branch are the folder's own (see {@link readSessionFolderScopeGitState}), not
-	 * those of {@link sourceUri}, which only provides the conversation.
-	 */
-	readonly isSessionFolder?: true;
+}
+
+/**
+ * Whether `scope` is one folder of the session that no chat works in alone, such as a folder of a project other than
+ * the first, or a repository found in one: its Git state and base branch are the folder's own (see
+ * {@link readSessionFolderScopeGitState}), not those of its {@link IBranchChangesetScope.sourceUri}, which only provides
+ * the conversation. A chat's scope is the one its own folders resolve to.
+ */
+export function isFolderOnlyScope(stateManager: AgentHostStateManager, scope: IBranchChangesetScope): boolean {
+	return scope.workingDirectories.length > 0
+		&& parseFolderChangesetOwnerUri(scope.ownerUri) !== undefined
+		&& resolveBranchChangesetScopeForSource(stateManager, scope.sourceUri).ownerUri !== scope.ownerUri;
 }
 
 export function resolveChangesetOwnerScope(stateManager: AgentHostStateManager, ownerUri: ProtocolURI): IBranchChangesetScope {
@@ -109,14 +119,13 @@ export function resolveBranchChangesetScopeForOwner(stateManager: AgentHostState
 			sessionUri: parsed.sessionUri,
 			sourceUri: defaultChatSource(stateManager, parsed.sessionUri),
 			workingDirectories: [repository],
-			isSessionFolder: true,
 		};
 	}
 	return undefined;
 }
 
 /**
- * The Git state of a {@link IBranchChangesetScope.isSessionFolder} scope: the session's for its first folder, and
+ * The Git state of a folder-only scope (see {@link isFolderOnlyScope}): the session's for its first folder, and
  * otherwise the state recorded for the folder alone.
  */
 export function readSessionFolderScopeGitState(stateManager: AgentHostStateManager, scope: IBranchChangesetScope): ISessionGitState | undefined {
