@@ -92,10 +92,55 @@ import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType }
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { MockChatModel } from '../../common/model/mockChatModel.js';
+import '../../../../modernUI/browser/media/sidebarColors.css';
 
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('chat surface colors follow scoped side bar theme overrides', () => {
+		const root = dom.append(document.body, dom.$('.monaco-workbench.modern-ui'));
+		root.style.cssText = '--vscode-sideBar-background: #ffffff; --vscode-sideBar-foreground: #000000; --vscode-modernSideBar-background: #000000; --vscode-modernSideBar-foreground: #ffffff; --vscode-panel-background: #123456;';
+		store.add(toDisposable(() => root.remove()));
+
+		const actual = ['sidebar', 'auxiliarybar'].map(part => {
+			const sidebar = dom.append(root, dom.$(`.part.${part}`));
+			const container = dom.append(sidebar, dom.$('.interactive-session'));
+			const message = dom.append(container, dom.$('.interactive-item-container'));
+			message.style.backgroundColor = 'var(--vscode-chat-list-background)';
+			const styles = { listForeground: 'sideBar.foreground', listBackground: 'sideBar.background', overlayBackground: 'sideBar.background', inputEditorBackground: 'sideBar.background', resultEditorBackground: 'editor.background' };
+			const widget = Object.assign(Object.create(ChatWidget.prototype), {
+				container,
+				styles,
+				editorOptions: { configuration: { resultEditor: {} } },
+			}) as ChatWidget;
+			const update = Reflect.get(ChatWidget.prototype, 'onDidStyleChange') as (this: ChatWidget) => void;
+			update.call(widget);
+			const read = () => {
+				const style = dom.getWindow(message).getComputedStyle(message);
+				return [style.backgroundColor, style.color];
+			};
+			const modern = read();
+			root.classList.remove('modern-ui');
+			const legacy = read();
+			root.classList.add('modern-ui');
+			const restored = read();
+			root.style.removeProperty('--vscode-modernSideBar-background');
+			root.style.removeProperty('--vscode-modernSideBar-foreground');
+			const unset = read();
+			root.style.setProperty('--vscode-modernSideBar-background', '#000000');
+			root.style.setProperty('--vscode-modernSideBar-foreground', '#ffffff');
+			widget.setStyles({ ...styles, listBackground: 'panel.background' });
+			return { modern, legacy, restored, unset, changedBackground: read() };
+		});
+		assert.deepStrictEqual(actual, Array.from({ length: 2 }, () => ({
+			modern: ['rgb(0, 0, 0)', 'rgb(255, 255, 255)'],
+			legacy: ['rgb(255, 255, 255)', 'rgb(0, 0, 0)'],
+			restored: ['rgb(0, 0, 0)', 'rgb(255, 255, 255)'],
+			unset: ['rgb(255, 255, 255)', 'rgb(0, 0, 0)'],
+			changedBackground: ['rgb(18, 52, 86)', 'rgb(255, 255, 255)'],
+		})));
+	});
 
 	test('updates the empty-chat welcome title when agents share a greeting', () => {
 		const message = observableValue<string | undefined>('message', 'Hello');

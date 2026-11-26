@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isHTMLSpanElement } from '../../../../../base/browser/dom.js';
+import { getWindow, isHTMLSpanElement } from '../../../../../base/browser/dom.js';
 import { Color, RGBA } from '../../../../../base/common/color.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
+import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
+import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
+import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { registerColors } from '../../../terminal/common/terminalColorRegistry.js';
 import { appendStylizedStringToContainer, calcANSI8bitColor, handleANSIOutput } from '../../browser/debugANSIHandling.js';
 import { DebugSession } from '../../browser/debugSession.js';
@@ -44,6 +48,47 @@ suite('Debug - ANSI Handling', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('ANSI contrast follows the modern side bar surface', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', {
+			'sideBar.background': '#000000',
+			'modernSideBar.background': '#ffffff',
+			'terminal.ansiBlack': '#000000',
+		});
+		const registry = Registry.as<IThemingRegistry>(ThemeServiceExtensions.ThemingContribution);
+		const style = document.createElement('style');
+		style.textContent = generateColorThemeCSS(theme, '.debug-ansi-theme', registry.getThemingParticipants(), TestEnvironmentService).code;
+		document.head.appendChild(style);
+		disposables.add(toDisposable(() => style.remove()));
+		const root = document.createElement('div');
+		root.className = 'debug-ansi-theme monaco-workbench modern-ui';
+		document.body.appendChild(root);
+		disposables.add(toDisposable(() => root.remove()));
+
+		const actual = ['sidebar', 'auxiliarybar'].map(part => {
+			const container = document.createElement('div');
+			container.className = part;
+			root.appendChild(container);
+			const text = document.createElement('span');
+			text.style.color = 'var(--vscode-debug-ansi-terminal-ansiBlack)';
+			container.appendChild(text);
+			const read = () => getWindow(text).getComputedStyle(text).color;
+			const modern = read();
+			root.classList.remove('modern-ui');
+			const legacy = read();
+			root.classList.add('modern-ui');
+			return { modern, legacy, restored: read() };
+		});
+		assert.deepStrictEqual(actual.map(value => ({
+			modern: value.modern,
+			legacyContrast: Color.fromHex('#000000').getContrastRatio(Color.Format.CSS.parse(value.legacy)!) >= 4,
+			restored: value.restored,
+		})), Array.from({ length: 2 }, () => ({
+			modern: 'rgb(0, 0, 0)',
+			legacyContrast: true,
+			restored: 'rgb(0, 0, 0)',
+		})));
+	});
 
 	test('appendStylizedStringToContainer', () => {
 		const root: HTMLSpanElement = document.createElement('span');

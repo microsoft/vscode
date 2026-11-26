@@ -225,6 +225,10 @@ div.chat-welcome-view {
 	}
 }
 
+.monaco-workbench.modern-ui :is(.part.sidebar, .part.auxiliarybar) div.chat-welcome-view > .chat-welcome-view-title {
+	color: var(--vscode-modernSideBar-foreground, var(--vscode-foreground));
+}
+
 /* Suggested prompts section - positioned at bottom of welcome container */
 .chat-welcome-view-suggested-prompts {
 	position: absolute;

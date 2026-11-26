@@ -55,7 +55,7 @@ import { Link } from '../../../../../platform/opener/browser/link.js';
 import product from '../../../../../platform/product/common/product.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorRegistry.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -696,7 +696,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatPasteTargetService private readonly chatPasteTargetService: IChatPasteTargetService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@ILogService private readonly logService: ILogService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -3354,8 +3353,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private onDidStyleChange(): void {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
-		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
-		this.container.style.setProperty('--vscode-chat-list-background', this.themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
+		this.container.style.setProperty('--vscode-interactive-session-foreground', asCssVariable(this.styles.listForeground));
+		this.container.style.setProperty('--vscode-chat-list-background', asCssVariable(this.styles.listBackground));
 	}
 
 	/**
@@ -3393,6 +3392,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Updating editorOptions fires onDidChange which triggers onDidStyleChange
 			// and also propagates the new colors to subscribers like CodeBlockPart.
 			this.editorOptions.setColors(styles.listForeground, styles.inputEditorBackground, styles.resultEditorBackground);
+		} else if (listColorsChanged && this.container) {
+			this.onDidStyleChange();
 		}
 	}
 

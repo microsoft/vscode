@@ -1003,7 +1003,10 @@
 		"--vscode-modernPanel-border",
 		"--vscode-modernUI-shellBackground",
 		"--vscode-modernUI-inactiveShellBackground",
-		"--vscode-modernSash-gripForeground"
+		"--vscode-modernSash-gripForeground",
+		"--vscode-modernSideBar-background",
+		"--vscode-modernSideBar-border",
+		"--vscode-modernSideBar-foreground"
 	],
 	"others": [
 		"--action-widget-close-start-opacity",
@@ -1282,7 +1285,12 @@
 		"--modern-ui-notifications-block-end-inset",
 		"--modern-ui-notifications-block-start-inset",
 		"--modern-ui-notifications-inline-inset",
+		"--modern-ui-opaque-sidebar-background",
 		"--modern-ui-shell-background",
+		"--modern-ui-sidebar-background",
+		"--modern-ui-sidebar-foreground",
+		"--modern-ui-sidebar-original-foreground",
+		"--modern-ui-sidebar-section-header-foreground",
 		"--modern-ui-solid-dialog-background",
 		"--modern-ui-solid-menu-background",
 		"--modern-ui-solid-quick-input-background",

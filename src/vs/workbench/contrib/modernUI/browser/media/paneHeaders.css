@@ -80,7 +80,13 @@
 }
 
 .modern-ui :is(.part.sidebar, .part.auxiliarybar) .monaco-pane-view .pane > .pane-header {
-	background-color: var(--vscode-sideBar-background) !important;
+	--vscode-sideBarSectionHeader-foreground: var(--modern-ui-sidebar-section-header-foreground, var(--modern-ui-sidebar-original-foreground));
+	background-color: var(--modern-ui-sidebar-background, var(--vscode-sideBar-background)) !important;
+}
+
+/* ViewPane icons retain their own fallback to the workbench foreground. */
+.modern-ui :is(.part.sidebar, .part.auxiliarybar) .monaco-pane-view .pane > .pane-header > .icon {
+	--vscode-sideBarSectionHeader-foreground: var(--modern-ui-sidebar-section-header-foreground);
 }
 
 .modern-ui .part.panel .monaco-pane-view .pane > .pane-header {
