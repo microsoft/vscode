@@ -1012,6 +1012,25 @@ suite('HistoryService', function () {
 			return workbenchTeardown(instantiationService);
 		});
 
+		test('moving a folder whose URI ends with a separator or is a root keeps the names of its files', async () => {
+			const { contextService, instantiationService, fileService, open, closeAll, reload } = await createFolderServices(folder);
+
+			await open('/repo/src/a.txt');
+			await open('/repo/b.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/repo/src/'), FileOperation.MOVE, stat('/repo/lib', false)));
+			fileService.fireAfterOperation(new FileOperationEvent(URI.file('/'), FileOperation.MOVE, stat('/moved', false)));
+
+			const reloaded = reload();
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+
+			assert.deepStrictEqual(paths(reloaded), ['/moved/repo/b.txt', '/moved/repo/lib/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
 		test('moving a folder before the history is used is saved', async () => {
 			const { contextService, historyService, instantiationService, fileService, open, closeAll } = await createFolderServices(folder);
 

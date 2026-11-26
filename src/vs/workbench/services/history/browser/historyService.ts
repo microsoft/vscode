@@ -1110,8 +1110,14 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Match the path of the source with the same casing rules as the check above
 		const index = indexOfPath(resource.path, source.path, extUri.ignorePathCasing(resource));
+		if (index === -1) {
+			return undefined;
+		}
 
-		return index === -1 ? undefined : extUri.joinPath(target, resource.path.substring(index + source.path.length + 1));
+		// The source path can end with the separator, e.g. for a root or a folder URI with a trailing slash
+		const suffix = resource.path.substring(index + source.path.length);
+
+		return extUri.joinPath(target, suffix.startsWith('/') ? suffix.substring(1) : suffix);
 	}
 
 	private dedupePutAwayEntries(entries: readonly IResourceEditorInput[]): IResourceEditorInput[] {
