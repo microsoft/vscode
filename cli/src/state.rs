@@ -20,7 +20,23 @@ use crate::{
 	util::errors::{wrap, AnyError, NoHomeForLauncherError, WrappedError},
 };
 
-const HOME_DIR_ALTS: [&str; 2] = ["$HOME", "~"];
+/// Replaces `$HOME` and a leading `~` with the home directory. A `~` elsewhere is part of a name, as in the Windows
+/// short path `C:\Users\RUNNER~1\AppData\Local\Temp`.
+fn expand_home(root: &str, home_dir: impl FnOnce() -> Option<PathBuf>) -> Result<String, AnyError> {
+	let leading_tilde = root == "~" || root.starts_with("~/") || root.starts_with("~\\");
+	if !leading_tilde && !root.contains("$HOME") {
+		return Ok(root.to_owned());
+	}
+
+	let home = home_dir().ok_or_else(|| AnyError::from(NoHomeForLauncherError()))?;
+	let home = home.to_string_lossy();
+	let replaced = root.replace("$HOME", &home);
+	Ok(if leading_tilde {
+		format!("{home}{}", &replaced[1..])
+	} else {
+		replaced
+	})
+}
 
 #[derive(Clone)]
 pub struct LauncherPaths {
@@ -188,18 +204,7 @@ impl LauncherPaths {
 	}
 
 	fn new_for_root_string(root: String) -> Result<LauncherPaths, AnyError> {
-		let mut replaced = root.to_owned();
-		for token in HOME_DIR_ALTS {
-			if root.contains(token) {
-				if let Some(home) = dirs::home_dir() {
-					replaced = root.replace(token, &home.to_string_lossy());
-				} else {
-					return Err(AnyError::from(NoHomeForLauncherError()));
-				}
-			}
-		}
-
-		Self::new_for_path(PathBuf::from(replaced))
+		Self::new_for_path(PathBuf::from(expand_home(&root, dirs::home_dir)?))
 	}
 
 	fn new_for_path(root: PathBuf) -> Result<LauncherPaths, AnyError> {
@@ -308,6 +313,28 @@ mod tests {
 		let custom_root = temp.path().join("my-custom-cli");
 		let paths = LauncherPaths::new(Some(custom_root.to_string_lossy().to_string())).unwrap();
 		assert_eq!(paths.root(), custom_root.as_path());
+	}
+
+	#[test]
+	fn test_launcher_paths_explicit_root_with_tilde_in_a_name() {
+		// Like a Windows 8.3 short path, such as C:\Users\RUNNER~1\AppData\Local\Temp
+		let temp = tempfile::tempdir().unwrap();
+		let custom_root = temp.path().join("RUNNER~1").join("cli");
+		let paths = LauncherPaths::new(Some(custom_root.to_string_lossy().to_string())).unwrap();
+		assert_eq!(paths.root(), custom_root.as_path());
+	}
+
+	#[test]
+	fn test_expand_home() {
+		let home = || Some(PathBuf::from("/home/me"));
+		assert_eq!(expand_home("~", home).unwrap(), "/home/me");
+		assert_eq!(expand_home("~/.vscode/cli", home).unwrap(), "/home/me/.vscode/cli");
+		assert_eq!(expand_home("~\\.vscode\\cli", home).unwrap(), "/home/me\\.vscode\\cli");
+		assert_eq!(expand_home("$HOME/.vscode/cli", home).unwrap(), "/home/me/.vscode/cli");
+		assert_eq!(expand_home("C:\\Users\\RUNNER~1\\cli", home).unwrap(), "C:\\Users\\RUNNER~1\\cli");
+		assert_eq!(expand_home("~user/cli", home).unwrap(), "~user/cli");
+		assert!(expand_home("~/cli", || None).is_err());
+		assert_eq!(expand_home("/tmp/cli", || None).unwrap(), "/tmp/cli");
 	}
 
 	#[test]
