@@ -196,7 +196,7 @@ function editorViewGroup(mod: EditorViewModule, targetWindow: Window, fontSmooth
  * look lighter or bolder than DOM text. A window's editors share its group, and
  * the workbench's smoothing.
  */
-function editorViewFontSmoothing(element: HTMLElement): EditorViewFontSmoothing {
+export function editorViewFontSmoothing(element: HTMLElement): EditorViewFontSmoothing {
 	const smoothing = getComputedStyle(element).getPropertyValue('-webkit-font-smoothing');
 	return smoothing === 'antialiased' || smoothing === 'subpixel-antialiased' || smoothing === 'none' ? smoothing : 'default';
 }
