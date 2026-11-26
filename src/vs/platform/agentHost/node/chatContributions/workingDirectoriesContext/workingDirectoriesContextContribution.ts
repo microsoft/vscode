@@ -61,10 +61,13 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 	/** Precedes the workspace snapshot (175), which lists the same folders' files. */
 	readonly order = 170;
 
-	/** The chats, by session, that were told about several folders: only they need a record of what they were told. */
-	private readonly _toldChats = new Map<ProtocolURI, Set<ProtocolURI>>();
-	/** The list each chat's latest turn carries, until that turn reaches the provider. */
-	private readonly _pending = new Map<ProtocolURI, { readonly session: ProtocolURI; readonly turnId: string; readonly key: string }>();
+	/**
+	 * The chats, by session, that were told about several folders: only they need a record of what they were told. Each
+	 * is kept with whether it is still the same chat, as a removed chat's resource can name a new chat later.
+	 */
+	private readonly _toldChats = new Map<ProtocolURI, Map<ProtocolURI, () => boolean>>();
+	/** The list each chat's latest turn carries, until that turn reaches the provider, with whether it is still the same chat. */
+	private readonly _pending = new Map<ProtocolURI, { readonly session: ProtocolURI; readonly turnId: string; readonly key: string; readonly isCurrent: () => boolean }>();
 
 	constructor(
 		private readonly _context: IAgentHostChatContributionContext,
@@ -79,6 +82,8 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 	}
 
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
+		this._forgetRemovedChats(turn.session);
+		const isCurrent = this._stateManager.captureChatValidity(turn.chat);
 		const workingDirectories = turn.workingDirectories ?? [];
 		const told = this._toldChats.get(turn.session)?.has(turn.chat) ?? false;
 		// Also sent when a chat that was told about several folders is left with one.
@@ -110,7 +115,11 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 				gitHubRepository: gitHub?.owner && gitHub.repo ? `${gitHub.owner}/${gitHub.repo}` : undefined,
 			};
 		});
-		this._pending.set(turn.chat, { session: turn.session, turnId: turn.turnId, key });
+		// The chat may have been removed while its folders' repositories were looked up
+		if (!isCurrent()) {
+			return undefined;
+		}
+		this._pending.set(turn.chat, { session: turn.session, turnId: turn.turnId, key, isCurrent });
 		return { instructions: [renderWorkingDirectoriesContext(folders)] };
 	}
 
@@ -120,13 +129,33 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 			return;
 		}
 		this._pending.delete(chat);
+		if (!pending.isCurrent()) {
+			return;
+		}
 		let chats = this._toldChats.get(pending.session);
 		if (!chats) {
-			chats = new Set();
+			chats = new Map();
 			this._toldChats.set(pending.session, chats);
 		}
-		chats.add(chat);
+		chats.set(chat, pending.isCurrent);
 		this._context.memento(sentFoldersMemento, chat).set(pending.key, undefined);
+	}
+
+	/** Drops what is kept for the chats of `session` that were removed or replaced since, as no event tells about them. */
+	private _forgetRemovedChats(session: ProtocolURI): void {
+		const told = this._toldChats.get(session);
+		for (const [chat, isCurrent] of told ?? []) {
+			if (!isCurrent()) {
+				told!.delete(chat);
+				// The record goes with the chat it was kept for, not to a new chat of the same resource
+				this._context.deleteMemento(sentFoldersMemento, chat);
+			}
+		}
+		for (const [chat, pending] of this._pending) {
+			if (pending.session === session && !pending.isCurrent()) {
+				this._pending.delete(chat);
+			}
+		}
 	}
 
 	private _releaseSession(session: ProtocolURI): void {

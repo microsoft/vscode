@@ -2519,7 +2519,8 @@ export class AgentService extends Disposable implements IAgentService {
 			// Published first, as the catalog write below reads the workspace of a loaded session from its state
 			this._stateManager.dispatchServerAction(key, { type: ActionType.SessionMetaChanged, _meta: withSessionMultiRootMetadata(state._meta, undefined) });
 			try {
-				await this._persistOrderedListVisibleSessionState(session, { [SESSION_META_MULTI_ROOT_KEY]: '' });
+				// A failed write undoes its own record too, so that the session stays attached wherever it is read from
+				await this._persistOrderedListVisibleSessionState(session, { [SESSION_META_MULTI_ROOT_KEY]: '' }, undefined, { rollbackOnFailure: true });
 			} catch (error) {
 				const current = this._stateManager.getSessionState(key);
 				if (current && multiRoot && !readSessionMultiRootMetadata(current._meta)) {
@@ -13215,7 +13216,7 @@ export class AgentService extends Disposable implements IAgentService {
 				&& isWorkingDirectoryClient(clientContext.clientType)
 				&& channel === sessionChannel) {
 				// Validated, applied and published as one step, so that a concurrent change of another client's sees the result
-				await this._additionalWorktreeSequencer.queue(sessionChannel, async () => {
+				await this._runSessionFolderChange(sessionUri, async () => {
 					const prepared = this._prepareWorkingDirectoryAction(sessionChannel, workspaceChange, clientContext.clientType);
 					const workingDirectories = this._stateManager.getSessionSummary(sessionChannel)?.workingDirectories ?? [];
 					if (prepared.type === ActionType.SessionWorkingDirectorySet && !workingDirectories.includes(prepared.directory)) {
@@ -13226,7 +13227,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			if (chatChannel && isChatWorkingDirectoryAction(workspaceChange)) {
-				await this._additionalWorktreeSequencer.queue(sessionChannel, async () => {
+				await this._runSessionFolderChange(sessionUri, async () => {
 					const prepared = await this._prepareClientChatWorkingDirectoryAction(sessionUri, chatChannel, workspaceChange);
 					this._dispatchActionNow(channel, sessionChannel, prepared.action, clientId, clientSeq, clientContext, credentials, permissionFeedback);
 					this._stateManager.dispatchServerAction(sessionChannel, {
@@ -13323,8 +13324,19 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * Runs a client's change to the folders of a session or of a chat as one step with the host's own changes to them:
+	 * after creating, replacing (setting a chat's workspace) or deleting a chat, which hold the chat catalog lock, and
+	 * after the folders prepared for new chats, released or detached, which hold the folder lock. The catalog lock is
+	 * taken first, as code holding it takes the folder lock and never the other way round.
+	 */
+	private _runSessionFolderChange<T>(session: URI, change: () => Promise<T>): Promise<T> {
+		const sessionKey = session.toString();
+		return this._chatCatalogMutationSequencer.queue(sessionKey, () => this._additionalWorktreeSequencer.queue(sessionKey, change));
+	}
+
+	/**
 	 * Validates and persists a client's change to the folders of a chat, so that a chat can work in folders next to its
-	 * primary one. Runs in the session's `_additionalWorktreeSequencer`, with the other changes to its folders. An added
+	 * primary one. Runs in {@link _runSessionFolderChange}, with the other changes to its folders. An added
 	 * folder must already be a folder of the session (a client adds it there first, with `session/workingDirectorySet`);
 	 * a chat's primary folder, where its agent runs, is never removed. A chat that inherits the session folders gets them
 	 * as its own first. Returns the action to apply and the chat's new folders.

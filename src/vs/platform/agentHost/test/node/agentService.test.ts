@@ -4837,28 +4837,42 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	test('detachSessionsFromWorkspace keeps a loaded session\'s workspace when it cannot be persisted, so that detaching again works', async () => {
-		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+	test('detachSessionsFromWorkspace keeps a loaded session\'s workspace, live and persisted, when its catalog cannot be written, so that detaching again works', async () => {
+		const db = new TestSessionDatabase();
+		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => agent.dispose()));
 		registerTestAgentProvider(localService, agent);
 		const multiRoot = { workspaceFile: 'file:///work/agents.code-workspace' };
 		const session = await localService.createSession({ legacyChatUris: true, provider: agent.id, _meta: { multiRoot } });
-		const internals = localService as unknown as { _persistOrderedListVisibleSessionState(...args: unknown[]): Promise<void> };
-		const persist = internals._persistOrderedListVisibleSessionState;
-		internals._persistOrderedListVisibleSessionState = () => Promise.reject(new Error('disk full'));
+		const persistedBefore = await db.getMetadata(SESSION_META_MULTI_ROOT_KEY);
+		// The session's own record is written before the catalog, whose write fails
+		const catalogSync = (localService as unknown as { _catalogSyncService: { synchronizeWithFactory(...args: unknown[]): Promise<unknown> } })._catalogSyncService;
+		const synchronize = catalogSync.synchronizeWithFactory;
+		catalogSync.synchronizeWithFactory = () => Promise.reject(new Error('catalog unavailable'));
 		const failed = await localService.detachSessionsFromWorkspace([URI.parse(multiRoot.workspaceFile)]);
-		const kept = readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta);
-		internals._persistOrderedListVisibleSessionState = persist;
+		const afterFailure = {
+			live: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta),
+			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+		};
+		catalogSync.synchronizeWithFactory = synchronize;
 
 		const retried = await localService.detachSessionsFromWorkspace([URI.parse(multiRoot.workspaceFile)]);
 
 		assert.deepStrictEqual({
 			failed: failed.map(String),
-			kept,
+			afterFailure,
 			retried: retried.map(String),
-			after: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta),
-		}, { failed: [], kept: multiRoot, retried: [session.toString()], after: undefined });
+			after: {
+				live: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta),
+				persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+			},
+		}, {
+			failed: [],
+			afterFailure: { live: multiRoot, persisted: persistedBefore },
+			retried: [session.toString()],
+			after: { live: undefined, persisted: '' },
+		});
 	});
 
 	test('detachSessionsFromWorkspace matches a workspace file with another casing as the file system does', async () => {
@@ -7782,6 +7796,30 @@ suite('AgentService (node dispatcher)', () => {
 					rejections: [`Cannot remove the primary folder of chat ${chat}.`, undefined, undefined, undefined, undefined],
 					chat: [primary.toString(), secondary.toString()],
 					session: [primary.toString(), secondary.toString()],
+				});
+			});
+
+			test('a client\'s change to a chat\'s folders waits for the host\'s change to the session\'s chats', async () => {
+				const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+				const chat = buildDefaultChatUri(session);
+				const added = URI.file('/workspace/added');
+				const state = getStateManager(svc);
+				await dispatch(svc, session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: added.toString() }, 1);
+				// As while a chat's workspace is set, or a chat is created or deleted
+				const hostChange = new DeferredPromise<void>();
+				const holding = svc.runWithChatCatalogLock(session, () => hostChange.p);
+
+				const adding = dispatch(svc, chat, { type: ActionType.ChatWorkingDirectorySet, directory: added.toString() }, 2);
+				// Long enough for the change to apply, were it not waiting
+				await timeout(50);
+				const whileHeld = state.getChatState(chat)?.workingDirectories;
+				hostChange.complete();
+				await holding;
+
+				assert.deepStrictEqual({ whileHeld, rejection: await adding, after: state.getChatState(chat)?.workingDirectories }, {
+					whileHeld: [primary.toString(), secondary.toString()],
+					rejection: undefined,
+					after: [primary.toString(), secondary.toString(), added.toString()],
 				});
 			});
 

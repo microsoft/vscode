@@ -14,9 +14,9 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus, withSessionGitHubState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, withSessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { WorkingDirectoriesContextContribution } from '../../node/chatContributions/workingDirectoriesContext/workingDirectoriesContextContribution.js';
 import { createNoopGitService } from '../common/testAgentHostGitService.js';
@@ -67,15 +67,15 @@ suite('WorkingDirectoriesContextContribution', () => {
 		disposables.add(contributions.registerContribution(WorkingDirectoriesContextContribution));
 		let turn = 0;
 		/** Sends a turn; it reaches the provider unless `delivered` is false, as when it is cancelled before that. */
-		const send = async (workingDirectories: readonly URI[], delivered = true) => {
+		const send = async (workingDirectories: readonly URI[], delivered = true, target = chat) => {
 			const turnId = String(++turn);
-			const { instructions } = await contributions.outgoingTurn({ session, chat, turnId, workingDirectories, message });
+			const { instructions } = await contributions.outgoingTurn({ session, chat: target, turnId, workingDirectories, message });
 			if (delivered) {
-				dispatched.fire({ chat, turnId });
+				dispatched.fire({ chat: target, turnId });
 			}
 			return instructions;
 		};
-		return Object.assign(send, { lookups });
+		return Object.assign(send, { lookups, state });
 	}
 
 	const header = [
@@ -163,5 +163,25 @@ suite('WorkingDirectoriesContextContribution', () => {
 			maxRunning: send.lookups.maxRunning,
 			order: block.split('\n').slice(2, -1).map(line => line.includes(JSON.stringify(folders[0].fsPath)) ? 'first' : 'other')[0],
 		}, { startedWhileBlocked: 4, lookups: 6, maxRunning: 4, order: 'first' });
+	});
+
+	test('forgets a chat that was removed, also while its list was prepared', async () => {
+		const send = setup();
+		const peer = buildChatUri(session, 'peer');
+		const addPeer = () => send.state.addChat(session, peer, creationTimeChatStorageResource(session, peer, chat), { workingDirectories: [app.toString(), protocol.toString()] });
+		addPeer();
+		await send([app, protocol], true, peer);
+		send.state.removeChat(session, peer);
+		// A new chat of the same name, of one folder, was never told about several
+		addPeer();
+		const recreated = await send([app], true, peer);
+
+		send.lookups.gate = new DeferredPromise<void>();
+		const preparing = send([app, protocol], true, peer);
+		send.state.removeChat(session, peer);
+		send.lookups.gate.complete();
+		const removedWhilePreparing = await preparing;
+
+		assert.deepStrictEqual({ recreated, removedWhilePreparing }, { recreated: undefined, removedWhilePreparing: undefined });
 	});
 });
