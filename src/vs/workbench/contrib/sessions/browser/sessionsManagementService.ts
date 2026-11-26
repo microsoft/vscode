@@ -2001,6 +2001,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		const draft = provider.createCanvasDraft();
 		return {
+			sessionId: draft.sessionId,
 			canvases: draft.canvases,
 			open: async canvas => {
 				const instanceId = getCanvasDefinitionInstanceId(canvas);

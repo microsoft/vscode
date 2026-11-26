@@ -406,6 +406,8 @@ export interface IDeleteChatOptions {
  * does not open, leaves nothing behind.
  */
 export interface ISessionsProviderCanvasDraft extends IDisposable {
+	/** The ID of the draft's session, which the session it starts replaces once the provider lists it. */
+	readonly sessionId: string;
 	/** The canvas types the draft can open; `undefined` when its extensions did not settle in time. */
 	readonly canvases: Promise<SessionCanvasDefinitionSnapshot>;
 	/** Opens one instance of `canvas` in the draft and resolves to the committed session once the provider lists it. */

@@ -19,9 +19,13 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace } from '../../..
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../browser/menus.js';
 import { registerSessionsListActions } from '../../browser/views/sessionsListActions.js';
-import { ISessionSection, SessionSectionHasRootFolderContext, SessionSectionTypeContext } from '../../browser/views/sessionsListCommon.js';
+import { ISessionSection, SessionItemContextMenuId, SessionItemHasPinnedCanvasContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionSectionHasRootFolderContext, SessionSectionTypeContext } from '../../browser/views/sessionsListCommon.js';
 import { groupByRepository, groupByWorkspace } from '../../browser/views/sessionsListHelpers.js';
-import { OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID } from '../../common/sessionCommands.js';
+import { HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID, OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID } from '../../common/sessionCommands.js';
+import { SessionIsArchivedContext } from '../../common/contextkeys.js';
+import { IPinnedCanvas, IPinnedCanvasService } from '../../browser/pinnedCanvases.js';
+import { ISessionsListModelService } from '../../browser/sessionsListModelService.js';
+import { ISessionsListChange, ISessionsListUndoService } from '../../browser/sessionsListUndoService.js';
 import { buildTestSession } from '../common/testSessionBuilder.js';
 
 suite('Sessions list actions', () => {
@@ -107,6 +111,59 @@ suite('Sessions list actions', () => {
 					{ folder: 'file:///work/repo', forceNewWindow: true },
 					{ folder: 'vscode-agent-host:/work/repo', forceNewWindow: true },
 				],
+			});
+		} finally {
+			registrations.dispose();
+		}
+	});
+
+	test('hides listed sessions whose canvas is in the sidebar from the Sessions list, offering to undo it', async () => {
+		const registrations = new DisposableStore();
+		try {
+			registrations.add(registerSessionsListActions());
+			const when = MenuRegistry.getMenuItems(SessionItemContextMenuId).filter(isIMenuItem).find(item => item.command.id === HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID)?.when;
+			const context: Record<string, unknown> = {
+				[ChatContextKeys.enabled.key]: true,
+				[SessionItemHasPinnedCanvasContext.key]: true,
+				[SessionItemIsAutomationContext.key]: false,
+				[SessionItemIsInSessionsListContext.key]: true,
+				[SessionIsArchivedContext.key]: false,
+			};
+			const shown = (overrides: Record<string, unknown> = {}) => !!when?.evaluate({ getValue: <T>(key: string) => ({ ...context, ...overrides })[key] as T });
+
+			const [pinned, unpinned, automation, archived] = ['pinned', 'unpinned', 'automation', 'archived'].map(id => buildTestSession({ id, title: id, isArchived: id === 'archived' }).session);
+			const targets = [pinned, unpinned, { ...automation, isAutomation: constObservable(true) }, archived];
+			const pins = [pinned, automation, archived].map(session => upcastPartial<IPinnedCanvas>({ identity: { providerId: session.providerId, session: session.resource, chat: session.mainChat.get().resource, extensionId: 'user:canvases', canvasId: 'plan', instanceId: session.sessionId } }));
+			const calls: string[] = [];
+			const offered: ISessionsListChange[] = [];
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IPinnedCanvasService, upcastPartial<IPinnedCanvasService>({ entries: constObservable(pins) }));
+			instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({
+				hideCanvasSessions: sessions => {
+					calls.push(`hide ${sessions.map(session => session.sessionId)}`);
+					return () => calls.push('undo');
+				},
+			}));
+			instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: change => { offered.push(change); return true; } }));
+
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID)!.handler(accessor, targets));
+			await offered[0]?.undo();
+
+			assert.deepStrictEqual({
+				shown: {
+					listed: shown(),
+					withoutPinnedCanvas: shown({ [SessionItemHasPinnedCanvasContext.key]: false }),
+					automation: shown({ [SessionItemIsAutomationContext.key]: true }),
+					notListed: shown({ [SessionItemIsInSessionsListContext.key]: false }),
+					archived: shown({ [SessionIsArchivedContext.key]: true }),
+					aiDisabled: shown({ [ChatContextKeys.enabled.key]: false }),
+				},
+				calls,
+				offered: offered.map(change => ({ kind: change.kind, count: change.count, message: change.message(change.count) })),
+			}, {
+				shown: { listed: true, withoutPinnedCanvas: false, automation: false, notListed: false, archived: false, aiDisabled: false },
+				calls: ['hide pinned', 'undo'],
+				offered: [{ kind: 'hideCanvasSessions', count: 1, message: '1 hidden from the Sessions list' }],
 			});
 		} finally {
 			registrations.dispose();

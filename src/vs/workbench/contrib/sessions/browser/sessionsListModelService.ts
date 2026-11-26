@@ -13,6 +13,7 @@ import { autorun, IObservable, IReader, observableSignalFromEvent, observableVal
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
+import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -31,7 +32,16 @@ export const enum SessionListModelChangeKind {
 	Inbox = 'inbox',
 	/** Whether a session is left out of the sessions list for a while; see {@link ISessionsListModelService.hideSessionsProvisionally}. */
 	ProvisionallyHidden = 'provisionallyHidden',
+	/** Whether a session whose canvas is in the sidebar is left out of the sessions list; see {@link ISessionsListModelService.hideCanvasSessions}. */
+	CanvasListing = 'canvasListing',
 }
+
+/**
+ * Why a session is left out of the sessions list while its canvas is in the sidebar: by `default`, as a session started
+ * from the Canvases section is until the user sends a message in it, or `explicit`ly, at the user's request, which a
+ * message does not change.
+ */
+type CanvasSessionHiddenReason = 'default' | 'explicit';
 
 /**
  * The two sort modes the sessions list supports. Mirrors the values of the
@@ -48,7 +58,7 @@ export interface ISessionListModelChangeEvent {
 
 /**
  * Service that manages UI-only state for sessions: pinned, manual sort order, and
- * which automation sessions are shown in the sessions list.
+ * which automation sessions and sessions whose canvas is in the sidebar are shown in the sessions list.
  * The order of a session's nested chats is owned by its provider, never by the list.
  *
  * This state is purely local (persisted in storage) and not synced to providers.
@@ -62,7 +72,7 @@ export interface ISessionListModelChangeEvent {
 export interface ISessionsListModelService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when a session's pinned, sort, or automation listing state changes. */
+	/** Fires when a session's pinned, sort, or listing state changes. */
 	readonly onDidChange: Event<ISessionListModelChangeEvent>;
 
 	// -- Pinning --
@@ -83,8 +93,9 @@ export interface ISessionsListModelService {
 
 	/**
 	 * Whether the session belongs in the sessions list. Every session that is not
-	 * {@link hideSessionsProvisionally hidden provisionally} and not an automation
-	 * session does. An automation session does when the user showed it, or when
+	 * {@link hideSessionsProvisionally hidden provisionally}, not an automation
+	 * session, and not {@link hideCanvasSessions hidden while its canvas is in the sidebar} does.
+	 * An automation session does when the user showed it, or when
 	 * {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} lists every
 	 * automation session and the user did not hide it.
 	 */
@@ -110,6 +121,33 @@ export interface ISessionsListModelService {
 	 * restores how the sessions were listed before, except for those the user has shown since.
 	 */
 	hideAutomationSessions(sessions: readonly ISession[]): () => void;
+
+	// -- Sessions whose canvas is in the sidebar --
+
+	/**
+	 * Leaves the session `sessionId` out of the sessions list by `default` while its canvas is in the sidebar. Takes the
+	 * session's ID, so a session can be left out before it is listed.
+	 */
+	hideCanvasSessionById(sessionId: string): void;
+
+	/** Lists the session `sessionId` in the sessions list again, however it was left out while its canvas is in the sidebar. */
+	showCanvasSessionById(sessionId: string): void;
+
+	/** Lists `sessions` in the sessions list again, however they were left out while their canvas is in the sidebar. */
+	showCanvasSessions(sessions: readonly ISession[]): void;
+
+	/**
+	 * Lists a session in the sessions list because the user sent a message in it, unless the user chose
+	 * {@link hideCanvasSessions} for it.
+	 */
+	showRepliedCanvasSession(session: ISession): void;
+
+	/**
+	 * Leaves `sessions` out of the sessions list at the user's request while their canvas is in the sidebar, until the
+	 * user shows them again. Returns an undo that restores how the sessions were listed before, except for those whose
+	 * listing has changed since.
+	 */
+	hideCanvasSessions(sessions: readonly ISession[]): () => void;
 
 	// -- Legacy read-state migration --
 
@@ -188,6 +226,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private static readonly INBOX_STATE_KEY = 'sessionsListControl.inboxState';
 	private static readonly SHOWN_AUTOMATION_SESSIONS_KEY = 'sessionsListControl.shownAutomationSessions';
 	private static readonly HIDDEN_AUTOMATION_SESSIONS_KEY = 'sessionsListControl.hiddenAutomationSessions';
+	private static readonly HIDDEN_CANVAS_SESSIONS_KEY = 'sessionsListControl.hiddenCanvasSessions';
 	private static readonly SORT_OVERRIDES_KEY = 'sessionsListControl.sortOverrides';
 	private static readonly UPDATED_DEFAULT_PLACEMENTS_KEY = 'sessionsListControl.updatedDefaultPlacements';
 	/** Retired: a list-owned order of nested chats, which conflicted with the order their provider owns. */
@@ -208,6 +247,11 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private readonly _hiddenAutomationSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
 	/** How many holds leave each session out of the list, by session ID; see {@link hideSessionsProvisionally}. */
 	private readonly _provisionallyHiddenSessionIds = observableValue<ReadonlyMap<string, number>>(this, new Map());
+	/** Sessions left out of the list while their canvas is in the sidebar, and why, by session ID; see {@link hideCanvasSessions}. */
+	private readonly _hiddenCanvasSessions = observableValue<ReadonlyMap<string, CanvasSessionHiddenReason>>(this, new Map());
+	/** Pending Undo targets of {@link hideCanvasSessions}, kept so identity migration updates them before Undo runs. */
+	private readonly _canvasListingUndoTargets = new Set<Map<string, CanvasSessionHiddenReason | undefined>>();
+	private readonly _canvasesEnabled: IObservable<boolean>;
 	private readonly _automationSessionsMode: IObservable<AutomationSessionsListMode>;
 	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
 	private readonly _updatedDefaultPlacements: Map<string, number | null>;
@@ -231,6 +275,17 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}));
 		this._shownAutomationSessionIds.set(this.loadSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY), undefined);
 		this._hiddenAutomationSessionIds.set(this.loadSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY), undefined);
+		this._hiddenCanvasSessions.set(this.loadHiddenCanvasSessions(), undefined);
+		this._canvasesEnabled = observableConfigValue(CanvasesEnabledSettingId, true, configurationService);
+		this._register(runOnChange(this._canvasesEnabled, () => {
+			const hiddenCanvas = this._hiddenCanvasSessions.get();
+			if (hiddenCanvas.size === 0) {
+				return;
+			}
+			this.fireChanges(this.sessionsManagementService.getSessions()
+				.filter(session => !session.isAutomation?.get() && hiddenCanvas.has(session.sessionId))
+				.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.CanvasListing })));
+		}));
 		this._automationSessionsMode = observableConfigValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.AfterReply, configurationService);
 		this._register(runOnChange(this._automationSessionsMode, (mode, previous) => {
 			if ((mode === AutomationSessionsListMode.Always) !== (previous === AutomationSessionsListMode.Always)) {
@@ -299,7 +354,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			}
 		}));
 
-		// Only a definitive deletion discards pin, sort, and automation listing
+		// Only a definitive deletion discards pin, sort, and listing
 		// state. A session merely dropping out of the provider's list is an
 		// eviction (e.g. an agent that cannot answer `listSessions` yet reports
 		// no sessions), and discarding state there would permanently unpin
@@ -325,6 +380,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		const inbox = new Map(this._inboxState.get());
 		const shown = new Set(this._shownAutomationSessionIds.get());
 		const hidden = new Set(this._hiddenAutomationSessionIds.get());
+		const hiddenCanvas = new Map(this._hiddenCanvasSessions.get());
 		const sets = [this._pinnedSessionIds, this._migratedReadSessionIds, shown, hidden, ...(this._legacyReadSessionIds ? [this._legacyReadSessionIds] : [])];
 		const move = <T>(map: Map<string, T>, from: string, to: string) => {
 			if (map.has(from)) {
@@ -348,6 +404,15 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			move(this._sortOverrides.created, from, to);
 			move(this._sortOverrides.updated, from, to);
 			move(this._updatedDefaultPlacements, from, to);
+			move(hiddenCanvas, from, to);
+			for (const undoTarget of this._canvasListingUndoTargets) {
+				if (undoTarget.has(from)) {
+					if (!undoTarget.has(to)) {
+						undoTarget.set(to, undoTarget.get(from));
+					}
+					undoTarget.delete(from);
+				}
+			}
 			const state = inbox.get(from);
 			if (state) {
 				if ((inbox.get(to)?.kind ?? 'resumed') === 'resumed') {
@@ -366,11 +431,13 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			transaction(tx => {
 				this._shownAutomationSessionIds.set(shown, tx);
 				this._hiddenAutomationSessionIds.set(hidden, tx);
+				this._hiddenCanvasSessions.set(hiddenCanvas, tx);
 			});
 			this.saveSet(PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 			this.saveSet(SessionsListModelService.READ_MIGRATION_DONE_KEY, this._migratedReadSessionIds);
 			this.saveSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY, shown);
 			this.saveSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY, hidden);
+			this.saveHiddenCanvasSessions(hiddenCanvas);
 			this.saveSortOverrides();
 			this.saveUpdatedDefaultPlacements();
 			if (inboxChanged) {
@@ -562,7 +629,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			return false;
 		}
 		if (!session.isAutomation?.read(reader)) {
-			return true;
+			return !this._canvasesEnabled.read(reader) || !this._hiddenCanvasSessions.read(reader).has(session.sessionId);
 		}
 		if (this._hiddenAutomationSessionIds.read(reader).has(session.sessionId)) {
 			return false;
@@ -608,6 +675,82 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				}
 			}));
 		};
+	}
+
+	// -- Sessions whose canvas is in the sidebar --
+
+	hideCanvasSessionById(sessionId: string): void {
+		this.fireChanges(this.updateCanvasListing(hidden => hidden.set(sessionId, 'default')));
+	}
+
+	showCanvasSessionById(sessionId: string): void {
+		this.fireChanges(this.updateCanvasListing(hidden => hidden.delete(sessionId)));
+	}
+
+	showCanvasSessions(sessions: readonly ISession[]): void {
+		this.fireChanges(this.updateCanvasListing(hidden => {
+			for (const session of sessions) {
+				hidden.delete(session.sessionId);
+			}
+		}));
+	}
+
+	showRepliedCanvasSession(session: ISession): void {
+		if (this._hiddenCanvasSessions.get().get(session.sessionId) === 'default') {
+			this.showCanvasSessionById(session.sessionId);
+		}
+	}
+
+	hideCanvasSessions(sessions: readonly ISession[]): () => void {
+		const before = this._hiddenCanvasSessions.get();
+		const previous = new Map(sessions.map(session => [session.sessionId, before.get(session.sessionId)]));
+		this.fireChanges(this.updateCanvasListing(hidden => {
+			for (const sessionId of previous.keys()) {
+				hidden.set(sessionId, 'explicit');
+			}
+		}));
+		this._canvasListingUndoTargets.add(previous);
+		return () => {
+			this._canvasListingUndoTargets.delete(previous);
+			this.fireChanges(this.updateCanvasListing(hidden => {
+				for (const [sessionId, reason] of previous) {
+					// A session whose listing has changed since keeps that change.
+					if (hidden.get(sessionId) !== 'explicit') {
+						continue;
+					}
+					if (reason) {
+						hidden.set(sessionId, reason);
+					} else {
+						hidden.delete(sessionId);
+					}
+				}
+			}));
+		};
+	}
+
+	/** Applies `update` to the sessions left out of the list while their canvas is in the sidebar, persists it, and returns the sessions whose state changed. */
+	private updateCanvasListing(update: (hidden: Map<string, CanvasSessionHiddenReason>) => void): ISessionListModelChangeEvent['changes'] {
+		const previous = this._hiddenCanvasSessions.get();
+		const hidden = new Map(previous);
+		update(hidden);
+		const changes = [...new Set([...previous.keys(), ...hidden.keys()])]
+			.filter(sessionId => previous.get(sessionId) !== hidden.get(sessionId))
+			.map(sessionId => ({ sessionId, kind: SessionListModelChangeKind.CanvasListing }));
+		if (changes.length > 0) {
+			for (const target of this._canvasListingUndoTargets) {
+				for (const sessionId of [...target.keys()]) {
+					if (hidden.get(sessionId) !== 'explicit') {
+						target.delete(sessionId);
+					}
+				}
+				if (target.size === 0) {
+					this._canvasListingUndoTargets.delete(target);
+				}
+			}
+			this._hiddenCanvasSessions.set(hidden, undefined);
+			this.saveHiddenCanvasSessions(hidden);
+		}
+		return changes;
 	}
 
 	hideSessionsProvisionally(sessions: readonly ISession[]): IDisposable {
@@ -841,6 +984,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			shown.delete(sessionId);
 			hidden.delete(sessionId);
 		}));
+		changes.push(...this.updateCanvasListing(hidden => hidden.delete(session.sessionId)));
 		let sortChanged = false;
 		if (this._sortOverrides.created.delete(session.sessionId)) {
 			sortChanged = true;
@@ -882,6 +1026,35 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			this.storageService.remove(key, StorageScope.PROFILE);
 		} else {
 			this.storageService.store(key, JSON.stringify([...set]), StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+
+	private loadHiddenCanvasSessions(): Map<string, CanvasSessionHiddenReason> {
+		const hidden = new Map<string, CanvasSessionHiddenReason>();
+		const raw = this.storageService.get(SessionsListModelService.HIDDEN_CANVAS_SESSIONS_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const entries: unknown = JSON.parse(raw);
+				if (Array.isArray(entries)) {
+					for (const entry of entries) {
+						// Skip malformed entries individually so one bad value cannot list every other hidden session.
+						if (Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' && (entry[1] === 'default' || entry[1] === 'explicit')) {
+							hidden.set(entry[0], entry[1]);
+						}
+					}
+				}
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		return hidden;
+	}
+
+	private saveHiddenCanvasSessions(hidden: ReadonlyMap<string, CanvasSessionHiddenReason>): void {
+		if (hidden.size === 0) {
+			this.storageService.remove(SessionsListModelService.HIDDEN_CANVAS_SESSIONS_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsListModelService.HIDDEN_CANVAS_SESSIONS_KEY, JSON.stringify([...hidden]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 	}
 

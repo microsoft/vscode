@@ -8498,6 +8498,7 @@ suite('SessionsManagementService', () => {
 			override readonly supportsQuickChats = true;
 			override createCanvasDraft(): ISessionsProviderCanvasDraft {
 				return {
+					sessionId: 'canvas-draft',
 					canvases: Promise.resolve([plan]),
 					open: async (canvas, instanceId) => {
 						opened.push(`${canvas.canvasId}:${instanceId}`);
@@ -8510,6 +8511,7 @@ suite('SessionsManagementService', () => {
 		const { service } = createSessionsManagementService(activeSession, disposables, provider);
 
 		const draft = service.createCanvasDraft();
+		const draftSessionId = draft.sessionId;
 		const listed = (await draft.canvases)?.map(canvas => canvas.canvasId);
 		const reference = draft.open(plan);
 		await timeout(0);
@@ -8526,6 +8528,7 @@ suite('SessionsManagementService', () => {
 		draft.dispose();
 
 		assert.deepStrictEqual({
+			draftSessionId,
 			listed,
 			opened,
 			observersWhileOpening,
@@ -8534,6 +8537,7 @@ suite('SessionsManagementService', () => {
 			reference: canvasReference && { providerId: canvasReference.providerId, session: canvasReference.session.toString(), chat: canvasReference.chat.toString(), canvas: canvasReference.canvas.toString() },
 			newSession: service.newSession.get(),
 		}, {
+			draftSessionId: 'canvas-draft',
 			listed: ['plan'],
 			opened: ['plan:agent-plan-plan', 'disposed'],
 			observersWhileOpening: 1,
@@ -8553,7 +8557,7 @@ suite('SessionsManagementService', () => {
 		const provider = new class extends TestSessionsProvider {
 			override readonly supportsQuickChats = true;
 			override createCanvasDraft(): ISessionsProviderCanvasDraft {
-				return { canvases: Promise.resolve([plan]), open: async () => canvasSession, dispose: () => { } };
+				return { sessionId: 'canvas-draft', canvases: Promise.resolve([plan]), open: async () => canvasSession, dispose: () => { } };
 			}
 		}(activeSession);
 		const { service } = createSessionsManagementService(activeSession, disposables, provider);
