@@ -85,6 +85,8 @@ suite('Comment thread floating widget', () => {
 		const host: ICommentThreadFloatingWidgetHost = {
 			getLayout: () => undefined,
 			setLayout: () => { },
+			getLastChosenSize: () => ({}),
+			setLastChosenSize: () => { },
 			addWidget: () => toDisposable(() => { }),
 			getOtherWidgets: () => [],
 			getRoom: () => undefined,
