@@ -39,6 +39,6 @@ Call `create_remote_session` with:
 - `title`: a short title for the task.
 - `hostId`: the `hostId` from `create_dev_container`.
 - `workspace`: `{ "uri": "<workspace from create_dev_container>", "isolation": "folder" }`.
-- `model`: only when the user asked for one; `list_agent_hosts` shows the container's models.
+- `model`: only when the user asked for one; `list_agent_hosts` shows the container's models. Omitted, the session continues on this chat's model and its options when the container offers it.
 
 Share the returned `openLink` as a Markdown link and end your turn. Don't continue the task here or poll the new session. Don't retry an uncertain creation.

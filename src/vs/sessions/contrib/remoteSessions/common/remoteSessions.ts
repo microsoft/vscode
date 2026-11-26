@@ -55,6 +55,11 @@ export interface IRemoteSessionModel {
 	readonly id: string;
 }
 
+/** The model of the chat that creates a remote session, which the session continues on by default. */
+export interface IRemoteSessionSourceModelInfo extends IRemoteSessionModel {
+	readonly reasoningEffort?: ReasoningEffortLevel;
+}
+
 export interface IRemoteSessionWorkspace {
 	readonly uri: URI;
 	readonly isolation: 'folder' | 'worktree';
@@ -66,9 +71,9 @@ export interface ICreateRemoteSessionOptions {
 	readonly title?: string;
 	readonly hostId?: string;
 	readonly model?: IRemoteSessionModel;
-	/** Requires {@link model}; set as an explicit choice over the user's saved reasoning effort for the model. */
+	/** Requires {@link model}; set as an explicit choice over the reasoning effort the session would otherwise start with. */
 	readonly reasoningEffort?: ReasoningEffortLevel;
-	/** Requires {@link model}; set as an explicit choice over the user's saved context size for the model. */
+	/** Requires {@link model}; set as an explicit choice over the context size the session would otherwise start with. */
 	readonly contextTier?: ModelContextTier;
 	readonly requirements: IRemoteSessionRequirements;
 	readonly workspace?: IRemoteSessionWorkspace;
@@ -140,6 +145,11 @@ export interface IRemoteSessionService {
 	getHostRejections(hostId: string, workspace: IRemoteSessionWorkspace): readonly string[];
 	/** Describes where `createSession` would start the session with the options, for its approval. */
 	getRequestedDestination(options: ICreateRemoteSessionOptions): IRemoteSessionDestination;
+	/**
+	 * The model the chat runs on, which `createSession` starts the session on when the options name no model and the
+	 * selected host offers it; undefined when the chat's host recorded none.
+	 */
+	getSourceModel(source: URI, token: CancellationToken): Promise<IRemoteSessionSourceModelInfo | undefined>;
 	createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken): Promise<ICreatedRemoteSession>;
 }
 
