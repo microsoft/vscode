@@ -35,6 +35,7 @@ import { LocalDevContainerEnvironmentHost } from '../../../../workbench/contrib/
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionType, SessionTypeAuthRequirement } from '../../../../workbench/services/sessions/common/session.js';
 import { isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { modelConfigurationPreferences } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { areRemoteSessionModelOptionsEnabled, areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionDestination, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionModel, IRemoteSessionService, IRemoteSessionSourceModelInfo, IRemoteSessionWorkspace, remoteSessionHostRejections } from '../common/remoteSessions.js';
 import { assertRemoteSessionSource, IRemoteSessionSourceModel, resolveRemoteSessionSource } from './remoteSessionSource.js';
@@ -66,6 +67,19 @@ const maxRemoteSessionDepth = 10;
  */
 function getDirectoryLabel(directory: URI): string {
 	return directory.authority ? `//${directory.authority}${directory.path}` : directory.path;
+}
+
+/**
+ * The source chat's model options as the new session's own choices, including values that were defaults or managed
+ * on the source host, so the session starts with the options the source chat runs with rather than the target's
+ * defaults. The target's schema and locked options still apply when the session resolves them.
+ */
+function toInheritedModelConfiguration(config: Readonly<Record<string, JsonPrimitive>> | undefined): Readonly<Record<string, JsonPrimitive>> | undefined {
+	if (!config || !isAutomationModelConfiguration(config)) {
+		return undefined;
+	}
+	const preferences = modelConfigurationPreferences(config, true);
+	return isAutomationModelConfiguration(preferences) && Object.keys(preferences).length ? preferences : undefined;
 }
 
 export class RemoteSessionService implements IRemoteSessionService {
@@ -266,7 +280,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 			// Like create_session, a named model keeps the source chat's options only while agents can choose model options.
 			const sourceConfiguration = areRemoteSessionModelOptionsEnabled(this.configurationService)
 				&& sourceModel?.provider === options.model.provider && sourceModel.selection.id === options.model.id
-				? sourceModel.selection.config : undefined;
+				? toInheritedModelConfiguration(sourceModel.selection.config) : undefined;
 			modelConfiguration = this.getModelConfiguration(provider, modelIdentifier, options.model, options, reasons, sourceConfiguration);
 			if (reasons.length) {
 				return { reasons };
@@ -274,8 +288,8 @@ export class RemoteSessionService implements IRemoteSessionService {
 		} else if (sourceModel && offersSourceModel(agent)) {
 			modelId = sourceModel.selection.id;
 			modelIdentifier = `${remoteAgentHostSessionTypeId(authority, agent.provider)}:${modelId}`;
-			modelConfiguration = provider.supportsModelConfigurationForCreation === true && sourceModel.selection.config && isAutomationModelConfiguration(sourceModel.selection.config)
-				? sourceModel.selection.config : undefined;
+			modelConfiguration = provider.supportsModelConfigurationForCreation === true
+				? toInheritedModelConfiguration(sourceModel.selection.config) : undefined;
 		}
 		return {
 			candidate: {
@@ -335,7 +349,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 		const withRequested = (base: Readonly<Record<string, JsonPrimitive>> | undefined) => Object.keys(requested).length
 			? withExplicitModelConfiguration({ id: modelIdentifier, config: { ...base } }, requested).config
 			: base;
-		if (sourceConfiguration && isAutomationModelConfiguration(sourceConfiguration)) {
+		if (sourceConfiguration) {
 			return withRequested(sourceConfiguration);
 		}
 		const saved = new AutomationModelConfiguration(this.languageModelsService);

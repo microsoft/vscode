@@ -421,8 +421,15 @@ suite('RemoteSessionService', () => {
 		offering.sessionTypes.unshift({ ...offering.sessionTypes[0], id: 'claude', chatSessionType: remoteAgentHostSessionTypeId(agentHostAuthority(offering.remoteAddress), 'claude') });
 		other.root.agents[0].models[0] = { provider: 'copilot', id: 'other-model', name: 'Other Model' };
 		const { create, calls, state } = setup([offering, other]);
-		const config = { [ReasoningEffortConfigKey]: 'xhigh', [modelConfigurationSourceKey(ReasoningEffortConfigKey)]: 'explicit', [ContextSizeConfigKey]: 1_000_000 };
-		state.sourceChatModel = { id: 'test-model', config };
+		// A value that was a default on the source host is handed on too, as the session's own choice.
+		state.sourceChatModel = {
+			id: 'test-model',
+			config: {
+				[ReasoningEffortConfigKey]: 'xhigh', [modelConfigurationSourceKey(ReasoningEffortConfigKey)]: 'explicit',
+				[ContextSizeConfigKey]: 1_000_000, [modelConfigurationSourceKey(ContextSizeConfigKey)]: 'default',
+			},
+		};
+		const config = { [ReasoningEffortConfigKey]: 'xhigh', [ContextSizeConfigKey]: 1_000_000 };
 		const results = [await create(), await create({ hostId: other.id }, 'pinned')];
 		assert.deepStrictEqual(calls.map(({ options }, index) => ({
 			sessionType: options?.sessionTypeId,
@@ -440,11 +447,11 @@ suite('RemoteSessionService', () => {
 		host.supportsModelConfigurationForCreation = true;
 		const { create, calls, state } = setup([host]);
 		state.sourceChatModel = { id: modelRouterModelId('fast') };
-		state.sourceChatUsage = upcastPartial<UsageInfo>({ _meta: { modelRouted: { router: 'fast', chosenModel: 'test-model', effort: 'high' } } });
+		state.sourceChatUsage = upcastPartial<UsageInfo>({ _meta: { modelRouted: { router: 'fast', chosenModel: 'test-model', effort: 'high', contextSize: 'long', contextTokens: 1_000_000 } } });
 		const result = await create();
 		assert.deepStrictEqual({ modelId: calls[0].options?.modelId, modelConfiguration: calls[0].options?.modelConfiguration, reported: result.model }, {
 			modelId: `${host.sessionTypes[0].chatSessionType}:test-model`,
-			modelConfiguration: { [ReasoningEffortConfigKey]: 'high' },
+			modelConfiguration: { [ReasoningEffortConfigKey]: 'high', [ContextSizeConfigKey]: 1_000_000 },
 			reported: { provider: 'copilot', id: 'test-model' },
 		});
 	});

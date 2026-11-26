@@ -288,7 +288,11 @@ export function withRoutedModel(chat: Pick<ChatState, 'turns' | 'activeTurn'>, m
 	for (let i = turns.length - 1; i >= 0; i--) {
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
-			return { id: routed.chosenModel, ...(routed.effort ? { config: { [ReasoningEffortConfigKey]: routed.effort } } : {}) };
+			const config = {
+				...(routed.effort ? { [ReasoningEffortConfigKey]: routed.effort } : {}),
+				...(routed.contextTokens !== undefined ? { [ContextSizeConfigKey]: routed.contextTokens } : {}),
+			};
+			return { id: routed.chosenModel, ...(Object.keys(config).length ? { config } : {}) };
 		}
 		// A turn with usage reached its model; one whose model change failed never did.
 		const chosen = turns[i].message.model;
