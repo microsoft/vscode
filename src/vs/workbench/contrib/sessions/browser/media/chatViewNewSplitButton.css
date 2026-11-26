@@ -35,15 +35,15 @@ icon actions, and styled as the Agents window's New button. */
 	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
-/* Out of the layout but measurable, so that its width, which the button observes, does not change with the button's size */
-.chat-view-new-split-button.icon-only .chat-view-new-split-button-label {
+/* Out of the layout but measurable, so that their widths, which the button observes, do not change with the button's size */
+.chat-view-new-split-button.icon-only .chat-view-new-split-button-label,
+.chat-view-new-split-button.icon-only .chat-view-new-split-button-keybinding,
+.chat-view-new-split-button.compact .chat-view-new-split-button-keybinding {
 	position: absolute;
 	visibility: hidden;
 }
 
-.chat-view-new-split-button:not(.icon-only) .chat-view-new-split-button-icon,
-.chat-view-new-split-button.icon-only .chat-view-new-split-button-keybinding,
-.chat-view-new-split-button.compact .chat-view-new-split-button-keybinding {
+.chat-view-new-split-button:not(.icon-only) .chat-view-new-split-button-icon {
 	display: none;
 }
 

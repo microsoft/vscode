@@ -310,6 +310,66 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 		assert.deepStrictEqual(states, ['compact', 'icon']);
 	});
 
+	test('fits again before the paint when only the keybinding needs more or less room at the same width', async () => {
+		const { title, actionsContainer, clearance, state } = createTitle(300, 2);
+		// The narrowest width with the full button
+		let width = 200;
+		do {
+			title.style.width = `${width -= 1}px`;
+			await layout();
+		} while (state() === 'full');
+		title.style.width = `${width + 1}px`;
+		await layout();
+		const states = [state()];
+
+		const item = actionsContainer.querySelector<HTMLElement>('.chat-view-new-split-button')!;
+		const hint = item.querySelector<HTMLElement>('.chat-view-new-split-button-keybinding')!;
+		/** Changes the keybinding's font and reports what the button shows when it is notified, before the paint. */
+		const changeFont = (fontSize: string) => new Promise<{ size: string; touches: boolean }>(resolve => {
+			const observer = new DOM.DisposableResizeObserver('test', () => {
+				observer.dispose();
+				resolve({ size: item.classList.contains('compact') ? 'compact' : item.classList.contains('icon-only') ? 'icon' : 'full', touches: clearance(item) < 1 });
+			}, mainWindow);
+			store.add(observer);
+			hint.style.fontSize = fontSize;
+			store.add(observer.observe(hint));
+		});
+		const atPaint = [await changeFont('40px')];
+		await layout();
+		states.push(state());
+		atPaint.push(await changeFont(''));
+		await layout();
+		states.push(state());
+
+		assert.deepStrictEqual({ states, atPaint }, {
+			states: ['full', 'compact', 'full'],
+			atPaint: [{ size: 'compact', touches: false }, { size: 'full', touches: false }],
+		});
+	});
+
+	test('does not lay out its sizes again when what it fits to does not change', async () => {
+		const { title, actionsContainer, state } = createTitle(300, 2);
+		let width = 200;
+		do {
+			title.style.width = `${width -= 1}px`;
+			await layout();
+		} while (state() !== 'icon');
+		const item = actionsContainer.querySelector<HTMLElement>('.chat-view-new-split-button')!;
+		const writes: string[] = [];
+		const observer = new MutationObserver(records => writes.push(...records.map(() => item.className)));
+		observer.observe(item, { attributes: true, attributeFilter: ['class'] });
+		store.add({ dispose: () => observer.disconnect() });
+
+		// Notifies the button about the row without changing the widths it fits to
+		title.style.height = '40px';
+		const icon = [...actionsContainer.children].find(child => child !== item && child.firstElementChild) as HTMLElement;
+		(icon.firstElementChild as HTMLElement).style.height = '18px';
+		await layout();
+		writes.push(...observer.takeRecords().map(() => item.className));
+
+		assert.deepStrictEqual({ size: state(), writes }, { size: 'icon', writes: [] });
+	});
+
 	test('updates the size when the other actions or the title change and the title does not', async () => {
 		const { label, actionsContainer, state } = createTitle(300, 3);
 		await layout();

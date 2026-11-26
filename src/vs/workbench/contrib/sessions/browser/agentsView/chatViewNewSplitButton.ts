@@ -56,6 +56,10 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 	private readonly primaryAction: MenuItemAction | undefined;
 	private readonly rowObservers = this._register(new MutableDisposable<DisposableStore>());
 	private readonly scheduledRowObservers = this._register(new MutableDisposable());
+	private size = ButtonSize.Icon;
+	/** What the last fit measured in the row, and the size it picked, with which an unchanged row needs no new fit. */
+	private lastFit: { readonly row: HTMLElement; readonly inputs: string; readonly size: ButtonSize } | undefined;
+	private measuredElements: readonly HTMLElement[] = [];
 
 	constructor(
 		action: SubmenuItemAction,
@@ -107,6 +111,7 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 			keybindingLabelShadow: undefined,
 		}));
 		DOM.reset(button.primaryButton.element, iconElement, label, keybindingHint);
+		this.measuredElements = [label, keybindingHint];
 		this.setSize(ButtonSize.Icon);
 
 		this._register(button.onDidClick(() => {
@@ -140,8 +145,8 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 		};
 		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateKeybinding));
 
-		// Notifies once the toolbar attaches the item, after layout and before paint, and when the label's width changes, such
-		// as with its font. Neither resizes when the button changes its size, which would notify in a loop.
+		// Notifies once the toolbar attaches the item, after layout and before paint, and when the width of the label or the
+		// keybinding changes, such as with their fonts. None resizes when the button changes its size, which would notify in a loop.
 		const observer = this._register(new DOM.DisposableResizeObserver('chatViewNewSplitButton.attach', () => {
 			this.scheduleRowObservers();
 			this.fit();
@@ -152,6 +157,7 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 			this._register(observer.observe(separator));
 		}
 		this._register(observer.observe(label));
+		this._register(observer.observe(keybindingHint));
 		this.updateEnabled();
 	}
 
@@ -168,6 +174,7 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 	}
 
 	private setSize(size: ButtonSize): void {
+		this.size = size;
 		this.element?.classList.toggle('compact', size === ButtonSize.Compact);
 		this.element?.classList.toggle('icon-only', size === ButtonSize.Icon);
 	}
@@ -181,19 +188,45 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 		const container = this.element;
 		const row = container?.parentElement;
 		if (!container?.isConnected || !row) {
+			this.lastFit = undefined;
 			return;
 		}
 		if (!container.closest('.monaco-toolbar.responsive')) {
+			this.lastFit = undefined;
 			this.setSize(ButtonSize.Icon);
 			return;
 		}
+		// Trying a size lays the row out again, which an unchanged row does not need
+		const inputs = this.getFitInputs(row);
+		if (this.lastFit?.row === row && this.lastFit.inputs === inputs && this.lastFit.size === this.size) {
+			return;
+		}
+		this.lastFit = { row, inputs, size: this.pickSize(row) };
+	}
+
+	private pickSize(row: HTMLElement): ButtonSize {
 		for (const size of [ButtonSize.Full, ButtonSize.Compact]) {
 			this.setSize(size);
 			if (this.getClearance() >= 0 && this.getFreeWidth(row) >= -0.5) {
-				return;
+				return size;
 			}
 		}
 		this.setSize(ButtonSize.Icon);
+		return ButtonSize.Icon;
+	}
+
+	/**
+	 * The widths that the fit depends on and that do not change with the button's size: the row's, the label's and the
+	 * keybinding's, and the contents of the other actions, which are zero when they are hidden.
+	 */
+	private getFitInputs(row: HTMLElement): string {
+		const widths = [row.getBoundingClientRect().width, ...this.measuredElements.map(element => element.getBoundingClientRect().width)];
+		for (const child of row.children) {
+			if (child !== this.element) {
+				widths.push((child.firstElementChild ?? child).getBoundingClientRect().width);
+			}
+		}
+		return widths.join(',');
 	}
 
 	/**
