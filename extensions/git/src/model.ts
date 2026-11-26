@@ -1230,8 +1230,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return false;
 		}
 
-		// Allow opening repositories in the agent session workspace
-		if (workspace.isAgentSessionsWorkspace) {
+		// Allow opening repositories in an agent-managed workspace
+		if (workspace.isAgentManaged) {
 			return false;
 		}
 

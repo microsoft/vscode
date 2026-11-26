@@ -30,7 +30,7 @@ class ProgressManager {
 
 	private updateEnablement(): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const showProgress = config.get<boolean>('showProgress') === true && !workspace.isAgentSessionsWorkspace;
+		const showProgress = config.get<boolean>('showProgress') === true && !workspace.isAgentManaged;
 
 		if (showProgress) {
 			this.enable();
@@ -122,7 +122,7 @@ export class GitSourceControl implements Disposable {
 		// is closed. The repository of a workspace folder location has no
 		// parent either: a switch of the folder detaches the repository of
 		// the location it leaves, which closes the ones shown under it.
-		const parentRoot = workspace.isAgentSessionsWorkspace || options.isFolderLocation
+		const parentRoot = workspace.isAgentManaged || options.isFolderLocation
 			? undefined
 			: repository.kind === 'submodule'
 				? repository.dotGit.superProjectPath
@@ -225,7 +225,7 @@ export class GitSourceControl implements Disposable {
 
 		this.disposables.push(new ProgressManager(repository));
 
-		if (!workspace.isAgentSessionsWorkspace) {
+		if (!workspace.isAgentManaged) {
 			// Disable input box when the commit operation is running
 			const updateInputBoxEnablement = () => this.sourceControl.inputBox.enabled = !repository.operations.isRunning(OperationKind.Commit);
 			repository.onDidChangeOperations(updateInputBoxEnablement, null, this.disposables);

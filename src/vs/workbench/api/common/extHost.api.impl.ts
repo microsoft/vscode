@@ -1152,7 +1152,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: workspace
 
-		const workspace: typeof vscode.workspace = {
+		const workspace: typeof vscode.workspace & { readonly isAgentSessionsWorkspace: boolean } = {
 			get rootPath() {
 				extHostApiDeprecation.report('workspace.rootPath', extension,
 					`Please use 'workspace.workspaceFolders' instead. More details: https://aka.ms/vscode-eliminating-rootpath`);
@@ -1180,8 +1180,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			set workspaceFile(value) {
 				throw new errors.ReadonlyError('workspaceFile');
 			},
+			get isAgentManaged() {
+				checkProposedApiEnabled(extension, 'agentSessionsWorkspace');
+				return !!initData.environment.isSessionsWindow;
+			},
+			// back compat: the previous name of `isAgentManaged` is no longer declared but still works at runtime
 			get isAgentSessionsWorkspace() {
 				checkProposedApiEnabled(extension, 'agentSessionsWorkspace');
+				extHostApiDeprecation.report('workspace.isAgentSessionsWorkspace', extension, `Use 'workspace.isAgentManaged' instead.`);
 				return !!initData.environment.isSessionsWindow;
 			},
 			get mode() {
