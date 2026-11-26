@@ -4,9 +4,9 @@
   "packageManager": "pnpm@12.16.0",
   "nativeBuild": {
     "runtime": "node",
-    "target": "24.22.1",
+    "target": "24.22.3",
     "disturl": "https://nodejs.org/dist",
-    "msBuildId": "488038",
+    "msBuildId": "504318",
     "buildFromSource": true,
     "forceProcessConfig": true
   },

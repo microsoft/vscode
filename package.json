@@ -5,9 +5,9 @@
   "distro": "3b9653dfde3841020faad36fd828dfbe4e6d0656",
   "nativeBuild": {
     "runtime": "electron",
-    "target": "43.8.10",
+    "target": "43.8.13",
     "disturl": "https://electronjs.org/headers",
-    "msBuildId": "16052126",
+    "msBuildId": "16141353",
     "buildFromSource": true
   },
   "author": {
