@@ -70,7 +70,7 @@ export class OrchestrationLimitGate {
 			this._questions.set(key, question);
 		}
 		if (!await question) {
-			throw new Error(`The user did not allow more. ${limitMessage}`);
+			throw new Error(`Refusing to ${action}: this session reached its limit of ${limit.max} in ${limit.windowMinutes} minutes and the user did not allow more. Do not retry unless the user asks you to.`);
 		}
 	}
 }

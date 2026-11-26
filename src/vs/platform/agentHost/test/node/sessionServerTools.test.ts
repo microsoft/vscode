@@ -1913,7 +1913,7 @@ suite('SessionServerTools', () => {
 		const sendMany = async (count: number, run: () => unknown) => {
 			const results: string[] = [];
 			for (let i = 0; i < count; i++) {
-				results.push(await Promise.resolve(run()).then(() => 'allowed', (error: Error) => error.message.startsWith('The user did not allow more.') ? 'declined' : 'refused'));
+				results.push(await Promise.resolve(run()).then(() => 'allowed', (error: Error) => error.message.includes('the user did not allow more') ? 'declined' : 'refused'));
 			}
 			return [...new Set(results)].join(',') + ` x${count}`;
 		};
