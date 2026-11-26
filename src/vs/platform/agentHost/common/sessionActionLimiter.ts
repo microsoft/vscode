@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 
 export const maxSentMessages = 100;
 export const orchestrationLimitWindowMs = 60 * 60 * 1000;
+
+export interface ISessionActionReservation extends IDisposable {
+	record(): void;
+}
 
 export interface ISessionActionLimit {
 	readonly used: number;
@@ -21,6 +25,7 @@ export class SessionActionLimiter {
 	private readonly timestamps = new Map<string, number[]>();
 	private readonly pending = new Map<string, number>();
 	private readonly unlimited = new Set<string>();
+	private readonly grants = new Map<string, number>();
 	private lastSweep: number;
 
 	constructor(private readonly maxActions: number, private readonly windowMs: number, private readonly now: () => number) {
@@ -34,27 +39,44 @@ export class SessionActionLimiter {
 		this.sweepIdleSessions();
 	}
 
-	reserve(session: string): IDisposable {
+	reserve(session: string): ISessionActionReservation {
+		const grant = this.grants.get(session) ?? 0;
 		this.pending.set(session, (this.pending.get(session) ?? 0) + 1);
-		return toDisposable(() => {
-			const remaining = this.pending.get(session)! - 1;
-			if (remaining === 0) {
-				this.pending.delete(session);
-			} else {
-				this.pending.set(session, remaining);
-			}
-		});
+		let released = false;
+		const isCurrent = () => (this.grants.get(session) ?? 0) === grant;
+		return {
+			record: () => {
+				if (isCurrent()) {
+					this.record(session);
+				}
+			},
+			dispose: () => {
+				if (released) {
+					return;
+				}
+				released = true;
+				if (!isCurrent()) {
+					return;
+				}
+				const remaining = this.pending.get(session)! - 1;
+				if (remaining === 0) {
+					this.pending.delete(session);
+				} else {
+					this.pending.set(session, remaining);
+				}
+			},
+		};
 	}
 
-	/** Allows the session another full limit of actions, counted from now. */
 	allowMore(session: string): void {
+		this.grants.set(session, (this.grants.get(session) ?? 0) + 1);
 		this.timestamps.delete(session);
+		this.pending.delete(session);
 	}
 
-	/** Stops limiting the session for the lifetime of this limiter. */
 	allowUnlimited(session: string): void {
 		this.unlimited.add(session);
-		this.timestamps.delete(session);
+		this.allowMore(session);
 	}
 
 	private sweepIdleSessions(): void {
