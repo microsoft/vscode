@@ -24,6 +24,11 @@ export interface IActionViewItem extends IDisposable {
 	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
 	blur(): void;
 	showHover?(): void;
+	/**
+	 * The width the item needs in a responsive toolbar, which overflows it rather than shrinking it below that width.
+	 * `undefined` to use the toolbar's configured minimum width, such as while the item cannot be measured.
+	 */
+	getMinimumWidth?(): number | undefined;
 }
 
 export interface IActionViewItemProvider {

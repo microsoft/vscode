@@ -9,7 +9,6 @@ icon actions, and styled as the Agents window's New button. */
 .chat-view-new-split-button {
 	display: flex;
 	align-items: center;
-	min-width: 0;
 }
 
 .chat-view-new-split-button > .monaco-button-dropdown {
@@ -26,6 +25,7 @@ icon actions, and styled as the Agents window's New button. */
 }
 
 .chat-view-new-split-button > .monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
+	position: relative;
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
@@ -50,9 +50,14 @@ icon actions, and styled as the Agents window's New button. */
 	font-size: var(--vscode-fontSize-label2);
 }
 
-.chat-view-new-split-button .chat-view-new-split-button-keybinding.hidden,
-.chat-view-new-split-button.narrow .chat-view-new-split-button-keybinding {
+.chat-view-new-split-button .chat-view-new-split-button-keybinding.hidden {
 	display: none;
+}
+
+/* Out of the layout but measurable, for when the button has room for it again */
+.chat-view-new-split-button.narrow .chat-view-new-split-button-keybinding {
+	position: absolute;
+	visibility: hidden;
 }
 
 .chat-view-new-split-button .chat-view-new-split-button-keybinding .monaco-keybinding {

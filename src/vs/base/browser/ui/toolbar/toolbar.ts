@@ -113,6 +113,8 @@ export class ToolBar extends Disposable {
 	private originalSecondaryActions: ReadonlyArray<IAction> = [];
 	private hiddenActions: IAction[] = [];
 	private minItemsWidth = 0;
+	/** The last minimum widths that rendered items reported, which still apply while their actions overflow. */
+	private readonly itemMinimumWidths = new WeakMap<IAction, number>();
 	private readonly dropdownMenuDisposables = this._register(new DisposableMap<IActionViewItem>());
 
 	constructor(private readonly container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
@@ -441,9 +443,17 @@ export class ToolBar extends Disposable {
 			return ACTION_MIN_WIDTH;
 		}
 
-		return this.options.responsiveBehavior?.getActionMinWidth?.(action ?? this.toggleMenuAction)
+		const configuredMinWidth = this.options.responsiveBehavior?.getActionMinWidth?.(action ?? this.toggleMenuAction)
 			?? this.options.responsiveBehavior?.actionMinWidth
 			?? ACTION_MIN_WIDTH;
+		if (!action) {
+			return configuredMinWidth;
+		}
+		const itemMinWidth = this.actionBar.viewItems.find(item => item.action === action)?.getMinimumWidth?.();
+		if (itemMinWidth !== undefined) {
+			this.itemMinimumWidths.set(action, itemMinWidth);
+		}
+		return Math.max(configuredMinWidth, itemMinWidth ?? this.itemMinimumWidths.get(action) ?? 0);
 	}
 
 	private getActionMinWidth(action?: IAction): number {
