@@ -9,9 +9,10 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -195,6 +196,38 @@ suite('SCMViewService', () => {
 			visible: ['restored']
 		});
 
+		scmViewService.dispose();
+	}));
+
+	test('shows structural changes while they are enabled, unless they are hidden in the workspace, also by another window', () => runWithFakedTimers({}, async () => {
+		const configurationService = new TestConfigurationService({ 'scm.structuralDiff.enabled': false });
+		const storageService = disposables.add(new TestStorageService());
+		const scmViewService = new SCMViewService(
+			new class extends mock<ISCMService>() {
+				override readonly onDidAddRepository = Event.None;
+				override readonly onDidRemoveRepository = Event.None;
+				override readonly repositories = [];
+			}(),
+			new MockContextKeyService(),
+			new class extends mock<IEditorService>() {
+				override readonly onDidActiveEditorChange = Event.None;
+			}(),
+			new class extends mock<IExtensionService>() {
+				override readonly onWillStop = Event.None;
+			}(),
+			new class extends mock<IInstantiationService>() {
+				override createInstance = (() => ({})) as IInstantiationService['createInstance'];
+			}(),
+			configurationService, storageService, new (mock<IWorkspaceContextService>())());
+		const states: boolean[] = [];
+		disposables.add(autorun(reader => { states.push(scmViewService.showStructuralDiff.read(reader)); }));
+
+		await configurationService.setUserConfiguration('scm.structuralDiff.enabled', true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === 'scm.structuralDiff.enabled' }));
+		storageService.store('scm.showStructuralDiff', false, StorageScope.WORKSPACE, StorageTarget.USER);
+		scmViewService.setShowStructuralDiff(true);
+
+		assert.deepStrictEqual({ states, stored: storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE) }, { states: [false, true, false, true], stored: true });
 		scmViewService.dispose();
 	}));
 

@@ -29,7 +29,7 @@ import { KeybindingsRegistry } from '../../../../../../platform/keybinding/commo
 import { Menus } from '../../../browser/menus.js';
 import { SessionIsCreatedContext, SessionSupportsRenameContext } from '../../../common/contextkeys.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
-import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsListCommon.js';
+import { SessionItemContextMenuId } from '../../../browser/views/sessionsListCommon.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
@@ -82,44 +82,18 @@ suite('Agents chat part actions', () => {
 
 	const menuWhen = (menu: Parameters<typeof MenuRegistry.getMenuItems>[0], commandId: string) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === commandId)?.when?.serialize();
 
-	test('starts a new session in the worktree of a Worktree section, as its latest session, but not in its Other section; and in the folder of a session', async () => {
+	test('starts a new session in the folder of a session, also in the Chat view while no chat part presents the window\'s sessions', async () => {
 		store.add(registerAgentsViewNewSessionActions());
-		const older = createSession('older', '/work/repo', '/work/repo.worktrees/feature', 1);
-		const latest = { ...createSession('latest', '/work/repo', '/work/repo.worktrees/feature', 2), sessionType: 'claude' };
-		const section = (id: string) => upcastPartial<ISessionSection>({ id, label: id, sessions: [older, latest] });
+		const session = { ...createSession('session', '/work/repo', '/work/repo.worktrees/feature', 1), sessionType: 'claude' };
 
 		assert.deepStrictEqual({
-			worktree: await run('workbench.action.agentsView.newSessionInWorktree', section(`worktree:${URI.file('/work/repo.worktrees/feature').toString()}`)),
-			other: await run('workbench.action.agentsView.newSessionInWorktree', section('worktree:other')),
-			sameFolder: await run('workbench.action.agentsView.newSessionInSameFolder', older),
-			menus: {
-				sectionToolbar: menuWhen(SessionSectionToolbarMenuId, 'workbench.action.agentsView.newSessionInWorktree'),
-				sectionContext: menuWhen(Menus.SessionSectionContext, 'workbench.action.agentsView.newSessionInWorktree'),
-				session: menuWhen(SessionItemContextMenuId, 'workbench.action.agentsView.newSessionInSameFolder'),
-			},
+			chatPart: await run('workbench.action.agentsView.newSessionInSameFolder', session),
+			chatView: await run('workbench.action.agentsView.newSessionInSameFolder', session, undefined, false),
+			menu: menuWhen(SessionItemContextMenuId, 'workbench.action.agentsView.newSessionInSameFolder'),
 		}, {
-			worktree: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'claude', noWorkspace: false, newComposer: true }],
-			other: [],
-			sameFolder: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'copilotcli', noWorkspace: false, newComposer: true }],
-			menus: {
-				sectionToolbar: 'chatIsEnabled && sessionSection.type == \'worktree\'',
-				sectionContext: 'chatIsEnabled && sessionSection.type == \'worktree\'',
-				session: 'chatIsEnabled',
-			},
-		});
-	});
-
-	test('starts a new session in the folder of a session or a Worktree section in the Chat view, while no chat part presents the window\'s sessions', async () => {
-		store.add(registerAgentsViewNewSessionActions());
-		const session = createSession('session', '/work/repo', '/work/repo.worktrees/feature', 1);
-		const section = upcastPartial<ISessionSection>({ id: `worktree:${URI.file('/work/repo.worktrees/feature').toString()}`, label: 'feature', sessions: [session] });
-
-		assert.deepStrictEqual({
-			worktree: await run('workbench.action.agentsView.newSessionInWorktree', section, undefined, false),
-			sameFolder: await run('workbench.action.agentsView.newSessionInSameFolder', session, undefined, false),
-		}, {
-			worktree: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'copilotcli', noWorkspace: false, newComposer: true }],
-			sameFolder: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'copilotcli', noWorkspace: false, newComposer: true }],
+			chatPart: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'claude', noWorkspace: false, newComposer: true }],
+			chatView: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'claude', noWorkspace: false, newComposer: true }],
+			menu: 'chatIsEnabled',
 		});
 	});
 
@@ -140,13 +114,11 @@ suite('Agents chat part actions', () => {
 		const folderOf = async (commandId: string, arg: unknown) => (await run(commandId, arg, folderOptions)).map(({ folder }) => folder ?? 'the window\'s');
 
 		assert.deepStrictEqual({
-			worktreeSection: await folderOf('workbench.action.agentsView.newSessionInWorktree', upcastPartial<ISessionSection>({ id: `worktree:${worktree.toString()}`, label: 'feature', sessions: [aliased] })),
 			aliased: await folderOf('workbench.action.agentsView.newSessionInSameFolder', aliased),
 			inside: await folderOf('workbench.action.agentsView.newSessionInSameFolder', inside),
 			insideAliased: await folderOf('workbench.action.agentsView.newSessionInSameFolder', insideAliased),
 			outside: await folderOf('workbench.action.agentsView.newSessionInSameFolder', outside),
 		}, {
-			worktreeSection: ['/links/feature'],
 			aliased: ['/links/feature'],
 			inside: ['/work/repo'],
 			insideAliased: ['/links/feature'],

@@ -21,6 +21,8 @@ import { NullExtensionService } from '../../services/extensions/common/extension
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { Extensions as ViewExtensions, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../common/views.js';
+import '../../browser/media/floatingPanels.css';
+import '../../browser/parts/panel/media/panelpart.css';
 
 suite('Workbench layout sash endpoints', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -126,6 +128,41 @@ suite('Workbench layout sash endpoints', () => {
 				updateSashEndpoints(grid.element, !compact);
 				assert.deepStrictEqual(actual, endpoints(), `hidden=${hidden}`);
 			}
+		});
+
+		test(`refreshes sash endpoints immediately after the chat part fills the editor area and gives it back, compact=${compact}`, () => {
+			const { layout, root, grid, endpoints } = createLayout();
+			layout.compact = compact;
+			root.classList.toggle('modern-ui-compact', compact);
+			const steps: { hidden: boolean; meetAtGap: boolean; immediate: ReturnType<typeof endpoints>; refreshed: ReturnType<typeof endpoints> }[] = [];
+			for (const hidden of [true, false]) {
+				layout.setEditorHiddenByChat(hidden);
+				const immediate = endpoints();
+				updateSashEndpoints(grid.element, !compact);
+				steps.push({ hidden, meetAtGap: immediate.some(sash => sash.start || sash.end), immediate, refreshed: endpoints() });
+			}
+			assert.deepStrictEqual(steps.map(({ hidden, meetAtGap, immediate, refreshed }) => ({ hidden, meetAtGap, upToDate: JSON.stringify(immediate) === JSON.stringify(refreshed) })), [
+				{ hidden: true, meetAtGap: !compact, upToDate: true },
+				{ hidden: false, meetAtGap: !compact, upToDate: true },
+			]);
+		});
+
+		test(`sashes meet at the panel gap below the chat part filling the editor area, not beside a maximized panel, compact=${compact}`, () => {
+			const { root, grid, endpoints } = createLayout();
+			root.classList.toggle('modern-ui-compact', compact);
+			const meetAtGap = (classes: string[]) => {
+				root.classList.remove('nomaineditorarea', 'editor-hidden-by-chat');
+				root.classList.add(...classes);
+				updateSashEndpoints(grid.element, !compact);
+				return endpoints().some(sash => sash.start || sash.end);
+			};
+			assert.deepStrictEqual({
+				maximizedPanel: meetAtGap(['nomaineditorarea']),
+				chatFillsEditorArea: meetAtGap(['nomaineditorarea', 'editor-hidden-by-chat']),
+			}, {
+				maximizedPanel: false,
+				chatFillsEditorArea: !compact,
+			});
 		});
 
 		test(`refreshes sash endpoints immediately after panel position changes, compact=${compact}`, () => {
@@ -252,6 +289,7 @@ suite('Workbench layout chat part', () => {
 		if (configuration.anchor !== undefined) {
 			layout.setChatPartAnchor({ viewId: 'sessions' });
 		}
+		layout.mainContainer.classList.add(...layout.getLayoutClasses());
 		const descriptor = (Reflect.get(layout, 'createGridDescriptor') as () => ISerializedGrid).call(layout);
 		const save = (): ISavedLayout => {
 			(Reflect.get(layout, 'saveChatPartLayout') as () => void).call(layout);
@@ -525,6 +563,10 @@ suite('Workbench layout chat part', () => {
 			return { hiddenByChat: layout.isEditorHiddenByChat(), editor: layout.isVisible(Parts.EDITOR_PART, mainWindow), chat: layout.isVisible(Parts.CHAT_PART), panel: layout.isVisible(Parts.PANEL_PART) };
 		}
 
+		function classes(layout: Layout) {
+			return { editorAreaHidden: layout.mainContainer.classList.contains('nomaineditorarea'), hiddenByChat: layout.mainContainer.classList.contains('editor-hidden-by-chat') };
+		}
+
 		test('hides and shows the editor area, and the chat part takes its width', () => {
 			const { layout, grid, views } = createGridLayout(configuration);
 			const chat = views.get(Parts.CHAT_PART)!;
@@ -542,6 +584,36 @@ suite('Workbench layout chat part', () => {
 				chatTookTheWidth: true,
 			});
 		});
+
+		for (const position of [Position.BOTTOM, Position.TOP]) {
+			test(`the ${position === Position.BOTTOM ? 'bottom' : 'top'} panel keeps its gap and separator to the chat part filling the editor area, but not when maximized`, () => {
+				const { layout } = createGridLayout({ ...configuration, panel: position });
+				const root = append(mainWindow.document.body, layout.mainContainer);
+				store.add(toDisposable(() => root.remove()));
+				root.classList.add('monaco-workbench', `panel-position-${position === Position.BOTTOM ? 'bottom' : 'top'}`);
+				root.style.cssText = '--vscode-panels-spacing: 16px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+				const panel = append(root, $(`.part.panel.${position === Position.BOTTOM ? 'bottom' : 'top'}`));
+				const title = append(panel, $('.composite.title'));
+				const look = () => {
+					root.classList.add('floating-panels');
+					const gap = position === Position.BOTTOM ? mainWindow.getComputedStyle(panel).marginTop : undefined;
+					root.classList.remove('floating-panels');
+					const separator = position === Position.BOTTOM ? mainWindow.getComputedStyle(title).borderTopWidth : mainWindow.getComputedStyle(panel).borderBottomWidth;
+					return { gap, separator };
+				};
+				const editorVisible = look();
+				layout.setEditorHiddenByChat(true);
+				const chatFillsEditorArea = look();
+				layout.toggleMaximizedPanel();
+				const maximized = look();
+				const gap = position === Position.BOTTOM ? '16px' : undefined;
+				assert.deepStrictEqual({ editorVisible, chatFillsEditorArea, maximized }, {
+					editorVisible: { gap, separator: '1px' },
+					chatFillsEditorArea: { gap, separator: '1px' },
+					maximized: { gap: position === Position.BOTTOM ? '0px' : undefined, separator: '0px' },
+				});
+			});
+		}
 
 		test('does not hide the editor area without a visible chat part', () => {
 			const hidden = createGridLayout({ ...configuration, chat: { visible: false, size: 400 } });
@@ -588,9 +660,11 @@ suite('Workbench layout chat part', () => {
 			const saved = before.save();
 			const reloaded = createGridLayout(configuration, saved);
 			const withoutChat = createGridLayout(configuration, { ...saved, stored: JSON.stringify({ version: 1, visible: false, size: 400 }) });
-			assert.deepStrictEqual({ reloaded: state(reloaded.layout), withoutChat: state(withoutChat.layout) }, {
+			assert.deepStrictEqual({ reloaded: state(reloaded.layout), withoutChat: state(withoutChat.layout), reloadedClasses: classes(reloaded.layout), withoutChatClasses: classes(withoutChat.layout) }, {
 				reloaded: { hiddenByChat: true, editor: false, chat: true, panel: false },
 				withoutChat: { hiddenByChat: false, editor: true, chat: false, panel: false },
+				reloadedClasses: { editorAreaHidden: true, hiddenByChat: true },
+				withoutChatClasses: { editorAreaHidden: false, hiddenByChat: false },
 			});
 		});
 
@@ -623,10 +697,13 @@ suite('Workbench layout chat part', () => {
 			before.layout.toggleMaximizedAuxiliaryBar();
 			const { layout } = createGridLayout({ ...configuration, chat: undefined }, before.save());
 			const reloaded = state(layout);
+			const reloadedClasses = classes(layout);
 			layout.toggleMaximizedAuxiliaryBar();
-			assert.deepStrictEqual({ reloaded, restored: state(layout) }, {
+			assert.deepStrictEqual({ reloaded, restored: state(layout), reloadedClasses, restoredClasses: classes(layout) }, {
 				reloaded: { hiddenByChat: false, editor: false, chat: false, panel: false },
 				restored: { hiddenByChat: false, editor: true, chat: false, panel: true },
+				reloadedClasses: { editorAreaHidden: true, hiddenByChat: false },
+				restoredClasses: { editorAreaHidden: false, hiddenByChat: false },
 			});
 		});
 

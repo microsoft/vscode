@@ -6,7 +6,7 @@
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { constObservable, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -26,6 +26,7 @@ import { ICustomViewService } from '../../../../../workbench/contrib/sessions/br
 import { ISessionAttentionService } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsListUndoService, SessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
@@ -334,6 +335,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const livePinnedSessionIds = new Set<string>();
 	const liveUnpinnedSessionIds = new Set<string>();
 	const shownAutomationSessionIds = new Set(options.shownAutomationSessionIds);
+	const provisionallyHiddenSessionIds = new Map<string, number>();
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
 	const cancelledComparisonIds: string[] = [];
@@ -353,6 +355,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation(new class extends mock<IPinnedCanvasService>() { }()));
 	instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane: constObservable(false) });
+	// No Sessions view presents its notice, so changes complete right away, as in a window without one.
+	instantiationService.stub(ISessionsListUndoService, store.add(instantiationService.createInstance(SessionsListUndoService)));
 	instantiationService.stub(ICommandService, commandService);
 	stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 		readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
@@ -390,13 +394,29 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		}
 		override migrateLegacyReadState(): void { }
 		override isSessionListed(session: ISession, reader?: IReader): boolean {
-			return !session.isAutomation?.read(reader) || shownAutomationSessionIds.has(session.sessionId);
+			return !provisionallyHiddenSessionIds.has(session.sessionId) && (!session.isAutomation?.read(reader) || shownAutomationSessionIds.has(session.sessionId));
+		}
+		override hideSessionsProvisionally(sessions: readonly ISession[]): IDisposable {
+			const update = (delta: number) => {
+				for (const { sessionId } of sessions) {
+					const holds = (provisionallyHiddenSessionIds.get(sessionId) ?? 0) + delta;
+					if (holds > 0) {
+						provisionallyHiddenSessionIds.set(sessionId, holds);
+					} else {
+						provisionallyHiddenSessionIds.delete(sessionId);
+					}
+				}
+				onDidChangeListModel.fire({ changes: sessions.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.ProvisionallyHidden })) });
+			};
+			update(1);
+			return toDisposable(() => update(-1));
 		}
 		override showAutomationSessions(sessions: readonly ISession[]): void {
 			this.setAutomationSessionsShown(sessions, true);
 		}
-		override hideAutomationSessions(sessions: readonly ISession[]): void {
+		override hideAutomationSessions(sessions: readonly ISession[]): () => void {
 			this.setAutomationSessionsShown(sessions, false);
+			return () => this.setAutomationSessionsShown(sessions, true);
 		}
 		private setAutomationSessionsShown(sessions: readonly ISession[], shown: boolean): void {
 			for (const session of sessions) {

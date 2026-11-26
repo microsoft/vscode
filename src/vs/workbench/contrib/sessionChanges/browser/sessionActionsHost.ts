@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -34,18 +34,30 @@ export function createSessionActionsInstantiationService(instantiationService: I
  * `contextKeyService`, in place of those of the active session it would otherwise inherit.
  */
 export function bindSessionScopeContextKeys(instantiationService: IInstantiationService, scope: IChangesSessionScope, contextKeyService: IContextKeyService): IDisposable {
-	const store = new DisposableStore();
-	// The keys of the pane that shows the session, such as its pin, are those of the grid's views, not of these actions.
-	store.add(autorun(reader => setHostSessionContextKeys(scope.session.read(reader), scope.chat.read(reader), undefined, contextKeyService, reader)));
-	// Every key the host's menus read must be bound for the scoped session, or it is inherited from the active one.
-	store.add(bindHasWorktreeAndRepositoryContextKey(contextKeyService, scope.session));
-	store.add(instantiationService.invokeFunction(accessor => bindIsAgentHostSessionContextKey(contextKeyService, scope.session, accessor.get(ISessionsProvidersService))));
-	store.add(bindChangesetContextKeys(scope.changes, contextKeyService));
-	store.add(instantiationService.invokeFunction(accessor => bindSessionActionContextKeys(instantiationService, {
-		session: scope.session,
-		chat: scope.chat,
-		changes: scope.changes,
-		pullRequest: accessor.get(IGitHubService).getSessionPullRequest(scope.session),
-	}, contextKeyService)));
-	return store;
+	return instantiationService.createInstance(SessionScopeContextKeys, scope, { contextKeyService });
+}
+
+/** The context keys of {@link bindSessionScopeContextKeys}, bound until disposed. */
+export class SessionScopeContextKeys extends Disposable {
+	constructor(
+		scope: IChangesSessionScope,
+		{ contextKeyService }: { readonly contextKeyService: IContextKeyService },
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IGitHubService gitHubService: IGitHubService,
+	) {
+		super();
+		// The keys of the pane that shows the session, such as its pin, are those of the grid's views, not of these actions.
+		this._register(autorun(reader => setHostSessionContextKeys(scope.session.read(reader), scope.chat.read(reader), undefined, contextKeyService, reader)));
+		// Every key the host's menus read must be bound for the scoped session, or it is inherited from the active one.
+		this._register(bindHasWorktreeAndRepositoryContextKey(contextKeyService, scope.session));
+		this._register(bindIsAgentHostSessionContextKey(contextKeyService, scope.session, sessionsProvidersService));
+		this._register(bindChangesetContextKeys(scope.changes, contextKeyService));
+		this._register(bindSessionActionContextKeys(instantiationService, {
+			session: scope.session,
+			chat: scope.chat,
+			changes: scope.changes,
+			pullRequest: gitHubService.getSessionPullRequest(scope.session),
+		}, contextKeyService));
+	}
 }

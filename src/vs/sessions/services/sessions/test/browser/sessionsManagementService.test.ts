@@ -11232,6 +11232,33 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('a session that is going away, such as while deleting it can be undone, is neither remembered as it closes nor reopened once forgotten, and what was closed before stays reopenable', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view, canReopen } = setup([sessionA, sessionB]);
+
+			// Pin B so opening A adds a second slot instead of replacing it.
+			await view.openSession(sessionB.resource);
+			view.toggleSessionStickiness(sessionB);
+			await view.openSession(sessionA.resource);
+			const chatB = sessionA.chats.get().find(c => c.title.get() === 'b')!;
+			await view.closeChat(activeSessionOf(view)!, chatB);
+			view.closeSession(sessionB, { skipHistory: true });
+			await view.reopenLastClosedItem();
+			const afterSkippedClose = { grid: grid(view), open: view.activePane.get()!.tabs.openChats.get().map(c => c.title.get()) };
+
+			view.closeSession(sessionA);
+			view.forgetClosedSession(sessionB);
+			const afterForgettingAnother = canReopen();
+			view.forgetClosedSession(sessionA);
+
+			assert.deepStrictEqual({ afterSkippedClose, afterForgettingAnother, afterForgetting: canReopen() }, {
+				afterSkippedClose: { grid: { visible: ['A'], sticky: [false], active: 'A' }, open: ['mainA', 'b'] },
+				afterForgettingAnother: true,
+				afterForgetting: false,
+			});
+		});
+
 		test('a session pushed out of the grid takes its slot back', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA')]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);

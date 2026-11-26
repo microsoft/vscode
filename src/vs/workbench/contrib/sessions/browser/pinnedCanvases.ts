@@ -117,5 +117,14 @@ export interface IPinnedCanvasService {
 	goToChat(target: PinnedCanvasTarget): Promise<void>;
 
 	/** Closes the live canvas of a pin, which also removes the pin. */
-	closeCanvas(target: PinnedCanvasTarget): Promise<void>;
+	closeCanvas(target: PinnedCanvasTarget, options?: IClosePinnedCanvasOptions): Promise<void>;
+}
+
+export interface IClosePinnedCanvasOptions {
+	/**
+	 * Once the canvas is closed, also marks its chat as done. A session's main chat is
+	 * not marked done on its own, so the whole session is marked done instead. Nothing is
+	 * marked done while it has a request in progress, because that would stop the request.
+	 */
+	readonly markChatDone?: boolean;
 }

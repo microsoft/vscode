@@ -301,6 +301,12 @@ export interface IWorkspaceFoldersChangeEvent {
 	added: IWorkspaceFolder[];
 	removed: IWorkspaceFolder[];
 	changed: IWorkspaceFolder[];
+
+	/**
+	 * Whether the change moves the single folder to another location: the removed
+	 * folder is its previous location and the added folder its new location.
+	 */
+	readonly isFolderLocationChange?: boolean;
 }
 
 export interface IWorkspace {

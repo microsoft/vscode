@@ -65,12 +65,16 @@ export interface IDevContainerAgentHostUserStateReport {
 	readonly connectionId: string;
 	readonly stage: 'mount' | 'up' | 'link' | 'userCommands';
 	/**
-	 * `mount`: added, existingContainer, failed. `link`: linked, noMount, homeNotFound, missingCapabilities, readOnlyRootfs,
+	 * `mount`: added, existingContainer, skipped, failed. `link`: linked, noMount, homeNotFound, missingCapabilities, readOnlyRootfs,
 	 * homeInaccessible, stateNotRootOwned, untrustedState, failed. `up`, `userCommands`: succeeded, failed.
 	 */
 	readonly outcome: string;
-	/** Fixed identifier of what failed. */
+	/** Fixed identifier of what failed or why the stage was skipped. */
 	readonly reason?: string;
+	/** Cause of a failed `up` or `userCommands` that its failed command doesn't identify, see `getDevContainerUpErrorCause`. */
+	readonly errorCause?: string;
+	/** `up`: Whether it ran the lifecycle commands; otherwise, e.g., when user state persists, they run in `userCommands`. */
+	readonly lifecycleInUp?: boolean;
 	/** The link command's failed step, or the step that skipped linking. */
 	readonly step?: string;
 	readonly exitCode?: number;
@@ -103,6 +107,15 @@ export interface IDevContainerAgentHostUserStateReport {
 	readonly errorMessage?: string;
 }
 
+/** What a connection attempt was doing when it failed; `timeout` when waiting for the Agent Host timed out. */
+export type DevContainerConnectStage = 'readConfig' | 'prepare' | 'mount' | 'up' | 'link' | 'userCommands' | 'agentHostStart' | 'connect' | 'timeout';
+
+/** A connection attempt failed, for telemetry. Not reported for cancelled attempts. */
+export interface IDevContainerAgentHostConnectFailure {
+	readonly connectionId: string;
+	readonly stage: DevContainerConnectStage;
+}
+
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
 
 /** Host-side service that owns Dev Container CLI processes and protocol relays. */
@@ -115,6 +128,8 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly onDidChangeSandboxSupport?: Event<IDevContainerAgentHostSandboxSupport>;
 	/** Reports how keeping user state on a volume went, including for failed startup. */
 	readonly onDidReportUserState?: Event<IDevContainerAgentHostUserStateReport>;
+	/** Reports the stage a connection attempt failed in, before `connect` rejects. */
+	readonly onDidFailConnect?: Event<IDevContainerAgentHostConnectFailure>;
 
 	/** Whether Docker can be resolved from the user's shell environment. */
 	isDockerAvailable(): Promise<boolean>;

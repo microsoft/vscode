@@ -36,6 +36,9 @@ import { ARCHIVE_SESSION_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_I
 import { IsPhoneLayoutContext, SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -267,8 +270,13 @@ suite('Sessions - Session management actions', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({
 			showAutomationSessions: sessions => { calls.push({ method: 'show', sessionIds: sessions.map(session => session.sessionId) }); },
-			hideAutomationSessions: sessions => { calls.push({ method: 'hide', sessionIds: sessions.map(session => session.sessionId) }); },
+			hideAutomationSessions: sessions => {
+				calls.push({ method: 'hide', sessionIds: sessions.map(session => session.sessionId) });
+				return () => { };
+			},
 		}));
+		// Without a sessions list to offer Undo, hiding only announces where the sessions are still shown.
+		instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: () => false }));
 		const visibleFor = (menuId: MenuId, values: Record<string, ContextKeyValue>) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID || item.command.id === HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID)
@@ -524,6 +532,9 @@ suite('Sessions - Session management actions', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsManagementService, managementService);
+		instantiationService.stub(ISessionGroupsService, upcastPartial<ISessionGroupsService>({ getGroupOfSession: () => undefined, getGroup: () => undefined }));
+		instantiationService.stub(ISessionComparisonService, upcastPartial<ISessionComparisonService>({ comparisons: constObservable([]) }));
+		instantiationService.stub(ISessionsListUndoService, upcastPartial<ISessionsListUndoService>({ offerUndo: () => true }));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
 			[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: options.confettiEnabled ?? true,
 		}));

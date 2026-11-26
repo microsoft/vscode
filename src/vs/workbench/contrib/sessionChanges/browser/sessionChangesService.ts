@@ -22,6 +22,7 @@ import { IChangesViewService } from '../../sessions/common/changesViewService.js
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../services/sessions/common/sessionChangesService.js';
 import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
@@ -44,6 +45,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 
 	private readonly _onDidChangeDecorations = this._register(new Emitter<readonly URI[]>());
 
+	private readonly _countedChangesEditorResourceObs: IObservable<URI | undefined>;
 	private _decoratedResource: URI | undefined;
 	private _decoratedChangeCount: number | undefined;
 
@@ -55,6 +57,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 		@IFocusedSessionHostService private readonly focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -66,6 +69,17 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 			}
 
 			return changesViewService.activeSessionChangesObs.read(reader).length;
+		});
+
+		// The Changes editor the count is of: of the active session, and where its editors name their chat, as in an editor
+		// window, of the chat the window shows of it.
+		this._countedChangesEditorResourceObs = derived(this, reader => {
+			const activeSessionResource = changesViewService.activeSessionResourceObs.read(reader);
+			if (!activeSessionResource) {
+				return undefined;
+			}
+			const chatResource = layoutService.editorsBindSessionContext ? getMainWindowHost(sessionHostService).chat.read(reader)?.resource : undefined;
+			return this.getChangesEditorResource(activeSessionResource, chatResource);
 		});
 
 		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
@@ -80,9 +94,8 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		this._register(decorationsService.registerDecorationsProvider(provider));
 
 		this._register(autorun(reader => {
-			const activeSessionResource = changesViewService.activeSessionResourceObs.read(reader);
 			const changeCount = this.activeSessionUncommittedChangesCountObs.read(reader);
-			const resource = activeSessionResource ? this.getChangesEditorResource(activeSessionResource) : undefined;
+			const resource = this._countedChangesEditorResourceObs.read(reader);
 			if (isEqual(this._decoratedResource, resource) && this._decoratedChangeCount === changeCount) {
 				return;
 			}
@@ -101,6 +114,13 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 				this._onDidChangeDecorations.fire(affectedResources);
 			}
 		}));
+	}
+
+	getChangesEditorFileCount(editorResource: URI): IObservable<number | undefined> {
+		if (!this.layoutService.editorsBindSessionContext) {
+			return this.activeSessionUncommittedChangesCountObs;
+		}
+		return derived(reader => isEqual(editorResource, this._countedChangesEditorResourceObs.read(reader)) ? this.activeSessionUncommittedChangesCountObs.read(reader) : undefined);
 	}
 
 	getChangesEditorResource(sessionResource: URI, chatResource?: URI): URI {
@@ -169,7 +189,12 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 			const { changesetSelection: _, chatResource: __, ...optionsWithoutSelection } = options;
 			editorOptions = optionsWithoutSelection;
 		}
-		const multiDiffSource = this.getChangesEditorResource(sessionResource, options?.chatResource);
+		// Where its editors follow their own session, as in an editor window, the editor names the chat whose changes it opens
+		// with, so that its diffs and actions keep to that chat whichever session or chat the window shows later.
+		const chatResource = options?.chatResource ?? (this.layoutService.editorsBindSessionContext
+			? getHostOfSession(this.sessionHostService, this.sessionsService, sessionResource, getMainWindowHost(this.sessionHostService))?.chat.get()?.resource
+			: undefined);
+		const multiDiffSource = this.getChangesEditorResource(sessionResource, chatResource);
 
 		if (this.layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
 			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);
@@ -188,6 +213,21 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		}, group);
 		await this.expandRevealTarget(pane?.input, editorOptions);
 		return pane?.group;
+	}
+
+	async openChatChangesEditor(chatResource: URI, changesetId: string): Promise<boolean> {
+		if (!this.layoutService.editorsBindSessionContext) {
+			return false;
+		}
+		const owner = this.sessionsManagementService.getSessionForChatResource(chatResource);
+		if (!owner) {
+			return false;
+		}
+		// The chat is known, so select on it directly: it may show where no host presents it, such as a chat editor
+		// beside the one the window shows.
+		this.changesViewService.setChangesetId(changesetId, owner.session, owner.chat);
+		await this.openChangesEditor(owner.session.resource, { chatResource: owner.chat.resource });
+		return true;
 	}
 
 	private _provideDecoration(resource: URI): IDecorationData | undefined {
