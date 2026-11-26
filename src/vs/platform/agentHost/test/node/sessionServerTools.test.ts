@@ -2161,6 +2161,26 @@ suite('SessionServerTools', () => {
 			t.store.dispose();
 		});
 
+		test('a waiting call asks again when the chat that asked starts another turn', async () => {
+			const t = setup();
+			await t.sendMany(100);
+			const asked = t.nextQuestion();
+			const peer = t.send(peerChat);
+			await asked;
+			const askedAgain = t.nextQuestion();
+			const main = t.send(mainChat);
+			t.stateManager.dispatchServerAction(peerChat, chatTurnStarted('turn-2', 'next'));
+			await askedAgain;
+			t.answer('allowMore');
+
+			assert.deepStrictEqual({ peer: await peer, main: await main, askedIn: t.questions.map(question => question.chat) }, {
+				peer: 'declined',
+				main: 'allowed',
+				askedIn: [peerChat, mainChat],
+			});
+			t.store.dispose();
+		});
+
 		test('a waiting call asks again when the chat that asked is deleted', async () => {
 			const t = setup();
 			await t.sendMany(100);

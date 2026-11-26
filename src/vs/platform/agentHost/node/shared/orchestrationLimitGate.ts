@@ -120,6 +120,7 @@ function onDidEndCallerTurn(stateManager: AgentHostStateManager, context: IServe
 			return;
 		}
 		if (action.type === ActionType.ChatTruncated
+			|| (action.type === ActionType.ChatTurnStarted && action.turnId !== turnId)
 			|| ((action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError) && action.turnId === turnId)) {
 			listener();
 		}
