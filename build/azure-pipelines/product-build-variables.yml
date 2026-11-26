@@ -5,12 +5,6 @@ parameters:
   - name: VSCODE_BUILD_TYPE
     type: string
     default: Product
-  - name: NPM_REGISTRY
-    type: string
-    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
-  - name: CARGO_REGISTRY
-    type: string
-    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
   - name: VSCODE_BUILD_WIN32
     type: boolean
     default: true
@@ -58,9 +52,11 @@ variables:
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
-    value: ${{ parameters.NPM_REGISTRY }}
+    value: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+    readonly: true
   - name: CARGO_REGISTRY
-    value: ${{ parameters.CARGO_REGISTRY }}
+    value: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+    readonly: true
   - name: VSCODE_QUALITY
     value: ${{ parameters.VSCODE_QUALITY }}
   - name: VSCODE_BUILD_STAGE_LINUX

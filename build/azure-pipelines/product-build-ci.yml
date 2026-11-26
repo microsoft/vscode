@@ -39,8 +39,10 @@ variables:
     value: insider
   - name: NPM_REGISTRY
     value: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+    readonly: true
   - name: CARGO_REGISTRY
     value: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+    readonly: true
   - name: VSCODE_CIBUILD
     value: true
   - name: VSCODE_PUBLISH
