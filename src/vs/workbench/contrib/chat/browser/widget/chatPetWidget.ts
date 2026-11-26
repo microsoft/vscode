@@ -3492,9 +3492,12 @@ export class ChatPetWidget extends Disposable {
 
 	/** Relocates pets outside the bounds, also checking overlaps and support after scaling. */
 	private _reconcileSubagentPetResize(checkPlacement = false): void {
-		const subagentPets = [...this._subagentPets.values()].filter(subagentPet => !subagentPet.isRespawning()).sort((a, b) => b.top - a.top);
+		const subagentPets = [...this._subagentPets.values()].filter(subagentPet => !subagentPet.isRespawning());
 		if (!subagentPets.length) {
 			return;
+		}
+		if (checkPlacement) {
+			subagentPets.sort((a, b) => b.top - a.top);
 		}
 		const { overlay, movement, platforms, floor, left, right, bottom } = this._getSubagentPetBounds();
 		const size = getSubagentPetSize(this._scale);
