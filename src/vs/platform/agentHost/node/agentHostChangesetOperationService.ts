@@ -130,16 +130,16 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const scope = resolveChangesetOwnerScope(this._stateManager, ownerKey);
 		const sourceKey = scope.sourceUri;
 
-		// A folder of the session on its own has its own Git state, whatever state the caller read for the source.
+		// A folder of the session on its own has its own Git state, whatever state the caller read for the source; until
+		// it is read the folder has none, never the source's (the first folder's).
 		if (scope.isSessionFolder) {
 			gitState = readSessionFolderScopeGitState(this._stateManager, scope);
-		}
-		if (!gitState) {
+		} else if (!gitState) {
 			gitState = this._gitStateService.getSessionGitState?.(sourceKey)
 				?? (isAhpChatChannel(sourceKey) && !this._chatOwnership.isRegisteredDefaultChat(sourceKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
-			if (!gitState && requiresGitState(parsed.kind)) {
-				return [];
-			}
+		}
+		if (!gitState && requiresGitState(parsed.kind)) {
+			return [];
 		}
 
 		// Each folder has its own GitHub state; callers may pass the session folder's.

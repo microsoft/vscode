@@ -1051,6 +1051,21 @@ suite('AgentHostChangesetOperationService', () => {
 		});
 	});
 
+	test('a folder of the session on its own whose Git state is not read yet gets no operations that need Git state, not the first folder\'s', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/project';
+		const api = 'file:///api';
+		stateManager.createSession({ resource: sessionKey, provider: 'agent', title: 'Project', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(sessionKey), workingDirectories: ['file:///app', api] });
+		stateManager.setSessionMeta(sessionKey, withSessionGitState(undefined, sampleGitState));
+		const service = createService(stateManager);
+		const contribution = new RecordingOperationsContribution(sampleOperations);
+		disposables.add(service.registerContribution(contribution));
+
+		const operations = service.getOperations(sessionKey, buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId([api]))), sampleGitState);
+
+		assert.deepStrictEqual({ operations, contexts: contribution.contexts.length }, { operations: [], contexts: 0 });
+	});
+
 	test('keeps merge with the default chat\'s own folders, not a single folder of a session of several folders', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';

@@ -1140,8 +1140,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * left out; only when every repository fails is nothing published.
 	 */
 	private async _computeMultiFolderUncommittedDiffs(session: ProtocolURI, directories: readonly URI[]): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly failures: readonly IChangesetFolderFailure[] } | undefined> {
-		const resolved = await resolveSessionRepositories(directories, this._gitService);
-		const gitRepositories = withDiscoveredRepositories(resolved.gitRepositories, this._getDiscoveredRepositoryRoots(session, directories.map(directory => directory.toString())), MAX_UNCOMMITTED_FOLDERS);
+		const { repositories: gitRepositories, unresolved } = await this._resolveBranchRepositories(session, directories.map(directory => directory.toString()));
 		if (!gitRepositories.length) {
 			return undefined;
 		}
@@ -1161,7 +1160,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		return {
 			diffs: dedupeSessionFileDiffs(perRepo.map(result => result.diffs).filter(isDefined)),
-			failures: toFolderFailures(directories, failedRepositories),
+			failures: toFolderFailures(directories, [...unresolved, ...failedRepositories]),
 		};
 	}
 
@@ -1183,11 +1182,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	/**
 	 * For a turn changeset, matches the turn changesets of the same owner that are older than it, by the owner's turn
-	 * order, and those of turns the owner no longer has. `'removed'` for a turn the owner no longer has itself, such as
-	 * one an edit and resend dropped, which records nothing. A turn outside the loaded window of an owner whose older
-	 * turns are paged out is older than every listed one. Without the owner's state, the turn is its latest.
+	 * order, and those of turns the owner no longer has. `'notLatest'` for a turn that is not the owner's latest, such as
+	 * an older or paged-out turn computed later, or one an edit and resend dropped: it records nothing. A turn outside the
+	 * loaded window of an owner whose older turns are paged out is older than every listed one. Without the owner's
+	 * state, the turn is its latest.
 	 */
-	private _olderTurnChangesets(changeset: ProtocolURI): ((key: string) => boolean) | 'removed' | undefined {
+	private _olderTurnChangesets(changeset: ProtocolURI): ((key: string) => boolean) | 'notLatest' | undefined {
 		const turn = parseTurnChangesetUri(changeset);
 		if (!turn) {
 			return undefined;
@@ -1203,8 +1203,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return index < 0 ? undefined : index;
 		};
 		const written = position(turn.turnId) ?? (!state ? Number.POSITIVE_INFINITY : turnsNextCursor !== undefined ? Number.NEGATIVE_INFINITY : undefined);
-		if (written === undefined) {
-			return 'removed';
+		// Only the owner's latest turn records its failures, whatever order the turns are computed in
+		if (written === undefined || written < order.length - 1) {
+			return 'notLatest';
 		}
 		return key => {
 			const other = key === changeset ? undefined : parseTurnChangesetUri(key);
@@ -1225,7 +1226,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		const replaces = this._olderTurnChangesets(changeset);
-		if (replaces === 'removed') {
+		if (replaces === 'notLatest') {
 			return;
 		}
 		const recorded = readChangesetFolderFailures(meta);
@@ -1279,7 +1280,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
-		if (isMultiRootSession(workingDirectories)) {
+		// Each repository on its own, also of one folder with repositories found inside it
+		if (this._hasMultipleRepositories(session, workingDirectories)) {
 			return this._computeMultiFolderTurnDiffs(session, turnId, workingDirectories!, source);
 		}
 		const diffs = await this._computeSingleFolderTurnDiffs(session, turnId, source);
@@ -1408,6 +1410,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (source.strategy === 'git' && nonGitDirectories.length > 0) {
 			throw new Error(localize('turnGitDiffNonGitFolders', "Cannot compute all turn changes using Git because the session includes non-Git folders."));
 		}
+		// The repositories found inside the folders too, as for the folders' uncommitted and branch changes; every folder's
+		// own repository is still diffed, as before
+		gitRepositories = withDiscoveredRepositories(gitRepositories, this._getDiscoveredRepositoryRoots(session, workingDirectories), Math.max(gitRepositories.length, MAX_UNCOMMITTED_FOLDERS));
 
 		// Diff every resolved repository, but bound how many per-repo git diffs
 		// run at once so a many-repository session cannot spawn an unbounded
@@ -1423,9 +1428,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// a DB-tracked edit for the same file, and files are compared with the
 		// agent host's path-case bias (see `dedupeSessionFileDiffs`).
 		const diffs = dedupeSessionFileDiffs([...perRepoDiffs.map(r => r.diffs), nonGitDiffs]);
+		const failedRepositories = perRepoDiffs.map(r => r.failure).filter(isDefined);
+		// Every folder failing is a failed changeset, not an empty one
+		if (failedRepositories.length && failedRepositories.length === gitRepositories.length && !nonGitDirectories.length) {
+			throw failedRepositories[0].error instanceof Error ? failedRepositories[0].error : new Error(localize('turnChangesAllFoldersFailed', "The changes of the turn could not be computed in any folder."));
+		}
 		return {
 			diffs,
-			failures: toFolderFailures(workingDirectoryUris, perRepoDiffs.map(r => r.failure).filter(isDefined)),
+			failures: toFolderFailures(workingDirectoryUris, failedRepositories),
 			outcome: 'computed',
 			multiRoot: {
 				uniqueGitFolderCount: gitRepositories.length,
@@ -1675,11 +1685,33 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return folder === undefined ? undefined : readFolderScopeGitState(meta, getWorkingDirectoryScopeId([folder]))?.baseBranchName;
 	}
 
+	/**
+	 * The repositories of a Branch changeset of several folders, or of one folder with repositories found inside it: the
+	 * folders' repositories and the found ones, at most {@link MAX_UNCOMMITTED_FOLDERS}. Both the changeset and its
+	 * fingerprint use this, so a change to any repository or to its base branch changes the fingerprint.
+	 */
+	private async _resolveBranchRepositories(owner: ProtocolURI, workingDirectories: readonly string[]): Promise<{ readonly repositories: URI[]; readonly discovered: URI[]; readonly unresolved: IFailedRepository[] }> {
+		const discovered = this._getDiscoveredRepositoryRoots(owner, workingDirectories);
+		// A folder whose repository cannot be looked up is reported as failed; the others are still listed
+		const unresolved: IFailedRepository[] = [];
+		const resolved = await resolveSessionRepositories(workingDirectories.slice(0, MAX_UNCOMMITTED_FOLDERS).map(directory => URI.parse(directory)), this._gitService, (directory, error) => {
+			this._logService.warn(`[AgentHostChangesetService] Failed to resolve the repository of ${directory.toString()} for ${owner}`, error);
+			unresolved.push({ root: directory, error });
+		});
+		return { repositories: withDiscoveredRepositories(resolved.gitRepositories, discovered, MAX_UNCOMMITTED_FOLDERS), discovered, unresolved };
+	}
+
+	/** Whether the changesets of `owner` list each repository: an owner of several folders, or of one with repositories found inside it. */
+	private _hasMultipleRepositories(owner: ProtocolURI, workingDirectories: readonly string[] | undefined): boolean {
+		return isMultiRootSession(workingDirectories) || this._getDiscoveredRepositoryRoots(owner, workingDirectories).length > 0;
+	}
+
 	private async _computeMultiFolderBranchDiffs(session: ProtocolURI, workingDirectories: readonly string[], repositoryFingerprints?: ReadonlyMap<string, string>): Promise<BranchDiffResult> {
 		let gitRepositories: URI[];
-		const discovered = this._getDiscoveredRepositoryRoots(session, workingDirectories);
+		let discovered: URI[];
+		let unresolved: IFailedRepository[];
 		try {
-			gitRepositories = withDiscoveredRepositories((await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService)).gitRepositories, discovered, MAX_UNCOMMITTED_FOLDERS);
+			({ repositories: gitRepositories, discovered, unresolved } = await this._resolveBranchRepositories(session, workingDirectories));
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to resolve repositories for branch changeset ${session}`, err);
 			return { kind: 'failed' };
@@ -1703,14 +1735,16 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			try {
 				const repositoryBaseBranch = this._getRepositoryBaseBranch(session, workingDirectories, discovered, repoRoot) ?? baseBranch;
 				const fingerprint = repositoryFingerprints?.get(repoRoot.toString()) ?? await this._gitService.getBranchDiffFingerprint?.(repoRoot, repositoryBaseBranch);
+				// A cached diff is reused only for the same repository state and the same base branch
+				const cacheKey = fingerprint === undefined ? undefined : JSON.stringify([repositoryBaseBranch ?? null, fingerprint]);
 				const previous = previousDiffs?.get(repoRoot.toString());
-				if (fingerprint !== undefined && previous?.fingerprint === fingerprint) {
+				if (cacheKey !== undefined && previous?.fingerprint === cacheKey) {
 					computedDiffs.set(repoRoot.toString(), previous);
 					return { diffs: previous.diffs };
 				}
 				const diffs = await this._gitService.computeSessionFileDiffs(repoRoot, { sessionUri: session, baseBranch: repositoryBaseBranch, fingerprint });
-				if (diffs && fingerprint !== undefined) {
-					computedDiffs.set(repoRoot.toString(), { fingerprint, diffs });
+				if (diffs && cacheKey !== undefined) {
+					computedDiffs.set(repoRoot.toString(), { fingerprint: cacheKey, diffs });
 				}
 				return diffs ? { diffs } : { failure: { root: repoRoot, error: undefined } };
 			} catch (err) {
@@ -1730,7 +1764,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return {
 			kind: 'ready',
 			diffs: dedupeSessionFileDiffs(perRepoDiffs.map(result => result.diffs).filter(isDefined)),
-			failures: toFolderFailures(workingDirectories.map(directory => URI.parse(directory)), failedRepositories),
+			failures: toFolderFailures(workingDirectories.map(directory => URI.parse(directory)), [...unresolved, ...failedRepositories]),
 		};
 	}
 
@@ -2349,18 +2383,29 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		try {
 			const baseBranch = await this._resolveBranchBaseBranch(owner);
 			onWillReadGit?.();
-			const directories = isMultiRootSession(workingDirectories)
-				? (await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService)).gitRepositories
-				: [URI.parse(workingDirectories[0])];
+			let directories: URI[];
+			let discovered: URI[] = [];
+			if (this._hasMultipleRepositories(owner, workingDirectories)) {
+				let unresolved: IFailedRepository[];
+				({ repositories: directories, discovered, unresolved } = await this._resolveBranchRepositories(owner, workingDirectories));
+				if (unresolved.length) {
+					return undefined;
+				}
+			} else {
+				directories = [URI.parse(workingDirectories[0])];
+			}
 			if (!directories.length) {
 				return undefined;
 			}
-			const fingerprints = await Promise.all(directories.map(directory => this._gitService.getBranchDiffFingerprint?.(directory, baseBranch)));
+			// Each repository with the base branch its diff uses, so a change of a folder's own base changes the fingerprint
+			const baseBranches = directories.map(directory => (discovered.length || directories.length > 1 ? this._getRepositoryBaseBranch(owner, workingDirectories, discovered, directory) : undefined) ?? baseBranch);
+			const limiter = new Limiter<string | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
+			const fingerprints = await Promise.all(directories.map((directory, index) => limiter.queue(async () => this._gitService.getBranchDiffFingerprint?.(directory, baseBranches[index])))).finally(() => limiter.dispose());
 			if (fingerprints.some(fingerprint => fingerprint === undefined)) {
 				return undefined;
 			}
 			return {
-				fingerprint: JSON.stringify([workingDirectories, baseBranch, fingerprints]),
+				fingerprint: JSON.stringify([workingDirectories, baseBranch, directories.map(directory => directory.toString()), baseBranches, fingerprints]),
 				repositories: new Map(directories.map((directory, index) => [directory.toString(), fingerprints[index]!])),
 			};
 		} catch (err) {
@@ -2509,7 +2554,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			let branchResult: BranchDiffResult | undefined;
 			let diffs: readonly ISessionFileDiff[] | undefined;
 			let incrementalTrackerBaseline = false;
-			if (kind === 'branch' && (isMultiRootSession(workingDirectories) || this._getDiscoveredRepositoryRoots(session, workingDirectories).length)) {
+			if (kind === 'branch' && this._hasMultipleRepositories(session, workingDirectories)) {
 				branchResult = await this._computeMultiFolderBranchDiffs(session, workingDirectories!, repositoryFingerprints);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
 			} else if (kind === 'branch') {
