@@ -183,31 +183,32 @@ suite('Markdown editor bridge', () => {
 			}
 
 			// First undo removes " world" as a single step rather than just "d"
-			await vscode.commands.executeCommand('undo');
+			await runEditorHistoryCommand(document, 'undo');
 			await until(() => document.getText() === 'hello', () => document.getText());
 			assert.strictEqual(document.getText(), 'hello');
 
 			// Second undo removes "hello" as a single step
-			await vscode.commands.executeCommand('undo');
+			await runEditorHistoryCommand(document, 'undo');
 			await until(() => document.getText() === '', () => document.getText());
 			assert.strictEqual(document.getText(), '');
 
 			// Redo restores word chunks cleanly
-			await vscode.commands.executeCommand('redo');
+			await runEditorHistoryCommand(document, 'redo');
 			await until(() => document.getText() === 'hello', () => document.getText());
-			await vscode.commands.executeCommand('redo');
+			await runEditorHistoryCommand(document, 'redo');
 			await until(() => document.getText() === 'hello world', () => document.getText());
 		} finally {
 			panel.dispose();
 			connection?.dispose();
 			provider.dispose();
 			cancellation.dispose();
+			await revertAndCloseDocument(document);
 		}
 	});
 
 	test('preserves word-level undo boundaries during burst typing without awaiting each write', async () => {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '' });
-		await vscode.window.showTextDocument(document);
+		await vscode.window.showTextDocument(document, { preview: false, preserveFocus: false });
 		const panel = new TestPanel();
 		const provider = createProvider(new TestMemento());
 		const cancellation = new vscode.CancellationTokenSource();
@@ -230,11 +231,11 @@ suite('Markdown editor bridge', () => {
 			await until(() => document.getText() === phrase && client.getContent() === phrase, () => [document.getText(), client.getContent()]);
 
 			// Undo must still remove " world" first and then "hello"
-			await vscode.commands.executeCommand('undo');
+			await runEditorHistoryCommand(document, 'undo');
 			await until(() => document.getText() === 'hello', () => document.getText());
 			assert.strictEqual(document.getText(), 'hello');
 
-			await vscode.commands.executeCommand('undo');
+			await runEditorHistoryCommand(document, 'undo');
 			await until(() => document.getText() === '', () => document.getText());
 			assert.strictEqual(document.getText(), '');
 		} finally {
@@ -242,6 +243,7 @@ suite('Markdown editor bridge', () => {
 			connection?.dispose();
 			provider.dispose();
 			cancellation.dispose();
+			await revertAndCloseDocument(document);
 		}
 	});
 
@@ -311,17 +313,17 @@ suite('Markdown editor bridge', () => {
 			await until(() => document.getText() === 'abbar!' && client.getContent() === 'abbar!', () => [document.getText(), client.getContent()]);
 
 			// Undo 1: removes "!" (typed after paste)
-			await vscode.commands.executeCommand('undo');
+			await runEditorHistoryCommand(document, 'undo');
 			await until(() => document.getText() === 'abbar', () => document.getText());
 			assert.strictEqual(document.getText(), 'abbar');
 
 			// Undo 2: removes "bar" (the short paste) without removing "b"
-			await vscode.commands.executeCommand('undo');
+			await runEditorHistoryCommand(document, 'undo');
 			await until(() => document.getText() === 'ab', () => document.getText());
 			assert.strictEqual(document.getText(), 'ab');
 
 			// Undo 3: removes "ab" together
-			await vscode.commands.executeCommand('undo');
+			await runEditorHistoryCommand(document, 'undo');
 			await until(() => document.getText() === '', () => document.getText());
 			assert.strictEqual(document.getText(), '');
 		} finally {
@@ -329,6 +331,7 @@ suite('Markdown editor bridge', () => {
 			connection?.dispose();
 			provider.dispose();
 			cancellation.dispose();
+			await revertAndCloseDocument(document);
 		}
 	});
 
@@ -414,6 +417,22 @@ function connectRenderer(panel: TestPanel, secret: string) {
 
 function type(client: WebEditorClient, offset: number, text: string): void {
 	client.applyEdits([{ kind: 'stringEdits', path: [], stringEdits: [{ offset, length: 0, newText: text }] }]);
+}
+
+async function runEditorHistoryCommand(document: vscode.TextDocument, command: 'undo' | 'redo'): Promise<void> {
+	// Re-focus the text editor right before invoking undo/redo so background panels
+	// (e.g. Chat initializing in remote integration tests) cannot capture the command.
+	await vscode.window.showTextDocument(document, { preview: false, preserveFocus: false });
+	await vscode.commands.executeCommand(command);
+}
+
+async function revertAndCloseDocument(document: vscode.TextDocument): Promise<void> {
+	try {
+		await vscode.window.showTextDocument(document, { preview: false, preserveFocus: false });
+		await vscode.commands.executeCommand('workbench.action.revertAndCloseEditor');
+	} catch {
+		// Ignore cleanup errors if the editor was already closed.
+	}
 }
 
 async function until(condition: () => boolean, state?: () => unknown): Promise<void> {
