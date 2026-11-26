@@ -125,6 +125,75 @@
 		}
 	}
 
+	/* Modal Editor Tabs: the editors of the group, in place of the title */
+	&.has-editor-tabs {
+		/* The tabs take the width they need before the actions get the rest, and shrink when there is too little */
+		grid-template-columns: auto minmax(0, max-content) auto 1fr;
+		padding-left: 0;
+
+		.modal-editor-title {
+			display: none;
+		}
+	}
+
+	.modal-editor-tabs {
+		grid-column: 2;
+		align-self: stretch;
+		overflow: hidden;
+	}
+
+	.modal-editor-tab-list {
+		display: flex;
+		height: 100%;
+	}
+
+	.modal-editor-tab {
+		position: relative;
+		display: flex;
+		align-items: center;
+		box-sizing: border-box;
+		padding: 0 var(--vscode-spacing-size100);
+		border-right: var(--vscode-strokeThickness) solid var(--vscode-tab-border, transparent);
+		font-size: var(--vscode-fontSize-body1);
+		white-space: nowrap;
+		cursor: pointer;
+		/* A tab too wide for the header cuts its label short, so that every tab stays in reach */
+		flex: 0 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		color: var(--vscode-tab-inactiveForeground);
+		background-color: var(--vscode-tab-inactiveBackground);
+
+		&:hover {
+			color: var(--vscode-tab-hoverForeground, var(--vscode-tab-inactiveForeground));
+			background-color: var(--vscode-tab-hoverBackground, var(--vscode-tab-inactiveBackground));
+		}
+
+		&.active {
+			box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-tab-activeBorderTop, transparent);
+			color: var(--vscode-tab-activeForeground);
+			background-color: var(--vscode-tab-activeBackground);
+		}
+
+		&.active:hover {
+			color: var(--vscode-tab-hoverForeground, var(--vscode-tab-activeForeground));
+			background-color: var(--vscode-tab-hoverBackground, var(--vscode-tab-activeBackground));
+		}
+
+		/* The shared Modern UI tab styles paint these layers */
+		> :is(.modern-ui-editor-tab-fill, .tab-connected-edge) {
+			display: none;
+		}
+
+		.modal-editor-tab-label {
+			min-width: 0;
+		}
+
+		.monaco-icon-label {
+			color: inherit;
+		}
+	}
+
 	/* Modal Editor Navigation */
 	.modal-editor-navigation {
 		grid-column: 3;
@@ -192,6 +261,26 @@
 			opacity: 0.3;
 		}
 	}
+}
+
+/* Modern UI: geometry, colors and states of the tabs come from the shared editor tab styles */
+.modern-ui-tabs .monaco-modal-editor-block .modal-editor-header .modal-editor-tab {
+	padding-inline: var(--vscode-spacing-size80);
+}
+
+/* Connected tabs: the selected tab and the editor below it share one surface, as in editor groups. The other tabs sit on the header. */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .monaco-modal-editor-block .modal-editor-tab-list {
+	--modern-ui-connected-tab-strip-background: transparent;
+	--modern-ui-editor-tab-active-background: var(--modern-ui-connected-tab-active-background);
+	--modern-ui-editor-tab-unfocused-active-background: var(--modern-ui-connected-tab-active-background);
+	--modern-ui-editor-tab-active-hover-background: var(--modern-ui-connected-tab-active-hover-background);
+	--modern-ui-editor-tab-unfocused-active-hover-background: var(--modern-ui-connected-tab-active-hover-background);
+}
+
+/* Like the first editor tab, a selected first tab is flush with the frame */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .monaco-modal-editor-block .modal-editor-tab.active:first-child > :is(.modern-ui-editor-tab-fill, .tab-connected-edge) {
+	border-start-start-radius: 0;
+	border-inline-start-color: transparent;
 }
 
 /** Compact Header: simplified header chrome opted in by individual editors */

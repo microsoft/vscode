@@ -11,7 +11,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderData, WorkbenchMode } from '../../../../platform/workspace/common/workspace.js';
 import { MainThreadWorkspace } from '../../browser/mainThreadWorkspace.js';
 import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete, MainThreadTelemetryShape, MainThreadWorkspaceShape } from '../../common/extHost.protocol.js';
 import { RelativePattern } from '../../common/extHostTypes.js';
@@ -53,6 +53,21 @@ suite('ExtHostWorkspace', function () {
 		const actual = workspace.getRelativePath(input, includeWorkspace);
 		assert.strictEqual(actual, expected);
 	}
+
+	test('knows the workbench mode from its workspace data and follows its changes', () => {
+		const data: IWorkspaceData = { id: 'foo', folders: [], name: 'Test', mode: WorkbenchMode.Agents };
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), data, new NullLogService());
+		const events: WorkbenchMode[] = [];
+		store.add(ws.onDidChangeWorkbenchMode(mode => events.push(mode)));
+		const initial = ws.workbenchMode;
+
+		ws.$acceptWorkspaceData(data);
+		ws.$acceptWorkspaceData({ ...data, mode: WorkbenchMode.Editor });
+		ws.$acceptWorkspaceData(data);
+		ws.$acceptWorkspaceData(null);
+
+		assert.deepStrictEqual({ initial, current: ws.workbenchMode, events }, { initial: WorkbenchMode.Agents, current: WorkbenchMode.Editor, events: [WorkbenchMode.Editor, WorkbenchMode.Agents, WorkbenchMode.Editor] });
+	});
 
 	test('asRelativePath', () => {
 

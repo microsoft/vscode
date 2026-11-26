@@ -38,7 +38,7 @@ import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
+import { AH_CHAT_CONFIG_VALUES_DB_KEY, AH_CHAT_MODIFIED_TIME_DB_KEY } from '../../node/agentHostChatRowStore.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -89,7 +89,8 @@ import { createArtifactIntegrationsInstruction } from '../../node/shared/artifac
 import { constObservable } from '../../../../base/common/observable.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
-import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
+import { buildWorktreeAnnouncementText, buildWorktreeGitLfsNotification, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
+import { gitLfsPointerFilesInstruction } from '../../node/chatContributions/worktreeGitLfs/worktreeGitLfsContribution.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence, createTestSessionStateStore, seedSessionAdditionalWorktrees, createTestChatRows } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
@@ -160,19 +161,19 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
 
-	readonly pullRequestAttachments: { readonly sessionKey: string; readonly workingDirectory: string | undefined }[] = [];
+	readonly pullRequestAttachments: string[] = [];
 	readonly pendingPullRequestReconciliations: string[] = [];
 
 	constructor(private readonly _observed: string[] | undefined) { }
 
-	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async refreshSessionGitState(_sessionKey: string): Promise<void> { }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
 	async resolveSessionBaseBranchRef(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
-	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void> {
-		this.pullRequestAttachments.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
+	async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
+		this.pullRequestAttachments.push(sessionKey);
 		this._observed?.push('githubReferences');
 	}
 	async reconcilePendingRecordedPullRequests(chat: string): Promise<void> {
@@ -1265,6 +1266,7 @@ suite('AgentHostChatContributions', () => {
 			}
 		}('test');
 		disposables.add(toDisposable(() => agent.dispose()));
+		const database = new TestSessionDatabase();
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
@@ -1275,6 +1277,7 @@ suite('AgentHostChatContributions', () => {
 				_serviceBrand: undefined,
 				setChatWorkspaceAttached: async (session: URI, chat: URI, attached: boolean) => { workspace.push({ session: session.toString(), chat: chat.toString(), attached }); },
 			} satisfies IAgentHostArchivedChatWorkspaceService],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), createSessionDataService(database))],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1286,12 +1289,19 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction(buildDefaultChatUri(session), session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		await timeout(25);
+		// Each chat's modified time is written in the background through its own database, which can take longer.
+		const modifiedTimes = () => database.setMetadataCalls.filter(call => call.key === AH_CHAT_MODIFIED_TIME_DB_KEY).map(call => JSON.parse(call.value));
+		while (modifiedTimes().length < 3) {
+			await Event.toPromise(database.onDidChangeMetadata);
+		}
 
+		const modifiedTime = Date.parse('2025-01-01T00:00:00.000Z');
 		assert.deepStrictEqual({
 			persisted,
 			workspace,
 			cleared,
 			errors,
+			modifiedTimes: modifiedTimes(),
 			peerRead: !!((stateManager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsRead),
 			failingRead: !!((stateManager.getChatState(failingChat)?.status ?? 0) & SessionStatus.IsRead),
 		}, {
@@ -1309,6 +1319,12 @@ suite('AgentHostChatContributions', () => {
 				{ session, chat: failingChat },
 			],
 			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
+			// The actions here are not reduced, so each chat keeps its creation time.
+			modifiedTimes: [
+				{ chat: peerChat, modifiedTime },
+				{ chat: peerChat, modifiedTime },
+				{ chat: failingChat, modifiedTime },
+			],
 			peerRead: true,
 			failingRead: true,
 		});
@@ -1337,6 +1353,7 @@ suite('AgentHostChatContributions', () => {
 				setArchived: async (_session: URI, chat: URI, archived: boolean) => { persisted.push({ chat: chat.toString(), archived }); },
 			} satisfies IAgentHostPeerChatPersistenceService],
 			[IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), createSessionDataService(new TestSessionDatabase()))],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -2820,12 +2837,8 @@ suite('AgentHostChatContributions', () => {
 			attachments: contributions.gitStateService.pullRequestAttachments,
 			pending: contributions.gitStateService.pendingPullRequestReconciliations,
 		}, {
-			attachments: [
-				{ sessionKey: session, workingDirectory: sessionFolder },
-				{ sessionKey: session, workingDirectory: sessionFolder },
-				{ sessionKey: session, workingDirectory: sessionFolder },
-				{ sessionKey: peerFolderChat, workingDirectory: peerFolder },
-			],
+			// The session reconciles the session folder's pull request; the peer chat reconciles its own folder's.
+			attachments: [session, session, session, peerFolderChat],
 			pending: [],
 		});
 	});
@@ -3521,6 +3534,91 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(observed, ['persistedTurnUsage', 'persistedFailedTurns']);
 		assert.deepStrictEqual(calls, ['beforeSideChat:seed', 'afterSideChat:plain']);
 		assert.deepStrictEqual(turns.map(turn => [turn.id, turn.message.text]), [['built-in-hydration-order', 'side question']]);
+	});
+
+	test('tells each chat in a worktree with Git LFS pointer files until a turn that carries it succeeds, and warns once where the worktree is announced', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const defaultChat = buildDefaultChatUri(contributions.session);
+		const peerChat = buildChatUri(contributions.session, 'peer');
+		const restoredChat = buildChatUri(contributions.session, 'restored');
+		const folder = URI.file('/workspace/repository');
+		const worktreeDirectory = URI.file('/workspace/repository.worktrees/feature');
+		for (const chat of [peerChat, restoredChat]) {
+			contributions.stateManager.addChat(contributions.session, chat, creationTimeChatStorageResource(contributions.session, chat, defaultChat), {
+				title: 'Peer Chat',
+				origin: { kind: ChatOriginKind.User },
+				workingDirectories: [worktreeDirectory.toString()],
+			});
+		}
+		contributions.worktree.metadata.set(URI.parse(contributions.session).toString(), { branchName: 'agents/feature', worktreePath: worktreeDirectory, gitLfsPointerFiles: true });
+		const warnings: string[] = [];
+		disposables.add(contributions.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatResponsePart && envelope.action.part.kind === ResponsePartKind.SystemNotification) {
+				warnings.push(envelope.channel);
+			}
+		}));
+		await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, restoredChat, defaultChat) }, [hydrationTurn('restored-turn')]);
+		contributions.stateManager.dispatchServerAction(defaultChat, chatTurnStarted('default-turn', 'Fix it', '2025-01-01T00:00:00.000Z'));
+		const instructed = async (chat: string, workingDirectory: URI, turnId = 'default-turn') => {
+			const result = await contributions.service.outgoingTurn({ session: contributions.session, chat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId, workingDirectories: [workingDirectory] });
+			return result.instructions?.includes(gitLfsPointerFilesInstruction) ?? false;
+		};
+		const defaultFirst = await instructed(defaultChat, worktreeDirectory, 'failed-turn');
+		contributions.service.turnEnd({ session: contributions.session, channel: defaultChat, turnId: 'failed-turn', reason: { kind: 'error', error: { errorType: 'requestFailed', message: 'Provider setup failed' }, resumable: false } });
+		const defaultRetry = await instructed(defaultChat, worktreeDirectory);
+		contributions.service.turnEnd({ session: contributions.session, channel: defaultChat, turnId: 'default-turn', reason: { kind: 'success' } });
+
+		assert.deepStrictEqual({
+			instructed: {
+				defaultFirst,
+				defaultRetry,
+				defaultAfterSuccess: await instructed(defaultChat, worktreeDirectory),
+				peerInFolder: await instructed(peerChat, folder),
+				peerConvertedToWorktree: await instructed(peerChat, URI.joinPath(worktreeDirectory, 'src')),
+				restored: await instructed(restoredChat, worktreeDirectory),
+			},
+			warnings,
+		}, {
+			instructed: { defaultFirst: true, defaultRetry: true, defaultAfterSuccess: false, peerInFolder: false, peerConvertedToWorktree: true, restored: true },
+			warnings: [defaultChat],
+		});
+	});
+
+	test('tells a restored chat about Git LFS pointer files after its worktree is recreated with them, and warns unless its history shows the warning', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const defaultChat = buildDefaultChatUri(contributions.session);
+		const worktreeDirectory = URI.file('/workspace/repository.worktrees/feature');
+		const metadataKey = URI.parse(contributions.session).toString();
+		const warnedTurns: string[] = [];
+		disposables.add(contributions.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatResponsePart && envelope.action.part.kind === ResponsePartKind.SystemNotification) {
+				warnedTurns.push(envelope.action.turnId);
+			}
+		}));
+		const restore = async (history: Turn) => {
+			contributions.service.disposeChatState(defaultChat);
+			await contributions.service.hydrateTurns({ session: contributions.session, chat: defaultChat, isDefaultChat: true, storageResource: creationTimeChatStorageResource(contributions.session, defaultChat, defaultChat) }, [history]);
+		};
+		const instructed = async (turnId: string) => {
+			contributions.stateManager.dispatchServerAction(defaultChat, chatTurnStarted(turnId, 'Fix it', '2025-01-01T00:00:00.000Z'));
+			const result = await contributions.service.outgoingTurn({ session: contributions.session, chat: defaultChat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId, workingDirectories: [worktreeDirectory] });
+			contributions.service.turnEnd({ session: contributions.session, channel: defaultChat, turnId, reason: { kind: 'success' } });
+			contributions.stateManager.dispatchServerAction(defaultChat, chatTurnComplete(turnId, 1));
+			return result.instructions?.includes(gitLfsPointerFilesInstruction) ?? false;
+		};
+
+		contributions.worktree.metadata.set(metadataKey, { branchName: 'agents/feature', worktreePath: worktreeDirectory });
+		await restore(hydrationTurn('with-contents'));
+		contributions.worktree.metadata.set(metadataKey, { branchName: 'agents/feature', worktreePath: worktreeDirectory, gitLfsPointerFiles: true });
+		const afterRecreation = await instructed('after-recreation');
+		await restore({ ...hydrationTurn('with-warning'), responseParts: [buildWorktreeGitLfsNotification()] });
+		const afterRestoreWithWarning = await instructed('after-restore');
+
+		assert.deepStrictEqual({ afterRecreation, afterRestoreWithWarning, warnedTurns }, {
+			afterRecreation: true,
+			afterRestoreWithWarning: true,
+			warnedTurns: ['after-recreation'],
+		});
 	});
 
 	test('shows the created worktree announcement in its owning peer chat', async () => {

@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
@@ -13,13 +16,20 @@ import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/mult
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel as IMultiDiffResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import type { MultiDiffEditorVariant } from '../../../../../editor/common/multiDiffEditor.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { TestEditorWorkerService } from '../../../../../editor/test/common/services/testEditorWorkerService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ResourceLabel } from '../../../../browser/labels.js';
+import { ISCMViewService } from '../../../../contrib/scm/common/scm.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
@@ -108,7 +118,7 @@ export function createServer(config: Config) {
 	return { config, url: \`\${protocol}://\${host}:\${port}\` };
 }`;
 
-export function createMultiDiffEditorFixtureServices(disposableStore: DisposableStore, theme: ComponentFixtureContext['theme'], diffProviderFactory: IDiffProviderFactoryService) {
+export function createMultiDiffEditorFixtureServices(disposableStore: DisposableStore, theme: ComponentFixtureContext['theme'], diffProviderFactory: IDiffProviderFactoryService, showStructuralDiff = false) {
 	return createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: reg => {
@@ -121,9 +131,30 @@ export function createMultiDiffEditorFixtureServices(disposableStore: Disposable
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 			reg.definePartialInstance(INotebookDocumentService, { getNotebook: () => undefined });
 			reg.define(IListService, ListService);
+			// The file list shows the structural changes of files while the Source Control view does.
+			reg.definePartialInstance(ISCMViewService, { showStructuralDiff: constObservable(showStructuralDiff) });
+			reg.define(IEditorWorkerService, FixtureEditorWorkerService);
+			reg.definePartialInstance(ITextResourceConfigurationService, { getValue: <T>() => undefined as T });
+			reg.definePartialInstance(IUriIdentityService, { extUri });
 			registerWorkbenchServices(reg);
 		},
 	});
+}
+
+/** Computes text diffs, which structural changes are computed from, the same way as the diffs that the fixtures show. */
+class FixtureEditorWorkerService extends TestEditorWorkerService {
+	constructor(
+		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
+		@IModelService private readonly _modelService: IModelService,
+	) {
+		super();
+	}
+
+	override async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff | null> {
+		const originalModel = this._modelService.getModel(original);
+		const modifiedModel = this._modelService.getModel(modified);
+		return originalModel && modifiedModel ? this._diffProviderFactoryService.createDiffProvider({}).computeDiff(originalModel, modifiedModel, options, CancellationToken.None) : null;
+	}
 }
 
 export function createMultiDiffEditorFixtureWidget(

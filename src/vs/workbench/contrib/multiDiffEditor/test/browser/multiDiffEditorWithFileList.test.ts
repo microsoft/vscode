@@ -5,14 +5,14 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../../../base/browser/dom.js';
-import { raceTimeout } from '../../../../../base/common/async.js';
+import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { Emitter, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeyCodeChord, ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,10 +23,17 @@ import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/util
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffProvider, SymbolKind } from '../../../../../editor/common/languages.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { InMemoryTextModelService } from '../../../../../editor/common/services/inMemoryTextModelService.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
+import { TestEditorWorkerService } from '../../../../../editor/test/common/services/testEditorWorkerService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -48,6 +55,7 @@ import { TestEditorGroupView, workbenchInstantiationService } from '../../../../
 import { TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands.js';
+import { ISCMViewService } from '../../../scm/common/scm.js';
 import { MultiDiffEditor } from '../../browser/multiDiffEditor.js';
 import { MultiDiffEditorInput, MultiDiffEditorSerializer } from '../../browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../browser/multiDiffSourceResolverService.js';
@@ -67,6 +75,8 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
+	/** Whether the Source Control view shows structural changes, which the file list follows. */
+	let showStructuralDiff: ISettableObservable<boolean>;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -75,6 +85,10 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService(false));
 		// Disposes the synthetic documents of binary items synchronously, like the editor widget tests.
 		instantiationService.stub(ITextModelService, instantiationService.createInstance(InMemoryTextModelService));
+		showStructuralDiff = observableValue('showStructuralDiff', false);
+		instantiationService.stub(ISCMViewService, new class extends mock<ISCMViewService>() {
+			override readonly showStructuralDiff = showStructuralDiff;
+		}());
 	});
 
 	function createComposite(fileListVisible: IObservable<boolean>, fileListViewMode: IObservable<MultiDiffEditorFileListViewMode> = constObservable('list'), fileListPosition: IObservable<MultiDiffEditorFileListPosition> = constObservable('right')) {
@@ -127,6 +141,81 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			resources: paths.map(path => ({ original: { resource: undefined }, modified: { resource: URI.file(path) } })),
 			showFileList,
 		}, instantiationService));
+	}
+
+	/**
+	 * Lists `a.ts`, whose function `run` changed, and other files (by default `notes.md`), with a structural diff provider
+	 * for TypeScript files that reports the change of `run` while the documents of `a.ts` differ.
+	 */
+	async function createStructuralDiffFileList(otherFiles: readonly (readonly [path: string, original: string, modified: string])[] = [['/repo/notes.md', 'old', 'new']]) {
+		const modelService = instantiationService.get(IModelService);
+		const createModels = (path: string, original: string, modified: string) => [
+			disposables.add(modelService.createModel(original, null, URI.from({ scheme: 'original', path }))),
+			disposables.add(modelService.createModel(modified, null, URI.file(path))),
+		] as const;
+		const [original, modified] = createModels('/repo/a.ts', 'function run() {\n\treturn 1;\n}', 'function run() {\n\treturn 2;\n}');
+		const others = otherFiles.map(([path, original, modified]) => createModels(path, original, modified));
+		instantiationService.stub(IEditorWorkerService, new class extends TestEditorWorkerService {
+			override async computeDiff(originalUri: URI, modifiedUri: URI, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
+				const result = linesDiffComputers.getDefault().computeDiff(modelService.getModel(originalUri)!.getLinesContent(), modelService.getModel(modifiedUri)!.getLinesContent(), options);
+				return { identical: result.changes.length === 0, quitEarly: result.hitTimeout, changes: result.changes, moves: result.moves };
+			}
+		}());
+		const run = { name: 'run', kind: SymbolKind.Function, range: new Range(1, 1, 3, 2), selectionRange: new Range(1, 10, 1, 13) };
+		const change = { textChangeIndex: 0, range: new Range(2, 9, 2, 10), classification: StructuralDiffClassification.Implementation };
+		disposables.add(instantiationService.get(ILanguageFeaturesService).structuralDiffProvider.register({ pattern: '**/*.ts' }, new class implements StructuralDiffProvider {
+			provideStructuralDiff(): StructuralDiff {
+				return {
+					root: {
+						id: 'file', originalChanges: [], modifiedChanges: [],
+						originalItem: { name: 'a.ts', kind: SymbolKind.File, range: original.getFullModelRange() },
+						modifiedItem: { name: 'a.ts', kind: SymbolKind.File, range: modified.getFullModelRange() },
+						children: original.getValue() === modified.getValue() ? [] : [{ id: 'run', originalItem: run, modifiedItem: run, originalChanges: [change], modifiedChanges: [change], children: [] }],
+					},
+					isIncomplete: false,
+				};
+			}
+		}()));
+		const { container, composite } = createComposite(constObservable(true));
+		const widget = composite.multiDiffEditorWidget;
+		composite.layout(new Dimension(1000, 400));
+		const documentItems = [[original, modified] as const, ...others].map(([original, modified]) => disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(original.uri, original),
+			modified: new DiffItemSource(modified.uri, modified),
+		}, { dispose() { } })));
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) }));
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel, { preserveFocus: true });
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		const listRows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index));
+		return {
+			composite,
+			widget,
+			viewModel,
+			original,
+			modified,
+			listRows,
+			rows: () => listRows().map(row => {
+				const expanded = row.getAttribute('aria-expanded');
+				return [
+					row.querySelector('.label-name')?.textContent,
+					row.querySelector('.multi-diff-file-list-item-status, .scm-structural-change-status')?.textContent,
+					row.querySelector('.scm-structural-change-annotation')?.textContent,
+					expanded === null ? 'leaf' : expanded === 'true' ? 'expanded' : 'collapsed',
+					row.querySelector('.monaco-tl-twistie.force-twistie') ? 'keeps twistie space' : undefined,
+				].filter(part => !!part).join(' ');
+			}),
+			selection: () => listRows().filter(row => row.classList.contains('selected')).map(row => `${row.querySelector('.label-name')?.textContent}${row.classList.contains('focused') ? ' (focused)' : ''}`),
+			clickTwistie: (row: HTMLElement) => row.querySelector('.monaco-tl-twistie')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })),
+			/** Waits for the list to show a number of rows: structural changes load asynchronously, through the documents, the text diff and the provider. */
+			async waitForRows(count: number) {
+				for (let attempt = 0; listRows().length !== count; attempt++) {
+					assert.ok(attempt < 50, 'The structural changes did not load');
+					await timeout(0);
+				}
+			},
+		};
 	}
 
 	test('offers the file list unless the input opts out', async () => {
@@ -374,6 +463,120 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		}
 	});
 
+	test('expands files to the symbols that changed in them while structural changes are shown, keeping the twistie space of all files in the list, reveals a symbol in its diff and drops the symbols of a collapsed file', async () => {
+		const { widget, listRows, rows, clickTwistie, waitForRows } = await createStructuralDiffFileList();
+		try {
+			const hidden = rows();
+			showStructuralDiff.set(true, undefined);
+			const shown = rows();
+			clickTwistie(listRows()[0]);
+			await waitForRows(3);
+			const expanded = rows();
+			listRows()[1].dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
+			const editor = widget.getActiveControl()?.getModifiedEditor();
+			const opened = { file: editor?.getModel()?.uri.path, selection: editor?.getSelection()?.toString(), focused: editor?.hasTextFocus() };
+			clickTwistie(listRows()[0]);
+			const collapsed = rows();
+			showStructuralDiff.set(false, undefined);
+
+			assert.deepStrictEqual({ hidden, shown, expanded, opened, collapsed, hiddenAgain: rows() }, {
+				hidden: ['a.ts M leaf', 'notes.md M leaf'],
+				shown: ['a.ts M collapsed keeps twistie space', 'notes.md M leaf keeps twistie space'],
+				expanded: ['a.ts M expanded keeps twistie space', 'run M impl leaf keeps twistie space', 'notes.md M leaf keeps twistie space'],
+				opened: { file: '/repo/a.ts', selection: '[1,10 -> 1,13]', focused: true },
+				collapsed: ['a.ts M collapsed keeps twistie space', 'notes.md M leaf keeps twistie space'],
+				hiddenAgain: ['a.ts M leaf', 'notes.md M leaf'],
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('selects the file of the selected symbol when the list stops showing the symbol, because the file collapses or structural changes are turned off', async () => {
+		const { widget, listRows, selection, clickTwistie, waitForRows } = await createStructuralDiffFileList();
+		const clickSymbol = () => listRows()[1].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+		try {
+			showStructuralDiff.set(true, undefined);
+			clickTwistie(listRows()[0]);
+			await waitForRows(3);
+			clickSymbol();
+			const symbolSelected = selection();
+			clickTwistie(listRows()[0]);
+			const collapsed = selection();
+			clickTwistie(listRows()[0]);
+			await waitForRows(3);
+			clickSymbol();
+			showStructuralDiff.set(false, undefined);
+
+			assert.deepStrictEqual({ symbolSelected, collapsed, turnedOff: selection() }, {
+				symbolSelected: ['run (focused)'],
+				collapsed: ['a.ts (focused)'],
+				turnedOff: ['a.ts (focused)'],
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('keeps showing the symbols of expanded files while its editor is hidden, without analyzing edits, and updates the files when it is shown', async () => {
+		const { composite, widget, original, modified, listRows, rows, selection, clickTwistie, waitForRows } = await createStructuralDiffFileList();
+		const changed = modified.getValue();
+		try {
+			showStructuralDiff.set(true, undefined);
+			clickTwistie(listRows()[0]);
+			await waitForRows(3);
+			listRows()[1].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			composite.setVisible(false);
+			// Reverting the change of `run` removes its symbol. A shown list loads the symbols of the file again 150 ms after an edit.
+			modified.setValue(original.getValue());
+			await timeout(300);
+			const editorHidden = { rows: rows(), selection: selection() };
+			composite.setVisible(true);
+			await waitForRows(2);
+			const editorShown = { rows: rows(), selection: selection() };
+			// The file, which no longer can expand, gets its symbol back while the editor is hidden again.
+			composite.setVisible(false);
+			modified.setValue(changed);
+			composite.setVisible(true);
+			await waitForRows(3);
+
+			assert.deepStrictEqual({ editorHidden, editorShown, editorShownAgain: rows() }, {
+				editorHidden: {
+					rows: ['a.ts M expanded keeps twistie space', 'run M impl leaf keeps twistie space', 'notes.md M leaf keeps twistie space'],
+					selection: ['run (focused)'],
+				},
+				editorShown: {
+					rows: ['a.ts M leaf keeps twistie space', 'notes.md M leaf keeps twistie space'],
+					selection: ['a.ts (focused)'],
+				},
+				editorShownAgain: ['a.ts M expanded keeps twistie space', 'run M impl leaf keeps twistie space', 'notes.md M leaf keeps twistie space'],
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('keeps an opened symbol selected when revealing its file first makes another file on screen the current one', async () => {
+		const lines = (text: string) => Array.from({ length: 40 }, (_, index) => `${text} ${index}`).join('\n');
+		const { widget, viewModel, listRows, selection, clickTwistie, waitForRows } = await createStructuralDiffFileList([['/repo/m.md', 'old', 'new'], ['/repo/n.md', lines('old'), lines('new')]]);
+		try {
+			showStructuralDiff.set(true, undefined);
+			clickTwistie(listRows()[0]);
+			await waitForRows(4);
+			// Scrolls `a.ts` out of view and makes the file below the topmost one active, like focusing its diff does.
+			const [, m, n] = viewModel.items.get();
+			widget.reveal({ original: m.originalUri, modified: m.modifiedUri });
+			n.setActive(undefined);
+			const beforeOpening = selection();
+			listRows()[1].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			await timeout(0);
+
+			assert.deepStrictEqual({ beforeOpening, opened: selection() }, { beforeOpening: ['n.md (focused)'], opened: ['run (focused)'] });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
 	test('tells screen reader users how to open the accessibility help, unless the hint is turned off', async () => {
 		const configurationService = new TestConfigurationService({ [AccessibilityVerbositySettingId.MultiDiffEditorFileList]: true });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
@@ -458,6 +661,39 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 				treeAfterClick: [' docs', '>c.png D', ' lib/util/deep', ' d.png A', ' src/app', ' a.png M', ' b.png M'],
 				list: ['>c.png D (path)', ' d.png A (path)', ' a.png M (path)', ' b.png M (path)'],
 			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('expands and collapses folders when they are clicked, unless `workbench.tree.expandMode` asks for a double click', async () => {
+		const configurationService = new TestConfigurationService({ 'workbench.tree.expandMode': 'doubleClick' });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		const { container, composite } = createComposite(constObservable(true), constObservable('tree'));
+		const widget = composite.multiDiffEditorWidget;
+		composite.layout(new Dimension(1000, 300));
+		const documentItems = [
+			createBinaryItem(URI.file('/repo/docs/a.png'), URI.file('/repo/docs/a.png')),
+			createBinaryItem(URI.file('/repo/src/b.png'), URI.file('/repo/src/b.png')),
+		];
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) }));
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel, { preserveFocus: true });
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		const clickFirstFolder = () => {
+			const folder = container.querySelector<HTMLElement>('.monaco-list-row[data-index="0"]')!;
+			folder.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			return `${folder.querySelector('.label-name')?.textContent} ${folder.getAttribute('aria-expanded') === 'true' ? 'expanded' : 'collapsed'}`;
+		};
+
+		try {
+			const doubleClickMode = clickFirstFolder();
+			await configurationService.setUserConfiguration('workbench.tree.expandMode', 'singleClick');
+			const singleClickMode = clickFirstFolder();
+
+			assert.deepStrictEqual({ doubleClickMode, singleClickMode }, { doubleClickMode: 'docs expanded', singleClickMode: 'docs collapsed' });
 		} finally {
 			widget.setViewModel(undefined);
 		}

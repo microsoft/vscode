@@ -1306,8 +1306,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return;
 				}
 
-				isNewWindowOperation = this.isNewWindowOperation(e);
 				const selectedEditors = this.groupView.selectedEditors;
+				if (!this.canDragEditors(selectedEditors)) {
+					e.preventDefault();
+					return;
+				}
+
+				isNewWindowOperation = this.isNewWindowOperation(e);
 				this.editorTransfer.setData(selectedEditors.map(e => new DraggedEditorIdentifier({ editor: e, groupId: this.groupView.id })), DraggedEditorIdentifier.prototype);
 
 				if (e.dataTransfer) {

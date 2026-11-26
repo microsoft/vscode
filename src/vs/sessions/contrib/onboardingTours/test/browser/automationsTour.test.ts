@@ -31,11 +31,12 @@ import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 import { AutomationsTourContribution } from '../../browser/automationsTourContribution.js';
 import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../browser/tours/automationsTour.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 
 suite('AutomationsTour', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -71,6 +72,7 @@ suite('AutomationsTour', () => {
 				storage, context, configuration, disposables.add(new TestLifecycleService()), new NullWorkbenchAssignmentService(),
 				new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(),
 				new class extends mock<IDialogService>() { override readonly hasDialog = false; override readonly onDidShowDialog = Event.None; }(),
+				new TestQuickInputService(),
 			));
 			const service = createService();
 			service.start();
@@ -106,6 +108,7 @@ suite('AutomationsTour', () => {
 			disposables.add(new InMemoryStorageService()), context, configuration, disposables.add(new TestLifecycleService()), new NullWorkbenchAssignmentService(),
 			new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(),
 			new class extends mock<IDialogService>() { override readonly hasDialog = false; override readonly onDidShowDialog = Event.None; }(),
+			new TestQuickInputService(),
 		));
 		service.start();
 		await timeout(0);
@@ -134,7 +137,7 @@ suite('AutomationsTour', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService));
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const shown = new DeferredPromise<void>();
 			const result = presentation.run(createAutomationsTour(), {
 				targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); },

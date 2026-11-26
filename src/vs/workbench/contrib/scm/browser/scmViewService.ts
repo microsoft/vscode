@@ -134,6 +134,9 @@ export class SCMViewService implements ISCMViewService {
 	readonly selectionModeConfig: IObservable<ISCMRepositorySelectionMode>;
 	readonly graphShowIncomingChangesConfig: IObservable<boolean>;
 	readonly graphShowOutgoingChangesConfig: IObservable<boolean>;
+	readonly showStructuralDiff: IObservable<boolean>;
+	/** The user's choice from the View & Sort menu, which is only shown while `scm.structuralDiff.enabled` is set. */
+	private readonly showStructuralDiffChoice: ISettableObservable<boolean>;
 
 	private didSelectRepository: boolean = false;
 	private previousState: ISCMViewServiceState | undefined;
@@ -268,6 +271,14 @@ export class SCMViewService implements ISCMViewService {
 		this.explorerEnabledConfig = derived(reader => {
 			return explorerEnabledConfig.read(reader) === true && this.selectionModeConfig.read(reader) === ISCMRepositorySelectionMode.Single;
 		});
+
+		this.showStructuralDiffChoice = observableValue(this, this.getShowStructuralDiffChoice());
+		const structuralDiffEnabled = observableConfigValue<boolean>('scm.structuralDiff.enabled', false, this.configurationService);
+		this.showStructuralDiff = derived(this, reader => structuralDiffEnabled.read(reader) === true && this.showStructuralDiffChoice.read(reader));
+		// Another window of the workspace can change the choice.
+		this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'scm.showStructuralDiff', this.disposables)(() => {
+			this.showStructuralDiffChoice.set(this.getShowStructuralDiffChoice(), undefined);
+		}, this, this.disposables);
 
 		try {
 			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
@@ -579,6 +590,16 @@ export class SCMViewService implements ISCMViewService {
 
 	pinActiveRepository(repository: ISCMRepository | undefined): void {
 		this._activeRepositoryPinnedObs.set(repository, undefined);
+	}
+
+	setShowStructuralDiff(show: boolean): void {
+		this.storageService.store('scm.showStructuralDiff', show, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.showStructuralDiffChoice.set(show, undefined);
+	}
+
+	/** Structural changes are shown by default once `scm.structuralDiff.enabled` is set, unless the user hid them in this workspace. */
+	private getShowStructuralDiffChoice(): boolean {
+		return this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, true);
 	}
 
 	private compareRepositories(op1: ISCMRepositoryView, op2: ISCMRepositoryView): number {

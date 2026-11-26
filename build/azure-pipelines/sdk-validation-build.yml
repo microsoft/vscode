@@ -12,8 +12,8 @@
 # connections it needs, so automation that queues it never gets access to the
 # signing, publishing or release credentials. The shared templates drop every
 # step and job that references one of those connections when their
-# VSCODE_PRIVILEGED_CONNECTIONS parameter is false, which only this pipeline
-# and product-build-ci.yml (for the quality checks) pass:
+# VSCODE_PRIVILEGED_CONNECTIONS parameter is false. Every caller passes it
+# explicitly and only builds of main and release/* branches pass true:
 #
 #   git grep VSCODE_PRIVILEGED_CONNECTIONS -- build/azure-pipelines
 #
@@ -91,8 +91,6 @@ variables:
   - name: VSCODE_CIBUILD
     value: false
   - name: VSCODE_PUBLISH
-    value: false
-  - name: VSCODE_STEP_ON_IT
     value: false
   # Keep the legacy notice: there is no Quality stage producing the CG notice.
   - name: VSCODE_OVERWRITE_TPN

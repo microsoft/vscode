@@ -2,12 +2,12 @@
   "name": "code-oss-dev",
   "version": "1.149.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "8d776751f96e7726cf67d97f7f00fbc95a505f57",
+  "distro": "07cc76761ccc9c4b7a8b87dc1abfe456e26701e1",
   "nativeBuild": {
     "runtime": "electron",
-    "target": "43.8.10",
+    "target": "43.8.13",
     "disturl": "https://electronjs.org/headers",
-    "msBuildId": "16052126",
+    "msBuildId": "16141353",
     "buildFromSource": true
   },
   "author": {
@@ -114,7 +114,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@microsoft/copilot-sdk": "2.0.2-unstable.45286541461.g05667ac",
+    "@microsoft/copilot-sdk": "2.0.3",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -185,7 +185,7 @@
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.304",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@openai/codex": "0.163.0",
+    "@openai/codex": "0.170.0",
     "@playwright/cli": "^0.1.22",
     "@playwright/test": "^1.61.1",
     "@types/chrome-remote-interface": "^0.33.0",
@@ -264,7 +264,6 @@
     "tslib": "^2.6.3",
     "typanion": "^3.14.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "util": "^0.12.4",
     "vinyl-fs": "^3.0.3",
     "xml2js": "^0.5.0"
   },
@@ -278,5 +277,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.114-unstable.r45286541461.g05667ac"
+  "copilotRuntimeVersion": "1.0.116"
 }

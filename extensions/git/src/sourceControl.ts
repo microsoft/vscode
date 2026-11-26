@@ -174,8 +174,6 @@ export class GitSourceControl implements Disposable {
 		repository.onDidChangeCommitTemplate(updateCommitTemplate, null, this.disposables);
 		updateCommitTemplate();
 
-		repository.onDidResetCommitMessage(message => this.sourceControl.inputBox.value = message, null, this.disposables);
-
 		this.mergeGroup = this.sourceControl.createResourceGroup('merge', l10n.t('Merge Changes')) as GitResourceGroup;
 		this.indexGroup = this.sourceControl.createResourceGroup('index', l10n.t('Staged Changes'), { multiDiffEditorEnableViewChanges: true }) as GitResourceGroup;
 		this.workingTreeGroup = this.sourceControl.createResourceGroup('workingTree', l10n.t('Changes'), { multiDiffEditorEnableViewChanges: true }) as GitResourceGroup;

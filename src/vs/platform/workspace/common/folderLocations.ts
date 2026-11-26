@@ -18,7 +18,7 @@ export interface IFolderLocation {
 	readonly uri: URI;
 	readonly label: string;
 	readonly description?: string;
-	readonly icon?: ThemeIcon;
+	readonly icon: ThemeIcon;
 }
 
 /**

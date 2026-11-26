@@ -21,6 +21,8 @@ import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, isDiffEditorInput }
 //#region < --- Workbench --- >
 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined, { type: 'string', description: localize('workbenchState', "The kind of workspace opened in the window, either 'empty' (no workspace), 'folder' (single folder) or 'workspace' (multi-root workspace)") });
+export const WorkbenchScopeContext = new RawContextKey<string>('workbenchScope', undefined, { type: 'string', description: localize('workbenchScope', "The scope of the window, either 'workspace' (its own folders and their sessions) or 'all' (all sessions, with folders following the focused session)") });
+export const WorkbenchModeContext = new RawContextKey<string>('workbenchMode', undefined, { type: 'string', description: localize('workbenchMode', "The mode of the window, either 'editor' (the editor experience) or 'agents' (the agents experience)") });
 export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0, localize('workspaceFolderCount', "The number of root folders in the workspace"));
 
 export const OpenFolderWorkspaceSupportContext = new RawContextKey<boolean>('openFolderWorkspaceSupport', true, true);
@@ -120,6 +122,7 @@ export const EditorPartInPartGridContext = new RawContextKey<boolean>('editorPar
 export const EditorPartModalContext = new RawContextKey<boolean>('editorPartModal', false, localize('editorPartModal', "Whether focus is in a modal editor part"));
 export const EditorPartModalVisibleContext = new RawContextKey<boolean>('editorPartModalVisible', false, localize('editorPartModalVisible', "Whether a modal editor part is visible"));
 export const EditorPartModalCanMoveToEditorAreaContext = new RawContextKey<boolean>('editorPartModalCanMoveToEditorArea', true, localize('editorPartModalCanMoveToEditorArea', "Whether the modal editor can move into an editor area"));
+export const EditorPartModalCanMaximizeContext = new RawContextKey<boolean>('editorPartModalCanMaximize', true, localize('editorPartModalCanMaximize', "Whether the modal editor can be maximized"));
 export const EditorPartModalMaximizedContext = new RawContextKey<boolean>('editorPartModalMaximized', false, localize('editorPartModalMaximized', "Whether the modal editor part is maximized"));
 export const EditorPartModalNavigationContext = new RawContextKey<boolean>('editorPartModalNavigation', false, localize('editorPartModalNavigation', "Whether the modal editor part has navigation context"));
 export const EditorPartModalSidebarContext = new RawContextKey<boolean>('editorPartModalSidebar', false, localize('editorPartModalSidebar', "Whether the modal editor part has a sidebar"));

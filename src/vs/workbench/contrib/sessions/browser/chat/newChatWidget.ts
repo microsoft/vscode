@@ -22,6 +22,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
@@ -117,7 +118,8 @@ import { filterConfigurationToSchema } from '../../../chat/browser/widget/input/
 import { createSessionComparisonHarness } from '../sessionComparisonConfiguration.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { SessionsView, SessionsViewId } from '../views/sessionsView.js';
-import { SessionsGrouping } from '../views/sessionsList.js';
+import { SessionsGrouping } from '../views/sessionsListCommon.js';
+import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
 
 // #region --- New Chat Widget ---
 
@@ -161,6 +163,18 @@ function isWorktreeSupportEnabled(configurationService: IConfigurationService): 
 
 export function isSessionWorkspaceOptOutEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(WORKSPACE_OPT_OUT_SETTING) === true;
+}
+
+/**
+ * Whether a new-session composer composes as the Agents window's does, with its welcome, chats without a workspace and
+ * any folder, while it is in an editor window: only in the chat area (a composer with a draft host there), while the
+ * window is about all sessions (it has no {@link IWorkspaceContextService.getWorkbenchScope workbench scope}), such as an
+ * empty window. Not in a folder window, whose composers work in its folders, nor in the Chat view.
+ *
+ * Exported for tests only.
+ */
+export function composesForAllSessions(composer: { readonly inEditorWindow: boolean; readonly inChatArea: boolean; readonly workbenchScope: URI | undefined }): boolean {
+	return composer.inEditorWindow && composer.inChatArea && composer.workbenchScope === undefined;
 }
 
 export function isSessionEnvironmentPickerEnabled(configurationService: IConfigurationService): boolean {
@@ -269,8 +283,10 @@ export class NewChatWidget extends Disposable {
 	private _newWorktreeCheckbox: NewWorktreeCheckbox | undefined;
 	/** The drafts whose first request waits while the user is asked where it works. */
 	private readonly _askingWorktreeOnSend = new Set<string>();
-	/** Whether the composer is in an editor window, which has no chat without a workspace, unlike the Agents window. */
-	private readonly _inEditorWindow: boolean;
+	/** Whether the composer is in an editor window ({@link _inEditorWindow} tells whether it composes as one). */
+	private readonly _inEditorWindowHost: boolean;
+	/** Whether it composes as the Agents window's composer does, while in an editor window: see {@link composesForAllSessions}. */
+	private readonly _composesForAllSessions: IObservable<boolean>;
 	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
 	private _presentation: INewSessionPresentationController | undefined;
@@ -347,11 +363,18 @@ export class NewChatWidget extends Disposable {
 		@ISessionDraftsService private readonly sessionDraftsService: ISessionDraftsService,
 		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
 		@INewSessionWorktreeSendChoiceService private readonly worktreeSendChoiceService: INewSessionWorktreeSendChoiceService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this._preserveCustomView = options.preserveCustomView === true;
 		this._draftHost = options.newSessionDraft;
-		this._inEditorWindow = !this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key);
+		this._inEditorWindowHost = !this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key);
+		if (this._inEditorWindowHost) {
+			// The settings of the composer, which only the Agents window registers itself
+			this._register(registerSessionsListConfiguration());
+		}
+		const workbenchScope = observableFromEvent(this, workspaceContextService.onDidChangeWorkbenchScope, () => workspaceContextService.getWorkbenchScope());
+		this._composesForAllSessions = derived(this, reader => composesForAllSessions({ inEditorWindow: this._inEditorWindowHost, inChatArea: !!this._draftHost, workbenchScope: workbenchScope.read(reader) }));
 		this._detached = this._preserveCustomView || !!this._draftHost;
 		this._savedDraftComposer = this._detached ? undefined : sessionDraftsService.createComposer();
 		this._draftSlot = this._draftHost?.slot ?? this.sessionsManagementService.defaultNewSessionSlot;
@@ -498,7 +521,8 @@ export class NewChatWidget extends Disposable {
 			},
 			// An editor window, whose composers are the ones restricted to its folders, has no chat without a workspace: none is
 			// offered, and one chosen elsewhere is not restored. The Agents window's composers offer it.
-			getNoWorkspaceOption: this._inEditorWindow || this._draftHost?.allowedFolders ? undefined : () => this._getNoWorkspaceOption(),
+			// A chat-area composer of an editor window offers it while it composes for all sessions, as the Agents window's do
+			getNoWorkspaceOption: (this._inEditorWindowHost && this._draftHost) || (!this._inEditorWindowHost && !this._draftHost?.allowedFolders) ? () => this._getNoWorkspaceOption() : undefined,
 			ownNoWorkspaceSelection: !!this._draftHost,
 			allowedFolders: this._draftHost?.allowedFolders,
 			getAllowedFolderPresentation: this._draftHost?.getFolderPresentation && (folderUri => this._draftHost?.getFolderPresentation?.(folderUri)),
@@ -1000,7 +1024,7 @@ export class NewChatWidget extends Disposable {
 		const chatWidgetContent = this._inputContentElement = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		this._presentation = this._register(this.options.newSessionPresentation.create(false, this.instantiationService));
 		this._presentation.render(chatWidgetContainer, chatWidgetContent);
-		if (!this._inEditorWindow && !this._detached) {
+		if (!this._inEditorWindow && (!this._detached || this._composesForAllSessions.get())) {
 			this._register(this.instantiationService.createInstance(NewSessionWelcomeGraphic, {
 				content: chatWidgetContent,
 				layoutRoot: chatWidgetContainer,
@@ -1762,6 +1786,14 @@ export class NewChatWidget extends Disposable {
 			this._pendingWorktreePlacement.set(undefined, undefined);
 			this._selectRequestedNoWorkspace(target);
 		}
+	}
+
+	/**
+	 * Whether it composes as an editor window's composer does, which has no chat without a workspace and works in the window's
+	 * folder, unlike the Agents window's: not while it composes for all sessions ({@link composesForAllSessions}).
+	 */
+	private get _inEditorWindow(): boolean {
+		return this._inEditorWindowHost && !this._composesForAllSessions.get();
 	}
 
 	/** The folder of a draft in an editor window that nothing else aims at one: the picked folder, else the window's first. */
@@ -2746,7 +2778,7 @@ export class NewChatWidget extends Disposable {
 			return !!this._workspaceOptOutTarget.read(reader)
 				&& !!this._workspacePicker.selectedFolderUri
 				// A composer in an editor window, or restricted to its folders, always creates its sessions in one
-				&& !this._inEditorWindow
+				&& (!this._inEditorWindowHost || this._composesForAllSessions.read(reader))
 				&& !this._draftHost?.allowedFolders?.read(reader).length;
 		});
 		const selectsRepository = isWeb && !!this.agentHostFilterService.selectedHost?.sessionCreationProviderId;

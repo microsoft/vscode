@@ -180,6 +180,62 @@ suite('Markdown editor bridge', () => {
 			cancellation.dispose();
 		}
 	});
+	test('propagates document read-only state, blocks edits, and updates on change', async () => {
+		const fileName = `markdown-editor-readonly-${Date.now()}.md`;
+		const file = vscode.Uri.file(path.join(os.tmpdir(), fileName));
+		await vscode.workspace.fs.writeFile(file, new TextEncoder().encode('# Staged'));
+		const filesConfig = vscode.workspace.getConfiguration('files');
+		const previousReadonlyInclude = filesConfig.inspect<Record<string, boolean>>('readonlyInclude')?.globalValue;
+		await filesConfig.update('readonlyInclude', { ...(previousReadonlyInclude ?? {}), [`**/${fileName}`]: true }, vscode.ConfigurationTarget.Global);
+		const document = await vscode.workspace.openTextDocument(file);
+		const panel = new TestPanel();
+		const state = new TestMemento();
+		const provider = createProvider(state);
+		const cancellation = new vscode.CancellationTokenSource();
+		const configurations: Parameters<MarkdownEditorRenderer['configurationChanged']>[0][] = [];
+		try {
+			await until(() => document.isReadonly);
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const initialStateMatch = /<meta id="vscode-markdown-editor-initial-state" content="([^"]+)"/.exec(panel.webview.html);
+			assert.ok(initialStateMatch);
+			const initialState = JSON.parse(decodeURIComponent(initialStateMatch[1]));
+			assert.strictEqual(initialState.documentReadonly, true);
+
+			const secretMatch = /<meta name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html);
+			assert.ok(secretMatch);
+			const renderer = connectRenderer(panel, secretMatch[1], configuration => configurations.push(configuration));
+			try {
+				await renderer.host.ready({});
+				await until(() => configurations.length === 1);
+				assert.strictEqual(configurations[0].documentReadonly, true);
+
+				// Ignoring setReadonly while document is read-only preserves the user's global preference.
+				await renderer.host.setReadonly({ readonly: false });
+				assert.strictEqual(state.values.has('markdown.editor.readonly'), false);
+
+				// Edits from the webview must be rejected while the document is read-only.
+				renderer.client.applyEdits([{ kind: 'stringEdits', path: [], stringEdits: [{ offset: 8, length: 0, newText: ' edited' }] }]);
+				await new Promise(resolve => setTimeout(resolve, 50));
+				assert.strictEqual(document.getText(), '# Staged');
+
+				// Making the document writable pushes updated configuration to the webview.
+				await filesConfig.update('readonlyInclude', previousReadonlyInclude, vscode.ConfigurationTarget.Global);
+				await until(() => configurations.length >= 2 && configurations[configurations.length - 1].documentReadonly === false);
+				assert.strictEqual(document.isReadonly, false);
+
+				await renderer.host.setReadonly({ readonly: false });
+				assert.strictEqual(state.values.get('markdown.editor.readonly'), false);
+			} finally {
+				renderer.dispose();
+			}
+		} finally {
+			await filesConfig.update('readonlyInclude', previousReadonlyInclude, vscode.ConfigurationTarget.Global);
+			panel.dispose();
+			provider.dispose();
+			cancellation.dispose();
+			await vscode.workspace.fs.delete(file);
+		}
+	});
 });
 
 function createProvider(state: vscode.Memento): MarkdownEditorProvider {
@@ -199,7 +255,11 @@ function createProvider(state: vscode.Memento): MarkdownEditorProvider {
 	);
 }
 
-function connectRenderer(panel: TestPanel, secret: string) {
+function connectRenderer(
+	panel: TestPanel,
+	secret: string,
+	onConfigurationChanged?: (configuration: Parameters<MarkdownEditorRenderer['configurationChanged']>[0]) => void,
+) {
 	const renderer = HubRpcConnection.fromTransport(new MarkdownEditorRpcTransport(
 		secret,
 		message => panel.webview.incoming.fire(message),
@@ -221,7 +281,7 @@ function connectRenderer(panel: TestPanel, secret: string) {
 		restoreNavigationState: () => { },
 		command: () => { },
 		highlightThemeChanged: () => { },
-		configurationChanged: () => { },
+		configurationChanged: configuration => { onConfigurationChanged?.(configuration); },
 		richLinkPresentations: () => { },
 	});
 	const host = renderer.get(markdownEditorHost);

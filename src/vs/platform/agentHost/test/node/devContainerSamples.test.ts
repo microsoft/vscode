@@ -209,7 +209,7 @@ suite('Dev Container samples', () => {
 	const sampleUpResult: CommandResult = { stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${folder}` }), stderr: '', code: 0 };
 
 	/** Creates a host that prepares the sample on a container with a user state volume. */
-	function createUserStateSampleHost(containerMetadata: object[], devcontainer: (args: readonly string[]) => CommandResult, localCommand: (args: readonly string[]) => string) {
+	function createUserStateSampleHost(containerMetadata: object[], devcontainer: (args: readonly string[]) => CommandResult, localCommand: (args: readonly string[]) => string, persistUserState = true) {
 		const config = { image: 'sample-image' };
 		const github = new class extends mock<IGitHubService>() {
 			override acquireAnonymousClient() {
@@ -223,7 +223,7 @@ suite('Dev Container samples', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		return store.add(new class extends DevContainerAgentHostMainService {
 			prepareSample() {
-				return this._prepareSample('sample', sample, CancellationToken.None, () => { }, false, true);
+				return this._prepareSample('sample', sample, CancellationToken.None, () => { }, false, persistUserState);
 			}
 			protected override async _runDocker(args: readonly string[]) {
 				const stdout = args[0] === 'volume'
@@ -252,19 +252,28 @@ suite('Dev Container samples', () => {
 	}
 
 	test('reports sample CLI stages for user state telemetry with sanitized errors', async () => {
-		const host = createUserStateSampleHost([{ remoteUser: 'vscode' }],
-			args => args[0] === 'up' ? sampleUpResult : { stdout: JSON.stringify({ outcome: 'error', message: 'postCreateCommand failed: cannot write /home/vscode/.npm as vscode' }), stderr: '', code: 1 },
-			args => args.includes('vscode') ? '1000\n1000\n/home/vscode\n' : '');
-		const reports: object[] = [];
-		store.add(host.onDidReportUserState(({ connectionId: _, ...report }) => reports.push(report)));
-		await assert.rejects(host.prepareSample(), /devcontainer run-user-commands failed \(exit 1\)/);
+		const run = async (persistUserState: boolean) => {
+			const host = createUserStateSampleHost([{ remoteUser: 'vscode' }],
+				args => args[0] === 'up' ? sampleUpResult : { stdout: JSON.stringify({ outcome: 'error', description: 'postCreateCommand from devcontainer.json failed.', message: 'cannot write /home/vscode/.npm as vscode' }), stderr: '', code: 1 },
+				args => args.includes('vscode') ? '1000\n1000\n/home/vscode\n' : '', persistUserState);
+			const reports: object[] = [];
+			store.add(host.onDidReportUserState(({ connectionId: _, ...report }) => reports.push(report)));
+			await assert.rejects(host.prepareSample(), /devcontainer run-user-commands failed \(exit 1\)/);
+			return reports;
+		};
 		const progress = { restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' };
-		assert.deepStrictEqual(reports, [
-			{ stage: 'mount', outcome: 'added', target: 'volume' },
-			{ stage: 'up', outcome: 'succeeded' },
-			{ stage: 'link', outcome: 'linked', target: 'volume', ...progress },
-			{ stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'postCreateCommand failed: cannot write ~/.npm as <user>' },
-		]);
+		const up = { stage: 'up', outcome: 'succeeded', lifecycleInUp: false };
+		const userCommands = { stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'lifecycle' };
+		assert.deepStrictEqual({ on: await run(true), off: await run(false) }, {
+			on: [
+				{ stage: 'mount', outcome: 'added', target: 'volume' },
+				up,
+				{ stage: 'link', outcome: 'linked', target: 'volume', ...progress },
+				{ ...userCommands, errorMessage: 'postCreateCommand from devcontainer.json failed.\ncannot write ~/.npm as <user>' },
+			],
+			// Linked because the container has a state volume.
+			off: [up, { stage: 'link', outcome: 'linked', target: 'volume', ...progress }, userCommands],
+		});
 	});
 
 	test('reads the sample user HOME through the Dev Containers CLI when container metadata sets it in remoteEnv', async () => {

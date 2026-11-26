@@ -64,6 +64,11 @@ import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
 // The changeset picker, as the Agents window registers it; the editor window registers the same
 import '../../browser/changesView.contribution.js';
+import '../../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
+import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 suite('SessionChangesEditor empty state layout', () => {
@@ -281,6 +286,7 @@ suite('SessionChangesEditor changed files list', () => {
 		instantiationService.stubInstance(MultiDiffEditorFileList, {
 			layout() { },
 			focus() { calls.push('focus'); },
+			setVisible() { },
 			dispose() { },
 		});
 		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
@@ -337,12 +343,16 @@ suite('SessionChangesEditor changed files list', () => {
 suite('SessionChangesEditor header', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function headerOf(host: Partial<ISessionsHostLayoutService>, aiEnabled: boolean) {
+	let headerContextKeyService: IContextKeyService | undefined;
+
+	function createHeader(host: Partial<ISessionsHostLayoutService>, aiEnabled: boolean, activeControl?: Partial<DiffEditorWidget>): HTMLElement {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const parent = append(mainWindow.document.body, $('.editor-instance'));
 		store.add(toDisposable(() => parent.remove()));
 		const hostContextKeyService = store.add(store.add(new ContextKeyService(instantiationService.get(IConfigurationService))).createScoped(parent));
 		hostContextKeyService.createKey(ChatContextKeys.enabled.key, aiEnabled);
+		hostContextKeyService.createKey(ActiveEditorContext.key, SessionChangesEditor.ID);
+		headerContextKeyService = hostContextKeyService;
 		instantiationService.stub(IContextKeyService, hostContextKeyService);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
@@ -367,10 +377,21 @@ suite('SessionChangesEditor header', () => {
 			override readonly activeSessionLoadingObs = constObservable(false);
 			override readonly activeSessionChangesSummaryObs = constObservable(undefined);
 			override readonly activeSessionStateObs = constObservable(undefined);
+			override getSessionChanges() {
+				return upcastPartial<IChangesSessionObservables>({
+					resourceObs: constObservable(undefined), changesObs: constObservable([]), changesetObs: constObservable(undefined), changesetsObs: constObservable(undefined),
+					changesetOperationsObs: constObservable([]), changesetsLoadingObs: constObservable(false), changesetLoadingObs: constObservable(false), loadingObs: constObservable(false),
+					stateObs: constObservable(undefined), changesSummaryObs: constObservable(undefined), hasGitRepositoryObs: constObservable(false),
+				});
+			}
 		}());
 		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, ...host });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getSession: () => undefined }));
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			getSessionPullRequest: () => upcastPartial<ReturnType<IGitHubService['getSessionPullRequest']>>({ pullRequestCIObs: constObservable(undefined) }),
+		}));
 		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
 			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
 			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
@@ -378,15 +399,25 @@ suite('SessionChangesEditor header', () => {
 		instantiationService.stubInstance(MultiDiffEditorWidget, {
 			viewModel: observableValue<MultiDiffEditorViewModel | undefined>('viewModel', undefined),
 			onDidChangeActiveControl: Event.None,
+			getActiveControl: () => activeControl as DiffEditorWidget | undefined,
 			setPaddingBottom() { },
 			setVariant() { },
 			setDiffLayoutOptions() { },
 			layout() { },
 			dispose() { },
 		});
+		instantiationService.stubInstance(MultiDiffEditorFileList, {
+			layout() { },
+			setVisible() { },
+			dispose() { },
+		});
 		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 		editor.create(parent);
-		const header = parent.querySelector('.session-changes-editor-header-left');
+		return parent;
+	}
+
+	function headerOf(host: Partial<ISessionsHostLayoutService>, aiEnabled: boolean) {
+		const header = createHeader(host, aiEnabled).querySelector('.session-changes-editor-header-left');
 		return header ? [...header.querySelectorAll('.action-label')].map(label => label.getAttribute('aria-label')) : 'none';
 	}
 
@@ -399,6 +430,36 @@ suite('SessionChangesEditor header', () => {
 			agentsWindow: 'none',
 			editorWindow: ['Versions'],
 			editorWindowWithoutAI: [],
+		});
+	});
+
+	test('in an editor window, the right of its header shows its More Actions beside the operations of its changeset, also while its changeset has no operations', () => {
+		const right = createHeader({ editorPartDrawsEditorHeaders: false, editorsBindSessionContext: true }, true).querySelector('.session-changes-editor-header-right')!;
+		assert.deepStrictEqual([...right.children].map(child => ({
+			className: child.className,
+			hidden: (child as HTMLElement).style.display === 'none',
+			actions: [...child.querySelectorAll('.action-label')].map(label => label.getAttribute('aria-label')),
+		})), [
+			{ className: 'session-changes-editor-header-operations changes-actions-bar', hidden: true, actions: [] },
+			{ className: 'session-changes-editor-header-actions', hidden: false, actions: ['More Actions...'] },
+		]);
+	});
+
+	test('in an editor window, the Diff View of its header shows the layout of its active diff, as its diffs do', () => {
+		const diffViewOf = (renderSideBySide: boolean, temporaryInline: boolean) => {
+			const root = createHeader({ editorPartDrawsEditorHeaders: false, editorsBindSessionContext: true }, true, {
+				renderSideBySideInAutomaticMode: constObservable(renderSideBySide),
+				temporaryInlineMode: constObservable(temporaryInline),
+			});
+			const context = headerContextKeyService!.getContext(root.getElementsByClassName('session-changes-editor-header-actions')[0] as HTMLElement);
+			return {
+				automaticSideBySide: context.getValue(EditorContextKeys.diffEditorAutomaticRenderSideBySide.key),
+				temporaryInline: context.getValue(EditorContextKeys.diffEditorTemporaryInlineMode.key),
+			};
+		};
+		assert.deepStrictEqual({ wide: diffViewOf(true, false), narrow: diffViewOf(false, true) }, {
+			wide: { automaticSideBySide: true, temporaryInline: false },
+			narrow: { automaticSideBySide: false, temporaryInline: true },
 		});
 	});
 });
@@ -479,6 +540,7 @@ suite('SessionChangesEditor input', () => {
 		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return undefined; }
 			override getChatResource(): URI | undefined { return undefined; }
 		}());
@@ -549,6 +611,7 @@ suite('SessionChangesEditor chat changes observation', () => {
 		}());
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return sessionResource; }
 			override getChatResource(resource: URI): URI | undefined { return resource.path === '/session' ? undefined : chats.find(chat => chat.resource.path.endsWith(resource.path))?.resource; }
 		}());
@@ -630,6 +693,7 @@ suite('SessionChangesEditor chat changes loading', () => {
 		}());
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return sessionResource; }
 			override getChatResource(): URI | undefined { return chat.resource; }
 		}());
@@ -773,6 +837,7 @@ suite('SessionChangesEditor chat changes loading', () => {
 		}());
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return sessionResource; }
 			override getChatResource(): URI | undefined { return chat.resource; }
 		}());

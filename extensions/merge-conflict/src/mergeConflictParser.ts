@@ -151,6 +151,19 @@ export class MergeConflictParser {
 		return text.includes(startHeaderMarker) && text.includes(endFooterMarker);
 	}
 
+	static mayHaveAddedConflict(event: vscode.TextDocumentChangeEvent): boolean {
+		const [change] = event.contentChanges;
+		if (event.contentChanges.length !== 1 || change.text.length > 256 || /[\r\n]/.test(change.text)) {
+			return true;
+		}
+
+		// A new marker must overlap the inserted text or span the junction at the start of the change
+		const { line, character } = change.range.start;
+		const margin = startHeaderMarker.length - 1;
+		const text = event.document.lineAt(line).text.slice(Math.max(0, character - margin), character + change.text.length + margin);
+		return text.includes(startHeaderMarker) || text.includes(endFooterMarker);
+	}
+
 	private static shiftBackOneCharacter(document: vscode.TextDocument, range: vscode.Position, unlessEqual: vscode.Position): vscode.Position {
 		if (range.isEqual(unlessEqual)) {
 			return range;

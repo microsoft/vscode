@@ -1073,9 +1073,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'quickDiffProvider');
 				return extHostQuickDiff.registerQuickDiffProvider(extension, checkSelector(selector), quickDiffProvider, id, label, rootUri);
 			},
-			createSourceControlDiffInformation(uri: vscode.Uri): vscode.SourceControlDiffInformationProvider {
+			createSourceControlDiffInformation(uri: vscode.Uri, options?: vscode.SourceControlDiffInformationOptions): vscode.SourceControlDiffInformationProvider {
 				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
-				return extHostQuickDiff.createSourceControlDiffInformation(uri);
+				return extHostQuickDiff.createSourceControlDiffInformation(uri, options);
 			},
 			get linkPresentationRules(): readonly vscode.LinkPresentationRule[] {
 				checkProposedApiEnabled(extension, 'linkPresentation');
@@ -1183,6 +1183,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get isAgentSessionsWorkspace() {
 				checkProposedApiEnabled(extension, 'agentSessionsWorkspace');
 				return !!initData.environment.isSessionsWindow;
+			},
+			get mode() {
+				checkProposedApiEnabled(extension, 'workbenchMode');
+				return typeConverters.WorkbenchMode.to(extHostWorkspace.workbenchMode);
+			},
+			onDidChangeMode: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'workbenchMode');
+				return _asExtensionEvent(Event.map(extHostWorkspace.onDidChangeWorkbenchMode, mode => typeConverters.WorkbenchMode.to(mode)))(listener, thisArgs, disposables);
 			},
 			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
 				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
@@ -1342,6 +1350,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return _asExtensionEvent(extHostDocuments.onDidChangeDocumentWithReason)(listener, thisArgs, disposables);
 				}
 				return _asExtensionEvent(extHostDocuments.onDidChangeDocument)(listener, thisArgs, disposables);
+			},
+			onDidChangeTextDocumentReadonly: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'textDocumentReadonly');
+				return _asExtensionEvent(extHostDocuments.onDidChangeDocumentReadonly)(listener, thisArgs, disposables);
 			},
 			onDidSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return _asExtensionEvent(extHostDocuments.onDidSaveDocument)(listener, thisArgs, disposables);
@@ -2096,6 +2108,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineCompletionsDisposeReasonKind: extHostTypes.InlineCompletionsDisposeReasonKind,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
+			WorkbenchMode: extHostTypes.WorkbenchMode,
 			ExtensionMode: extHostTypes.ExtensionMode,
 			ExternalUriOpenerPriority: extHostTypes.ExternalUriOpenerPriority,
 			FileChangeType: extHostTypes.FileChangeType,

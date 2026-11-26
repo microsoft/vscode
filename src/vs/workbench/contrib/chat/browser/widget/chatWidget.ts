@@ -55,7 +55,7 @@ import { Link } from '../../../../../platform/opener/browser/link.js';
 import product from '../../../../../platform/product/common/product.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorRegistry.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -696,7 +696,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatPasteTargetService private readonly chatPasteTargetService: IChatPasteTargetService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@ILogService private readonly logService: ILogService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -3045,9 +3044,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 
 		if (!isInput) {
-			// The inline editor is self-contained: it shows the model its request ran on, submits
-			// with it (see `acceptInput`, which reads the model from here before this runs), and
-			// disappears. The bottom input keeps whatever the user left it on.
 			this.inputPart?.toggleChatInputOverlay(false);
 			this.disposeInlineInput();
 		}
@@ -3357,8 +3353,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private onDidStyleChange(): void {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
-		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
-		this.container.style.setProperty('--vscode-chat-list-background', this.themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
+		this.container.style.setProperty('--vscode-interactive-session-foreground', asCssVariable(this.styles.listForeground));
+		this.container.style.setProperty('--vscode-chat-list-background', asCssVariable(this.styles.listBackground));
 	}
 
 	/**
@@ -3396,6 +3392,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Updating editorOptions fires onDidChange which triggers onDidStyleChange
 			// and also propagates the new colors to subscribers like CodeBlockPart.
 			this.editorOptions.setColors(styles.listForeground, styles.inputEditorBackground, styles.resultEditorBackground);
+		} else if (listColorsChanged && this.container) {
+			this.onDidStyleChange();
 		}
 	}
 
@@ -4332,13 +4330,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus, forkPromptSourceInput?.clear)) {
 			return;
 		}
-		const isEditing = this.viewModel?.editing;
+		const editingViewModel = this.viewModel;
+		const isEditing = editingViewModel.editing;
 		const submittedFromEditing = shouldUnlockChatPetRequestRevision(isEditing !== undefined, isUserQuery);
-		// Captured before `finishedEditing` tears the inline editor down, while `this.input` still
-		// resolves to it. The inline editor owns the model and mode for a resubmit — those are the
-		// pickers the user actually chose in — so these stay authoritative over the bottom input.
+		// Capture the inline pickers before `finishedEditing` tears them down.
 		const isInlineEdit = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input';
 		const editedModelRequestOptions = isInlineEdit ? this.getSelectedModelRequestOptions() : undefined;
+		const editedModelId = editedModelRequestOptions?.userSelectedModelId;
+		const modelToKeep = isUserQuery && !options.preserveInput && editedModelId && isEditing
+			&& isEditing.pendingKind === undefined && editedModelId !== isEditing.modelId && this.input.hasUserSelectedModel
+			? {
+				id: editedModelId,
+				configuration: editedModelRequestOptions?.userSelectedModelConfiguration,
+				previousComposerModelId: this.inputPart.currentLanguageModel,
+				composerModelSelectionRevision: this.inputPart.modelSelectionRevision,
+			}
+			: undefined;
 		const editedModeKind = isInlineEdit ? this.input.currentModeKind : undefined;
 		const editedModeInfo = isInlineEdit ? this.input.currentModeInfo : undefined;
 		// Tools and instruction routing belong to the mode, so they come from the same editor at the
@@ -4534,6 +4541,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 			return;
+		}
+
+		if (modelToKeep && !this._store.isDisposed && this.viewModel === editingViewModel && !this.viewModel.editing
+			&& this.inputPart.currentLanguageModel === modelToKeep.previousComposerModelId
+			&& this.inputPart.modelSelectionRevision === modelToKeep.composerModelSelectionRevision) {
+			if (!this.inputPart.switchModelByIdentifier(modelToKeep.id, false, true, modelToKeep.configuration)) {
+				this.logService.debug('[ChatWidget] The model chosen for the revised request is no longer selectable in the composer');
+			}
 		}
 
 		this.logThinkingStyleUsage('submit');

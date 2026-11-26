@@ -50,6 +50,13 @@ suite('ExtHostDocumentData', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (data as any).document.isDirty = false);
 		// eslint-disable-next-line local/code-no-any-casts
+		assert.throws(() => (data as any).document.isReadonly = true);
+		assert.strictEqual(data.document.isReadonly, false);
+		data._acceptIsReadonly(true);
+		assert.strictEqual(data.document.isReadonly, true);
+		data._acceptIsReadonly(false);
+		assert.strictEqual(data.document.isReadonly, false);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (data as any).document.isUntitled = false);
 		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (data as any).document.languageId = 'dddd');

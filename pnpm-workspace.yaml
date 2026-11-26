@@ -120,7 +120,6 @@ allowBuilds:
   fsevents@2.3.2: true
   fsevents@2.3.3: true
   kerberos@2.1.1: true
-  keytar@7.9.0: true
   koffi@3.2.1: false
   native-is-elevated@0.9.0: true
   native-keymap@3.3.9: true

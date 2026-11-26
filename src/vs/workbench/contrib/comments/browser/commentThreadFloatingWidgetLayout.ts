@@ -68,7 +68,10 @@ export interface ICommentThreadFloatingWidgetLayout {
 	/** Distance from the left edge of the editor to the left edge of the widget. */
 	readonly left: number;
 	readonly width: number;
-	/** The height chosen by the user while the widget floats, or `undefined` when it sizes itself to its content. */
+	/**
+	 * The height chosen by the user while the widget floats, or for another widget before this one was placed, or
+	 * `undefined` when it sizes itself to its content.
+	 */
 	readonly height: number | undefined;
 	/**
 	 * The height chosen by the user while the widget is docked below its code, or `undefined` when it sizes itself to its
@@ -80,6 +83,20 @@ export interface ICommentThreadFloatingWidgetLayout {
 	 * it to keep the widgets in the order of their code.
 	 */
 	readonly isChosenByUser: boolean;
+}
+
+/**
+ * The size that the user last resized a floating comment thread widget to, in each dimension that the user resized a
+ * widget in. Widgets that are placed or docked after that start out at this size, rather than at one that suits the
+ * editor.
+ */
+export interface IFloatingWidgetChosenSize {
+	/** The width that the user last gave a floating widget. */
+	readonly width?: number;
+	/** The height that the user last gave a floating widget. */
+	readonly height?: number;
+	/** The height that the user last gave a widget that is docked below its code. */
+	readonly dockedHeight?: number;
 }
 
 /**
@@ -186,10 +203,15 @@ export function getCenteredTop(codeTop: number, codeBottom: number, height: numb
 }
 
 /**
- * The width a widget starts out with in an editor whose code area has the given width. A new comment starts out wider,
- * when the editor has room for it, so that it invites writing a long comment.
+ * The width a widget starts out with in an editor whose code area has the given width: the width that the user last
+ * gave a widget, as far as the editor has room for it, or else one that suits the editor. A new comment then starts out
+ * wider, when the editor has room for it, so that it invites writing a long comment.
+ * @param chosenWidth The width that the user last gave a widget, or `undefined` when the user hasn't resized one.
  */
-export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availableWidth: number, isNewComment: boolean): number {
+export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availableWidth: number, isNewComment: boolean, chosenWidth?: number): number {
+	if (chosenWidth !== undefined) {
+		return Math.min(chosenWidth, availableWidth);
+	}
 	const ratio = isNewComment ? NEW_COMMENT_WIDTH_RATIO : DEFAULT_WIDTH_RATIO;
 	const maxWidth = isNewComment ? NEW_COMMENT_MAX_WIDTH : DEFAULT_MAX_WIDTH;
 	return Math.min(clamp(Math.round(editorContentWidth * ratio), DEFAULT_MIN_WIDTH, maxWidth), availableWidth);
@@ -572,6 +594,15 @@ export class FloatingWidgetSizeModel {
 	 */
 	get maxAutoHeight(): number {
 		return Math.max(MIN_HEIGHT, Math.floor(this._editorSize.height * AUTO_HEIGHT_RATIO));
+	}
+
+	/**
+	 * The tallest that the widget is at the given height chosen by the user, as far as the editor has room for it, or
+	 * that it sizes itself to when the user didn't choose one, unless its title, reply and additional actions alone are
+	 * taller, and before they grow.
+	 */
+	getMaxHeight(chosenHeight: number | undefined): number {
+		return chosenHeight !== undefined ? Math.max(MIN_HEIGHT, Math.min(chosenHeight, this._editorSize.height - 2 * EDGE_MARGIN)) : this.maxAutoHeight;
 	}
 
 	/**

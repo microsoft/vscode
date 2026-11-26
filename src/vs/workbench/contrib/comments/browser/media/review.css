@@ -403,6 +403,17 @@
 	display: none;
 }
 
+.review-widget .body .comment-form-container .comment-form-progress {
+	position: relative;
+}
+
+/* The progress of an action of the form overlays the bottom edge of the comment editor, so that it doesn't move the form. */
+.review-widget .body .comment-form-container .comment-form-progress .monaco-progress-container {
+	position: absolute;
+	top: -2px;
+	left: 0;
+}
+
 .review-widget .body .comment-form-container .form-actions,
 .review-widget .body .edit-container .form-actions {
 	overflow: auto;

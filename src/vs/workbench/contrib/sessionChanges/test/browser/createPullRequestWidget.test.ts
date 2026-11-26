@@ -1155,7 +1155,7 @@ suite('CreatePullRequestWidget', () => {
 				element(widget, '.create-pr-draft [role="checkbox"]').click();
 			}
 			element(widget, '.create-pr-autopilot [role="checkbox"][aria-label="Automatically Fix CI"]').click();
-			[...element(widget, '.create-pr-autopilot').querySelectorAll<HTMLElement>('[role="radio"]')].find(node => node.textContent === 'Always')!.click();
+			[...element(widget, '.create-pr-autopilot').querySelectorAll<HTMLElement>('[role="radio"]')].find(node => node.textContent === 'On')!.click();
 			const state = autopilotState(widget);
 			submit(widget);
 			await timeout(0);
@@ -1165,7 +1165,7 @@ suite('CreatePullRequestWidget', () => {
 					hidden: false,
 					modeDescriptionHidden: true,
 					rules: ['Automatically Address Reviews: true', 'Automatically Fix CI: false', 'Automatically Update Branch: true', ...(draft ? ['Automatically Mark Ready: true'] : [])],
-					policy: 'Always',
+					policy: 'On',
 				},
 				submissions: [{ title: details.title, description: details.description, draft, agentMerge: false, autopilot }],
 				remembered: { ...autopilot, markReady: true },

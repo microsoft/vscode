@@ -791,7 +791,6 @@ function printQueueUsage(): void {
 	console.log(`  ${scriptName}                                    # Queue build on current branch`);
 	console.log(`  ${scriptName} --branch my-feature                # Queue build on specific branch`);
 	console.log(`  ${scriptName} --parameter "VSCODE_BUILD_WEB=false" --parameter "VSCODE_PUBLISH=false"`);
-	console.log(`  ${scriptName} --parameter "VSCODE_BUILD_TITLE_PREFIX=My Validation "  # Parameter values with spaces`);
 }
 
 function parseQueueArgs(args: string[]): QueueArgs {
@@ -1546,11 +1545,11 @@ async function runAllTests(): Promise<void> {
 
 		it('queueBuild passes parameter values with spaces verbatim', async () => {
 			const client = new TestableAzureDevOpsClient(ORGANIZATION, PROJECT);
-			await client.queueBuild('111', 'main', ['VSCODE_BUILD_TITLE_PREFIX=My Validation ']);
+			await client.queueBuild('111', 'main', ['KEY=value with spaces ']);
 
 			const cmd = client.capturedCommands[0];
 			assert.ok(cmd.includes('--parameters'));
-			assert.deepStrictEqual(cmd[cmd.indexOf('--parameters') + 1], 'VSCODE_BUILD_TITLE_PREFIX=My Validation ');
+			assert.deepStrictEqual(cmd[cmd.indexOf('--parameters') + 1], 'KEY=value with spaces ');
 		});
 
 		it('getBuild constructs correct az command', async () => {

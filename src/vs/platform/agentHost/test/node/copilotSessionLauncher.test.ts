@@ -86,7 +86,7 @@ const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_
 const alwaysDisabledTools = [...disabledWorkflowTools, 'builtin:semantic_code_search'];
 const defaultDisabledTools = [...alwaysDisabledTools, 'builtin:search_code_subagent'];
 const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_PLUGIN_INSTALL: true, AGENT_FINDER_SKILL_INSTALL: true };
-const hydraFusionFeatureFlags = { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true };
+const hydraFusionFeatureFlags = { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_STAGED_STREAMING: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true };
 const emptyAgentCatalog: Pick<CopilotSession['rpc']['agent'], 'list'> = { list: async () => ({ agents: [] }) };
 function reportManagedSettings(config: ResumeSessionOptions | undefined): void {
 	config?.events?.onEvent?.({
@@ -4708,6 +4708,28 @@ suite('CopilotSessionLauncher resume config', () => {
 		}, {
 			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false, SECURITY_REVIEW_FINE_TUNED_MODEL: false },
 			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false, SECURITY_REVIEW_FINE_TUNED_MODEL: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
+		});
+	});
+
+	test('offers run_program only when client-side programmatic tool calling is opted in', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launch = async (values: Record<string, unknown>) => {
+			const config = await buildResumeConfig(createLauncher(store, values), { id: 'gpt-5' });
+			const flags = config.experiments?.flags;
+			return { flags: { local: flags?.CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING, guidance: flags?.CLIENT_SIDE_PTC_GUIDANCE }, tools: config.tools?.availableTools };
+		};
+
+		assert.deepStrictEqual({
+			disabled: await launch({}),
+			enabled: await launch({ [CopilotCliConfigKey.ProgrammaticToolCalling]: true }),
+			enabledWithModelFilter: await launch({
+				[CopilotCliConfigKey.ProgrammaticToolCalling]: true,
+				[CopilotCliConfigKey.ModelCapabilityOverrides]: { '*': { availableTools: ['custom:*'] } },
+			}),
+		}, {
+			disabled: { flags: { local: undefined, guidance: undefined }, tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS] },
+			enabled: { flags: { local: true, guidance: true }, tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS, 'builtin:run_program'] },
+			enabledWithModelFilter: { flags: { local: true, guidance: true }, tools: ['custom:*'] },
 		});
 	});
 

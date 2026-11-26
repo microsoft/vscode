@@ -14,7 +14,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { IAgentsViewProvidersReleaseParticipant, IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { EditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
-import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
+import { IChatViewHostService, IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -32,7 +32,7 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { EditorWindowSessionsNavigationHost } from '../../../browser/agentsView/editorWindowSessionsNavigationHost.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IChat, ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 
 suite('EditorWindowSessionsRuntime', () => {
@@ -414,6 +414,35 @@ suite('EditorWindowSessionsService', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual(opened, ['b']);
+	});
+
+	test('while the Chat view presents the sessions, closing a deleted session puts a new chat in place of its chat that the Chat view shows, and leaves the chat of another session', async () => {
+		const calls: string[] = [];
+		const a = buildTestSession({ id: 'a', title: 'A', chats: [{ id: 'second', title: 'Second' }] });
+		const b = buildTestSession({ id: 'b', title: 'B' });
+		const shownSession = observableValue<IChatViewHostShownSession | undefined>('shownSession', { resource: a.chats.get('second')!.chat.resource, reason: 'open' });
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({
+			shownSession,
+			newChat: async (target, options) => {
+				calls.push(`newChat target=${target} ownChat=${options?.ownChat} preserveFocus=${options?.preserveFocus}`);
+				shownSession.set(undefined, undefined);
+				return true;
+			},
+		}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }), acquire: () => toDisposable(() => { }) }));
+		instantiationService.stub(IEditorWindowSessionsPresenterService, disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService)));
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({}));
+		instantiationService.stub(IWorkspaceTrustManagementService, upcastPartial<IWorkspaceTrustManagementService>({}));
+		instantiationService.stub(IWorkspaceTrustRequestService, upcastPartial<IWorkspaceTrustRequestService>({}));
+		const host = disposables.add(instantiationService.createInstance(EditorWindowSessionsNavigationHost));
+
+		await host.closeSession(b.session);
+		await host.closeSession(a.session);
+
+		assert.deepStrictEqual(calls, ['newChat target=undefined ownChat=true preserveFocus=true']);
 	});
 
 	test('an open waiting for a session its providers do not know yet stops as a later open supersedes it, and releases the providers then, by the sessions service and the navigation host alike', () => runWithFakedTimers({}, async () => {

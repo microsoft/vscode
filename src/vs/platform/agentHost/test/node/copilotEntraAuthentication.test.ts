@@ -6,6 +6,7 @@
 import assert from 'assert';
 import type { EntraTokenProvider, EntraTokenProviderArgs } from '@microsoft/copilot-sdk';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -17,7 +18,7 @@ import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDisc
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from '../../node/copilot/copilotEntraAuthentication.js';
+import { acceptEntraDiscoveryCredential, CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from '../../node/copilot/copilotEntraAuthentication.js';
 
 suite('Copilot Entra authentication', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -158,6 +159,51 @@ suite('Copilot Entra authentication', () => {
 		}();
 		await f.authentication.replay(observer);
 		assert.deepStrictEqual(replayed, [{ accountId: 'selected', metadata: undefined }]);
+	});
+
+	test('the discovery credential keeps its ID token for the host and through replay', async () => {
+		const f = fixture();
+		await f.acquire(identity);
+		await assert.rejects(f.authenticate({ ...f.credential(), idToken: '' }), /idToken must be a nonempty string/);
+		await f.authenticate({ ...f.credential(), idToken: 'synthetic-id-token' });
+		const replayed: (string | undefined)[] = [];
+		await f.authentication.replay(new class extends mock<IAgent>() {
+			override getProtectedResources() { return []; }
+			override async handleAuthenticationToken(params: AuthenticateParams) {
+				replayed.push(params.idToken);
+				return true;
+			}
+		}());
+		assert.deepStrictEqual({
+			stored: f.authentication.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.idToken,
+			replayed,
+		}, { stored: 'synthetic-id-token', replayed: ['synthetic-id-token'] });
+	});
+
+	test('the first discovery credential fixes the account, and its tenant is learned once from an ID token', () => {
+		const idToken = (claims: unknown) => `${encodeBase64(VSBuffer.fromString('{}'))}.${encodeBase64(VSBuffer.fromString(JSON.stringify(claims)))}.signature`;
+		const tenant = { accountId: 'selected', idToken: idToken({ tid: 'tenant' }) };
+		const withoutTenant = { accountId: 'selected', tenantId: undefined };
+		const withTenant = { accountId: 'selected', tenantId: 'tenant' };
+		assert.deepStrictEqual({
+			first: acceptEntraDiscoveryCredential(undefined, tenant),
+			unreadable: [undefined, 'not-a-jwt', idToken({}), idToken({ tid: ' ' }), idToken({ tid: 7 }), idToken(null)]
+				.map(idToken => acceptEntraDiscoveryCredential(undefined, { accountId: 'selected', idToken })),
+			learnedLater: acceptEntraDiscoveryCredential(withoutTenant, tenant),
+			kept: [
+				acceptEntraDiscoveryCredential(withTenant, { accountId: 'selected', idToken: idToken({ tid: 'other-tenant' }) }),
+				acceptEntraDiscoveryCredential(withTenant, { accountId: 'selected' }),
+				acceptEntraDiscoveryCredential(withoutTenant, { accountId: 'other', idToken: tenant.idToken }),
+				acceptEntraDiscoveryCredential(withTenant, undefined),
+			],
+			noAccount: acceptEntraDiscoveryCredential(undefined, { idToken: tenant.idToken }),
+		}, {
+			first: withTenant,
+			unreadable: new Array(6).fill(withoutTenant),
+			learnedLater: withTenant,
+			kept: [withTenant, withTenant, withoutTenant, withTenant],
+			noAccount: undefined,
+		});
 	});
 
 	for (const audience of [copilotEntraEmuAudience, copilotEntraM365Audience]) {

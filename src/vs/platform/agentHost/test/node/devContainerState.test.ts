@@ -7,7 +7,7 @@ import assert from 'assert';
 import { spawnSync } from 'child_process';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMountTarget, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateLinkOptions, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
+import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, DevContainerUpErrorCause, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMountTarget, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, getDevContainerUpErrorCause, IDevContainerStateLinkOptions, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
 
 suite('DevContainerState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -188,6 +188,7 @@ suite('DevContainerState', () => {
 			'vscode-state:skip:mounted',
 			'vscode-state:skip:mounted',
 			'vscode-state:skip:running',
+			'vscode-state:skip:untrusted',
 			'vscode-state:skip:/home/node',
 			'vscode-state:step:/home/node',
 			'unrelated output',
@@ -197,9 +198,45 @@ suite('DevContainerState', () => {
 			parseLinkDevContainerStateOutput('vscode-state:step:volume\nvscode-state:step:home\nvscode-state:noHome\n'),
 			parseLinkDevContainerStateOutput(''),
 		], [
-			{ step: 'folders', homeFound: true, restoredFolders: 1, movedFolders: 2, createdFolders: 1, existingFolders: 1, skippedFolders: 5, skipReasons: 'mounted,running,symlink,unknown' },
+			{ step: 'folders', homeFound: true, restoredFolders: 1, movedFolders: 2, createdFolders: 1, existingFolders: 1, skippedFolders: 6, skipReasons: 'mounted,running,symlink,unknown,untrusted' },
 			{ step: 'home', homeFound: false, restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' },
 			{ step: undefined, homeFound: true, restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' },
+		]);
+	});
+
+	test('parses skipped links, capabilities and the state folder owner only as fixed values', () => {
+		const folders = { restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' };
+		assert.deepStrictEqual([
+			parseLinkDevContainerStateOutput('vscode-state:step:capabilities\nvscode-state:uid:root\nvscode-state:capEff:00000000a80425f2\nvscode-state:missing:CAP_CHOWN\nvscode-state:missing:CAP_FOWNER\nvscode-state:skipped:missingCapabilities\n'),
+			parseLinkDevContainerStateOutput('vscode-state:uid:other\nvscode-state:capEff:0\nvscode-state:stateOwner:user\nvscode-state:volumeOwner:root\nvscode-state:step:stateFolder\n'),
+			parseLinkDevContainerStateOutput('vscode-state:uid:/home/node\nvscode-state:capEff:/home\nvscode-state:missing:/etc\nvscode-state:stateOwner:node\nvscode-state:volumeOwner:/workspaces\nvscode-state:skipped:/home/node\n'),
+		], [
+			{ step: 'capabilities', homeFound: true, skipped: 'missingCapabilities', missingCapabilities: ['CAP_CHOWN', 'CAP_FOWNER'], scriptUser: 'root', capChown: false, capDacOverride: true, capDacReadSearch: false, capFowner: false, ...folders },
+			{ step: 'stateFolder', homeFound: true, scriptUser: 'other', capChown: false, capDacOverride: false, capDacReadSearch: false, capFowner: false, stateOwner: 'user', volumeOwner: 'root', ...folders },
+			{ step: undefined, homeFound: true, ...folders },
+		]);
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:missing:CAP_CHOWN\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs for the container user\'s folders (CAP_CHOWN), e.g., because of cap_drop');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:home\nvscode-state:missing:CAP_DAC_OVERRIDE\nvscode-state:missing:CAP_DAC_READ_SEARCH\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs to enter the home folder (CAP_DAC_OVERRIDE or CAP_DAC_READ_SEARCH), e.g., because of cap_drop');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:folders\nvscode-state:missing:CAP_FOWNER\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs to copy the container user\'s folders to the volume (CAP_FOWNER), e.g., because of cap_drop');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:stateFolder\nvscode-state:skipped:untrustedState\n')), 'another user can change the state folder or the volume\'s root folder');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:stateFolder\nvscode-state:stateOwner:user\nvscode-state:skipped:stateNotRootOwned\n')), 'the volume\'s .vscode-state folder is not owned by root, e.g., after a lifecycle command ran `chown -R` on the volume. To keep its state, give it and its contents back to root if you trust them, or remove it to start fresh');
+	});
+
+	test('reads security settings from docker inspect as fixed values', () => {
+		assert.deepStrictEqual([
+			getDevContainerSecurityOptions({ CapDrop: null, Privileged: false, UsernsMode: '', ReadonlyRootfs: false, Runtime: 'runc' }),
+			getDevContainerSecurityOptions({ CapDrop: ['NET_RAW', 'cap_chown'], Privileged: true, UsernsMode: 'host', ReadonlyRootfs: true, Runtime: 'io.containerd.runsc.v1' }),
+			getDevContainerSecurityOptions({ CapDrop: ['ALL'], Runtime: 'sysbox-runc' }),
+			getDevContainerSecurityOptions({ CapDrop: ['NET_RAW'], Runtime: 'oci' }),
+			getDevContainerSecurityOptions({ Runtime: '/opt/custom/runtime' }),
+			getDevContainerSecurityOptions(null),
+		], [
+			{ capDropChown: false, privileged: false, usernsMode: false, readonlyRootfs: false, runtime: 'runc' },
+			{ capDropChown: true, privileged: true, usernsMode: true, readonlyRootfs: true, runtime: 'gvisor' },
+			{ capDropChown: true, runtime: 'sysbox' },
+			{ capDropChown: false, runtime: 'oci' },
+			{ runtime: 'other' },
+			{},
 		]);
 	});
 
@@ -228,8 +265,62 @@ suite('DevContainerState', () => {
 		]);
 	});
 
+	test('removes values from error messages that the telemetry service does not redact', () => {
+		const sanitize = (message: string) => sanitizeDevContainerStateErrorMessage([message]);
+		assert.deepStrictEqual({
+			commandPathWithSpace: sanitize('Command failed: C:\\Users\\John Doe\\bin\\docker.exe run --sig-proxy=false alpine'),
+			userCommand: sanitize('Command failed: /home/jdoe/bin/acme-init.sh --region eu'),
+			configPath: sanitize('Dev container config (C:\\Users\\jdoe\\Acme Merger Plan (2)\\.devcontainer\\devcontainer.json) not found.'),
+			configPathWithCode: sanitize('Dev container config (/workspaces/Acme Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			twoPaths: sanitize('Mounting (/home/jdoe/Acme Plan) at (/workspaces/Acme Plan) failed.'),
+			nestedParentheses: sanitize('Dev container config (/workspaces/Acme Plan (Review (2))/.devcontainer/devcontainer.json) not found.'),
+			unmatchedClosing: sanitize('Dev container config (/workspaces/Acme) Merger Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			unmatchedOpening: sanitize('Dev container config (/workspaces/Acme (Merger Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			reversedParentheses: sanitize('Dev container config (/workspaces/Acme) Merger (Plan/.devcontainer/devcontainer.json) not found. (ENOENT)'),
+			reversedParenthesesLastFolder: sanitize('Workspace folder (/workspaces/Acme) Merger (Plan) not found.'),
+			reversedParenthesesUppercaseLastFolder: sanitize('Workspace folder (/workspaces/Acme) Merger (PLAN) not found.'),
+			hostName: sanitize('getaddrinfo ENOTFOUND registry.acme-corp.internal'),
+			address: sanitize('connect ECONNREFUSED 10.1.2.3:443'),
+			dockerHost: sanitize('dial tcp 10.1.2.3:2376: connect: connection refused'),
+		}, {
+			commandPathWithSpace: 'Command failed: <command> <args>',
+			userCommand: 'Command failed: <command> <args>',
+			configPath: 'Dev container config (<path>) not found.',
+			configPathWithCode: 'Dev container config (<path>) not found. (ENOENT)',
+			twoPaths: 'Mounting (<path>) at (<path>) failed.',
+			nestedParentheses: 'Dev container config (<path>) not found.',
+			unmatchedClosing: 'Dev container config (<path>) not found. (ENOENT)',
+			unmatchedOpening: 'Dev container config (<path>)',
+			reversedParentheses: 'Dev container config (<path>) not found. (ENOENT)',
+			reversedParenthesesLastFolder: 'Workspace folder (<path>) not found.',
+			reversedParenthesesUppercaseLastFolder: 'Workspace folder (<path>) not found.',
+			hostName: 'getaddrinfo ENOTFOUND <address>',
+			address: 'connect ECONNREFUSED <address>',
+			dockerHost: 'dial tcp <address>: connect: connection refused',
+		});
+	});
+
 	test('keeps the start and end of long error messages', () => {
 		const message = sanitizeDevContainerStateErrorMessage([`start ${'x'.repeat(2000)} end`]);
 		assert.deepStrictEqual({ length: message?.length, start: message?.startsWith('start x'), end: message?.endsWith('x end'), elided: message?.includes('\n…\n') }, { length: 1000, start: true, end: true, elided: true });
+	});
+
+	test('classifies devcontainer up error causes the failed command does not identify', () => {
+		const setup = 'An error occurred setting up the container.';
+		const cases: [Parameters<typeof getDevContainerUpErrorCause>, DevContainerUpErrorCause][] = [
+			[[{ description: setup, message: 'Command failed: docker run -a STDOUT --mount type=volume,src=s,dst=/workspaces image' }, '[2 ms] docker: Error response from daemon: Duplicate mount point: /workspaces.'], 'duplicateMount'],
+			[[undefined, '\x1b[31mCannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?\x1b[0m'], 'daemon'],
+			[[{ description: 'The postStartCommand in the devcontainer.json failed.' }, 'Error response from daemon: invalid mount config'], 'lifecycle'],
+			[[{ description: '`setup` of postCreateCommand from devcontainer.json failed.' }], 'lifecycle'],
+			[[{ description: 'Dev container config (/home/me/project/.devcontainer/devcontainer.json) not found.' }], 'config'],
+			[[{ description: setup, message: 'Failed to download package for ghcr.io/devcontainers/features/node' }], 'feature'],
+			[[{ description: setup, message: 'Command failed: docker run image' }, 'Error response from daemon: invalid mount config for type "volume": invalid mount path'], 'volume'],
+			[[{ description: setup, message: 'Command failed: docker run image' }, 'Error response from daemon: invalid mount config for type "bind": bind source path does not exist: /home/me/.ssh'], 'mount'],
+			// The failed command identifies build errors.
+			[[{ description: 'An error occurred building the image.', message: 'Command failed: docker buildx build .' }, 'ERROR: failed to solve: process "/bin/sh -c exit 1" did not complete successfully: exit code: 1'], 'other'],
+			// Command lines and their start and stop logs are not classified.
+			[[{ description: setup, message: 'Command failed: docker create --mount type=volume,src=no such volume,dst=/data image' }, '[3 ms] Start: Run: docker run -l "Duplicate mount point" image\n[4 ms] Stop (1 ms): Run: docker run -l "Duplicate mount point" image'], 'other'],
+		];
+		assert.deepStrictEqual(cases.map(([args]) => getDevContainerUpErrorCause(...args)), cases.map(([, cause]) => cause));
 	});
 });

@@ -236,7 +236,7 @@ This tests the transition from the empty state to having an active workspace sel
 
 #### Notes
 
-- This validates that `AgenticPromptsService.getSourceFolders()` correctly redirects user creation to `~/.copilot/`
+- This validates that `PromptsService.getSourceFolders()` correctly redirects user creation to `~/.copilot/`
 - The VS Code profile folder should never be used for user creation in sessions
 
 ---

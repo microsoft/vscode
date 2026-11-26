@@ -17,6 +17,8 @@ export interface IAgentModelRouterRoute {
 	readonly name?: string;
 	/** The name of the model the route runs on for this account. */
 	readonly model: string;
+	/** Which requests the route is for, in the router file's words. Absent when the file gives none. */
+	readonly when?: string;
 	/** The route's fixed effort, or `auto` when the router chooses it. Absent when the model keeps its default. */
 	readonly effort?: string;
 	/** The context window, in tokens, the router sets for the route. Absent when the model keeps its own. */
@@ -38,13 +40,14 @@ export function readAgentModelRouterRoutesMeta(model: IAgentModelInfo | SessionM
 		if (!isObject(entry)) {
 			return [];
 		}
-		const { name, model: routeModel, effort, contextTokens } = entry as { name?: unknown; model?: unknown; effort?: unknown; contextTokens?: unknown };
+		const { name, model: routeModel, when, effort, contextTokens } = entry as { name?: unknown; model?: unknown; when?: unknown; effort?: unknown; contextTokens?: unknown };
 		if (typeof routeModel !== 'string' || !routeModel) {
 			return [];
 		}
 		return [{
 			...(typeof name === 'string' && name ? { name } : {}),
 			model: routeModel,
+			...(typeof when === 'string' && when ? { when } : {}),
 			...(typeof effort === 'string' && effort ? { effort } : {}),
 			...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) && contextTokens > 0 ? { contextTokens } : {}),
 		}];

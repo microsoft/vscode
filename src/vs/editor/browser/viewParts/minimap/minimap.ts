@@ -2318,6 +2318,12 @@ class InnerMinimap extends Disposable {
 	}
 
 	private _renderSectionHeaders(frame: RecordedFrame, canvasContext: CanvasRenderingContext2D, layout: MinimapLayout) {
+		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
+		if (decorations.length === 0) {
+			return;
+		}
+		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
+
 		const minimapLineHeight = this._model.options.minimapLineHeight;
 		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize;
 		const sectionHeaderLetterSpacing = this._model.options.sectionHeaderLetterSpacing;
@@ -2356,9 +2362,6 @@ class InnerMinimap extends Disposable {
 			}
 			return InnerMinimap._fitSectionHeader(canvasContext, labelAreaWidth - MINIMAP_GUTTER_WIDTH, headerText);
 		};
-
-		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
-		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
 
 		// Headers on nearby lines (e.g. nested regions) would get labels drawn on top of each other.
 		// Stack such labels below one another instead, so that every header stays readable.

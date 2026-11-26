@@ -5,6 +5,7 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { getOrSet } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -13,6 +14,7 @@ import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOption
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { isRemoteAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
 import { runOnChange } from '../../../../../base/common/observable.js';
@@ -99,6 +101,9 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	private readonly actionDisposables = this._register(new DisposableStore());
 	private worktreeOptions: readonly IWorktreeFilterOption[] = [];
+	// Keep each option's command id across rebuilds, since a menu still open resolves the command of a row when it is clicked
+	private readonly providerActionIds = new Map<string, number>();
+	private readonly worktreeActionIds = new Map<string, number>();
 
 	constructor(
 		private readonly options: IAgentSessionsFilterOptions,
@@ -294,10 +299,12 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		const that = this;
 		let counter = 0;
 		for (const provider of providers) {
+			// Built-in providers keep their id; a remote agent host's or any other contributed type is named by its kind.
+			const providerKey = getAgentSessionProvider(provider.id) ? provider.id : `${isRemoteAgentHostSessionType(provider.id) ? 'remote-agent-host' : 'other'}.${getOrSet(this.providerActionIds, provider.id, this.providerActionIds.size)}`;
 			disposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `agentSessions.filter.toggleExclude:${provider.id}.${menuId.id.toLowerCase()}`,
+						id: `agentSessions.filter.toggleExclude:${providerKey}.${menuId.id.toLowerCase()}`,
 						title: provider.label,
 						menu: {
 							id: menuId,
@@ -362,7 +369,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			disposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `agentSessions.filter.selectWorktree:${encodeURIComponent(option.key)}.${menuId.id.toLowerCase()}`,
+						id: `agentSessions.filter.selectWorktree.${getOrSet(that.worktreeActionIds, option.key, that.worktreeActionIds.size)}.${menuId.id.toLowerCase()}`,
 						title: option.label,
 						menu: {
 							id: worktreesMenuId,

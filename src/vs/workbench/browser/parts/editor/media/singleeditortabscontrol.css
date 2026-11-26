@@ -35,6 +35,13 @@
 	flex: initial; /* helps to show decorations right next to the label and not at the end while still preserving text overflow ellipsis */
 }
 
+/* Add Tab (hidden while its menu has no actions) */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .tabs-bar-add-tab.hidden,
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .single-tab-and-actions-container > .label-container > .tabs-bar-add-tab.hidden {
+	display: none;
+}
+
 /* Breadcrumbs (inline next to single editor tab) */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .single-tab.title-label {

@@ -4,6 +4,11 @@ parameters:
   - name: VSCODE_POOL_NAME
     type: string
     default: 1es-ubuntu-22.04-x64
+  # Whether to include the steps that need a privileged service connection
+  # (CDN uploads). Required: only builds of main and release/* branches
+  # pass true.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
 
 jobs:
   - job: Alpine_${{ parameters.VSCODE_ARCH }}
@@ -211,6 +216,7 @@ jobs:
       - template: ../common/agent-sdk-produce.yml@self
         parameters:
           vscodePlatform: alpine
+          VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - template: ../common/mixin-vscode-capi.yml@self
 

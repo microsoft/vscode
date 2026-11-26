@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, h } from '../../../../base/browser/dom.js';
+import { findLast } from '../../../../base/common/arraysFind.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -18,12 +20,16 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
-import { IRange } from '../../../common/core/range.js';
+import { Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { IMultiDiffResourceId, MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
+import { translatePosition } from '../diffEditor/utils.js';
+import { allowsTrueInlineDiffRendering } from '../diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
 import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrollLayout.js';
 import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate, ISplitViewRatioSync } from './diffEditorItemTemplate.js';
@@ -92,7 +98,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			return { ...this._diffEditorOptions, ...this._diffLayoutOptions.read(reader) };
 		});
 		const splitViewRatioSync: ISplitViewRatioSync = {
-			enabled: observableConfigValue(MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING, false, configurationService),
+			enabled: observableConfigValue(MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING, true, configurationService),
 			ratio: splitViewRatio,
 		};
 		this._spaceBetweenPx = observableValue(this, 0);
@@ -330,6 +336,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._applyPendingScrollState();
 		}));
 
+		this._register(autorun(reader => {
+			this._viewModel.read(reader);
+			// A range waits for the diff of its file only in the view model that has the file.
+			this._pendingRangeReveal.clear();
+		}));
+
 		_element.replaceChildren(this._elements.root);
 		this._register(toDisposable(() => {
 			_element.replaceChildren();
@@ -377,7 +389,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	}
 
-	public setScrollState(scrollState: { top?: number; left?: number }): void {
+	public setScrollState(scrollState: { top?: number; left?: number; anchor?: IMultiDiffEditorScrollAnchor }): void {
 		this._pendingScrollState = scrollState;
 		this._hasAppliedPendingScrollState = false;
 		this._lastPendingScrollDimensions = undefined;
@@ -393,9 +405,11 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		if (!pending) {
 			return;
 		}
+		const anchored = pending.anchor && this._getAnchoredScrollTop(pending.anchor);
+		const top = anchored ? anchored.top : pending.top;
 		const dimensions = this._scrollView.scrollDimensions.get();
 		const current = this._scrollView.getScrollPosition();
-		const expectedTop = pending.top === undefined ? current.scrollTop : Math.min(Math.max(0, pending.top), Math.max(0, dimensions.scrollHeight - dimensions.height));
+		const expectedTop = top === undefined ? current.scrollTop : Math.min(Math.max(0, top), Math.max(0, dimensions.scrollHeight - dimensions.height));
 		const expectedLeft = pending.left === undefined ? current.scrollLeft : Math.min(Math.max(0, pending.left), Math.max(0, dimensions.scrollWidth - dimensions.width));
 		const previousDimensions = this._lastPendingScrollDimensions;
 		const dimensionsChanged = !previousDimensions
@@ -409,9 +423,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._lastPendingScrollDimensions = undefined;
 			return;
 		}
-		this._scrollView.setScrollPosition({ scrollLeft: pending.left, scrollTop: pending.top });
+		this._scrollView.setScrollPosition({ scrollLeft: pending.left, scrollTop: top });
 		const applied = this._scrollView.getScrollPosition();
-		const topLanded = pending.top === undefined || applied.scrollTop >= pending.top;
+		const topLanded = top === undefined || (applied.scrollTop >= top && (anchored?.fits ?? true));
 		const leftLanded = pending.left === undefined || applied.scrollLeft >= pending.left;
 		if (topLanded && leftLanded) {
 			this._pendingScrollState = undefined;
@@ -422,10 +436,33 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._lastPendingScrollDimensions = dimensions;
 		}
 		this._logger.log('applied pending scroll state', {
-			requested: pending,
+			requested: { top: pending.top, left: pending.left },
+			anchor: pending.anchor ? `${formatDiffItemKey(pending.anchor.key)} + ${pending.anchor.offset}${anchored ? '' : ' (not shown)'}` : undefined,
 			applied: { top: applied.scrollTop, left: applied.scrollLeft },
 			landed: topLanded && leftLanded,
 		});
+	}
+
+	private _getScrollAnchor(): IMultiDiffEditorScrollAnchor | undefined {
+		const layout = this._scrollView.layout.get();
+		const viewItems = this._viewItems.get();
+		const index = viewItems.findIndex((_item, index) => layout.items[index]?.contentRange.endExclusive > layout.contentViewport.start);
+		if (index === -1) {
+			return undefined;
+		}
+		return { key: viewItems[index].getKey(), offset: layout.contentViewport.start - layout.items[index].contentRange.start };
+	}
+
+	private _getAnchoredScrollTop(anchor: IMultiDiffEditorScrollAnchor): { readonly top: number; readonly fits: boolean } | undefined {
+		const layout = this._scrollView.layout.get();
+		const index = this._viewItems.get().findIndex(item => item.getKey() === anchor.key);
+		const itemLayout = index === -1 ? undefined : layout.items[index];
+		if (!itemLayout) {
+			return undefined;
+		}
+		// Until the offset fits, such as into an estimated height, show the start of the diff so that it renders and is measured.
+		const fits = anchor.offset < itemLayout.contentRange.length;
+		return { top: Math.max(0, layout.leadingScrollSlack + itemLayout.contentRange.start + (fits ? anchor.offset : 0)), fits };
 	}
 
 	/**
@@ -485,11 +522,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		}
 		const viewItem = viewItems[index];
 		this._viewModel.get()!.activeDiffItem.setCache(viewItem.viewModel, undefined);
+		this._pendingRangeReveal.clear();
 
-		let scrollTop = 0;
-		for (let i = 0; i < index; i++) {
-			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx.get();
-		}
+		const scrollTop = this._getItemTop(index);
 		this._logger.log('reveal', {
 			file: viewItem.getLabel(),
 			index,
@@ -498,12 +533,92 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 		this._scrollView.setLogicalScrollPosition(scrollTop);
 
-		const diffEditor = viewItem.template.get()?.editor;
-		const editor = 'original' in resource ? diffEditor?.getOriginalEditor() : diffEditor?.getModifiedEditor();
-		if (editor && options?.range) {
-			editor.revealRangeInCenter(options.range);
-			highlightRange(editor, options.range);
+		if (!options?.range) {
+			return;
 		}
+		if (viewItem.viewModel.diffEditorViewModel.isDiffUpToDate.get()) {
+			this._revealRange(viewItem, options);
+		} else {
+			// The diff decides where a range shows, for example by hiding unchanged regions, so the range is revealed once the
+			// diff is computed.
+			const store = new DisposableStore();
+			this._pendingRangeReveal.value = store;
+			this._revealRangeOnceDiffIsComputed(viewItem, options, cancelOnDispose(store)).catch(onUnexpectedError);
+		}
+	}
+
+	private async _revealRangeOnceDiffIsComputed(viewItem: VirtualizedViewItem, options: RevealOptions, token: CancellationToken): Promise<void> {
+		// The diff of a file is not computed once the file is removed, which ends the wait too.
+		await waitForState(derived(this, reader => !this._viewItems.read(reader).includes(viewItem) || viewItem.viewModel.diffEditorViewModel.isDiffUpToDate.read(reader)), isDone => isDone, undefined, token);
+		// This continues after the transaction that sets the diff, in which the editors show the diff.
+		if (!token.isCancellationRequested) {
+			this._pendingRangeReveal.clear();
+			this._revealRange(viewItem, options);
+		}
+	}
+
+	/** Scrolls the list to the range of an item, if the item shows its editor. */
+	private _revealRange(viewItem: VirtualizedViewItem, options: RevealOptions): void {
+		const index = this._viewItems.get().indexOf(viewItem);
+		const template = viewItem.template.get();
+		if (!options.range || index === -1 || !template) {
+			return;
+		}
+		// A collapsed item only shows its header, so it expands to show the range.
+		viewItem.viewModel.collapsed.set(false, undefined);
+		let side: 'original' | 'modified' = options.side ?? (viewItem.viewModel.originalUri ? 'original' : 'modified');
+		let range = options.range;
+		let offset: number | undefined;
+		if (side === 'original' && !template.editor.renderSideBySide) {
+			// An inline diff shows the original document where the modified document has it, except for deleted text.
+			const mappings = template.editor.getDiffComputationResult()?.changes2 ?? [];
+			const start = range.getStartPosition();
+			const modifiedRange = mapToModifiedDocument(range, mappings);
+			const change = mappings.find(mapping => mapping.original.contains(start.lineNumber));
+			const innerChange = change && template.editor.useTrueInlineDiffRendering && allowsTrueInlineDiffRendering(change) ? findInnerChange(change, start) : undefined;
+			if (innerChange) {
+				// A true inline diff shows the original text of a change within lines in the modified editor, in front of its modified text.
+				offset = template.getInjectedTextOffset(innerChange.modifiedRange.getStartPosition(), start.column - innerChange.originalRange.startColumn);
+				range = modifiedRange ?? Range.fromPositions(innerChange.modifiedRange.getStartPosition());
+			} else if (modifiedRange) {
+				range = modifiedRange;
+			} else {
+				// Deleted text shows in view zones of the modified editor, which can neither reveal nor highlight a range in them.
+				this._scrollToItemOffset(index, template.getDeletedTextOffset(start));
+				return;
+			}
+			side = 'modified';
+		}
+		this._scrollToItemOffset(index, offset ?? template.getRangeOffset(side, range));
+		const scrollLeft = template.revealRangeHorizontally(side, range);
+		if (scrollLeft !== undefined) {
+			// All items share the horizontal scroll position.
+			this._scrollView.setScrollPosition({ scrollLeft });
+		}
+		if (options.highlight) {
+			highlightRange(side === 'original' ? template.editor.getOriginalEditor() : template.editor.getModifiedEditor(), range);
+		}
+	}
+
+	/**
+	 * Scrolls the list to put an offset from the top of an item in the middle of the viewport, but not above the item. An
+	 * item keeps its full height in the list, which scrolls its editor to the part in the viewport, so the list rather than
+	 * the editor scrolls to a range.
+	 */
+	private _scrollToItemOffset(index: number, offset: number): void {
+		const itemTop = this._getItemTop(index);
+		const viewportHeight = this._scrollView.layout.get().contentViewport.length;
+		this._scrollView.setLogicalScrollPosition(Math.max(itemTop, itemTop + offset - viewportHeight / 2));
+	}
+
+	/** Returns the offset of an item from the top of the list. */
+	private _getItemTop(index: number): number {
+		const viewItems = this._viewItems.get();
+		let top = 0;
+		for (let i = 0; i < index; i++) {
+			top += viewItems[i].contentHeight.get() + this._spaceBetweenPx.get();
+		}
+		return top;
 	}
 
 	public getViewState(): IMultiDiffEditorViewState {
@@ -512,6 +627,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				top: this.scrollTop.get(),
 				left: this.scrollLeft.get(),
 			},
+			scrollAnchor: this._getScrollAnchor(),
 			docStates: Object.fromEntries(this._viewItems.get().map(i => [i.getKey(), i.getViewState()])),
 			activeDiffItemKey: this._viewModel.get()?.activeDiffItem.get()?.getKey(),
 		};
@@ -520,6 +636,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._logger.log('get view state', {
 				scrollTop: viewState.scrollState.top,
 				scrollLeft: viewState.scrollState.left,
+				scrollAnchor: viewState.scrollAnchor ? `${formatDiffItemKey(viewState.scrollAnchor.key)} + ${viewState.scrollAnchor.offset}` : undefined,
 				docStates: docStates.length,
 				collapsed: docStates.filter(s => s.collapsed).length,
 				activeDiffItem: formatDiffItemKey(viewState.activeDiffItemKey),
@@ -539,9 +656,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	private _lastActiveDiffItemKey: string | undefined;
 
 	/** A restored scroll offset waiting for the scrollable dimensions to be known. */
-	private _pendingScrollState: { top?: number; left?: number } | undefined;
+	private _pendingScrollState: { top?: number; left?: number; anchor?: IMultiDiffEditorScrollAnchor } | undefined;
 	private _hasAppliedPendingScrollState = false;
 	private _lastPendingScrollDimensions: { readonly width: number; readonly height: number; readonly scrollWidth: number; readonly scrollHeight: number } | undefined;
+
+	/** A range to reveal once the diff of its file is computed. */
+	private readonly _pendingRangeReveal = this._register(new MutableDisposable<DisposableStore>());
 
 	public setViewState(viewState: IMultiDiffEditorViewState, tx?: ITransaction): void {
 		if (this._logger.isEnabled) {
@@ -549,13 +669,14 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._logger.log('set view state', {
 				scrollTop: viewState.scrollState.top,
 				scrollLeft: viewState.scrollState.left,
+				scrollAnchor: viewState.scrollAnchor ? `${formatDiffItemKey(viewState.scrollAnchor.key)} + ${viewState.scrollAnchor.offset}` : undefined,
 				docStates: docStates.length,
 				collapsed: docStates.filter(s => s.collapsed).length,
 				activeDiffItem: formatDiffItemKey(viewState.activeDiffItemKey),
 				viewItems: this._viewItems.get().length,
 			});
 		}
-		this.setScrollState(viewState.scrollState);
+		this.setScrollState({ ...viewState.scrollState, anchor: viewState.scrollAnchor });
 
 		this._lastDocStates = viewState.docStates;
 		this._lastActiveDiffItemKey = viewState.activeDiffItemKey;
@@ -738,11 +859,58 @@ function highlightRange(targetEditor: ICodeEditor, range: IRange) {
 	}, 350);
 }
 
+/**
+ * Maps a range of the original document to the modified document, or returns undefined for a range that starts in
+ * deleted text.
+ */
+function mapToModifiedDocument(range: Range, mappings: readonly DetailedLineRangeMapping[]): Range | undefined {
+	const start = range.getStartPosition();
+	const change = mappings.find(mapping => mapping.original.contains(start.lineNumber));
+	if (change && !change.innerChanges && change.modified.isEmpty) {
+		return undefined;
+	}
+	if (change && findInnerChange(change, start)?.modifiedRange.isEmpty()) {
+		return undefined;
+	}
+	return Range.fromPositions(translateEdge(start, mappings, 'start'), translateEdge(range.getEndPosition(), mappings, 'end'));
+}
+
+/** Returns the inner change whose original text contains a position. The text after an inner change starts at its end. */
+function findInnerChange(change: DetailedLineRangeMapping, position: Position): RangeMapping | undefined {
+	return change.innerChanges?.find(inner => inner.originalRange.containsPosition(position) && !inner.originalRange.getEndPosition().equals(position));
+}
+
+/**
+ * Maps the start or the end of a range of the original document to the modified document. An edge that only touches
+ * replaced text maps to the edge of its replacement, so that the range does not include the replacement, to which
+ * {@link translatePosition} maps the edge. An edge in a change without inner changes, which the legacy diff algorithm
+ * computes for larger changes, maps to that edge of the change's modified lines.
+ */
+function translateEdge(position: Position, mappings: readonly DetailedLineRangeMapping[], edge: 'start' | 'end'): Position {
+	const change = findLast(mappings, mapping => mapping.original.startLineNumber <= position.lineNumber);
+	if (change && !change.innerChanges && change.original.contains(position.lineNumber)) {
+		return new Position(edge === 'start' ? change.modified.startLineNumber : change.modified.endLineNumberExclusive, 1);
+	}
+	const touched = change?.innerChanges?.find(inner => !inner.originalRange.isEmpty() && position.equals(edge === 'start' ? inner.originalRange.getEndPosition() : inner.originalRange.getStartPosition()));
+	if (touched) {
+		return edge === 'start' ? touched.modifiedRange.getEndPosition() : touched.modifiedRange.getStartPosition();
+	}
+	const translated = translatePosition(position, mappings);
+	return edge === 'start' ? translated.getStartPosition() : translated.getEndPosition();
+}
+
 export interface IMultiDiffEditorViewState {
 	scrollState: { top: number; left: number };
+	/** The diff at the top of the viewport and the offset into it, which restores regardless of the heights of the diffs above it. */
+	scrollAnchor?: IMultiDiffEditorScrollAnchor;
 	docStates?: Record<string, IMultiDiffDocState>;
 	/** Key ({@link DocumentDiffItemViewModel.getKey}) of the active diff item, if any. */
 	activeDiffItemKey?: string;
+}
+
+interface IMultiDiffEditorScrollAnchor {
+	key: string;
+	offset: number;
 }
 
 interface IMultiDiffDocState {

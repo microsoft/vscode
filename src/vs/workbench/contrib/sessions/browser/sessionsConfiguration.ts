@@ -7,13 +7,14 @@ import { localize } from '../../../../nls.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
+import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsListCommon.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import product from '../../../../platform/product/common/product.js';
+import { NEW_SESSION_WELCOME_GRAPHIC_SETTING, NEW_SESSION_WELCOME_GRAPHICS, WORKSPACE_OPT_OUT_SETTING } from '../common/chatConstants.js';
 
-/** The settings of the sessions list and of the sessions it opens. */
+/** The settings of the sessions list, of the sessions it opens and of its New Session composer. */
 export const sessionsListConfigurationProperties = {
 	[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: {
 		type: 'boolean',
@@ -126,6 +127,31 @@ export const sessionsListConfigurationProperties = {
 		scope: ConfigurationScope.APPLICATION,
 		description: localize('sessions.useWorktree', "Controls whether New Worktree is checked for a workspace that has not started a session before. Each workspace otherwise uses the choice from its last started session."),
 	},
+	[WORKSPACE_OPT_OUT_SETTING]: {
+		type: 'boolean',
+		default: false,
+		scope: ConfigurationScope.WINDOW,
+		description: localize('sessions.chat.experimental.workspaceOptOut', "Controls whether hovering over or focusing the workspace picker shows a button to chat without a workspace. Requires a compatible harness and environment. Chat remains available in the workspace list when this setting is disabled."),
+		tags: ['experimental'],
+		experiment: { mode: 'auto' },
+	},
+	[NEW_SESSION_WELCOME_GRAPHIC_SETTING]: {
+		type: 'string',
+		enum: [...NEW_SESSION_WELCOME_GRAPHICS],
+		enumDescriptions: [
+			localize('sessions.chat.welcomeGraphic.none', "Show no graphic."),
+			localize('sessions.chat.welcomeGraphic.windowOverview', "Show an animation in which the single task of the editor window becomes several tasks side by side in the Agents window."),
+			localize('sessions.chat.welcomeGraphic.windowOverviewStatic', "Show the single task of the editor window next to several tasks side by side in the Agents window."),
+			localize('sessions.chat.welcomeGraphic.workingCopies', "Show an animation in which a project becomes sessions that work in separate copies of that project and in another project."),
+			localize('sessions.chat.welcomeGraphic.workingCopiesStatic', "Show a project in the editor window next to sessions that work in separate copies of that project and in another project in the Agents window."),
+			localize('sessions.chat.welcomeGraphic.windowComparison', "Show an animated comparison of one task at a time in the editor window with parallel tasks across copies and projects in the Agents window."),
+		],
+		default: 'none',
+		scope: ConfigurationScope.APPLICATION,
+		description: localize('sessions.chat.welcomeGraphic', "Controls which graphic is shown above the welcome message of a new session until you have started two sessions in the Agents window."),
+		tags: ['advanced', 'experimental'],
+		experiment: { mode: 'auto' },
+	},
 } satisfies IStringDictionary<IConfigurationPropertySchema>;
 
 let sessionsListConfiguration: IConfigurationNode | undefined;
@@ -133,7 +159,8 @@ let sessionsListConfigurationHolds = 0;
 
 /**
  * Registers the settings of the sessions list and of the sessions it opens, as the Agents window registers them, for as long
- * as anything of an editor window needs them: the sessions list, and the chat part, whose header sets one of them. They
+ * as anything of an editor window needs them: the sessions list, the chat part, whose header sets one of them, and the New
+ * Session composer, whose workspace opt-out and welcome graphic read two of them. They
  * register once, however many hold them.
  */
 export function registerSessionsListConfiguration(): IDisposable {

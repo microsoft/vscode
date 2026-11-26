@@ -15,12 +15,12 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
 import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
-import { join } from '../../../../base/common/path.js';
+import { join, relative } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -31,9 +31,10 @@ import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType, type IAddWorktreeResult } from '../../common/agentHostGitService.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { parseGitBlobUri } from '../../node/gitDiffContent.js';
 import { gitServiceArguments } from './agentHostGitServiceTestUtils.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { GitRepositoryRootsContribution } from '../../node/chatContributions/gitRepositoryRoots/gitRepositoryRootsContribution.js';
@@ -68,6 +69,13 @@ class ShortTimeoutGitService extends AgentHostGitService {
 	protected override readonly _defaultTimeoutMs = 300;
 }
 
+/** Runs git as if the user's environment selected French, which translates the lock file message, unlike German. */
+class FrenchLocaleGitService extends AgentHostGitService {
+	protected override _spawnGit(workingDirectory: URI, args: readonly string[], options?: { readonly env?: Record<string, string> }, onTimedOut?: () => void): Promise<string | undefined> {
+		return super._spawnGit(workingDirectory, args, { ...options, env: { LANGUAGE: 'fr', LC_ALL: 'fr_FR.UTF-8', ...options?.env } }, onTimedOut);
+	}
+}
+
 async function rmDirWithRetry(path: string | undefined): Promise<void> {
 	if (!path) {
 		return;
@@ -79,6 +87,28 @@ async function rmDirWithRetry(path: string | undefined): Promise<void> {
 		// in Electron libc++ build.
 		await rm(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 	} catch { /* best-effort temp cleanup */ }
+}
+
+/** Creates the repository `<root>/parent`, which checks out the repository `<root>/sub` as the submodule `lib`, and returns its path. */
+function initRepositoryWithSubmodule(root: string): string {
+	const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+	const run = (cwd: string, ...args: string[]) => cp.execFileSync('git', args, { cwd, env, stdio: 'pipe' });
+	const sub = join(root, 'sub');
+	const parent = join(root, 'parent');
+	mkdirSync(sub);
+	mkdirSync(parent);
+	run(sub, 'init', '-q', '-b', 'main');
+	writeFileSync(join(sub, 'lib.txt'), 'lib\n');
+	mkdirSync(join(sub, 'old'));
+	writeFileSync(join(sub, 'old', 'gone.txt'), 'gone\n');
+	run(sub, 'add', '.');
+	run(sub, '-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'sub');
+	run(parent, 'init', '-q', '-b', 'main');
+	writeFileSync(join(parent, 'README.md'), 'readme\n');
+	run(parent, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'lib');
+	run(parent, 'add', '.');
+	run(parent, '-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'init');
+	return parent;
 }
 
 suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
@@ -1185,6 +1215,61 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.ok(result[0].after && !result[0].before, 'untracked file in empty repo should be an addition');
 	});
 
+	(hasGit ? test : test.skip)('lists the files changed inside a submodule, with baselines read from the submodule', async () => {
+		const fs = await import('fs/promises');
+		// Not resolved, so that on macOS, like for Windows 8.3 short names, the folder isn't spelled like the root that Git reports.
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-diff-submodule-'));
+		const dir = initRepositoryWithSubmodule(tmpRoot);
+		await fs.appendFile(join(dir, 'README.md'), 'root edit\n');
+		await fs.appendFile(join(dir, 'lib', 'lib.txt'), 'submodule edit\n');
+		await fs.writeFile(join(dir, 'lib', 'new.txt'), 'new\n');
+		await fs.rm(join(dir, 'lib', 'old'), { recursive: true });
+		// Changed files are reported under the root as Git spells it.
+		const root = (await svc!.getRepositoryRoot(URI.file(dir)))!.fsPath;
+
+		const changes = async () => {
+			const diffs = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
+			return Promise.all((diffs ?? []).map(async diff => {
+				const file = URI.parse(diff.after?.uri ?? diff.before!.uri);
+				const baseline = diff.before && parseGitBlobUri(diff.before.content.uri);
+				const repository = await svc!.getSubmoduleRoot(URI.file(dir), file) ?? URI.file(dir);
+				return {
+					path: relative(root, file.fsPath),
+					diff: diff.diff,
+					baseline: baseline && (await svc!.showBlob(repository, baseline.sha, baseline.repoRelativePath))?.toString(),
+				};
+			}));
+		};
+		const tracked = await changes();
+		// An untracked file in the parent makes the diff go through a temporary index.
+		await fs.writeFile(join(dir, 'fresh.txt'), 'fresh\n');
+		const withUntracked = await changes();
+
+		const expected = [
+			{ path: 'README.md', diff: { added: 1, removed: 0 }, baseline: 'readme\n' },
+			{ path: join('lib', 'lib.txt'), diff: { added: 1, removed: 0 }, baseline: 'lib\n' },
+			{ path: join('lib', 'new.txt'), diff: { added: 1, removed: 0 }, baseline: undefined },
+			{ path: join('lib', 'old', 'gone.txt'), diff: { added: 0, removed: 1 }, baseline: 'gone\n' },
+		];
+		assert.deepStrictEqual({ tracked, withUntracked }, {
+			tracked: expected,
+			withUntracked: [
+				{ path: 'README.md', diff: { added: 1, removed: 0 }, baseline: 'readme\n' },
+				{ path: 'fresh.txt', diff: { added: 1, removed: 0 }, baseline: undefined },
+				...expected.slice(1),
+			],
+		});
+	});
+
+	(hasGit && !isWindows ? test : test.skip)('does not resolve a registered submodule path that is a symlink to a repository outside', async () => {
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-diff-submodule-symlink-')));
+		const dir = initRepositoryWithSubmodule(tmpRoot);
+		rmSync(join(dir, 'lib'), { recursive: true, force: true });
+		symlinkSync(join(tmpRoot, 'sub'), join(dir, 'lib'), 'dir');
+
+		assert.strictEqual(await svc!.getSubmoduleRoot(URI.file(dir), URI.file(join(dir, 'lib', 'lib.txt'))), undefined);
+	});
+
 	(hasGit ? test : test.skip)('captureWorkingTreeAsTree stages scoped rename source and untracked paths', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();
@@ -1870,16 +1955,133 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
 		const wtPath = join(dir, '..', `wt-${Date.now()}`);
 		try {
-			await svc!.addWorktree(URI.file(dir), {
+			const result = await svc!.addWorktree(URI.file(dir), {
 				path: URI.file(wtPath),
 				commitish: 'feature',
 				track: false,
 			});
 
-			assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(), 'feature');
+			assert.deepStrictEqual({
+				result,
+				branch: cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+			}, {
+				result: { gitLfsPointerFiles: false },
+				branch: 'feature',
+			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('addWorktree explains a file path that is too long for the file system', async () => {
+		const dir = initRepo();
+		const run = (args: string[], input?: string) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8', input }).trim();
+		// A local setting overrides a global one, so Git for Windows also rejects the path.
+		run(['config', 'core.longpaths', 'false']);
+		// One path component longer than any platform allows.
+		const tree = run(['mktree'], `100644 blob ${run(['hash-object', '-w', '--stdin'], 'x\n')}\t${'x'.repeat(300)}\n`);
+		run(['update-ref', 'refs/heads/main', run(['commit-tree', tree, '-p', 'main', '-m', 'long path'])]);
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await assert.rejects(svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/long-path', track: false }), {
+				message: isWindows
+					? 'A file path in the worktree is too long for Windows. If the full path is longer than 260 characters, run `git config --global core.longpaths true` to allow long paths in Git. If a file or folder name is longer than 255 characters, shorten it in the repository.'
+					: 'A file path in the worktree is too long for the file system.',
+			});
+		} finally {
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('addWorktree explains a lock file when the user locale translates git messages', async () => {
+		const dir = initRepo();
+		mkdirSync(join(dir, '.git', 'refs', 'heads', 'agents'), { recursive: true });
+		writeFileSync(join(dir, '.git', 'refs', 'heads', 'agents', 'locked.lock'), '');
+		const git = createGitService(disposables, undefined, FrenchLocaleGitService);
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await assert.rejects(
+				git.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/locked', track: false }),
+				/Another Git process is using the repository\. If no Git process is running, delete the lock file '[^']+[\\/]refs[\\/]heads[\\/]agents[\\/]locked\.lock'\./,
+			);
+		} finally {
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
+	/** A repository whose `*.bin` files need Git LFS, which can't be run, as on a machine where `git-lfs` is missing. */
+	function initRepoWithMissingGitLfs(): { readonly dir: string; readonly pointer: string } {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' });
+		const pointer = `version https://git-lfs.github.com/spec/v1\noid sha256:${'0'.repeat(64)}\nsize 1\n`;
+		writeFileSync(join(dir, '.gitattributes'), '*.bin filter=lfs diff=lfs merge=lfs -text\n');
+		writeFileSync(join(dir, 'large.bin'), pointer);
+		run('-c', 'filter.lfs.process=', '-c', 'filter.lfs.clean=', '-c', 'filter.lfs.required=false', 'add', '.');
+		run('commit', '-q', '-m', 'add Git LFS pointer');
+		run('config', 'filter.lfs.process', '/agent-host-missing-git-lfs/git-lfs filter-process');
+		run('config', 'filter.lfs.required', 'true');
+		writeFileSync(join(dir, '.git', 'hooks', 'post-checkout'), '#!/bin/sh\nprintf >&2 "\\n%s\\n\\n" "This repository is configured for Git LFS but \'git-lfs\' was not found on your path."\nexit 2\n', { mode: 0o755 });
+		return { dir, pointer };
+	}
+
+	(hasGit ? test : test.skip)('worktree creation and recreation keep Git LFS pointer files when git-lfs is missing', async () => {
+		const { dir, pointer } = initRepoWithMissingGitLfs();
+		const wtPath = join(dir, '..', `wt-lfs-${Date.now()}`);
+		const readWorktree = (result: IAddWorktreeResult) => ({
+			result,
+			pointer: readFileSync(join(wtPath, 'large.bin'), 'utf8'),
+			status: cp.execFileSync('git', ['status', '--porcelain'], { cwd: wtPath, env, encoding: 'utf8' }),
+		});
+
+		try {
+			const created = readWorktree(await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/lfs', track: false }));
+			await rmDirWithRetry(wtPath);
+			const recreated = readWorktree(await svc!.addExistingWorktree(URI.file(dir), URI.file(wtPath), 'agents/lfs'));
+
+			assert.deepStrictEqual({ created, recreated }, {
+				created: { result: { gitLfsPointerFiles: true }, pointer, status: '' },
+				recreated: { result: { gitLfsPointerFiles: true }, pointer, status: '' },
+			});
+		} finally {
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('worktree creation with Git LFS pointer files waits for another git process to release index.lock, and reports a lock that stays', async () => {
+		const { dir } = initRepoWithMissingGitLfs();
+		const lockIndexOnRefresh = (releaseAfterMs: number | undefined) => createGitService(disposables, undefined, class extends AgentHostGitService {
+			private _locked = false;
+			protected override _spawnGit(workingDirectory: URI, args: readonly string[], options?: { readonly env?: Record<string, string> }, onTimedOut?: () => void): Promise<string | undefined> {
+				if (!this._locked && args.includes('update-index')) {
+					this._locked = true;
+					const gitDir = readFileSync(join(workingDirectory.fsPath, '.git'), 'utf8').replace(/^gitdir: /, '').trim();
+					const lock = join(gitDir, 'index.lock');
+					writeFileSync(lock, '');
+					if (releaseAfterMs !== undefined) {
+						setTimeout(() => rmSync(lock, { force: true }), releaseAfterMs);
+					}
+				}
+				return super._spawnGit(workingDirectory, args, options, onTimedOut);
+			}
+		});
+		const released = join(dir, '..', `wt-lfs-released-${Date.now()}`);
+		const held = join(dir, '..', `wt-lfs-held-${Date.now()}`);
+
+		try {
+			const result = await lockIndexOnRefresh(300).addWorktree(URI.file(dir), { path: URI.file(released), commitish: 'main', newBranchName: 'agents/released', track: false });
+			const heldError = await lockIndexOnRefresh(undefined).addWorktree(URI.file(dir), { path: URI.file(held), commitish: 'main', newBranchName: 'agents/held', track: false }).then(() => '', (error: Error) => error.message);
+
+			assert.deepStrictEqual({
+				released: { result, status: cp.execFileSync('git', ['status', '--porcelain'], { cwd: released, env, encoding: 'utf8' }) },
+				heldReportsLock: /^Another Git process is using the repository\. If no Git process is running, delete the lock file '[^']+[\\/]index\.lock'\.$/.test(heldError),
+			}, {
+				released: { result: { gitLfsPointerFiles: true }, status: '' },
+				heldReportsLock: true,
+			});
+		} finally {
+			await rmDirWithRetry(released);
+			await rmDirWithRetry(held);
 		}
 	});
 
@@ -3042,9 +3244,76 @@ suite('AgentHostGitService - getBranchDiffFingerprint (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('changes with each edit to a file inside a submodule', async () => {
+		const fs = await import('fs/promises');
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-submodule-')));
+		const directory = URI.file(initRepositoryWithSubmodule(tmpRoot));
+		const file = join(directory.fsPath, 'lib', 'lib.txt');
+		await fs.appendFile(file, 'one\n');
+		const modified = await svc!.getBranchDiffFingerprint(directory);
+		await fs.appendFile(file, 'two\n');
+
+		assert.notStrictEqual(await svc!.getBranchDiffFingerprint(directory), modified);
+	});
+
+	(hasGit ? test : test.skip)('is defined when a submodule that is not checked out changes', async () => {
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-submodule-')));
+		const directory = initRepositoryWithSubmodule(tmpRoot);
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: directory, env, stdio: 'pipe' });
+		run('submodule', 'deinit', '-q', '-f', 'lib');
+		run('update-index', '--cacheinfo', `160000,${run('rev-parse', 'HEAD').toString().trim()},lib`);
+
+		assert.strictEqual(typeof await svc!.getBranchDiffFingerprint(URI.file(directory)), 'string');
+	});
+
 	(hasGit ? test : test.skip)('is undefined outside a repository', async () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-none-'));
 		assert.strictEqual(await svc!.getBranchDiffFingerprint(URI.file(tmpRoot), 'main'), undefined);
+	});
+
+	(hasGit ? test : test.skip)('lets computeSessionFileDiffs reuse its merge base and status', async () => {
+		const fs = await import('fs/promises');
+		const run = initRepo();
+		const directory = URI.file(tmpRoot!);
+		await fs.writeFile(join(tmpRoot!, 'a.txt'), 'base\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'base');
+		run('checkout', '-q', '-b', 'feature');
+		await fs.writeFile(join(tmpRoot!, 'b.txt'), 'committed\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'feature');
+		await fs.writeFile(join(tmpRoot!, 'a.txt'), 'modified\n');
+		await fs.writeFile(join(tmpRoot!, 'untracked.txt'), 'new\n');
+
+		const logService = new TestLogService();
+		const counting = createGitService(disposables, logService);
+		const options = { sessionUri: 'copilot:/s', baseBranch: 'main' };
+		const commandsOf = async (compute: () => Promise<unknown>) => {
+			const start = logService.commands.length;
+			const result = await compute();
+			// A failing command is logged a second time, with its error.
+			return { result, commands: logService.commands.slice(start).filter(command => !command.includes(' failed: ')).map(command => command.replace('[agentHostGitService] > git ', '').split(' ')[0]) };
+		};
+
+		await counting.getRepositoryRoot(directory);
+		const withoutFingerprint = await commandsOf(() => counting.computeSessionFileDiffs(directory, options));
+		const fingerprint = await counting.getBranchDiffFingerprint(directory, 'main');
+		const withFingerprint = await commandsOf(() => counting.computeSessionFileDiffs(directory, { ...options, fingerprint }));
+		const otherBaseBranch = await commandsOf(() => counting.computeSessionFileDiffs(directory, { sessionUri: 'copilot:/s', fingerprint }));
+
+		assert.deepStrictEqual({
+			sameDiffs: JSON.stringify(withFingerprint.result) === JSON.stringify(withoutFingerprint.result),
+			withoutFingerprint: withoutFingerprint.commands,
+			withFingerprint: withFingerprint.commands,
+			otherBaseBranch: otherBaseBranch.commands,
+		}, {
+			sameDiffs: true,
+			withoutFingerprint: ['merge-base', 'status', 'read-tree', 'add', 'diff'],
+			// The merge base and status come from the fingerprint.
+			withFingerprint: ['read-tree', 'add', 'diff'],
+			// A fingerprint taken for another base branch is not reused.
+			otherBaseBranch: ['rev-parse', 'status', 'read-tree', 'add', 'diff'],
+		});
 	});
 });
 

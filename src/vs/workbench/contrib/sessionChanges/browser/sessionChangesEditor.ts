@@ -11,8 +11,9 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableFromEvent, derivedObservableWithCache, derivedOpts, IObservable, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -30,7 +31,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AbstractEditorWithViewState } from '../../../browser/parts/editor/editorWithViewState.js';
 import { ResourceLabel } from '../../../browser/labels.js';
-import { IEditorOpenContext, IEditorPane } from '../../../common/editor.js';
+import { IEditorCommandsContext, IEditorOpenContext, IEditorPane } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -39,7 +40,7 @@ import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDi
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
-import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { DiffEditorViewMode, IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
@@ -72,6 +73,8 @@ import { MultiDiffEditorWithFileListWidget } from '../../multiDiffEditor/browser
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffEditorWidgetOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { ChangesEmptyState } from './changesEmptyState.js';
+import { IDiffEditorViewModeOwner } from '../../../browser/parts/editor/diffEditorCommandsService.js';
+import { SessionScopeContextKeys } from './sessionActionsHost.js';
 
 const HEADER_HEIGHT = 35;
 
@@ -121,7 +124,7 @@ export class SessionChangesUIElementFactory implements IWorkbenchUIElementFactor
 			return false;
 		}
 
-		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource, { session: this.scope.session.get() });
+		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource, { session: this.scope.session.get(), editor: this.editor } satisfies IChangesEditorFileActionContext);
 		return true;
 	}
 
@@ -210,7 +213,7 @@ class SessionChangesResourceLabel extends Disposable implements IResourceLabel {
  * diff stats header sitting above an embedded multi-diff editor showing the
  * session's file diffs.
  */
-export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
+export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> implements IDiffEditorViewModeOwner {
 
 	static readonly ID = SessionChangesEditorInput.EDITOR_ID;
 
@@ -319,8 +322,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private readonly _logger: MultiDiffEditorLogger;
 	private _scopeInstance: IChangesSessionScope | undefined;
 	private get _scope(): IChangesSessionScope {
-		return this._scopeInstance ??= createChangesEditorScope(this.changesViewService, this.sessionsManagementService, this.sessionHost, this._inputChangesSource);
+		return this._scopeInstance ??= createChangesEditorScope(this.changesViewService, this.sessionsManagementService, this.sessionHost, this._inputChangesSource, !!this.hostLayoutService.editorsBindSessionContext);
 	}
+
+	/** Whether it follows the session of its input, as in an editor window, and acts on the chat of its diffs. */
+	readonly followsInputSession: boolean;
 
 	/** The session whose changes it shows, and those changes. */
 	get changesScope(): IChangesSessionScope {
@@ -363,6 +369,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			editorGroupService,
 		);
 
+		this.followsInputSession = !!hostLayoutService.editorsBindSessionContext;
 		this._logger = this._register(new MultiDiffEditorLogger(logService));
 
 		this._register(autorun(reader => {
@@ -382,6 +389,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService], [IChangesEditorScope, { _serviceBrand: undefined, scope: this._scope, changesPendingObs: this._changesPendingObs } satisfies IChangesEditorScope])));
 		this._scopedInstantiationService = scopedInstantiationService;
+		if (this.hostLayoutService.editorsBindSessionContext) {
+			// The keys of its session, for the actions of its header and of its files: the window binds none for the sessions its
+			// editors show.
+			this._register(this.instantiationService.createInstance(SessionScopeContextKeys, this._scope, { contextKeyService: scopedContextKeyService }));
+			root.classList.add('offers-header-actions');
+		}
 
 		// In the Agents window's desktop layout, the header (Branch Changes dropdown, diff stats and primary
 		// actions) is hosted by the editor part's full-width header instead of inside
@@ -401,8 +414,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// so its own multiDiffEditor* context keys (all-collapsed, render-side-by-side)
 		// are visible to the EditorTitle menu that drives the collapse/expand-all and
 		// inline-view toggle actions.
+		// Where the editor draws its header itself and binds the keys of its session, in its own context instead, which its header
+		// and the toolbars of its files read.
 		const paneInstantiationService = this._register(this.instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, this.contextKeyService])));
+			new ServiceCollection([IContextKeyService, this.hostLayoutService.editorsBindSessionContext ? scopedContextKeyService : this.contextKeyService])));
 		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
 		// The changed files list shows beside the diffs when the host enables it, unless the user hides it with Toggle Files.
 		this.fileListWidget = this._register(this.createFileListWidget(
@@ -414,6 +429,13 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			},
 		));
 		this.widget = this.fileListWidget.multiDiffEditorWidget;
+		if (this.hostLayoutService.editorsBindSessionContext) {
+			// The layout of the active diff, for the Diff View of its header, which reads its own context, not that of its diffs
+			const widget = this.widget;
+			const activeControl = observableFromEvent(this, widget.onDidChangeActiveControl, () => widget.getActiveControl());
+			this._register(bindContextKey(EditorContextKeys.diffEditorAutomaticRenderSideBySide, scopedContextKeyService, reader => activeControl.read(reader)?.renderSideBySideInAutomaticMode.read(reader) ?? true));
+			this._register(bindContextKey(EditorContextKeys.diffEditorTemporaryInlineMode, scopedContextKeyService, reader => activeControl.read(reader)?.temporaryInlineMode.read(reader) ?? false));
+		}
 		const fileListWidget = this.fileListWidget;
 		this._register(autorun(reader => this.bodyContainer?.classList.toggle('file-list-visible', fileListWidget.isFileListVisible.read(reader))));
 		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
@@ -466,7 +488,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	private createFileListWidget(instantiationService: IInstantiationService, uiElementFactory: IWorkbenchUIElementFactory, widgetOptions: IMultiDiffEditorWidgetOptions): MultiDiffEditorWithFileListWidget {
-		const fileListAvailable = this.fileListAvailable = observableContextKey<boolean>(SessionChangesEditorFileListContext.key, this.contextKeyService).map(this, enabled => !!enabled);
+		const fileListAvailable = this.fileListAvailable = this.hostLayoutService.editorsBindSessionContext
+			? constObservable(true)
+			: observableContextKey<boolean>(SessionChangesEditorFileListContext.key, this.contextKeyService).map(this, enabled => !!enabled);
 		const fileListHidden = observableMultiDiffEditorFileListHidden(this, this.storageService, this._store);
 		const fileListVisible = derived(this, reader => fileListAvailable.read(reader) && !fileListHidden.read(reader));
 		const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
@@ -514,6 +538,17 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			?? super.getActionViewItem(action, options);
 	}
 
+	setDiffEditorViewMode(mode: DiffEditorViewMode): void {
+		this.diffEditorOptionsService.setViewMode(mode);
+		if (mode === 'automatic') {
+			this.resetDiffEditorWidthBasedLayout();
+		}
+	}
+
+	toggleDiffEditorRenderSideBySide(): void {
+		this.diffEditorOptionsService.toggleRenderSideBySide();
+	}
+
 	resetDiffEditorWidthBasedLayout(): void {
 		this.widget?.resetWidthBasedLayout();
 	}
@@ -529,7 +564,16 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}));
 
 		// Create Pull Request (and related) actions render on the right of the header row.
-		store.add(instantiationService.createInstance(ChangesActionsBar, right, this._scope, new Set<string>()));
+		const operations = this.hostLayoutService.editorsBindSessionContext ? append(right, $('.session-changes-editor-header-operations')) : right;
+		store.add(instantiationService.createInstance(ChangesActionsBar, operations, this._scope, new Set<string>()));
+
+		// Where no editor part offers them, the diff actions of the header row of the Agents window follow, with its More Actions.
+		if (this.hostLayoutService.editorsBindSessionContext) {
+			const actions = store.add(instantiationService.createInstance(MenuWorkbenchToolBar, append(right, $('.session-changes-editor-header-actions')), Menus.SessionsEditorHeaderSecondary, {
+				menuOptions: { shouldForwardArgs: true },
+			}));
+			actions.context = { groupId: this.group.id } satisfies IEditorCommandsContext;
+		}
 
 		return store;
 	}
@@ -567,8 +611,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		});
 		this._pendingResolve.clear();
 		// Only the main editor part hides with the main window's layout; other editor parts, such as of chat windows, show.
+		// A layout can also show the editors of a main editor part it reports hidden, such as the Agents window docking them beside the chat.
 		const inMainEditorPart = this.editorGroupService.getPart(this.group) === this.editorGroupService.mainPart;
-		if (inMainEditorPart && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		if (inMainEditorPart && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && !this.getContainer()?.checkVisibility()) {
 			this._logger.log('changes editor set input deferred, editor part hidden', { session: sessionResource });
 			// The operation token is cancelled once setInput returns, so the deferred resolve owns its own.
 			// It is cancelled only when the input is cleared or replaced, not when the resolve fires.
@@ -678,6 +723,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			this.saveCurrentEditorViewState();
 		}
 		this._paneVisible.set(visible, undefined);
+		this.fileListWidget?.setVisible(visible);
 		super.setEditorVisible(visible);
 	}
 

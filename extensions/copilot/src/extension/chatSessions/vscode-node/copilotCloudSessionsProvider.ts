@@ -618,15 +618,16 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			this.refresh();
 		}));
 
+		const onDebouncedAuthRefresh = Event.debounce(this._authenticationService.onDidAuthenticationChange, () => { }, 500);
+		this._register(onDebouncedAuthRefresh(() => this.refreshSessionsAndOptions()));
+
 		// Refresh when CAPI URL changes (e.g., when GHE Copilot token arrives and updates the base URL)
 		this._register(this._domainService.onDidChangeDomains(e => {
 			if (e.capiUrlChanged) {
 				this.sessionSourceGeneration++;
 				this.explicitlyResolvedSessions.clear();
 				this.logService.debug('copilotCloudSessionsProvider: CAPI URL changed, refreshing sessions');
-				this.clearOptionsCaches();
-				this.refresh();
-				this._onDidChangeChatSessionProviderOptions.fire();
+				this.refreshSessionsAndOptions();
 			}
 		}));
 
@@ -681,11 +682,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				}));
 
 			}
-			const onDebouncedAuthRefresh = Event.debounce(this._authenticationService.onDidAuthenticationChange, () => { }, 500);
-			this._register(onDebouncedAuthRefresh(() => {
-				this.clearOptionsCaches();
-				this.refresh();
-			}));
 			this.telemetry.sendTelemetryEvent('copilotCloudSessions.refreshInterval', { microsoft: true, github: false }, telemetryObj);
 		});
 	}
@@ -912,9 +908,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		this._register(vscode.commands.registerCommand(CLEAR_CACHES_COMMAND_ID, () => {
 			this.logService.debug('copilotCloudSessionsProvider#clearCaches: clearing all cloud agent caches');
-			this.clearOptionsCaches();
-			this.refresh();
-			this._onDidChangeChatSessionProviderOptions.fire();
+			this.refreshSessionsAndOptions();
 		}));
 
 		this._register(vscode.commands.registerCommand(CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID, (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => this.handleCreatePullRequestForTaskCommand(sessionItemOrResource)));
@@ -983,7 +977,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this.cachedSessionItemsExpiresAt = Infinity;
 		this.chatSessionItemsPromise = undefined;
 		// Note: _ccaEnabledCache and _optionsCache are TTL-based and NOT cleared on refresh.
-		// Use clearOptionsCaches() to force-clear them (e.g. on auth change).
+		// Use refreshSessionsAndOptions() to force-clear them (e.g. on auth change).
 		this._onDidChangeChatSessionItems.fire();
 	}
 
@@ -998,13 +992,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this.cachedSessionItemsExpiryScheduler.schedule(Math.min(delay, 2 ** 31 - 1));
 	}
 
-	/**
-	 * Force-clears the TTL-based caches for /enabled and session provider options.
-	 * Use for auth changes or explicit user-initiated refresh where stale data is unacceptable.
-	 */
-	private clearOptionsCaches(): void {
+	private refreshSessionsAndOptions(): void {
 		this._ccaEnabledCache.clear();
 		this._optionsCache.clear();
+		this.refresh();
+		this._onDidChangeChatSessionProviderOptions.fire();
 	}
 
 	/**
@@ -1656,7 +1648,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return this.createEmptySession(resource);
 		}
 
-		const events = await backend.fetchTaskEvents(taskId);
+		const [events, initialAutomationPrompt] = await Promise.all([
+			backend.fetchTaskEvents(taskId),
+			backend.getInitialAutomationPrompt(taskContent.task),
+		]);
 
 		// Best-effort PR decoration for the header card.
 		let pullRequest: PullRequestSearchItem | undefined;
@@ -1671,6 +1666,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			events,
 			pullRequest,
 			storedReferences,
+			initialAutomationPrompt,
 		);
 
 		const latestTurn = taskContent.task.sessions?.[taskContent.task.sessions.length - 1];

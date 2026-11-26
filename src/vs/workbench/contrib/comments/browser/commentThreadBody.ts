@@ -351,7 +351,9 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		}
 
 		this._updateAriaLabel();
-		if (!preserveFocus) {
+		// Updating a thread, such as when comments are computed again in the background, only moves focus to one of its
+		// comments when focus is already in the thread, or when a comment starts being edited.
+		if (!preserveFocus && (newCommentsInEditMode.length || dom.isAncestorOfActiveElement(this.container))) {
 			this._setFocusedComment(this._focusedComment);
 		}
 	}

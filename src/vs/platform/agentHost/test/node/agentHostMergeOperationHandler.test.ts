@@ -164,26 +164,24 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 	if (trackedBaseBranch && options.trackingBranch) {
 		gitService.trackingBranches.set(trackedBaseBranch, options.trackingBranch);
 	}
-	const refreshed: string[] = [];
 	const merged: Array<{ sessionKey: string; commit: string | undefined }> = [];
 	const handler = new AgentHostMergeOperationHandler(
 		sessionKey => stateManager.getSessionState(sessionKey),
 		async () => options.recordsNoBase ? undefined : options.configuredBranch ?? options.persistedBaseBranch ?? 'main',
-		async sessionKey => { refreshed.push(sessionKey); },
 		async (sessionKey, commit) => { merged.push({ sessionKey, commit }); },
 		gitService,
 		new NullLogService(),
 		stateManager,
 		createTestGitHubService(),
 	);
-	return { gitService, handler, merged, refreshed };
+	return { gitService, handler, merged };
 }
 
 suite('AgentHostMergeOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('commits worktree changes, merges into the checked-out base branch, and refreshes', async () => {
-		const { gitService, handler, merged, refreshed } = await setup(disposables, { configuredBranch: 'release', sourceDirty: true, targetBranch: 'release' });
+	test('commits worktree changes and merges into the checked-out base branch', async () => {
+		const { gitService, handler, merged } = await setup(disposables, { configuredBranch: 'release', sourceDirty: true, targetBranch: 'release' });
 
 		const result = await handler.invoke({
 			channel: branchChangeset,
@@ -194,7 +192,6 @@ suite('AgentHostMergeOperationHandler', () => {
 			calls: gitService.calls,
 			requestedBaseBranches: gitService.requestedBaseBranches,
 			merged,
-			refreshed,
 			message: typeof result.message === 'string' ? result.message : result.message?.markdown,
 		}, {
 			calls: [
@@ -205,7 +202,6 @@ suite('AgentHostMergeOperationHandler', () => {
 			],
 			requestedBaseBranches: ['release'],
 			merged: [{ sessionKey: session.toString(), commit: 'merge-sha' }],
-			refreshed: [branchOwner],
 			message: 'Merged changes from \'agents/session\' into \'release\'.',
 		});
 	});
@@ -256,8 +252,8 @@ suite('AgentHostMergeOperationHandler', () => {
 		});
 	});
 
-	test('refreshes and reports the created commit when merging fails afterward', async () => {
-		const { gitService, handler, merged, refreshed } = await setup(disposables, {
+	test('reports the created commit when merging fails afterward', async () => {
+		const { gitService, handler, merged } = await setup(disposables, {
 			configuredBranch: 'main',
 			sourceDirty: true,
 			mergeError: new Error('merge conflict'),
@@ -276,7 +272,6 @@ suite('AgentHostMergeOperationHandler', () => {
 		assert.deepStrictEqual({
 			calls: gitService.calls,
 			merged,
-			refreshed,
 			errorMessage,
 		}, {
 			calls: [
@@ -286,13 +281,12 @@ suite('AgentHostMergeOperationHandler', () => {
 				`mergeBranch:${repositoryRoot.toString()}:agents/session`,
 			],
 			merged: [],
-			refreshed: [branchOwner],
 			errorMessage: 'The worktree changes were committed, but merging into \'main\' failed. Open the parent repository and merge manually. Git reported: merge conflict',
 		});
 	});
 
 	test('does not record a successful merge without the resulting target commit', async () => {
-		const { handler, merged, refreshed } = await setup(disposables, {
+		const { handler, merged } = await setup(disposables, {
 			configuredBranch: 'main',
 			missingMergeCommit: true,
 		});
@@ -309,17 +303,15 @@ suite('AgentHostMergeOperationHandler', () => {
 
 		assert.deepStrictEqual({
 			merged,
-			refreshed,
 			errorMessage,
 		}, {
 			merged: [],
-			refreshed: [branchOwner],
 			errorMessage: 'Changes were merged into \'main\', but the resulting commit could not be recorded.',
 		});
 	});
 
 	test('rejects a stale merge operation when a pull request now exists', async () => {
-		const { gitService, handler, merged, refreshed } = await setup(disposables, {
+		const { gitService, handler, merged } = await setup(disposables, {
 			configuredBranch: 'main',
 			hasPullRequest: true,
 			sourceDirty: true,
@@ -338,7 +330,6 @@ suite('AgentHostMergeOperationHandler', () => {
 		assert.deepStrictEqual({
 			calls: gitService.calls,
 			merged,
-			refreshed,
 			errorMessage,
 		}, {
 			calls: [
@@ -346,13 +337,12 @@ suite('AgentHostMergeOperationHandler', () => {
 				`hasUncommittedChanges:${worktreeRoot.toString()}`,
 			],
 			merged: [],
-			refreshed: [],
 			errorMessage: 'Merge Changes is no longer available because a pull request exists for branch \'agents/session\'.',
 		});
 	});
 
 	test('uses the resolved persisted baseline when the configured branch is unavailable', async () => {
-		const { gitService, handler, refreshed } = await setup(disposables, {
+		const { gitService, handler } = await setup(disposables, {
 			persistedBaseBranch: 'origin/main',
 			targetBranch: 'other',
 		});
@@ -369,11 +359,9 @@ suite('AgentHostMergeOperationHandler', () => {
 
 		assert.deepStrictEqual({
 			calls: gitService.calls,
-			refreshed,
 			errorMessage,
 		}, {
 			calls: [],
-			refreshed: [],
 			errorMessage: 'The parent repository is on \'other\'. Check out \'main\' there before merging.',
 		});
 	});

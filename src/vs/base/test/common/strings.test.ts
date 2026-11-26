@@ -525,6 +525,31 @@ suite('Strings', () => {
 		assert.strictEqual('ab…f', strings.truncateMiddle('abcde😀f', 5));
 	});
 
+	test('truncateLongLines', () => {
+		const long = 'x'.repeat(20);
+		assert.deepStrictEqual([
+			strings.truncateLongLines('short', 10),
+			strings.truncateLongLines(long, 10),
+			strings.truncateLongLines(`ab\n${long}\ncd`, 10),
+			strings.truncateLongLines(`${long}\n${long}`, 10),
+			strings.truncateLongLines('aaaaa\nbbbbb\nccccc', 10),
+			strings.truncateLongLines(`${'x'.repeat(10)}\r\n${'y'.repeat(10)}`, 10),
+			strings.truncateLongLines(`${long}\r\ncd`, 10),
+			strings.truncateLongLines('ab😀cd\nef', 3),
+			strings.truncateLongLines(long, 5, '...'),
+		], [
+			'short',
+			'xxxxxxxxxx\u2026',
+			'ab\nxxxxxxxxxx\u2026\ncd',
+			'xxxxxxxxxx\u2026\nxxxxxxxxxx\u2026',
+			'aaaaa\nbbbbb\nccccc',
+			'xxxxxxxxxx\r\nyyyyyyyyyy',
+			'xxxxxxxxxx\u2026\r\ncd',
+			'ab\u2026\nef',
+			'xxxxx...',
+		]);
+	});
+
 	test('replaceAsync', async () => {
 		let i = 0;
 		assert.strictEqual(await strings.replaceAsync('abcabcabcabc', /b(.)/g, async (match, after) => {

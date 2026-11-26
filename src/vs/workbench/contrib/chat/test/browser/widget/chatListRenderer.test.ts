@@ -18,7 +18,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { safeIntl } from '../../../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -137,6 +137,7 @@ import { TestColorTheme, TestThemeService } from '../../../../../../platform/the
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { captureGlobalTimeApi, createVirtualTimeApi, pushGlobalTimeApi, VirtualClock } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
@@ -14982,6 +14983,79 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	for (const rendersAgain of [false, true]) {
+		test(`a row that moves in the DOM remounts its Mermaid output once, also when the list does not render it again (rendersAgain=${rendersAgain})`, async () => {
+			const disposables = store.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+			configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+			configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+			instantiationService.stub(IAiEditTelemetryService, { createSuggestionId: () => undefined! });
+			const outputStates = new Map<string, IOutputPartState>();
+			instantiationService.stub(IChatOutputPartStateCache, {
+				get: key => outputStates.get(key),
+				set: (key, state) => outputStates.set(key, state),
+			});
+			const remounts: boolean[] = [];
+			instantiationService.stub(IChatOutputRendererService, {
+				hasCodeBlockRenderer: identifier => identifier === 'mermaid',
+				renderCodeBlock: async (_identifier, _data, parent) => {
+					const output = dom.append(parent, dom.$('div', undefined, 'Rendered diagram'));
+					return {
+						webview: upcastPartial<RenderedOutputPart['webview']>({ onDidUpdateState: Event.None }),
+						onDidChangeHeight: Event.None,
+						reinitialize: () => remounts.push(parent.isConnected),
+						dispose: () => output.remove(),
+					};
+				},
+			});
+
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const request = model.addRequest({
+				text: 'Diagram',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 7), new Range(1, 1, 1, 8), 'Diagram')],
+			}, { variables: [] }, 0);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer, {} as ChatEditorOptions, {},
+				{
+					getListLength: () => 1, onDidScroll: () => Disposable.None, container,
+					currentChatMode: () => ChatModeKind.Agent, isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { }, stickyScrollTopPadding: 0,
+				},
+				undefined, viewModel,
+			));
+			const template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```mermaid\ngraph TD\n```') });
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+
+			// As moving the view that shows the chat in the workbench moves the list's rows, without the list rendering them again
+			const moved = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => moved.remove()));
+			moved.appendChild(container);
+			if (rendersAgain) {
+				renderer.renderElement(node, 0, template);
+			}
+			await timeout(0);
+
+			assert.deepStrictEqual({ remounts, mounted: template.renderedPartsMounted }, { remounts: [true], mounted: true });
+			request.response?.complete();
+		});
+	}
+
 	test('a queued render from a virtualized row does not claim code block registrations owned by another template', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -15450,6 +15524,20 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	/** Holds `setTimeout` callbacks until disposed, which drops them. Intervals, clocks and animation frames keep running. */
+	function holdTimeouts(): IDisposable {
+		const real = captureGlobalTimeApi();
+		const held = createVirtualTimeApi(new VirtualClock());
+		return pushGlobalTimeApi({
+			...real,
+			setTimeout: held.setTimeout,
+			clearTimeout: id => {
+				held.clearTimeout(id);
+				real.clearTimeout(id);
+			},
+		});
+	}
+
 	for (const { name, width, imageWidth, imageHeight, imageCount, animate, batch } of [
 		{ name: 'portrait', width: 760, imageWidth: 800, imageHeight: 1600, imageCount: 1 },
 		{ name: 'landscape', width: 760, imageWidth: 1600, imageHeight: 800, imageCount: 1 },
@@ -15510,6 +15598,10 @@ suite('ChatListRenderer', () => {
 				}
 				renderer.renderElement(node, 0, template);
 			}
+			// A reveal also ends on a real-time deadline, a few seconds after its image loads, which pausing its
+			// animations doesn't hold. Hold timeouts until the reveal has been sampled, so that a slow run can't end it
+			// between samples. Intervals, clocks and animation frames keep running.
+			const heldTimeouts = animate ? disposables.add(holdTimeouts()) : undefined;
 			await tool.didExecuteTool({
 				content: [],
 				toolSpecificData: { kind: 'generatedImage' },
@@ -15540,11 +15632,17 @@ suite('ChatListRenderer', () => {
 				extraHeight: group.getBoundingClientRect().height - imageReveal!.getBoundingClientRect().height,
 			});
 			const revealStates = animate ? [revealState()] : [];
-			await retry(async () => {
+			const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			const imagesLoaded = () => {
 				const images = [...template.value.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')];
-				assert.ok(images.length === imageCount && images.every(image => image.complete && image.naturalWidth > 0
-					&& image.closest('.image-attachment')?.getAttribute('aria-busy') === 'false'));
-			}, 20, 50);
+				return images.length === imageCount && images.every(image => image.complete && image.naturalWidth > 0
+					&& image.closest('.image-attachment')?.getAttribute('aria-busy') === 'false');
+			};
+			// Timeouts don't run while they're held, so wait for the images by animation frames.
+			for (let frame = 0; frame < 300 && !imagesLoaded(); frame++) {
+				await nextFrame();
+			}
+			assert.ok(imagesLoaded());
 			if (animate) {
 				assert.ok(imageReveal);
 				assert.ok(imageReveal.classList.contains('revealing'));
@@ -15557,7 +15655,7 @@ suite('ChatListRenderer', () => {
 						animation.pause();
 						animation.currentTime = Number(animation.effect?.getTiming().duration) * fraction;
 					}
-					await new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					await nextFrame();
 					revealStates.push(revealState());
 				}
 				const bounds = () => {
@@ -15579,6 +15677,7 @@ suite('ChatListRenderer', () => {
 				// same cleanup its real-time deadline runs (covered with virtual time in chatImageReveal.test.ts).
 				motionReduced = true;
 				reducedMotionChanged.fire();
+				heldTimeouts?.dispose();
 				assert.ok(!imageReveal.classList.contains('revealing'));
 				const afterFinish = bounds();
 				assert.deepStrictEqual({

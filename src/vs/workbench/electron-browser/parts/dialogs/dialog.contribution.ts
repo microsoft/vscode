@@ -10,7 +10,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
-import { IDialogsModel, IDialogViewItem } from '../../../common/dialogs.js';
+import { IDialogsModel, IDialogViewItem, showAboutDialog } from '../../../common/dialogs.js';
 import { BrowserDialogHandler } from '../../../browser/parts/dialogs/dialogHandler.js';
 import { NativeDialogHandler } from './dialogHandler.js';
 import { DialogService } from '../../../services/dialogs/common/dialogService.js';
@@ -19,6 +19,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Lazy } from '../../../../base/common/lazy.js';
 import { createNativeAboutDialogDetails } from '../../../../platform/dialogs/electron-browser/dialog.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -39,6 +40,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@IClipboardService clipboardService: IClipboardService,
 		@INativeHostService private nativeHostService: INativeHostService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -89,11 +91,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 				else {
 					const aboutDialogDetails = createNativeAboutDialogDetails(this.productService, await this.nativeHostService.getOSProperties());
 
-					if (this.useCustomDialog) {
-						await this.browserImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
-					} else {
-						await this.nativeImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
-					}
+					await showAboutDialog(this.useCustomDialog ? this.browserImpl.value : this.nativeImpl.value, aboutDialogDetails, this.remoteAgentService);
 				}
 			} catch (error) {
 				result = error;

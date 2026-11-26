@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, constObservable, IObservable, observableFromEvent, runOnChange } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -38,7 +39,7 @@ import { ChatAgentLocation } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
-import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
 import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpServerSupportScope.js';
@@ -408,7 +409,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const modelCatalogueStatus = observableFromEvent(this, this._agentHostService.rootState.onDidChange, () =>
 			readAgentModelCatalogStatus(this._agentHostService.rootState.value, agent.provider));
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, undefined));
+		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
 		// Local mode IDs keep the ambient wrapping that predates connection resource mappers.
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, { clientId: ahService.clientId, resourceUris: this._isLocalAgentHost ? createAgentHostResourceUriMapper(LOCAL_AGENT_HOST_AUTHORITY) : ahService.resourceUris }, undefined,
@@ -445,6 +446,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			// The Tools section is surfaced for the Copilot CLI agent host only.
 			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
+			showGenerateButtonFor: agent.provider === 'copilotcli' ? [PromptsType.hook] : undefined,
 			syncProvider,
 			itemProvider,
 			hiddenMcpServerCollectionIds: agentHostProviderHasBuiltInGitHubMcpServer(agent.provider) ? [COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID] : undefined,
@@ -523,7 +525,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				}
 			}
 		}
-		await this._authenticateWithServer(agents);
+		await this._authenticateWithServer(this._getRootAgents());
 	}
 
 	private _getRootAgents(): readonly AgentInfo[] {
@@ -547,12 +549,21 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			mark('code/agentHost/willAuthenticate');
 		}
 		this._agentHostService.setAuthenticationPending(true);
+		const startedResources = agents.flatMap(agent => agent.protectedResources ?? []);
+		// The host may replace its resources while the round waits; the change that replaced them started a round for the new list.
+		// An absent or failed root state is not a replacement, so no successor would settle for it.
+		const isCurrent = () => {
+			const rootState = this._agentHostService.rootState.value;
+			return this._isAuthenticationCurrent(generation)
+				&& (!rootState || rootState instanceof Error
+					|| equals(startedResources, this._getRootAgents().flatMap(agent => agent.protectedResources ?? [])));
+		};
 		try {
 			const testToken = this._getScenarioAutomationToken();
 			if (testToken !== undefined) {
 				await authenticateAgentProtectedResourcesWithToken(agents, testToken, {
 					authTokenCache: this._authTokenCache,
-					isCurrent: () => this._isAuthenticationCurrent(generation),
+					isCurrent,
 					authenticate: request => this._authenticateIfCurrent(request, generation),
 				});
 				return;
@@ -560,7 +571,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache: this._authTokenCache,
 				logPrefix: '[AgentHost]',
-				isCurrent: () => this._isAuthenticationCurrent(generation),
+				isCurrent,
 				authenticate: request => this._authenticateIfCurrent(request, generation),
 			});
 		} catch (err) {
@@ -568,7 +579,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				this._logService.error('[AgentHost] Failed to authenticate with server', err);
 			}
 		} finally {
-			if (this._isAuthenticationCurrent(generation)) {
+			if (isCurrent()) {
 				this._agentHostService.setAuthenticationPending(false);
 			}
 			if (isInitialAuthentication) {

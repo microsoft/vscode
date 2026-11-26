@@ -28,8 +28,8 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
 import { ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from './sessionTaskRunner.js';
-import { AgenticPromptsService } from './promptsService.js';
-import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { AgenticSkillsService } from './agenticSkillsService.js';
+import { IAgenticSkillsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/agenticSkillsService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { SessionsAICustomizationWorkspaceService } from './aiCustomizationWorkspaceService.js';
@@ -47,7 +47,8 @@ import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreated
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from '../../../../workbench/contrib/sessions/browser/chat/sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_GRAPHIC_SETTING, NEW_SESSION_WELCOME_GRAPHICS, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, REMOTE_ENVIRONMENTS_SHARING_SETUP_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { sessionsListConfigurationProperties } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_GRAPHIC_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, REMOTE_ENVIRONMENTS_SHARING_SETUP_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../../browser/layoutActions.js';
@@ -350,7 +351,7 @@ registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandbo
 registerWorkbenchContribution2(ActiveSessionChatRevealerContribution.ID, ActiveSessionChatRevealerContribution, WorkbenchPhase.AfterRestored);
 
 // register services
-registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
+registerSingleton(IAgenticSkillsService, AgenticSkillsService, InstantiationType.Delayed);
 registerSingleton(ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry, InstantiationType.Delayed);
 registerSingleton(ISessionsTasksService, SessionsTasksService, InstantiationType.Delayed);
 registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, InstantiationType.Delayed);
@@ -453,14 +454,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.scopedInputHistory', "Controls whether chat input history in the Agents Window is scoped to the current session. Disable this to use shared input history across sessions."),
 		},
-		[WORKSPACE_OPT_OUT_SETTING]: {
-			type: 'boolean',
-			default: false,
-			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.workspaceOptOut', "Controls whether hovering over or focusing the workspace picker shows a button to chat without a workspace. Requires a compatible harness and environment. Chat remains available in the workspace list when this setting is disabled."),
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-		},
+		[WORKSPACE_OPT_OUT_SETTING]: sessionsListConfigurationProperties[WORKSPACE_OPT_OUT_SETTING],
 		[ENVIRONMENT_PICKER_SETTING]: {
 			type: 'boolean',
 			default: true,
@@ -524,23 +518,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
-		[NEW_SESSION_WELCOME_GRAPHIC_SETTING]: {
-			type: 'string',
-			enum: [...NEW_SESSION_WELCOME_GRAPHICS],
-			enumDescriptions: [
-				localize('sessions.chat.welcomeGraphic.none', "Show no graphic."),
-				localize('sessions.chat.welcomeGraphic.windowOverview', "Show an animation in which the single task of the editor window becomes several tasks side by side in the Agents window."),
-				localize('sessions.chat.welcomeGraphic.windowOverviewStatic', "Show the single task of the editor window next to several tasks side by side in the Agents window."),
-				localize('sessions.chat.welcomeGraphic.workingCopies', "Show an animation in which a project becomes sessions that work in separate copies of that project and in another project."),
-				localize('sessions.chat.welcomeGraphic.workingCopiesStatic', "Show a project in the editor window next to sessions that work in separate copies of that project and in another project in the Agents window."),
-				localize('sessions.chat.welcomeGraphic.windowComparison', "Show an animated comparison of one task at a time in the editor window with parallel tasks across copies and projects in the Agents window."),
-			],
-			default: 'none',
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.welcomeGraphic', "Controls which graphic is shown above the welcome message of a new session until you have started two sessions in the Agents window."),
-			tags: ['advanced', 'experimental'],
-			experiment: { mode: 'auto' },
-		},
+		[NEW_SESSION_WELCOME_GRAPHIC_SETTING]: sessionsListConfigurationProperties[NEW_SESSION_WELCOME_GRAPHIC_SETTING],
 		[NEW_SESSION_WELCOME_NAME_SETTING]: {
 			type: 'string',
 			default: '',

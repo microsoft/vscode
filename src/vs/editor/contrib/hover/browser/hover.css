@@ -29,11 +29,11 @@
 }
 
 .monaco-editor .monaco-hover a {
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-editorHoverWidget-linkForeground, var(--vscode-textLink-foreground));
 }
 
 .monaco-editor .monaco-hover a:hover {
-	color: var(--vscode-textLink-activeForeground);
+	color: var(--vscode-editorHoverWidget-linkForeground, var(--vscode-textLink-activeForeground));
 }
 
 .monaco-editor .monaco-hover .hover-row {

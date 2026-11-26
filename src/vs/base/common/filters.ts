@@ -357,6 +357,9 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 
 	word = tryNormalizeToBase(word);
 	target = tryNormalizeToBase(target);
+	if (!canMatchWords(word, target)) {
+		return null;
+	}
 	// Memoize recursive calls within a single top-level invocation. Because word
 	// separators are treated as an equivalence class by `charactersMatch`, the
 	// recursion in `_matchesWords` can otherwise explode exponentially for inputs
@@ -371,6 +374,37 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 	}
 
 	return result;
+}
+
+/**
+ * Cheap pre-check for {@link matchesWords}: returns `false` only for inputs that
+ * `_matchesWords` can't match either. Each ASCII lowercase letter and digit of
+ * `word` must appear in `target`, in order. Any other character (a word separator
+ * or a Korean character matched by its alternate codes) skips one target character,
+ * because every matched word character uses at least one target character.
+ */
+function canMatchWords(word: string, target: string): boolean {
+	const wordLen = word.length;
+	const targetLen = target.length;
+	if (wordLen > targetLen) {
+		return false;
+	}
+
+	let targetIndex = 0;
+	for (let wordIndex = 0; wordIndex < wordLen; wordIndex++) {
+		const code = word.charCodeAt(wordIndex);
+		if (isLower(code) || isNumber(code)) {
+			while (targetIndex < targetLen && target.charCodeAt(targetIndex) !== code) {
+				targetIndex++;
+			}
+			if (targetIndex >= targetLen) {
+				return false;
+			}
+		}
+		targetIndex++;
+	}
+
+	return true;
 }
 
 function cloneMatches(matches: IMatch[] | null): IMatch[] | null {

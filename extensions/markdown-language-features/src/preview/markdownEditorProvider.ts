@@ -373,6 +373,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			get version() { return vsCodeDocument.version; },
 			getText: () => vsCodeDocument.getText(),
 			applyEdits: async (version, edits) => {
+				if (document.isReadonly) {
+					return false;
+				}
 				const applied = await vsCodeDocument.applyEdits(version, edits);
 				if (applied) {
 					editorWrites.fire();
@@ -404,7 +407,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		return this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, initialMode !== 'edit');
 	}
 
-	#configureWebview(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, text: string, readonly: boolean): void {
+	#configureWebview(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, text: string, readonly: boolean, documentReadonly: boolean): void {
 		const webview = editorWebview.webview;
 		const codeBlockEditorResourceRoots = vscode.workspace.isTrusted
 			? this.#contributions.contributions.codeBlockEditorProviders.map(provider => provider.extension.extensionUri)
@@ -415,7 +418,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				includeWorkspaceResources: vscode.workspace.isTrusted,
 			}),
 		};
-		webview.html = this.#getHtml(document, webview, editorWebview.messageSecret, text, readonly);
+		webview.html = this.#getHtml(document, webview, editorWebview.messageSecret, text, readonly, documentReadonly);
 	}
 
 	#wireSingle(
@@ -428,9 +431,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		editorWrites: vscode.Event<void>,
 	): void {
 		let webviewReady = false;
-		let readonly = this.#getInitialReadonly(document);
+		let documentReadonly = document.isReadonly;
+		let userReadonly = this.#getInitialReadonly(document);
+		const isEffectiveReadonly = (): boolean => documentReadonly || userReadonly;
 		// Inline diff editors are not usage sessions of the Markdown editor itself
-		const telemetry = originalDocument ? undefined : this.#startTelemetrySession(document, webviewPanel, readonly);
+		const telemetry = originalDocument ? undefined : this.#startTelemetrySession(document, webviewPanel, isEffectiveReadonly());
 		let codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] | undefined;
 		let contributionUpdate = 0;
 		const resolveCancellation = new vscode.CancellationTokenSource();
@@ -483,7 +488,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			params => editorWebview.renderer.richLinkPresentations(params),
 		);
 		const postConfiguration = (): void => {
-			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(this.#getEditorConfiguration(document)));
+			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(this.#getEditorConfiguration(document, documentReadonly)));
 		};
 		const postCodeBlockEditorProviders = (): void => {
 			if (webviewReady && codeBlockEditorProviders) {
@@ -506,6 +511,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const comments = this.#wireComments(document, editorWebview, sync);
 		// Workspace edits made by this panel's own handlers (rename, completions, media paste)
 		const applyPanelEdit = async (edit: vscode.WorkspaceEdit, metadata?: vscode.WorkspaceEditMetadata): Promise<boolean> => {
+			if (documentReadonly) {
+				return false;
+			}
 			const applied = await vscode.workspace.applyEdit(edit, metadata);
 			if (applied) {
 				telemetry?.session.recordEdit();
@@ -514,13 +522,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		};
 		const editorWriteListener = editorWrites(() => telemetry?.session.recordEdit());
 		const rename = new MarkdownEditorRename(document, sync,
-			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
+			() => !documentReadonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
 			{ ...renameApi, apply: applyPanelEdit });
 		const languageFeatures = new MarkdownEditorLanguageFeatures(document, sync,
-			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
+			() => !documentReadonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
 			{ ...completionApi, apply: applyPanelEdit });
 		const imagePaste = new MarkdownEditorImagePaste(document, sync,
-			() => !readonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
+			() => !isEffectiveReadonly() && webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
 			request => editorWebview.renderer.readClipboardMedia(request),
 			applyPanelEdit);
 		const navigation = new MarkdownEditorNavigation(document, sync,
@@ -596,11 +604,17 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 
 			setReadonly: async message => {
-				readonly = message.readonly;
-				telemetry?.session.setMode(readonly ? 'read' : 'edit');
+				if (documentReadonly) {
+					return;
+				}
+				userReadonly = message.readonly;
+				telemetry?.session.setMode(isEffectiveReadonly() ? 'read' : 'edit');
 				await this.#globalState.update(MarkdownEditorProvider.#readonlyStateKey, message.readonly);
 			},
 			history: async (message, _context, { signal }) => {
+				if (documentReadonly) {
+					return;
+				}
 				// The TextDocument owns undo/redo, so route the chord to the built-in
 				// command; the active custom editor input scopes it to this resource's
 				// history, shared with the Edit menu and Command Palette. Write the
@@ -608,7 +622,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				// chord cannot race a pending edit or land on a different document.
 				await sync.drain();
 				signal.throwIfAborted();
-				if (webviewPanel.active && !resolveCancellation.token.isCancellationRequested) {
+				if (!documentReadonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested) {
 					await vscode.commands.executeCommand(message.command);
 				}
 			},
@@ -667,7 +681,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			}
 			disposeHostTransports();
 			editorWebview.reset();
-			this.#configureWebview(document, editorWebview, sync.text, readonly);
+			this.#configureWebview(document, editorWebview, sync.text, userReadonly, documentReadonly);
 			void refreshCodeBlockEditorProviders(true, true);
 		};
 		const onDidGrantWorkspaceTrust = vscode.workspace.onDidGrantWorkspaceTrust(() => {
@@ -711,6 +725,16 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onDidDeleteFiles = vscode.workspace.onDidDeleteFiles(event => invalidateResourceCache(event.files));
 		const onDidRenameFiles = vscode.workspace.onDidRenameFiles(event => invalidateResourceCache(
 			event.files.flatMap(file => [file.oldUri, file.newUri])));
+		const onDidChangeReadonly = vscode.workspace.onDidChangeTextDocumentReadonly(changedDocument => {
+			if (changedDocument.uri.toString() !== document.uri.toString() || documentReadonly === changedDocument.isReadonly) {
+				return;
+			}
+			documentReadonly = changedDocument.isReadonly;
+			telemetry?.session.setMode(isEffectiveReadonly() ? 'read' : 'edit');
+			if (editorWebview.ready) {
+				postConfiguration();
+			}
+		});
 		const onDidChangeViewState = webviewPanel.onDidChangeViewState(() => this.#updateEditorFocusContext());
 		const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration('markdown.experimental.richLinks.enabled', document.uri)) {
@@ -725,7 +749,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			reloadWebview();
 		});
 
-		this.#configureWebview(document, editorWebview, sync.text, readonly);
+		this.#configureWebview(document, editorWebview, sync.text, userReadonly, documentReadonly);
 
 		webviewPanel.onDidDispose(() => {
 			editorWriteListener.dispose();
@@ -756,6 +780,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			onDidCreateFiles.dispose();
 			onDidDeleteFiles.dispose();
 			onDidRenameFiles.dispose();
+			onDidChangeReadonly.dispose();
 			onDidChangeViewState.dispose();
 			onDidChangeConfiguration.dispose();
 			onDidChangeLinkPresentationRules.dispose();
@@ -1055,7 +1080,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 * offsets.
 	 */
 	#wireQuickDiff(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, sync: TextDocumentSync): vscode.Disposable {
-		const diffProvider = vscode.window.createSourceControlDiffInformation(document.uri);
+		const diffProvider = vscode.window.createSourceControlDiffInformation(document.uri, { includeChatEdits: true });
 
 		const postMarkers = async () => {
 			// Offsets into the editor text are document offsets once the editor's changes are written.
@@ -1066,10 +1091,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			// document we hold, otherwise the line positions could be stale. A newer
 			// diff for the current version will arrive via onDidChange.
 			const version = sync.version;
-			if (!editorWebview.ready || !diffInformation || diffInformation.isStale || !version) {
+			if (!editorWebview.ready || !version || diffInformation?.isStale) {
 				return;
 			}
-			editorWebview.renderer.gutterMarkers({ version, markers: toGutterMarkers(document, diffInformation.changes) });
+			editorWebview.renderer.gutterMarkers({ version, markers: diffInformation ? toGutterMarkers(document, diffInformation.changes) : [] });
 		};
 		const publishMarkers = () => editorWebview.report('Publish quick diff', postMarkers());
 
@@ -1196,13 +1221,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 	}
 
-	#getHtml(document: vscode.TextDocument, webview: vscode.Webview, messageSecret: string, text: string, readonly: boolean): string {
+	#getHtml(document: vscode.TextDocument, webview: vscode.Webview, messageSecret: string, text: string, readonly: boolean, documentReadonly: boolean): string {
 		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.#mediaRoot, 'editor.js'));
 		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.#mediaRoot, 'editor.css'));
 		const baseUri = webview.asWebviewUri(document.uri);
 		const nonce = getNonce();
 		const initialState = encodeWebviewInitialState({
-			...this.#getEditorConfiguration(document),
+			...this.#getEditorConfiguration(document, documentReadonly),
 			taskProgressLabels: {
 				title: vscode.l10n.t("Task Progress"),
 				summary: vscode.l10n.t("{0} of {1} tasks completed"),
@@ -1210,6 +1235,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			},
 			content: text,
 			readonly,
+			readonlyMessage: vscode.l10n.t("Cannot edit in read-only editor"),
 			richLinksEnabled: vscode.workspace.getConfiguration('markdown').get<boolean>('experimental.richLinks.enabled', true),
 			linkPresentationRules: vscode.window.linkPresentationRules.map(rule => ({
 				id: rule.id,
@@ -1242,12 +1268,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 </html>`;
 	}
 
-	#getEditorConfiguration(document: vscode.TextDocument): MarkdownEditorConfiguration {
+	#getEditorConfiguration(document: vscode.TextDocument, documentReadonly: boolean): MarkdownEditorConfiguration {
 		const config = vscode.workspace.getConfiguration('markdown.editor', document.uri);
 		return {
 			highlightActiveBlock: config.get<boolean>('highlightActiveBlock', true),
 			renderWhitespace: config.get<boolean>('renderWhitespace', false),
 			lineBreak: vsCodeLineBreak(document),
+			documentReadonly,
 		};
 	}
 }

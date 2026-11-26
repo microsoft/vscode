@@ -15,11 +15,12 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
+import { getKnownSessionApplicationIdOrOther, getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
+import { getSessionsTelemetryEnvironmentId } from '../../common/sessionsTelemetry.js';
 
 export type SessionFilter =
 	| { readonly kind: 'harness' | 'environment' | 'worktree'; readonly id: string }
@@ -88,6 +89,20 @@ export function sessionFilterKey(filter: SessionFilter): string {
 }
 
 /**
+ * The action id of a filter option, which is also the name of its context key. It names built-in harnesses,
+ * environments and applications. Any other, such as a remote agent host or a worktree, is named by its kind and
+ * `opaqueId`, a number the caller keeps for the option, so its id stays the same as the options change.
+ */
+export function getSessionFilterActionId(filter: SessionFilter, opaqueId: number): string {
+	const ids = filter.kind === 'application' ? [filter.environment, filter.id] : filter.kind === 'worktree' ? [] : [filter.id];
+	const names = filter.kind === 'application'
+		? [getSessionsTelemetryEnvironmentId(filter.environment), getKnownSessionApplicationIdOrOther(filter.id)]
+		: filter.kind === 'environment' ? [getSessionsTelemetryEnvironmentId(filter.id)] : ids;
+	const named = filter.kind !== 'worktree' && names.every((name, i) => name === ids[i]);
+	return ['sessionsViewPane.filter', filter.kind, ...names, ...named ? [] : [opaqueId]].join('.');
+}
+
+/**
  * Where `session` works, for the Worktrees filter: the worktree of its first folder, else that folder's working directory,
  * of the folder's repository. Quick chats and sessions without a folder have none, and no Worktrees filter hides them.
  */
@@ -100,14 +115,17 @@ export function getSessionWorktreeFilterFolder(session: Pick<ISession, 'workspac
 }
 
 /**
- * Whether a window's Sessions list lists quick chats, which have no workspace: always in the Agents window, and in an editor
- * window only while it has no folder, following its folders as they are added and removed.
+ * Whether a window's Sessions list lists quick chats, which have no workspace: always while the window is about all sessions
+ * (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}), as the Agents window is, and otherwise only while it has no folder, following its folders and
+ * scope as they change.
  */
-export function listsQuickChatsIn(isSessionsWindow: boolean, workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
+export function listsQuickChatsIn(workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
 	const foldersChanged = observableSignalFromEvent('workspaceFolders', workspaceContextService.onDidChangeWorkspaceFolders);
+	const scopeChanged = observableSignalFromEvent('workbenchScope', workspaceContextService.onDidChangeWorkbenchScope);
 	return derived(reader => {
 		foldersChanged.read(reader);
-		return isSessionsWindow || workspaceContextService.getWorkspace().folders.length === 0;
+		scopeChanged.read(reader);
+		return !workspaceContextService.getWorkbenchScope() || workspaceContextService.getWorkspace().folders.length === 0;
 	});
 }
 

@@ -11,10 +11,11 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostSessionModelOptionsSettingId, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { CreateRemoteSessionTool, ListAgentHostsTool } from '../../browser/remoteSessionTools.js';
@@ -23,10 +24,10 @@ import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost,
 import { DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 
 suite('RemoteSessionTools', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('opaque scoped references require exact advertised identity instead of a reconstructed neighbor', async () => {
-		const backend = URI.parse('session-store://tenant/root?revision=2');
+		const backend = URI.from({ scheme: 'session-store', authority: 'tenant', path: '/root%2Fopaque', query: 'revision=part%26literal&mode=two' });
 		const frontend = backend.with({ scheme: 'remote-other-host-claude' });
 		const connections = new class extends mock<IAgentHostConnectionsService>() {
 			override findSessionResource(resource: URI, authority?: string): URI | undefined {
@@ -81,7 +82,7 @@ suite('RemoteSessionTools', () => {
 		placement: { runningSessions: 0, pendingCreations: 0 },
 	};
 
-	function setup() {
+	function setup(sessionModelOptions = 'off') {
 		const calls: { options: ICreateRemoteSessionOptions; source: URI; requestId: string; token: CancellationToken }[] = [];
 		// The result's host `host` is a Dev Container environment; `agenthost-build` a plain remote host.
 		const hostNames = new Map<string, IRemoteSessionHostName>([
@@ -98,7 +99,9 @@ suite('RemoteSessionTools', () => {
 				return result;
 			}
 		}();
-		return { calls, create: new CreateRemoteSessionTool(service), list: new ListAgentHostsTool(service) };
+		const configuration = new TestConfigurationService({ [AgentHostSessionModelOptionsSettingId]: sessionModelOptions });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		return { calls, create: new CreateRemoteSessionTool(service, configuration), list: new ListAgentHostsTool(service) };
 	}
 
 	test('registers non-workspace tools gated by AI, remote host and remote tool or Dev Container handoff enablement', () => {
@@ -133,12 +136,14 @@ suite('RemoteSessionTools', () => {
 		assert.deepStrictEqual({
 			noWorkspace: description.includes('Omitted workspace creates a workspace-less session'),
 			noInheritance: description.includes('nothing is cloned, copied, or inherited from the origin'),
-			trustedWorkspace: description.includes('already exist and be trusted on the target'),
+			trustedWorkspace: description.includes('an untrusted folder requires separate user approval'),
 			replies: description.includes('send_remote_message with session "origin"'),
+			shareLink: description.includes('openLink as the Markdown link target'),
+			reuseLink: description.includes('as the session argument to get_remote_session or send_remote_message'),
 			noBlindRetry: description.includes('Do not retry an uncertain creation'),
 			connectedWindow: description.includes('Keep the coordinating Agents window connected'),
 			agentHostSource: description.includes('Requires an Agent Host originating chat'),
-		}, { noWorkspace: true, noInheritance: true, trustedWorkspace: true, replies: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
+		}, { noWorkspace: true, noInheritance: true, trustedWorkspace: true, replies: true, shareLink: true, reuseLink: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
 	});
 
 	test('creation waits for exact chat context when invoked in the background', () => {
@@ -207,7 +212,38 @@ suite('RemoteSessionTools', () => {
 		});
 	});
 
-	test('invocation uses the calling chat, stable request ID and cancellation token', async () => {
+	test('reasoning effort and context tier are offered, confirmed and forwarded only when session model options are enabled', async () => {
+		const parameters = { prompt: 'Continue', model: { provider: 'copilot', id: 'test-model' }, reasoningEffort: 'xhigh', contextTier: 'long_context' };
+		const run = async (setting: string) => {
+			const { create, calls } = setup(setting);
+			const properties = Object.keys(create.getToolData().inputSchema?.properties ?? {}).filter(key => key === 'reasoningEffort' || key === 'contextTier');
+			try {
+				const prepared = await create.prepareToolInvocation({ toolCallId: 'prepare', parameters, chatSessionResource: source }, CancellationToken.None);
+				await create.invoke({ callId: `call-${setting}`, toolId: create.getToolData().id, parameters, context: { sessionResource: source } }, async () => 0, progress, CancellationToken.None);
+				const message = prepared.confirmationMessages?.message;
+				const lines = (typeof message === 'object' ? message.value.replace(/&nbsp;/g, ' ') : '').split(/\n+/).filter(line => /^(Reasoning effort|Context window):/.test(line));
+				return { properties, lines, forwarded: { reasoningEffort: calls[0].options.reasoningEffort, contextTier: calls[0].options.contextTier } };
+			} catch (error) {
+				return { properties, error: (error as Error).message, creations: calls.length };
+			}
+		};
+		const enabled = {
+			properties: ['reasoningEffort', 'contextTier'],
+			lines: ['Reasoning effort: Extra High', 'Context window: Long context'],
+			forwarded: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+		};
+		assert.deepStrictEqual({
+			off: await run('off'),
+			inline: await run('inline'),
+			tool: await run('tool'),
+		}, {
+			off: { properties: [], error: 'Unknown create_remote_session property "reasoningEffort".', creations: 0 },
+			inline: enabled,
+			tool: enabled,
+		});
+	});
+
+	test('invocation preserves the calling context and returns only openLink as the session reference', async () => {
 		const { create, calls } = setup();
 		const invocation: IToolInvocation = {
 			callId: 'call-id',
@@ -221,13 +257,20 @@ suite('RemoteSessionTools', () => {
 			id: calls[0].requestId,
 			token: calls[0].token,
 			prompt: calls[0].options.prompt,
-			response: response.content,
+			response: response.content.map(part => part.kind === 'text' ? JSON.parse(part.value) : part),
 		}, {
 			source,
 			id: 'call-id',
 			token: CancellationToken.None,
 			prompt: 'Run the Linux tests',
-			response: [{ kind: 'text', value: JSON.stringify(result) }],
+			response: [{
+				status: result.status,
+				openLink: result.openLink,
+				host: result.host,
+				model: result.model,
+				workspace: result.workspace,
+				placement: result.placement,
+			}],
 		});
 	});
 

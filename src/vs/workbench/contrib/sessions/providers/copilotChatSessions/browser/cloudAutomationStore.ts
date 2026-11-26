@@ -54,6 +54,7 @@ interface ICloudAutomationCatalogueItem {
 /** Adapts the account-bound cloud store to the provider-neutral Automation contract. */
 export class CloudAutomationStore extends Disposable implements ISessionsProviderAutomations {
 	private readonly store = observableValue<GitHubCloudAutomationStore | undefined>(this, undefined);
+	readonly taskAccess = derived(this, reader => this.store.read(reader)?.taskAccess.read(reader));
 	private readonly modelsRequested = observableValue(this, false);
 	private readonly modelCatalog = derived(this, reader => this.store.read(reader)?.modelCatalog.read(reader));
 	get onDidChangeModels(): Event<void> {

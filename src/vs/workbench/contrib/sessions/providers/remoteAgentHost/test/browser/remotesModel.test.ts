@@ -779,7 +779,7 @@ suite('RemotesModel', () => {
 				{ id: 'devcontainer:local', description: 'This Computer', connectsWithHost: undefined },
 				{ id: 'devcontainer:wsl:Ubuntu', description: 'Ubuntu', connectsWithHost: true },
 			],
-			details: ['This removes the container and its Docker volume from this computer, including all files in the container. Sessions that ran in it can no longer continue.'],
+			details: ['This removes the container and its Docker volume from this computer, including all files in the container. Sessions that ran in it are removed too.'],
 			deletions: ['devcontainer:local'],
 		});
 	});

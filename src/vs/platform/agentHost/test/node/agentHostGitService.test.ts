@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { tmpdir } from 'os';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getWorktreeAddFailureMessage, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { Branch, EMPTY_TREE_OBJECT, getBaseBranchLabel, getBranchCompletions, GitRefType, IRefQuery, parseBaseBranchRef } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -891,6 +892,14 @@ suite('AgentHostGitService', () => {
 			);
 		});
 
+		test('names the subcommand after leading -c options', () => {
+			const err = Object.assign(new Error('Command failed'), { code: 128 });
+			assert.strictEqual(
+				formatGitError(['-c', 'checkout.workers=0', 'worktree', 'add', '/tmp/y', 'main'], 30_000, false, err, 'fatal: invalid reference: main\n'),
+				'git worktree exited with code 128: fatal: invalid reference: main',
+			);
+		});
+
 		test('falls back to error message when there is no signal or exit code', () => {
 			const err = new Error('spawn git ENOENT');
 			assert.strictEqual(
@@ -956,6 +965,27 @@ suite('AgentHostGitService', () => {
 			assert.strictEqual(result.length, 200);
 			assert.ok(result.endsWith('…'), 'expected trailing ellipsis');
 		});
+	});
+
+	test('getWorktreeAddFailureMessage explains well-known git worktree add failures', () => {
+		const gitLfsMissing = 'The repository uses Git LFS, but Git LFS isn\'t installed or can\'t be found on the PATH.';
+		assert.deepStrictEqual([
+			'Preparing worktree (new branch \'agents/a\')\nerror: unable to create file src/a: Filename too long\nfatal: Could not reset index file to revision \'HEAD\'.\n',
+			'Preparing worktree (new branch \'agents/a\')\ngit-lfs filter-process: git-lfs: command not found\nfatal: the remote end hung up unexpectedly\n',
+			'Preparing worktree (new branch \'agents/a\')\n/bin/sh: 1: git-lfs: not found\nfatal: the remote end hung up unexpectedly\n',
+			'Preparing worktree (new branch \'agents/a\')\nHEAD is now at 14e5e32 lfs\n\nThis repository is configured for Git LFS but \'git-lfs\' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting the \'post-checkout\' file in the hooks directory (set by \'core.hookspath\'; usually \'.git/hooks\').\n\n',
+			'Preparing worktree (new branch \'agents/a\')\nfatal: cannot lock ref \'refs/heads/agents/a\': Unable to create \'/repo/.git/refs/heads/agents/a.lock\': File exists.\n\nAnother git process seems to be running in this repository, or the lock file may be stale\n',
+			'Preparing worktree (new branch \'agents/a\')\nerror: unable to write file \'big.bin\'\nfatal: Could not reset index file to revision \'HEAD\'.\n',
+		].map(getWorktreeAddFailureMessage), [
+			isWindows
+				? 'A file path in the worktree is too long for Windows. If the full path is longer than 260 characters, run `git config --global core.longpaths true` to allow long paths in Git. If a file or folder name is longer than 255 characters, shorten it in the repository.'
+				: 'A file path in the worktree is too long for the file system.',
+			gitLfsMissing,
+			gitLfsMissing,
+			gitLfsMissing,
+			'Another Git process is using the repository. If no Git process is running, delete the lock file \'/repo/.git/refs/heads/agents/a.lock\'.',
+			undefined,
+		]);
 	});
 
 	suite('base branch refs', () => {

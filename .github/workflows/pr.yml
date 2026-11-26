@@ -29,8 +29,11 @@ jobs:
   #
   # It runs for pull requests and for the merge groups of the merge queue of main. Pull
   # requests to main run every job except the Windows ones ("Windows / *", "Copilot - Test
-  # (Windows)" and "chat-lib - Test (Windows)"), which the merge queue runs. Pull requests to
-  # release branches, which have no merge queue, run them too. The merge queue and the pull
+  # (Windows)" and "chat-lib - Test (Windows)"), which the merge queue runs, apart from the
+  # Windows unit tests ("Windows / Electron-Unit (electron)", "Windows / Electron-Unit (node)"
+  # and "Windows / Browser-Unit"): they finish within the time of the Linux jobs, and catch
+  # Windows path bugs before the merge queue. Pull requests to release branches, which have
+  # no merge queue, run them too. The merge queue and the pull
   # requests to release branches run every job on dedicated runners, so that the pull
   # requests to main cannot hold up the merges:
   #
@@ -672,12 +675,12 @@ jobs:
           fi
           node build/lib/dependencyReleaseAge.ts --base "$base" --head HEAD
 
-  # The test jobs below report "<OS> / <job>" checks, for example "Windows / Electron-Unit", whether
+  # The test jobs below report "<OS> / <job>" checks, for example "Windows / Electron-Unit (electron)", whether
   # they run or not. Each calls the reusable workflow of its OS, whose jobs have fixed names, run on
   # the runner that the calling job passes, and skip when the changes cannot affect them (the
   # *_affected inputs). The calling jobs always run, as GitHub reports a skipped calling job under its
-  # own name only, except the Windows one, which pull requests to main skip, as the merge queue runs
-  # it: they report a single skipped Windows check.
+  # own name only. Pull requests to main run only the unit test jobs of Windows, and skip its other jobs,
+  # which the merge queue runs (see the top of the workflow).
   linux-rust-tests:
     name: Linux
     needs: changes
@@ -751,24 +754,26 @@ jobs:
   windows-tests:
     name: Windows
     needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main') }}
+    if: ${{ !cancelled() }}
     # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
     permissions:
       contents: read
       actions: read
     uses: ./.github/workflows/pr-win32-test.yml
+    # Pull requests to main run only the unit test jobs, and the merge queue the others too (see the top of the
+    # workflow).
     with:
       electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
-      electron_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
+      electron_affected: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
       # Windows runs Agent Host E2E in jobs of its own, and only the suites that the plan selects.
-      agent_host_e2e_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true' }}
-      electron_smoke_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
+      agent_host_e2e_affected: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true') }}
+      electron_smoke_affected: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
       browser_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
-      browser_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
-      remote_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
+      browser_affected: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true') }}
+      remote_affected: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
       # The Electron (node.js) job runs only the node.js integration tests that the plan selects, and is
       # skipped when it selects none.
-      node_integration_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-node-integration-tests == 'true' }}
+      node_integration_tests: ${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.selected-node-integration-tests == 'true') }}
       # The provider integration tests and the Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}

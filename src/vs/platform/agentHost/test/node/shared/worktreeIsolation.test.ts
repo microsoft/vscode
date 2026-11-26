@@ -14,7 +14,7 @@ import { basename, getComparisonKey } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions, type IBranch, type ICommitOptions } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, WorktreeAddError, type IAddWorktreeOptions, type IBranch, type ICommitOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -149,6 +149,7 @@ suite('WorktreeIsolation', () => {
 				addWorktreeCalls.push(options);
 				mkdirSync(options.path.fsPath, { recursive: true });
 				writeFileSync(join(options.path.fsPath, '.git'), 'gitdir: fake');
+				return { gitLfsPointerFiles: false };
 			},
 			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs, sessionId, _onProgress, excludedFolders = []) => {
 				worktreeSetupCalls.push('includeFiles');
@@ -169,6 +170,7 @@ suite('WorktreeIsolation', () => {
 				addExistingCalls.push({ worktree, branchName: branch });
 				mkdirSync(worktree.fsPath, { recursive: true });
 				writeFileSync(join(worktree.fsPath, '.git'), 'gitdir: fake');
+				return { gitLfsPointerFiles: false };
 			},
 			removeWorktree: async (_root, worktree, options) => {
 				removeCalls.push({ worktree, force: options?.force === true });
@@ -945,6 +947,7 @@ suite('WorktreeIsolation', () => {
 			operations.push(`add:${options.commitish}`);
 			addWorktreeCalls.push(options);
 			mkdirSync(options.path.fsPath, { recursive: true });
+			return { gitLfsPointerFiles: false };
 		};
 		const isolation = createIsolation(disposables, { gitService });
 		await isolation.resolveWorkingDirectory({
@@ -989,6 +992,7 @@ suite('WorktreeIsolation', () => {
 			operations.push(`add:${options.commitish}`);
 			addWorktreeCalls.push(options);
 			mkdirSync(options.path.fsPath, { recursive: true });
+			return { gitLfsPointerFiles: false };
 		};
 		const isolation = createIsolation(disposables, { gitService, logService });
 
@@ -1258,6 +1262,19 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('resolveOnFirstSend shows a well-known worktree failure without shortening it', async () => {
+		// Longer than the limit applied to raw git output.
+		const explanation = `Another Git process is using the repository. If no Git process is running, delete the lock file '/${'nested/'.repeat(30)}.git/index.lock'.`;
+		const gitService = createGitService();
+		gitService.addWorktree = async () => { throw new WorktreeAddError(explanation); };
+		const isolation = createIsolation(disposables, { gitService });
+		isolation.notePending(sessionId);
+
+		await assert.rejects(isolation.resolveOnFirstSend({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } }), {
+			message: `Couldn't create the isolated worktree. This session cannot continue. Start a new session to try again.\n\n${explanation}`,
+		});
+	});
+
 	test('session deletion clears a latched worktree creation failure', async () => {
 		const gitService = createGitService();
 		gitService.addWorktree = async () => { throw new Error('creation failed'); };
@@ -1287,6 +1304,7 @@ suite('WorktreeIsolation', () => {
 			if (addWorktreeCalls.length === 1) {
 				throw new Error('transient git failure');
 			}
+			return { gitLfsPointerFiles: false };
 		};
 		const isolation = createIsolation(disposables, { gitService });
 		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
@@ -1841,6 +1859,7 @@ suite('WorktreeIsolation', () => {
 			addWorktreeRoot = repositoryRoot;
 			addWorktreeCalls.push(options);
 			mkdirSync(options.path.fsPath, { recursive: true });
+			return { gitLfsPointerFiles: false };
 		};
 		const isolation = createIsolation(disposables, { gitService });
 		const includeFiles = ['.env'];
@@ -1957,6 +1976,7 @@ suite('WorktreeIsolation', () => {
 			options.onProgress?.({ filesDone: 100, filesTotal: 800 });
 			await timeout(50);
 			options.onProgress?.({ filesDone: 800, filesTotal: 800 });
+			return { gitLfsPointerFiles: false };
 		};
 		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, _sessionId, onProgress) => {
 			onProgress?.({ filesDone: 1, filesTotal: 4 });
@@ -2073,6 +2093,7 @@ suite('WorktreeIsolation', () => {
 			}
 			mkdirSync(options.path.fsPath, { recursive: true });
 			activeAddWorktrees--;
+			return { gitLfsPointerFiles: false };
 		};
 		const isolation = createIsolation(disposables, {
 			branchNameGenerator: new AgentBranchNameGenerator(createNullCopilotApiService(), new NullLogService()),
@@ -2558,6 +2579,38 @@ suite('WorktreeIsolation', () => {
 			},
 			copiedPartCount: 0,
 			emptyTurnCount: 0,
+		});
+	});
+
+	test('applyRestoreAnnouncement warns about Git LFS pointer files after the announcement until a recreated worktree has their contents', async () => {
+		const gitService = createGitService();
+		const addWorktree = gitService.addWorktree;
+		gitService.addWorktree = async (root, options) => ({ ...await addWorktree(root, options), gitLfsPointerFiles: true });
+		const isolation = createIsolation(disposables, { gitService });
+		const turn: Turn = {
+			id: 't1',
+			message: { text: 'hi', origin: { kind: MessageKind.User } },
+			responseParts: [{ kind: ResponsePartKind.Markdown, id: 'agent', content: 'Done.' }],
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+		const restoredParts = async () => (await isolation.applyRestoreAnnouncement(sessionUri, [turn]))[0].responseParts.map(part => part.kind !== ResponsePartKind.Markdown ? part
+			: part.id !== 'agent' ? 'announcement'
+				: part.content === 'Done.' ? 'agent reply' : 'announcement + agent reply');
+
+		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		const created = await restoredParts();
+		await archiveThroughCleanup(isolation, 'synced');
+		await isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
+		const recreated = await restoredParts();
+
+		assert.deepStrictEqual({ created, recreated }, {
+			created: ['announcement', {
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Git LFS isn\'t installed or can\'t be found on the PATH, so files stored with Git LFS are pointer files in this worktree. Changes to those files can\'t be committed. Install Git LFS, then run `git lfs pull` in the worktree to get their contents.',
+				_meta: { kind: 'worktreeGitLfsUnavailable', severity: 'warning' },
+			}, 'agent reply'],
+			recreated: ['announcement + agent reply'],
 		});
 	});
 
