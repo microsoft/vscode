@@ -15,6 +15,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { registerColors } from '../../../terminal/common/terminalColorRegistry.js';
 import { DebugExpressionRenderer } from '../../browser/debugExpressionRenderer.js';
 import { ReplOutputElementRenderer } from '../../browser/replViewer.js';
 import { ReplOutputElement } from '../../common/replModel.js';
@@ -29,6 +30,7 @@ suite('Debug - REPL Viewer', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IConfigurationService, instantiationService.createInstance(TestConfigurationService));
 		instantiationService.stub(IHoverService, NullHoverService);
+		registerColors();
 	});
 
 	function renderOutput(value: string): { rendered: string; value: string } {

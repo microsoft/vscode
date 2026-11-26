@@ -15,6 +15,7 @@ import { createMatches, FuzzyScore } from '../../../../base/common/filters.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/path.js';
 import severity from '../../../../base/common/severity.js';
+import { truncateLongLines } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -26,19 +27,12 @@ import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defa
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, INestingReplElement, IReplElement, IReplElementSource, IReplOptions } from '../common/debug.js';
 import { Variable } from '../common/debugModel.js';
-import { truncateLongLines } from '../common/debugUtils.js';
 import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from '../common/replModel.js';
 import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions } from './baseDebugView.js';
-import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
+import { DebugExpressionRenderer, MAX_LINE_RENDER_LENGTH } from './debugExpressionRenderer.js';
 import { debugConsoleEvaluationInput } from './debugIcons.js';
 
 const $ = dom.$;
-
-/**
- * Lines longer than this are truncated when rendered in the Debug Console: a single huge
- * line can run text shaping out of memory and crash the window. Copy and Copy All keep the full value.
- */
-const MAX_REPL_LINE_RENDER_LENGTH = 10000;
 
 interface IReplEvaluationInputTemplateData {
 	label: HighlightedLabel;
@@ -90,7 +84,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 
 	renderElement(element: ITreeNode<ReplEvaluationInput, FuzzyScore>, index: number, templateData: IReplEvaluationInputTemplateData): void {
 		const evaluation = element.element;
-		templateData.label.set(evaluation.value, createMatches(element.filterData));
+		templateData.label.set(truncateLongLines(evaluation.value, MAX_LINE_RENDER_LENGTH), createMatches(element.filterData));
 	}
 
 	disposeTemplate(templateData: IReplEvaluationInputTemplateData): void {
@@ -123,7 +117,7 @@ export class ReplGroupRenderer implements ITreeRenderer<ReplGroup, FuzzyScore, I
 		templateData.elementDisposable?.dispose();
 		const replGroup = element.element;
 		dom.clearNode(templateData.label);
-		templateData.elementDisposable = this.expressionRenderer.renderValue(templateData.label, replGroup.name, { wasANSI: true, session: element.element.session, maxLineLength: MAX_REPL_LINE_RENDER_LENGTH });
+		templateData.elementDisposable = this.expressionRenderer.renderValue(templateData.label, replGroup.name, { wasANSI: true, session: element.element.session });
 		templateData.source.setSource(replGroup.sourceData);
 	}
 
@@ -158,7 +152,6 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 			colorize: true,
 			hover: false,
 			session: element.element.getSession(),
-			maxLineLength: MAX_REPL_LINE_RENDER_LENGTH,
 		}));
 	}
 
@@ -209,7 +202,6 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 			session: element.session,
 			locationReference,
 			hover: false,
-			maxLineLength: MAX_REPL_LINE_RENDER_LENGTH,
 		}));
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
@@ -265,7 +257,7 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 		if (isReplVariable || !expression.name) {
 			data.label.set('');
 			const value = isReplVariable ? expression.expression : expression;
-			data.elementDisposable.add(this.expressionRenderer.renderValue(data.value, value, { colorize: true, hover: false, session: expression.getSession(), maxLineLength: MAX_REPL_LINE_RENDER_LENGTH }));
+			data.elementDisposable.add(this.expressionRenderer.renderValue(data.value, value, { colorize: true, hover: false, session: expression.getSession() }));
 			data.expression.classList.remove('nested-variable');
 		} else {
 			data.elementDisposable.add(this.expressionRenderer.renderVariable(data, expression as Variable, { showChanged: true, highlights }));
@@ -316,7 +308,6 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 		templateData.elementStore.add(this.expressionRenderer.renderValue(templateData.value, element.value, {
 			hover: false,
 			session: node.element.getSession(),
-			maxLineLength: MAX_REPL_LINE_RENDER_LENGTH,
 		}));
 	}
 
@@ -358,7 +349,7 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
 
 		if (hasValue(element) && !isNestedVariable(element)) {
-			const value = truncateLongLines(element.value, MAX_REPL_LINE_RENDER_LENGTH);
+			const value = truncateLongLines(element.value, MAX_LINE_RENDER_LENGTH);
 			const valueRows = countNumberOfLines(value)
 				+ (ignoreValueLength ? 0 : Math.floor(value.length / 70)) // Make an estimate for wrapping
 				+ (element instanceof ReplOutputElement ? 0 : 1); // A SimpleReplElement ends in \n if it's a complete line
@@ -433,14 +424,14 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 			return localize('replVariableAriaLabel', "Variable {0}, value {1}", element.name, element.value);
 		}
 		if (element instanceof ReplOutputElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
-			return truncateLongLines(element.value, MAX_REPL_LINE_RENDER_LENGTH) + (element instanceof ReplOutputElement && element.count > 1 ? localize({ key: 'occurred', comment: ['Front will the value of the debug console element. Placeholder will be replaced by a number which represents occurrance count.'] },
+			return truncateLongLines(element.value, MAX_LINE_RENDER_LENGTH) + (element instanceof ReplOutputElement && element.count > 1 ? localize({ key: 'occurred', comment: ['Front will the value of the debug console element. Placeholder will be replaced by a number which represents occurrance count.'] },
 				", occurred {0} times", element.count) : '');
 		}
 		if (element instanceof RawObjectReplElement) {
-			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, element.value);
+			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, truncateLongLines(element.value, MAX_LINE_RENDER_LENGTH));
 		}
 		if (element instanceof ReplGroup) {
-			return localize('replGroup', "Debug console group {0}", element.name);
+			return localize('replGroup', "Debug console group {0}", truncateLongLines(element.name, MAX_LINE_RENDER_LENGTH));
 		}
 
 		return '';

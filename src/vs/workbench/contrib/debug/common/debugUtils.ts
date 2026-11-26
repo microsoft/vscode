@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from '../../../../base/common/charCode.js';
 import { Event } from '../../../../base/common/event.js';
-import { equalsIgnoreCase, truncate } from '../../../../base/common/strings.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { IDebuggerContribution, IDebugSession, IConfig, IConfigPresentation, State } from './debug.js';
 import { URI as uri } from '../../../../base/common/uri.js';
 import { isAbsolute } from '../../../../base/common/path.js';
@@ -468,31 +467,4 @@ export async function stopSessionsAndWaitForEnd(sessions: readonly IDebugSession
 		}
 		await ended;
 	}));
-}
-
-/**
- * Truncates each line of the value that is longer than `maxLineLength` characters, keeping
- * the line breaks. Returns the value itself when no line is too long.
- */
-export function truncateLongLines(value: string, maxLineLength: number): string {
-	if (value.length <= maxLineLength) {
-		return value;
-	}
-	let result: string | undefined;
-	let copiedUpTo = 0;
-	let lineStart = 0;
-	while (lineStart < value.length) {
-		let lineEnd = value.indexOf('\n', lineStart);
-		if (lineEnd === -1) {
-			lineEnd = value.length;
-		}
-		// The CR of a CRLF line break is not part of the line.
-		const contentEnd = lineEnd > lineStart && lineEnd < value.length && value.charCodeAt(lineEnd - 1) === CharCode.CarriageReturn ? lineEnd - 1 : lineEnd;
-		if (contentEnd - lineStart > maxLineLength) {
-			result = (result ?? '') + value.substring(copiedUpTo, lineStart) + truncate(value.substring(lineStart, contentEnd), maxLineLength);
-			copiedUpTo = contentEnd;
-		}
-		lineStart = lineEnd + 1;
-	}
-	return result === undefined ? value : result + value.substring(copiedUpTo);
 }
