@@ -356,6 +356,10 @@ interface ISessionsListControlOptions {
 	 * so when it shows no session. The providers scope the sessions themselves.
 	 */
 	readonly scoped?: IObservable<boolean>;
+	/** List-side window scope; providers retain their complete inventories. */
+	readonly sessionScope?: IObservable<ReadonlySet<string> | undefined>;
+	readonly pendingSessionScope?: IObservable<((item: IPendingSessionItem) => boolean) | undefined>;
+	readonly scopeBar?: IObservable<boolean>;
 	/**
 	 * Whether grouping by time lists the sessions without a workspace in the "Chats" section, flat, as the other groupings
 	 * do, rather than among the time sections; it does not by default. A {@link scoped} list has no Chats section at all.
@@ -1141,6 +1145,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (scoped) {
 			this._register(runOnChange(scoped, () => this.update()));
 		}
+		if (this.options.sessionScope) {
+			this._register(runOnChange(this.options.sessionScope, () => this.update()));
+		}
+		if (this.options.pendingSessionScope) {
+			this._register(runOnChange(this.options.pendingSessionScope, () => this.update()));
+		}
+		if (this.options.scopeBar) {
+			this._register(runOnChange(this.options.scopeBar, () => this.update()));
+		}
 
 		const indentGuides = new SessionsListIndentGuides<SessionListItem>(element => this.getRowIndent(element), () => this.tree);
 		this.tree = treeDisposables.add(treeInstantiationService.createInstance(
@@ -1832,7 +1845,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const scoped = new Set(scopedProviderIds);
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
-		filtered = filtered.filter(session => this.filters.matches(session, inbox, availableWorktrees));
+		filtered = filtered.filter(session => this.filters.matches(session, inbox || this.options.scopeBar?.get(), availableWorktrees));
 		const scheduledOnly = this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly();
 		if (scheduledOnly) {
 			filtered = filtered.filter(session => this.options.scheduledSessionResources?.get().has(session.resource.toString()));
@@ -1858,13 +1871,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingSessionMoves.size > 0) {
 			filtered = filtered.filter(session => !this.pendingSessionMoves.has(session.sessionId));
 		}
-		if (inbox) {
+		if (inbox || this.options.scopeBar?.get()) {
 			filtered = filtered.filter(session => this.filters.matchesInboxScope(session));
 		}
 		// The same sessions also stay visible past the "+N more" caps of sections and folders.
 		const revealedSessionIds = [activeSession, onboardingSession].flatMap(session => session ? [session.sessionId] : []);
-		// The providers list only the sessions of a host scope (the window's workspace folders), but a comparison can have
-		// sessions of other folders, which lookups still find
+		// Comparisons must obey the same list scope as their sessions, including lookups outside the visible inventory.
 		const scope = this.getHostScope();
 		const isComparisonInScope = (comparison: ISessionComparison) => !scope || getComparisonSessions(comparison, this._sessionsManagementService).some(session => scope.has(session.sessionId));
 		filtered = filtered.filter(session => {
@@ -2438,7 +2450,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pendingItems = [
 			...(this.options.scheduledSessions?.get() ?? []),
 			...(scheduledOnly ? [] : draftsSection?.items ?? []),
-		].filter(item => matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
+		].filter(item => matchesPendingSession(item, this.filters, inbox || !!this.options.scopeBar?.get(), scopedProviderIds)
+			&& (this.options.pendingSessionScope?.get()?.(item) ?? true));
 		if (pendingItems.length > 0) {
 			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };
 			children.push({
@@ -3279,8 +3292,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
-		if (this.isInboxLayout() && !this.filters.matchesInboxScope(session)) {
-			throw new Error(localize('sessionsList.outsideInboxScope', "This session is outside the current Inbox scope. Reset the scope to reveal it."));
+		if ((this.isInboxLayout() || this.options.scopeBar?.get()) && !this.filters.matchesInboxScope(session)) {
+			throw new Error(this.isInboxLayout()
+				? localize('sessionsList.outsideInboxScope', "This session is outside the current Inbox scope. Reset the scope to reveal it.")
+				: localize('sessionsList.outsideSessionsScope', "This session is outside the current Sessions scope. Reset the scope to reveal it."));
 		}
 		this.customViewService.hideCustomView();
 		this.closeFind();
@@ -5277,10 +5292,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** The IDs of the sessions the providers list in the host's scope, or `undefined` while the list is not scoped. See {@link ISessionsListControlOptions.scoped}. */
 	private getHostScope(): ReadonlySet<string> | undefined {
-		if (!this.options.scoped?.get()) {
+		if (!this.options.scoped?.get() && !this.options.sessionScope?.get() && !this.options.scopeBar?.get()) {
 			return undefined;
 		}
-		return new Set(this.sessions.map(session => session.sessionId));
+		return new Set(this.sessions.filter(session => this.isSessionListed(session)).map(session => session.sessionId));
 	}
 
 	private getMarkAllSessionsReadAction(getSessions: () => readonly ISession[]): IAction {
@@ -5534,7 +5549,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Whether the list includes the session before its source filters apply. */
 	isSessionListed(session: ISession, reader?: IReader): boolean {
-		return this._sessionsListModelService.isSessionListed(session, reader);
+		return this._sessionsListModelService.isSessionListed(session, reader)
+			&& (this.options.sessionScope?.read(reader)?.has(session.sessionId) ?? true)
+			&& (!this.options.scopeBar?.read(reader) || this.filters.matchesInboxScope(session, reader));
 	}
 
 	getRenderedSessionGroup(session: ISession): ISessionGroup | undefined {
@@ -5838,7 +5855,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * folders, which lists no quick chat and starts none.
 	 */
 	private get hasQuickChatsSection(): boolean {
-		return !this.options.scoped?.get();
+		return !!this.options.scopeBar?.get() || !this.options.scoped?.get();
 	}
 
 	private isRenderedInExternalSection(session: ISession): boolean {

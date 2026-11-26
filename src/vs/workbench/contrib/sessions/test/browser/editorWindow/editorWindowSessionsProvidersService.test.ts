@@ -16,16 +16,19 @@ import { ILifecycleService } from '../../../../../services/lifecycle/common/life
 import { EditorWindowSessionsProvidersService } from '../../../browser/editorWindow/editorWindowSessionsProvidersService.js';
 import { SessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ISessionsListingScope, ISessionsProvider } from '../../../common/sessionsProvider.js';
+import { IChatViewSessionsListService } from '../../../../chat/common/chatViewSessionsListService.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 
 suite('EditorWindowSessionsProvidersService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService() {
+	function createService(enabled = observableValue('newList', false)) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ willShutdown: false }));
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({ stat: () => Promise.reject(new Error('no .git')) }));
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatViewSessionsListService, upcastPartial<IChatViewSessionsListService>({ enabled }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: Event.None,
 			onDidChangeWorkbenchState: Event.None,
@@ -34,6 +37,22 @@ suite('EditorWindowSessionsProvidersService', () => {
 		}));
 		return store.add(instantiationService.createInstance(EditorWindowSessionsProvidersService));
 	}
+
+	test('new editor list gets the full inventory and switching back restores legacy provider scope', () => {
+		const enabled = observableValue('newList', true);
+		const service = createService(enabled);
+		let scope: ISessionsListingScope | undefined;
+		store.add(service.registerProvider(upcastPartial<ISessionsProvider>({
+			id: 'local', order: 0, setListingScope: value => { scope = value; },
+		})));
+		const all = scope!.folders.get().map(uri => uri.toString());
+		enabled.set(false, undefined);
+		const legacy = scope!.folders.get().map(uri => uri.toString());
+		enabled.set(true, undefined);
+		assert.deepStrictEqual({ all, legacy, allAgain: scope!.folders.get().map(uri => uri.toString()) }, {
+			all: [], legacy: ['vscode-remote://host/work/repo'], allAgain: [],
+		});
+	});
 
 	/** A provider that records the listing scopes it is given, as they are set before it is registered. */
 	function createProvider(id: string, scopes: { readonly id: string; readonly registered: boolean; readonly folders: string[] }[], service: EditorWindowSessionsProvidersService): ISessionsProvider {

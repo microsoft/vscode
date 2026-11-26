@@ -25,7 +25,7 @@ import { UriIdentityService } from '../../../../../../platform/uriIdentity/commo
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, extUriIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterActionId, getSessionFilterOptions, getWorktreeFilterKeys, listsQuickChatsIn, SessionFilter, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 
@@ -344,7 +344,7 @@ suite('SessionsListFilters', () => {
 		const resetWorkspace = filters.setInboxEnvironment({ id: 'ssh:work', label: 'Work' });
 		assert.deepStrictEqual({
 			all, environmentOnly, workspaceOnly, combined, resetWorkspace, afterEnvironmentChange: visible(),
-			options: getInboxWorkspaceOptions(sessions).map(option => [option.environment, option.resource]),
+			options: getInboxWorkspaceOptions(sessions, extUriBiasedIgnorePathCase).map(option => [option.environment, option.resource]),
 		}, {
 			all: ['local', 'claude', 'other-folder', 'remote'],
 			environmentOnly: ['remote'],
@@ -358,6 +358,24 @@ suite('SessionsListFilters', () => {
 				['local', 'file:///home/user/projects/other/app'],
 			],
 		});
+
+	});
+
+	test('workspace scope matches case-insensitive paths without mixing environments', () => {
+		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService()), new TestConfigurationService(), upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase })));
+		const local = buildTestSession({ id: 'local', workspace: 'repo', title: 'Local' }).session;
+		const remote = buildTestSession({ id: 'remote', workspace: 'repo', title: 'Remote', environment: 'ssh:other' }).session;
+		const pick = getInboxWorkspaceFilter(local)!;
+		filters.setInboxWorkspace({ ...pick, resource: pick.resource.replace('/repo', '/REPO') });
+		assert.deepStrictEqual([local, remote].filter(session => filters.matchesInboxScope(session)).map(session => session.sessionId), ['local']);
+	});
+
+	test('workspace options deduplicate case-insensitive resource identities only within the same environment', () => {
+		const local = buildTestSession({ id: 'local', workspace: 'repo', title: 'Local' }).session;
+		const workspace = local.workspace.get()!;
+		const same = { ...local, sessionId: 'same', workspace: constObservable({ ...workspace, uri: workspace.uri.with({ path: workspace.uri.path.replace('/repo', '/REPO') }) }) };
+		const remote = { ...local, sessionId: 'remote', environment: 'ssh:other' };
+		assert.deepStrictEqual(getInboxWorkspaceOptions([local, same, remote], extUriIgnorePathCase).map(option => option.environment).sort(), ['local', 'ssh:other']);
 	});
 
 	test('Inbox scope persists, resets and restores independently of ordinary environment filters', () => {
@@ -393,7 +411,7 @@ suite('SessionsListFilters', () => {
 		const quick = buildTestSession({ id: 'quick', title: 'Quick', isQuickChat: true }).session;
 		const options: string[][] = [];
 		store.add(autorun(reader => {
-			options.push(getInboxWorkspaceOptions([pending, quick], undefined, reader).map(option => option.label));
+			options.push(getInboxWorkspaceOptions([pending, quick], extUriBiasedIgnorePathCase, undefined, reader).map(option => option.label));
 		}));
 		filters.setInboxWorkspace('none');
 		const before = [pending, quick].filter(session => filters.matchesInboxScope(session)).map(session => session.sessionId);

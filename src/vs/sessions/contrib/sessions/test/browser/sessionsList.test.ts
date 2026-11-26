@@ -323,6 +323,58 @@ suite('Sessions - SessionsList', () => {
 		}, { sessions: 0, rows: ['No sessions to show in this folder.'] });
 	});
 
+	test('list-side scope narrows a complete provider inventory and changes without replacing the inventory', () => {
+		const here = createFolderSession('here', 'repo', 'file:///work/repo');
+		const other = createFolderSession('other', 'other', 'file:///work/other');
+		const scope = observableValue<ReadonlySet<string> | undefined>('scope', new Set(['here']));
+		const harness = createListHarness(disposables, [here, other]);
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, sessionScope: scope,
+			onSessionOpen: () => { },
+		}));
+		const snapshot = () => ({
+			listed: harness.managementService.getSessions().filter(session => list.isSessionListed(session)).map(session => session.sessionId).sort(),
+			visible: list.getVisibleSessions().map(session => session.sessionId).sort(),
+		});
+		const states = [snapshot()];
+		scope.set(undefined, undefined);
+		states.push(snapshot());
+		scope.set(new Set(['other']), undefined);
+		states.push(snapshot());
+		assert.deepStrictEqual({ states, inventory: harness.managementService.getSessions().map(session => session.sessionId) }, {
+			states: [
+				{ listed: ['here'], visible: ['here'] },
+				{ listed: ['here', 'other'], visible: ['here', 'other'] },
+				{ listed: ['other'], visible: ['other'] },
+			],
+			inventory: ['here', 'other'],
+		});
+	});
+
+	test('the workspace bar is strict in every grouping, including quick chats and an active session outside the pick', () => {
+		const here = createTestSession('here', { workspaceResource: URI.file('/work/repo') });
+		const other = createTestSession('other', { workspaceResource: URI.file('/work/other') });
+		const quick = createTestSession('quick', { isQuickChat: true });
+		const harness = createListHarness(disposables, [here.session, other.session, quick.session], { activeSession: constObservable({ ...other.session, activeChat: other.session.mainChat }) });
+		const results = [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Workspace, SessionsGrouping.Repository].map(grouping => {
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => grouping, sorting: () => SessionsSorting.Created, scopeBar: constObservable(true), listsQuickChats: constObservable(true),
+				onSessionOpen: () => { },
+			}));
+			const visible = () => {
+				list.setItemCollapsed({ section: QUICK_CHATS_SECTION_ID }, false);
+				return list.getVisibleSessions().map(session => session.sessionId).sort();
+			};
+			list.filters.setInboxWorkspace({ environment: 'local', resource: 'file:///work/repo', label: 'repo' });
+			const selected = visible();
+			list.filters.setInboxWorkspace('none');
+			const noWorkspace = visible();
+			list.filters.setInboxWorkspace(undefined);
+			return { selected, noWorkspace, all: visible() };
+		});
+		assert.deepStrictEqual(results, results.map(() => ({ selected: ['here'], noWorkspace: ['quick'], all: ['here', 'other', 'quick'] })));
+	});
+
 	test('a scoped list leaves out a comparison whose sessions the providers do not list, nested in a custom group', () => {
 		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
 		const work: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };

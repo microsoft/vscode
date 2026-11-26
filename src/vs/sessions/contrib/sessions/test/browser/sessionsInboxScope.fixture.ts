@@ -58,7 +58,7 @@ function renderScope({ container, disposableStore, theme }: ComponentFixtureCont
 		filters.setInboxWorkspace(getInboxWorkspaceFilter(session));
 	}
 	const scope = disposableStore.add(instantiationService.createInstance(SessionsInboxScope, pane, filters,
-		constObservable(options.unavailable ? [] : [session]), constObservable(options.unavailable ? [] : [environment]), constObservable(new Set<string>())));
+		constObservable(options.unavailable ? [] : [session]), constObservable(options.unavailable ? [] : [environment]), constObservable(new Set<string>()), constObservable(true), constObservable([])));
 	if (options.picker) {
 		scope.element.querySelector<HTMLElement>(`.${options.picker}-picker .action-label`)!.click();
 	}

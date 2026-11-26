@@ -15,7 +15,7 @@ import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../.
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from '../../../../platform/configuration/common/configuration.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Configuration } from '../common/configurationModels.js';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, IEditableWorkspaceContextService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource, IConfigurationDefaults, getConfigurationExperimentName, getConfigurationKeyExperimentName } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
@@ -64,11 +64,12 @@ class Workspace extends BaseWorkspace {
 	initialized: boolean = false;
 }
 
-export class WorkspaceService extends Disposable implements IWorkbenchConfigurationService, IWorkspaceContextService {
+export class WorkspaceService extends Disposable implements IWorkbenchConfigurationService, IEditableWorkspaceContextService {
 
 	public _serviceBrand: undefined;
 
 	private workspace!: Workspace;
+	private workbenchScope: { readonly uri: URI | undefined } | undefined;
 	private initRemoteUserConfigurationBarrier: Barrier;
 	private completeWorkspaceBarrier: Barrier;
 	private readonly configurationCache: IConfigurationCache;
@@ -187,7 +188,24 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	public getWorkbenchScope(): URI | undefined {
-		return getWorkspaceScope(this.workspace);
+		return this.workbenchScope ? this.workbenchScope.uri : getWorkspaceScope(this.workspace);
+	}
+
+	public setWorkbenchScope(scope: URI | undefined): void {
+		const previous = this.getWorkbenchScope();
+		this.workbenchScope = { uri: scope };
+		if (!this.uriIdentityService.extUri.isEqual(previous, scope)) {
+			this._onDidChangeWorkbenchScope.fire(scope);
+		}
+	}
+
+	public resetWorkbenchScope(): void {
+		const previous = this.getWorkbenchScope();
+		this.workbenchScope = undefined;
+		const scope = this.getWorkbenchScope();
+		if (!this.uriIdentityService.extUri.isEqual(previous, scope)) {
+			this._onDidChangeWorkbenchScope.fire(scope);
+		}
 	}
 
 	public getWorkbenchMode(): WorkbenchMode {

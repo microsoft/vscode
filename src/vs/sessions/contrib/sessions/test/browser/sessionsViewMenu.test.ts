@@ -158,6 +158,7 @@ suite('Sessions - View Menu', () => {
 			get grouping() { return contextKeyService.getContextKeyValue<string>(SessionsViewGroupingContext.key); },
 			scopedContextKeyService: contextKeyService,
 			configurationService,
+			workbenchScopeService: { enabled: constObservable(false) },
 			instantiationService: viewInstantiationService,
 			uriIdentityService,
 			workspaceContextService: { getWorkbenchScope: () => windowOptions?.sessionsWindow || windowOptions?.emptyWindow ? undefined : URI.file('/workspace'), getWorkbenchMode: () => windowOptions?.sessionsWindow ? WorkbenchMode.Agents : WorkbenchMode.Editor },
@@ -249,7 +250,7 @@ suite('Sessions - View Menu', () => {
 		list.setItemCollapsed({ section: 'pinned' }, false);
 		const connected = observableValue('connected', true);
 		const environments = observableValue<readonly ISessionEnvironment[]>('environments', [{ id: 'ssh:work', label: 'Workstation', isConnected: connected }]);
-		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, list.filters, constObservable(sessions), environments, constObservable(new Set<string>())));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, list.filters, constObservable(sessions), environments, constObservable(new Set<string>()), constObservable(true), constObservable([])));
 		const workspace = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
 		const environment = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 		const icons = () => [workspace, environment].map(trigger => {
@@ -338,7 +339,7 @@ suite('Sessions - View Menu', () => {
 		];
 		const environments = getSessionFilterEnvironments(providers);
 		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
-			constObservable([]), constObservable(environments.environments), constObservable(environments.localEnvironmentIds)));
+			constObservable([]), constObservable(environments.environments), constObservable(environments.localEnvironmentIds), constObservable(true), constObservable([])));
 		const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 		const snapshot = () => {
 			trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -404,7 +405,7 @@ suite('Sessions - View Menu', () => {
 		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
 		const environmentOptions = derived(reader => getSessionFilterEnvironments(providers, reader));
 		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), menu.filters,
-			constObservable([]), derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds)));
+			constObservable([]), derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds), constObservable(true), constObservable([])));
 		const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 		const snapshot = () => {
 			trigger.click();
@@ -477,7 +478,7 @@ suite('Sessions - View Menu', () => {
 			}
 			const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
 				constObservable([localSession, registrationSession]),
-				derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds)));
+				derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds), constObservable(true), constObservable([])));
 			const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 			if (!restored) {
 				trigger.click();
@@ -523,7 +524,7 @@ suite('Sessions - View Menu', () => {
 		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
 		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
 		const container = harness.createContainer();
-		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([]), constObservable(new Set<string>())));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([]), constObservable(new Set<string>()), constObservable(true), constObservable([])));
 		const trigger = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
 		const open = () => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 		open();
@@ -546,6 +547,29 @@ suite('Sessions - View Menu', () => {
 			cancelled: { visible: false, expanded: 'false', focused: true, scope: {} },
 			hidden: { visible: false, expanded: 'false' },
 			disposed: { visible: false, expanded: 'false' },
+		});
+	});
+
+	test('the shared bar offers the editor folder without sessions and labels its controls for the current grouping', () => {
+		const harness = createListHarness(store, []);
+		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
+		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
+		const inbox = observableValue('inbox', false);
+		const workspace = { environment: 'local', resource: 'file:///work/repo', label: 'repo' };
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
+			constObservable([]), constObservable([]), constObservable(new Set<string>()), inbox, constObservable([workspace])));
+		filters.setInboxWorkspace(workspace);
+		const trigger = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
+		const label = trigger.getAttribute('aria-label');
+		trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		const offered = [...mainWindow.document.querySelectorAll('.action-widget .monaco-list-row .title')].map(row => row.textContent);
+		actionWidgetService.hide(true);
+		inbox.set(true, undefined);
+		assert.deepStrictEqual({ label, offered, inbox: trigger.getAttribute('aria-label') }, {
+			label: 'Scope Sessions to Workspace: repo',
+			offered: ['All Workspaces', 'repo'],
+			inbox: 'Filter Inbox by Workspace: repo',
 		});
 	});
 

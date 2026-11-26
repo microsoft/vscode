@@ -9,7 +9,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -66,6 +66,15 @@ export type RestrictedSettings = {
 };
 
 export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
+
+export const IEditableWorkspaceContextService = refineServiceDecorator<IWorkspaceContextService, IEditableWorkspaceContextService>(IWorkspaceContextService);
+
+/** Changes workbench scope independently of the window's workspace identity and folders. */
+export interface IEditableWorkspaceContextService extends IWorkspaceContextService {
+	setWorkbenchScope(scope: URI | undefined): void;
+	resetWorkbenchScope(): void;
+}
+
 export interface IWorkbenchConfigurationService extends IConfigurationService {
 	/**
 	 * Restricted settings defined in each configuration target

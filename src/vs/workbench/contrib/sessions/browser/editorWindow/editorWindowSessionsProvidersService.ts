@@ -9,6 +9,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { ISessionsListingScope, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsProvidersService } from '../sessionsProvidersService.js';
 import { WorkspaceFolderRepositories } from '../workspaceFolderRepositories.js';
+import { IChatViewSessionsListService } from '../../../chat/common/chatViewSessionsListService.js';
 
 /**
  * The sessions providers of an editor window: every provider and session backend that registers lists only the sessions
@@ -23,6 +24,7 @@ export class EditorWindowSessionsProvidersService extends SessionsProvidersServi
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatViewSessionsListService private readonly _chatViewSessionsListService: IChatViewSessionsListService,
 	) {
 		super(lifecycleService);
 	}
@@ -43,7 +45,7 @@ export class EditorWindowSessionsProvidersService extends SessionsProvidersServi
 	}
 
 	private _getListingScope(): ISessionsListingScope {
-		this._listingScope ??= this._register(this._instantiationService.createInstance(WorkspaceFolderRepositories));
+		this._listingScope ??= this._register(this._instantiationService.createInstance(WorkspaceFolderRepositories, this._chatViewSessionsListService.enabled));
 		return this._listingScope;
 	}
 }

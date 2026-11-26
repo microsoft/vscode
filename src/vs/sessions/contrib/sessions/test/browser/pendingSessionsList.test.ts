@@ -57,6 +57,39 @@ suite('Sessions - pending list items', () => {
 		harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('list.select')!.handler);
 	}
 
+	test('pending rows obey the workspace bar outside Inbox and default window scope when the bar is absent', () => {
+		const harness = createListHarness(disposables, []);
+		const pending = [
+			item('here', { folderUri: URI.file('/work/repo') }),
+			item('other', { folderUri: URI.file('/work/other') }),
+			item('quick', { isQuickChat: true }),
+		];
+		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+			pendingSections: constObservable<readonly IPendingSessionSection[]>([{ id: 'drafts', label: 'Drafts', items: pending }]),
+			scopeBar: constObservable(true), onSessionOpen: () => { },
+		}));
+		const shown = () => {
+			list.setItemCollapsed({ section: 'drafts' }, false);
+			return pending.filter(item => list.getItemRow({ pendingSession: item.id })).map(item => item.id);
+		};
+		list.filters.setInboxWorkspace({ environment: 'local', resource: 'file:///work/REPO', label: 'repo' });
+		const workspace = shown();
+		list.filters.setInboxWorkspace('none');
+		const quick = shown();
+		list.filters.setInboxWorkspace(undefined);
+		const all = shown();
+		const scoped = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+			pendingSections: constObservable<readonly IPendingSessionSection[]>([{ id: 'drafts', label: 'Drafts', items: pending }]),
+			pendingSessionScope: constObservable((item: IPendingSessionItem) => item.id === 'here'), onSessionOpen: () => { },
+		}));
+		scoped.setItemCollapsed({ section: 'drafts' }, false);
+		assert.deepStrictEqual({ workspace, quick, all, window: pending.filter(item => scoped.getItemRow({ pendingSession: item.id })).map(item => item.id) }, {
+			workspace: ['here'], quick: ['quick'], all: ['here', 'other', 'quick'], window: ['here'],
+		});
+	});
+
 	for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository, SessionsGrouping.Environment, SessionsGrouping.Date, SessionsGrouping.Inbox]) {
 		test(`drafts and new-session schedules share Drafts after Pinned in ${grouping}`, () => {
 			const pinned = createTestSession('pinned').session;

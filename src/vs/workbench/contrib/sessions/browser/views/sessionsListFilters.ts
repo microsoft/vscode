@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { getComparisonKey, IExtUri } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, getWorktreeSessionToOpen, ISessionWorktreeFolder, IWorktreeFilterSession, WorktreeLastSessions } from '../../../chat/common/sessionWorktreeFolders.js';
@@ -57,15 +58,19 @@ export function getInboxWorkspaceFilter(session: ISession, reader?: IReader): II
 	};
 }
 
-export function getInboxWorkspaceOptions(sessions: readonly ISession[], environment?: string, reader?: IReader): IInboxWorkspaceFilter[] {
+function compareInboxWorkspaces(a: IInboxWorkspaceFilter, b: IInboxWorkspaceFilter): number {
+	return a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment);
+}
+
+export function getInboxWorkspaceOptions(sessions: readonly ISession[], extUri: IExtUri, environment?: string, reader?: IReader): IInboxWorkspaceFilter[] {
 	const options = new Map<string, IInboxWorkspaceFilter>();
 	for (const session of sessions) {
 		const workspace = getInboxWorkspaceFilter(session, reader);
 		if (workspace && (environment === undefined || workspace.environment === environment)) {
-			options.set(JSON.stringify([workspace.environment, workspace.resource]), workspace);
+			options.set(JSON.stringify([workspace.environment, extUri.getComparisonKey(URI.parse(workspace.resource))]), workspace);
 		}
 	}
-	return [...options.values()].sort((a, b) => a.label.localeCompare(b.label) || a.resource.localeCompare(b.resource) || a.environment.localeCompare(b.environment));
+	return [...options.values()].sort(compareInboxWorkspaces);
 }
 
 function isInboxScope(value: unknown): value is IInboxScope {
@@ -332,19 +337,33 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 			}
 		}
 		this._worktree = storageService.get(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE) || undefined;
-		const scope = storageService.get(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.PROFILE);
+		this._inboxScope = this.readInboxScope(logService);
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, this._store)(e => {
+			if (!e.external) {
+				const scope = this.readInboxScope(logService);
+				if (JSON.stringify(scope) !== JSON.stringify(this._inboxScope)) {
+					this._inboxScope = scope;
+					this._onDidChange.fire();
+				}
+			}
+		}));
+		this.migrateShowAutomationRuns(configurationService, logService);
+	}
+
+	private readInboxScope(logService: ILogService): IInboxScope {
+		const scope = this.storageService.get(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.PROFILE);
 		if (scope !== undefined) {
 			try {
 				const value: unknown = JSON.parse(scope);
 				if (!isInboxScope(value)) {
 					throw new Error('Invalid Inbox scope.');
 				}
-				this._inboxScope = value;
+				return value;
 			} catch (error) {
 				logService.warn('Unable to restore Inbox scope.', error);
 			}
 		}
-		this.migrateShowAutomationRuns(configurationService, logService);
+		return {};
 	}
 
 	/** Moves the retired filter's choice to the setting it duplicated. It is kept for a later retry until the setting lists every run or the user changes it, so a retry never overwrites their choice. */
@@ -441,19 +460,32 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		return resetWorkspace;
 	}
 
-	matchesInboxScope(session: ISession): boolean {
+	matchesInboxScope(session: ISession, reader?: IReader): boolean {
 		const { environment, workspace } = this._inboxScope;
 		if (environment && session.environment !== environment.id) {
 			return false;
 		}
 		if (workspace === 'none') {
-			return session.isQuickChat?.get() === true;
+			return session.isQuickChat?.read(reader) === true;
 		}
 		if (workspace) {
-			const candidate = getInboxWorkspaceFilter(session);
-			return candidate?.environment === workspace.environment && candidate.resource === workspace.resource;
+			const candidate = getInboxWorkspaceFilter(session, reader);
+			return !!candidate && this.isSameInboxWorkspace(candidate, workspace);
 		}
 		return true;
+	}
+
+	isSameInboxWorkspace(a: Pick<IInboxWorkspaceFilter, 'environment' | 'resource'>, b: Pick<IInboxWorkspaceFilter, 'environment' | 'resource'>): boolean {
+		return a.environment === b.environment && this.uriIdentityService.extUri.isEqual(URI.parse(a.resource), URI.parse(b.resource));
+	}
+
+	getInboxWorkspaceLabel(workspace: IInboxWorkspaceFilter, options: readonly IInboxWorkspaceFilter[], environmentAvailable: boolean): string | undefined {
+		return options.find(option => this.isSameInboxWorkspace(option, workspace))?.label ?? (environmentAvailable ? workspace.label : undefined);
+	}
+
+	withWindowWorkspaces(options: readonly IInboxWorkspaceFilter[], windowWorkspaces: readonly IInboxWorkspaceFilter[], environment: string | undefined): IInboxWorkspaceFilter[] {
+		const added = windowWorkspaces.filter(workspace => (environment === undefined || workspace.environment === environment) && !options.some(option => this.isSameInboxWorkspace(option, workspace)));
+		return [...options, ...added].sort(compareInboxWorkspaces);
 	}
 
 	/**

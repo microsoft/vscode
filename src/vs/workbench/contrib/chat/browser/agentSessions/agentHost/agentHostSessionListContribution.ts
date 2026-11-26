@@ -36,6 +36,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	private readonly _isSessionsWindow: boolean;
 	/** Whether it lists every agent's sessions, as the Agents window does, rather than only the agents editor windows show. */
 	private readonly _surfacesAllAgents: IObservable<boolean>;
+	private readonly _listAllSessions: IObservable<boolean>;
 	private readonly _movedChatEditors: MovedChatEditorRetargeter;
 	private _initialized = false;
 	private _sessionListStore: AgentHostSessionListStore | undefined;
@@ -57,6 +58,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
+		this._listAllSessions = chatViewSessionsListService.enabled;
 
 		if (this._isSessionsWindow) {
 			return;
@@ -83,7 +85,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		this._initialized = true;
 		// With worktree support, also the sessions whose project is a folder of the window, such as those in its worktrees
 		const matchProjectRoot = observableConfigValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree, false, this._configurationService);
-		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService), matchProjectRoot }));
+		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService), matchProjectRoot, listAllSessions: this._listAllSessions }));
 		this._sessionListStore = sessionListStore;
 
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {

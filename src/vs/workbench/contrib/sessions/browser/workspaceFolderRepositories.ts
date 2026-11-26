@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEvent, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
@@ -53,14 +53,17 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 	private _generation = 0;
 
 	constructor(
+		private readonly listAll: IObservable<boolean> = constObservable(false),
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		// Also as only the workbench state changes, such as the folder saved as a workspace, without a change of its folders
-		this.folders = observableFromEvent(this, Event.any<unknown>(_workspaceContextService.onDidChangeWorkspaceFolders, _workspaceContextService.onDidChangeWorkbenchState), () => this._getScopeFolders());
+		const folders = observableFromEvent(this, Event.any<unknown>(_workspaceContextService.onDidChangeWorkspaceFolders, _workspaceContextService.onDidChangeWorkbenchState), () => this._getScopeFolders());
+		this.folders = derived(this, reader => this.listAll.read(reader) ? [] : folders.read(reader));
 		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => void this._update()));
+		this._register(runOnChange(listAll, () => void this._update()));
 		void this._update();
 	}
 
@@ -74,7 +77,7 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 
 	private async _update(): Promise<void> {
 		const generation = ++this._generation;
-		const folders = this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri).filter(folder => folder.scheme === Schemas.file);
+		const folders = this.listAll.get() ? [] : this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri).filter(folder => folder.scheme === Schemas.file);
 		for (const folder of [...this._reads.keys(), ...this._resolved.keys()]) {
 			if (!folders.some(candidate => isEqual(candidate, folder))) {
 				this._reads.delete(folder);
