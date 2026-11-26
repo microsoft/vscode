@@ -401,6 +401,13 @@ suite('AgentHostGitService', () => {
 			assert.deepStrictEqual(await find({ scanMaxDepth: 0 }), ['submodule libs/core']);
 		});
 
+		test('takes a submodule path written in quotes', async () => {
+			await makeFolder('.', { repository: true, gitmodules: ['"libs/core"'] });
+			await makeFolder('libs/core', { gitFile: true });
+
+			assert.deepStrictEqual(await find({ scanMaxDepth: 0 }), ['submodule libs/core']);
+		});
+
 		test('takes no submodule through a symbolic link, nor from a .gitmodules file that is one', async () => {
 			await makeFolder('elsewhere/core', { repository: true });
 			await makeFolder('linked', { repository: true, gitmodules: ['libs/core'] });

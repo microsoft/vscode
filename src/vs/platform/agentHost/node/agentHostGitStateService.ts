@@ -733,10 +733,21 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 		const chatScopes = new Set((sessionState?.chats ?? []).map(chat => chat.workingDirectories).filter(isDefined).map(directories => getWorkingDirectoryScopeId(directories)));
 		const folders = additionalFolders.filter(folder => !chatScopes.has(getWorkingDirectoryScopeId([folder]))).slice(0, MAX_ADDITIONAL_FOLDER_GIT_READS);
+		const knownNonRepositories = new Set(readSessionNonRepositoryFolders(sessionState?._meta));
 		const reads = await Promise.all(folders.map(async workingDirectory => {
-			const gitState = await this._readGitState(URI.parse(workingDirectory), undefined, fresh);
-			// An inconclusive read is not proof that the folder is not a repository
-			const isRepository = gitState !== undefined || !!await this._gitService.getRepositoryRoot(URI.parse(workingDirectory)).catch(() => true);
+			const folder = URI.parse(workingDirectory);
+			if (fresh && knownNonRepositories.has(getWorkingDirectoryKey(workingDirectory))) {
+				// A forced refresh, as after a Git operation, looks again at a folder known not to be a repository: one
+				// `git init` made a repository is not read from the cached answer
+				await this._gitService.getRepositoryRoot(folder, { refreshIfNone: true }).catch(() => undefined);
+			}
+			const gitState = await this._readGitState(folder, undefined, fresh);
+			if (gitState !== undefined) {
+				return { workingDirectory, gitState, isRepository: true };
+			}
+			// An inconclusive read is not proof that the folder is not a repository: only a lookup Git answered decides it,
+			// and a folder Git could not be asked about keeps its classification
+			const isRepository = await this._gitService.getRepositoryRoot(folder).then(root => root ? true : this._gitService.hasGitRoot(folder).get(), () => undefined);
 			return { workingDirectory, gitState, isRepository };
 		}));
 		if (!this._stateManager.getSessionState(sessionKey)) {
@@ -751,7 +762,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				continue;
 			}
 			const folderKey = getWorkingDirectoryKey(workingDirectory);
-			if (isRepository === nonRepositoryFolders.has(folderKey)) {
+			if (isRepository !== undefined && isRepository === nonRepositoryFolders.has(folderKey)) {
 				changed = true;
 				if (isRepository) {
 					nonRepositoryFolders.delete(folderKey);

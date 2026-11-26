@@ -425,7 +425,8 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 				if (done() || ++entries > MAX_GITMODULES_ENTRIES) {
 					return;
 				}
-				const relativePath = match.groups?.path;
+				// A quoted value, as Git config allows, without its quotes (as Source Control reads it)
+				const relativePath = match.groups?.path.replace(/^"(?<unquoted>.*)"$/, '$<unquoted>');
 				const parts = relativePath && !path.isAbsolute(relativePath) ? relativePath.split(/[\\/]/).filter(part => part && part !== '.') : [];
 				if (!parts.length || parts.includes('..')) {
 					continue;

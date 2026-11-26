@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -3077,6 +3078,8 @@ suite('AgentHostGitStateService', () => {
 		h.setGitResult(sessionGitState);
 		h.setGitResultForFolder(otherFolder, otherGitState);
 		h.setGitResultForFolder(notGit, undefined);
+		// Git answers that the folder is not a repository
+		h.gitService.hasGitRoot = folder => constObservable(folder.toString() === notGit ? false : undefined);
 		h.setPullRequest('api-feature', createTestPullRequestSummary(12, { html_url: 'https://github.com/contoso/api/pull/12' }));
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
@@ -3432,27 +3435,29 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual({ before, after: read() }, { before: ['feature', 'api'], after: [undefined, undefined] });
 	}));
 
-	test('records the folders that are not Git repositories, forgets one that becomes one, and counts a folder Git could not read as a repository', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('records the folders that are not Git repositories, forgets one that becomes one, and leaves a folder Git could not be asked about as it was', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		const notes = 'file:///notes';
 		const unreadable = 'file:///unreadable';
-		let notesIsRepository = false;
+		const transient = 'file:///transient';
 		h.gitService.getRepositoryRoot = async folder => {
 			if (folder.toString() === unreadable) {
 				throw new Error('git failed');
 			}
-			return folder.toString() === notes && notesIsRepository ? folder : undefined;
+			// As the real service does when Git fails other than with "not a git repository": no root, and unknown
+			return undefined;
 		};
+		// Only Git's "not a git repository" answer is a known one
+		h.gitService.hasGitRoot = folder => constObservable(folder.toString() === notes ? false : undefined);
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
-		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: notes });
-		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: unreadable });
+		for (const folder of [notes, unreadable, transient]) {
+			h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: folder });
+			h.setGitResultForFolder(folder, undefined);
+		}
 		h.setGitResult({ branchName: 'main' });
-		h.setGitResultForFolder(notes, undefined);
-		h.setGitResultForFolder(unreadable, undefined);
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 		const before = readSessionNonRepositoryFolders(h.stateManager.getSessionState(SESSION)?._meta);
-		notesIsRepository = true;
 		h.setGitResultForFolder(notes, { branchName: 'notes-main' });
 		await timeout(5_000);
 		await h.service.refreshSessionGitState(SESSION, undefined);
@@ -3461,6 +3466,28 @@ suite('AgentHostGitStateService', () => {
 			before: [getWorkingDirectoryKey(notes)],
 			after: [],
 		});
+	}));
+
+	test('a forced refresh looks again at a folder known not to be a repository, bypassing its cached answer', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const notes = 'file:///notes';
+		const lookups: Array<{ readonly folder: string; readonly refreshIfNone: boolean }> = [];
+		h.gitService.getRepositoryRoot = async (folder, options) => {
+			lookups.push({ folder: folder.toString(), refreshIfNone: !!options?.refreshIfNone });
+			return undefined;
+		};
+		h.gitService.hasGitRoot = folder => constObservable(folder.toString() === notes ? false : undefined);
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: notes });
+		h.setGitResult({ branchName: 'main' });
+		h.setGitResultForFolder(notes, undefined);
+
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		lookups.length = 0;
+		await timeout(5_000);
+		await h.service.refreshSessionGitState(SESSION, undefined, { force: true });
+
+		assert.deepStrictEqual(lookups.filter(lookup => lookup.folder === notes && lookup.refreshIfNone).length, 1);
 	}));
 
 	test('repositories found under drive letters of different case are one repository', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
