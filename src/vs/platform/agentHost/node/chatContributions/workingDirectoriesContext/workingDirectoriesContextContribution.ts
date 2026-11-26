@@ -61,13 +61,13 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 	/** Precedes the workspace snapshot (175), which lists the same folders' files. */
 	readonly order = 170;
 
+	/** The chats that were told about several folders: only they need a record of what they were told. Dropped with the chat. */
+	private readonly _toldChats = new Set<ProtocolURI>();
 	/**
-	 * The chats, by session, that were told about several folders: only they need a record of what they were told. Each
-	 * is kept with whether it is still the same chat, as a removed chat's resource can name a new chat later.
+	 * The list each chat's latest turn carries, until that turn reaches the provider, with whether it is still the same
+	 * chat: a chat removed meanwhile, whose resource may name a new chat by then, is not recorded as told.
 	 */
-	private readonly _toldChats = new Map<ProtocolURI, Map<ProtocolURI, () => boolean>>();
-	/** The list each chat's latest turn carries, until that turn reaches the provider, with whether it is still the same chat. */
-	private readonly _pending = new Map<ProtocolURI, { readonly session: ProtocolURI; readonly turnId: string; readonly key: string; readonly isCurrent: () => boolean }>();
+	private readonly _pending = new Map<ProtocolURI, { readonly turnId: string; readonly key: string; readonly isCurrent: () => boolean }>();
 
 	constructor(
 		private readonly _context: IAgentHostChatContributionContext,
@@ -78,14 +78,13 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 	) {
 		super();
 		this._register(turnTracker.onDidDispatchTurn(({ chat, turnId }) => this._onTurnDispatched(chat, turnId)));
-		this._register(_stateManager.onDidRemoveSession(session => this._releaseSession(session)));
+		this._register(_stateManager.onDidUnregisterChat(({ chat }) => this._forgetChat(chat)));
 	}
 
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
-		this._forgetRemovedChats(turn.session);
 		const isCurrent = this._stateManager.captureChatValidity(turn.chat);
 		const workingDirectories = turn.workingDirectories ?? [];
-		const told = this._toldChats.get(turn.session)?.has(turn.chat) ?? false;
+		const told = this._toldChats.has(turn.chat);
 		// Also sent when a chat that was told about several folders is left with one.
 		if (!workingDirectories.length || (workingDirectories.length < 2 && !told)) {
 			this._pending.delete(turn.chat);
@@ -119,7 +118,7 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 		if (!isCurrent()) {
 			return undefined;
 		}
-		this._pending.set(turn.chat, { session: turn.session, turnId: turn.turnId, key, isCurrent });
+		this._pending.set(turn.chat, { turnId: turn.turnId, key, isCurrent });
 		return { instructions: [renderWorkingDirectoriesContext(folders)] };
 	}
 
@@ -132,38 +131,15 @@ export class WorkingDirectoriesContextContribution extends Disposable implements
 		if (!pending.isCurrent()) {
 			return;
 		}
-		let chats = this._toldChats.get(pending.session);
-		if (!chats) {
-			chats = new Map();
-			this._toldChats.set(pending.session, chats);
-		}
-		chats.set(chat, pending.isCurrent);
+		this._toldChats.add(chat);
 		this._context.memento(sentFoldersMemento, chat).set(pending.key, undefined);
 	}
 
-	/** Drops what is kept for the chats of `session` that were removed or replaced since, as no event tells about them. */
-	private _forgetRemovedChats(session: ProtocolURI): void {
-		const told = this._toldChats.get(session);
-		for (const [chat, isCurrent] of told ?? []) {
-			if (!isCurrent()) {
-				told!.delete(chat);
-				// The record goes with the chat it was kept for, not to a new chat of the same resource
-				this._context.deleteMemento(sentFoldersMemento, chat);
-			}
-		}
-		for (const [chat, pending] of this._pending) {
-			if (pending.session === session && !pending.isCurrent()) {
-				this._pending.delete(chat);
-			}
-		}
-	}
-
-	private _releaseSession(session: ProtocolURI): void {
-		this._toldChats.delete(session);
-		for (const [chat, pending] of this._pending) {
-			if (pending.session === session) {
-				this._pending.delete(chat);
-			}
+	/** Drops what is kept for a chat that left the session, so that a new chat of the same resource starts afresh. */
+	private _forgetChat(chat: ProtocolURI): void {
+		this._pending.delete(chat);
+		if (this._toldChats.delete(chat)) {
+			this._context.deleteMemento(sentFoldersMemento, chat);
 		}
 	}
 }

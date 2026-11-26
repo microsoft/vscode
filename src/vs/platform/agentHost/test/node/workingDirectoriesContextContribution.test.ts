@@ -65,6 +65,7 @@ suite('WorkingDirectoriesContextContribution', () => {
 		), true));
 		const contributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(log, instantiation));
 		disposables.add(contributions.registerContribution(WorkingDirectoriesContextContribution));
+		const contribution = [...(contributions as unknown as { readonly _registeredContributions: ReadonlyMap<object, unknown> })._registeredContributions.keys()].find(candidate => candidate instanceof WorkingDirectoriesContextContribution);
 		let turn = 0;
 		/** Sends a turn; it reaches the provider unless `delivered` is false, as when it is cancelled before that. */
 		const send = async (workingDirectories: readonly URI[], delivered = true, target = chat) => {
@@ -75,7 +76,7 @@ suite('WorkingDirectoriesContextContribution', () => {
 			}
 			return instructions;
 		};
-		return Object.assign(send, { lookups, state });
+		return Object.assign(send, { lookups, state, contribution });
 	}
 
 	const header = [
@@ -165,23 +166,29 @@ suite('WorkingDirectoriesContextContribution', () => {
 		}, { startedWhileBlocked: 4, lookups: 6, maxRunning: 4, order: 'first' });
 	});
 
-	test('forgets a chat that was removed, also while its list was prepared', async () => {
+	test('forgets a chat when it is removed, without waiting for another turn, also while its list was prepared', async () => {
 		const send = setup();
 		const peer = buildChatUri(session, 'peer');
 		const addPeer = () => send.state.addChat(session, peer, creationTimeChatStorageResource(session, peer, chat), { workingDirectories: [app.toString(), protocol.toString()] });
+		const contribution = send.contribution as unknown as { readonly _toldChats: ReadonlySet<string>; readonly _pending: ReadonlyMap<string, unknown> };
 		addPeer();
 		await send([app, protocol], true, peer);
+		const toldBefore = contribution._toldChats.has(peer);
 		send.state.removeChat(session, peer);
+		// Forgotten on removal, before any other turn of the session
+		const toldAfterRemoval = contribution._toldChats.has(peer);
 		// A new chat of the same name, of one folder, was never told about several
 		addPeer();
 		const recreated = await send([app], true, peer);
 
 		send.lookups.gate = new DeferredPromise<void>();
-		const preparing = send([app, protocol], true, peer);
+		const preparing = send([app, protocol], false, peer);
 		send.state.removeChat(session, peer);
 		send.lookups.gate.complete();
 		const removedWhilePreparing = await preparing;
 
-		assert.deepStrictEqual({ recreated, removedWhilePreparing }, { recreated: undefined, removedWhilePreparing: undefined });
+		assert.deepStrictEqual({ toldBefore, toldAfterRemoval, recreated, removedWhilePreparing, pending: contribution._pending.size }, {
+			toldBefore: true, toldAfterRemoval: false, recreated: undefined, removedWhilePreparing: undefined, pending: 0,
+		});
 	});
 });
