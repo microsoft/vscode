@@ -248,9 +248,6 @@ suite('Filters', () => {
 		filterOk(matchesWords, '.', ':', []);
 		filterOk(matchesWords, '.', '.', [{ start: 0, end: 1 }]);
 
-		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
-		// assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
-
 		filterOk(matchesWords, 'bar', 'foo-bar');
 		filterOk(matchesWords, 'bar test', 'foo-bar test');
 		filterOk(matchesWords, 'fbt', 'foo-bar test');
@@ -266,12 +263,11 @@ suite('Filters', () => {
 		filterOk(matchesWords, 'foo-bar', 'foo bar');
 		filterOk(matchesWords, 'foo:bar', 'foo:bar');
 
-		// Word separators, accented text, camelCase targets, and contiguous mode
+		// Word separators, accented text, Korean alternate characters and contiguous mode
 		filterOk(matchesWords, 'git:pull', 'Git-Pull', [{ start: 0, end: 3 }, { start: 4, end: 8 }]);
 		filterOk(matchesWords, 'cafe', 'Café: Menu', [{ start: 0, end: 4 }]);
 		filterOk(matchesWords, 'café', 'Cafe: Menu', [{ start: 0, end: 4 }]);
-		filterNotOk(matchesWords, 'fb', 'fooBar');
-		filterOk(matchesWords, 'foo', 'fooBar', [{ start: 0, end: 3 }]);
+		filterOk(matchesWords, '한국', 'gksrnr', [{ start: 0, end: 6 }]);
 		assert.strictEqual(matchesWords('gipu', 'Category: Git: Pull', true), null);
 		assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 	});

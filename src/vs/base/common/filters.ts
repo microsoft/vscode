@@ -376,6 +376,13 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 	return result;
 }
 
+/**
+ * Cheap pre-check for {@link matchesWords}: returns `false` only for inputs that
+ * `_matchesWords` can't match either. Each ASCII lowercase letter and digit of
+ * `word` must appear in `target`, in order. Any other character (a word separator
+ * or a Korean character matched by its alternate codes) skips one target character,
+ * because every matched word character uses at least one target character.
+ */
 function canMatchWords(word: string, target: string): boolean {
 	const wordLen = word.length;
 	const targetLen = target.length;
