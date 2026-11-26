@@ -192,6 +192,9 @@ export class SessionChatItem {
 
 export type ISessionChatItem = SessionChatItem;
 
+/** Where a comparison participant session sits in its group's connector line. */
+export type SessionGroupConnectorPosition = 'middle' | 'last';
+
 export type SessionListItem = ISession | SessionChatItem | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder | IPendingSessionItem;
 
 export function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {

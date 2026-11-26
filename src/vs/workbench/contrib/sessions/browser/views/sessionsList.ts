@@ -9,14 +9,15 @@ import '../media/disclosure.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
 import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, ISessionsListSearchResults, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
 import { ISessionRowIndent, SessionRowIndent, SessionsListIndentGuides } from './sessionsListIndentGuides.js';
-import { CANVASES_SECTION_ID, SessionItemContextMenuId, SessionItemOrganizeMenuGroup, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_CANVASES_SECTION_SETTING, IsSessionPinnedContext, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemHasUnreadNestedSessionsContext, SessionChatItemCanRenameContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext, SessionItemHasMoveDestinationContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionChatItemCanMoveUpContext, SessionChatItemCanMoveDownContext, SessionsListFocusedChatItemContext, SessionItemInGroupContext, SessionItemInExternalSectionContext, SessionItemCanImportContext, SessionItemHasPinnedCanvasContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionHasRootFolderContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, SessionChatItem, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem, SessionsListSearchOpenContext } from './sessionsListCommon.js';
-import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, PINNED_CANVAS_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, DATE_SECTION_IDS, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, getSessionsRootFolder, sessionMatchesFolder, sortSessions, sortSessionListChats, sortComparisonGroupMembers, isComparisonLaunchPending, getComparisonGroupConfiguration, getComparisonGroupSummary, limitSessionsForList, computeReorderSortChanges, QUICK_CHATS_SECTION_ID, isQuickChatSession, groupingHasQuickChatsSection, isAutomationSession, groupSessionsForList, IInboxPlacement, inboxPlacementsEqual, sessionWorkspaceLabel, isGroupingSpecificCollapseStateId, getSessionRepository, getRepositorySectionId, getSessionGroupingSectionId, labelRepositorySections, getNewSessionSources, RECENTLY_UPDATED_SESSION_THRESHOLD_MS, partitionByDate } from './sessionsListHelpers.js';
-import { SESSION_SHORTCUT_SECTION_TEMPLATE_ID, SESSION_SHORTCUT_ROW_HEIGHT, EMPTY_GUIDE_SESSION_IDS, SessionGroupConnectorPosition, isOpenChat, getSessionRowStatus, INSET_ROW_GAP, DEFAULT_APPROVAL_ROW_MAX_LINES, SessionsTreeDelegate, withSessionsListHoverPresentation, getCreatorHoverData, SessionChatItemRenderer, SessionItemActionRunner, ISessionOnboardingTarget, SessionItemRenderer, getSessionArchiveOnboardingTargetId, getSessionOnboardingTargetId, getWorkspaceSectionOnboardingTargetId, logDefaultSettingExperimentTrigger, ISessionHeaderStatusTrigger, SessionSectionRenderer, SessionShortcutListDelegate, SessionShortcutListRenderer, SessionGroupRenderer, SessionShowMoreRenderer, SessionPlaceholderRenderer, SessionsAccessibilityProvider } from './sessionsListRenderers.js';
-import { SessionListPlacement, getPlacementState, getSectionPlacement, isSamePlacement, getPlacementHeader, ISessionDropAnchor, ISessionDropDestination, SessionDropEffect, ISessionDropTargetHeader, IDraggedHeader, SessionHeaderDrop, SessionsListDragAndDrop, isDateSectionPlacement, keepDateSectionOrder, sectorToPosition, findLastVisible } from './sessionsListDragAndDrop.js';
+import { CANVASES_SECTION_ID, SessionItemContextMenuId, SessionItemOrganizeMenuGroup, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_CANVASES_SECTION_SETTING, IsSessionPinnedContext, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemHasUnreadNestedSessionsContext, SessionChatItemCanRenameContext, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext, SessionItemHasMoveDestinationContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsUntitledContext, SessionChatItemIsStandaloneContext, SessionChatItemCanMoveUpContext, SessionChatItemCanMoveDownContext, SessionsListFocusedChatItemContext, SessionItemInGroupContext, SessionItemInExternalSectionContext, SessionItemCanImportContext, SessionItemHasPinnedCanvasContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionHasRootFolderContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionShowMore, ISessionPlaceholder, ISessionChatItem, SessionListItem, isSessionChatItem, isSessionGroupItem, isSessionSection, isSessionShowMore, isSessionPlaceholder, isSessionItem, SessionsListSearchOpenContext } from './sessionsListCommon.js';
+import { NEW_SESSION_SECTION_ID, AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, PINNED_CANVAS_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, DATE_SECTION_IDS, getChatTitle, getSessionListChats, isShortcutSection, REPOSITORY_SECTION_PREFIX, ENVIRONMENT_SECTION_PREFIX, isSessionGroupingSection, getSessionSectionType, computeReorderSortChanges, QUICK_CHATS_SECTION_ID, isQuickChatSession, groupingHasQuickChatsSection, isAutomationSession, IInboxPlacement, inboxPlacementsEqual, sessionWorkspaceLabel, isGroupingSpecificCollapseStateId, getSessionRepository, getRepositorySectionId, getSessionGroupingSectionId, getNewSessionSources, partitionByDate, getComparisonGroupConfiguration } from './sessionsListHelpers.js';
+import { buildSessionsListModel, computeInboxPlacements, EMPTY_SESSIONS_LIST_RENDER_SNAPSHOT, filterSessionsForList, getComparisonSessions, getComparisonSortEntry, getSessionListItemId, IPrecomputedInboxFilter, ISessionsListModelInput, ISessionsListRenderSnapshot, ISessionsListSearchContext, SHOW_MORE_FOLDERS_LABEL, sortingToMode } from './sessionsListModel.js';
+import { SESSION_SHORTCUT_SECTION_TEMPLATE_ID, SESSION_SHORTCUT_ROW_HEIGHT, EMPTY_GUIDE_SESSION_IDS, isOpenChat, getSessionRowStatus, INSET_ROW_GAP, DEFAULT_APPROVAL_ROW_MAX_LINES, SessionsTreeDelegate, withSessionsListHoverPresentation, getCreatorHoverData, SessionChatItemRenderer, SessionItemActionRunner, ISessionOnboardingTarget, SessionItemRenderer, getSessionArchiveOnboardingTargetId, getSessionOnboardingTargetId, getWorkspaceSectionOnboardingTargetId, logDefaultSettingExperimentTrigger, ISessionHeaderStatusTrigger, SessionSectionRenderer, SessionShortcutListDelegate, SessionShortcutListRenderer, SessionGroupRenderer, SessionShowMoreRenderer, SessionPlaceholderRenderer, SessionsAccessibilityProvider } from './sessionsListRenderers.js';
+import { SessionListPlacement, getPlacementState, getSectionPlacement, isSamePlacement, getPlacementHeader, ISessionDropAnchor, ISessionDropDestination, SessionDropEffect, ISessionDropTargetHeader, IDraggedHeader, SessionHeaderDrop, SessionsListDragAndDrop, isDateSectionPlacement, sectorToPosition, findLastVisible } from './sessionsListDragAndDrop.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, TreeFilterResult, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
+import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, TreeFilterResult, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
 import { IFindFilter, RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -25,7 +26,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, IReader, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
-import { hasKey, isDefined } from '../../../../../base/common/types.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
@@ -71,9 +72,9 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService, shownChatOf } from '../../../../services/sessions/browser/sessionHost.js';
-import { getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
+import { getSessionComparisonChat, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
-import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../sessionsListModelService.js';
+import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry } from '../sessionsListModelService.js';
 import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -94,7 +95,7 @@ import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../common/sessionComparis
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { compareSessionEnvironments, getSessionEnvironments, getWorktreeFilterKeys, ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
+import { getSessionEnvironments, ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { fillSessionChatReferenceDragData } from '../dnd.js';
 import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from './sessionsListChatMove.js';
@@ -117,10 +118,10 @@ import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionAgentMergeConfigurationObservable } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
-import { IInboxSessionAttention, ISessionAttentionService, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
+import { IInboxSessionAttention, ISessionAttentionService, InboxTab } from '../../common/sessionAttentionService.js';
 import { getPinnedCanvasListingSession, IPinnedCanvas, IPinnedCanvasService, isPinnedCanvasOwnedBy, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasSessionCanToggleListingContext, PinnedCanvasSessionInSessionsListContext } from '../pinnedCanvases.js';
 import { getSessionsTelemetryEnvironmentId, logSessionsInteraction } from '../../common/sessionsTelemetry.js';
-import { getInboxPullRequestMergeOperation, getSessionInboxDescription, getSessionInboxPriority, getSessionInboxSection, SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
+import { getInboxPullRequestMergeOperation, getSessionInboxDescription, getSessionInboxSection, SessionInboxSection } from '../../common/sessionInbox.js';
 import { IShownChat } from '../../../../services/sessions/common/sessionPane.js';
 
 const $ = DOM.$;
@@ -128,10 +129,6 @@ const $ = DOM.$;
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 
 //#region Types
-
-function sortingToMode(sorting: SessionsSorting): SessionSortMode {
-	return sorting === SessionsSorting.Updated ? 'updated' : 'created';
-}
 
 /** Fallback spacing (ms) used when assigning synthetic sort keys past an open boundary. */
 const SORT_FALLBACK_STEP_MS = 60_000;
@@ -146,28 +143,8 @@ function getSessionGroupPathLabel(path: readonly ISessionGroup[]): string {
 	return path.reduce((label, group, index) => index === 0 ? group.name : localize('sessionGroupPathLabel', "{0} › {1}", label, group.name), '');
 }
 
-/** The done chats of a session that is not done, which the Done section lists as rows of their own. */
-function getSessionDoneListChats(session: ISession, hideSideChats: boolean, reader?: IReader): readonly IChat[] {
-	return session.isArchived.read(reader) ? [] : getSessionListChats(session, reader, true, hideSideChats).filter(chat => chat.isArchived.read(reader));
-}
-
-/** Whether a session is archived or lists archived chats, both of which the archived filter hides. */
-function hasArchivedListContent(session: ISession, hideSideChats: boolean): boolean {
-	return session.isArchived.get() || getSessionListChats(session, undefined, true, hideSideChats).some(chat => chat.isArchived.get());
-}
-
 function isSessionActive(session: ISession, reader: IReader | undefined): boolean {
 	return isActiveSessionStatus(session.status.read(reader));
-}
-
-function getComparisonSessions(comparison: ISessionComparison, sessionsManagementService: ISessionsManagementService): ISession[] {
-	return comparison.participants.flatMap(participant => {
-		if (!participant.sessionResource) {
-			return [];
-		}
-		const session = sessionsManagementService.getSession(participant.sessionResource);
-		return session ? [session] : [];
-	});
 }
 
 /**
@@ -188,29 +165,6 @@ function joinContextMenuGroups(groups: readonly (readonly [string, readonly IAct
 	}
 	const rank = (group: string) => group === 'navigation' ? 0 : group ? 1 : 2;
 	return Separator.join(...[...merged].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([, actions]) => actions));
-}
-
-/** The identity of a row, which keeps its state, such as whether it is collapsed, while the list renders again. */
-function getSessionListItemId(element: SessionListItem): string {
-	if (isPendingSessionItem(element)) {
-		return `pending:${element.kind}:${element.id}`;
-	}
-	if (isSessionGroupItem(element)) {
-		return getSessionGroupSectionId(element.group.id);
-	}
-	if (isSessionSection(element)) {
-		return `section:${element.id}`;
-	}
-	if (isSessionShowMore(element)) {
-		return `show-more:${element.kind}:${element.mode}:${element.sectionId}`;
-	}
-	if (isSessionPlaceholder(element)) {
-		return `placeholder:${element.sectionId}`;
-	}
-	if (isSessionChatItem(element)) {
-		return `chat:${element.session.sessionId}:${element.chat.resource.toString()}`;
-	}
-	return element.resource.toString();
 }
 
 /** The pull requests of a session, as `#number` followed by the title when it is known. */
@@ -270,6 +224,19 @@ class SessionsListSearchFilter implements IFindFilter<SessionListItem> {
 		this.matches.clear();
 	}
 
+	/** Matches a session using an explicit document factory and caches the result for the subsequent tree filter pass. */
+	getMatchForSession(session: ISession, getDocument: () => ISessionSearchDocument): ISessionSearchMatch | undefined {
+		if (this.query.isEmpty) {
+			return undefined;
+		}
+		let match = this.matches.get(session);
+		if (match === undefined) {
+			match = matchSessionSearch(this.query, getDocument()) ?? null;
+			this.matches.set(session, match);
+		}
+		return match ?? undefined;
+	}
+
 	/** How a session or a standalone chat matches the search, or `undefined` when it does not or there is none. */
 	getMatch(element: ISession | ISessionChatItem | IPendingSessionItem): ISessionSearchMatch | undefined {
 		if (this.query.isEmpty) {
@@ -315,11 +282,6 @@ class SessionsListSearchFilter implements IFindFilter<SessionListItem> {
 		return isSessionSection(element) || isSessionGroupItem(element) ? TreeVisibility.Recurse : TreeVisibility.Hidden;
 	}
 }
-
-const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
-/** The section id of the placeholder a scoped list shows while none of its folders' sessions are listed. */
-const SCOPE_EMPTY_PLACEHOLDER_ID = '__scope_empty__';
-const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 
 //#endregion
 
@@ -570,8 +532,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** Whether side chats show in the side pane, which the list then does not list below their sessions. */
 	private readonly _hideSideChats: IObservable<boolean>;
 	private readonly inboxObserver = this._register(new MutableDisposable());
-	/** Inbox placements computed by {@link inboxObserver}, reused while building the tree. */
-	private inboxPlacements: ReadonlyMap<string, IInboxPlacement> | undefined;
 	private readonly inboxDemand = this._register(new MutableDisposable());
 	private readonly sessionChatsUpdate = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
@@ -587,7 +547,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly focusedChatCanMoveUpContext: IContextKey<boolean>;
 	private readonly focusedChatCanMoveDownContext: IContextKey<boolean>;
 	private readonly collapsedSessionResources: Set<string>;
-	private nestedSessionResources = new Set<string>();
+	/** Immutable snapshot of render-derived state from the last {@link update}. */
+	private _renderSnapshot: ISessionsListRenderSnapshot = EMPTY_SESSIONS_LIST_RENDER_SNAPSHOT;
 	/**
 	 * Reactively reconciles each chat row's virtualized height with its live
 	 * approval and workspace state. Owned by the list (not the row templates), so
@@ -624,8 +585,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private visible = true;
 	/** Whether something the list shows changed while it was hidden, which it skips rendering until it shows again. */
 	private changedWhileHidden = false;
-	/** Until when what the list rendered last holds, as its sections and caps also follow the time: see {@link getRenderValidUntil}. */
-	private renderValidUntil = Number.POSITIVE_INFINITY;
 	private readonly onboardingTarget = observableValue<ISessionOnboardingTarget | undefined>(this, undefined);
 	readonly filters: SessionsListFilters;
 	private _excludeArchived: boolean;
@@ -651,20 +610,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * Maximum number of sessions shown per workspace section or user group.
 	 */
 	private readonly sessionGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_SESSION_GROUP_LIMIT);
-	private readonly renderedComparisonParticipantConnectorPositions = new Map<string, SessionGroupConnectorPosition>();
-	private readonly renderedComparisonAttemptLabels = new Map<string, string>();
-	/** How many groups each rendered custom group is nested in, by group id. */
-	private readonly groupDepths = new Map<string, number>();
-	private readonly comparisonParentSessionIds = new Set<string>();
-	private readonly attachedComparisonSessionIds = new Set<string>();
 	private expandedMoreFolders = false;
-	/** The grouping sections that capping currently hides behind the "+N more" row. */
-	private hiddenGroupingSections: readonly ISessionSection[] = [];
 	private openWindowSourceFolder: URI | undefined;
 	/** Whether the search is open with a query that has words to search for. */
 	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
-	private hadInboxSessions = false;
 	private readonly findOpen = observableValue(this, false);
 	private readonly searchFilter: SessionsListSearchFilter;
 	private readonly findController: SessionsListFindController<SessionListItem | null>;
@@ -684,19 +634,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly groupAppearancePicker: SessionGroupAppearancePicker;
 	private _sectionRenderer!: SessionSectionRenderer;
 	private _dropTargetHeader: ISessionDropTargetHeader | undefined;
-	/** Current comparison placement, shared by rendering and unfiltered bulk actions. */
-	private readonly comparisonSectionIds = new Map<string, string>();
-
-	/**
-	 * Snapshot of the currently-rendered reorderable top-level headers (groups
-	 * and, in workspace and repository modes, their sections) in display order,
-	 * by reorder identity. Captured each render and used as the basis for
-	 * drag-reorder math.
-	 */
-	private _topLevelOrder: string[] = [];
-
-	/** The workspace sections capped behind "+N more", shown in the list or not. */
-	private _moreFolderSectionIds: ReadonlySet<string> = new Set();
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -871,7 +808,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				isWorkspaceScoped: () => this.filters.hasInboxWorkspaceScope,
 				isPinned: s => this.isSessionPinned(s),
 				isRenderedInCustomGroup: s => this.isRenderedInCustomGroup(s),
-				getGroupConnectorPosition: s => this.renderedComparisonParticipantConnectorPositions.get(s.sessionId),
+				getGroupConnectorPosition: s => this._renderSnapshot.comparisonParticipantConnectorPositions.get(s.sessionId),
 				getComparisonAttemptLabel: s => this.getComparisonAttemptLabel(s),
 				shouldShowComparisonAttemptStatus: (s, reader) => this.shouldShowComparisonAttemptStatus(s, reader),
 				isRenderedInExternalSection: s => this.isRenderedInExternalSection(s),
@@ -979,7 +916,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			},
 			this.activeGuideSessionIds,
 			item => this.getRowGroupDepth(item),
-			session => this.renderedComparisonParticipantConnectorPositions.get(session.sessionId),
+			session => this._renderSnapshot.comparisonParticipantConnectorPositions.get(session.sessionId),
 			item => getSessionAgentMergeConfigurationObservable(item.session, this._sessionsProvidersService, this.configurationService, item.chat),
 			getSearchHint,
 			(session, chat) => this.getComparisonAttemptLabel(session, chat),
@@ -1281,13 +1218,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				// Indent guides are not in Stable yet; elsewhere they follow `workbench.tree.renderIndentGuides`.
 				renderIndentGuides: productService.quality === 'stable' ? RenderIndentGuides.None : undefined,
 				twistieAdditionalCssClass: element => {
-					if (!isSessionItem(element) || this.getRenderedSessionListChats(element).length === 0 && !this.comparisonParentSessionIds.has(element.sessionId)) {
+					if (!isSessionItem(element) || this.getRenderedSessionListChats(element).length === 0 && !this._renderSnapshot.comparisonParentSessionIds.has(element.sessionId)) {
 						return 'force-no-twistie';
 					}
 					if (this.getComparisonAttemptLabel(element) !== undefined) {
 						return 'session-comparison-attempt-twistie';
 					}
-					return this.renderedComparisonParticipantConnectorPositions.has(element.sessionId) ? 'session-comparison-twistie' : 'session-chat-twistie';
+					return this._renderSnapshot.comparisonParticipantConnectorPositions.has(element.sessionId) ? 'session-comparison-twistie' : 'session-chat-twistie';
 				},
 			}
 		));
@@ -1749,27 +1686,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.update();
 	}
 
-	/**
-	 * Until when the sections and caps of the list hold as it renders them now: they also follow the time, without an event
-	 * as it passes, such as a session moving from Recent to Older at midnight, a session updated in the last day staying
-	 * Recent (see `RECENTLY_UPDATED_SESSION_THRESHOLD_MS`), or a workspace updated in the last days staying uncapped (see
-	 * `FOUR_DAYS_MS`).
-	 */
-	private getRenderValidUntil(): number {
-		const now = new Date();
-		let validUntil = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
-		for (const session of this.sessions) {
-			const updated = session.updatedAt.get().getTime();
-			// The first moment after each threshold, as the list counts a session updated exactly at the threshold as within it
-			for (const boundary of [updated + RECENTLY_UPDATED_SESSION_THRESHOLD_MS + 1, updated + FOUR_DAYS_MS + 1]) {
-				if (boundary > now.getTime() && boundary < validUntil) {
-					validUntil = boundary;
-				}
-			}
-		}
-		return validUntil;
-	}
-
 	private refreshSessions(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
 		this.sessionChatsUpdate.clear();
@@ -1807,88 +1723,110 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.refreshPending = false;
 			this.refreshSessions();
 		}
-		this.renderValidUntil = this.getRenderValidUntil();
 		this.updateInboxDemand();
-		const activeSession = this._mainWindowShown.get()?.session;
-		const onboardingSession = this.onboardingTarget.get()?.session;
+
 		const grouping = this.options.grouping();
-		const inbox = grouping === SessionsGrouping.Inbox;
-		const nextNestedSessionResources = new Set(
-			this.sessions
-				.filter(session => getSessionListChats(session, undefined, false, this._hideSideChats.get()).length > 0)
-				.map(session => session.resource.toString())
-		);
-
-		// Scope to the selected host's providers; an empty set (a declared
-		// group with no members yet) matches nothing rather than everything.
-		// Which sessions it can list at all, which no other filter and no active session overrides
-		const listsQuickChats = this.options.listsQuickChats?.get() ?? true;
-		const isEligible = (session: ISession) => this.isSessionListed(session) && (listsQuickChats || !isQuickChatSession(session));
-		let filtered = this.sessions.filter(isEligible);
-		// The Worktrees filter is of an editor window: in the Agents window, a folder selected there selects nothing
-		const availableWorktrees = this.options.offersWorktreeFilter === false ? new Set<string>() : getWorktreeFilterKeys(filtered, () => true, this.uriIdentityService.extUri);
-		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
-		if (scopedProviderIds) {
-			const scoped = new Set(scopedProviderIds);
-			filtered = filtered.filter(s => scoped.has(s.providerId));
-		}
-		filtered = filtered.filter(session => this.filters.matches(session, inbox, availableWorktrees));
-		const scheduledOnly = this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly();
-		if (scheduledOnly) {
-			filtered = filtered.filter(session => this.options.scheduledSessionResources?.get().has(session.resource.toString()));
-		}
-		// The default only changes what the list shows for archived content that the other filters keep.
-		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session, this._hideSideChats.get()))) {
-			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
-		}
-		if (this._excludeArchived) {
-			filtered = filtered.filter(s => !s.isArchived.get());
-		}
-
-		// Keep the active user-facing session visible even when another filter excludes it.
-		for (const revealedSession of [activeSession, onboardingSession]) {
-			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
-				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && isEligible(s));
-				if (match) {
-					filtered = [...filtered, match];
-				}
-			}
-		}
-		// A session moving under another session shows as a chat of that session instead.
-		if (this.pendingSessionMoves.size > 0) {
-			filtered = filtered.filter(session => !this.pendingSessionMoves.has(session.sessionId));
-		}
-		if (inbox) {
-			filtered = filtered.filter(session => this.filters.matchesInboxScope(session));
-		}
-		// The same sessions also stay visible past the "+N more" caps of sections and folders.
-		const revealedSessionIds = [activeSession, onboardingSession].flatMap(session => session ? [session.sessionId] : []);
-		// The providers list only the sessions of a host scope (the window's workspace folders), but a comparison can have
-		// sessions of other folders, which lookups still find
-		const scope = this.getHostScope();
-		const isComparisonInScope = (comparison: ISessionComparison) => !scope || getComparisonSessions(comparison, this._sessionsManagementService).some(session => scope.has(session.sessionId));
-		filtered = filtered.filter(session => {
-			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
-			return !comparison || !isComparisonLaunchPending(comparison);
-		});
-
 		const sorting = this.options.sorting();
+		const inbox = grouping === SessionsGrouping.Inbox;
+		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
+		const scheduledOnly = !!(this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly());
+		const draftsSection = this.options.pendingSections?.get().find(section => section.id === 'drafts');
+		const pendingDraftItems = [
+			...(this.options.scheduledSessions?.get() ?? []),
+			...(scheduledOnly ? [] : draftsSection?.items ?? []),
+		].filter(item => matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
+		const showNavigationShortcuts = this.options.showNavigationShortcuts?.() === true;
+
+		// A search expands the rows that hold its results, and the rows return to how they were once it ends.
+		const expandForSearch = this.expandForSearch;
+		const collapseStateToRestore = this.collapseStateToRestore;
+		this.expandForSearch = false;
+		this.collapseStateToRestore = undefined;
+
+		// Match sessions again before filtering sections and the tree: their text may have changed since the last update.
+		this.searchFilter.invalidate();
+
+		const modelInput: ISessionsListModelInput = {
+			now: Date.now(),
+			sessions: this.sessions,
+			previousSnapshot: this._renderSnapshot,
+			grouping,
+			sorting,
+			scoped: this.options.scoped?.get() === true,
+			listsQuickChats: this.options.listsQuickChats?.get() ?? true,
+			quickChatsInTimeGrouping: !!this.options.quickChatsInTimeGrouping,
+			offersWorktreeFilter: this.options.offersWorktreeFilter !== false,
+			excludeArchived: this._excludeArchived,
+			excludeArchivedIsDefault: this._excludeArchivedIsDefault,
+			archivedSessionsAvailable: this._sessionsManagementService.archivedSessionItems.get().available,
+			archivedSectionLabel: getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService)),
+			hideSideChats: this._hideSideChats.get(),
+			groupExternalSessions: this.groupExternalSessions,
+			showEmptyDefaultGroups: this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING) === true,
+			someProviderSupportsQuickChats: this._someProviderSupportsQuickChats(),
+			workspaceGroupCapped: this.workspaceGroupCapped,
+			sessionGroupLimit: this.sessionGroupLimit.get(),
+			expandedMoreFolders: this.expandedMoreFolders,
+			openWindowSourceFolder: this.openWindowSourceFolder,
+			editingGroupId: this._editingGroupId,
+			activeSession: this._mainWindowShown.get()?.session,
+			onboardingSession: this.onboardingTarget.get()?.session,
+			scopedProviderIds,
+			matchesFilter: (session, isInbox, availableWorktrees) => this.filters.matches(session, isInbox, availableWorktrees),
+			matchesInboxScope: session => this.filters.matchesInboxScope(session),
+			hasInboxScope: this.filters.hasInboxScope,
+			scheduledOnly,
+			scheduledSessionResources: this.options.scheduledSessionResources?.get(),
+			draftsLabel: draftsSection?.label ?? localize('drafts', "Drafts"),
+			pendingDraftItems,
+			pendingSessionMoves: this.pendingSessionMoves,
+			showNavigationShortcuts,
+			showAutomations: this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key) === true,
+			showCustomizations: this.options.showCustomizations?.() ?? showNavigationShortcuts,
+			showsCanvasesSection: this.showsCanvasesSection(),
+			canvasesSection: this.getCanvasesSection(),
+			pinnedCanvasSections: this.getPinnedCanvasSections(),
+			isSessionListed: session => this.isSessionListed(session),
+			isSessionPinned: session => this.isSessionPinned(session),
+			getSortKey: (entry, srt) => this._sessionsListModelService.getSortKey(entry, sortingToMode(srt)),
+			groups: this._sessionGroupsService,
+			sectionOrder: this._sessionSectionOrderService,
+			comparisons: this.sessionComparisonService.comparisons.get(),
+			getComparisonForSession: resource => this.sessionComparisonService.getComparisonForSession(resource),
+			getSessionByResource: resource => this._sessionsManagementService.getSession(resource),
+			getSessionForChatResource: chatResource => this._sessionsManagementService.getSessionForChatResource(chatResource)?.session,
+			getComparisonConfiguration: comparison => getComparisonGroupConfiguration(comparison, this.labelService),
+			getWorkspaceLabel: workspace => this.labelService.getWorkspaceLabel(workspace),
+			environments: grouping === SessionsGrouping.Environment
+				? getSessionEnvironments(this._sessionsProvidersService.getProviders().map(provider => provider.environment))
+				: [],
+			getProviderEnvironmentId: providerId => this._sessionsProvidersService.getProvider(providerId)?.environment.id,
+			inboxAttention: this.sessionAttentionService.sessionAttention.get(),
+			getInboxState: session => this._sessionsListModelService.getInboxState(session),
+			savedSectionCollapseState: new Map(Object.entries(this.readSectionCollapseState())),
+			collapsedSessionResources: this.collapsedSessionResources,
+			sessionGroupExpansion: this.loadSessionGroupExpansion(),
+			hasFindPattern: this.hasFindPattern,
+			expandForSearch,
+			collapseStateToRestore,
+			matchesSearch: this.hasFindPattern
+				? (session, searchContext) => !!this.searchFilter.getMatchForSession(session, () => this.getSessionSearchDocument(session, searchContext))
+				: undefined,
+			extUri: this.uriIdentityService.extUri,
+		};
+
 		this.inboxObserver.clear();
-		this.inboxPlacements = undefined;
+		let precomputedInbox: IPrecomputedInboxFilter | undefined;
 		if (inbox && this.visible) {
+			const filtered = filterSessionsForList(modelInput);
 			let rendered: ReadonlyMap<string, IInboxPlacement> | undefined;
 			this.inboxObserver.value = autorun(reader => {
-				const attention = this.sessionAttentionService.sessionAttention.read(reader);
-				const placements = new Map<string, IInboxPlacement>();
-				for (const session of filtered) {
-					const sessionAttention = attention.get(session.sessionId);
-					placements.set(session.sessionId, {
-						section: getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, sessionAttention),
-						priority: getSessionInboxPriority(session, sessionAttention, reader),
-						updatedAt: session.updatedAt.read(reader).getTime(),
-					});
-				}
-				this.inboxPlacements = placements;
+				const placements = computeInboxPlacements(
+					filtered.filteredSessions,
+					this.sessionAttentionService.sessionAttention.read(reader),
+					(session, r) => this._sessionsListModelService.getInboxState(session, r),
+					reader,
+				);
 				// Attention is one map that changes whenever any session's notifications do;
 				// rebuild the tree only when a rendered placement or order actually moved.
 				if (rendered && !inboxPlacementsEqual(rendered, placements)) {
@@ -1896,706 +1834,42 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 				rendered ??= placements;
 			});
+			precomputedInbox = { ...filtered, inboxPlacements: rendered };
 		}
-		const sortKeyForGrouping = (s: ISession, srt: SessionsSorting) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt));
 
-		// Pull regular (non-pinned, non-archived) grouped sessions out of the
-		// normal date/workspace sectioning so they render under their group.
-		// Pinned and archived sessions keep their precedence and stay in their
-		// sections even when they belong to a group (their membership is
-		// retained so they return to the group once unpinned/restored).
-		const groupedMembers = new Map<string, ISession[]>();
-		const groupedRegularIds = new Set<string>();
-		for (const s of filtered) {
-			const group = this.getRenderedSessionGroup(s);
-			if (group) {
-				let members = groupedMembers.get(group.id);
-				if (!members) {
-					members = [];
-					groupedMembers.set(group.id, members);
-				}
-				members.push(s);
-				groupedRegularIds.add(s.sessionId);
+		const result = buildSessionsListModel(modelInput, precomputedInbox);
+
+		this.applyModelResult(result, inbox);
+	}
+
+	private applyModelResult(result: ReturnType<typeof buildSessionsListModel>, inbox: boolean): void {
+		if (result.migratedCollapseStateKeys.length > 0) {
+			const state = this.readSectionCollapseState();
+			for (const migration of result.migratedCollapseStateKeys) {
+				delete state[migration.from];
+				state[migration.to] = migration.collapsed;
 			}
+			this.writeSectionCollapseState(state);
 		}
-		const forSections = groupedRegularIds.size > 0 ? filtered.filter(s => !groupedRegularIds.has(s.sessionId)) : filtered;
-		if (forSections.some(session => session.isExternal?.get() && !session.isArchived.get() && !this.isSessionPinned(session))) {
+		if (result.triggers.showArchivedByDefault) {
+			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
+		}
+		if (result.triggers.groupExternalSessions) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING);
 		}
 
-		const groupTree = this._sessionGroupsService.getTree();
-		const comparisonsByGroupId = new Map(this.sessionComparisonService.comparisons.get().map(comparison => [comparison.groupId, comparison]));
-		const topLevelGroups = inbox
-			? [...comparisonsByGroupId.keys()].map(id => this._sessionGroupsService.getGroup(id)).filter(isDefined)
-			: groupTree.getSubgroups(undefined);
-		const groups = inbox ? topLevelGroups : topLevelGroups.flatMap(group => groupTree.getSubtree(group.id));
-		const sortedMembersByGroupId = new Map<string, ISession[]>(groups.map(group => {
-			const members = groupedMembers.get(group.id) ?? [];
-			const comparison = comparisonsByGroupId.get(group.id);
-			return [group.id, comparison
-				? sortComparisonGroupMembers(comparison, members, sorting, sortKeyForGrouping)
-				: sortSessions(members, sorting, sortKeyForGrouping)];
-		}));
-		this.renderedComparisonParticipantConnectorPositions.clear();
-		this.renderedComparisonAttemptLabels.clear();
-		this.comparisonSectionIds.clear();
-		this.groupDepths.clear();
-		const topLevelGroupIds = topLevelGroups.filter(group => !comparisonsByGroupId.has(group.id)).map(group => getSessionGroupSectionId(group.id));
+		this.setNavigationSections(result.navigationSections);
+		this._renderSnapshot = result.snapshot;
 
-		const archivedSectionLabel = getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService));
-		const environments = grouping === SessionsGrouping.Environment
-			? getSessionEnvironments(this._sessionsProvidersService.getProviders().map(provider => provider.environment))
-			: [];
-		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, session => this.getInboxSection(session), session => this.getInboxPriority(session), this.quickChatsInTimeGrouping, this.hasQuickChatsSection);
+		const inboxLayoutChanged = this.listContainer.classList.contains('inbox-layout') !== inbox;
+		this.listContainer.classList.toggle('inbox-layout', inbox);
+		this.tree.getHTMLElement().setAttribute('aria-label', inbox ? localize('inboxHeader', "Inbox") : localize('sessionsList', "Sessions"));
 
-		// When done items are shown, the done chats of a session that is not done
-		// are listed in the Done section as rows of their own instead of under
-		// their session's row.
-		const standaloneDoneChats = this._excludeArchived ? [] : filtered.flatMap(session => getSessionDoneListChats(session, this._hideSideChats.get()).map(chat => ({ session, chat })));
-		if ((standaloneDoneChats.length > 0 || !this._excludeArchived && this._sessionsManagementService.archivedSessionItems.get().available) && !sections.some(s => s.id === 'archived')) {
-			sections.push({ id: 'archived', label: archivedSectionLabel, sessions: [] });
-		}
-		const comparisonGroupsBySectionId = new Map<string, ISessionGroup[]>();
-		const dateSectionByEntryId = new Map<string, string>();
-		if (grouping === SessionsGrouping.Date) {
-			const entries: SessionSortEntry[] = [
-				...forSections.filter(session => !session.isArchived.get() && !this.isSessionPinned(session) && !(this.groupExternalSessions && session.isExternal?.get()) && !(this.quickChatsInTimeGrouping && isQuickChatSession(session))),
-				...topLevelGroups.filter(group => comparisonsByGroupId.has(group.id) && isComparisonInScope(comparisonsByGroupId.get(group.id)!) && !(this.quickChatsInTimeGrouping && !comparisonsByGroupId.get(group.id)!.workspace)).map(group => this.getComparisonSortEntry(group.id)),
-			];
-			const key = (entry: SessionSortEntry) => this._sessionsListModelService.getSortKey(entry, sortingToMode(sorting));
-			// A comparison counts as one entry when applying the Recent limit.
-			const [recent, older] = partitionByDate(entries.sort((a, b) => key(b) - key(a)), sorting, key, entry => entry.updatedAt.get().getTime());
-			for (const [id, entries] of [['recent', recent], ['older', older]] as const) {
-				const memberIds = new Set(entries.map(entry => entry.sessionId));
-				for (const entry of entries) {
-					dateSectionByEntryId.set(entry.sessionId, id);
-				}
-				const index = sections.findIndex(section => section.id === id);
-				const section: ISessionSection = {
-					id, label: id === 'recent' ? localize('recent', "Recent") : localize('older', "Older"),
-					sessions: sortSessions(forSections.filter(session => memberIds.has(session.sessionId)), sorting, sortKeyForGrouping),
-				};
-				if (index !== -1) {
-					sections.splice(index, 1, ...(entries.length > 0 ? [section] : []));
-				} else if (entries.length > 0) {
-					sections.push(section);
-				}
-			}
-		}
-		{
-			let addedRepositorySection = false;
-			for (const group of groups) {
-				const comparison = comparisonsByGroupId.get(group.id);
-				if (!comparison) {
-					continue;
-				}
-				const comparisonSessions = inbox && this.filters.hasInboxScope
-					? sortedMembersByGroupId.get(group.id)!
-					: getComparisonSessions(comparison, this._sessionsManagementService);
-				if ((inbox && this.filters.hasInboxScope && comparisonSessions.length === 0) || !isComparisonInScope(comparison)) {
-					continue;
-				}
-				const environmentId = grouping === SessionsGrouping.Environment
-					? comparisonSessions[0]?.environment
-					?? comparison.participants.map(participant => this._sessionsProvidersService.getProvider(participant.harness.providerId)?.environment.id).find(isDefined)
-					: undefined;
-				const environment = environmentId ? environments.find(environment => environment.id === environmentId) ?? { id: environmentId, label: environmentId } : undefined;
-				if (grouping === SessionsGrouping.Environment && !environment) {
-					continue;
-				}
-				const repository = grouping === SessionsGrouping.Repository && comparison.workspace
-					? comparisonSessions.map(getSessionRepository).find(isDefined)
-					: undefined;
-				const workspaceLabel = comparison.workspace
-					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
-					?? this.labelService.getWorkspaceLabel(comparison.workspace)
-					: localize('chatsSection', "Chats");
-				const sectionId = inbox
-					? sessionInboxSections.find(id => comparisonSessions.some(session => this.getInboxSection(session) === id)) ?? (comparisonSessions.length === 0 ? SessionInboxSection.Working : undefined)
-					: grouping === SessionsGrouping.Date && !(this.quickChatsInTimeGrouping && !comparison.workspace)
-						? dateSectionByEntryId.get(getSessionGroupSectionId(group.id))
-						: environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : !comparison.workspace ? QUICK_CHATS_SECTION_ID : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
-				if (!sectionId) {
-					continue;
-				}
-				this.comparisonSectionIds.set(group.id, sectionId);
-				if (!inbox && group.parentId !== undefined) {
-					continue;
-				}
-				let workspaceGroups = comparisonGroupsBySectionId.get(sectionId);
-				if (!workspaceGroups) {
-					workspaceGroups = [];
-					comparisonGroupsBySectionId.set(sectionId, workspaceGroups);
-				}
-				workspaceGroups.push(group);
-				let workspaceSection = sections.find(section => section.id === sectionId);
-				if (!workspaceSection) {
-					workspaceSection = grouping === SessionsGrouping.Date && sectionId !== QUICK_CHATS_SECTION_ID
-						? { id: sectionId, label: sectionId === 'recent' ? localize('recent', "Recent") : localize('older', "Older"), sessions: [] }
-						: environment
-							? { id: sectionId, label: environment.label, environment, sessions: [] }
-							: repository
-								? { id: sectionId, label: repository.name, repository, sessions: [] }
-								: {
-									id: sectionId,
-									collapseStateId: comparison.workspace ? `workspace:${comparison.workspace.toString()}` : QUICK_CHATS_SECTION_ID,
-									label: workspaceLabel,
-									sessions: [],
-								};
-					sections.push(workspaceSection);
-					addedRepositorySection ||= !!repository;
-				}
-				const existingSessionIds = new Set(workspaceSection.sessions.map(session => session.sessionId));
-				workspaceSection.sessions.push(...sortedMembersByGroupId.get(group.id)!.filter(session => !existingSessionIds.has(session.sessionId)));
-			}
-			// The comparison sessions just added change which root the sections' sessions share.
-			const comparisonSectionIds = new Set(comparisonGroupsBySectionId.keys());
-			for (let index = 0; index < sections.length; index++) {
-				const section = sections[index];
-				const type = getSessionSectionType(section.id);
-				if (comparisonSectionIds.has(section.id) && (type === 'workspace' || type === 'repository')) {
-					sections[index] = { ...section, rootFolder: getSessionsRootFolder(section.sessions) };
-				}
-			}
-			if (addedRepositorySection) {
-				labelRepositorySections(sections);
-			}
-		}
-
-		const sectionById = new Map(sections.map(section => [this.getSectionGroupKey(section.id), section]));
-		const nestedSectionsByGroup = new Map<string, ISessionSection[]>();
-		for (const section of sections) {
-			const parentId = this.getSectionParentId(section.id);
-			if (parentId !== undefined) {
-				const siblings = nestedSectionsByGroup.get(parentId) ?? [];
-				siblings.push(section);
-				nestedSectionsByGroup.set(parentId, siblings);
-			}
-		}
-		const groupItemsById = new Map<string, ISessionGroupItem>();
-		const buildGroupItem = (group: ISessionGroup, depth: number): ISessionGroupItem => {
-			const comparisonSectionId = this.comparisonSectionIds.get(group.id);
-			const comparisonParentId = inbox ? undefined : group.parentId ?? (comparisonSectionId ? this.getSectionParentId(comparisonSectionId) : undefined);
-			if (comparisonParentId !== undefined) {
-				depth = groupTree.getPath(comparisonParentId).length;
-			}
-			const subgroups = inbox ? [] : groupTree.getSubgroups(group.id).map(subgroup => buildGroupItem(subgroup, depth + 1));
-			const members = sortedMembersByGroupId.get(group.id)!;
-			const comparison = comparisonsByGroupId.get(group.id);
-			if (comparison) {
-				const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-				const sameHarness = attempts.every(participant =>
-					participant.harness.providerId === attempts[0].harness.providerId
-					&& participant.harness.sessionTypeId === attempts[0].harness.sessionTypeId);
-				for (const participant of comparison.participants) {
-					if (participant.role !== SessionComparisonParticipantRole.Attempt) {
-						continue;
-					}
-					const session = participant.sessionResource
-						? members.find(member => isEqual(member.resource, participant.sessionResource))
-						: undefined;
-					if (session) {
-						this.renderedComparisonAttemptLabels.set(participant.chatResource?.toString() ?? session.sessionId, getSessionComparisonHarnessLabel(participant, !sameHarness));
-					}
-				}
-			}
-			const item: ISessionGroupItem = {
-				group,
-				depth,
-				sessions: members,
-				subtreeSessions: [
-					...members,
-					...subgroups.flatMap(subgroup => subgroup.subtreeSessions),
-					...(nestedSectionsByGroup.get(group.id) ?? []).flatMap(section => section.sessions),
-				],
-				isEmpty: subgroups.length === 0
-					&& this._sessionGroupsService.getSessionIdsInGroup(group.id).length === 0
-					&& this._sessionGroupsService.getSectionIdsInGroup(group.id).length === 0,
-				editing: group.id === this._editingGroupId,
-				comparison: comparison ? {
-					id: comparison.id,
-					title: comparison.title,
-					launching: comparison.launching === true,
-					summary: reader => getComparisonGroupSummary(comparison, this.sessions, reader),
-					configuration: getComparisonGroupConfiguration(comparison, this.labelService),
-				} : undefined,
-			};
-			this.groupDepths.set(group.id, depth);
-			groupItemsById.set(group.id, item);
-			return item;
-		};
-		for (const group of topLevelGroups) {
-			buildGroupItem(group, 0);
-		}
-
-		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
-		const hasInboxSessions = inbox && sections.some(section => section.id === SessionInboxSection.ReadyForYou && section.sessions.length > 0);
-		const inboxBecamePopulated = hasInboxSessions && !this.hadInboxSessions;
-
-		// Keep the "Chats" default section visible even when empty so it stays
-		// discoverable, unless the user opts out via the setting. The
-		// "Pinned" section is only shown when it actually has pinned sessions.
-		const showEmptyDefaultGroups = this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING);
-
-		// Keep the "Chats" section always visible (even with no quick chats) so its
-		// header — leading chat icon, label, and the "+" create action — is always
-		// reachable. Only when the grouping lists quick chats there and a provider
-		// can actually serve quick chats.
-		if (showEmptyDefaultGroups && groupingHasQuickChatsSection(grouping, this.quickChatsInTimeGrouping, this.hasQuickChatsSection) && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
-			sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: [] });
-		}
-
-		// Partition grouping sections into "primary" (meets criteria) and "more". An active
-		// find pattern bypasses partitioning so all matching sessions are visible.
-		// When the user has chosen "Show All Sessions" (uncapped), show every
-		// section inline instead of hiding some behind a "+N more" entry.
-		// A scoped list shows only its own workspaces, so it hides none of them.
-		const partitionFolders = grouping !== SessionsGrouping.Date && !this.hasFindPattern && this.workspaceGroupCapped && !scope;
-		const moreFolderSectionIds = new Set<string>();
-		if (partitionFolders) {
-			const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && this.getSectionParentId(s.id) === undefined);
-			// With only two workspaces, hiding one behind a "+1 more" row saves no space.
-			if (workspaceSections.length > 2) {
-				const now = Date.now();
-				const isRecent = (section: ISessionSection) =>
-					section.sessions.some(s => s.updatedAt.get().getTime() >= now - FOUR_DAYS_MS);
-				const isOpenWindow = (section: ISessionSection) =>
-					!!this.openWindowSourceFolder && section.sessions.some(s => sessionMatchesFolder(s, this.openWindowSourceFolder!));
-				const meetsCriteria = (section: ISessionSection) => comparisonGroupsBySectionId.has(section.id) || isRecent(section) || isOpenWindow(section);
-
-				let anyMeets = false;
-				for (const section of workspaceSections) {
-					if (meetsCriteria(section)) {
-						anyMeets = true;
-						break;
-					}
-				}
-
-				let fallbackId: string | undefined;
-				if (!anyMeets) {
-					// Criterion 3: pick the folder with the most recently updated session.
-					let bestTime = -Infinity;
-					for (const section of workspaceSections) {
-						for (const s of section.sessions) {
-							const t = s.updatedAt.get().getTime();
-							if (t > bestTime) {
-								bestTime = t;
-								fallbackId = section.id;
-							}
-						}
-					}
-				}
-
-				for (const section of workspaceSections) {
-					if (!meetsCriteria(section) && section.id !== fallbackId && !this._sessionSectionOrderService.isPromoted(section.id) && !section.sessions.some(session => revealedSessionIds.includes(session.sessionId))) {
-						moreFolderSectionIds.add(section.id);
-					}
-				}
-			}
-		}
-
-		const children: IObjectTreeElement<SessionListItem>[] = [];
-
-		const sessionGroupLimit = this.sessionGroupLimit.get();
-		const sessionGroupExpansion = this.loadSessionGroupExpansion();
-
-		// A search expands the rows that hold its results, and the rows return to how they were once it ends.
-		const expandForSearch = this.expandForSearch;
-		const collapseStateToRestore = this.collapseStateToRestore;
-		this.expandForSearch = false;
-		this.collapseStateToRestore = undefined;
-		const resolveCollapsed = (element: SessionListItem, collapsed: boolean | ObjectTreeElementCollapseState): boolean | ObjectTreeElementCollapseState => {
-			if (this.hasFindPattern) {
-				return expandForSearch ? ObjectTreeElementCollapseState.Expanded : ObjectTreeElementCollapseState.PreserveOrExpanded;
-			}
-			return collapseStateToRestore?.get(getSessionListItemId(element)) ?? collapsed;
-		};
-
-		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
-			sessions.map(session => {
-				const chats = sortSessionListChats(this.getRenderedSessionListChats(session), sorting);
-				const resource = session.resource.toString();
-				const wasNested = this.nestedSessionResources.has(resource);
-				const persistedCollapsed = this.collapsedSessionResources.has(resource);
-				return {
-					element: session as SessionListItem,
-					collapsible: chats.length > 0,
-					collapsed: resolveCollapsed(session, wasNested
-						? persistedCollapsed
-							? ObjectTreeElementCollapseState.PreserveOrCollapsed
-							: ObjectTreeElementCollapseState.PreserveOrExpanded
-						: persistedCollapsed
-							? ObjectTreeElementCollapseState.Collapsed
-							: ObjectTreeElementCollapseState.Expanded),
-					children: chats.length > 0
-						? chats.map((chat, index) => ({ element: new SessionChatItem(session, chat, index === chats.length - 1, undefined, this.getPendingMoveSource(session, chat)) }))
-						: undefined,
-				};
-			});
-
-		/**
-		 * Renders a section's session rows. A capped section (`cap`) lists all of its
-		 * sessions or only the first ones, following the user's last show more/show less
-		 * choice saved under `cap.stateId`, or else `cap.expandedByDefault`.
-		 */
-		const renderSessionChildren = (sessions: readonly ISession[], sectionId: string, sectionLabel: string, cap: { readonly stateId: string; readonly expandedByDefault: boolean } | undefined): IObjectTreeElement<SessionListItem>[] => {
-			const limited = limitSessionsForList(sessions, sessionGroupLimit, {
-				enabled: cap !== undefined,
-				expanded: cap !== undefined && (sessionGroupExpansion.get(cap.stateId) ?? cap.expandedByDefault),
-				sectionId,
-				stateId: cap?.stateId,
-				sectionLabel,
-				revealSessionIds: revealedSessionIds,
-			});
-			const children = sectionId === 'archived' && standaloneDoneChats.length > 0
-				? this.toDoneSectionChildren(limited.sessions, standaloneDoneChats, toSessionChildren)
-				: toSessionChildren(limited.sessions);
-			if (limited.showMore) {
-				children.push({ element: limited.showMore });
-			}
-			return children;
-		};
-
-		const renderSection = (section: ISessionSection, renderedSessions: readonly ISession[] = section.sessions): IObjectTreeElement<SessionListItem> => {
-			if (isShortcutSection(section.id)) {
-				return {
-					element: section as SessionListItem,
-					children: [],
-					collapsible: false,
-				};
-			}
-
-			// The "Chats" section is capped like a workspace section in every grouping mode.
-			const isWorkspaceGroup = section.id === QUICK_CHATS_SECTION_ID
-				|| (grouping !== SessionsGrouping.Date && isSessionGroupingSection(section.id));
-			const limitSessions = isWorkspaceGroup
-				&& !this.hasFindPattern
-				&& this.workspaceGroupCapped;
-			let sectionChildren = renderSessionChildren(renderedSessions, section.id, section.label, limitSessions
-				? { stateId: section.collapseStateId ?? section.id, expandedByDefault: false }
-				: undefined);
-
-			// The always-visible "Chats" section shows a muted placeholder row
-			// when it has no sessions yet.
-			if (section.id === QUICK_CHATS_SECTION_ID && section.sessions.length === 0) {
-				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noChats', "No chats") } }];
-			}
-
-			// Default collapse state for older time sections
-			let defaultCollapsed: boolean | ObjectTreeElementCollapseState = ObjectTreeElementCollapseState.PreserveOrExpanded;
-			if (grouping === SessionsGrouping.Date && hasRecentSessions) {
-				const olderSections = ['older', 'archived'];
-				if (olderSections.includes(section.id)) {
-					defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
-				}
-			}
-			if (section.id === 'archived' || inbox && section.id !== SessionInboxSection.ReadyForYou && section.id !== SessionInboxSection.Done && sessionInboxSections.some(id => id === section.id)) {
-				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
-			}
-
-			// The "Pinned" and "Chats" sections start collapsed on first open; the
-			// user's later choice is persisted and honored via getSavedCollapseState.
-			if (section.id === 'pinned' && !inbox || section.id === QUICK_CHATS_SECTION_ID) {
-				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
-			}
-			const savedCollapsed = this.getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined);
-			if (savedCollapsed !== undefined) {
-				defaultCollapsed = inbox
-					? savedCollapsed ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded
-					: savedCollapsed;
-			} else if (hasInboxSessions && section.id !== SessionInboxSection.ReadyForYou) {
-				defaultCollapsed = inboxBecamePopulated ? ObjectTreeElementCollapseState.Collapsed : ObjectTreeElementCollapseState.PreserveOrCollapsed;
-			} else if (inbox && section.id === SessionInboxSection.Working) {
-				defaultCollapsed = this.hadInboxSessions ? ObjectTreeElementCollapseState.Expanded : ObjectTreeElementCollapseState.PreserveOrExpanded;
-			}
-			if (inboxBecamePopulated && section.id === SessionInboxSection.ReadyForYou) {
-				// Restore user intent rather than preserving the empty placeholder's forced expansion.
-				defaultCollapsed = savedCollapsed ?? false;
-			}
-			return {
-				element: section as SessionListItem,
-				collapsible: !sessionInboxSections.some(id => id === section.id) || section.sessions.length > 0,
-				collapsed: resolveCollapsed(section, defaultCollapsed),
-				children: sectionChildren,
-			};
-		};
-
-		const renderGroup = (groupItem: ISessionGroupItem): IObjectTreeElement<SessionListItem> => {
-			const sectionId = getSessionGroupSectionId(groupItem.group.id);
-			// Subgroups always render above the group's own sessions.
-			const comparisonChildren: IObjectTreeElement<SessionListItem>[] = [];
-			const subgroupChildren = this._sessionGroupsService.getChildIds(groupItem.group.id).flatMap(id => {
-				const subgroup = groupItemsById.get(id);
-				if (subgroup) {
-					if (subgroup.comparison) {
-						const comparison = comparisonsByGroupId.get(id);
-						if (comparison && !isComparisonInScope(comparison)) {
-							return [];
-						}
-						comparisonChildren.push(renderGroup(subgroup));
-						return [];
-					}
-					return [renderGroup(subgroup)];
-				}
-				const section = sectionById.get(id);
-				return section && this.getSectionParentId(section.id) === groupItem.group.id ? [renderWorkspaceSection(section)] : [];
-			});
-			const sessionChildren: IObjectTreeElement<SessionListItem>[] = groupItem.sessions.length === 0
-				? subgroupChildren.length === 0 && comparisonChildren.length === 0
-					? [{
-						element: {
-							placeholder: true as const,
-							sectionId,
-							label: localize('noSessionInGroup', "No sessions"),
-							hover: localize('noSessionInGroupHover', "Use Add to Group from a session's context menu, or drag it into this group."),
-						}
-					}]
-					: []
-				: renderSessionChildren(groupItem.sessions, sectionId, groupItem.group.name, !this.hasFindPattern && this.workspaceGroupCapped
-					// Custom groups list all of their sessions until the user chooses "Show less".
-					? { stateId: sectionId, expandedByDefault: true }
-					: undefined);
-			const visibleGroupSessions = sessionChildren.map(child => child.element).filter(isSessionItem);
-			const connectorSessions = groupItem.comparison ? visibleGroupSessions : [];
-			if (connectorSessions.length > 0) {
-				for (let index = 0; index < connectorSessions.length; index++) {
-					this.renderedComparisonParticipantConnectorPositions.set(
-						connectorSessions[index].sessionId,
-						index === connectorSessions.length - 1 ? 'last' : 'middle',
-					);
-				}
-			}
-			return {
-				element: groupItem,
-				collapsible: true,
-				collapsed: resolveCollapsed(groupItem, this.getSavedCollapseState(sectionId) ?? ObjectTreeElementCollapseState.PreserveOrExpanded),
-				children: [...subgroupChildren, ...(comparisonChildren.length > 0 ? this.sortComparisonChildren([...comparisonChildren, ...sessionChildren]) : sessionChildren)],
-			};
-		};
-
-		const renderWorkspaceSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
-			const comparisonGroups = comparisonGroupsBySectionId.get(section.id)?.map(group => groupItemsById.get(group.id)!);
-			if (!comparisonGroups) {
-				return renderSection(section);
-			}
-			const comparisonSessionIds = new Set(comparisonGroups.flatMap(group => group.sessions.map(session => session.sessionId)));
-			const renderedSection = renderSection(section, section.sessions.filter(session => !comparisonSessionIds.has(session.sessionId)));
-			return {
-				...renderedSection,
-				children: this.sortComparisonChildren([
-					...comparisonGroups.map(renderGroup),
-					...(renderedSection.children ?? []),
-				]),
-			};
-		};
-
-		const navigationSections: ISessionSection[] = [];
-		const showNavigationShortcuts = this.options.showNavigationShortcuts?.() === true;
-		if (showNavigationShortcuts) {
-			navigationSections.push({ id: NEW_SESSION_SECTION_ID, label: localize('newSession', "New Session"), sessions: [] });
-		}
-		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
-			const automationsSection: ISessionSection = { id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] };
-			if (showNavigationShortcuts) {
-				navigationSections.push(automationsSection);
-			} else {
-				children.push(renderSection(automationsSection));
-			}
-		}
-		// The Canvases section follows Automations: as a header and its pins in the navigation list, or as a section in the tree without one.
-		const canvasesSection = this.getCanvasesSection();
-		if (canvasesSection) {
-			if (showNavigationShortcuts) {
-				const collapsed = this.getSavedCollapseState(CANVASES_SECTION_ID) ?? false;
-				navigationSections.push({ ...canvasesSection, navigationCollapsed: collapsed });
-				if (!collapsed) {
-					navigationSections.push(...this.getPinnedCanvasSections());
-				}
-			} else {
-				children.push(this.renderCanvasesSection(canvasesSection, resolveCollapsed));
-			}
-		}
-		if (this.options.showCustomizations?.() ?? showNavigationShortcuts) {
-			navigationSections.push({ id: CUSTOMIZATIONS_SECTION_ID, label: localize('customizations', "Customizations"), sessions: [] });
-		}
-		if (!this.showsCanvasesSection()) {
-			// Pinned canvases follow Automations: in the navigation list, or in the tree without one.
-			const pinnedCanvasSections = this.getPinnedCanvasSections();
-			if (showNavigationShortcuts) {
-				navigationSections.push(...pinnedCanvasSections);
-			} else {
-				children.push(...pinnedCanvasSections.map(section => renderSection(section)));
-			}
-		}
-		this.setNavigationSections(navigationSections);
-
-		const pinnedSection = sections.find(s => s.id === 'pinned');
-		if (pinnedSection) {
-			children.push(renderSection(pinnedSection));
-		}
-
-		const draftsSection = this.options.pendingSections?.get().find(section => section.id === 'drafts');
-		const pendingItems = [
-			...(this.options.scheduledSessions?.get() ?? []),
-			...(scheduledOnly ? [] : draftsSection?.items ?? []),
-		].filter(item => matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
-		if (pendingItems.length > 0) {
-			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };
-			children.push({
-				element,
-				collapsible: true,
-				collapsed: resolveCollapsed(element, (this.getSavedCollapseState(element.id) ?? true)
-					? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded),
-				children: pendingItems.map(item => ({ element: item })),
-			});
-		}
-
-		// Quick chats render as a single "Chats" entry directly below Pinned (above
-		// the workspace/repository groups) when the grouping lists them there.
-		const quickChatsSection = sections.find(s => s.id === QUICK_CHATS_SECTION_ID);
-		if (quickChatsSection) {
-			children.push(renderWorkspaceSection(quickChatsSection));
-		}
-
-		const renderGroupById = (groupId: string): void => {
-			const groupItem = groupItemsById.get(groupId);
-			if (groupItem) {
-				children.push(renderGroup(groupItem));
-			}
-		};
-
-		// Match sessions again before filtering sections: their text may have changed since the last update.
-		this.searchFilter.invalidate();
-		this.hiddenGroupingSections = [];
-		this._moreFolderSectionIds = new Set();
-		if (inbox) {
-			this._topLevelOrder = [];
-			for (const id of sessionInboxSections) {
-				const sourceSection = sections.find(section => section.id === id);
-				const section = sourceSection && this.hasFindPattern
-					? { ...sourceSection, sessions: sourceSection.sessions.filter(session => !!this.searchFilter.getMatch(session)) }
-					: sourceSection;
-				if (section && (section.sessions.length > 0 || id === SessionInboxSection.ReadyForYou)) {
-					let rendered = renderWorkspaceSection(section);
-					if (id === SessionInboxSection.ReadyForYou) {
-						if (section.sessions.length === 0) {
-							rendered = {
-								...rendered, collapsed: false, children: [{
-									element: {
-										placeholder: true as const, sectionId: id,
-										label: this.filters.hasInboxScope ? localize('inboxScopeEmpty', "No Inbox activity matches this scope.") : localize('inboxEmpty', "Your inbox is clear"),
-									},
-								}]
-							};
-						}
-					}
-					children.push(rendered);
-				}
-			}
-		} else if (grouping === SessionsGrouping.Date) {
-			// Groups and the date sections share one user-managed order right
-			// below Pinned and Chats. The date sections keep their fixed relative
-			// order and never drag; groups default above them and can move between
-			// and below them. Pinned stays at the top, Done (archived) at the bottom.
-			// Date sections stay in the order even while empty so that a group
-			// keeps its place relative to them when they come and go.
-			const resolvedIds = keepDateSectionOrder(this._sessionSectionOrderService.resolveOrder([...topLevelGroupIds, ...DATE_SECTION_IDS]));
-			this._topLevelOrder = resolvedIds;
-			for (const id of resolvedIds) {
-				const groupId = getSessionGroupIdOfSection(id);
-				if (groupId !== undefined) {
-					renderGroupById(groupId);
-				} else {
-					const section = sections.find(s => s.id === id);
-					if (section) {
-						children.push(renderWorkspaceSection(section));
-					}
-				}
-			}
-		} else {
-			// Groups and primary grouping sections share one freely-reorderable, user-managed order
-			// right below Pinned. Groups default above sections; sections default to
-			// their alphabetical order. Pinned stays first, Done last, and hidden
-			// ("+N more") sections are appended below the ordered block.
-			const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && this.getSectionParentId(s.id) === undefined);
-			if (comparisonGroupsBySectionId.size > 0) {
-				const unknownWorkspaceId = `workspace:${localize('unknown', "Unknown")}`;
-				workspaceSections.sort((a, b) => a.environment && b.environment
-					? compareSessionEnvironments(a.environment, b.environment)
-					: Number(a.id === unknownWorkspaceId) - Number(b.id === unknownWorkspaceId) || a.label.localeCompare(b.label));
-			}
-			const sectionById = new Map(workspaceSections.map(s => [s.id, s] as const));
-			const primaryWorkspaceIds = workspaceSections
-				.filter(s => !moreFolderSectionIds.has(s.id))
-				.map(s => s.id);
-
-			const comparisonGroupIds = new Set(
-				[...comparisonGroupsBySectionId.values()].flat()
-					.map(group => getSessionGroupSectionId(group.id)),
-			);
-			const defaultOrder = [...topLevelGroupIds.filter(id => !comparisonGroupIds.has(id)), ...primaryWorkspaceIds];
-			const resolvedIds = this._sessionSectionOrderService.resolveOrder(defaultOrder);
-			this._topLevelOrder = resolvedIds;
-			for (const id of resolvedIds) {
-				const groupId = getSessionGroupIdOfSection(id);
-				if (groupId !== undefined) {
-					renderGroupById(groupId);
-				} else {
-					const section = sectionById.get(id);
-					if (section) {
-						children.push(renderWorkspaceSection(section));
-					}
-				}
-			}
-
-			const moreFolderSections = workspaceSections.filter(s => moreFolderSectionIds.has(s.id));
-			this._moreFolderSectionIds = new Set(moreFolderSections.map(s => s.id));
-			if (moreFolderSections.length > 0) {
-				const kind = grouping === SessionsGrouping.Environment ? 'environments' : grouping === SessionsGrouping.Repository ? 'repositories' : 'folders';
-				if (this.expandedMoreFolders) {
-					for (const section of moreFolderSections) {
-						children.push(renderWorkspaceSection(section));
-					}
-					children.push({
-						element: { showMore: true as const, kind, mode: 'less' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, stateId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
-					});
-				} else {
-					this.hiddenGroupingSections = moreFolderSections;
-					children.push({
-						element: { showMore: true as const, kind, mode: 'more' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, stateId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
-					});
-				}
-			}
-		}
-
-		const externalSection = sections.find(s => s.id === EXTERNAL_SESSIONS_SECTION_ID);
-		if (externalSection) {
-			children.push(renderSection(externalSection));
-		}
-		const archivedSection = sections.find(s => s.id === 'archived');
-		if (archivedSection) {
-			children.push(renderSection(archivedSection));
-		}
-		// A scoped list that shows no session says so rather than showing nothing; its folders may have sessions the filters hide.
-		if (scope && filtered.length === 0) {
-			children.push({ element: { placeholder: true as const, sectionId: SCOPE_EMPTY_PLACEHOLDER_ID, label: localize('sessionsList.scopeEmpty', "No sessions to show in this folder.") } });
-		}
-
-		const inboxLayoutChanged = this.listContainer.classList.contains('inbox-layout') !== this.isInboxLayout();
-		this.listContainer.classList.toggle('inbox-layout', this.isInboxLayout());
-		this.tree.getHTMLElement().setAttribute('aria-label', this.isInboxLayout() ? localize('inboxHeader', "Inbox") : localize('sessionsList', "Sessions"));
-		const attachedChildren = this.attachComparisonsToOriginatingSessions(children, inbox, renderSection);
-		for (const session of this.sessions) {
-			if (this.comparisonParentSessionIds.has(session.sessionId)) {
-				nextNestedSessionResources.add(session.resource.toString());
-			}
-		}
 		const keyboardPosition = this.captureKeyboardPosition();
 		const visibleSelection = inbox ? this.tree.getSelection().filter((item): item is SessionListItem => !!item && this.isTreeItemVisible(item)) : [];
-		this.tree.setChildren(null, attachedChildren);
+		this.tree.setChildren(null, result.children);
 		this.restoreKeyboardPosition(keyboardPosition);
 		this.restoreVisibleInboxSelection(visibleSelection);
-		this.hadInboxSessions = hasInboxSessions;
 		if (inboxLayoutChanged) {
 			for (const session of this.sessions) {
 				if (this.tree.hasElement(session)) {
@@ -2604,7 +1878,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		this.updateArchiveDemand();
-		this.nestedSessionResources = nextNestedSessionResources;
 		this.syncCollapsedSessionIds();
 		this.reconcileChatRowHeights();
 		this.tryPendingMoveReveal?.();
@@ -2697,104 +1970,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		return result;
-	}
-
-	/** The session that `chat` is still in when the list shows it as a chat of `session` only because it moves there. */
-	private getPendingMoveSource(session: ISession, chat: IChat): ISession | undefined {
-		for (const move of this.pendingSessionMoves.values()) {
-			if (move.destination.sessionId === session.sessionId && move.chat === chat) {
-				return move.session;
-			}
-		}
-		return undefined;
-	}
-
-	private attachComparisonsToOriginatingSessions(children: IObjectTreeElement<SessionListItem>[], inbox: boolean, renderSection: (section: ISessionSection) => IObjectTreeElement<SessionListItem>): IObjectTreeElement<SessionListItem>[] {
-		this.comparisonParentSessionIds.clear();
-		this.attachedComparisonSessionIds.clear();
-		// Inbox keeps comparisons in their own attention category, independently of their caller.
-		if (inbox || !this.sessionComparisonService.comparisons.get().some(comparison => comparison.originatingChatResource)) {
-			return children;
-		}
-		const sessions = new Map<string, number>();
-		const comparisons = new Map<string, IObjectTreeElement<SessionListItem>>();
-		const collect = (nodes: Iterable<IObjectTreeElement<SessionListItem>>, depth: number): void => {
-			for (const node of nodes) {
-				if (isSessionItem(node.element)) {
-					sessions.set(node.element.sessionId, depth);
-				} else if (isSessionGroupItem(node.element) && node.element.comparison) {
-					comparisons.set(node.element.group.id, node);
-				}
-				collect(node.children ?? [], depth + 1);
-			}
-		};
-		collect(children, 0);
-		const attachments = new Map<string, IObjectTreeElement<SessionListItem>[]>();
-		const attachedGroupIds = new Set<string>();
-		for (const comparison of this.sessionComparisonService.comparisons.get()) {
-			const group = comparisons.get(comparison.groupId);
-			const caller = comparison.originatingChatResource && this._sessionsManagementService.getSessionForChatResource(comparison.originatingChatResource)?.session;
-			const parent = caller && sessions.get(caller.sessionId);
-			if (!group || !isSessionGroupItem(group.element) || group.element.group.parentId !== undefined
-				|| !caller || parent === undefined || caller.isArchived.get() || this.sessionComparisonService.getComparisonForSession(caller.resource)
-				|| this.hasFindPattern && !this.searchFilter.getMatch(caller)) {
-				continue;
-			}
-			const siblings = attachments.get(caller.sessionId) ?? [];
-			siblings.push({ ...group, element: { ...group.element, depth: parent } });
-			attachments.set(caller.sessionId, siblings);
-			attachedGroupIds.add(comparison.groupId);
-			this.comparisonParentSessionIds.add(caller.sessionId);
-			for (const session of group.element.sessions) {
-				this.attachedComparisonSessionIds.add(session.sessionId);
-			}
-			this.groupDepths.set(comparison.groupId, parent);
-		}
-		if (attachedGroupIds.size === 0) {
-			return children;
-		}
-		const attach = (nodes: Iterable<IObjectTreeElement<SessionListItem>>): IObjectTreeElement<SessionListItem>[] => {
-			const result: IObjectTreeElement<SessionListItem>[] = [];
-			for (const node of nodes) {
-				if (isSessionGroupItem(node.element) && attachedGroupIds.has(node.element.group.id)) {
-					continue;
-				}
-				const nested = attach(node.children ?? []);
-				const comparisons = isSessionItem(node.element) ? attachments.get(node.element.sessionId) : undefined;
-				if (comparisons) {
-					nested.push(...this.sortComparisonChildren(comparisons));
-				}
-				if (isSessionSection(node.element) && nested.length === 0
-					&& [...(node.children ?? [])].some(child => isSessionGroupItem(child.element) && attachedGroupIds.has(child.element.group.id))) {
-					if (node.element.id === QUICK_CHATS_SECTION_ID
-						&& this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING)
-						&& this._someProviderSupportsQuickChats()) {
-						result.push(renderSection({ ...node.element, sessions: [] }));
-					}
-					continue;
-				}
-				result.push({ ...node, ...(comparisons ? { collapsible: true } : {}), children: nested });
-			}
-			return result;
-		};
-		return attach(children);
-	}
-
-	/** The Done section's rows: its done sessions and the standalone done chats of sessions that are not done, most recently updated first whatever the sorting. */
-	private toDoneSectionChildren(
-		sessions: readonly ISession[],
-		chats: readonly { readonly session: ISession; readonly chat: IChat }[],
-		toSessionChildren: (sessions: readonly ISession[]) => IObjectTreeElement<SessionListItem>[],
-	): IObjectTreeElement<SessionListItem>[] {
-		const sessionChildren = toSessionChildren(sessions);
-		const rows = [
-			...sessions.map((session, index) => ({ time: session.updatedAt.get().getTime(), child: sessionChildren[index] })),
-			...chats.map(({ session, chat }) => ({
-				time: chat.updatedAt.get()?.getTime() ?? chat.createdAt.getTime(),
-				child: { element: new SessionChatItem(session, chat, true, true) } satisfies IObjectTreeElement<SessionListItem>,
-			})),
-		];
-		return rows.sort((a, b) => b.time - a.time).map(row => row.child);
 	}
 
 	private setNavigationSections(sections: readonly ISessionSection[]): void {
@@ -3375,13 +2550,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.visible) {
 			// Shown again, the list keeps its rows: it renders again only what changed while hidden, and the inbox observes
 			// its sessions' attention again, which it stops observing while hidden
-			if (this.changedWhileHidden || this.isInboxLayout() || Date.now() >= this.renderValidUntil) {
+			if (this.changedWhileHidden || this.isInboxLayout() || Date.now() >= this._renderSnapshot.renderValidUntil) {
 				this.changedWhileHidden = false;
 				this.refresh();
 			}
 		} else {
 			this.inboxObserver.clear();
-			this.inboxPlacements = undefined;
 		}
 	}
 
@@ -3954,7 +3128,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const anchorSection = dateSections.find(section => section.sessions.includes(anchor.session));
 			const isInAnchorSection = (neighbour: SessionSortEntry | undefined, boundarySection: ISessionSection | undefined) =>
 				neighbour ? !!anchorSection?.sessions.some(session => session.sessionId === neighbour.sessionId)
-					|| this.comparisonSectionIds.get(getSessionGroupIdOfSection(neighbour.sessionId) ?? '') === anchorSection?.id : anchorSection === boundarySection;
+					|| this._renderSnapshot.comparisonSectionIds.get(getSessionGroupIdOfSection(neighbour.sessionId) ?? '') === anchorSection?.id : anchorSection === boundarySection;
 			const span = (sessions.length + 1) * ADJACENT_SORT_STEP_MS;
 			const anchorKey = getKey(anchor.session);
 			if (anchor.position === 'before' && !isInAnchorSection(above, dateSections.at(0))) {
@@ -4277,35 +3451,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private getComparisonSortEntry(groupId: string): SessionSortEntry {
 		const comparison = this.sessionComparisonService.comparisons.get().find(comparison => comparison.groupId === groupId)!;
-		const updatedAt = Math.max(comparison.createdAt, ...getComparisonSessions(comparison, this._sessionsManagementService).map(session => session.updatedAt.get().getTime()));
-		return { sessionId: getSessionGroupSectionId(groupId), createdAt: new Date(comparison.createdAt), updatedAt: constObservable(new Date(updatedAt)) };
+		return getComparisonSortEntry(comparison, resource => this._sessionsManagementService.getSession(resource));
 	}
 
 	private getComparisonReorderScope(group: ISessionGroup): string | undefined {
 		return group.parentId !== undefined ? getSessionGroupSectionId(group.parentId)
-			: this.options.grouping() === SessionsGrouping.Date && !this.isComparisonInChatsSection(group.id) ? DATE_SECTION_IDS[0] : this.comparisonSectionIds.get(group.id);
+			: this.options.grouping() === SessionsGrouping.Date && !this.isComparisonInChatsSection(group.id) ? DATE_SECTION_IDS[0] : this._renderSnapshot.comparisonSectionIds.get(group.id);
 	}
 
 	/** Whether a comparison lists in the "Chats" section, such as one without a workspace under date grouping that keeps it, rather than in a date section. */
 	private isComparisonInChatsSection(groupId: string): boolean {
-		return this.comparisonSectionIds.get(groupId) === QUICK_CHATS_SECTION_ID;
+		return this._renderSnapshot.comparisonSectionIds.get(groupId) === QUICK_CHATS_SECTION_ID;
 	}
 
 	private getListSortEntry(element: ISession | ISessionGroupItem): SessionSortEntry {
 		return isSessionGroupItem(element) ? this.getComparisonSortEntry(element.group.id) : element;
-	}
-
-	private sortComparisonChildren(children: IObjectTreeElement<SessionListItem>[]): IObjectTreeElement<SessionListItem>[] {
-		const inbox = this.options.grouping() === SessionsGrouping.Inbox;
-		const key = (child: IObjectTreeElement<SessionListItem>) => isSessionItem(child.element) || (isSessionGroupItem(child.element) && child.element.comparison)
-			? inbox ? (this.options.sorting() === SessionsSorting.Created ? this.getListSortEntry(child.element).createdAt : this.getListSortEntry(child.element).updatedAt.get()).getTime()
-				: this._sessionsListModelService.getSortKey(this.getListSortEntry(child.element), sortingToMode(this.options.sorting()))
-			: Number.NEGATIVE_INFINITY;
-		const priority = (child: IObjectTreeElement<SessionListItem>) => !inbox ? InboxNotificationPriority.Later
-			: isSessionItem(child.element) ? this.getInboxPriority(child.element)
-				: isSessionGroupItem(child.element) ? Math.min(InboxNotificationPriority.Later, ...child.element.sessions.map(session => this.getInboxPriority(session)))
-					: InboxNotificationPriority.Later;
-		return children.sort((a, b) => priority(a) - priority(b) || key(b) - key(a));
 	}
 
 	private getComparisonDrop(group: ISessionGroupItem, target: SessionListItem, sector: ListViewTargetSector | undefined): SessionHeaderDrop | undefined {
@@ -4329,7 +3489,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!this.canNestGroup(group.group.id, parent.group.id)) {
 				return undefined;
 			}
-		} else if (parent.id !== this.comparisonSectionIds.get(group.group.id) && !(DATE_SECTION_IDS.includes(parent.id) && !this.isComparisonInChatsSection(group.group.id))) {
+		} else if (parent.id !== this._renderSnapshot.comparisonSectionIds.get(group.group.id) && !(DATE_SECTION_IDS.includes(parent.id) && !this.isComparisonInChatsSection(group.group.id))) {
 			return undefined;
 		}
 		const sectionParentId = isSessionSection(parent) ? this.getSectionParentId(parent.id) : undefined;
@@ -4351,7 +3511,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			? this.tree.getNode(parent).children.flatMap(node => node.element && isSessionGroupItem(node.element) && node.element.comparison && node.element.group.id !== groupId
 				? [this.getComparisonSortEntry(node.element.group.id)] : [])
 			: this._sessionGroupsService.getGroups().filter(group => group.id !== groupId && this.isComparisonGroup(group.id)
-				&& (isSessionGroupItem(parent) ? group.parentId === parent.group.id : group.parentId === undefined && this.comparisonSectionIds.get(group.id) === parent.id))
+				&& (isSessionGroupItem(parent) ? group.parentId === parent.group.id : group.parentId === undefined && this._renderSnapshot.comparisonSectionIds.get(group.id) === parent.id))
 				.map(group => this.getComparisonSortEntry(group.id));
 		const getKey = (entry: SessionSortEntry) => this._sessionsListModelService.getSortKey(entry, mode);
 		const remaining: SessionSortEntry[] = [
@@ -4388,7 +3548,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.isInMoreFolders(target)) {
 			// Workspaces behind "+N more" are not in the reorderable order: a header dropped on
 			// them or on the "+N more" row lands below the last always-visible header, above them.
-			const lastId = this._topLevelOrder.findLast(id => id !== header.id);
+			const lastId = this._renderSnapshot.topLevelOrder.findLast(id => id !== header.id);
 			return lastId !== undefined && !(isSessionSection(target) && target.id === header.id)
 				? { kind: 'topLevel', targetId: lastId, position: 'after', aboveMore: true }
 				: undefined;
@@ -4441,14 +3601,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (isSessionShowMore(element) && element.sectionId === SHOW_MORE_FOLDERS_LABEL) {
 			return true;
 		}
-		if (this._moreFolderSectionIds.size === 0 || !this.tree.hasElement(element)) {
+		if (this._renderSnapshot.moreFolderSectionIds.size === 0 || !this.tree.hasElement(element)) {
 			return false;
 		}
 		let topLevel = element;
 		for (let parent = this.tree.getParentElement(element); parent; parent = this.tree.getParentElement(parent)) {
 			topLevel = parent;
 		}
-		return isSessionSection(topLevel) && this._moreFolderSectionIds.has(topLevel.id);
+		return isSessionSection(topLevel) && this._renderSnapshot.moreFolderSectionIds.has(topLevel.id);
 	}
 
 	/** The list index of the first row of the "+N more" area, or `undefined` when the list has none. */
@@ -4514,7 +3674,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 				return;
 			case 'topLevel': {
-				const topLevelOrder = this._topLevelOrder;
+				const topLevelOrder = this._renderSnapshot.topLevelOrder;
 				if (groupId !== undefined) {
 					this._sessionGroupsService.moveGroup(groupId, undefined);
 				} else {
@@ -4600,7 +3760,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const shown = collectSessionIds(rows, new Set());
 				const ownComparison = node.element && isSessionGroupItem(node.element) && node.element.comparison;
 				rows.push(...toSessionNodes(sessions.filter(session => !shown.has(session.sessionId) && !this.tree.hasElement(session)
-					&& (ownComparison || !this.attachedComparisonSessionIds.has(session.sessionId))), true));
+					&& (ownComparison || !this._renderSnapshot.attachedComparisonSessionIds.has(session.sessionId))), true));
 			}
 			return rows;
 		};
@@ -4624,7 +3784,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			if (isSessionShowMore(element)) {
 				return element.kind !== 'sessions' && element.mode === 'more'
-					? this.hiddenGroupingSections.map(section => ({ type: 'section', id: section.id, label: section.label, collapsed: true, hidden: true, children: toSessionNodes(section.sessions.filter(session => !this.attachedComparisonSessionIds.has(session.sessionId)), true) }))
+					? this._renderSnapshot.hiddenGroupingSections.map(section => ({ type: 'section', id: section.id, label: section.label, collapsed: true, hidden: true, children: toSessionNodes(section.sessions.filter(session => !this._renderSnapshot.attachedComparisonSessionIds.has(session.sessionId)), true) }))
 					: [];
 			}
 			if (isSessionItem(element)) {
@@ -4729,7 +3889,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const header = placement.kind === 'group'
 			? this.findTreeElement((element): element is ISessionGroupItem => isSessionGroupItem(element) && element.group.id === placement.groupId)
 			: this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === getPlacementHeader(placement).id)
-			?? this.hiddenGroupingSections.find(section => section.id === getPlacementHeader(placement).id);
+			?? this._renderSnapshot.hiddenGroupingSections.find(section => section.id === getPlacementHeader(placement).id);
 		return (header?.sessions ?? []).filter(session => isSamePlacement(this.getSessionPlacement(session), placement));
 	}
 
@@ -4779,7 +3939,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 				return;
 			}
-			if (!this._topLevelOrder.includes(sibling.siblingId)) {
+			if (!this._renderSnapshot.topLevelOrder.includes(sibling.siblingId)) {
 				throw new Error(`"${sibling.siblingId}" is not a top-level header that can be ordered.`);
 			}
 			drop = { kind: 'topLevel', targetId: sibling.siblingId, position: sibling.position };
@@ -4949,17 +4109,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return undefined;
 		}
 		return { id: CANVASES_SECTION_ID, label: localize('canvases', "Canvases"), sessions: [] };
-	}
-
-	/** The Canvases section in the sessions tree, which collapses and shows a placeholder while nothing is pinned. */
-	private renderCanvasesSection(element: ISessionSection, resolveCollapsed: (element: SessionListItem, collapsed: boolean | ObjectTreeElementCollapseState) => boolean | ObjectTreeElementCollapseState): IObjectTreeElement<SessionListItem> {
-		const pins: IObjectTreeElement<SessionListItem>[] = this.getPinnedCanvasSections().map(element => ({ element }));
-		return {
-			element,
-			collapsible: true,
-			collapsed: resolveCollapsed(element, this.getSavedCollapseState(element.id) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded),
-			children: pins.length > 0 ? pins : [{ element: { placeholder: true as const, sectionId: CANVASES_SECTION_ID, label: localize('noCanvases', "No canvases") } }],
-		};
 	}
 
 	private showPinnedCanvasContextMenu(entry: IPinnedCanvas, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
@@ -5275,14 +4424,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
-	/** The IDs of the sessions the providers list in the host's scope, or `undefined` while the list is not scoped. See {@link ISessionsListControlOptions.scoped}. */
-	private getHostScope(): ReadonlySet<string> | undefined {
-		if (!this.options.scoped?.get()) {
-			return undefined;
-		}
-		return new Set(this.sessions.map(session => session.sessionId));
-	}
-
 	private getMarkAllSessionsReadAction(getSessions: () => readonly ISession[]): IAction {
 		return toAction({
 			id: 'sessionsViewPane.markAllInSectionRead',
@@ -5343,7 +4484,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (parentId !== undefined) {
 			this.moveHeader({ id: section.id }, { kind: 'into', groupId: parentId });
 		} else {
-			const targetId = this._topLevelOrder[0];
+			const targetId = this._renderSnapshot.topLevelOrder[0];
 			if (targetId !== undefined) {
 				this.moveHeader({ id: section.id }, { kind: 'topLevel', targetId, position: 'after' });
 			} else {
@@ -5410,7 +4551,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return this.sessions.filter(session => {
 					const renderedGroup = this.getRenderedSessionGroup(session);
 					const sectionId = renderedGroup
-						? this.comparisonSectionIds.get(renderedGroup.id)
+						? this._renderSnapshot.comparisonSectionIds.get(renderedGroup.id)
 						: this.getUngroupedSectionIds(session)[0];
 					const parentId = sectionId === undefined ? undefined : this.getSectionParentId(sectionId);
 					return sessionIds.has(session.sessionId)
@@ -5469,7 +4610,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				})]]);
 			}
 			const comparisonRecord = this.sessionComparisonService.getComparison(comparison.id);
-			const comparisonSessions = comparisonRecord ? getComparisonSessions(comparisonRecord, this._sessionsManagementService) : [];
+			const comparisonSessions = comparisonRecord ? getComparisonSessions(comparisonRecord, resource => this._sessionsManagementService.getSession(resource)) : [];
 			// Deleting while attempts are still launching would retire the comparison under its in-flight launches.
 			if (comparisonRecord?.launching !== true && !comparisonSessions.some(session => isSessionActive(session, undefined))) {
 				groups.push(['4_manage', [this.getDeleteGroupAction(groupItem)]]);
@@ -5549,7 +4690,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private getInboxSection(session: ISession, reader?: IReader): SessionInboxSection {
-		const placement = reader ? undefined : this.inboxPlacements?.get(session.sessionId);
+		const placement = reader || !this.visible ? undefined : this._renderSnapshot.inboxPlacements?.get(session.sessionId);
 		return placement?.section ?? getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, this.sessionAttentionService.sessionAttention.read(reader).get(session.sessionId));
 	}
 
@@ -5712,11 +4853,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			: undefined;
 	}
 
-	private getInboxPriority(session: ISession): InboxNotificationPriority {
-		return this.inboxPlacements?.get(session.sessionId)?.priority
-			?? getSessionInboxPriority(session, this.sessionAttentionService.sessionAttention.get().get(session.sessionId));
-	}
-
 	isRenderedInCustomGroup(session: ISession): boolean {
 		return this.getRenderedSessionGroup(session) !== undefined;
 	}
@@ -5742,7 +4878,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		// A comparison's attempts and their nested chats step in with the comparison.
 		const session = isSessionChatItem(element) ? element.standalone ? undefined : element.session : element;
-		const isComparison = session !== undefined && this.renderedComparisonParticipantConnectorPositions.has(session.sessionId);
+		const isComparison = session !== undefined && this._renderSnapshot.comparisonParticipantConnectorPositions.has(session.sessionId);
 		return { depth: this.getRowGroupDepth(element), indent: isComparison ? SessionRowIndent.Comparison : SessionRowIndent.Item };
 	}
 
@@ -5773,10 +4909,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (groupId === undefined && sectionId !== undefined) {
 			const parentId = this.getSectionParentId(sectionId);
 			if (parentId !== undefined) {
-				return (this.groupDepths.get(parentId) ?? 0) + 1;
+				return (this._renderSnapshot.groupDepths.get(parentId) ?? 0) + 1;
 			}
 		}
-		return groupId === undefined ? 0 : this.groupDepths.get(groupId) ?? 0;
+		return groupId === undefined ? 0 : this._renderSnapshot.groupDepths.get(groupId) ?? 0;
 	}
 
 	private getSectionParentId(sectionId: string): string | undefined {
@@ -5795,9 +4931,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.sessionComparisonService.comparisons.get().some(comparison => comparison.groupId === groupId);
 	}
 
-	private getComparisonAttemptLabel(session: ISession, chat?: IChat): string | undefined {
-		return this.renderedComparisonAttemptLabels.get((chat ?? session.mainChat.get()).resource.toString())
-			?? (chat ? undefined : this.renderedComparisonAttemptLabels.get(session.sessionId));
+	private getComparisonAttemptLabel(session: ISession, chat?: IChat, labels: ReadonlyMap<string, string> = this._renderSnapshot.comparisonAttemptLabels): string | undefined {
+		return labels.get((chat ?? session.mainChat.get()).resource.toString())
+			?? (chat ? undefined : labels.get(session.sessionId));
 	}
 
 	private shouldShowComparisonAttemptStatus(session: ISession, reader: IReader): boolean {
@@ -5988,7 +5124,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * The text of a session that searching the list matches: what its row and its section headers show, and the
 	 * branches, pull requests, and remote host that its hover shows.
 	 */
-	private getSessionSearchDocument(session: ISession): ISessionSearchDocument {
+	private getSessionSearchDocument(session: ISession, searchContext: ISessionsListSearchContext = this._renderSnapshot): ISessionSearchDocument {
 		const fields: ISessionSearchField[] = [];
 		const add = (kind: SessionSearchFieldKind, text: string | undefined) => {
 			if (text) {
@@ -6004,7 +5140,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (repository) {
 			add('repository', `${repository.owner}/${repository.name}`);
 		}
-		for (const name of this.getSessionGroupSearchNames(session)) {
+		for (const name of this.getSessionGroupSearchNames(session, searchContext.comparisonSectionIds)) {
 			add('group', name);
 		}
 		for (const folder of workspace?.folders ?? []) {
@@ -6018,8 +5154,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			add('host', this._sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.environment.label);
 		}
 		return {
-			title: this.getComparisonAttemptLabel(session) ?? session.title.get(),
-			chatTitles: this.getRenderedSessionListChats(session).map(chat => this.getComparisonAttemptLabel(session, chat) ?? getChatTitle(chat)),
+			title: this.getComparisonAttemptLabel(session, undefined, searchContext.comparisonAttemptLabels) ?? session.title.get(),
+			chatTitles: this.getRenderedSessionListChats(session).map(chat => this.getComparisonAttemptLabel(session, chat, searchContext.comparisonAttemptLabels) ?? getChatTitle(chat)),
 			fields,
 		};
 	}
@@ -6029,7 +5165,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * {@link getRowGroupDepth}, that is the group the session is a member of, or else the group that its workspace,
 	 * repository, or environment section is placed in, and their parents.
 	 */
-	private getSessionGroupSearchNames(session: ISession): string[] {
+	private getSessionGroupSearchNames(session: ISession, comparisonSectionIds: ReadonlyMap<string, string> = this._renderSnapshot.comparisonSectionIds): string[] {
 		let groupId = this.getRenderedSessionGroup(session)?.id;
 		if (groupId === undefined && !session.isArchived.get() && !this.isSessionPinned(session)) {
 			const [sectionId] = this.getUngroupedSectionIds(session);
@@ -6045,7 +5181,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			// A comparison's header shows its title rather than its group's name.
 			names.push(this.sessionComparisonService.comparisons.get().find(comparison => comparison.groupId === group.id)?.title ?? group.name);
-			const comparisonSectionId = this.comparisonSectionIds.get(group.id);
+			const comparisonSectionId = comparisonSectionIds.get(group.id);
 			groupId = group.parentId ?? (comparisonSectionId === undefined ? undefined : this.getSectionParentId(comparisonSectionId));
 		}
 		return names;

@@ -443,6 +443,7 @@ export function groupSessionsForList(
 	getInboxPriority: (session: ISession) => InboxNotificationPriority = getSessionInboxPriority,
 	quickChatsInTimeGrouping = false,
 	quickChatsSection = true,
+	nowMs?: number,
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions, sorting, getSortKey);
 
@@ -486,7 +487,7 @@ export function groupSessionsForList(
 				? groupByRepository(regular)
 				: grouping === SessionsGrouping.Environment
 					? groupByEnvironment(regular, normalizedEnvironments)
-					: groupByDate(regular, sorting, getSortKey)));
+					: groupByDate(regular, sorting, getSortKey, nowMs)));
 
 	if (external.length > 0) {
 		sections.push({ id: EXTERNAL_SESSIONS_SECTION_ID, label: localize('externalSessionsSection', "External"), sessions: external });
@@ -731,9 +732,9 @@ const RECENT_SESSIONS_LIMIT = 10;
 const RECENT_SESSIONS_LIMIT_WITH_UPDATES = 15;
 export const RECENTLY_UPDATED_SESSION_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
-export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISessionSection[] {
+export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number, nowMs?: number): ISessionSection[] {
 	const key = getSortKey ?? defaultSortKey;
-	const [recent, older] = partitionByDate(sessions, sorting, session => key(session, sorting), session => session.updatedAt.get().getTime());
+	const [recent, older] = partitionByDate(sessions, sorting, session => key(session, sorting), session => session.updatedAt.get().getTime(), nowMs);
 	const sections: ISessionSection[] = [];
 	if (recent.length > 0) {
 		sections.push({ id: 'recent', label: localize('recent', "Recent"), sessions: recent });
@@ -744,8 +745,8 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getS
 	return sections;
 }
 
-export function partitionByDate<T>(entries: readonly T[], sorting: SessionsSorting, getSortKey: (entry: T) => number, getUpdatedTime: (entry: T) => number): [T[], T[]] {
-	const now = new Date();
+export function partitionByDate<T>(entries: readonly T[], sorting: SessionsSorting, getSortKey: (entry: T) => number, getUpdatedTime: (entry: T) => number, nowMs: number = Date.now()): [T[], T[]] {
+	const now = new Date(nowMs);
 	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 	const startOfWeek = startOfToday - 7 * 86_400_000;
 	const recentlyUpdatedThreshold = now.getTime() - RECENTLY_UPDATED_SESSION_THRESHOLD_MS;
@@ -767,6 +768,17 @@ export function partitionByDate<T>(entries: readonly T[], sorting: SessionsSorti
 	}
 
 	return [recent, older];
+}
+
+/**
+ * Puts the date sections of a top-level order back in their fixed relative
+ * order, within the positions they hold. A reorder in another grouping mode
+ * carries them along with the headers they follow, which can swap them.
+ */
+export function keepDateSectionOrder(order: readonly string[]): string[] {
+	const dateSectionIds = DATE_SECTION_IDS.filter(id => order.includes(id));
+	let next = 0;
+	return order.map(id => DATE_SECTION_IDS.includes(id) ? dateSectionIds[next++] : id);
 }
 
 //#endregion
