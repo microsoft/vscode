@@ -226,13 +226,15 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsViewerVisible: true,
 			updateSessionsControlVisibility: () => ({ changed: false, visible: true }),
 			relayout: () => { },
+			updateActions: () => actionUpdates++,
 			sessionsControl: undefined as unknown,
 			sessionsTitleContainer: undefined as HTMLElement | undefined,
 		};
+		let actionUpdates = 0;
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
 		createControl.call(host, document.createElement('div'));
 		const providedControl = control('provided');
-		const state = () => ({ control: host.sessionsControl === providedControl ? 'provided' : `own ${ownLists}`, sessionsOnly: seam.sessionsOnly.get(), sessionsOnlyClass: viewPaneContainer.classList.contains('sessions-only'), title: host.sessionsTitleContainer?.style.display !== 'none', disposed: disposed.splice(0) });
+		const state = () => ({ control: host.sessionsControl === providedControl ? 'provided' : `own ${ownLists}`, sessionsOnly: seam.sessionsOnly.get(), sessionsOnlyClass: viewPaneContainer.classList.contains('sessions-only'), title: host.sessionsTitleContainer?.style.display !== 'none', actionUpdates, disposed: disposed.splice(0) });
 		const steps = [state()];
 
 		const registration = seam.provide(upcastPartial<IChatViewSessionsListProvider>({
@@ -243,9 +245,9 @@ suite('ChatViewPane sessions refresh', () => {
 		steps.push(state());
 
 		assert.deepStrictEqual(steps, [
-			{ control: 'own 1', sessionsOnly: false, sessionsOnlyClass: false, title: true, disposed: [] },
-			{ control: 'provided', sessionsOnly: true, sessionsOnlyClass: true, title: false, disposed: ['own 1'] },
-			{ control: 'own 2', sessionsOnly: false, sessionsOnlyClass: false, title: true, disposed: ['provided'] },
+			{ control: 'own 1', sessionsOnly: false, sessionsOnlyClass: false, title: true, actionUpdates: 0, disposed: [] },
+			{ control: 'provided', sessionsOnly: true, sessionsOnlyClass: true, title: false, actionUpdates: 1, disposed: ['own 1'] },
+			{ control: 'own 2', sessionsOnly: false, sessionsOnlyClass: false, title: true, actionUpdates: 2, disposed: ['provided'] },
 		]);
 	});
 
@@ -275,6 +277,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsViewerVisible: true,
 			updateSessionsControlVisibility: () => ({ changed: false, visible: true }),
 			relayout: () => { },
+			updateActions: () => { },
 			sessionsControl: undefined as unknown,
 			sessionsTitleContainer: undefined as HTMLElement | undefined,
 		};
@@ -357,6 +360,7 @@ suite('ChatViewPane sessions refresh', () => {
 		const host = {
 			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
 			setSessionsListTitleActive: () => { },
+			updateActions: () => { },
 			instantiationService: {
 				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar, container?: HTMLElement) => {
 					if (ctor === AgentSessionsControl) {

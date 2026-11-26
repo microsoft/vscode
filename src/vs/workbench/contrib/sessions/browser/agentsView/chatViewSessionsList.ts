@@ -20,6 +20,8 @@ import { localize } from '../../../../../nls.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatViewSessionsListHelpHint } from '../chatView/chatViewSessionsListAccessibilityHelp.js';
+import { MenuId, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { ChatViewNewSplitButtonActionViewItem } from './chatViewNewSplitButton.js';
 
 /** The shared sessions list of an editor window, embedded in the Chat view, as the Chat view acts on it. */
 class ChatViewSessionsListControl implements IChatViewSessionsListControl {
@@ -28,6 +30,7 @@ class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 		private readonly _view: SessionsView,
 		private readonly _helpHint: IDisposable | undefined,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
 
 	setVisible(visible: boolean): void { this._view.setVisible(visible); }
@@ -52,7 +55,13 @@ class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 	/** The sessions of the Chat view's own list that have focus: none of those here. */
 	getFocus(): IAgentSession[] { return []; }
 	openFind(): void { this._view.openFind(); }
-	createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined { return this._view.createActionViewItem(action, options); }
+	createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		// New Chat of the title as "New" with its keybinding and the menu of its split button
+		if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.ChatNewMenu) {
+			return this._instantiationService.createInstance(ChatViewNewSplitButtonActionViewItem, action, options);
+		}
+		return this._view.createActionViewItem(action, options);
+	}
 	dispose(): void {
 		this._helpHint?.dispose();
 		this._view.dispose();

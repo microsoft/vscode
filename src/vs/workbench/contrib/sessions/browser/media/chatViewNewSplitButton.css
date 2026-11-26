@@ -1,0 +1,63 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The New Chat split button of the Chat view's title while it shows the shared sessions list: as compact as the title's
+icon actions, and styled as the Agents window's New button. */
+
+.chat-view-new-split-button {
+	display: flex;
+	align-items: center;
+}
+
+.chat-view-new-split-button > .monaco-button-dropdown > .monaco-button {
+	height: 22px;
+	box-sizing: border-box;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+.chat-view-new-split-button > .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	width: auto;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+}
+
+.chat-view-new-split-button > .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	padding: 0 var(--vscode-spacing-size20);
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.chat-view-new-split-button > .monaco-button-dropdown > .monaco-button:focus {
+	outline-offset: -1px !important;
+}
+
+.chat-view-new-split-button .chat-view-new-split-button-keybinding {
+	display: inline-flex;
+	align-items: center;
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.chat-view-new-split-button .chat-view-new-split-button-keybinding.hidden,
+.chat-view-new-split-button.narrow .chat-view-new-split-button-keybinding {
+	display: none;
+}
+
+.chat-view-new-split-button .chat-view-new-split-button-keybinding .monaco-keybinding {
+	line-height: inherit;
+}
+
+.chat-view-new-split-button .chat-view-new-split-button-keybinding .monaco-keybinding > .monaco-keybinding-key {
+	margin: 0;
+	padding: 0;
+	min-width: auto;
+	font-size: inherit;
+	border: 0;
+	background-color: transparent;
+	box-shadow: none;
+}
