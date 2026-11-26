@@ -838,6 +838,8 @@ export interface AuthenticateParams {
 	readonly target?: AuthenticateTarget;
 	/** Unverified client-local account selection, stable across token renewals. */
 	readonly accountId?: string;
+	/** The OpenID Connect ID Token issued with `token`. Its claims are unverified, and it is never a bearer credential. */
+	readonly idToken?: string;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }

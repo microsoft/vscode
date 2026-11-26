@@ -28,6 +28,8 @@ export interface IAgentHostAuthCredential {
 	readonly token: string;
 	readonly scopes: readonly string[];
 	readonly accountId?: string;
+	/** The ID Token the client sent with this token, for reading identity claims the access token keeps opaque. */
+	readonly idToken?: string;
 	readonly expiresAt: number | undefined;
 }
 
@@ -94,6 +96,12 @@ interface ILocalCredentialsOptions {
 	readonly isEnabled: () => boolean;
 	readonly getResources: () => readonly ProtectedResourceMetadata[];
 	readonly onDidChange: Event<void>;
+}
+
+function assertOptionalNonemptyString(value: unknown, name: string): void {
+	if (value !== undefined && (typeof value !== 'string' || value.length === 0)) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `${name} must be a nonempty string`);
+	}
 }
 
 function isAccepted(result: PromiseSettledResult<boolean>): boolean {
@@ -183,9 +191,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult> {
-		if (params.accountId !== undefined && (typeof params.accountId !== 'string' || params.accountId.length === 0)) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'accountId must be a nonempty string');
-		}
+		assertOptionalNonemptyString(params.accountId, 'accountId');
+		assertOptionalNonemptyString(params.idToken, 'idToken');
 		const providerList = [...providers];
 		if (scope) {
 			const resources = [
@@ -303,7 +310,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			const selection = { lastAccountId, unhintedAccountId };
 			this._accountSelectionHistory.set(selectionKey, selection);
 			this._tokens.set(key, {
-				resource: params.resource, scopes, token: params.token, expiresAt, accountId: params.accountId,
+				resource: params.resource, scopes, token: params.token, expiresAt, accountId: params.accountId, idToken: params.idToken,
 				clientId, ...selection, ...(params.target ? { target: params.target } : {}),
 			});
 		}
@@ -366,6 +373,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn,
 				...(stored.target ? { target: stored.target } : {}),
 				...(stored.accountId !== undefined ? { accountId: stored.accountId } : {}),
+				...(stored.idToken !== undefined ? { idToken: stored.idToken } : {}),
 			};
 			if (!stored.target && protectedResources.has(stored.resource)) {
 				try {
