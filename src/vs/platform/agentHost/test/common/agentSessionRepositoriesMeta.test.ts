@@ -43,10 +43,15 @@ suite('Agent session repositories metadata', () => {
 
 	test('reads the repository detection options of each folder, dropping malformed entries', () => {
 		const valid = { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], detectSubmodules: false };
+		const sourceControl = { ...valid, detectSubmodulesLimit: 3, scanRepositories: ['tools/repo'], ignoredRepositories: ['vendor'] };
 
 		assert.deepStrictEqual({
 			read: readRepositoryDetectionOptions({
 				valid,
+				sourceControl,
+				fractionalLimit: { ...sourceControl, detectSubmodulesLimit: 2.5 },
+				badScanRepositories: { ...sourceControl, scanRepositories: 'tools' },
+				badIgnoredRepositories: { ...sourceControl, ignoredRepositories: [null] },
 				fractionalDepth: { ...valid, scanMaxDepth: 1.5 },
 				badIgnored: { ...valid, scanIgnoredFolders: [1] },
 				missingSubmodules: { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: [] },
@@ -55,7 +60,8 @@ suite('Agent session repositories metadata', () => {
 			notAMap: readRepositoryDetectionOptions(['valid']),
 			absent: readRepositoryDetectionOptions(undefined),
 		}, {
-			read: { valid },
+			// The fields of a later client are optional
+			read: { valid, sourceControl },
 			notAMap: {},
 			absent: {},
 		});

@@ -5,9 +5,10 @@
 
 /**
  * How a session folder's Git repositories are found, from that folder's `git.autoRepositoryDetection`,
- * `git.repositoryScanMaxDepth`, `git.repositoryScanIgnoredFolders` and `git.detectSubmodules` settings. A client sends
- * them in the session's `repositoryDetection` configuration, by working-directory key. Without options for a folder,
- * only the folder's own repository is used.
+ * `git.repositoryScanMaxDepth`, `git.repositoryScanIgnoredFolders`, `git.scanRepositories`, `git.ignoredRepositories`,
+ * `git.detectSubmodules` and `git.detectSubmodulesLimit` settings, as Source Control finds them. A client sends them in
+ * the session's `repositoryDetection` configuration, by working-directory key. Without options for a folder, only the
+ * folder's own repository is used.
  */
 export interface IRepositoryDetectionOptions {
 	/** Whether repositories in the folder's subfolders are found (`git.autoRepositoryDetection` `true` or `subFolders`). */
@@ -18,6 +19,25 @@ export interface IRepositoryDetectionOptions {
 	readonly scanIgnoredFolders: readonly string[];
 	/** Whether the submodules of a found repository are repositories too (`git.detectSubmodules`). */
 	readonly detectSubmodules: boolean;
+	/** How many submodules of one repository are repositories too (`git.detectSubmodulesLimit`); 10 when absent. */
+	readonly detectSubmodulesLimit?: number;
+	/**
+	 * Paths, relative to the folder, that are checked for a repository too when subfolders are scanned
+	 * (`git.scanRepositories`). Absolute paths and `.git` are ignored, as Source Control ignores them.
+	 */
+	readonly scanRepositories?: readonly string[];
+	/**
+	 * Repositories that are not used (`git.ignoredRepositories`): an absolute path is a repository root, a relative one
+	 * is resolved against each session folder. A folder's own repository is always used.
+	 */
+	readonly ignoredRepositories?: readonly string[];
+}
+
+/** Source Control's default `git.detectSubmodulesLimit`. */
+export const DEFAULT_DETECT_SUBMODULES_LIMIT = 10;
+
+function isStringArray(value: unknown): value is readonly string[] {
+	return Array.isArray(value) && value.every(item => typeof item === 'string');
 }
 
 /** Reads the options of each folder from the session's `repositoryDetection` configuration value, dropping malformed entries. */
@@ -30,10 +50,19 @@ export function readRepositoryDetectionOptions(value: unknown): Readonly<Record<
 		if (!options || typeof options !== 'object') {
 			continue;
 		}
-		const { scanSubfolders, scanMaxDepth, scanIgnoredFolders, detectSubmodules } = options as Record<string, unknown>;
+		const { scanSubfolders, scanMaxDepth, scanIgnoredFolders, detectSubmodules, detectSubmodulesLimit, scanRepositories, ignoredRepositories } = options as Record<string, unknown>;
+		// The fields a client of an earlier version does not send are optional
 		if (typeof scanSubfolders === 'boolean' && typeof scanMaxDepth === 'number' && Number.isInteger(scanMaxDepth) && typeof detectSubmodules === 'boolean'
-			&& Array.isArray(scanIgnoredFolders) && scanIgnoredFolders.every(folder => typeof folder === 'string')) {
-			result[folderKey] = { scanSubfolders, scanMaxDepth, scanIgnoredFolders, detectSubmodules };
+			&& isStringArray(scanIgnoredFolders)
+			&& (detectSubmodulesLimit === undefined || typeof detectSubmodulesLimit === 'number' && Number.isInteger(detectSubmodulesLimit))
+			&& (scanRepositories === undefined || isStringArray(scanRepositories))
+			&& (ignoredRepositories === undefined || isStringArray(ignoredRepositories))) {
+			result[folderKey] = {
+				scanSubfolders, scanMaxDepth, scanIgnoredFolders, detectSubmodules,
+				...(detectSubmodulesLimit !== undefined ? { detectSubmodulesLimit } : {}),
+				...(scanRepositories !== undefined ? { scanRepositories } : {}),
+				...(ignoredRepositories !== undefined ? { ignoredRepositories } : {}),
+			};
 		}
 	}
 	return result;

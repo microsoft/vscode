@@ -369,13 +369,13 @@ suite('AgentHostGitService', () => {
 				await fsPromises.writeFile(join(folder, '.git'), 'gitdir: ../.git/modules/x');
 			}
 			if (options?.gitmodules) {
-				await fsPromises.writeFile(join(folder, '.gitmodules'), options.gitmodules.map(path => `[submodule "${path}"]\n\tpath = ${path}\n\turl = https://example.test/${path}\n`).join(''));
+				await fsPromises.writeFile(join(folder, '.gitmodules'), options.gitmodules.map(path => `[submodule "${path.replaceAll('"', '')}"]\n\tpath = ${path}\n\turl = https://example.test/${path.replaceAll('"', '')}\n`).join(''));
 			}
 		}
 
 		function find(options: Partial<IFindRepositoriesOptions>, budget?: RepositoryScanBudget): Promise<string[]> {
 			const git = store.add(new AgentHostGitService(...gitArguments()));
-			return git.findRepositories(URI.file(root), { scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], detectSubmodules: true, limit: 16, ...options }, budget)
+			return git.findRepositories(URI.file(root), { scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], scanRepositories: [], ignoredRepositories: [], detectSubmodules: true, detectSubmodulesLimit: 10, limit: 16, ...options }, budget)
 				.then(found => found.map(repository => `${repository.kind} ${relative(root, repository.root.fsPath).split(sep).join('/')}`));
 		}
 
@@ -454,6 +454,34 @@ suite('AgentHostGitService', () => {
 			await fsPromises.symlink(join(root, 'elsewhere'), join(root, 'link'), 'dir');
 
 			assert.deepStrictEqual(await find({ scanMaxDepth: -1, scanIgnoredFolders: ['elsewhere'] }), ['nested a/b/c/repo3']);
+		});
+
+		test('takes the first submodules up to the limit, as Source Control opens them, and the submodules of submodules', async () => {
+			await makeFolder('.', { repository: true, gitmodules: ['a', 'b', 'c'] });
+			await makeFolder('a', { gitFile: true, gitmodules: ['inner'] });
+			await makeFolder('a/inner', { gitFile: true });
+			await makeFolder('b', { gitFile: true });
+			await makeFolder('c', { gitFile: true });
+
+			assert.deepStrictEqual({
+				limited: await find({ scanMaxDepth: 0, detectSubmodulesLimit: 2 }),
+				none: await find({ scanMaxDepth: 0, detectSubmodulesLimit: 0 }),
+			}, {
+				limited: ['submodule a', 'submodule a/inner', 'submodule b'],
+				none: [],
+			});
+		});
+
+		test('checks the scanRepositories paths inside the folder, and leaves out ignored repositories and their submodules', async () => {
+			await makeFolder('deep/er/repo', { repository: true });
+			await makeFolder('skipped', { repository: true, gitmodules: ['lib'] });
+			await makeFolder('skipped/lib', { gitFile: true });
+			await makeFolder('kept', { repository: true });
+
+			assert.deepStrictEqual(await find({
+				scanRepositories: ['deep/er/repo', '.git', '/etc', '../outside'],
+				ignoredRepositories: [URI.file(join(root, 'skipped'))],
+			}), ['nested kept', 'nested deep/er/repo']);
 		});
 
 		test('a folder that is a repository itself lists its submodules and the repositories nested in it', async () => {

@@ -3133,10 +3133,10 @@ suite('AgentHostGitStateService', () => {
 	test('finds the repositories of the session\'s folders as its client\'s Git settings say, each with its own Git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const read = async (options: Record<string, unknown> | undefined, found: readonly string[] = ['file:///wd/vscode', 'file:///wd/vscode-docs']) => {
 			const h = createHarness();
-			const scans: { folder: string; scanMaxDepth: number; detectSubmodules: boolean; limit: number }[] = [];
+			const scans: { folder: string; scanMaxDepth: number; detectSubmodules: boolean; limit: number; detectSubmodulesLimit: number; scanRepositories: readonly string[]; ignoredRepositories: readonly string[] }[] = [];
 			h.gitService.getRepositoryRoot = async folder => folder.toString() === WORKING_DIRECTORY ? undefined : folder;
 			h.gitService.findRepositories = async (folder, scan) => {
-				scans.push({ folder: folder.toString(), scanMaxDepth: scan.scanMaxDepth, detectSubmodules: scan.detectSubmodules, limit: scan.limit });
+				scans.push({ folder: folder.toString(), scanMaxDepth: scan.scanMaxDepth, detectSubmodules: scan.detectSubmodules, limit: scan.limit, detectSubmodulesLimit: scan.detectSubmodulesLimit, scanRepositories: scan.scanRepositories, ignoredRepositories: scan.ignoredRepositories.map(root => root.toString()) });
 				return found.slice(0, scan.limit).map(root => ({ root: URI.parse(root), kind: 'nested' as const }));
 			};
 			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
@@ -3156,21 +3156,28 @@ suite('AgentHostGitStateService', () => {
 			};
 		};
 		const scanning = { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], detectSubmodules: true };
+		const sourceControl = { ...scanning, detectSubmodulesLimit: 3, scanRepositories: ['tools/repo'], ignoredRepositories: ['/abs/ignored', 'vendor/lib'] };
+		const defaults = { detectSubmodulesLimit: 10, scanRepositories: [], ignoredRepositories: [] };
 
 		assert.deepStrictEqual({
 			scanning: await read(scanning),
+			// Relative ignored repositories are resolved against the session folders; checked paths only when subfolders are scanned
+			sourceControl: (await read(sourceControl)).scans,
+			sourceControlOff: (await read({ ...sourceControl, scanSubfolders: false }, [])).scans,
 			detectionOff: await read({ ...scanning, scanSubfolders: false }, []),
 			// Without options, as from a remote or older client, each folder is its own repository, as before
 			noOptions: await read(undefined),
 			capped: (await read(scanning, Array.from({ length: 20 }, (_, index) => `file:///wd/repo${index}`))).repositories?.length,
 		}, {
 			scanning: {
-				scans: [{ folder: WORKING_DIRECTORY, scanMaxDepth: 1, detectSubmodules: true, limit: 16 }],
+				scans: [{ folder: WORKING_DIRECTORY, scanMaxDepth: 1, detectSubmodules: true, limit: 16, ...defaults }],
 				repositories: [{ root: 'file:///wd/vscode', kind: 'nested' }, { root: 'file:///wd/vscode-docs', kind: 'nested' }],
 				branches: ['vscode-feature', 'docs-main'],
 			},
+			sourceControl: [{ folder: WORKING_DIRECTORY, scanMaxDepth: 1, detectSubmodules: true, limit: 16, detectSubmodulesLimit: 3, scanRepositories: ['tools/repo'], ignoredRepositories: [URI.file('/abs/ignored').toString(), 'file:///wd/vendor/lib'] }],
+			sourceControlOff: [{ folder: WORKING_DIRECTORY, scanMaxDepth: 0, detectSubmodules: true, limit: 16, detectSubmodulesLimit: 3, scanRepositories: [], ignoredRepositories: [URI.file('/abs/ignored').toString(), 'file:///wd/vendor/lib'] }],
 			// Without scanning the subfolders, only the folder's submodules are looked for
-			detectionOff: { scans: [{ folder: WORKING_DIRECTORY, scanMaxDepth: 0, detectSubmodules: true, limit: 16 }], repositories: [], branches: [] },
+			detectionOff: { scans: [{ folder: WORKING_DIRECTORY, scanMaxDepth: 0, detectSubmodules: true, limit: 16, ...defaults }], repositories: [], branches: [] },
 			noOptions: { scans: [], repositories: undefined, branches: [undefined, undefined] },
 			capped: 16,
 		});

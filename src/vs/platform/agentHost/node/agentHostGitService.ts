@@ -22,6 +22,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, BaseBranch, parseBaseBranchRef, WorktreeAddError, IAddWorktreeResult, type IFindRepositoriesOptions, type IFoundRepository, RepositoryScanBudget } from '../common/agentHostGitService.js';
+import { parseGitmodules } from '../common/gitmodules.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
@@ -90,7 +91,7 @@ const REPOSITORY_SCAN_TIMEOUT_MS = 5_000;
 const MAX_REPOSITORY_SCAN_RESULTS = 64;
 /** The largest `.gitmodules` file a scan reads. */
 const MAX_GITMODULES_BYTES = 64 * 1024;
-/** The most submodules a scan takes from one `.gitmodules` file. */
+/** The most submodules a scan takes from one `.gitmodules` file, whatever `git.detectSubmodulesLimit` says. */
 const MAX_GITMODULES_ENTRIES = 64;
 
 export class AgentHostGitService extends Disposable implements IAgentHostGitService {
@@ -403,6 +404,8 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			const stat = await probe(() => fsPromises.lstat(directory));
 			return !!stat && stat.isDirectory() && !stat.isSymbolicLink();
 		};
+		const ignoredRoots = new Set(options.ignoredRepositories.map(root => extUriBiasedIgnorePathCase.getComparisonKey(root)));
+		const isIgnored = (root: URI) => ignoredRoots.has(extUriBiasedIgnorePathCase.getComparisonKey(root));
 		const add = (root: URI, kind: IFoundRepository['kind']) => {
 			const key = extUriBiasedIgnorePathCase.getComparisonKey(root);
 			if (found.length < limit && !seen.has(key)) {
@@ -410,8 +413,24 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 				found.push({ root, kind });
 			}
 		};
-		const addSubmodules = async (repository: URI) => {
-			if (!options.detectSubmodules || done()) {
+		// The plain folder at `relativePath` inside `parent`, when no component of it is a symbolic link or leaves `parent`
+		const containedFolder = async (parent: string, relativePath: string) => {
+			const parts = !path.isAbsolute(relativePath) ? relativePath.split(/[\\/]/).filter(part => part && part !== '.') : [];
+			if (!parts.length || parts.includes('..')) {
+				return undefined;
+			}
+			let candidate = parent;
+			for (const part of parts) {
+				candidate = path.join(candidate, part);
+				if (!await isPlainDirectory(candidate)) {
+					return undefined;
+				}
+			}
+			return candidate;
+		};
+		// The submodules of `repository`, and theirs, as Source Control opens them
+		const addSubmodules = async (repository: URI, depth = 0): Promise<void> => {
+			if (!options.detectSubmodules || done() || depth > MAX_REPOSITORY_SCAN_DEPTH) {
 				return;
 			}
 			const file = path.join(repository.fsPath, '.gitmodules');
@@ -420,30 +439,24 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 				return;
 			}
 			const content = await probe(() => fsPromises.readFile(file, 'utf8'));
-			let entries = 0;
-			for (const match of content?.matchAll(/^\s*path\s*=\s*(?<path>.+?)\s*$/gm) ?? []) {
-				if (done() || ++entries > MAX_GITMODULES_ENTRIES) {
+			for (const submodule of parseGitmodules(content ?? '').slice(0, Math.min(options.detectSubmodulesLimit, MAX_GITMODULES_ENTRIES))) {
+				if (done()) {
 					return;
 				}
-				// A quoted value, as Git config allows, without its quotes (as Source Control reads it)
-				const relativePath = match.groups?.path.replace(/^"(?<unquoted>.*)"$/, '$<unquoted>');
-				const parts = relativePath && !path.isAbsolute(relativePath) ? relativePath.split(/[\\/]/).filter(part => part && part !== '.') : [];
-				if (!parts.length || parts.includes('..')) {
-					continue;
-				}
-				// Every component is a plain folder inside the repository, so no link leads out of it
-				let candidate = repository.fsPath;
-				let contained = true;
-				for (const part of parts) {
-					candidate = path.join(candidate, part);
-					if (!await isPlainDirectory(candidate)) {
-						contained = false;
-						break;
+				const candidate = await containedFolder(repository.fsPath, submodule.path);
+				if (candidate && await hasGitEntry(candidate)) {
+					const root = URI.file(candidate);
+					if (!isIgnored(root)) {
+						add(root, 'submodule');
+						await addSubmodules(root, depth + 1);
 					}
 				}
-				if (contained && await hasGitEntry(candidate)) {
-					add(URI.file(candidate), 'submodule');
-				}
+			}
+		};
+		const addRepository = async (root: URI) => {
+			if (!isIgnored(root)) {
+				add(root, 'nested');
+				await addSubmodules(root);
 			}
 		};
 		await addSubmodules(folder);
@@ -465,8 +478,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 					}
 					const child = URI.file(path.join(parent.fsPath, entry.name));
 					if (await hasGitEntry(child.fsPath)) {
-						add(child, 'nested');
-						await addSubmodules(child);
+						await addRepository(child);
 					} else if (depth < maxDepth && next.length < budget.remaining) {
 						// Only folders the scan can still read are queued
 						next.push(child);
@@ -474,6 +486,16 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 				}
 			}
 			level = next;
+		}
+		// The paths `git.scanRepositories` lists, as Source Control checks them besides the subfolders
+		for (const scanPath of options.scanRepositories) {
+			if (done()) {
+				break;
+			}
+			const candidate = scanPath !== '.git' ? await containedFolder(folder.fsPath, scanPath) : undefined;
+			if (candidate && await hasGitEntry(candidate)) {
+				await addRepository(URI.file(candidate));
+			}
 		}
 		if (budget.exhausted && found.length < limit) {
 			this._logService.info(`[AgentHostGitService] Stopped finding the repositories of ${folder.toString()} after ${budget.used} file system calls: the scan reached its bounds`);

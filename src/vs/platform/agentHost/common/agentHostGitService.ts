@@ -331,6 +331,15 @@ export interface IFindRepositoriesOptions {
 	readonly scanIgnoredFolders: readonly string[];
 	/** Whether the submodules a found repository's (or the scanned folder's) `.gitmodules` lists are repositories too. */
 	readonly detectSubmodules: boolean;
+	/**
+	 * How many of the submodules a `.gitmodules` file lists are repositories too: the first ones, as Source Control
+	 * opens the first `git.detectSubmodulesLimit`.
+	 */
+	readonly detectSubmodulesLimit: number;
+	/** Paths relative to the scanned folder that are checked for a repository too; absolute paths and `.git` are skipped. */
+	readonly scanRepositories: readonly string[];
+	/** Repository roots that are not returned, nor scanned for their submodules. */
+	readonly ignoredRepositories: readonly URI[];
 	/** The most repositories to return. */
 	readonly limit: number;
 }
@@ -404,12 +413,13 @@ export interface IAgentHostGitService {
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**
 	 * Finds the Git repositories in the subfolders of `folder`, as source control does: folders that have a `.git` entry,
-	 * down to `scanMaxDepth` levels (`-1` for no limit), not in the `scanIgnoredFolders` or a `.git` folder, and, with
-	 * `detectSubmodules`, the submodules that the `.gitmodules` file of a found repository (or of `folder` itself)
-	 * lists. Does not include `folder` itself, and does not search inside a found repository except for its
-	 * submodules, nor follow symbolic links. Returns at most `limit` repositories, in the order they are found, breadth
-	 * first. A submodule counts only when its path stays inside its repository and no component of it, nor the
-	 * `.gitmodules` file, is a symbolic link. Whatever the options, a scan is bounded in depth and in repositories found,
+	 * down to `scanMaxDepth` levels (`-1` for no limit), not in the `scanIgnoredFolders` or a `.git` folder, the paths
+	 * `scanRepositories` lists, and, with `detectSubmodules`, the first `detectSubmodulesLimit` submodules that the
+	 * `.gitmodules` file of a found repository (or of `folder` itself, or of a submodule) lists, read as the Git
+	 * extension reads it. Leaves out the `ignoredRepositories` and their submodules. Does not include `folder` itself,
+	 * and does not search inside a found repository except for its submodules, nor follow symbolic links. Returns at most `limit` repositories, in the order they are found, breadth
+	 * first. A submodule or a `scanRepositories` path counts only when it stays inside its repository or `folder` and no
+	 * component of it, nor the `.gitmodules` file, is a symbolic link. Whatever the options, a scan is bounded in depth and in repositories found,
 	 * and every file system call it makes is charged to `budget` (by default, a budget of its own): once that is used
 	 * up, the scan returns what it found.
 	 */

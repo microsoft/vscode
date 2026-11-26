@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as objectEquals } from '../../../base/common/objects.js';
-import { isEqual } from '../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../base/common/resources.js';
+import { Schemas } from '../../../base/common/network.js';
+import { isAbsolute } from '../../../base/common/path.js';
 import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -35,7 +37,7 @@ import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestA
 import { isSessionChatInFolder, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { readSessionNonRepositoryFolders, withSessionNonRepositoryFolders } from '../common/meta/agentSessionNonRepositoryFoldersMeta.js';
-import { readRepositoryDetectionOptions, readSessionRepositories, withSessionRepositories, type IRepositoryDetectionOptions, type ISessionRepositoryEntry } from '../common/meta/agentSessionRepositoriesMeta.js';
+import { DEFAULT_DETECT_SUBMODULES_LIMIT, readRepositoryDetectionOptions, readSessionRepositories, withSessionRepositories, type IRepositoryDetectionOptions, type ISessionRepositoryEntry } from '../common/meta/agentSessionRepositoriesMeta.js';
 import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -83,6 +85,16 @@ const REPOSITORY_DISCOVERY_TIMEOUT_MS = 5_000;
 const REPOSITORY_REDISCOVERY_INTERVAL_MS = 60_000;
 /** How long after a discovery a forced refresh, as after a Git operation or a turn, finds the repositories again. */
 const FORCED_REDISCOVERY_INTERVAL_MS = 30_000;
+
+/**
+ * The repository roots `git.ignoredRepositories` lists, as Source Control reads it: an absolute path is a root, a
+ * relative one is resolved against each of the session `folders`.
+ */
+function resolveIgnoredRepositories(ignoredRepositories: readonly string[], folders: readonly string[]): readonly URI[] {
+	return ignoredRepositories.flatMap(ignored => isAbsolute(ignored)
+		? [URI.file(ignored)]
+		: folders.map(folder => URI.parse(folder)).filter(folder => folder.scheme === Schemas.file).map(folder => joinPath(folder, ignored)));
+}
 interface IPendingRecordedPullRequest {
 	readonly chat: string;
 	readonly folderKey: string;
@@ -1031,7 +1043,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			const found = await this._gitService.findRepositories?.(URI.parse(folder), {
 				scanMaxDepth: folderOptions.scanSubfolders ? folderOptions.scanMaxDepth : 0,
 				scanIgnoredFolders: folderOptions.scanIgnoredFolders,
+				// Source Control checks them only when it scans subfolders
+				scanRepositories: folderOptions.scanSubfolders ? folderOptions.scanRepositories ?? [] : [],
+				ignoredRepositories: resolveIgnoredRepositories(folderOptions.ignoredRepositories ?? [], discovered),
 				detectSubmodules: folderOptions.detectSubmodules,
+				detectSubmodulesLimit: folderOptions.detectSubmodulesLimit ?? DEFAULT_DETECT_SUBMODULES_LIMIT,
 				limit: remaining,
 			}, budget).catch(error => {
 				this._logService.warn(`[AgentHostGitStateService] Failed to find the repositories of ${folder}`, error);
