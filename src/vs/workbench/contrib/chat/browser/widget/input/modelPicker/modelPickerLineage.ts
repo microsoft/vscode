@@ -57,6 +57,21 @@ function compareVersions(left: readonly number[], right: readonly number[]): num
 	return 0;
 }
 
+/** Orders model names alphabetically, but puts newer numeric versions first. */
+export function compareModelNames(left: string, right: string): number {
+	const leftParts = left.split(/(?<version>\d+(?:\.\d+)*)/);
+	const rightParts = right.split(/(?<version>\d+(?:\.\d+)*)/);
+	for (let i = 0; i < Math.min(leftParts.length, rightParts.length); i++) {
+		const difference = i % 2 === 0
+			? leftParts[i].localeCompare(rightParts[i])
+			: compareVersions(rightParts[i].split('.').map(Number), leftParts[i].split('.').map(Number));
+		if (difference !== 0) {
+			return difference;
+		}
+	}
+	return leftParts.length - rightParts.length || left.localeCompare(right);
+}
+
 /**
  * The newest model of each product line, which is the shortlist the picker leads with.
  * Deriving it means a new version surfaces itself without anyone editing a list.

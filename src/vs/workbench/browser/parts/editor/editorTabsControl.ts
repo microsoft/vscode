@@ -26,7 +26,8 @@ import { EditorPane } from './editorPane.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
+import { resolveModalEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { EditorTitleContextEditorIdContext, ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { isFirefox } from '../../../../base/browser/browser.js';
@@ -90,6 +91,7 @@ export interface IEditorTabsControl extends IDisposable {
 	unstickEditor(editor: EditorInput): void;
 	setActive(isActive: boolean): void;
 	updateEditorSelections(): void;
+	updateEditorActions(): void;
 	updateEditorLabel(editor: EditorInput): void;
 	updateEditorCapabilities(editor: EditorInput): void;
 	updateEditorDirty(editor: EditorInput): void;
@@ -138,6 +140,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private readonly contextMenuContextKeyService: IContextKeyService;
 	private resourceContext: ResourceContextKey;
+	private readonly editorTitleContextEditorId: IContextKey<string>;
 
 	private editorPinnedContext: IContextKey<boolean>;
 	private editorIsFirstContext: IContextKey<boolean>;
@@ -189,6 +192,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		this.resourceContext = this._register(scopedInstantiationService.createInstance(ResourceContextKey));
 
+		this.editorTitleContextEditorId = EditorTitleContextEditorIdContext.bindTo(this.contextMenuContextKeyService);
 		this.editorPinnedContext = ActiveEditorPinnedContext.bindTo(this.contextMenuContextKeyService);
 		this.editorIsFirstContext = ActiveEditorFirstInGroupContext.bindTo(this.contextMenuContextKeyService);
 		this.editorIsLastContext = ActiveEditorLastInGroupContext.bindTo(this.contextMenuContextKeyService);
@@ -227,20 +231,24 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		parent.appendChild(this.editorLayoutActionsToolbarContainer);
 
 		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
+		this.updateEditorActionsPendingState();
 	}
 
-	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
+	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): EditorAddTabControl {
 		const context: IEditorCommandsContext = { groupId: this.groupView.id };
+		const recentFirst = this.menuIds?.tabsBarAddTabRecentFirst === true;
 		const control = this._register(this.instantiationService.createInstance(EditorAddTabControl, parent, menuId, this.contextKeyService, {
 			before,
 			keybindingProvider: action => this.getKeybinding(action),
-			context
+			context,
+			recentFirst,
+			defaultEntry: recentFirst
 		}));
 		if (onDidChangeVisibility) {
 			this._register(control.onDidChangeVisibility(onDidChangeVisibility));
 		}
 
-		return control.element;
+		return control;
 	}
 
 	private updateEditorLayoutActionsSeparator(): void {
@@ -376,8 +384,22 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return createActionViewItem(this.instantiationService, action, { ...options, menuAsChild: this.renderDropdownAsChildElement });
 	}
 
+	updateEditorActions(): void {
+		this.updateEditorActionsPendingState();
+		this.updateEditorActionsToolbar();
+	}
+
+	private updateEditorActionsPendingState(): void {
+		for (const container of [this.editorActionsToolbarContainer, this.editorLayoutActionsToolbarContainer]) {
+			if (container) {
+				container.inert = this.groupView.isOpeningEditor;
+				container.setAttribute('aria-busy', String(this.groupView.isOpeningEditor));
+			}
+		}
+	}
+
 	protected updateEditorActionsToolbar(): void {
-		if (!this.editorActionsEnabled) {
+		if (!this.editorActionsEnabled || this.groupView.isOpeningEditor) {
 			return;
 		}
 
@@ -397,6 +419,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected updateEditorLayoutActionsToolbar(): void {
 		if (
 			!this.editorActionsEnabled ||
+			this.groupView.isOpeningEditor ||
 			!this.editorLayoutActionsToolbarContainer ||
 			!this.editorLayoutActionsToolbar
 		) {
@@ -446,9 +469,26 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}
 	}
 
+	/**
+	 * Whether the given editors can be dragged: not when one of them always
+	 * shows in the modal editor part and cannot move into an editor area.
+	 */
+	protected canDragEditors(editors: readonly EditorInput[]): boolean {
+		return editors.every(editor => {
+			const modalOptions = resolveModalEditorOptions(editor);
+
+			return !modalOptions?.alwaysModal || modalOptions.canMoveToEditorArea !== false;
+		});
+	}
+
 	protected onGroupDragStart(e: DragEvent, element: HTMLElement): boolean {
 		if (e.target !== element) {
 			return false; // only if originating from tabs container
+		}
+
+		if (!this.canDragEditors(this.groupView.editors)) {
+			e.preventDefault();
+			return false;
 		}
 
 		const isNewWindowOperation = this.isNewWindowOperation(e);
@@ -565,6 +605,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected onTabContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
 
 		// Update contexts based on editor picked and remember previous to restore
+		this.editorTitleContextEditorId.set(editor.editorId ?? '');
 		this.resourceContext.set(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }));
 		this.editorPinnedContext.set(this.tabsModel.isPinned(editor));
 		this.editorIsFirstContext.set(this.tabsModel.isFirst(editor));

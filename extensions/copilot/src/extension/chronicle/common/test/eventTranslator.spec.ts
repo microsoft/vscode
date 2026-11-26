@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ICompletedSpanData } from '../../../../platform/otel/common/otelService';
 import type { IDebugLogEntry } from '../../../../platform/chat/common/chatDebugFileLoggerService';
-import { createSessionTranslationState, deriveTitleFromUserMessage, isTerminalFlushEvent, makeIdleEvent, makeShutdownEvent, STREAMING_EVENT_TYPES, TERMINAL_FLUSH_EVENT_TYPES, translateDebugLogEntry, translateSpan } from '../eventTranslator';
+import { createSessionTranslationState, deriveTitleFromUserMessage, isTerminalFlushEvent, makeShutdownEvent, STREAMING_EVENT_TYPES, TERMINAL_FLUSH_EVENT_TYPES, translateDebugLogEntry, translateSpan } from '../eventTranslator';
 import type { SessionEvent } from '../cloudSessionTypes';
 
 function makeSpan(overrides: Partial<ICompletedSpanData> = {}): ICompletedSpanData {
@@ -366,15 +366,6 @@ describe('translateSpan', () => {
 
 		expect(events.map(e => e.type)).toEqual(['session.start', 'user.message', 'session.title_changed', 'assistant.message']);
 		expect(events.every(e => e.agentId === undefined)).toBe(true);
-	});
-});
-
-describe('makeIdleEvent', () => {
-	it('creates an ephemeral session.idle event', () => {
-		const state = createSessionTranslationState();
-		const event = makeIdleEvent(state);
-		expect(event.type).toBe('session.idle');
-		expect(event.ephemeral).toBe(true);
 	});
 });
 

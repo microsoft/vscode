@@ -4286,6 +4286,52 @@ suite('Editor Controller', () => {
 		});
 	}
 
+	for (const [autoIndent, preservesIndentation] of [
+		['none', true],
+		['keep', true],
+		['brackets', false],
+		['advanced', false],
+		['full', false]
+	] as const) {
+		test(`issue #125261: closing brackets respect autoIndent ${autoIndent}`, () => {
+			for (const languageId of [undefined, electricCharLanguageId]) {
+				for (const [open, close] of [['{', '}'], ['(', ')']]) {
+					usingCursor({
+						text: [`foo ${open}`, '  '],
+						languageId,
+						editorOpts: { autoIndent, autoClosingBrackets: 'never' }
+					}, (editor, model, viewModel) => {
+						moveTo(editor, viewModel, 2, 3);
+						viewModel.type(close, 'keyboard');
+						const indentation = preservesIndentation ? '  ' : '';
+						assert.deepStrictEqual(
+							[model.getValue(), viewModel.getSelections()],
+							[`foo ${open}\n${indentation}${close}`, [new Selection(2, indentation.length + 2, 2, indentation.length + 2)]]
+						);
+					});
+				}
+			}
+		});
+	}
+
+	test('issue #125261: changing autoIndent updates closing bracket behavior', () => {
+		usingCursor({
+			text: ['foo {', '  '],
+			editorOpts: { autoIndent: 'brackets', autoClosingBrackets: 'never' }
+		}, (editor, model, viewModel) => {
+			editor.updateOptions({ autoIndent: 'keep' });
+			moveTo(editor, viewModel, 2, 3);
+			viewModel.type('}', 'keyboard');
+			assert.strictEqual(model.getValue(), 'foo {\n  }');
+
+			model.setValue('foo {\n  ');
+			editor.updateOptions({ autoIndent: 'brackets' });
+			moveTo(editor, viewModel, 2, 3);
+			viewModel.type('}', 'keyboard');
+			assert.strictEqual(model.getValue(), 'foo {\n}');
+		});
+	});
+
 	const electricCharacterCases: [name: string, text: string[], lineNumber: number, column: number, chr: string, expected: string][] = [
 		['ElectricCharacter - does nothing if no electric char', ['  if (a) {', ''], 2, 1, '*', '*'],
 		['ElectricCharacter - indents in order to match bracket', ['  if (a) {', ''], 2, 1, '}', '  }'],

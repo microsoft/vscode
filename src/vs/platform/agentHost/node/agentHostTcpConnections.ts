@@ -10,7 +10,7 @@ import { negotiateChannelFlowControl } from '../common/agentHostChannel.js';
 import { AgentHostChannelError } from '../common/agentHostChannelTelemetry.js';
 import type { AgentHostConnectionChannels } from './agentHostConnectionChannels.js';
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpMaxConnections, agentHostTcpReceiveLimits } from '../common/agentHostTcpConnection.js';
-import type { CreateTcpConnectionParams } from '../common/state/protocol/channels-tcp/commands.js';
+import type { CreateTcpConnectionParams, CreateTcpConnectionResult } from '../common/state/protocol/channels-tcp/commands.js';
 import type { SubscribeParams, SubscribeResult } from '../common/state/protocol/common/commands.js';
 import type { ChannelFlowControl } from '../common/state/protocol/common/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
@@ -43,7 +43,7 @@ export class AgentHostTcpConnections extends Disposable {
 		this._writeBudget = new AgentHostTcpBudget(agentHostTcpMaxConnections, _budget);
 	}
 
-	async create(params: CreateTcpConnectionParams): Promise<null> {
+	async create(params: CreateTcpConnectionParams): Promise<CreateTcpConnectionResult> {
 		if (!params || typeof params.channel !== 'string' || !/^ahp-tcp:[^\s?#]+$/.test(params.channel) || params.channel.length > 256
 			|| typeof params.host !== 'string' || !params.host.length || params.host.length > 253 || /[\s/?#@]/.test(params.host)
 			|| !Number.isInteger(params.port) || params.port < 1 || params.port > 65535) {
@@ -121,7 +121,7 @@ export class AgentHostTcpConnections extends Disposable {
 			this._remove(params.channel, entry);
 			throw new ProtocolError(AhpErrorCodes.TcpConnectionOpenFailed, 'Unable to open TCP destination');
 		}
-		return null;
+		return {};
 	}
 
 	subscribe(params: SubscribeParams): SubscribeResult {

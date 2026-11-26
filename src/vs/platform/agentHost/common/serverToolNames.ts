@@ -22,6 +22,7 @@ export const enum SessionServerToolName {
 	SetWorkspace = 'set_workspace',
 	IsolateSession = 'isolate_session',
 	CreateSession = 'create_session',
+	ListModels = 'list_models',
 	CreateChat = 'create_chat',
 	RenameChat = 'rename_chat',
 	ArchiveChat = 'archive_chat',

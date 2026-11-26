@@ -467,7 +467,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CommentCommandId.Hide,
+	id: CommentCommandId.CollapseVisible,
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.Escape,
 	win: { primary: KeyMod.Alt | KeyCode.Backspace },
@@ -477,7 +477,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const keybindingService = accessor.get(IKeybindingService);
 		// Unfortunate, but collapsing the comment thread might cause a dialog to show
 		// If we don't wait for the key up here, then the dialog will consume it and immediately close
-		await keybindingService.enableKeybindingHoldMode(CommentCommandId.Hide);
+		await keybindingService.enableKeybindingHoldMode(CommentCommandId.CollapseVisible);
 		if (activeCodeEditor) {
 			const controller = CommentController.get(activeCodeEditor);
 			if (controller) {

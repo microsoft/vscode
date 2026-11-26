@@ -7,19 +7,20 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { constObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
-import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { constObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { IAgentHostTerminalCreateOptions, IAgentHostTerminalProfileInfo, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace } from '../../../../../workbench/contrib/sessions/common/agentHostSessionWorkspace.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
-import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ChatInteractivity, IChat, ISession, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus } from '../../../../../workbench/services/sessions/common/session.js';
@@ -31,6 +32,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -46,6 +48,7 @@ import { CustomViewVisibleContext } from '../../../../common/agentsWindowContext
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -67,6 +70,8 @@ type TestTerminalInstance = ITerminalInstance & {
 	_testSetDisposed(disposed: boolean): void;
 	_testSetInitialCwdBarrier(barrier: Promise<void> | undefined): void;
 	_testSetShellLaunchConfig(shellLaunchConfig: ITerminalInstance['shellLaunchConfig']): void;
+	/** Makes the process start: its cwd stays unknown, as `''`, until it is ready. */
+	_testSetProcessStarting(): DeferredPromise<void>;
 };
 
 type TestActiveSession = ITestSessionWithChat & {
@@ -237,6 +242,8 @@ function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
 	const commandHistory: { timestamp: number }[] = [];
 	let isDisposed = false;
 	let initialCwdBarrier: Promise<void> | undefined;
+	let processReady = Promise.resolve();
+	let processStarting = false;
 	let shellLaunchConfig: ITerminalInstance['shellLaunchConfig'] = {} as ITerminalInstance['shellLaunchConfig'];
 	const capabilities = {
 		get(cap: TerminalCapability) {
@@ -251,9 +258,13 @@ function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
 		instanceId: id,
 		get isDisposed() { return isDisposed; },
 		get shellLaunchConfig() { return shellLaunchConfig; },
+		get processReady() { return processReady; },
+		target: TerminalLocation.Panel,
+		onDisposed: Event.None,
+		onExit: Event.None,
 		async getInitialCwd() {
 			await initialCwdBarrier;
-			return cwd;
+			return processStarting ? '' : cwd;
 		},
 		capabilities,
 		_testCommandHistory: commandHistory,
@@ -265,6 +276,12 @@ function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
 		},
 		_testSetShellLaunchConfig(value: ITerminalInstance['shellLaunchConfig']) {
 			shellLaunchConfig = value;
+		},
+		_testSetProcessStarting() {
+			const ready = new DeferredPromise<void>();
+			processStarting = true;
+			processReady = ready.p.then(() => { processStarting = false; });
+			return ready;
 		},
 	} as unknown as TestTerminalInstance;
 }
@@ -288,6 +305,9 @@ suite('SessionsTerminalContribution', () => {
 	let agentHostTerminalAddresses: string[];
 	/** The agent host each agent host terminal runs on, keyed by instance id. */
 	let agentHostTerminalAddressById: Map<number, string>;
+	/** The cwd each agent host terminal was created to start in, keyed by instance id. */
+	let agentHostTerminalRequestedCwdById: Map<number, URI>;
+	let agentHostProfilesAvailable: boolean;
 	let terminalCreationBarriers: Map<string, DeferredPromise<void>>;
 	let terminalCreationStarted: string[];
 	let activeInstanceSet: number[];
@@ -299,20 +319,31 @@ suite('SessionsTerminalContribution', () => {
 	let backgroundedInstances: Set<number>;
 	let moveToBackgroundCalls: number[];
 	let showBackgroundCalls: number[];
+	/** Show and hide calls in order, as `show:<id>` and `hide:<id>`. */
+	let visibilityOperations: string[];
 	let disposeOnCreatePaths: Set<string>;
 	let defaultCwdCalls: (URI | undefined)[];
+	let localDefaultCwdCalls: (Promise<URI> | undefined)[];
 	let vetoSafeDispose: boolean;
 	let safeDisposeBarrier: DeferredPromise<void> | undefined;
 	let logService: TestLogService;
 	let allSessions: ISession[];
 	let sessionProviders: Map<string, ISessionsProvider>;
 	let instantiationService: TestInstantiationService;
-	let cwdExists: (uri: URI) => boolean;
+	let cwdExists: (uri: URI) => boolean | Promise<boolean>;
+	let activeCustomViewObs: ISettableObservable<ICustomViewDescriptor | undefined, void>;
+	let terminalViewVisible: boolean;
+	let terminalGroupCount: number;
+	let viewVisibilityEmitter: Emitter<{ id: string; visible: boolean }>;
+	let partVisibilityEmitter: Emitter<IPartVisibilityChangeEvent>;
+	let panelVisible: boolean;
 
 	setup(() => {
 		createdTerminals = [];
 		agentHostTerminalAddresses = [];
 		agentHostTerminalAddressById = new Map();
+		agentHostTerminalRequestedCwdById = new Map();
+		agentHostProfilesAvailable = true;
 		terminalCreationBarriers = new Map();
 		terminalCreationStarted = [];
 		activeInstanceSet = [];
@@ -324,8 +355,10 @@ suite('SessionsTerminalContribution', () => {
 		backgroundedInstances = new Set();
 		moveToBackgroundCalls = [];
 		showBackgroundCalls = [];
+		visibilityOperations = [];
 		disposeOnCreatePaths = new Set();
 		defaultCwdCalls = [];
+		localDefaultCwdCalls = [];
 		vetoSafeDispose = false;
 		safeDisposeBarrier = undefined;
 		logService = new TestLogService();
@@ -355,6 +388,11 @@ suite('SessionsTerminalContribution', () => {
 			readonly activeSession = activeSessionObs;
 		});
 		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: activeSessionObs, gridShown: constObservable([]), windowSessions: constObservable([]) }));
+		activeCustomViewObs = observableValue<ICustomViewDescriptor | undefined>('activeCustomView', undefined);
+		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+			override readonly activeCustomView = activeCustomViewObs;
+			override readonly activeCustomViewOpen = activeCustomViewObs.map(descriptor => descriptor ? { descriptor, source: 'explicit' as const } : undefined);
+		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
 			override onDidCreateInstance = onDidCreateInstance.event;
@@ -367,6 +405,12 @@ suite('SessionsTerminalContribution', () => {
 			}
 			override get activeInstance(): ITerminalInstance | undefined {
 				return activeInstanceId !== undefined ? terminalInstances.get(activeInstanceId) : undefined;
+			}
+			override setPanelDefaultCwd(cwd: Promise<URI> | undefined): void {
+				localDefaultCwdCalls.push(cwd);
+			}
+			override getPanelDefaultCwd(): Promise<URI> | undefined {
+				return localDefaultCwdCalls.at(-1);
 			}
 			override async createTerminal(opts?: any): Promise<ITerminalInstance> {
 				const cwdUri: URI | undefined = opts?.config?.cwd;
@@ -409,10 +453,12 @@ suite('SessionsTerminalContribution', () => {
 			override moveToBackground(instance: ITerminalInstance): void {
 				backgroundedInstances.add(instance.instanceId);
 				moveToBackgroundCalls.push(instance.instanceId);
+				visibilityOperations.push(`hide:${instance.instanceId}`);
 			}
 			override async showBackgroundTerminal(instance: ITerminalInstance): Promise<void> {
 				backgroundedInstances.delete(instance.instanceId);
 				showBackgroundCalls.push(instance.instanceId);
+				visibilityOperations.push(`show:${instance.instanceId}`);
 			}
 		});
 
@@ -425,7 +471,9 @@ suite('SessionsTerminalContribution', () => {
 
 		instantiationService.stub(IAgentHostTerminalService, new class extends mock<IAgentHostTerminalService>() {
 			override readonly profiles = constObservable<never[]>([]);
-			override getProfileForConnection() { return undefined; }
+			override getProfileForConnection(address: string): IAgentHostTerminalProfileInfo | undefined {
+				return agentHostProfilesAvailable ? { extensionIdentifier: 'vscode.agent-host-terminal', profileId: `agent-host-${address}`, title: address, address } : undefined;
+			}
 			override setDefaultCwd(cwd: URI | undefined): void { defaultCwdCalls.push(cwd); }
 			override async createTerminalForEntry(address: string, options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance | undefined> {
 				const cwd = typeof options?.cwd === 'string' ? URI.file(options.cwd) : options?.cwd;
@@ -435,12 +483,16 @@ suite('SessionsTerminalContribution', () => {
 				const instance = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
 				agentHostTerminalAddresses.push(address);
 				agentHostTerminalAddressById.set(instance.instanceId, address);
+				agentHostTerminalRequestedCwdById.set(instance.instanceId, cwd);
 				createdTerminals.push({ cwd });
 				terminalInstances.set(instance.instanceId, instance);
 				return instance;
 			}
 			override getAgentHostAddress(instance: ITerminalInstance): string | undefined {
 				return agentHostTerminalAddressById.get(instance.instanceId);
+			}
+			override getRequestedCwd(instance: ITerminalInstance): URI | undefined {
+				return agentHostTerminalRequestedCwdById.get(instance.instanceId);
 			}
 		});
 
@@ -456,15 +508,410 @@ suite('SessionsTerminalContribution', () => {
 
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 
+		terminalGroupCount = 1;
+		instantiationService.stub(ITerminalGroupService, new class extends mock<ITerminalGroupService>() {
+			override get groups(): ITerminalGroup[] { return new Array<ITerminalGroup>(terminalGroupCount); }
+		});
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter = store.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
-			override isViewVisible(): boolean { return false; }
-			override onDidChangeViewVisibility = store.add(new Emitter<{ id: string; visible: boolean }>()).event;
+			override isViewVisible(id: string): boolean { return id === TERMINAL_VIEW_ID && terminalViewVisible; }
+			override onDidChangeViewVisibility = viewVisibilityEmitter.event;
+		});
+		partVisibilityEmitter = store.add(new Emitter<IPartVisibilityChangeEvent>());
+		panelVisible = true;
+		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override onDidChangePartVisibility = partVisibilityEmitter.event;
+			override isVisible(part: Parts): boolean { return part === Parts.PANEL_PART && panelVisible; }
 		});
 
 		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
 	});
 
 	// --- Background provider: uses worktree/repository path ---
+
+	test('custom views use local home defaults without changing Agent Host defaults', async () => {
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			local: (await localDefaultCwdCalls.at(-1))?.toString(),
+			agentHost: defaultCwdCalls.at(-1),
+		}, {
+			local: HOME_DIR.toString(),
+			agentHost: undefined,
+		});
+	});
+
+	test('opening a custom view cancels pending session terminal activation', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const existsStarted = new DeferredPromise<void>();
+		const existsBarrier = new DeferredPromise<void>();
+		cwdExists = async uri => {
+			if (uri.toString() === worktreeUri.toString()) {
+				existsStarted.complete();
+				await existsBarrier.p;
+			}
+			return true;
+		};
+		activeSessionObs.set(makeAgentSession({ worktree: worktreeUri, providerType: AgentSessionProviders.Local }), undefined);
+		await existsStarted.p;
+
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		existsBarrier.complete();
+		await tick();
+
+		assert.deepStrictEqual({
+			created: createdTerminals.length,
+			localDefault: (await localDefaultCwdCalls.at(-1))?.toString(),
+		}, {
+			created: 0,
+			localDefault: HOME_DIR.toString(),
+		});
+	});
+
+	/** Shows the terminal view, as the Panel commands and keybindings do. */
+	function showTerminalView(empty: boolean): void {
+		terminalViewVisible = true;
+		terminalGroupCount = empty ? 0 : 1;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+	}
+
+	/** Shows the panel over a terminal view that stayed visible while a custom view hid the panel. */
+	function showPanelOverVisibleTerminalView(): void {
+		terminalViewVisible = true;
+		partVisibilityEmitter.fire({ partId: Parts.PANEL_PART, visible: true });
+	}
+
+	/** A terminal the terminal view or the user creates in the panel. */
+	function createPanelTerminal(): TestTerminalInstance {
+		const instance = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
+		terminalInstances.set(instance.instanceId, instance);
+		onDidCreateInstance.fire(instance);
+		return instance;
+	}
+
+	test('opening and closing a custom view without showing its terminal view leaves the panel terminals alone', async () => {
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		visibilityOperations.length = 0;
+
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+		activeCustomViewObs.set(undefined, undefined);
+		await tick();
+
+		assert.deepStrictEqual({ operations: visibilityOperations, created: createdTerminals.length }, { operations: [], created: 1 });
+	});
+
+	test('the session panel showing again while a custom view closes leaves the session terminals alone', async () => {
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+		visibilityOperations.length = 0;
+
+		// The workbench restores the session's panel before this contribution's autorun sees the custom view close.
+		transaction(tx => {
+			activeCustomViewObs.set(undefined, tx);
+			partVisibilityEmitter.fire({ partId: Parts.PANEL_PART, visible: true });
+		});
+		await tick();
+
+		assert.deepStrictEqual({ operations: visibilityOperations, created: createdTerminals.length }, { operations: [], created: 1 });
+	});
+
+	for (const [opensEmpty, viewStayedVisible] of [[false, false], [true, false], [false, true]]) {
+		const shown = viewStayedVisible ? 'showing the panel over a terminal view that stayed visible' : `showing the terminal view ${opensEmpty ? 'empty' : 'with session terminals'}`;
+		test(`${shown} in a custom view gives it its own terminal and leaves the hidden session alone`, async () => {
+			terminalViewVisible = false;
+			activeSessionObs.set(makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background }), undefined);
+			await tick();
+			const sessionTerminal = opensEmpty ? undefined : makeTerminalInstance(nextInstanceId++, URI.file('/worktree').fsPath);
+			if (sessionTerminal) {
+				terminalInstances.set(sessionTerminal.instanceId, sessionTerminal);
+			}
+			activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+			await tick();
+
+			if (viewStayedVisible) {
+				showPanelOverVisibleTerminalView();
+			} else {
+				showTerminalView(opensEmpty);
+			}
+			// The terminal view creates a terminal when it opens empty.
+			const viewTerminal = opensEmpty ? createPanelTerminal() : undefined;
+			await tick();
+			const customTerminal = viewTerminal ?? terminalInstances.get(nextInstanceId - 1)!;
+			const whileCovered = {
+				created: createdTerminals.map(terminal => terminal.cwd?.fsPath ?? 'default'),
+				backgrounded: [...backgroundedInstances],
+			};
+
+			activeCustomViewObs.set(undefined, undefined);
+			await tick();
+			assert.deepStrictEqual({
+				whileCovered,
+				afterLeaving: {
+					created: createdTerminals.map(terminal => terminal.cwd?.fsPath ?? 'default'),
+					backgrounded: [...backgroundedInstances],
+					localDefault: localDefaultCwdCalls.at(-1),
+				},
+			}, {
+				whileCovered: { created: opensEmpty ? [] : ['default'], backgrounded: sessionTerminal ? [sessionTerminal.instanceId] : [] },
+				afterLeaving: {
+					created: opensEmpty ? [URI.file('/worktree').fsPath] : ['default'],
+					backgrounded: [customTerminal.instanceId],
+					localDefault: undefined,
+				},
+			});
+		});
+	}
+
+	test('custom-view terminals stay alive but cannot be reused by a session with the same cwd', async () => {
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		const sessionTerminal = terminalInstances.get(1)!;
+		const automations = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
+
+		activeCustomViewObs.set(automations, undefined);
+		await tick();
+		showTerminalView(false);
+		await tick();
+		const customTerminal = terminalInstances.get(nextInstanceId - 1)!;
+		const afterShowing = [...backgroundedInstances];
+		activeCustomViewObs.set(undefined, undefined);
+		await tick();
+		const afterLeaving = [...backgroundedInstances];
+		activeCustomViewObs.set(automations, undefined);
+		await tick();
+		showTerminalView(false);
+		await tick();
+
+		assert.deepStrictEqual({
+			afterShowing,
+			afterLeaving,
+			afterReturning: [...backgroundedInstances],
+			created: createdTerminals.length,
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			trackedCustom: contribution.getChatWindowTerminalOwner(customTerminal),
+		}, {
+			afterShowing: [sessionTerminal.instanceId],
+			afterLeaving: [customTerminal.instanceId],
+			afterReturning: [sessionTerminal.instanceId],
+			created: 2,
+			disposed: [],
+			trackedCustom: undefined,
+		});
+	});
+
+	test('leaving a custom view shows the session terminals before hiding its own, so the session panel stays open', async () => {
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		const sessionTerminal = terminalInstances.get(1)!;
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+		showTerminalView(false);
+		await tick();
+		const customTerminal = terminalInstances.get(nextInstanceId - 1)!;
+		visibilityOperations.length = 0;
+
+		activeCustomViewObs.set(undefined, undefined);
+
+		assert.deepStrictEqual(visibilityOperations.slice(0, 2), [`show:${sessionTerminal.instanceId}`, `hide:${customTerminal.instanceId}`]);
+	});
+
+	test('leaving a custom view without other terminals leaves hiding its terminals to the session reconciliation', async () => {
+		// The session's terminal is created lazily, once the terminal view shows.
+		terminalViewVisible = false;
+		activeSessionObs.set(makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+		showTerminalView(true);
+		const customTerminal = createPanelTerminal();
+		await tick();
+		visibilityOperations.length = 0;
+
+		activeCustomViewObs.set(undefined, undefined);
+		const synchronously = [...visibilityOperations];
+		await tick();
+
+		assert.deepStrictEqual({ synchronously, afterReconciliation: visibilityOperations, created: createdTerminals.map(terminal => terminal.cwd?.fsPath) }, {
+			synchronously: [],
+			afterReconciliation: [`hide:${customTerminal.instanceId}`],
+			created: [URI.file('/worktree').fsPath],
+		});
+	});
+
+	for (const terminalViewShowsThem of [false, true]) {
+		test(`leaving a custom view whose terminals the session cannot replace hides them ${terminalViewShowsThem ? 'once the terminal view hides' : 'right away'}`, async () => {
+			activeSessionObs.set(makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background, loading: true }), undefined);
+			activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+			await tick();
+			showTerminalView(true);
+			const customTerminal = createPanelTerminal();
+			await tick();
+			terminalViewVisible = terminalViewShowsThem;
+			visibilityOperations.length = 0;
+
+			activeCustomViewObs.set(undefined, undefined);
+			await tick();
+			const afterLeaving = [...visibilityOperations];
+			terminalViewVisible = false;
+			viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: false });
+
+			assert.deepStrictEqual({ afterLeaving, afterTerminalViewHides: visibilityOperations }, {
+				afterLeaving: terminalViewShowsThem ? [] : [`hide:${customTerminal.instanceId}`],
+				afterTerminalViewHides: [`hide:${customTerminal.instanceId}`],
+			});
+		});
+	}
+
+	test('different custom views do not share terminals', async () => {
+		const firstView = upcastPartial<ICustomViewDescriptor>({ id: 'first' });
+		const secondView = upcastPartial<ICustomViewDescriptor>({ id: 'second' });
+		activeCustomViewObs.set(firstView, undefined);
+		await tick();
+		showTerminalView(true);
+		const firstTerminal = createPanelTerminal();
+		await tick();
+		activeCustomViewObs.set(secondView, undefined);
+		await tick();
+		showTerminalView(false);
+		await tick();
+		const secondTerminal = terminalInstances.get(nextInstanceId - 1)!;
+		activeCustomViewObs.set(firstView, undefined);
+		await tick();
+		showTerminalView(false);
+		await tick();
+
+		assert.deepStrictEqual({
+			active: activeInstanceId,
+			backgrounded: [...backgroundedInstances],
+			disposed: disposedInstances.map(instance => instance.instanceId),
+		}, {
+			active: firstTerminal.instanceId,
+			backgrounded: [secondTerminal.instanceId],
+			disposed: [],
+		});
+	});
+
+	test('returning to a custom view restores its selected terminal rather than the last created terminal', async () => {
+		const view = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
+		activeCustomViewObs.set(view, undefined);
+		await tick();
+		showTerminalView(true);
+		const first = createPanelTerminal();
+		const second = createPanelTerminal();
+		activeInstanceId = first.instanceId;
+		activeCustomViewObs.set(undefined, undefined);
+		await tick();
+		activeInstanceId = second.instanceId;
+		activeCustomViewObs.set(view, undefined);
+		await tick();
+		showTerminalView(false);
+		await tick();
+
+		assert.deepStrictEqual({
+			active: activeInstanceId,
+			backgrounded: [...backgroundedInstances],
+		}, {
+			active: first.instanceId,
+			backgrounded: [],
+		});
+	});
+
+	for (const interruption of ['another custom view shows', 'the custom view closes']) {
+		test(`a custom view keeps the terminal it was creating when ${interruption}, and shows it once it shows its terminal view again`, async () => {
+			activeSessionObs.set(makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background }), undefined);
+			await tick();
+			const sessionTerminal = terminalInstances.get(1)!;
+			const view = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
+			const creation = new DeferredPromise<void>();
+			terminalCreationBarriers.set('', creation);
+			activeCustomViewObs.set(view, undefined);
+			await tick();
+			showTerminalView(false);
+			await tick();
+
+			activeCustomViewObs.set(interruption === 'another custom view shows' ? upcastPartial<ICustomViewDescriptor>({ id: 'other' }) : undefined, undefined);
+			creation.complete();
+			await tick();
+			const customTerminal = terminalInstances.get(nextInstanceId - 1)!;
+			const whileAway = { backgrounded: [...backgroundedInstances], sessionOwner: contribution.getChatWindowTerminalOwner(customTerminal) };
+			activeCustomViewObs.set(view, undefined);
+			await tick();
+			showTerminalView(false);
+			await tick();
+
+			assert.deepStrictEqual({
+				whileAway,
+				afterReturning: { active: activeInstanceId, backgrounded: [...backgroundedInstances] },
+				created: createdTerminals.length,
+			}, {
+				whileAway: { backgrounded: [customTerminal.instanceId], sessionOwner: undefined },
+				afterReturning: { active: customTerminal.instanceId, backgrounded: [sessionTerminal.instanceId] },
+				created: 2,
+			});
+		});
+	}
+
+	test('a custom view that left its terminals in the background gets them back instead of another shell when its terminal view opens empty', async () => {
+		const view = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
+		activeCustomViewObs.set(view, undefined);
+		await tick();
+		showTerminalView(true);
+		const customTerminal = createPanelTerminal();
+		await tick();
+		activeCustomViewObs.set(undefined, undefined);
+		await tick();
+		// The session the custom view covered moved its terminal out of the panel, which left the panel empty.
+		backgroundedInstances.add(customTerminal.instanceId);
+		activeInstanceId = undefined;
+
+		activeCustomViewObs.set(view, undefined);
+		await tick();
+		showTerminalView(true);
+		const viewShell = createPanelTerminal();
+		await tick();
+
+		assert.deepStrictEqual({
+			active: activeInstanceId,
+			backgrounded: [...backgroundedInstances],
+			disposed: disposedInstances.map(instance => instance.instanceId),
+		}, {
+			active: customTerminal.instanceId,
+			backgrounded: [],
+			disposed: [viewShell.instanceId],
+		});
+	});
+
+	test('a custom view whose terminal view already shows when the contribution starts takes over the panel', async () => {
+		contribution.dispose();
+		const restoredSessionTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree').fsPath);
+		restoredSessionTerminal._testSetShellLaunchConfig({ attachPersistentProcess: { id: 1 } } as ITerminalInstance['shellLaunchConfig']);
+		const viewShell = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
+		terminalInstances.set(restoredSessionTerminal.instanceId, restoredSessionTerminal);
+		terminalInstances.set(viewShell.instanceId, viewShell);
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+
+		const lateContribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
+		await tick();
+
+		assert.deepStrictEqual({
+			active: activeInstanceId,
+			backgrounded: [...backgroundedInstances],
+			created: createdTerminals.length,
+			viewShellOwner: lateContribution.getChatWindowTerminalOwner(viewShell),
+		}, {
+			active: viewShell.instanceId,
+			backgrounded: [restoredSessionTerminal.instanceId],
+			created: 0,
+			viewShellOwner: undefined,
+		});
+	});
 
 	test('creates a terminal at the worktree for a background session', async () => {
 		const worktreeUri = URI.file('/worktree');
@@ -485,6 +932,358 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
 	});
+
+	// --- Terminal view hidden: create terminals lazily ---
+
+	test('does not create terminals for sessions while the terminal view is hidden', async () => {
+		terminalViewVisible = false;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-b', worktree: URI.file('/worktree-b'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		assert.deepStrictEqual(createdTerminals.map(t => t.cwd.fsPath), []);
+	});
+
+	test('creates the terminal of the active session when the terminal view becomes visible', async () => {
+		terminalViewVisible = false;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-b', worktree: URI.file('/worktree-b'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+
+		assert.deepStrictEqual(createdTerminals.map(t => t.cwd.fsPath), [URI.file('/worktree-b').fsPath]);
+	});
+
+	test('adopts the terminal the terminal view creates when it opens empty', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		const session = makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), backgrounded: [...backgroundedInstances] }, { created: [], backgrounded: [] });
+	});
+
+	test('adopts the terminal the terminal view creates before its shell starts', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		const ready = viewTerminal._testSetProcessStarting();
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
+		ready.complete();
+	});
+
+	test('adopts the Agent Host terminal the terminal view creates before its shell starts', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		sessionProviders.set('agenthost-one', { id: 'agenthost-one', remoteAddress: 'ssh-remote+one' } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:host-one', providerId: 'agenthost-one', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		// With the session's Agent Host profile as the default profile, the view creates
+		// its terminal through AgentHostTerminalService.createTerminal, on a custom pty.
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		viewTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Agent Host', hostLabel: 'one', isRemotePty: true, isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		const ready = viewTerminal._testSetProcessStarting();
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		// AgentHostTerminalService knows the terminal's host as soon as the instance exists.
+		agentHostTerminalAddressById.set(viewTerminal.instanceId, 'ssh-remote+one');
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
+		ready.complete();
+	});
+
+	test('adopts the terminal the terminal view creates before its terminal group registers it', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		const worktreeUri = URI.file('/remote/worktree');
+		sessionProviders.set('agenthost-test', { id: 'agenthost-test', remoteAddress: 'remote-test' } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ providerId: 'agenthost-test', worktree: toAgentHostUri(worktreeUri, 'remote-test'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
+		viewTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Agent Host', hostLabel: 'remote-test', isRemotePty: true, isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		agentHostTerminalAddressById.set(viewTerminal.instanceId, 'remote-test');
+		// The terminal group fires onDidCreateInstance before it adds the instance to its group,
+		// and a remote session's cwd needs no check on disk before the session's terminals are read.
+		onDidCreateInstance.fire(viewTerminal);
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances] }, { created: [], backgrounded: [] });
+	});
+
+	test('does not adopt an Agent Host terminal on another host that is created while the terminal view opens empty', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		sessionProviders.set('agenthost-two', { id: 'agenthost-two', remoteAddress: 'ssh-remote+two' } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:host-two', providerId: 'agenthost-two', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		// The user creates a terminal on another Agent Host while the session's host is the default profile.
+		const otherHostTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		otherHostTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Agent Host', hostLabel: 'one', isRemotePty: true, isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(otherHostTerminal.instanceId, otherHostTerminal);
+		terminalGroupCount = 1;
+		agentHostTerminalAddressById.set(otherHostTerminal.instanceId, 'ssh-remote+one');
+		onDidCreateInstance.fire(otherHostTerminal);
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances] }, { created: ['ssh-remote+two'], backgrounded: [otherHostTerminal.instanceId] });
+	});
+
+	test('does not adopt a custom pty terminal of an unknown host for a remote session whose host is the default profile', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		sessionProviders.set('agenthost-two', { id: 'agenthost-two', remoteAddress: 'ssh-remote+two' } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:host-two', providerId: 'agenthost-two', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		// A custom pty that no Agent Host created, such as an extension's pseudoterminal, or an
+		// Agent Host terminal on host one whose host the view could not tell when it was created.
+		const otherTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		otherTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Agent Host', hostLabel: 'one', isRemotePty: true, isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(otherTerminal.instanceId, otherTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(otherTerminal);
+		await Promise.resolve();
+		agentHostTerminalAddressById.set(otherTerminal.instanceId, 'ssh-remote+one');
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances] }, { created: ['ssh-remote+two'], backgrounded: [otherTerminal.instanceId] });
+	});
+
+	test('does not adopt a custom pty terminal the terminal view creates for a local session', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		// The user's default profile is a contributed profile that runs on a custom pty.
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		viewTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Contributed', isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), backgrounded: [...backgroundedInstances] }, { created: [URI.file('/worktree-a').fsPath], backgrounded: [viewTerminal.instanceId] });
+	});
+
+	test('does not adopt a local terminal the terminal view creates for an Agent Host session without a profile', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		agentHostProfilesAvailable = false;
+		sessionProviders.set('agenthost-one', { id: 'agenthost-one', remoteAddress: 'ssh-remote+one' } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:host-one', providerId: 'agenthost-one', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		// Without an Agent Host profile to make the default, the view starts a local shell.
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances] }, { created: ['ssh-remote+one'], backgrounded: [viewTerminal.instanceId] });
+	});
+
+	test('does not create a second terminal when the terminal view is shown again while its terminal starts', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		const ready = viewTerminal._testSetProcessStarting();
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: false });
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		ready.complete();
+		await tick();
+
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
+	});
+
+	test('adopts the terminal the terminal view creates outside the session cwd', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/configured-cwd').fsPath);
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+
+		// It is the terminal the view shows, for example with `terminal.integrated.cwd` set.
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
+	});
+
+	test('does not take a terminal created elsewhere for the terminal view terminal', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		const editorTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/elsewhere').fsPath);
+		editorTerminal.target = TerminalLocation.Editor;
+		const extensionTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/elsewhere').fsPath);
+		extensionTerminal._testSetShellLaunchConfig({ isExtensionOwnedTerminal: true } as ITerminalInstance['shellLaunchConfig']);
+		const taskTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/elsewhere').fsPath);
+		taskTerminal._testSetShellLaunchConfig({ type: 'Task' } as ITerminalInstance['shellLaunchConfig']);
+		for (const unrelated of [editorTerminal, extensionTerminal, taskTerminal]) {
+			terminalInstances.set(unrelated.instanceId, unrelated);
+			onDidCreateInstance.fire(unrelated);
+		}
+		await tick();
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+
+		// Switching to another session moves only the adopted view terminal to the background.
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-b', worktree: URI.file('/worktree-b'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), backgrounded: [...backgroundedInstances].includes(viewTerminal.instanceId) }, { created: [URI.file('/worktree-b').fsPath], backgrounded: true });
+	});
+
+	test('creates the terminal when the terminal view is shown again after it opened empty without creating one', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		// For example with `terminal.integrated.hideOnStartup`, the view closes again without creating a terminal.
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		terminalViewVisible = false;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: false });
+		await tick();
+		const userTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/elsewhere').fsPath);
+		terminalInstances.set(userTerminal.instanceId, userTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(userTerminal);
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+
+		assert.deepStrictEqual(createdTerminals.map(t => t.cwd.fsPath), [URI.file('/worktree-a').fsPath]);
+	});
+
+	test('shows the Agent Host terminal of a task that opens the terminal view before its shell starts', async () => {
+		terminalViewVisible = false;
+		const cwd = URI.file('/worktree-a');
+		sessionProviders.set(LOCAL_AGENT_HOST_PROVIDER_ID, { id: LOCAL_AGENT_HOST_PROVIDER_ID } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:local-host', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, worktree: cwd, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		// The task runs in a new Agent Host terminal in the session's folder, makes it the active terminal and opens the
+		// terminal view, before the host reports the folder the terminal's shell started in.
+		const taskTerminal = startAgentHostTaskTerminal(cwd);
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances], active: activeInstanceId }, { created: [], backgrounded: [], active: taskTerminal.instanceId });
+	});
+
+	test('keeps the Agent Host terminal of a task active when it opens the terminal view of a session with a terminal', async () => {
+		const cwd = URI.file('/worktree-a');
+		sessionProviders.set(LOCAL_AGENT_HOST_PROVIDER_ID, { id: LOCAL_AGENT_HOST_PROVIDER_ID } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:local-host', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, worktree: cwd, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		const sessionTerminal = terminalInstances.get(activeInstanceId!)!;
+		addCommandToInstance(sessionTerminal, 1);
+		terminalViewVisible = false;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: false });
+
+		const taskTerminal = startAgentHostTaskTerminal(cwd);
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances], active: activeInstanceId }, { created: ['__local__'], backgrounded: [], active: taskTerminal.instanceId });
+	});
+
+	/** A task's new Agent Host terminal in `cwd`, made the active terminal while its shell starts, as `AgentHostSessionTaskRunner` does. */
+	function startAgentHostTaskTerminal(cwd: URI): TestTerminalInstance {
+		const taskTerminal = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		taskTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Task: build', isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		taskTerminal._testSetProcessStarting();
+		terminalInstances.set(taskTerminal.instanceId, taskTerminal);
+		terminalGroupCount++;
+		agentHostTerminalAddressById.set(taskTerminal.instanceId, '__local__');
+		agentHostTerminalRequestedCwdById.set(taskTerminal.instanceId, cwd);
+		onDidCreateInstance.fire(taskTerminal);
+		activeInstanceId = taskTerminal.instanceId;
+		return taskTerminal;
+	}
 
 	// --- Missing local working directory: defer until it exists ---
 

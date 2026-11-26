@@ -20,6 +20,7 @@ import '../../../../../platform/quickinput/browser/media/quickInput.css';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
 import '../../../../browser/parts/notifications/media/notificationsList.css';
+import '../../../onboarding/browser/media/spotlight.css';
 import '../../browser/media/roundedCorners.css';
 import '../../browser/media/frostedGlass.css';
 
@@ -43,6 +44,7 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	root.style.setProperty('--vscode-cornerRadius-small', '4px');
 	root.style.setProperty('--vscode-cornerRadius-large', '8px');
 	root.style.setProperty('--vscode-cornerRadius-xLarge', '12px');
+	root.style.setProperty('--vscode-spacing-size100', '10px');
 	root.style.setProperty('--vscode-list-hoverBackground', '#456789');
 	const quickInput = append(root, 'quick-input-widget');
 	quickInput.style.backgroundColor = 'var(--vscode-quickInput-background)';
@@ -71,9 +73,13 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	const resizableHover = append(editor, 'monaco-resizable-hover');
 	resizableHover.style.position = 'absolute';
 	const resizableHoverContent = append(resizableHover, 'monaco-hover');
-	const dialog = append(root, 'monaco-dialog-box');
+	const dialogShadow = append(append(root, 'monaco-dialog-modal-block'), 'dialog-shadow');
+	const dialog = append(dialogShadow, 'monaco-dialog-box');
 	dialog.style.backgroundColor = 'var(--vscode-editorWidget-background)';
 	dialog.style.border = '1px solid var(--vscode-widget-border)';
+	const spotlight = append(root, 'spotlight-overlay');
+	const spotlightPointer = append(spotlight, 'spotlight-callout-pointer bottom');
+	const spotlightCallout = append(spotlight, 'spotlight-callout');
 	const center = append(root, 'notifications-center visible');
 	const centerBackground = append(center, 'notifications-list-container');
 	const toasts = append(root, 'notifications-toasts visible');
@@ -82,18 +88,18 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	toast.style.border = '1px solid var(--vscode-widget-border)';
 	const toastList = append(toast, 'notifications-list-container');
 	return {
-		root, quickInput, menu, menuContainer, menubarMenuContainer, shadowMenuContainer, picker, pickerFilter, pickerRows, pickerFooter, hover, resizableHover, resizableHoverContent, dialog, center, toast, toastList,
+		root, quickInput, menu, menuContainer, menubarMenuContainer, shadowMenuContainer, picker, pickerFilter, pickerRows, pickerFooter, hover, resizableHover, resizableHoverContent, dialog, dialogShadow, spotlightCallout, spotlightPointer, center, toast, toastList,
 		geometrySurfaces: [
 			{ name: 'quick input', surface: quickInput },
 			{ name: 'action widget', surface: picker },
 			{ name: 'hover', surface: hover },
 			{ name: 'resizable hover', surface: resizableHover },
-			{ name: 'dialog', surface: dialog },
+			{ name: 'spotlight callout', surface: spotlightCallout },
 			{ name: 'notification center', surface: center },
 			{ name: 'notification toast', surface: toast },
 		],
-		surfaces: [quickInput, menuContainer, shadowMenuContainer, picker, hover, resizableHover, dialog, center, toast],
-		backgrounds: [quickInput, menuBackground, shadowMenuBackground, picker, pickerRows, hover, resizableHover, resizableHoverContent, dialog, centerBackground, toast, toastList],
+		surfaces: [quickInput, menuContainer, shadowMenuContainer, picker, hover, resizableHover, dialogShadow, spotlightCallout, center, toast],
+		backgrounds: [quickInput, menuBackground, shadowMenuBackground, picker, pickerRows, hover, resizableHover, resizableHoverContent, dialog, spotlightCallout, centerBackground, toast, toastList],
 	};
 }
 

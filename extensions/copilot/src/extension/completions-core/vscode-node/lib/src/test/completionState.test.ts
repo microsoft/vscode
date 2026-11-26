@@ -221,24 +221,4 @@ suite('CompletionState', function () {
 		assert.deepStrictEqual(newState.originalOffset, textDocument.offsetAt(position));
 	});
 
-	test('updating position does not affect edits', function () {
-		const textDocument = createTextDocument('file:///test.ts', 'typescript', 1, 'hello\nworld');
-		const position = { line: 0, character: 2 };
-		const edit: TextEdit = {
-			range: {
-				start: { line: 1, character: 0 },
-				end: { line: 1, character: 5 },
-			},
-			newText: 'everyone',
-		};
-		const completionState = createCompletionState(textDocument, position);
-		const newState = completionState.applyEdits([edit]);
-		const updatedState = newState.updatePosition({ line: 0, character: 5 });
-
-		assert.deepStrictEqual(updatedState.position, { line: 0, character: 5 });
-		assert.deepStrictEqual(updatedState.textDocument.getText(), 'hello\neveryone');
-		assert.deepStrictEqual(updatedState.editsWithPosition.length, 1);
-		assert.deepStrictEqual(updatedState.originalPosition, position);
-		assert.deepStrictEqual(updatedState.originalOffset, textDocument.offsetAt(position));
-	});
 });

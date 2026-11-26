@@ -7,9 +7,12 @@ import * as assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IExtensionFeaturesManagementService } from '../../../../services/extensionManagement/common/extensionFeatures.js';
@@ -32,9 +35,10 @@ suite('ExtensionHoverWidget', () => {
 			{ getValue: () => 0 } as unknown as IConfigurationService,
 			{ getAllRecommendationsWithReason: () => ({}) } as unknown as IExtensionRecommendationsService,
 			{ getColorTheme: () => ({ getColor: () => undefined }) } as unknown as IThemeService,
-			{ isInsideWorkspace: () => false } as unknown as IWorkspaceContextService
+			{ isInsideWorkspace: () => false } as unknown as IWorkspaceContextService,
+			new class extends mock<IMarkdownRendererService>() { }
 		));
-		widget.extension = { identifier: { id: 'publisher.name' }, version: '1.0.0', state: ExtensionState.Installed, ...extension } as IExtension;
+		widget.extension = { identifier: { id: 'publisher.name' }, displayName: 'Extension', version: '1.0.0', state: ExtensionState.Installed, ...extension } as IExtension;
 		return (widget as unknown as { getHoverMarkdown(): IMarkdownString }).getHoverMarkdown();
 	}
 
@@ -53,5 +57,25 @@ suite('ExtensionHoverWidget', () => {
 		});
 
 		assert.deepStrictEqual(getLinks(markdown), []);
+	});
+
+	test('only links to web pages for extension sponsorship', () => {
+		const links = (target: string) => getLinks(getHoverMarkdown({ publisherSponsorLink: URI.parse(target) }));
+
+		assert.deepStrictEqual([
+			links('command:test.unregistered'),
+			links('file:///sponsor'),
+			links('https://sponsor.example/fund'),
+		], [[], [], ['https://sponsor.example/fund']]);
+	});
+
+	test('only links to web pages for verified publisher domains', () => {
+		const links = (link: string) => getLinks(getHoverMarkdown({ publisherDomain: { verified: true, link } }));
+
+		assert.deepStrictEqual([
+			links('command:test.unregistered'),
+			links('https://'),
+			links('http://publisher.example/about)us'),
+		], [[], [], ['http://publisher.example/about)us']]);
 	});
 });

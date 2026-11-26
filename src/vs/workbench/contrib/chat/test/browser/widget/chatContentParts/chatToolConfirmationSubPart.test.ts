@@ -141,9 +141,10 @@ suite('ToolConfirmationSubPart', () => {
 		test(`preserves the compact plain-text display with ${JSON.stringify(input)} input`, () => {
 			const { part, renderedInputs } = renderConfirmation('Review this tool call.', input);
 			assert.deepStrictEqual({
-				messageVisible: part.domNode.textContent?.includes('Review this tool call.'),
+				// The message region takes its bottom spacing from the paragraph.
+				paragraphs: [...part.domNode.querySelectorAll('.chat-confirmation-widget-message p')].map(paragraph => paragraph.textContent),
 				inputs: renderedInputs.length,
-			}, { messageVisible: true, inputs: 0 });
+			}, { paragraphs: ['Review this tool call.'], inputs: 0 });
 		});
 
 		test(`keeps Markdown-looking reasons literal with ${JSON.stringify(input)} input`, () => {

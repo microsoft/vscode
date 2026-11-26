@@ -173,6 +173,18 @@
 	box-shadow: none;
 }
 
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control.session-list-row-spacing .session-item.quick-chat:not(.session-comparison-attempt) {
+	/* Center the content as a unit, keeping the icon beside the title even above an approval. */
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-content: center;
+	align-items: start;
+
+	.session-title-row {
+		padding-bottom: 0;
+	}
+}
+
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .session-item .session-icon {
 	width: 20px;
 	justify-content: center;

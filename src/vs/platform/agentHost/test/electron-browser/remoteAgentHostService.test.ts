@@ -18,8 +18,10 @@ import { IConfigurationService, type IConfigurationChangeEvent } from '../../../
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { AgentsWindowRemoteAgentHostService, EditorWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
+import { WebSocketConnectionFactory } from '../../browser/webSocketConnectionFactory.js';
 import { InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, WorkspaceRemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, WorkspaceRemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
+import { parseRemoteAgentHostInput } from '../../common/remoteAgentHostAddress.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
@@ -32,6 +34,7 @@ import { AgentHostTransportFailureReason, NonReconnectableTransportError } from 
 import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../../common/agentHostAdvertisedAuthentication.js';
 import type { AgentInfo } from '../../common/state/sessionState.js';
 import type { AuthenticateParams } from '../../common/agent.js';
+import { ExtensionRemoteAgentHostsService } from '../../common/extensionRemoteAgentHosts.js';
 
 interface IRemoteAgentHostServiceTestAccess {
 	readonly _reconnectAttempts: Map<string, number>;
@@ -168,6 +171,12 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 	}
 
 	stage(entry: IRemoteAgentHostEntry, connection: MockProtocolClient, transportDisposable?: IDisposable, reconnectTransfersTransportOwnership = false): void {
+		this.stageConnection(entry, connection, transportDisposable, reconnectTransfersTransportOwnership);
+		this.publishEntry(entry);
+	}
+
+	/** Queues the next connection for an entry without republishing it, as an automatic reconnect of an unchanged entry does. */
+	stageConnection(entry: IRemoteAgentHostEntry, connection: MockProtocolClient, transportDisposable?: IDisposable, reconnectTransfersTransportOwnership = false): void {
 		const address = getEntryAddress(entry);
 		const createdConnections = this._createdConnections.get(address) ?? [];
 		createdConnections.push({
@@ -177,7 +186,6 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 			reconnectManagedByClient: this.reconnectManagedByClient,
 		});
 		this._createdConnections.set(address, createdConnections);
-		this.publishEntry(entry);
 	}
 
 	/** Stages a factory-level rejection, as a failed precondition check would produce. */
@@ -321,6 +329,7 @@ suite('RemoteAgentHostService', () => {
 	let instantiationService: TestInstantiationService;
 	let service: RemoteAgentHostService;
 	let storageService: TestStorageService;
+	let extensionRemoteAgentHosts: ExtensionRemoteAgentHostsService;
 	let resolveAuthentication: (address: string, agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
 	let createdClientOptions: (IAgentHostProtocolClientOptions | undefined)[];
 
@@ -343,6 +352,7 @@ suite('RemoteAgentHostService', () => {
 		});
 		storageService = disposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		extensionRemoteAgentHosts = disposables.add(new ExtensionRemoteAgentHostsService(storageService));
 		registeredFormatters = [];
 		instantiationService.stub(ILabelService, {
 			registerFormatter(formatter: ResourceLabelFormatter) {
@@ -506,6 +516,41 @@ suite('RemoteAgentHostService', () => {
 		await waitForConnected();
 
 		assert.deepStrictEqual(createdClientInfos, [agentsWindowAgentHostClientInfo]);
+	});
+
+	test('dials registered extension hosts over WebSocket unless the user disconnected them', async () => {
+		const registration = extensionRemoteAgentHosts.registerHost({ extensionId: 'publisher.extension', extensionDisplayName: 'Extension', name: 'Extension Host', address: 'ws://127.0.0.1:8445', connectionToken: 'secret' });
+		disposables.add(service.registerConnectionFactory(disposables.add(instantiationService.createInstance(WebSocketConnectionFactory,
+			RemoteAgentHostEntryType.Extension,
+			extensionRemoteAgentHosts.connectableEntries,
+			() => agentsWindowAgentHostClientInfo,
+		))));
+		await waitForCreatedClients(1);
+		createdClients[0].connectDeferred.complete();
+		await waitForConnected();
+		const connections = () => service.connections.map(({ address, name, status }) => ({ address, name, status: status.kind }));
+		const registered = { entries: service.configuredEntries, connections: connections(), clientInfo: [...createdClientInfos] };
+
+		extensionRemoteAgentHosts.setDisconnected('127.0.0.1:8445', true);
+		const disconnected = { entries: service.configuredEntries.length, connections: connections() };
+		extensionRemoteAgentHosts.setDisconnected('ws://127.0.0.1:8445', false);
+		await waitForCreatedClients(2);
+		const reconnected = connections();
+		registration.dispose();
+
+		assert.deepStrictEqual({ registered, disconnected, reconnected, unregistered: connections() }, {
+			registered: {
+				entries: [{
+					name: 'Extension Host', connectionToken: 'secret',
+					connection: { type: RemoteAgentHostEntryType.Extension, address: '127.0.0.1:8445', extensionId: 'publisher.extension', extensionDisplayName: 'Extension' },
+				}],
+				connections: [{ address: '127.0.0.1:8445', name: 'Extension Host', status: 'connected' }],
+				clientInfo: [agentsWindowAgentHostClientInfo],
+			},
+			disconnected: { entries: 0, connections: [] },
+			reconnected: [{ address: '127.0.0.1:8445', name: 'Extension Host', status: 'connecting' }],
+			unregistered: [],
+		});
 	});
 
 	test('editor window ignores configured WebSocket hosts but connects staged sandboxes on demand', async () => {
@@ -2191,6 +2236,27 @@ suite('RemoteAgentHostService', () => {
 			assert.deepStrictEqual(
 				service.connections.find(connection => connection.address === 'cloud:name')?.name,
 				'My Cloud Sandbox');
+		});
+
+		test('keeps the name of a host that is disconnected but still configured when it reconnects', async () => {
+			const factory = createFactory(RemoteAgentHostEntryType.Tunnel);
+			const entry: IRemoteAgentHostEntry = { name: 'agents-3', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'quick-ocean-0ns5qbp', clusterId: 'test' } };
+			const address = getEntryAddress(entry);
+			await reconnectStagedConnection(factory, entry, new MockProtocolClient(address));
+			await service.removeRemoteAgentHost(address);
+
+			const client = new MockProtocolClient(address);
+			factory.stageConnection(entry, client);
+			service.reconnect(address, false);
+			const wait = service.waitForConnection(address);
+			await waitForFactoryConnection(factory, 2);
+			client.connectDeferred.complete();
+			const connection = await wait;
+
+			assert.deepStrictEqual({
+				name: connection.name,
+				label: registeredFormatters.find(formatter => formatter.authority === agentHostAuthority(address))?.formatting.workspaceSuffix,
+			}, { name: 'agents-3', label: 'agents-3' });
 		});
 	});
 

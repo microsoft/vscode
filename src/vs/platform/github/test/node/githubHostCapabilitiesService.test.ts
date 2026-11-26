@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestWarningLogService } from '../../../log/test/common/testWarningLogService.js';
 import { GitHubHostCapabilitiesService } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
 import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
-import { gitHubGraphQLResponse, gitHubGraphQLStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
-import { TestWarningLogService } from '../../../log/test/common/testWarningLogService.js';
+import { ProgrammableGitHubServer, gitHubGraphQLResponse, gitHubGraphQLStep } from './programmableGitHubServer.js';
+
 
 suite('GitHubHostCapabilitiesService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,25 +31,26 @@ suite('GitHubHostCapabilitiesService', () => {
 	test('probes once per host', async () => {
 		await withServer(async server => {
 			server.enqueue(gitHubGraphQLStep({
-				queryIncludes: ['__type(name: "PullRequest")', '__type(name: "Repository")', '__type(name: "RequirableByPullRequest")'],
+				queryIncludes: ['__type(name: "PullRequest")', '__type(name: "Repository")', '__type(name: "RequirableByPullRequest")', '__type(name: "RemovedFromMergeQueueEvent")'],
 				response: gitHubGraphQLResponse({
 					pullRequest: { fields: [{ name: 'mergeQueueEntry' }, { name: 'reviewThreads' }] },
 					repository: { fields: [{ name: 'mergeQueue' }] },
 					requirableByPullRequest: { name: 'RequirableByPullRequest' },
+					removedFromMergeQueueEvent: { name: 'RemovedFromMergeQueueEvent' },
 				}),
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService()));
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 			const credential = {
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
 				token: 'token',
 				generation: 1,
-				signal,
+				cancellationToken,
 			};
 
-			const first = await service.getCapabilities(credential, signal);
-			const cached = await service.getCapabilities(credential, signal);
+			const first = await service.getCapabilities(credential, cancellationToken);
+			const cached = await service.getCapabilities(credential, cancellationToken);
 
 			assert.deepStrictEqual({
 				first,
@@ -56,6 +60,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				first: {
 					graphql: true,
 					mergeQueue: true,
+					mergeQueueRemovals: true,
 					reviewThreads: true,
 					checkContextRequiredness: true,
 				},
@@ -77,14 +82,14 @@ suite('GitHubHostCapabilitiesService', () => {
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService()));
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 
 			await service.getCapabilities({
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
 				token: 'token',
 				generation: 1,
-				signal,
-			}, signal);
+				cancellationToken,
+			}, cancellationToken);
 
 			// GitHub rejects a query that selects `__Type.fields` more than twice with
 			// INTROSPECTION_LIMIT_EXCEEDED, which would silently disable every GraphQL capability.
@@ -101,18 +106,19 @@ suite('GitHubHostCapabilitiesService', () => {
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService()));
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 
 			const result = await service.getCapabilities({
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
 				token: 'token',
 				generation: 1,
-				signal,
-			}, signal);
+				cancellationToken,
+			}, cancellationToken);
 
 			assert.deepStrictEqual(result, {
 				graphql: false,
 				mergeQueue: false,
+				mergeQueueRemovals: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
 			});
@@ -131,14 +137,14 @@ suite('GitHubHostCapabilitiesService', () => {
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const logService = disposables.add(new TestWarningLogService());
 			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService(), logService));
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 
 			const result = await service.getCapabilities({
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
 				token: 'token',
 				generation: 1,
-				signal,
-			}, signal);
+				cancellationToken,
+			}, cancellationToken);
 
 			assert.deepStrictEqual({
 				graphql: result.graphql,
@@ -162,18 +168,19 @@ suite('GitHubHostCapabilitiesService', () => {
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService()));
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 
 			const result = await service.getCapabilities({
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
 				token: 'token',
 				generation: 1,
-				signal,
-			}, signal);
+				cancellationToken,
+			}, cancellationToken);
 
 			assert.deepStrictEqual(result, {
 				graphql: true,
 				mergeQueue: false,
+				mergeQueueRemovals: false,
 				reviewThreads: true,
 				checkContextRequiredness: false,
 			});
@@ -198,26 +205,27 @@ suite('GitHubHostCapabilitiesService', () => {
 			const scheduler = disposables.add(new FakeScheduler({ now: 0 }));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(scheduler, undefined, transport, server.createEndpointService()));
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 			const credential = {
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
 				token: 'token',
 				generation: 1,
-				signal,
+				cancellationToken,
 			};
 
-			const transient = await service.getCapabilities(credential, signal);
+			const transient = await service.getCapabilities(credential, cancellationToken);
 			// An uncacheable result must not be re-probed on every lookup: the
 			// fragments that ask still succeed on REST fallbacks, so nothing else
 			// would throttle the extra introspection query.
-			const throttled = await service.getCapabilities(credential, signal);
+			const throttled = await service.getCapabilities(credential, cancellationToken);
 			const requestsWhileThrottled = server.requests.length;
 			scheduler.advanceBy(65_000);
-			const recovered = await service.getCapabilities(credential, signal);
+			const recovered = await service.getCapabilities(credential, cancellationToken);
 
 			const unavailable = {
 				graphql: false,
 				mergeQueue: false,
+				mergeQueueRemovals: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
 			};
@@ -234,6 +242,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				recovered: {
 					graphql: true,
 					mergeQueue: false,
+					mergeQueueRemovals: false,
 					reviewThreads: true,
 					checkContextRequiredness: false,
 				},
@@ -261,13 +270,13 @@ suite('GitHubHostCapabilitiesService', () => {
 			const scheduler = disposables.add(new FakeScheduler({ now: 0 }));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(scheduler, undefined, transport, server.createEndpointService()));
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 			const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
 
-			const refused = await service.getCapabilities({ account, token: 'stale', generation: 1, signal }, signal);
+			const refused = await service.getCapabilities({ account, token: 'stale', generation: 1, cancellationToken }, cancellationToken);
 			// Authorizing the credential must not leave the user pinned to the
 			// REST fallbacks the refusal produced for the rest of the window.
-			const reauthenticated = await service.getCapabilities({ account, token: 'fresh', generation: 2, signal }, signal);
+			const reauthenticated = await service.getCapabilities({ account, token: 'fresh', generation: 2, cancellationToken }, cancellationToken);
 
 			assert.deepStrictEqual({
 				refusedGraphql: refused.graphql,
@@ -301,31 +310,32 @@ suite('GitHubHostCapabilitiesService', () => {
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService()));
-			const credentialSignal = new AbortController().signal;
+			const credentialSignal = CancellationToken.None;
 			const credential = {
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
 				token: 'token',
 				generation: 1,
-				signal: credentialSignal,
+				cancellationToken: credentialSignal,
 			};
-			const cancelled = new AbortController();
-			const active = new AbortController();
-			const first = service.getCapabilities(credential, cancelled.signal);
-			const second = service.getCapabilities(credential, active.signal);
+			const cancelled = disposables.add(new CancellationTokenSource());
+			const active = disposables.add(new CancellationTokenSource());
+			const first = service.getCapabilities(credential, cancelled.token);
+			const second = service.getCapabilities(credential, active.token);
 			await requestSeen.p;
 
-			cancelled.abort(new Error('cancel first waiter'));
-			await assert.rejects(() => first, /cancel first waiter/);
+			cancelled.cancel();
+			await assert.rejects(() => first, isCancellationError);
 			await release.complete();
 
 			assert.deepStrictEqual({
 				second: await second,
-				activeAborted: active.signal.aborted,
+				activeAborted: active.token.isCancellationRequested,
 				requestCount: server.requests.length,
 			}, {
 				second: {
 					graphql: true,
 					mergeQueue: false,
+					mergeQueueRemovals: false,
 					reviewThreads: true,
 					checkContextRequiredness: false,
 				},

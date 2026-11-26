@@ -288,13 +288,6 @@ export function translateSpan(
 }
 
 /**
- * Create a session.idle event (emitted when the chat session becomes idle).
- */
-export function makeIdleEvent(state: SessionTranslationState): SessionEvent {
-	return makeEvent(state, 'session.idle', {}, true);
-}
-
-/**
  * Create a session.shutdown event (emitted when the chat session is disposed).
  */
 export function makeShutdownEvent(state: SessionTranslationState): SessionEvent {

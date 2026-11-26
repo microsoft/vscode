@@ -14,13 +14,16 @@ import '../../browser/suggestWidget.js';
 
 const colorRegistry = Registry.as<IColorRegistry>(ThemingExtensions.ColorContribution);
 
-function getMockTheme(type: ColorScheme): IColorTheme {
+function getMockTheme(type: ColorScheme, colors?: Partial<Record<ColorIdentifier, string>>): IColorTheme {
 	const theme = {
 		selector: '',
 		label: '',
 		type,
-		getColor: (colorId: ColorIdentifier): Color | undefined => colorRegistry.resolveDefaultColor(colorId, theme),
-		defines: () => true,
+		getColor: (colorId: ColorIdentifier): Color | undefined => {
+			const color = colors?.[colorId];
+			return color ? Color.fromHex(color) : colorRegistry.resolveDefaultColor(colorId, theme);
+		},
+		defines: (colorId: ColorIdentifier) => colors ? colors[colorId] !== undefined : true,
 		getTokenStyleMetadata: () => undefined,
 		tokenColorMap: [],
 		tokenFontMap: [],
@@ -72,6 +75,24 @@ suite('SuggestWidgetColors', () => {
 				{ backgroundUsesQuickInput: true, foregroundUsesQuickInput: true, iconUsesQuickInput: true, highlightUsesListFocus: true },
 				{ backgroundUsesQuickInput: true, foregroundUsesQuickInput: true, iconUsesQuickInput: true, highlightUsesListFocus: true }
 			]
+		});
+	});
+
+	test('focused match highlights follow the source of the focused row background', () => {
+		const quickInputColors = {
+			'list.highlightForeground': '#0066bf',
+			'list.activeSelectionBackground': '#e8e8e8',
+			'quickInputList.focusBackground': '#005fb8',
+			'quickInputList.focusHighlightForeground': '#ffffff',
+		};
+		const focusHighlight = (colors: Partial<Record<ColorIdentifier, string>>) => getMockTheme(ColorScheme.LIGHT, colors).getColor('editorSuggestWidget.focusHighlightForeground')?.toString();
+
+		assert.deepStrictEqual({
+			inheritedQuickInputBackground: focusHighlight(quickInputColors),
+			customSuggestBackground: focusHighlight({ ...quickInputColors, 'editorSuggestWidget.selectedBackground': '#00000025' }),
+		}, {
+			inheritedQuickInputBackground: '#ffffff',
+			customSuggestBackground: '#0066bf',
 		});
 	});
 });

@@ -152,6 +152,18 @@ export interface IEditorPane extends IComposite {
 	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number } | undefined>;
 
 	/**
+	 * The size the editor's content prefers, for a host that fits the editor
+	 * to its content, such as a modal editor (see `IModalEditorOptions.fitToContent`).
+	 * `undefined` when the editor has no preference.
+	 */
+	readonly preferredContentSize?: { readonly width: number; readonly height: number };
+
+	/**
+	 * An event to notify whenever {@link preferredContentSize} changes.
+	 */
+	readonly onDidChangePreferredContentSize?: Event<void>;
+
+	/**
 	 * Whether the editor renders its own title. A group that holds only
 	 * this editor then does not show its title area, and editors opened
 	 * from it go to the main part of its window rather than beside it.
@@ -586,6 +598,14 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * Whether the editor should be serialized and stored for subsequent sessions.
 	 */
 	readonly isTransient?: boolean;
+
+	/**
+	 * Whether the editor offers a list of the changed files alongside the diffs.
+	 * Defaults to `true`. When `false`, the editor has no file list: it is not
+	 * shown, cannot be toggled or focused, and the diffs keep the order of their
+	 * source. Use it for editors whose host shows the changed files in another way.
+	 */
+	readonly showFileList?: boolean;
 }
 
 export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {

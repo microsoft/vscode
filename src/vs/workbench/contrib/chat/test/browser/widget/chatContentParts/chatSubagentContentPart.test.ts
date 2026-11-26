@@ -411,7 +411,7 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	function getOpenChatContext(part: ChatSubagentContentPart): IOpenSubagentChatContext | undefined {
-		return (part as unknown as { _openChatToolbar?: { actionBar?: { context?: IOpenSubagentChatContext } } })._openChatToolbar?.actionBar?.context;
+		return (part as unknown as { _openChatToolbar?: { toolbar?: { actionBar?: { context?: IOpenSubagentChatContext } } } })._openChatToolbar?.toolbar?.actionBar?.context;
 	}
 
 	suite('Basic rendering', () => {
@@ -3946,6 +3946,26 @@ suite('ChatSubagentContentPart', () => {
 			const labelElement = button;
 			const buttonText = labelElement?.textContent ?? button.textContent ?? '';
 			assert.ok(buttonText.includes('Reading config.ts'), 'Title should include current running tool message');
+		});
+
+		test('updates a subagent tool row when its MCP icon arrives', () => {
+			instantiationService.stub(IMarkdownRendererService, mockMarkdownRenderer);
+			const parent = createMockToolInvocation({ toolSpecificData: { kind: 'subagent', description: 'Working on task' } });
+			const part = createPart(parent, createMockRenderContext(false));
+			const child = new ChatToolInvocation(
+				{ invocationMessage: 'Search tools' },
+				{ id: 'search', displayName: 'Search tools', modelDescription: 'Search tools', source: ToolDataSource.Internal },
+				'child-mcp', parent.toolCallId, undefined,
+			);
+			part.appendToolInvocation(child, 0);
+			getSubagentPill(part)!.querySelector<HTMLElement>('.chat-subagent-pill-content')!.click();
+			const icon = () => part.domNode.querySelector('.chat-thinking-tool-wrapper > .chat-thinking-icon.codicon-search-compact, .chat-thinking-tool-wrapper > .chat-thinking-icon.codicon-mcp-compact')?.className;
+			const before = icon();
+			child.updateIcon(Codicon.mcp);
+			assert.deepStrictEqual([before, icon()], [
+				'chat-thinking-icon codicon codicon-search-compact',
+				'chat-thinking-icon codicon codicon-mcp-compact',
+			]);
 		});
 
 		test('should show latest tool when multiple tools are added', () => {

@@ -77,6 +77,7 @@ export class ExternalIngestIndex extends Disposable {
 	});
 
 	private readonly _db: sql.DatabaseSync;
+	private readonly _statements = new Map<string, sql.StatementSync>();
 
 	private readonly _readLimiter = this._register(new Limiter<Uint8Array>(20));
 	private readonly _watchers = this._register(new MutableDisposable<IDisposable>());
@@ -91,13 +92,6 @@ export class ExternalIngestIndex extends Disposable {
 	 * Files under these roots should NOT be indexed by external ingest.
 	 */
 	private readonly _codeSearchRepoRoots = new ResourceSet();
-
-	/**
-	 * Set of file URIs that should be force-included in external ingest,
-	 * even if they fall under code search repo roots.
-	 * Used for out-of-sync diff files that need to be re-indexed locally.
-	 */
-	private readonly _forceIncludeFiles = new ResourceSet();
 
 	private readonly _client: IExternalIngestClient;
 
@@ -187,7 +181,20 @@ export class ExternalIngestIndex extends Disposable {
 
 		super.dispose();
 
+		this._statements.clear();
 		this._db.close();
+	}
+
+	/**
+	 * Returns the prepared statement for `query` on {@link _db}, preparing it on first use.
+	 */
+	private prepare(query: string): sql.StatementSync {
+		let statement = this._statements.get(query);
+		if (!statement) {
+			statement = this._db.prepare(query);
+			this._statements.set(query, statement);
+		}
+		return statement;
 	}
 
 	private getCurrentIndexCheckpoint(): string | undefined {
@@ -265,33 +272,6 @@ export class ExternalIngestIndex extends Disposable {
 		}
 
 		this._logService.trace(`ExternalIngestIndex: Updated code search roots: ${roots.map(r => r.toString()).join(', ')}`);
-	}
-
-	/**
-	 * Updates the set of files that should always be considered for external ingest.
-	 *
-	 * This lets us index local-diff files that live under code-search repo roots,
-	 * so we can blend local updates with remote code-search results.
-	 */
-	public async updateForceIncludeFiles(files: readonly URI[], token: CancellationToken): Promise<void> {
-		await raceCancellationError(this.initialize(), token);
-
-		this._forceIncludeFiles.clear();
-		for (const file of files) {
-			this._forceIncludeFiles.add(file);
-		}
-
-		await raceCancellationError(
-			Promise.all(files.map(async file => {
-				if (await this.shouldTrackFile(file, token)) {
-					await this.tryAddOrUpdateFile(file);
-				} else {
-					this.delete(file);
-				}
-			})),
-			token);
-
-		this._logService.trace(`ExternalIngestIndex: Updated force-included files (${files.length})`);
 	}
 
 	private _initializePromise: Promise<void> | undefined;
@@ -697,8 +677,14 @@ export class ExternalIngestIndex extends Disposable {
 			return;
 		}
 
-		// New or changed file - set to Undetermined so it will be evaluated later
-		this._db.prepare(`
+		this.upsertFile(uri, stat);
+	}
+
+	/**
+	 * Stores a new or changed file as {@link ShouldIngestState.Undetermined} so it will be evaluated later.
+	 */
+	private upsertFile(uri: URI, stat: { readonly size: number; readonly mtime: number }): void {
+		this.prepare(`
 			INSERT INTO Files (path, size, mtime, docSha, shouldIngest)
 			VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(path) DO UPDATE SET size = excluded.size, mtime = excluded.mtime, docSha = NULL, shouldIngest = excluded.shouldIngest
@@ -722,12 +708,9 @@ export class ExternalIngestIndex extends Disposable {
 		}
 
 		// Don't index files that are under a code search repo root
-		// (unless they are force-included as diff files)
-		if (!this._forceIncludeFiles.has(uri)) {
-			for (const root of this._codeSearchRepoRoots) {
-				if (isEqualOrParent(uri, root)) {
-					return false;
-				}
+		for (const root of this._codeSearchRepoRoots) {
+			if (isEqualOrParent(uri, root)) {
+				return false;
 			}
 		}
 
@@ -762,11 +745,11 @@ export class ExternalIngestIndex extends Disposable {
 	}
 
 	private delete(uri: URI) {
-		this._db.prepare('DELETE FROM Files WHERE path = ?').run(uri.toString());
+		this.prepare('DELETE FROM Files WHERE path = ?').run(uri.toString());
 	}
 
 	private get(uri: URI): DbFileEntry | undefined {
-		const row = this._db.prepare('SELECT size, mtime, docSha, shouldIngest FROM Files WHERE path = ?').get(uri.toString());
+		const row = this.prepare('SELECT size, mtime, docSha, shouldIngest FROM Files WHERE path = ?').get(uri.toString());
 		if (!row) {
 			return undefined;
 		}
@@ -825,7 +808,7 @@ export class ExternalIngestIndex extends Disposable {
 	private async *getFilesToIndexFromDb(token: CancellationToken): AsyncIterable<ExternalIngestFile> {
 		// Get files that are either already marked "Yes" or "need to be evaluated" (Undetermined).
 		// Order by path for deterministic results (important for stable checkpoint hashes).
-		const rows = this._db.prepare('SELECT path, size, mtime, docSha, shouldIngest FROM Files WHERE shouldIngest IN (?, ?) ORDER BY path').all(ShouldIngestState.Yes, ShouldIngestState.Undetermined) as unknown as Array<DbFileEntry>;
+		const rows = this.prepare('SELECT path, size, mtime, docSha, shouldIngest FROM Files WHERE shouldIngest IN (?, ?) ORDER BY path').all(ShouldIngestState.Yes, ShouldIngestState.Undetermined) as unknown as Array<DbFileEntry>;
 
 		const limiter = new Limiter<ExternalIngestFile | undefined>(20);
 
@@ -852,12 +835,12 @@ export class ExternalIngestIndex extends Disposable {
 			if (row.shouldIngest === ShouldIngestState.Undetermined) {
 				const result = await this.shouldIngestFile(uri, stat, token);
 				if (result.isOk()) {
-					this._db.prepare('UPDATE Files SET shouldIngest = ?, docSha = ?, size = ?, mtime = ? WHERE path = ?')
+					this.prepare('UPDATE Files SET shouldIngest = ?, docSha = ?, size = ?, mtime = ? WHERE path = ?')
 						.run(ShouldIngestState.Yes, result.val.docSha, stat.size, stat.mtime, uri.toString());
 
 					return this.createExternalIngestFile(uri, result.val.docSha);
 				} else {
-					this._db.prepare('UPDATE Files SET shouldIngest = ?, size = ?, mtime = ? WHERE path = ?')
+					this.prepare('UPDATE Files SET shouldIngest = ?, size = ?, mtime = ? WHERE path = ?')
 						.run(ShouldIngestState.No, stat.size, stat.mtime, uri.toString());
 				}
 				return undefined;
@@ -873,7 +856,7 @@ export class ExternalIngestIndex extends Disposable {
 				}
 
 				// Store the computed docSha in the database
-				this._db.prepare('UPDATE Files SET docSha = ? WHERE path = ?').run(docSha, uri.toString());
+				this.prepare('UPDATE Files SET docSha = ? WHERE path = ?').run(docSha, uri.toString());
 			}
 
 			return this.createExternalIngestFile(uri, docSha);
@@ -933,10 +916,10 @@ export class ExternalIngestIndex extends Disposable {
 
 					const existing = this.get(uri);
 					if (!existing) {
-						await this.tryAddOrUpdateFile(uri);
+						this.upsertFile(uri, stat);
 						addedFileCount++;
 					} else if (existing.size !== stat.size || existing.mtime !== stat.mtime) {
-						await this.tryAddOrUpdateFile(uri);
+						this.upsertFile(uri, stat);
 						updatedFileCount++;
 					}
 				}
@@ -1034,7 +1017,7 @@ export class ExternalIngestIndex extends Disposable {
 
 	private deleteFolder(folder: URI): void {
 		const folderKey = folder.toString().replace(/\/?$/, '/');
-		this._db.prepare('DELETE FROM Files WHERE path LIKE ?').run(`${folderKey}%`);
+		this.prepare('DELETE FROM Files WHERE path LIKE ?').run(`${folderKey}%`);
 	}
 
 	private async safeStat(uri: URI): Promise<{ size: number; mtime: number } | undefined> {
@@ -1090,7 +1073,7 @@ export class ExternalIngestIndex extends Disposable {
 	}
 
 	private *iterateDbFiles(): Iterable<URI> {
-		const rows = this._db.prepare('SELECT path FROM Files').all() as Array<{ path: string }>;
+		const rows = this.prepare('SELECT path FROM Files').all() as Array<{ path: string }>;
 		for (const row of rows) {
 			yield URI.parse(row.path);
 		}

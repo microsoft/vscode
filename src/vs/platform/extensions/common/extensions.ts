@@ -276,6 +276,7 @@ export interface IExtensionContributions {
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
 	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
+	readonly chatSessions?: ReadonlyArray<{ readonly type: string; readonly alternativeIds?: readonly string[] }>;
 	readonly chatPromptFiles?: ReadonlyArray<IChatFileContribution>;
 	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
 	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
@@ -304,6 +305,13 @@ export const EXTENSIONS_AGENTS_WINDOW_MANAGEMENT = 'extensions.experimental.agen
  * enables only the listed extensions. Users can still disable them. Requires {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
  */
 export const EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE = 'extensions.experimental.agentsWindowAutoEnable';
+
+/**
+ * The command that shows an extension's page, which the Manage Extension action of notifications and status bar items
+ * runs. Editor windows open the Extensions editor; the Agents window opens the Extensions section of Agent
+ * Customizations, or says it can't when it doesn't manage extensions.
+ */
+export const MANAGE_EXTENSION_COMMAND_ID = '_extensions.manage';
 
 /**
  * Controls for each extension, by its identifier, whether it is enabled in the Agents window automatically, overriding

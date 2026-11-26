@@ -118,5 +118,3 @@ export interface ISummarizedToolCategoryUpdatable {
 	tools: LanguageModelToolInformation[];
 	update(up: ISummarizedToolCategory): void;
 }
-
-export class SummarizerError extends Error { }

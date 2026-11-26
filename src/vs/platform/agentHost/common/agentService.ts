@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { OtlpExportLogsParams } from './state/protocol/channels-otlp/notifications.js';
+import type { IOtlpLogRecord, OtlpLogLevelName } from './otlp/otlpLogEmitter.js';
 import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { AgentChatMoveDestination } from './agentHostChatMove.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
@@ -41,7 +43,8 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
-import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type AgentSandboxCertificateOperation, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyRequest, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationPreparation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentHostManagedSettingsSnapshot, type IAgentHostNetworkEndpoint, type IAgentManagedPluginRetryEntry, type IAgentModelInfo, type IAgentPluginInstallation, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IMcpNotification, type IAgentImportChatOptions } from './agent.js';
+import type { ISessionArtifact } from './sessionArtifacts.js';
+import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type AgentSandboxCertificateOperation, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyRequest, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationPreparation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentHostManagedSettingsSnapshot, type IAgentHostNetworkEndpoint, type IAgentManagedPluginRetryEntry, type IAgentModelInfo, type IAgentPluginInstallation, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IMcpNotification, type IAgentImportChatOptions } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
@@ -157,7 +160,7 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key controlling the GitHub MCP server in agent-host sessions. */
 export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
-/** Configuration key offering GitHub's Computer Use plugin to local agent-host Copilot sessions. */
+/** Configuration key offering GitHub's Computer Use plugin to agent-host Copilot sessions. */
 export const AgentHostComputerUseEnabledSettingId = 'chat.agentHost.computerUse.enabled';
 
 /** Configuration key offering GitHub's Browser Use plugin to local agent-host Copilot sessions. */
@@ -185,6 +188,9 @@ export const AgentHostMcpSkillsEnabledSettingId = 'chat.agentHost.mcpSkills.enab
 /** Configuration key controlling Agent Host agent-orchestration safety limits. */
 export const AgentHostAgentOrchestrationLimitsSettingId = 'chat.agentHost.agentOrchestrationLimits';
 
+/** Configuration key controlling whether agents can choose a model's reasoning effort and context size when they create a session, and how they find the models. */
+export const AgentHostSessionModelOptionsSettingId = 'chat.agentHost.sessionModelOptions';
+
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 
@@ -193,6 +199,9 @@ export const CanvasesEnabledSettingId = 'chat.canvases.enabled';
 
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
+
+/** Configuration key controlling whether the host shares identical read-only git commands and caps how many run at once. */
+export const AgentHostGitCoalesceReadsSettingId = 'chat.agentHost.git.coalesceReads';
 
 /** Configuration key controlling whether providers prepare a turn alongside the turn-start checkpoint. */
 export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.experimental.overlapProviderPreparation';
@@ -879,15 +888,17 @@ export interface IMissionControlOptions {
 	readonly name?: string;
 	readonly accountId: string;
 	readonly credential: string;
+	/** Filesystem grants. The host resolves them and excludes network-backed ones, as it does network-backed projects. */
 	readonly roots: readonly string[];
 	/** Catalogue entries, separate from filesystem grants. Defaults to the granted roots when omitted. */
 	readonly projects?: readonly string[];
+	/** Must resolve to a local directory. */
 	readonly defaultDirectory?: string;
 	/** Host-owned default parent for repository clones; clients can only override it within existing grants. */
 	readonly cloneRoot?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
-	/** Uses host GitHub and Copilot credentials for same-owner relay clients. */
+	/** Selects host execution credentials; omission and registration withdrawal preserve the current choice. */
 	readonly useLocalCredentials?: boolean;
 	/** Explicit host-owner testing override; omit device remote-control policy from Mission Control registration. */
 	readonly ignoreRemoteControlPolicy?: boolean;
@@ -905,6 +916,8 @@ export interface IMissionControlCredentialSealingRequest {
 
 export interface IAgentHostManagementService {
 	readonly _serviceBrand: undefined;
+	/** Replaces parent-owned execution credentials through trusted local IPC; an empty list revokes them without client fallback. */
+	setHostExecutionCredentials(credentials: readonly AuthenticateParams[]): Promise<void>;
 	/** Opt-in Mission Control ingress; failures are explicit data so structured causes survive trusted local IPC. */
 	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void | { readonly error: IConnectionDiagnosticError }>;
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
@@ -944,7 +957,8 @@ export interface IAgentHostManagementService {
 	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
 	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
+	/** Opens a canvas, or continues one that returned `consentRequired` with the user's answer. */
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult>;
 	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void>;
 	/** Local-only bridge for provider-owned plugin install transactions. */
 	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
@@ -1023,7 +1037,7 @@ export interface IAgentService {
 	 * the agent's protectedResources in root state. Analogous to RFC 6750
 	 * bearer token delivery.
 	 */
-	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult>;
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult>;
 
 	/** Resolves a provider's connection-scoped model catalog without authenticating the shared provider. */
 	getModelsForCredentials(provider: string, credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
@@ -1044,8 +1058,8 @@ export interface IAgentService {
 	acknowledgeAutomationDeletion?(requestId: string): Promise<void>;
 	/** Permanently adopts an external session without sending a message, and resolves to the session's exact resource. */
 	importSession?(session: URI, options?: IAgentImportSessionOptions): Promise<URI | void>;
-	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
-	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Removes a recorded artifact or reference, awaiting host metadata persistence, and resolves to the entry it removed, if any. */
+	removeSessionArtifact?(session: URI, artifactId: string): Promise<ISessionArtifact | undefined>;
 	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
 	/** Answers a chat's pending shell authentication prompt; `undefined` cancels it. Resolves false when it had already ended. */
@@ -1068,7 +1082,7 @@ export interface IAgentService {
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
 	listSessionCanvases?(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult>;
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void>;
 	installPlugin?(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
 	retryManagedPlugins?(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
@@ -1179,6 +1193,7 @@ export interface IAgentService {
 	 * into a JSON-RPC `-32601`.
 	 */
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable;
 
 	/**
 	 * Aggregated stream of MCP notifications across every agent. The
@@ -1266,6 +1281,8 @@ export interface IAgentService {
 	readonly onDidNotification: Event<INotification>;
 
 	readonly automationCapabilities: AutomationCapabilities | undefined;
+	/** Whether scheduled chats can target an existing chat. */
+	readonly automationsSupportExistingConversation?: boolean;
 	/** Whether chats of one session may use different agents (the `multipleChatProviders.enabled` host setting). */
 	readonly multipleChatProvidersEnabled?: boolean;
 	/** Turns the `multipleChatProviders.enabled` host setting on, as a client mirroring it would. */
@@ -1367,6 +1384,10 @@ export type IAgentImportSessionOptions = Pick<IAgentImportChatOptions, 'takeOver
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
+	readonly onDidReceiveOtlpLogs?: Event<OtlpExportLogsParams>;
+	subscribeStateless?(resource: URI): Promise<void>;
+	unsubscribe?(resource: URI): void;
+
 	/** Optional provider-owned management APIs; unsupported hosts remain read-only. */
 	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
@@ -1399,6 +1420,8 @@ export interface IAgentConnection {
 	 */
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>>;
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
+	/** Loads the preceding page into the subscribed chat using its host-issued cursor. */
+	fetchTurns?(chat: URI, cursor: string): Promise<void>;
 
 	/**
 	 * Returns the in-flight `createSession` Promise for `resource`, or `undefined` if no create is pending. Callers
@@ -1517,7 +1540,7 @@ export interface IAgentConnection {
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the host later publishes a canvas change after it settles. */
 	listSessionCanvases?(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult>;
 	/** Local-only: closes a canvas the chat presents, which notifies its canvas provider. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
@@ -1605,8 +1628,10 @@ export interface IAgentConnection {
 	 * Registers the host as a GitHub environment owned by the given GitHub
 	 * account, using that account's credential. Registering again refreshes
 	 * the credential. Requires the `vscode.githubEnvironment` capability.
+	 * @param name The client's name for the host, which a host that supports it
+	 * uses for a new registration.
 	 */
-	registerGitHubEnvironment?(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
+	registerGitHubEnvironment?(accountId: string, credential: string, name?: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
 	unregisterGitHubEnvironment?(accountId: string): Promise<void>;
 
 	// ---- Filesystem operations ----------------------------------------------

@@ -147,13 +147,6 @@ export type DiagnosticCompletionState = {
 
 export class DiagnosticsCompletionProcessor extends Disposable {
 
-	static get documentSelector(): vscode.DocumentSelector {
-		return Array.from(new Set([
-			...ImportDiagnosticCompletionProvider.SupportedLanguages,
-			...AsyncDiagnosticCompletionProvider.SupportedLanguages
-		]));
-	}
-
 	private readonly _onDidChange = this._register(new Emitter<boolean>());
 	readonly onDidChange = this._onDidChange.event;
 

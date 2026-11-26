@@ -7,6 +7,7 @@ import { localize } from '../../../../nls.js';
 import { IChatRequestViewModel, IChatScheduledRequest } from '../common/model/chatViewModel.js';
 import { getAgentMergeRequestLabel } from './widget/chatContentParts/chatAgentMergeContentPart.js';
 import { getArtifactRequestAccessibleText, getArtifactRequestLabel, getArtifactRequestPresentation } from './widget/chatContentParts/chatArtifactActionContentPart.js';
+import { getScheduledRequestAbsoluteTimeLabel, getScheduledRequestTimeLabel } from './widget/chatScheduledRequestTime.js';
 
 /**
  * Display text for the timeline, transcript find and screen readers, with Agent Merge
@@ -36,7 +37,12 @@ export function getChatRequestAccessibleText(item: IChatRequestViewModel): strin
 }
 
 export function getChatScheduledRequestAccessibleText(item: IChatScheduledRequest): string {
-	const parts = [item.description, item.text];
+	const time = item.editing
+		? localize('scheduledEditing', "Editing")
+		: item.runAt
+			? localize('scheduledTime', "{0}, {1}", getScheduledRequestTimeLabel(item.runAt), getScheduledRequestAbsoluteTimeLabel(item.runAt))
+			: item.description;
+	const parts = [time, item.text];
 	if (item.attachments.length) {
 		parts.push(localize('scheduledAttachments', "Attachments: {0}", item.attachments.join(', ')));
 	}

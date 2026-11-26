@@ -21,7 +21,7 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IMarketplaceReference, IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -458,6 +458,42 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			contentChangeSupersededByActivity: [[teamKit]],
 			changedList: [[teamKit, teamExtras]],
 			listCalls: 6,
+		});
+	});
+
+	test('marks provider marketplaces from a GitHub Team, and signals when a marketplace becomes one', async () => {
+		const providerChanges = store.add(new Emitter<void>());
+		const marketplace = (name: string, overrides: Partial<ICustomizationMarketplaceInfo>): ICustomizationMarketplaceInfo =>
+		({ name, source: `GitHub: owner/${name}`, isDefault: false, managed: false, available: true, ...overrides });
+		let marketplaces = [marketplace('assigned', { team: true }), marketplace('assigned-and-managed', { team: true, managed: true }), marketplace('own', {})];
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: providerChanges.event,
+			onDidChangeMarketplaces: Event.None,
+			list: async () => marketplaces,
+			add: async () => marketplaces[0],
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [];
+			override readonly allSources = [];
+			override async query() { return { items: [], total: 0 }; }
+		}();
+		const service = createService(createConfiguration([]), platformService, new class extends mock<ICopilotConnectorsService>() { }(), undefined, provider);
+		await Event.toPromise(service.onDidChangeSources);
+		const teamSources = () => service.sources.filter(source => source.teamProvided).map(source => source.displayName).sort();
+
+		const initial = teamSources();
+		const changed = Event.toPromise(service.onDidChangeSources);
+		marketplaces = [marketplaces[0], marketplaces[1], marketplace('own', { team: true })];
+		providerChanges.fire();
+		const changedSourceIds = (await changed).sourceIds;
+
+		assert.deepStrictEqual({ initial, changedSourceIds, updated: teamSources() }, {
+			initial: ['assigned'],
+			changedSourceIds: ['assigned', 'assigned-and-managed', 'own'].map(getProviderMarketplaceSourceId),
+			updated: ['assigned', 'own'],
 		});
 	});
 
@@ -961,6 +997,43 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [session], changed: [] } });
 
 		assert.deepStrictEqual({ afterChanged, afterRemoved: changes }, { afterChanged: 0, afterRemoved: 1 });
+	});
+
+	test('ignores session changes of a Microsoft default account', () => {
+		const authenticationChanges = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		const defaultAccount = {
+			authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
+			accountName: 'alice',
+			sessionId: 's1',
+			enterprise: false,
+		};
+		const service = createService(
+			createConfiguration([]),
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			undefined,
+			undefined,
+			[],
+			{ active: false, onDidChange: Event.None },
+			new TestDataTelemetryService(),
+			new class extends mock<IDefaultAccountService>() {
+				override readonly currentDefaultAccount = defaultAccount;
+				override readonly onDidChangeDefaultAccount = Event.None;
+			}(),
+			new class extends mock<IAuthenticationService>() {
+				override readonly onDidChangeSessions = authenticationChanges.event;
+			}(),
+		);
+		let changes = 0;
+		store.add(service.onDidChangeSources(() => changes++));
+		const session = { id: defaultAccount.sessionId, accessToken: '', account: { id: 'alice', label: 'alice' }, scopes: [] };
+
+		authenticationChanges.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [session], changed: [] } });
+
+		assert.deepStrictEqual({ changes }, { changes: 0 });
 	});
 
 	test('uses SDK authentication recovery for the GitHub Feed', async () => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEvent, SessionEventPayload } from '@github/copilot-sdk';
+import type { SessionEvent, SessionEventPayload } from '@microsoft/copilot-sdk';
 import { getDurationString } from '../../../../base/common/date.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';
@@ -89,14 +89,29 @@ export function formatFusionReviewContent(content: string): string | undefined {
 	return paragraphs.length ? paragraphs.join('\n\n') : text;
 }
 
-/** Provisional phase conversations are not the authoritative parent transcript. */
+function isUncommittedFusionOutput(ephemeral: boolean | undefined, fusion: { readonly commitId?: string | null } | undefined): boolean {
+	return ephemeral === true && fusion !== undefined && (fusion.commitId === undefined || fusion.commitId === null);
+}
+
+/**
+ * Provisional phase conversations are not the authoritative parent transcript.
+ *
+ * Besides whole messages and tool rows, a staged root phase streams its model
+ * output as provisional copies of the ordinary stream events. `assistant.tool_call_delta`
+ * is left to the ordinary tool-input stream, which already handles provisional tools.
+ */
 export function isProvisionalFusionConversationEvent(event: SessionEvent): boolean {
 	switch (event.type) {
 		case 'assistant.message':
 		case 'tool.execution_start':
 		case 'tool.execution_complete':
-			return event.ephemeral === true && event.data.fusion !== undefined
-				&& (event.data.fusion.commitId === undefined || event.data.fusion.commitId === null);
+			return isUncommittedFusionOutput(event.ephemeral, event.data.fusion);
+		case 'assistant.message_start':
+		case 'assistant.message_delta':
+		case 'assistant.reasoning_delta':
+		case 'assistant.reasoning':
+			// Only a root phase's output is staged; a subagent keeps its own stream.
+			return !event.agentId && isUncommittedFusionOutput(event.ephemeral, event.data.fusion);
 		default:
 			return false;
 	}
@@ -255,7 +270,8 @@ export class CopilotFusionProgress {
 				this._patterns.set(d.fusionId, d.pattern);
 				// The runtime's workflow hint (e.g. "Using Single: ...") is not shown; the milestone only names the HydraFusion model.
 				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', d.syntheticModel);
-				this._activity = localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
+				const streamsAsOrdinaryTurn = d.pattern === 'single' && Array.isArray(d.phasePlan) && d.phasePlan.length === 0;
+				this._activity = streamsAsOrdinaryTurn ? undefined : localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
 				break;
 			}
 			case 'assistant.fusion_phase_started': {

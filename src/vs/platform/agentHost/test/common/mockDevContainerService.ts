@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../common/devContainerAgentHost.js';
+import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../common/devContainerAgentHost.js';
 import type { IRelayMessage } from '../../common/relayTransport.js';
 
 export class MockDevContainerService extends Disposable implements IDevContainerAgentHostMainService {
@@ -24,10 +24,12 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 	readonly onDidChangeSandboxSupport = this.sandboxSupport.event;
 	readonly userState = this._register(new Emitter<IDevContainerAgentHostUserStateReport>());
 	readonly onDidReportUserState = this.userState.event;
+	readonly connectFailure = this._register(new Emitter<IDevContainerAgentHostConnectFailure>());
+	readonly onDidFailConnect = this.connectFailure.event;
 	readonly connects: IDevContainerAgentHostConfig[] = [];
 	readonly disconnects: string[] = [];
 	readonly stops: string[] = [];
-	readonly removes: string[] = [];
+	readonly removes: DevContainerAgentHostSource[] = [];
 	readonly sent: IRelayMessage[] = [];
 	connectResult: Promise<IDevContainerAgentHostConnectResult> | undefined;
 
@@ -49,8 +51,8 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 		return true;
 	}
 
-	async removeContainer(workspaceFolder: string): Promise<boolean> {
-		this.removes.push(workspaceFolder);
+	async removeContainer(source: DevContainerAgentHostSource): Promise<boolean> {
+		this.removes.push(source);
 		return true;
 	}
 

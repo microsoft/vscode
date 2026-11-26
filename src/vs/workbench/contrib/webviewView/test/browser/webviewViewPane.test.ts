@@ -39,6 +39,8 @@ suite('WebviewViewPane', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
 		instantiationService.stub(IActivityService, new class extends mock<IActivityService>() {
+			override readonly onDidChangeViewTitleBadge = Event.None;
+			override getViewTitleBadge() { return undefined; }
 			override showViewActivity(viewId: string) {
 				activityEvents.push(`show:${viewId}`);
 				return toDisposable(() => activityEvents.push(`dispose:${viewId}`));

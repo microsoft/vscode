@@ -13,7 +13,6 @@ import { mock } from '../../../../../util/common/test/simpleMock';
 import { Emitter } from '../../../../../util/vs/base/common/event';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { ChatSessionWorktreeProperties } from '../../../common/chatSessionWorktreeService';
-import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { getCopilotCLISessionDir } from '../../../copilotcli/node/cliHelpers';
 import { NullCopilotCLIAgents } from '../../../copilotcli/node/test/testHelpers';
 import { ChatSessionMetadataStore } from '../chatSessionMetadataStoreImpl';
@@ -784,152 +783,9 @@ describe('ChatSessionMetadataStore', () => {
 	});
 
 	// ──────────────────────────────────────────────────────────────────────────
-	// setAdditionalWorkspaces / getAdditionalWorkspaces
+	// additionalWorkspaces retention
 	// ──────────────────────────────────────────────────────────────────────────
-	describe('setAdditionalWorkspaces / getAdditionalWorkspaces', () => {
-		it('should store and retrieve workspace-folder type additional workspaces', async () => {
-			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
-			const store = await createStore();
-
-			const workspaces: IWorkspaceInfo[] = [
-				{ folder: Uri.file('/extra/a'), repository: undefined, worktree: undefined, worktreeProperties: undefined },
-				{ folder: Uri.file('/extra/b'), repository: undefined, worktree: undefined, worktreeProperties: undefined },
-			];
-			await store.setAdditionalWorkspaces('session-1', workspaces);
-
-			const result = await store.getAdditionalWorkspaces('session-1');
-			expect(result).toHaveLength(2);
-			expect(result[0].folder?.fsPath).toBe(Uri.file('/extra/a').fsPath);
-			expect(result[1].folder?.fsPath).toBe(Uri.file('/extra/b').fsPath);
-			store.dispose();
-		});
-
-		it('should store and retrieve worktree type additional workspaces', async () => {
-			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
-			const store = await createStore();
-			const props = makeWorktreeV1Props();
-
-			const workspaces: IWorkspaceInfo[] = [
-				{ folder: undefined, repository: Uri.file('/repo'), worktree: Uri.file('/repo/.worktrees/wt'), worktreeProperties: props },
-			];
-			await store.setAdditionalWorkspaces('session-wt', workspaces);
-
-			const result = await store.getAdditionalWorkspaces('session-wt');
-			expect(result).toHaveLength(1);
-			expect(result[0].worktreeProperties?.branchName).toBe(props.branchName);
-			expect(result[0].worktree?.fsPath).toBe(Uri.file('/repo/.worktrees/wt').fsPath);
-			// worktreeProperties present → folder should be undefined per getAdditionalWorkspaces logic
-			expect(result[0].folder).toBeUndefined();
-			store.dispose();
-		});
-
-		it('should return empty array when no additional workspaces are set', async () => {
-			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
-				'session-1': { workspaceFolder: { folderPath: Uri.file('/a').fsPath, timestamp: 1 } },
-			}));
-			const store = await createStore();
-
-			const result = await store.getAdditionalWorkspaces('session-1');
-			expect(result).toEqual([]);
-			store.dispose();
-		});
-
-		it('should return empty array for unknown session', async () => {
-			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
-			const store = await createStore();
-
-			const result = await store.getAdditionalWorkspaces('nonexistent');
-			expect(result).toEqual([]);
-			store.dispose();
-		});
-
-		it('should write additionalWorkspaces to per-session file', async () => {
-			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
-			const store = await createStore();
-
-			await store.setAdditionalWorkspaces('session-1', [
-				{ folder: Uri.file('/extra/a'), repository: undefined, worktree: undefined, worktreeProperties: undefined },
-			]);
-
-			const fileUri = sessionMetadataFileUri('session-1');
-			const rawContent = await mockFs.readFile(fileUri);
-			const written = JSON.parse(new TextDecoder().decode(rawContent));
-			expect(written.additionalWorkspaces).toHaveLength(1);
-			expect(written.additionalWorkspaces[0].workspaceFolder?.folderPath).toBe(Uri.file('/extra/a').fsPath);
-			store.dispose();
-		});
-
-		it('should preserve existing workspaceFolder when setting additionalWorkspaces', async () => {
-			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
-				'session-1': { workspaceFolder: { folderPath: Uri.file('/primary').fsPath, timestamp: 100 } },
-			}));
-			const store = await createStore();
-
-			await store.setAdditionalWorkspaces('session-1', [
-				{ folder: Uri.file('/extra/a'), repository: undefined, worktree: undefined, worktreeProperties: undefined },
-			]);
-
-			// Primary workspace folder should still be accessible
-			const folder = await store.getSessionWorkspaceFolder('session-1');
-			expect(folder?.fsPath).toBe(Uri.file('/primary').fsPath);
-
-			// Additional workspaces should also be present
-			const result = await store.getAdditionalWorkspaces('session-1');
-			expect(result).toHaveLength(1);
-			expect(result[0].folder?.fsPath).toBe(Uri.file('/extra/a').fsPath);
-			store.dispose();
-		});
-
-		it('should replace previous additionalWorkspaces on subsequent call', async () => {
-			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
-			const store = await createStore();
-
-			await store.setAdditionalWorkspaces('session-1', [
-				{ folder: Uri.file('/old'), repository: undefined, worktree: undefined, worktreeProperties: undefined },
-			]);
-			await store.setAdditionalWorkspaces('session-1', [
-				{ folder: Uri.file('/new/a'), repository: undefined, worktree: undefined, worktreeProperties: undefined },
-				{ folder: Uri.file('/new/b'), repository: undefined, worktree: undefined, worktreeProperties: undefined },
-			]);
-
-			const result = await store.getAdditionalWorkspaces('session-1');
-			expect(result).toHaveLength(2);
-			expect(result[0].folder?.fsPath).toBe(Uri.file('/new/a').fsPath);
-			store.dispose();
-		});
-
-		it('should trigger debounced bulk storage update', async () => {
-			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
-			const store = await createStore();
-
-			await store.setAdditionalWorkspaces('session-1', [
-				{ folder: Uri.file('/extra'), repository: undefined, worktree: undefined, worktreeProperties: undefined },
-			]);
-			await vi.advanceTimersByTimeAsync(1_100);
-
-			const rawContent = await mockFs.readFile(BULK_METADATA_FILE);
-			const written = JSON.parse(new TextDecoder().decode(rawContent));
-			expect(written['session-1']?.additionalWorkspaces).toBeDefined();
-			store.dispose();
-		});
-
-		it('should restore additionalWorkspaces from bulk file on startup', async () => {
-			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
-				'session-1': {
-					additionalWorkspaces: [
-						{ workspaceFolder: { folderPath: Uri.file('/restored/a').fsPath, timestamp: 100 } },
-					],
-					writtenToDisc: true,
-				},
-			}));
-			const store = await createStore();
-
-			const result = await store.getAdditionalWorkspaces('session-1');
-			expect(result).toHaveLength(1);
-			expect(result[0].folder?.fsPath).toBe(Uri.file('/restored/a').fsPath);
-			store.dispose();
-		});
-
+	describe('additionalWorkspaces retention', () => {
 		it('should keep entries with additionalWorkspaces in cache even without writtenToDisc flag', async () => {
 			// Bulk file has the entry but writtenToDisc is falsy — it should still
 			// be kept in the in-memory cache and accessible via the API.
@@ -938,13 +794,13 @@ describe('ChatSessionMetadataStore', () => {
 					additionalWorkspaces: [
 						{ workspaceFolder: { folderPath: Uri.file('/extra/workspace').fsPath, timestamp: 100 } },
 					],
+					customTitle: 'Restored title',
 				},
 			}));
 
 			const store = await createStore();
 
-			const result = await store.getAdditionalWorkspaces('session-crash');
-			expect(result).toHaveLength(1);
+			expect(await store.getCustomTitle('session-crash')).toBe('Restored title');
 			store.dispose();
 		});
 	});

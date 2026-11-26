@@ -15,8 +15,10 @@ import { createErrorWithActions } from '../../../../../base/common/errorMessage.
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableValue, waitForState } from '../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { ExtUri, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isLinux } from '../../../../../base/common/platform.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -27,6 +29,7 @@ import { IRemoteAgentHostService } from '../../../../../platform/agentHost/commo
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -41,7 +44,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatRequestSubmittedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -52,14 +55,16 @@ import { ICopilotHomeService } from '../../../../../platform/environment/common/
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestPathService, TestProgressService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SESSION_WORKSPACE_GROUP_REMOTE, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SESSION_WORKSPACE_GROUP_REMOTE, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, type ISessionsProviderCanvasDraft, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { ISessionsManagementService, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, INewSessionDraftSlot, ISendRequestSentEvent, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService, SessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { SessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
+import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionGridState } from '../../../../../workbench/browser/parts/sessions/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
@@ -78,19 +83,22 @@ import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/b
 import { SessionGridLayout } from '../../../../../workbench/browser/parts/sessions/sessionGridLayout.js';
 import { createSessionsPartTestHarness } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getChatLayoutOwnerAfterReplacement } from '../../../../common/chatLayout.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragData, SessionsDataTransfers } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
+import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { SessionActivatingActionRunner } from '../../../../../workbench/contrib/sessions/browser/sessionActionRunner.js';
 import { navigationServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { SessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHostService.js';
 import { createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
+import { EditorWindowMainSessionHost } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowMainSessionHost.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -249,6 +257,9 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	}
 
 	override getSessions(): ISession[] { return [this._session]; }
+	override getSession(resource: URI): ISession | undefined {
+		return (this.getAllSessions?.() ?? this.getSessions()).find(session => isEqual(session.resource, resource) || session.previousIdentities?.some(previous => isEqual(previous.resource, resource)));
+	}
 	override resolveWorkspace(_folderUri: URI): ISessionWorkspace | undefined { return undefined; }
 	override createNewSession(_folderUri?: URI, _sessionTypeId?: string): ISession { return this._session; }
 	override getSessionTypes(_folderUri: URI): ISessionType[] { return [...this.sessionTypes]; }
@@ -257,7 +268,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override getModelPickerOptions(): ISessionModelPickerOptions { return { showUnavailableFeatured: false, showManageModelsAction: false }; }
 	override readonly onDidChangeModels = Event.None;
 	override setModel(_sessionId: string, _chatResource: URI, _modelId: string): void { }
-	override async archiveSession(): Promise<void> { }
+	override async archiveSession(_sessionId: string): Promise<void> { }
 	override async unarchiveSession(): Promise<void> { }
 	override async setSessionReadState(_sessionId: string, _isRead: boolean): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
@@ -269,6 +280,12 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async forkChat(_sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 	override async createSideChat(_sessionId: string, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 }
+
+/** A scheme whose file system ignores path casing, as one registered without the `PathCaseSensitive` capability. */
+const CASE_INSENSITIVE_SCHEME = 'test-case-insensitive';
+
+/** As the URI identity service compares: file paths by the platform's casing, other schemes exactly unless their file system ignores path casing. */
+const testExtUri = new ExtUri(uri => uri.scheme === Schemas.file ? !isLinux : uri.scheme === CASE_INSENSITIVE_SCHEME);
 
 function createSessionsManagementService(
 	session: ISession,
@@ -297,7 +314,7 @@ function createSessionsManagementService(
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(ISessionsProvidersService, providersService);
-	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+	instantiationService.stub(IUriIdentityService, { extUri: testExtUri });
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IProgressService, new TestProgressService());
 	instantiationService.stub(IChatService, chatService);
@@ -450,9 +467,12 @@ function createView(
 	}());
 	const chatHostOpenerService = new ChatHostOpenerService();
 	instantiationService.stub(IChatHostOpenerService, chatHostOpenerService);
+	const inSidePane = observableValue('sideChatsInSidePane', false);
+	instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane } satisfies ISideChatPlacementService);
 	const view = disposables.add(instantiationService.createInstance(SessionsService));
 	activeWindowChanges.set(view, onDidChangeActiveWindow);
 	chatHostOpeners.set(view, chatHostOpenerService);
+	sideChatsInSidePane.set(view, inSidePane);
 	return view;
 }
 
@@ -461,6 +481,8 @@ const activeWindowChanges = new WeakMap<SessionsService, Emitter<number>>();
 
 /** Where chats another surface shows open and close, for the {@link SessionsService} {@link createView} built. */
 const chatHostOpeners = new WeakMap<SessionsService, IChatHostOpenerService>();
+/** Whether side chats show in the side pane, for the view; false until a test sets it. */
+const sideChatsInSidePane = new WeakMap<SessionsService, ISettableObservable<boolean>>();
 
 suite('SessionsManagementService', () => {
 
@@ -499,6 +521,30 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('routes worktree cleanup and capability checks by owner rather than filesystem path', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'first' });
+		const calls: string[] = [];
+		const providers = ['first', 'second'].map(id => new class extends TestSessionsProvider {
+			override readonly id = id;
+			override readonly supportsWorktreeCleanup = id === 'first';
+			override readonly supportsManagedWorktreeCleanup = id === 'second';
+			override async cleanupManagedWorktree(): Promise<void> {
+				calls.push(this.id);
+			}
+		}(session));
+		const { service } = createSessionsManagementService(session, disposables, providers);
+		const owners = providers.map(provider => ({
+			providerId: provider.id, repository: 'vscode-remote://host/repo', worktree: 'vscode-remote://host/repo.worktrees/task',
+			branch: 'agents/task', cleanupStatus: { state: 'unknown' as const },
+		}));
+		for (const owner of owners) {
+			await service.cleanupManagedWorktree!(owner);
+		}
+		assert.deepStrictEqual({ calls, capabilities: [service.canCleanupWorktree!(session), ...owners.map(owner => service.canCleanupWorktree!(owner))] }, {
+			calls: ['first', 'second'], capabilities: [true, false, true],
+		});
+	});
+
 	test('lists the sessions as their providers list them, and finds and reports the changes of also those outside a listing scope', () => {
 		const listed = stubSession({ sessionId: 'listed', providerId: 'scoped' });
 		const hidden = stubSession({ sessionId: 'hidden', providerId: 'scoped' });
@@ -515,9 +561,109 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			listed: service.getSessions().map(session => session.sessionId),
+			maintenance: service.getSessions({ includeHidden: true }).map(session => session.sessionId),
 			found: service.getSession(hidden.resource)?.sessionId,
 			changes,
-		}, { listed: ['listed'], found: 'hidden', changes: ['changed hidden'] });
+		}, { listed: ['listed'], maintenance: ['listed', 'hidden'], found: 'hidden', changes: ['changed hidden'] });
+	});
+
+	test('resource lookups ask providers in order and never enumerate their sessions', () => {
+		const previousResource = URI.parse('test:///previous');
+		const shared = URI.parse('test:///shared');
+		let enumerations = 0;
+		const lookups: string[] = [];
+		const createProvider = (id: string, order: number, sessions: ISession[]) => new class extends TestSessionsProvider {
+			override readonly id = id;
+			override readonly order = order;
+			override getSessions(): ISession[] {
+				enumerations++;
+				return sessions;
+			}
+			override getAllSessions(): ISession[] {
+				enumerations++;
+				return sessions;
+			}
+			override getSession(resource: URI): ISession | undefined {
+				lookups.push(`${id}:${resource.path}`);
+				return sessions.find(session => isEqual(session.resource, resource) || session.previousIdentities?.some(previous => isEqual(previous.resource, resource)));
+			}
+		}(sessions[0]);
+		const first = createProvider('first', 0, [
+			stubSession({ sessionId: 'first-shared', providerId: 'first', resource: shared }),
+			stubSession({ sessionId: 'renamed', providerId: 'first', previousIdentities: [{ resource: previousResource, sessionId: 'previous' }] }),
+		]);
+		const second = createProvider('second', 1, [
+			stubSession({ sessionId: 'second-shared', providerId: 'second', resource: shared }),
+			stubSession({ sessionId: 'second-only', providerId: 'second' }),
+		]);
+		const { service } = createSessionsManagementService(stubSession({ sessionId: 'first-shared', providerId: 'first', resource: shared }), disposables, [second, first]);
+		enumerations = 0;
+		lookups.length = 0;
+		const found = [shared, previousResource, URI.parse('test:///second-only'), URI.parse('test:///missing')].map(resource => service.getSession(resource)?.sessionId);
+		assert.deepStrictEqual({ enumerations, found, lookups }, {
+			enumerations: 0,
+			found: ['first-shared', 'renamed', 'second-only', undefined],
+			lookups: ['first:/shared', 'first:/previous', 'first:/second-only', 'second:/second-only', 'first:/missing', 'second:/missing'],
+		});
+	});
+
+	test('resource lookups find a case variant of a session resource only where its scheme ignores path casing', () => {
+		const insensitive = stubSession({ sessionId: 'insensitive', providerId: 'test', resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/Session' }), previousIdentities: [{ resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/Previous' }), sessionId: 'previous' }] });
+		const sensitive = stubSession({ sessionId: 'sensitive', providerId: 'test', resource: URI.parse('test:///Session') });
+		const provider = new class extends TestSessionsProvider {
+			override getAllSessions(): ISession[] { return [insensitive, sensitive]; }
+			override getSession(resource: URI): ISession | undefined {
+				return this.getAllSessions().find(session => isEqual(session.resource, resource) || session.previousIdentities?.some(previous => isEqual(previous.resource, resource)));
+			}
+		}(insensitive);
+		const { service } = createSessionsManagementService(insensitive, disposables, provider);
+
+		const found = [
+			URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/session' }),
+			URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/previous' }),
+			URI.parse('test:///session'),
+		].map(resource => service.getSession(resource)?.sessionId);
+
+		assert.deepStrictEqual(found, ['insensitive', 'insensitive', undefined]);
+	});
+
+	test('resource lookups see the sessions a provider reports after a change', () => {
+		const first = stubSession({ sessionId: 'first', providerId: 'test' });
+		const added = stubSession({ sessionId: 'added', providerId: 'test' });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+		let sessions = [first];
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override getSessions(): ISession[] { return sessions; }
+		}(first);
+		const { service } = createSessionsManagementService(first, disposables, provider);
+		const before = service.getSession(added.resource)?.sessionId;
+		sessions = [first, added];
+		onDidChangeSessions.fire({ added: [added], removed: [], changed: [] });
+		const afterAdd = service.getSession(added.resource)?.sessionId;
+		sessions = [added];
+		onDidChangeSessions.fire({ added: [], removed: [first], changed: [] });
+		assert.deepStrictEqual({ before, afterAdd, afterRemove: service.getSession(first.resource)?.sessionId }, {
+			before: undefined, afterAdd: 'added', afterRemove: undefined,
+		});
+	});
+
+	test('a chat move listener finds the destination session the provider lists when it reports the move', () => {
+		const source = stubSession({ sessionId: 'source', providerId: 'test' });
+		const destination = stubSession({ sessionId: 'destination', providerId: 'test' });
+		const onDidMoveChat = disposables.add(new Emitter<IChatMovedEvent>());
+		let sessions = [source];
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidMoveChat = onDidMoveChat.event;
+			override getSessions(): ISession[] { return sessions; }
+		}(source);
+		const { service } = createSessionsManagementService(source, disposables, provider);
+		const before = service.getSession(destination.resource)?.sessionId;
+		const found: (string | undefined)[] = [];
+		disposables.add(service.onDidMoveChat(({ to }) => found.push(service.getSession(to.session.resource)?.sessionId)));
+		sessions = [source, destination];
+		onDidMoveChat.fire({ from: { session: source, chat: source.mainChat.get().resource }, to: { session: destination, chat: destination.mainChat.get().resource } });
+		assert.deepStrictEqual({ before, found }, { before: undefined, found: ['destination'] });
 	});
 
 	suite('session grid integration', () => {
@@ -864,7 +1010,8 @@ suite('SessionsManagementService', () => {
 				disposable: (view.gridHost as Partial<IDisposable>).dispose !== undefined,
 				hosts: sessionHostService.hosts.get().filter(host => host.kind === SessionHostKind.MainWindow).length,
 				injected: injected === view.gridHost,
-				rootRegistration: getSingletonServiceDescriptors().some(([id]) => id === ISessionHost),
+				// Editor windows register their own root host, which shows what a feature binds; the Agents window registers none
+				rootRegistration: getSingletonServiceDescriptors().some(([id, descriptor]) => id === ISessionHost && descriptor.ctor !== EditorWindowMainSessionHost),
 				rootInjection,
 				shownBefore,
 				shownAfter: view.gridHost.session.get()?.sessionId,
@@ -3333,6 +3480,97 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
+	test('bulk archive bounds concurrency and waits for every outcome, including failures', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const sessions = Array.from({ length: 90 }, (_, index) => stubSession({ sessionId: `session-${index}`, providerId: 'test' }));
+		let active = 0;
+		let maximumActive = 0;
+		const failure = new Error('archive failed');
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSession(sessionId: string): Promise<void> {
+				active++;
+				maximumActive = Math.max(maximumActive, active);
+				await timeout(10);
+				active--;
+				if (sessionId === sessions[1].sessionId) {
+					throw failure;
+				}
+			}
+		}(sessions[0]);
+		const { service } = createSessionsManagementService(sessions[0], disposables, provider);
+		const archived: string[] = [];
+		disposables.add(service.onDidArchiveSession(session => archived.push(session.sessionId)));
+
+		const results = await service.archiveSessions(sessions);
+
+		assert.deepStrictEqual({ active, maximumActive, results, archived }, {
+			active: 0,
+			maximumActive: 4,
+			results: sessions.map((_, index) => index === 1 ? { status: 'rejected', reason: failure } : { status: 'fulfilled', value: undefined }),
+			archived: sessions.filter((_, index) => index !== 1).map(session => session.sessionId),
+		});
+	}));
+
+	test('bulk archive routes provider batches and excludes sessions whose cancellation fails', async () => {
+		const running = stubSession({ sessionId: 'running', providerId: 'test', status: constObservable(SessionStatus.InProgress) });
+		const idle = stubSession({ sessionId: 'idle', providerId: 'test' });
+		const other = stubSession({ sessionId: 'other', providerId: 'other' });
+		const failure = new Error('cancel failed');
+		const batches: string[][] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSessions(sessionIds: readonly string[]): Promise<readonly PromiseSettledResult<void>[]> {
+				batches.push([...sessionIds]);
+				return sessionIds.map(() => ({ status: 'fulfilled', value: undefined }));
+			}
+			override async archiveSession(): Promise<void> {
+				assert.fail('Expected the provider bulk archive operation');
+			}
+		}(running);
+		const individuallyArchived: string[] = [];
+		const otherProvider = new class extends TestSessionsProvider {
+			override readonly id = 'other';
+			override async archiveSession(sessionId: string): Promise<void> {
+				individuallyArchived.push(sessionId);
+			}
+		}(other);
+		const { service, chatService } = createSessionsManagementService(running, disposables, [provider, otherProvider]);
+		chatService.cancelError = failure;
+		const archived: string[] = [];
+		disposables.add(service.onDidArchiveSession(session => archived.push(session.sessionId)));
+
+		const results = await service.archiveSessions([running, idle, other]);
+
+		assert.deepStrictEqual({ results, batches, individuallyArchived, archived }, {
+			results: [{ status: 'rejected', reason: failure }, { status: 'fulfilled', value: undefined }, { status: 'fulfilled', value: undefined }],
+			batches: [['idle']],
+			individuallyArchived: ['other'],
+			archived: ['idle', 'other'],
+		});
+	});
+
+	test('bulk archive reports a provider batch failure without suppressing another provider', async () => {
+		const first = stubSession({ sessionId: 'first', providerId: 'test' });
+		const second = stubSession({ sessionId: 'second', providerId: 'other' });
+		const failure = new Error('provider disconnected');
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSessions(): Promise<readonly PromiseSettledResult<void>[]> {
+				throw failure;
+			}
+		}(first);
+		const otherProvider = new class extends TestSessionsProvider {
+			override readonly id = 'other';
+		}(second);
+		const { service } = createSessionsManagementService(first, disposables, [provider, otherProvider]);
+		const archived: string[] = [];
+		disposables.add(service.onDidArchiveSession(session => archived.push(session.sessionId)));
+
+		const results = await service.archiveSessions([first, second]);
+
+		assert.deepStrictEqual({ results, archived }, {
+			results: [{ status: 'rejected', reason: failure }, { status: 'fulfilled', value: undefined }],
+			archived: ['second'],
+		});
+	});
+
 	test('openSession waits for a loading session before opening chat content', async () => {
 		const loading = observableValue('loading', true);
 		const session = stubSession({ sessionId: 'loading', providerId: 'test', loading });
@@ -3919,6 +4157,46 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const end of ['archiving', 'removing'] as const) {
+		for (const focusInSession of [false, true]) {
+			test(`${end} the active session ${focusInSession ? 'moves focus out of its view into the new session' : 'leaves focus outside the grid, such as in the sessions list'}`, async () => {
+				const isArchived = observableValue('isArchived', false);
+				const session = stubSession({ sessionId: 'active', providerId: 'test', isArchived });
+				const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(true) });
+				const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+				const provider = new class extends TestSessionsProvider {
+					override readonly onDidChangeSessions = onDidChangeSessions.event;
+					override readonly supportsQuickChats = true;
+					override createQuickChat(): ISession { return draft; }
+				}(session);
+				const { view, sessionsPartService } = createSessionsManagementService(session, disposables, provider);
+				await view.openSession(session.resource);
+				sessionsPartService.focusedSessionView = focusInSession ? new class extends mock<SessionView>() { }() : undefined;
+				const focusTarget = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
+				disposables.add(toDisposable(() => focusTarget.remove()));
+				focusTarget.focus();
+				sessionsPartService.focusedSessions.length = 0;
+
+				if (end === 'archiving') {
+					isArchived.set(true, undefined);
+				} else {
+					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+				}
+				await timeout(0);
+				// As the new-session composer does once it shows: it creates its draft on its own
+				view.openQuickChat(undefined, true);
+
+				assert.deepStrictEqual({
+					active: activeSessionOf(view)?.sessionId,
+					focused: sessionsPartService.focusedSessions,
+				}, {
+					active: 'draft',
+					focused: focusInSession ? [undefined, 'draft'] : [],
+				});
+			});
+		}
+	}
+
 	test('automatic no-fallback removal stays inert during pending explicit navigation', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
 		const target = stubSession({ sessionId: 'target', providerId: 'test' });
@@ -4394,6 +4672,49 @@ suite('SessionsManagementService', () => {
 	});
 
 	suite('session navigation', () => {
+		for (const surface of ['customView', 'canvas'] as const) {
+			test(`restores a saved quick-chat draft above a ${surface} without an intermediate composer or lost history`, async () => {
+				const quickChat = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(true) });
+				let creations = 0;
+				const provider = new class extends TestSessionsProvider {
+					override readonly supportsQuickChats = true;
+					override createQuickChat(): ISession { creations++; return quickChat; }
+				}(quickChat);
+				const { service, view, customViewService, canvasService } = createSessionsManagementService(quickChat, disposables, provider);
+				const drafts = disposables.add(new SessionDraftsService(
+					disposables.add(new InMemoryStorageService()),
+					new TestConfigurationService({ [SESSIONS_DRAFTS_ENABLED_SETTING]: true }),
+					view, service, new TestDialogService(),
+					upcastPartial<INotificationService>({ error: error => assert.fail(String(error)) }),
+					new NullLogService(),
+					upcastPartial<ISessionGroupsService>({ getPendingNewSessionGroup: () => undefined, setPendingNewSessionGroup: () => { } }),
+					upcastPartial<IChatEntitlementService>({ sentiment: {}, onDidChangeSentiment: Event.None }),
+					disposables.add(new TestLifecycleService()),
+				));
+				const composer = drafts.createComposer();
+				const saved = drafts.save({ inputText: 'saved prompt', attachments: [] }, {});
+				disposables.add(drafts.registerComposer(composer, async draft => {
+					view.openQuickChat(undefined, true);
+					composer.updateInput(draft.input);
+				}, () => { }));
+				if (surface === 'customView') {
+					showTestCustomView(customViewService, disposables);
+				} else {
+					disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'test.canvas' })));
+					await canvasService.openCanvas('test.canvas');
+				}
+				const destination = () => customViewService.activeCustomView.get()?.id ?? canvasService.activeCanvasOpen.get()?.id ?? composer.id;
+				await drafts.open(saved.id);
+				const opened = destination();
+				await view.openPreviousSession();
+				const previous = destination();
+				await view.openNextSession();
+				assert.deepStrictEqual({ opened, previous, next: destination(), creations, input: composer.input.inputText }, {
+					opened: saved.id, previous: surface === 'customView' ? 'test.customView' : 'test.canvas', next: saved.id, creations: 1, input: 'saved prompt',
+				});
+			});
+		}
+
 		test('restores saved drafts through a disposable opener without promoting MRU', async () => {
 			const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
 			const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
@@ -5190,6 +5511,101 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	suite('composer drafts created in the background', () => {
+		const folderUri = URI.file('/test/workspace');
+		const workspace: ISessionWorkspace = {
+			uri: folderUri, label: 'workspace', icon: Codicon.vm,
+			folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+			requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+		};
+
+		function createBackgroundHarness() {
+			const drafts = ['draft', 'replacement'].map(sessionId => stubSession({
+				sessionId, providerId: 'test', workspace: constObservable(workspace), status: constObservable(SessionStatus.Untitled),
+			}));
+			const other = stubSession({ sessionId: 'other', providerId: 'test' });
+			let created = 0;
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [other]; }
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				override createNewSession(): ISession { return drafts[created++]; }
+			}(drafts[0]);
+			const harness = createSessionsManagementService(drafts[0], disposables, provider);
+			disposables.add(harness.canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			return { ...harness, other };
+		}
+
+		for (const { background, focusInSlot } of [{ background: false, focusInSlot: false }, { background: true, focusInSlot: false }, { background: true, focusInSlot: true }]) {
+			test(`a draft takes the active new-session slot, moving focus into it unless created in the background outside it (background: ${background}, focusInSlot: ${focusInSlot})`, async () => {
+				const { view, sessionsPartService } = createBackgroundHarness();
+				await view.openNewSession();
+				const slotView = new class extends mock<SessionView>() { }();
+				sessionsPartService.sessionViews.set(undefined, slotView);
+				sessionsPartService.focusedSessionView = focusInSlot ? slotView : undefined;
+				sessionsPartService.focusedSessions.length = 0;
+
+				await view.openNewSession({ folderUri, preserveNavigation: true, background });
+
+				assert.deepStrictEqual({ activeSession: activeSessionOf(view)?.sessionId, focused: sessionsPartService.focusedSessions }, {
+					activeSession: 'draft',
+					focused: background && !focusInSlot ? [] : ['draft'],
+				});
+			});
+		}
+
+		for (const draftShown of [true, false]) {
+			test(`a background draft replacement keeps another active pane active (draftShown: ${draftShown})`, async () => {
+				const { view, service, sessionsPartService, other } = createBackgroundHarness();
+				await view.openSession(other.resource);
+				if (draftShown) {
+					await view.openNewSession({ folderUri, toSide: true });
+					await view.openSession(other.resource);
+				}
+				sessionsPartService.focusedSessions.length = 0;
+				const navigation = view.navigationRequest.get();
+
+				await view.openNewSession({ folderUri, background: true });
+
+				assert.deepStrictEqual({
+					draft: service.newSession.get()?.sessionId,
+					active: activeSessionOf(view)?.sessionId,
+					visible: slotSessionsOf(view).map(session => session?.sessionId),
+					focused: sessionsPartService.focusedSessions,
+					navigationPreserved: view.navigationRequest.get() === navigation,
+				}, {
+					draft: draftShown ? 'replacement' : 'draft',
+					active: 'other',
+					visible: draftShown ? ['other', 'replacement'] : ['other'],
+					focused: [],
+					navigationPreserved: true,
+				});
+			});
+		}
+
+		for (const cover of ['customView', 'canvas'] as const) {
+			test(`a background draft keeps the ${cover} shown`, async () => {
+				const { view, customViewService, canvasService, sessionsPartService } = createBackgroundHarness();
+				await view.openNewSession();
+				if (cover === 'customView') {
+					showTestCustomView(customViewService, disposables);
+				} else {
+					await canvasService.openCanvas('inbox');
+				}
+				sessionsPartService.focusedSessions.length = 0;
+
+				await view.openNewSession({ folderUri, background: true });
+				const shown = { customView: customViewService.activeCustomView.get()?.id, canvas: canvasService.activeCanvasOpen.get()?.id };
+				customViewService.hideCustomView();
+
+				assert.deepStrictEqual({ shown, active: activeSessionOf(view)?.sessionId, focused: sessionsPartService.focusedSessions }, {
+					shown: cover === 'customView' ? { customView: 'test.customView', canvas: undefined } : { customView: undefined, canvas: 'inbox' },
+					active: 'draft',
+					focused: [],
+				});
+			});
+		}
+	});
+
 	test('does not change active session when added session is not displayed in any widget', async () => {
 		const originalSession = stubSession({ sessionId: 'original', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
@@ -5230,8 +5646,8 @@ suite('SessionsManagementService', () => {
 	});
 
 	test('getSessionForChatResource returns the session that owns the chat', () => {
-		const chatA: IChat = { ...stubChat, resource: URI.parse('test:///chat-a') };
-		const chatB: IChat = { ...stubChat, resource: URI.parse('test:///CHAT-B') };
+		const chatA: IChat = { ...stubChat, resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/chat-a' }) };
+		const chatB: IChat = { ...stubChat, resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/CHAT-B' }) };
 		const sessionA = stubSession({
 			sessionId: 'a',
 			providerId: 'test',
@@ -5250,16 +5666,49 @@ suite('SessionsManagementService', () => {
 		};
 		const { service } = createSessionsManagementService(sessionA, disposables, provider);
 
-		const ownedChat = service.getSessionForChatResource(URI.parse('test:///chat-b'));
+		const ownedChat = service.getSessionForChatResource(URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/chat-b' }));
 
 		assert.deepStrictEqual({
 			sessionId: ownedChat?.session.sessionId,
 			chat: ownedChat?.chat,
-			missing: service.getSessionForChatResource(URI.parse('test:///missing')),
+			missing: service.getSessionForChatResource(URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/missing' })),
 		}, {
 			sessionId: 'b',
 			chat: chatB,
 			missing: undefined,
+		});
+	});
+
+	test('getSessionForChatResource resolves an unpublished session during its first request', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///first-request') };
+		const session = stubSession({
+			sessionId: 'draft',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+			mainChat: constObservable(chat),
+		});
+		let duringRequest: { session: ISession; chat: IChat } | undefined;
+		let unknownDuringRequest: { session: ISession; chat: IChat } | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return []; }
+			override async sendRequest(): Promise<ISession> {
+				duringRequest = service.getSessionForChatResource(chat.resource);
+				unknownDuringRequest = service.getSessionForChatResource(URI.parse('test:///unknown'));
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await service.sendNewChatRequest(session, { query: 'Open a browser page' });
+
+		assert.deepStrictEqual({
+			duringRequest,
+			unknownDuringRequest,
+			afterRequest: service.getSessionForChatResource(chat.resource),
+		}, {
+			duringRequest: { session, chat },
+			unknownDuringRequest: undefined,
+			afterRequest: undefined,
 		});
 	});
 
@@ -6432,6 +6881,63 @@ suite('SessionsManagementService', () => {
 		}
 	}
 
+	for (const background of [false, true]) {
+		for (const fails of [false, true]) {
+			test(`resolves an unpublished prepared session during ${background ? 'background' : 'foreground'} dispatch and cleans up on ${fails ? 'failure' : 'success'}`, async () => {
+				const folder = URI.file('/workspace');
+				const original = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+				const chat: IChat = { ...stubChat, resource: URI.parse('test:/prepared-chat') };
+				const prepared = stubSession({
+					sessionId: 'prepared', providerId: 'test', status: constObservable(SessionStatus.Untitled),
+					mainChat: constObservable(chat), chats: constObservable([chat]),
+				});
+				const dispatch = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				const failure = new Error('Dispatch failed');
+				let found: { session: ISession; chat: IChat } | undefined;
+				const provider = new class extends TestSessionsProvider {
+					override getSessions(): ISession[] { return []; }
+					override resolveWorkspace(): ISessionWorkspace {
+						return { uri: folder, label: 'repo', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+					}
+					override async prepareNewSession() { return { session: prepared }; }
+					override async createNewChat(): Promise<IChat> { return chat; }
+					override async sendRequest(): Promise<ISession> {
+						found = service.getSessionForChatResource(chat.resource);
+						await dispatch.complete();
+						await release.p;
+						if (fails) {
+							throw failure;
+						}
+						return prepared;
+					}
+				}(original);
+				const { service } = createSessionsManagementService(original, disposables, provider);
+				const slot = disposables.add(service.createNewSessionSlot());
+				slot.createNewSession(folder, { providerId: provider.id });
+				const ended = Event.toPromise(service.onDidEndNewSessionRequest);
+				const sending = service.sendNewChatRequest(original, { query: 'Open a browser page', background });
+				await dispatch.p;
+				const duringDispatch = service.getInFlightNewSessionRequests();
+				await release.complete();
+				if (fails && !background) {
+					await assert.rejects(sending, error => error === failure);
+				} else {
+					await sending;
+				}
+				await ended;
+				assert.deepStrictEqual({
+					found,
+					duringDispatch,
+					afterRequest: service.getSessionForChatResource(chat.resource),
+					inFlight: service.getInFlightNewSessionRequests(),
+				}, {
+					found: { session: prepared, chat }, duringDispatch: [prepared], afterRequest: undefined, inFlight: [],
+				});
+			});
+		}
+	}
+
 	test('sendNewChatRequest routes a prepared draft through its replacement provider', async () => {
 		const folder = URI.file('/workspace');
 		const workspace: ISessionWorkspace = {
@@ -6846,7 +7352,7 @@ suite('SessionsManagementService', () => {
 			afterSend: service.getInFlightNewSessionRequests(),
 		}, {
 			sendRequestStarted: true,
-			whileSending: ['s1'],
+			whileSending: ['s2'],
 			afterSend: [],
 		});
 	});
@@ -7102,6 +7608,130 @@ suite('SessionsManagementService', () => {
 		// The request was sent, but the user's view was not navigated into the session.
 		assert.strictEqual(sendRequestStarted, true);
 		assert.strictEqual(activeSessionOf(view), undefined);
+	});
+
+	test('createAndSendNewChatRequest creates a session of several folders in a workspace, after checking every folder is trusted and that the session folder is the default one', async () => {
+		const main = URI.file('/work/vscode');
+		const docs = URI.file('/work/vscode-docs');
+		const workspaceConfig = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [main, docs] };
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const created: (ISessionsProviderCreateSessionOptions | undefined)[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
+				return { uri: folderUri, label: 'vscode', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: true, isVirtualWorkspace: false };
+			}
+			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				created.push(options);
+				return session;
+			}
+			override async sendRequest(): Promise<ISession> { return session; }
+		}(session);
+		const trusted = new Set([main.toString(), docs.toString()]);
+		const trust = new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: trusted.has(uri.toString()) }; }
+		};
+		const { service } = createSessionsManagementService(session, disposables, provider, trust);
+		const outcome = (promise: Promise<unknown>) => promise.then(() => 'created', (error: Error) => error instanceof WorkspaceNotTrustedError ? 'untrusted' : error.message);
+
+		const results = {
+			inWorkspace: await outcome(service.createAndSendNewChatRequest(main, { query: 'hi' }, { workspaceConfig })),
+			someFolders: await outcome(service.createAndSendNewChatRequest(docs, { query: 'hi' }, { workspaceConfig, folders: [docs] })),
+			notDefault: await outcome(service.createAndSendNewChatRequest(docs, { query: 'hi' }, { workspaceConfig })),
+			untrusted: await outcome(service.createAndSendNewChatRequest(main, { query: 'hi' }, { folders: [main, URI.file('/elsewhere')] })),
+		};
+
+		assert.deepStrictEqual({ results, created: created.map(options => ({ workspaceConfig: options?.workspaceConfig?.name, folders: options?.folders?.map(folder => folder.path) })) }, {
+			results: {
+				inWorkspace: 'created',
+				someFolders: 'created',
+				notDefault: `The session folder ${docs.toString()} is not the default folder of the session's folders.`,
+				untrusted: 'untrusted',
+			},
+			created: [
+				{ workspaceConfig: 'Agents', folders: undefined },
+				{ workspaceConfig: 'Agents', folders: ['/work/vscode-docs'] },
+			],
+		});
+	});
+
+	test('adding and removing a chat\'s folders goes to the provider only for a session that supports chat folders, adding only a trusted folder and removing any but the default folder', async () => {
+		const chat = URI.parse('test:///chat');
+		const folder = URI.file('/work/vscode-docs');
+		const untrusted = URI.file('/elsewhere');
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async addChatFolder(sessionId: string, _chat: URI, added: URI): Promise<void> { calls.push(`add ${sessionId} ${added.path}`); }
+			override async removeChatFolder(sessionId: string, _chat: URI, removed: URI): Promise<void> { calls.push(`remove ${sessionId} ${removed.path}`); }
+		}(stubSession({ sessionId: 'unused', providerId: 'test' }));
+		const main = URI.file('/work/vscode');
+		const supported = stubSession({
+			sessionId: 'supported', providerId: 'test',
+			capabilities: constObservable({ supportsMultipleChats: false, supportsChatFolders: true }),
+			workspace: constObservable({ uri: main, label: 'vscode', icon: Codicon.folder, folders: [{ root: main, workingDirectory: main, name: 'vscode', description: undefined }], requiresWorkspaceTrust: true, isVirtualWorkspace: false }),
+		});
+		const unsupported = stubSession({ sessionId: 'unsupported', providerId: 'test' });
+		const trust = new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: uri.toString() !== untrusted.toString() }; }
+		};
+		const { service } = createSessionsManagementService(supported, disposables, provider, trust);
+		const outcome = (promise: Promise<unknown>) => promise.then(() => 'done', (error: Error) => error instanceof WorkspaceNotTrustedError ? 'untrusted' : 'unsupported');
+
+		const results = [
+			await outcome(service.addChatFolder(supported, chat, folder)),
+			await outcome(service.removeChatFolder(supported, chat, folder)),
+			await outcome(service.addChatFolder(supported, chat, untrusted)),
+			await outcome(service.addChatFolder(unsupported, chat, folder)),
+			// The default folder stays
+			await outcome(service.removeChatFolder(supported, chat, main)),
+		];
+
+		assert.deepStrictEqual({ calls, results }, {
+			calls: ['add supported /work/vscode-docs', 'remove supported /work/vscode-docs'],
+			results: ['done', 'done', 'untrusted', 'unsupported', 'unsupported'],
+		});
+	});
+
+	test('the default folder of a session\'s folders matches the session folder as the file system compares paths, such as a Windows drive letter in another case', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
+				return { uri: folderUri, label: 'vscode', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const lower = URI.parse('file:///c%3A/work/vscode');
+		const upper = URI.parse('file:///C%3A/Work/VSCode');
+
+		let accepted: boolean;
+		try {
+			service.createNewSession(lower, { folders: [upper, URI.parse('file:///c%3A/work/vscode-docs')] });
+			accepted = true;
+		} catch {
+			accepted = false;
+		}
+
+		// File paths ignore case where the platform's file systems do
+		assert.strictEqual(accepted, !isLinux);
+	});
+
+	test('a quick chat cannot be created in a workspace or in folders, and its provider creates nothing', async () => {
+		const main = URI.file('/work/vscode');
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		let created = 0;
+		const provider = new class extends TestSessionsProvider {
+			override createQuickChat(): ISession { created++; return session; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const workspaceConfig = { uri: URI.file('/work/agents.code-workspace'), name: 'Agents', folders: [main] };
+		const error = (run: () => unknown) => { try { run(); return undefined; } catch (e) { return (e as Error).message; } };
+
+		const errors = [
+			error(() => service.createQuickChat({ workspaceConfig })),
+			error(() => service.createAutomationQuickChat({ folders: [main] })),
+			await service.createAndSendQuickChatRequest({ query: 'hi' }, { folders: [main] }).then(() => undefined, (e: Error) => e.message),
+		];
+
+		assert.deepStrictEqual({ errors, created }, { errors: new Array(3).fill('A quick chat has no folders: it cannot be created in a workspace or in folders.'), created: 0 });
 	});
 
 	test('createAndSendNewChatRequest publishes the session while its first request is in flight', async () => {
@@ -7854,6 +8484,86 @@ suite('SessionsManagementService', () => {
 			onSessionCreated: async () => { throw new Error('Preparation failed'); },
 		}), /Preparation failed/);
 		assert.deepStrictEqual(calls, ['delete']);
+	});
+
+	test('a canvas draft lists its canvases and resolves to the canvas the new session publishes, observing it until released, without touching the composer draft', async () => {
+		const canvases = observableValue<readonly ISessionCanvas[] | undefined>('canvases', undefined);
+		let observers = 0;
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///canvas-chat'), canvases, observeCanvases: () => { observers++; return toDisposable(() => observers--); } };
+		const activeSession = stubSession({ sessionId: 'active', providerId: 'test' });
+		const canvasSession = stubSession({ sessionId: 'canvas-session', providerId: 'test', chats: constObservable([chat]), mainChat: constObservable(chat) });
+		const opened: string[] = [];
+		const plan: ISessionCanvasDefinition = { canvasId: 'plan', extensionId: 'agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: '', requiresInput: false };
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createCanvasDraft(): ISessionsProviderCanvasDraft {
+				return {
+					canvases: Promise.resolve([plan]),
+					open: async (canvas, instanceId) => {
+						opened.push(`${canvas.canvasId}:${instanceId}`);
+						return canvasSession;
+					},
+					dispose: () => opened.push('disposed'),
+				};
+			}
+		}(activeSession);
+		const { service } = createSessionsManagementService(activeSession, disposables, provider);
+
+		const draft = service.createCanvasDraft();
+		const listed = (await draft.canvases)?.map(canvas => canvas.canvasId);
+		const reference = draft.open(plan);
+		await timeout(0);
+		const observersWhileOpening = observers;
+		canvases.set([{ resource: URI.parse('ahp-canvas:/other'), instanceId: 'other', title: 'Other', source: undefined }], undefined);
+		canvases.set([
+			{ resource: URI.parse('ahp-canvas:/other'), instanceId: 'other', title: 'Other', source: undefined },
+			{ resource: URI.parse('ahp-canvas:/plan'), instanceId: 'agent-plan-plan', title: 'Agent Plan', source: undefined },
+		], undefined);
+		const result = await reference;
+		const observersWhileHeld = observers;
+		const canvasReference = result?.object;
+		result?.dispose();
+		draft.dispose();
+
+		assert.deepStrictEqual({
+			listed,
+			opened,
+			observersWhileOpening,
+			observersWhileHeld,
+			observersAfterRelease: observers,
+			reference: canvasReference && { providerId: canvasReference.providerId, session: canvasReference.session.toString(), chat: canvasReference.chat.toString(), canvas: canvasReference.canvas.toString() },
+			newSession: service.newSession.get(),
+		}, {
+			listed: ['plan'],
+			opened: ['plan:agent-plan-plan', 'disposed'],
+			observersWhileOpening: 1,
+			observersWhileHeld: 1,
+			observersAfterRelease: 0,
+			reference: { providerId: 'test', session: canvasSession.resource.toString(), chat: chat.resource.toString(), canvas: 'ahp-canvas:/plan' },
+			newSession: undefined,
+		});
+	});
+
+	test('a canvas draft stops waiting for its canvas and releases its observation when the service is disposed', async () => {
+		let observers = 0;
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///canvas-chat'), canvases: observableValue<readonly ISessionCanvas[] | undefined>('canvases', undefined), observeCanvases: () => { observers++; return toDisposable(() => observers--); } };
+		const activeSession = stubSession({ sessionId: 'active', providerId: 'test' });
+		const canvasSession = stubSession({ sessionId: 'canvas-session', providerId: 'test', chats: constObservable([chat]), mainChat: constObservable(chat) });
+		const plan: ISessionCanvasDefinition = { canvasId: 'plan', extensionId: 'agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: '', requiresInput: false };
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createCanvasDraft(): ISessionsProviderCanvasDraft {
+				return { canvases: Promise.resolve([plan]), open: async () => canvasSession, dispose: () => { } };
+			}
+		}(activeSession);
+		const { service } = createSessionsManagementService(activeSession, disposables, provider);
+
+		const reference = service.createCanvasDraft().open(plan);
+		await timeout(0);
+		const observersWhileOpening = observers;
+		(service as SessionsManagementService).dispose();
+
+		assert.deepStrictEqual({ observersWhileOpening, reference: await reference, observersAfterDispose: observers }, { observersWhileOpening: 1, reference: undefined, observersAfterDispose: 0 });
 	});
 
 	test('createAndSendQuickChatRequest cancels commit detection and disposes the provisional draft', async () => {
@@ -9394,6 +10104,80 @@ suite('SessionsManagementService', () => {
 			assert.strictEqual(activeChatOf(view)?.title.get(), 'sideA');
 		});
 
+		test('while side chats show in the side pane, the grid shows the chat a side chat came from instead of it, and a surface that claims it opens it', async () => {
+			const peerA = chat('peerA');
+			const sideA: IChat = { ...chat('sideA'), origin: { kind: ChatOriginKind.SideChat, parentChat: peerA.resource } };
+			const sessionA = multiChatSession('A', [chat('mainA'), peerA, sideA]);
+			const { view } = setup([sessionA]);
+			const revealed: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: () => false,
+				claimsChat: claimed => sideChatsInSidePane.get(view)!.get() && claimed.toString() === sideA.resource.toString(),
+				reveal: async shown => { revealed.push(shown.path); },
+				openBeside: async () => { },
+				close: async () => undefined,
+			}));
+			const grid = () => ({ active: activeChatOf(view)?.title.get(), tabs: view.activePane.get()?.tabs.visibleChatTabs.get().map(c => c.title.get()) });
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sideA.resource);
+			const before = grid();
+			sideChatsInSidePane.get(view)!.set(true, undefined);
+			const inSidePane = grid();
+			await view.openChat(sessionA, sideA.resource);
+			const opened = { ...grid(), revealed: [...revealed] };
+			sideChatsInSidePane.get(view)!.set(false, undefined);
+
+			assert.deepStrictEqual({ before, inSidePane, opened, after: grid() }, {
+				before: { active: 'sideA', tabs: ['mainA', 'peerA', 'sideA'] },
+				inSidePane: { active: 'peerA', tabs: ['mainA', 'peerA'] },
+				opened: { active: 'peerA', tabs: ['mainA', 'peerA'], revealed: ['/chat/sideA'] },
+				after: { active: 'peerA', tabs: ['mainA', 'peerA', 'sideA'] },
+			});
+		});
+
+		test('a side chat opened before its session loads opens where a surface claims it once it loads, not in the grid', async () => {
+			const mainA = chat('mainA');
+			const sideA: IChat = { ...chat('sideA'), origin: { kind: ChatOriginKind.SideChat, parentChat: mainA.resource } };
+			const chats = observableValue<readonly IChat[]>('chats', [mainA]);
+			const loading = observableValue('loading', true);
+			const sessionA = { ...multiChatSession('A', [mainA]), chats, loading };
+			const { view } = setup([sessionA]);
+			sideChatsInSidePane.get(view)!.set(true, undefined);
+			const revealed: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: () => false,
+				claimsChat: claimed => chats.get().includes(sideA) && claimed.toString() === sideA.resource.toString(),
+				reveal: async shown => { revealed.push(shown.path); },
+				openBeside: async () => { },
+				close: async () => undefined,
+			}));
+
+			const opening = view.openChat(sessionA, sideA.resource);
+			await timeout(0);
+			chats.set([mainA, sideA], undefined);
+			loading.set(false, undefined);
+			await opening;
+
+			assert.deepStrictEqual({ revealed, active: activeChatOf(view)?.title.get() }, { revealed: ['/chat/sideA'], active: 'mainA' });
+		});
+
+		test('a side chat that was the active chat restores as the chat it came from while side chats show in the side pane', async () => {
+			const peerA = chat('peerA');
+			const sideA: IChat = { ...chat('sideA'), origin: { kind: ChatOriginKind.SideChat, parentChat: peerA.resource } };
+			const sessionA = multiChatSession('A', [chat('mainA'), peerA, sideA]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sideA.resource);
+			await view.openSession(sessionB.resource);
+			sideChatsInSidePane.get(view)!.set(true, undefined);
+			await view.openSession(sessionA.resource);
+
+			assert.strictEqual(activeChatOf(view)?.title.get(), 'peerA');
+		});
+
 		test('the active subagent chat is restored after switching sessions', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA'), chat('subagentA', SessionStatus.Completed, ChatOriginKind.Tool)]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);
@@ -9728,6 +10512,25 @@ suite('SessionsManagementService', () => {
 			await view.openChat(sessionB, newB.resource, { referenceChatResource: mainB.resource });
 
 			assert.deepStrictEqual({ beside, active: activeChatOf(view)?.title.get() }, { beside: [], active: 'newB' });
+		});
+
+		test('a chat opened with a reference chat that a surface shows but does not open beside it opens in the grid', async () => {
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('forkB', SessionStatus.Completed, ChatOriginKind.Fork)]);
+			const [mainB, forkB] = sessionB.chats.get();
+			const { view } = setup([sessionB]);
+			await view.openSession(sessionB.resource);
+			const beside: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === mainB.resource.toString(),
+				opensBeside: () => false,
+				reveal: async () => { },
+				openBeside: async opened => { beside.push(opened.path); },
+				close: async () => ({ restore: async () => { } }),
+			}));
+
+			await view.openChat(sessionB, forkB.resource, { referenceChatResource: mainB.resource });
+
+			assert.deepStrictEqual({ beside, active: activeChatOf(view)?.title.get() }, { beside: [], active: 'forkB' });
 		});
 
 		test('a session-list open selects the main chat instead of the previously active chat', async () => {
@@ -10348,10 +11151,12 @@ suite('SessionsManagementService', () => {
 			});
 		}
 
-		function setup(sessions: ISession[]) {
+		function setup(sessions: ISession[], listed: (session: ISession) => boolean = () => true) {
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(sessions[0]); }
-				override getSessions(): ISession[] { return sessions; }
+				// Its listing scope may hide a session it still knows, such as one of another folder in an editor window
+				override getSessions(): ISession[] { return sessions.filter(listed); }
+				override getAllSessions(): ISession[] { return sessions; }
 			};
 			const { part, content } = createSessionsPartTestHarness(disposables);
 			const partService = new TestSessionsPartService(content.onDidFocusPane, content);
@@ -10392,6 +11197,20 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('reopens a closed chat of a session that its provider no longer lists, but still knows', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			let inScope = true;
+			const { view } = setup([sessionA], () => inScope);
+
+			await view.openSession(sessionA.resource);
+			const chatB = sessionA.chats.get().find(c => c.title.get() === 'b')!;
+			await view.closeChat(activeSessionOf(view)!, chatB);
+			inScope = false;
+			await view.reopenLastClosedItem();
+
+			assert.deepStrictEqual(view.activePane.get()!.tabs.openChats.get().map(c => c.title.get()), ['mainA', 'b']);
+		});
+
 		test('an explicitly closed session returns to its grid index', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA')]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);
@@ -10410,6 +11229,33 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual({ afterClose, afterReopen: grid(view) }, {
 				afterClose: { visible: ['B'], sticky: [false], active: 'B' },
 				afterReopen: { visible: ['A', 'B'], sticky: [true, false], active: 'A' },
+			});
+		});
+
+		test('a session that is going away, such as while deleting it can be undone, is neither remembered as it closes nor reopened once forgotten, and what was closed before stays reopenable', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view, canReopen } = setup([sessionA, sessionB]);
+
+			// Pin B so opening A adds a second slot instead of replacing it.
+			await view.openSession(sessionB.resource);
+			view.toggleSessionStickiness(sessionB);
+			await view.openSession(sessionA.resource);
+			const chatB = sessionA.chats.get().find(c => c.title.get() === 'b')!;
+			await view.closeChat(activeSessionOf(view)!, chatB);
+			view.closeSession(sessionB, { skipHistory: true });
+			await view.reopenLastClosedItem();
+			const afterSkippedClose = { grid: grid(view), open: view.activePane.get()!.tabs.openChats.get().map(c => c.title.get()) };
+
+			view.closeSession(sessionA);
+			view.forgetClosedSession(sessionB);
+			const afterForgettingAnother = canReopen();
+			view.forgetClosedSession(sessionA);
+
+			assert.deepStrictEqual({ afterSkippedClose, afterForgettingAnother, afterForgetting: canReopen() }, {
+				afterSkippedClose: { grid: { visible: ['A'], sticky: [false], active: 'A' }, open: ['mainA', 'b'] },
+				afterForgettingAnother: true,
+				afterForgetting: false,
 			});
 		});
 
@@ -11127,6 +11973,43 @@ suite('SessionsManagementService', () => {
 			tracking.dispose();
 
 			assert.deepStrictEqual({ ends, notifications }, { ends: ['a1-prepared started=false error=a1-prepared failed'], notifications: [] });
+		});
+
+		test('reports once that a slot\'s request was sent, the first time its provider forwards a response for it, in the session it was sent in, and forwards each response to the caller\'s own callback', async () => {
+			const response = upcastPartial<IChatResponseModel>({});
+			const provider = disposables.add(new class extends PreparingProvider {
+				override async sendRequest(sessionId: string, _chatResource?: URI, options?: ISendRequestOptions): Promise<ISession> {
+					options?.onDidCreateResponse?.(undefined, 'queued');
+					options?.onDidCreateResponse?.(response, 'sent');
+					options?.onDidCreateResponse?.(response, 'sent');
+					return super.sendRequest(sessionId);
+				}
+			}([draft('a1'), draft('b1')]));
+			const { service } = createSessionsManagementService(listed, disposables, provider);
+			const slot = disposables.add(service.createNewSessionSlot());
+			const log: string[] = [];
+			disposables.add(service.onDidDispatchNewSessionRequest(event => log.push(`sent ${event.session.sessionId} ${event.owner === slot ? 'slot' : 'other'}`)));
+			disposables.add(service.onDidEndNewSessionRequest(event => log.push(`end ${event.session.sessionId}`)));
+			const ownResponses: string[] = [];
+			const options: Parameters<ISessionsManagementService['sendNewChatRequest']>[1] = { query: 'background', background: true, onDidCreateResponse: (sent, kind) => ownResponses.push(`${kind} ${!!sent}`) };
+			const sentWithOwnOptions: boolean[] = [];
+			disposables.add(service.onDidSendRequest(event => sentWithOwnOptions.push(event.options === options)));
+
+			const ended = Event.toPromise(Event.filter(service.onDidEndNewSessionRequest, event => event.owner === slot));
+			await service.sendNewChatRequest(slot.createNewSession(folder), options);
+			await ended;
+			await service.sendNewChatRequest(slot.createNewSession(folder), { query: 'foreground' });
+			const unowned = draft('unowned');
+			provider.created.push(unowned);
+			const unownedSent = Event.toPromise(Event.filter(service.onDidSendRequest, event => event.session.sessionId === 'unowned-prepared'));
+			await service.sendNewChatRequest(unowned, { query: 'unowned', background: true });
+			await unownedSent;
+
+			assert.deepStrictEqual({ log, ownResponses, sentWithOwnOptions }, {
+				log: ['sent a1-prepared slot', 'end a1-prepared', 'sent b1-prepared slot', 'end b1-prepared'],
+				ownResponses: ['queued false', 'sent true', 'sent true'],
+				sentWithOwnOptions: [true, false, false],
+			});
 		});
 
 		test('openNewSession creates the draft of the given slot without navigating or changing the main composer\'s draft', async () => {

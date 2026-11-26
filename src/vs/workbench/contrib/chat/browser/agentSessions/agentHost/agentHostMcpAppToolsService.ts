@@ -54,7 +54,7 @@ export const MCP_APP_KEEP_ALIVE_APP_COUNT = 3;
 export interface IAgentHostMcpAppToolsService {
 	readonly _serviceBrand: undefined;
 
-	/** Shares view models and retains hidden tool providers from the latest request and the three most recent apps. */
+	/** Shares view models for all MCP apps (local and agent host) and retains hidden agent-host tool providers from the latest request and the three most recent apps. */
 	acquire(renderData: IMcpAppRenderData, toolCallId: string, create: () => ChatMcpAppModel): IReference<ChatMcpAppModel>;
 
 	/**

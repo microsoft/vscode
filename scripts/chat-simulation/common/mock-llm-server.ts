@@ -2028,6 +2028,12 @@ interface StartServerOptions {
 	 * call `getRequests()` enable it.
 	 */
 	captureRequests?: boolean;
+	/**
+	 * Serves additional endpoints before the built-in handlers, e.g. a test-owned
+	 * catalog the runtime fetches from the same API origin. Return `true` when the
+	 * request was handled.
+	 */
+	routes?: (req: import('http').IncomingMessage, res: import('http').ServerResponse, path: string) => boolean;
 }
 
 /**
@@ -2077,6 +2083,9 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			}
 			reqCount++;
 			requestWaiters = requestWaiters.filter(fn => !fn());
+			if (options?.routes?.(req, res, new URL(req.url || '/', 'http://localhost').pathname)) {
+				return;
+			}
 			handleRequest(req, res, options?.tls ? 'https' : 'http');
 		};
 		const server = options?.tls ? https.createServer(options.tls, listener) : http.createServer(listener);

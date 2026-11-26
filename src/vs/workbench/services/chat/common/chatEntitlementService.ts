@@ -32,7 +32,7 @@ import { Mutable } from '../../../../base/common/types.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IDefaultAccount, IEntitlementsData, IQuotaSnapshotData } from '../../../../base/common/defaultAccount.js';
+import { asGitHubAccount, IDefaultAccount, IEntitlementsData, IQuotaSnapshotData } from '../../../../base/common/defaultAccount.js';
 import { isInternalAccount } from '../../../../platform/assignment/common/assignment.js';
 
 export namespace ChatEntitlementContextKeys {
@@ -1483,13 +1483,18 @@ export class ChatEntitlementRequests extends Disposable {
 
 	private async getSessions(): Promise<AuthenticationSession[]> {
 		const defaultAccount = await this.defaultAccountService.getDefaultAccount();
-		if (defaultAccount) {
-			const sessions = await this.authenticationService.getSessions(defaultAccount.authenticationProvider.id);
-			const accountSessions = sessions.filter(s => s.id === defaultAccount.sessionId);
+		const account = asGitHubAccount(defaultAccount);
+		if (account) {
+			const sessions = await this.authenticationService.getSessions(account.authenticationProvider.id);
+			const accountSessions = sessions.filter(s => s.id === account.sessionId);
 			if (accountSessions.length) {
 				return accountSessions;
 			}
+		} else if (defaultAccount) {
+			// A default account that is not a GitHub account has no GitHub sessions, whichever GitHub sessions the window has.
+			return [];
 		}
+		// Without a session of the default account, every session of the default authentication provider is used.
 		return [...(await this.authenticationService.getSessions(this.defaultAccountService.getDefaultAccountAuthenticationProvider().id))];
 	}
 

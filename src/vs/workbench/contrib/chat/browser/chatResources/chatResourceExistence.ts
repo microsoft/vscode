@@ -9,11 +9,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 
 /**
- * Whether a resource exists, following changes to it until `store` is disposed.
- * @param existsWithoutProvider Whether a resource that no file system provides counts as existing, because nothing can tell
- * whether it exists.
+ * Whether a resource exists, following changes to it until `store` is disposed. Only a file system provider can tell, so a
+ * resource of a scheme that no file system provides does not exist: an extension that wants its resources shown in the chat
+ * provides a file system for their scheme.
  */
-export function observeChatResourceExists(fileService: IFileService, resource: URI, store: DisposableStore, existsWithoutProvider: boolean): IObservable<boolean> {
+export function observeChatResourceExists(fileService: IFileService, resource: URI, store: DisposableStore): IObservable<boolean> {
 	const exists = observableValue<boolean>('chatResourceExists', false);
 	let version = 0;
 	const refresh = async () => {
@@ -21,7 +21,7 @@ export function observeChatResourceExists(fileService: IFileService, resource: U
 		let result = false;
 		try {
 			await fileService.activateProvider(resource.scheme);
-			result = fileService.hasProvider(resource) ? await fileService.exists(resource) : existsWithoutProvider;
+			result = fileService.hasProvider(resource) && await fileService.exists(resource);
 		} catch {
 			result = false;
 		}

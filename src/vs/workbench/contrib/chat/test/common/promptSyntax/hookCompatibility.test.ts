@@ -6,55 +6,28 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { getCanonicalAgentHookName, HOOKS_BY_TARGET, HookType } from '../../../common/promptSyntax/hookTypes.js';
-import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat, buildNewHookFile } from '../../../common/promptSyntax/hookCompatibility.js';
+import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat, buildNewCopilotHookFile, getLocalFormatHookEvents } from '../../../common/promptSyntax/hookCompatibility.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
 suite('HookCompatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('buildNewHookFile', () => {
-		const copilotHookNames: [HookType, string][] = [
-			[HookType.SessionStart, 'sessionStart'],
-			[HookType.SessionEnd, 'sessionEnd'],
-			[HookType.UserPromptSubmit, 'userPromptSubmitted'],
-			[HookType.UserPromptTransformed, 'userPromptTransformed'],
-			[HookType.PreToolUse, 'preToolUse'],
-			[HookType.PostToolUse, 'postToolUse'],
-			[HookType.PreCompact, 'preCompact'],
-			[HookType.SubagentStart, 'subagentStart'],
-			[HookType.SubagentStop, 'subagentStop'],
-			[HookType.Stop, 'agentStop'],
-			[HookType.ErrorOccurred, 'errorOccurred'],
-		];
-
-		for (const [hookType, eventName] of copilotHookNames) {
-			test(`creates a versioned Copilot file for ${hookType}`, () => {
-				assert.deepStrictEqual(buildNewHookFile(HookSourceFormat.Copilot, hookType), {
-					version: 1,
-					hooks: {
-						[eventName]: [{ type: 'command', command: '' }]
-					}
-				});
-			});
-		}
-
-		test('generated Copilot events remain discoverable', () => {
-			assert.deepStrictEqual(copilotHookNames.map(([hookType]) => {
-				const file = buildNewHookFile(HookSourceFormat.Copilot, hookType);
-				return [...parseCopilotHooks(file, undefined, '').keys()];
-			}), copilotHookNames.map(([hookType]) => [hookType]));
-		});
-
-		test('preserves the Claude file format', () => {
-			assert.deepStrictEqual(buildNewHookFile(HookSourceFormat.Claude, HookType.PreToolUse), {
+	suite('buildNewCopilotHookFile', () => {
+		test('creates a versioned Copilot file', () => {
+			assert.deepStrictEqual(buildNewCopilotHookFile('preToolUse'), {
+				version: 1,
 				hooks: {
-					PreToolUse: [{
-						matcher: '',
-						hooks: [{ type: 'command', command: '' }]
-					}]
+					preToolUse: [{ type: 'command', command: '' }]
 				}
 			});
+		});
+
+		test('new files for Copilot events VS Code parses are discoverable', () => {
+			const eventNames = Object.keys(HOOKS_BY_TARGET[Target.GitHubCopilot]);
+			assert.deepStrictEqual(
+				eventNames.map(eventName => [...parseCopilotHooks(buildNewCopilotHookFile(eventName), undefined, '').values()].map(entry => entry.originalId)),
+				eventNames.map(eventName => [eventName]));
 		});
 	});
 
@@ -274,6 +247,30 @@ suite('HookCompatibility', () => {
 
 			assert.strictEqual(result.disabledAllHooks, true);
 			assert.strictEqual(result.hooks.size, 0);
+		});
+	});
+
+	suite('getLocalFormatHookEvents', () => {
+		test('marks capitalised event names, with or without a version, outside .claude folders', () => {
+			const hookFile = URI.file('/workspace/.github/hooks/guard.json');
+			const hooks = (json: object) => ({ hooks: json });
+			assert.deepStrictEqual({
+				local: getLocalFormatHookEvents(hookFile, hooks({ PreToolUse: [], Stop: [] })),
+				halfMigrated: getLocalFormatHookEvents(hookFile, { version: 1, ...hooks({ PreToolUse: [], postToolUse: [] }) }),
+				nativeWithoutVersion: getLocalFormatHookEvents(hookFile, hooks({ preToolUse: [] })),
+				claudeSettings: getLocalFormatHookEvents(URI.file('/workspace/.claude/settings.json'), hooks({ PreToolUse: [] })),
+				claudeFolder: getLocalFormatHookEvents(URI.file('/workspace/.claude/hooks/guard.json'), hooks({ PreToolUse: [] })),
+				unknownCapitalised: getLocalFormatHookEvents(hookFile, hooks({ BeforeAnything: [] })),
+				invalid: getLocalFormatHookEvents(hookFile, { hooks: [] }),
+			}, {
+				local: ['PreToolUse', 'Stop'],
+				halfMigrated: ['PreToolUse'],
+				nativeWithoutVersion: [],
+				claudeSettings: [],
+				claudeFolder: [],
+				unknownCapitalised: [],
+				invalid: [],
+			});
 		});
 	});
 });

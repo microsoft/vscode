@@ -68,6 +68,8 @@ export const enum CopilotCliConfigKey {
 	Opus48Prompt = 'opus48Prompt',
 	/** Send the system prompt in the runtime's stability-ordered prompt-cache layout. Off by default. */
 	StabilityOrderedPrompt = 'stabilityOrderedPrompt',
+	/** Offer the runtime's client-side `run_program` tool for programmatic tool calling. Off by default. */
+	ProgrammaticToolCalling = 'programmaticToolCalling',
 	/** Run the runtime's purpose-built secret detection model in `/security-review`. Off by default. */
 	SecurityReviewSecretDetection = 'securityReviewSecretDetection',
 	/** Ask GPT and Auto sessions for brief user-visible progress updates before and between tool calls. Off by default. */
@@ -76,6 +78,10 @@ export const enum CopilotCliConfigKey {
 	ProgressUpdatesPromptDefaultControlled = 'progressUpdatesPromptDefaultControlled',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default. */
 	LocalMemory = 'localMemory',
+	/** Where Copilot SDK sessions place retrieved memories: the system prompt (default) or generated user-role messages. */
+	MemoryMode = 'memoryMode',
+	/** Whether the workbench memory mode value is controlled by its configuration default. */
+	MemoryModeDefaultControlled = 'memoryModeDefaultControlled',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
 	/** Override Auto's "Optimize for" preference. */
@@ -151,6 +157,8 @@ export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Promp
 
 export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
 
+export const CopilotProgrammaticToolCallingEnabledSettingId = 'chat.copilot.programmaticToolCalling.enabled';
+
 export const CopilotSecurityReviewSecretDetectionEnabledSettingId = 'chat.copilot.securityReview.secretDetection.enabled';
 
 export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.copilot.progressUpdatesPrompt.enabled';
@@ -162,6 +170,11 @@ export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.co
 export const LegacyDynamicAutoTiersConfigKey = 'dynamicAutoTiers';
 
 export const AgentHostCopilotLocalMemoryEnabledSettingId = 'chat.copilot.memory.local.enabled';
+
+export const AgentHostCopilotMemoryModeSettingId = 'chat.copilot.memory.mode';
+
+export const copilotMemoryModeValues = ['system-prompt', 'user-prompt'] as const;
+export type CopilotMemoryMode = typeof copilotMemoryModeValues[number];
 
 export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
@@ -380,6 +393,12 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.stabilityOrderedPrompt.description', "When enabled, Copilot SDK sessions order the system prompt by how often each section changes, so sessions with the same tools and workspace can reuse each other's prompt cache. This moves per-session sections, such as the environment and session folder, to the end of the system prompt."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.ProgrammaticToolCalling]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.programmaticToolCalling.title', "Programmatic Tool Calling"),
+		description: localize('agentHost.config.programmaticToolCalling.description', "When enabled, Copilot SDK sessions offer a run_program tool that runs a sandboxed JavaScript program to call other tools and return a reduced result, and the system prompt explains when to use it. Tool calls inside a program keep their normal permissions. Replaces model-hosted programmatic tool calling."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.SecurityReviewSecretDetection]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.securityReviewSecretDetection.title', "Security Review Secret Detection"),
@@ -402,6 +421,23 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.localMemory.title', "Local Copilot Memory"),
 		description: localize('agentHost.config.localMemory.description', "When enabled, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; GitHub Copilot Memory settings and policies don't apply."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.MemoryMode]: schemaProperty<CopilotMemoryMode>({
+		type: 'string',
+		title: localize('agentHost.config.memoryMode.title', "Copilot Memory Placement"),
+		description: localize('agentHost.config.memoryMode.description', "Where Copilot SDK sessions place retrieved Copilot Memory: in the system prompt, or in generated user messages."),
+		enum: [...copilotMemoryModeValues],
+		enumLabels: [
+			localize('agentHost.config.memoryMode.systemPrompt', "System Prompt"),
+			localize('agentHost.config.memoryMode.userPrompt', "User Prompt"),
+		],
+		default: 'system-prompt',
+	}),
+	[CopilotCliConfigKey.MemoryModeDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.memoryModeDefaultControlled.title', "Copilot Memory Placement Default Control"),
+		description: localize('agentHost.config.memoryModeDefaultControlled.description', "Whether the workbench Copilot Memory placement setting has no explicit override. Used only to gate setting experiment telemetry."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({

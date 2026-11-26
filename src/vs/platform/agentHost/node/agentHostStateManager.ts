@@ -18,13 +18,14 @@ import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
-import { buildAnnotationsUri, isAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
+import { buildAnnotationsUri, isAhpAnnotationsChannel, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
 import { ChangesSummary, ChatInteractivity, type ChatOrigin, type SessionChatSummary } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { canvasReducer } from '../common/state/protocol/channels-canvas/reducer.js';
 import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import type { CanvasState } from '../common/state/protocol/channels-canvas/state.js';
+import { withLegacyCanvasState } from '../common/agentHostProtocolTransition.js';
 import { parseCanvasChatUri } from '../common/canvasUri.js';
 import { URI as ResourceURI } from '../../../base/common/uri.js';
 import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
@@ -130,6 +131,15 @@ function registrationParentChat(origin: ChatOrigin | undefined): string | undefi
 /** A chat's own agent: `provider` when it differs from its session's, else `undefined` (the session's agent). */
 function ownChatProvider(sessionProvider: string | undefined, provider: string | undefined): string | undefined {
 	return provider !== undefined && provider !== sessionProvider ? provider : undefined;
+}
+
+/**
+ * The `modifiedAt` of a session or chat that was just archived or unarchived: now, never before `current`.
+ * Archiving counts as an update, so lists ordered by update time order archived items by when they were archived.
+ */
+function archivedModifiedAt(current: string): string {
+	const currentTime = Date.parse(current);
+	return new Date(Number.isFinite(currentTime) ? Math.max(Date.now(), currentTime) : Date.now()).toISOString();
 }
 
 interface IRestoredChatState {
@@ -326,6 +336,7 @@ class SessionSummaryNotifier extends Disposable {
 		if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
+		if (!structuralEquals(current.annotations, lastNotified.annotations)) { changes.annotations = current.annotations; }
 		if (current.workingDirectories !== lastNotified.workingDirectories) { changes.workingDirectories = current.workingDirectories; }
 		if (!equals(current.chats, lastNotified.chats)) { changes.chats = current.chats; }
 		if (current.defaultChat !== lastNotified.defaultChat) {
@@ -408,14 +419,14 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _changesets: AgentHostChangesetStateCache;
 
 	/**
-	 * Per-channel annotation states for the `<session>/annotations` channel.
+	 * Per-channel annotation states for each session's annotations channel.
 	 * Unlike changesets (server-owned), annotation actions are
 	 * client-dispatchable and lazily create their state on first write.
 	 */
 	private readonly _annotations = new Map<string, AnnotationsState>();
 	private _automationCatalog: AutomationState | undefined;
 	private readonly _automationRuns = new Map<string, AutomationRunState>();
-	private readonly _canvases = new Map<string, { readonly chat: string; state: CanvasState }>();
+	private readonly _canvases = new Map<string, { readonly chat: string; readonly source: CanvasState; state: CanvasState }>();
 
 	/**
 	 * Active turns per session, keyed by session URI string with the value
@@ -574,6 +585,19 @@ export class AgentHostStateManager extends Disposable {
 		return this._sessionsWithActiveTurn.size > 0;
 	}
 
+	/** True while a live chat is working, excluding chats blocked on user input. */
+	get hasRunningChats(): boolean {
+		for (const chats of this._sessionsWithActiveTurn.values()) {
+			for (const chat of chats) {
+				const state = this.getChatState(chat);
+				if (state && (chatSummaryFromState(state).status & SessionStatus.InputNeeded) === SessionStatus.InProgress) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	/** The number of chats that currently have an active turn. */
 	get activeTurnCount(): number {
 		let count = 0;
@@ -654,7 +678,7 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/** Permanently marks a session as used, so it is never auto-collected. */
-	private _markSessionUsed(session: URI): void {
+	markSessionUsed(session: URI): void {
 		const entry = this._sessionStates.get(session);
 		if (entry) {
 			entry.use = SessionUse.Used;
@@ -979,7 +1003,7 @@ export class AgentHostStateManager extends Disposable {
 				entry.state = { ...createChatState(entry.summary), turns: restored.turns, draft: restored.draft ?? entry.draft, ...(entry.config ? { config: entry.config } : {}) };
 				entry.resolver = undefined;
 				if (restored.turns.length > 0) {
-					this._markSessionUsed(entry.session);
+					this.markSessionUsed(entry.session);
 				}
 				this._onDidResolveChatState.fire(chat);
 			}
@@ -1020,7 +1044,7 @@ export class AgentHostStateManager extends Disposable {
 			chatState.turns = turns;
 		}
 		if (turns.length > 0) {
-			this._markSessionUsed(session);
+			this.markSessionUsed(session);
 		}
 	}
 
@@ -1177,13 +1201,15 @@ export class AgentHostStateManager extends Disposable {
 			};
 		}
 
-		// Annotation URIs are nested under their session URI as well. They are
-		// client-dispatchable and lazily created, so return an empty state for
-		// a well-formed annotations URI even before the first write.
-		if (isAnnotationsUri(resource)) {
+		// Annotations are lazily created, including when subscribed before the first write.
+		if (isAhpAnnotationsChannel(resource)) {
+			const annotations = parseAnnotationsUri(resource);
+			if (!annotations) {
+				return undefined;
+			}
 			return {
 				resource,
-				state: this._annotations.get(resource) ?? { annotations: [] },
+				state: this._annotations.get(buildAnnotationsUri(annotations.sessionUri)) ?? { annotations: [] },
 				fromSeq: this._serverSeq,
 			};
 		}
@@ -1229,11 +1255,12 @@ export class AgentHostStateManager extends Disposable {
 			throw new Error(`Canvas channel does not belong to chat: ${resource}`);
 		}
 		const previous = this._canvases.get(resource);
-		if (previous?.state === state) {
+		if (previous?.source === state) {
 			return;
 		}
-		this._canvases.set(resource, { chat, state });
-		this.dispatchServerAction(resource, { type: ActionType.CanvasStateChanged, canvas: state });
+		const canvas = withLegacyCanvasState(state);
+		this._canvases.set(resource, { chat, source: state, state: canvas });
+		this.dispatchServerAction(resource, { type: ActionType.CanvasStateChanged, canvas });
 	}
 
 	private _pruneChatCanvases(chat: string, resources: ReadonlySet<string>): void {
@@ -1307,6 +1334,7 @@ export class AgentHostStateManager extends Disposable {
 	/** Builds the authoritative {@link ISessionEntry} for a freshly seeded state. */
 	private _newEntry(state: SessionState, defaultChat: URI, summary: SessionSummary, use: SessionUse): ISessionEntry {
 		this._evictedDefaultChatUris.delete(summary.resource);
+		state.annotations = this.getAnnotationsSummary(summary.resource);
 		return { state, defaultChatUri: defaultChat, createdAt: summary.createdAt, modifiedAt: summary.modifiedAt, project: summary.project, changes: summary.changes, use };
 	}
 
@@ -1439,7 +1467,8 @@ export class AgentHostStateManager extends Disposable {
 	 * without subscribing to every session.
 	 *
 	 * No-ops for a live session (the reducer owns that), one never announced, or
-	 * a flag already in the requested position.
+	 * a flag already in the requested position. Changing {@link SessionStatus.IsArchived}
+	 * advances its `modifiedAt`, as archiving a live session does.
 	 */
 	setSurfacedSessionStatusFlag(session: string, flag: SessionStatus, set: boolean): void {
 		if (this._sessionStates.has(session)) {
@@ -1453,15 +1482,23 @@ export class AgentHostStateManager extends Disposable {
 		if (status === announced.status) {
 			return;
 		}
-		this._summaryNotifier.applyAnnouncedChanges(session, { status });
+		this._summaryNotifier.applyAnnouncedChanges(session, {
+			status,
+			...(flag === SessionStatus.IsArchived ? { modifiedAt: archivedModifiedAt(announced.modifiedAt) } : {}),
+		});
 	}
 
-	/** Updates passive status metadata and optional exact chat read state for an unloaded session. */
-	setSurfacedSessionStatusAndChats(session: string, status: SessionStatus, chats?: SessionSummary['chats']): void {
-		if (!this._sessionStates.has(session) && this._summaryNotifier.getAnnounced(session)) {
+	/**
+	 * Updates passive status metadata and optional exact chat read state for an unloaded session. `archivedChanged`
+	 * advances its `modifiedAt`, as archiving a live session or chat does.
+	 */
+	setSurfacedSessionStatusAndChats(session: string, status: SessionStatus, chats?: SessionSummary['chats'], archivedChanged = false): void {
+		const announced = this._summaryNotifier.getAnnounced(session);
+		if (!this._sessionStates.has(session) && announced) {
 			this._summaryNotifier.applyAnnouncedChanges(session, {
 				status,
 				...(chats ? { chats } : {}),
+				...(archivedChanged ? { modifiedAt: archivedModifiedAt(announced.modifiedAt) } : {}),
 			});
 		}
 	}
@@ -2719,12 +2756,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
-	/**
-	 * Drops the annotation state nested under `session` (i.e. the
-	 * `<session>/annotations` channel). Used to cascade cleanup when a
-	 * session itself is removed. Subscriptions are released via the
-	 * forthcoming `sessionRemoved` notification.
-	 */
+	/** Drops this session's and its subagents' annotations when the session is removed. */
 	disposeSessionAnnotations(session: URI): void {
 		for (const resource of this._annotations.keys()) {
 			const annotations = parseAnnotationsUri(resource);
@@ -2738,6 +2770,25 @@ export class AgentHostStateManager extends Disposable {
 	/** Restores a session's annotations before serving its first snapshot. */
 	restoreAnnotations(session: URI, state: AnnotationsState): void {
 		this._annotations.set(buildAnnotationsUri(session), state);
+		this._updateAnnotationsSummary(session);
+	}
+
+	/** Describes the local annotations channel without loading the session's conversation. */
+	getAnnotationsSummary(session: URI): NonNullable<SessionSummary['annotations']> {
+		const resource = buildAnnotationsUri(session);
+		const annotations = this._annotations.get(resource)?.annotations ?? [];
+		return { resource, annotationCount: annotations.length, entryCount: annotations.reduce((count, annotation) => count + annotation.entries.length, 0) };
+	}
+
+	private _updateAnnotationsSummary(session: URI): void {
+		const annotations = this.getAnnotationsSummary(session);
+		const entry = this._sessionStates.get(session);
+		if (entry) {
+			entry.state = { ...entry.state, annotations };
+			this._summaryNotifier.markDirty(session);
+		} else if (!structuralEquals(this._summaryNotifier.getAnnounced(session)?.annotations, annotations)) {
+			this._summaryNotifier.applyAnnouncedChanges(session, { annotations });
+		}
 	}
 
 	/** Returns the current annotations state for a channel, when materialized. */
@@ -2762,6 +2813,11 @@ export class AgentHostStateManager extends Disposable {
 	/** Allocates an ordered action for listener-owned state without applying it to shared host state. */
 	createServerActionEnvelope(channel: URI, action: StateAction): ActionEnvelope {
 		return { channel, action, serverSeq: ++this._serverSeq, origin: undefined };
+	}
+
+	/** Distinguishes two subscription baselines even if no shared state changed between them. */
+	allocateSnapshotSequence(): number {
+		return ++this._serverSeq;
 	}
 
 	/**
@@ -2886,6 +2942,13 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined, clientContext?: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): unknown {
+		if (isAnnotationsAction(action) && (!isAhpAnnotationsChannel(channel) || !parseAnnotationsUri(channel))) {
+			this._logService.warn(`[AgentHostStateManager] Annotations action for another channel: ${channel}`);
+			if (origin) {
+				this.rejectClientAction(channel, action, origin, 'Annotations actions require an annotations channel.');
+			}
+			return undefined;
+		}
 		if (action.type === ActionType.RootConfigChanged) {
 			try {
 				// Invalid sandbox values must not replace the last valid containment configuration.
@@ -2959,6 +3022,11 @@ export class AgentHostStateManager extends Disposable {
 				const newState = sessionReducer(previousState, sessionAction, this._log);
 				const summaryChanged = !this._summaryFieldsEqual(previousState, newState);
 				entry.state = newState;
+				const archivedChanged = sessionAction.type === ActionType.SessionIsArchivedChanged
+					&& isSessionStatusArchived(previousState.status) !== isSessionStatusArchived(newState.status);
+				if (archivedChanged) {
+					entry.modifiedAt = archivedModifiedAt(entry.modifiedAt);
+				}
 				this._synchronizeChatEntries(key, newState.chats);
 				const aggregateChats = newState.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity));
 				if (sessionAction.type === ActionType.SessionIsReadChanged && !sessionAction.isRead && aggregateChats.length === 1) {
@@ -2978,7 +3046,7 @@ export class AgentHostStateManager extends Disposable {
 
 				// When the reducer touched a summary-relevant field, notify
 				// root-channel clients of the derived-summary delta.
-				if (summaryChanged) {
+				if (summaryChanged || archivedChanged) {
 					this._summaryNotifier.markDirty(key);
 				}
 
@@ -3001,7 +3069,10 @@ export class AgentHostStateManager extends Disposable {
 			const chat = chatEntry?.state;
 			let readTransition: { readonly wasRead: boolean; readonly isRead: boolean } | undefined;
 			if (chat && chatEntry && sessionKey !== undefined) {
-				const newChat = chatReducer(chat, chatAction, this._log);
+				let newChat = chatReducer(chat, chatAction, this._log);
+				if (chatAction.type === ActionType.ChatIsArchivedChanged && isSessionStatusArchived(chat.status) !== isSessionStatusArchived(newChat.status)) {
+					newChat = { ...newChat, modifiedAt: archivedModifiedAt(chat.modifiedAt) };
+				}
 				chatEntry.state = newChat;
 				if (chatAction.type === ActionType.ChatMoved) {
 					// Its values are unchanged; only the schema it publishes follows its new owner.
@@ -3032,7 +3103,8 @@ export class AgentHostStateManager extends Disposable {
 				const status = chatAction.type === ActionType.ChatIsReadChanged
 					? withSessionStatusFlag(summary.status, SessionStatus.IsRead, chatAction.isRead)
 					: withSessionStatusFlag(summary.status, SessionStatus.IsArchived, chatAction.isArchived);
-				this._onChatSummaryChanged(sessionKey, channel, { ...summary, status });
+				const archivedChanged = isSessionStatusArchived(summary.status) !== isSessionStatusArchived(status);
+				this._onChatSummaryChanged(sessionKey, channel, { ...summary, status, ...(archivedChanged ? { modifiedAt: archivedModifiedAt(summary.modifiedAt) } : {}) });
 				if (chatAction.type === ActionType.ChatIsReadChanged) {
 					readTransition = { wasRead: isSessionStatusRead(summary.status), isRead: isSessionStatusRead(status) };
 				}
@@ -3090,13 +3162,15 @@ export class AgentHostStateManager extends Disposable {
 
 		if (isAnnotationsAction(action)) {
 			const annotationsAction = action as AnnotationsAction;
-			const key = channel;
+			const owner = parseAnnotationsUri(channel)!.sessionUri;
+			const key = buildAnnotationsUri(owner);
 			// Annotations are client-dispatchable and lazily created: seed an
 			// empty state on first write rather than dropping the action.
 			const state = this._annotations.get(key) ?? { annotations: [] };
 			const newState = annotationsReducer(state, annotationsAction, this._log);
 			if (newState !== state) {
 				this._annotations.set(key, newState);
+				this._updateAnnotationsSummary(owner);
 			}
 			resultingState = newState;
 		}
@@ -3296,7 +3370,7 @@ export class AgentHostStateManager extends Disposable {
 		// Any turn activity permanently retires the session's unused-draft
 		// status, so a later truncate-to-zero cannot make it look collectable.
 		if (next.turns.length > 0 || next.activeTurn) {
-			this._markSessionUsed(sessionKey);
+			this.markSessionUsed(sessionKey);
 		}
 		// Active turn tracking — derive from the reducer's view of state,
 		// never from raw action turn-ids, so out-of-order lifecycle actions

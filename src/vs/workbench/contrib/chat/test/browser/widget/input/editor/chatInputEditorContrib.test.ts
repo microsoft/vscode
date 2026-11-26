@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
@@ -23,6 +24,7 @@ import { IDecorationOptions } from '../../../../../../../../editor/common/editor
 import { withTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../../platform/actions/common/actions.js';
 import { agentHostConnectionKinds } from '../../../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
+import { toAgentHostUri } from '../../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CommandsRegistry } from '../../../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -448,6 +450,21 @@ suite('InputEditorDecorations', () => {
 		}));
 	}
 
+	for (const wrapped of [false, true]) {
+		test(`opens a host-readable built-in skill by mouse and keyboard (${wrapped ? 'wrapped' : 'raw'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const resource = URI.parse('agent-builtin-skill:/troubleshoot/SKILL.md');
+			const uri = wrapped ? toAgentHostUri(resource, 'remote-test') : resource;
+			const fixture = createDecorations([
+				referencePart(1, toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/troubleshoot', uri, undefined)),
+			]);
+			await fixture.whenUpdated();
+			fixture.click(2);
+			fixture.setPosition(2);
+			await fixture.openSkillAtCursor();
+			assert.deepStrictEqual(fixture.openedResources, [uri.toString(), uri.toString()]);
+		}));
+	}
+
 	test('ignores missing resources, commands, and ordinary variables', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.file('/workspace/SKILL.md');
 		const entries: IChatRequestVariableEntry[] = [
@@ -474,10 +491,11 @@ suite('InputEditorDecorations', () => {
 		const skillUri = URI.file('/workspace/review/SKILL.md');
 		const prompt = new ChatRequestSlashPromptPart(new OffsetRange(0, 7), new Range(1, 1, 1, 8), 'review');
 		const fixture = createDecorations([prompt, textPart(8, ' ')], upcastPartial<IResolvedChatPromptSlashCommand>({
-			name: 'review', uri: promptUri, argumentHint: 'Files to review',
+			name: 'review', uri: promptUri, description: 'Review code', argumentHint: 'Files to review',
 		}));
 		await fixture.whenUpdated();
 		const argumentHint = fixture.decorations.get('chat-session-detail')?.[0].renderOptions?.after?.contentText;
+		const hoverMessage = fixture.decorations.get('chat-session-clickable-text')?.[0].hoverMessage;
 		fixture.setPosition(2);
 		await fixture.openSkillAtCursor();
 		fixture.click(2);
@@ -491,12 +509,67 @@ suite('InputEditorDecorations', () => {
 			opens: fixture.openedResources,
 			lookups: fixture.resolvePromptSlashCommand.callCount,
 			argumentHint,
+			hoverMessage,
 		}, {
 			opens: [promptUri.toString(), promptUri.toString(), skillUri.toString()],
 			lookups: 2,
 			argumentHint: 'Files to review',
+			hoverMessage: new MarkdownString().appendText('Review code\nClick to open /workspace/review.prompt.md'),
 		});
 	}));
+
+	for (const scheme of ['agent-builtin', 'agent-discovery', 'claude-internal']) {
+		for (const wrapped of [false, true]) {
+			const hostUri = URI.from({ scheme, path: '/skill/review' });
+			const uri = wrapped ? toAgentHostUri(hostUri, 'remote-test') : hostUri;
+			const label = `${scheme}, ${wrapped ? 'wrapped' : 'raw'}`;
+			const description = 'Review *code*';
+
+			test(`keeps discovery-only slash prompt descriptions without file links (${label})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const range = new Range(1, 1, 1, 8);
+				const prompt = new ChatRequestSlashPromptPart(new OffsetRange(0, 7), range, 'review');
+				const fixture = createDecorations([prompt, textPart(8, ' ')], upcastPartial<IResolvedChatPromptSlashCommand>({
+					name: 'review', uri, description, argumentHint: 'Files to review',
+				}));
+				await fixture.whenUpdated();
+				fixture.click(2);
+				fixture.setPosition(2);
+				await fixture.openSkillAtCursor();
+
+				assert.deepStrictEqual({
+					opens: fixture.openedResources,
+					clickable: fixture.decorations.get('chat-session-clickable-text'),
+					text: fixture.decorations.get('chat-session-text'),
+					argumentHint: fixture.decorations.get('chat-session-detail')?.[0].renderOptions?.after?.contentText,
+				}, {
+					opens: [],
+					clickable: [],
+					text: [{ range, hoverMessage: new MarkdownString().appendText(description) }],
+					argumentHint: 'Files to review',
+				});
+			}));
+
+			test(`does not open discovery-only bound skills by mouse or keyboard (${label})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/review', uri, undefined);
+				const part = referencePart(1, { ...entry, modelDescription: description });
+				const fixture = createDecorations([part, textPart(8, ' ')]);
+				await fixture.whenUpdated();
+				fixture.click(2);
+				fixture.setPosition(2);
+				await fixture.openSkillAtCursor();
+
+				assert.deepStrictEqual({
+					opens: fixture.openedResources,
+					clickable: fixture.decorations.get('chat-session-clickable-text'),
+					text: fixture.decorations.get('chat-session-text'),
+				}, {
+					opens: [],
+					clickable: [],
+					text: [{ range: part.editorRange, hoverMessage: new MarkdownString().appendText(description) }],
+				});
+			}));
+		}
+	}
 
 	test('does not navigate on drags, right clicks, outside clicks, or removed references', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/review', URI.file('/workspace/SKILL.md'), undefined);

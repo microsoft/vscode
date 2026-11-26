@@ -54,10 +54,6 @@ abstract class ClassPropertyBlueprintSearch<T extends MethodDeclaration | Constr
 		this.declaration = declaration;
 	}
 
-	public isSame(other: T): boolean {
-		return this.declaration === other || (this.declaration.getSourceFile().path === other.getSourceFile().path && this.declaration.pos === other.pos);
-	}
-
 	public override async score(project: Project, context: RequestContext): Promise<number> {
 		if (await project.program.getSourceFile(this.declaration.getSourceFile().fileName) === undefined) {
 			return 0;

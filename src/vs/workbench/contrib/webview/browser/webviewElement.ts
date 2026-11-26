@@ -95,6 +95,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	private _encodedWebviewOrigin: string | undefined;
 	private readonly _mountDisposables = this._register(new DisposableStore());
+	/** The element passed to the latest `mountTo`, which holds the iframe once its pending mount attaches it. */
+	private _mountContainer: HTMLElement | undefined;
 
 	protected get platform(): string { return 'browser'; }
 
@@ -356,6 +358,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this.element?.remove();
 		this._element = undefined;
+		this._mountContainer = undefined;
 
 		this.resetHostChannel();
 		this._mountId = undefined;
@@ -432,6 +435,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
 
 		const allowRules = ['cross-origin-isolated', 'autoplay'];
+		if (options.allowFullscreen) {
+			allowRules.push('fullscreen');
+		}
 		const supportedFeatures = (element as HTMLIFrameElement & { featurePolicy?: { features(): string[] } }).featurePolicy?.features();
 		if (supportedFeatures?.includes('local-network-access')) {
 			allowRules.push('local-network-access');
@@ -498,6 +504,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this._mountDisposables.clear();
 		this.element.remove();
+		this._mountContainer = element;
 		this._windowId = targetWindow.vscodeWindowId;
 		this._mountId = generateUuid();
 		const mountId = this._mountId;
@@ -675,10 +682,16 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	public reinitializeAfterDismount(): void {
+		// The iframe has no parent until a pending mount attaches it, so remount into the mount's container instead.
+		const container = this._mountContainer;
+		if (!container) {
+			return;
+		}
+
 		this._state = new WebviewState.Initializing([]);
 		this.resetHostChannel();
 
-		this.mountTo(this.element!.parentElement!, getWindow(this.element));
+		this.mountTo(container, getWindow(container));
 		this.style();
 		this.reload();
 	}
@@ -734,6 +747,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				allowScripts: allowScripts,
 				allowForms: this._content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
 				includeHorizontalScrollbarInContentHeight: this._options.includeHorizontalScrollbarInContentHeight,
+				allowFullscreen: !!this._options.allowFullscreen,
 			},
 			state: this._content.state,
 			cspSource: webviewGenericCspSource,

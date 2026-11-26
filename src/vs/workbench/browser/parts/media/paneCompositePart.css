@@ -24,6 +24,11 @@
 }
 
 /* Global left actions toolbar: rendered first visually via CSS order */
+/* The separator that ends the composite's title actions separates them from the part's own, so not while it has none */
+.monaco-workbench .pane-composite-part > .title.no-global-actions > .title-actions .monaco-action-bar .action-item:last-child:has(> .action-label.separator) {
+	display: none;
+}
+
 .monaco-workbench .pane-composite-part > .title > .global-actions-left {
 	order: -1;
 	display: flex;

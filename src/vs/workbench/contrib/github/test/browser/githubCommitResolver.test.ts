@@ -5,17 +5,19 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
+import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { GitHubCommitResolver } from '../../browser/githubCommitResolver.js';
+
 
 suite('GitHubCommitResolver', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,9 +29,9 @@ suite('GitHubCommitResolver', () => {
 			const release = store.add(toDisposable(() => released++));
 			const client = upcastPartial<IGitHubClient>({
 				credentials: upcastPartial<IGitHubClient['credentials']>({
-					getCredential: async signal => {
+					getCredential: async cancellationToken => {
 						credentialCalls++;
-						signal.throwIfAborted();
+						CancellationToken.throwIfCanceled(cancellationToken);
 						throw new Error('Unexpected credential lookup');
 					},
 				}),
@@ -62,7 +64,7 @@ suite('GitHubCommitResolver', () => {
 		const client = upcastPartial<IGitHubClient>({
 			credentials: upcastPartial<IGitHubClient['credentials']>({
 				onDidInvalidate: Event.None,
-				getCredential: async signal => {
+				getCredential: async cancellationToken => {
 					credentialCalls++;
 					if (credentialCalls === 1) {
 						throw new Error('offline');
@@ -71,7 +73,7 @@ suite('GitHubCommitResolver', () => {
 						account: { host: 'github.com', accountId: 'test' },
 						token: 'token',
 						generation: 1,
-						signal,
+						cancellationToken,
 					};
 				},
 			}),

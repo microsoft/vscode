@@ -16,6 +16,7 @@ import { Position } from '../../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
 import { Action2, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
+import { hasReadableCustomizationContent } from '../../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
@@ -150,7 +151,7 @@ class InputEditorDecorations extends Disposable {
 			&& Range.containsPosition(part.editorRange, position)
 			&& !Position.equals(Range.getEndPosition(part.editorRange), position));
 		const resource = variable && getSkillResource(variable);
-		if (resource) {
+		if (resource && hasReadableCustomizationContent(resource)) {
 			await this.editorService.openEditor({ resource });
 		}
 	}
@@ -274,8 +275,10 @@ class InputEditorDecorations extends Disposable {
 			}
 
 			const mode = this.widget.input.currentModeObs.get();
-			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
-			const displayPlaceholder = getSandboxPlaceholder(viewModel.inputPlaceholder || placeholder, this.widget.input.sandboxToggleChecked.get());
+			// An agent's own hint is more specific than the session's placeholder.
+			const argumentHint = mode.argumentHint?.get();
+			const placeholder = argumentHint || viewModel.inputPlaceholder || mode.description.get() || '';
+			const displayPlaceholder = getSandboxPlaceholder(placeholder, this.widget.input.sandboxToggleChecked.get());
 
 			const decoration: IDecorationOptions[] = [
 				{
@@ -373,10 +376,15 @@ class InputEditorDecorations extends Disposable {
 
 		const dynamicVariableParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart => p instanceof ChatRequestDynamicVariablePart);
 		const clickableDecorations: IDecorationOptions[] = [];
+		const textDecorations: IDecorationOptions[] = [];
 		for (const variable of dynamicVariableParts) {
 			const uri = getSkillResource(variable);
 			if (uri) {
-				clickableDecorations.push(this.createClickableReferenceDecoration(variable.editorRange, uri, variable.modelDescription));
+				if (hasReadableCustomizationContent(uri)) {
+					clickableDecorations.push(this.createClickableReferenceDecoration(variable.editorRange, uri, variable.modelDescription));
+				} else {
+					textDecorations.push({ range: variable.editorRange, hoverMessage: new MarkdownString().appendText(variable.modelDescription ?? '') });
+				}
 			}
 		}
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, clickableDecorations);
@@ -411,7 +419,6 @@ class InputEditorDecorations extends Disposable {
 			}
 		}
 
-		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
 			textDecorations.push({ range: agentPart.editorRange });
 		}
@@ -424,8 +431,12 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (slashPromptPart && promptSlashCommand) {
-			clickableDecorations.push(this.createClickableReferenceDecoration(slashPromptPart.editorRange, promptSlashCommand.uri, promptSlashCommand.description));
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, clickableDecorations);
+			if (hasReadableCustomizationContent(promptSlashCommand.uri)) {
+				clickableDecorations.push(this.createClickableReferenceDecoration(slashPromptPart.editorRange, promptSlashCommand.uri, promptSlashCommand.description));
+				this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, clickableDecorations);
+			} else {
+				textDecorations.push({ range: slashPromptPart.editorRange, hoverMessage: new MarkdownString().appendText(promptSlashCommand.description ?? '') });
+			}
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);

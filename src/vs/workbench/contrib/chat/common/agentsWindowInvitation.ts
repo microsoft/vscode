@@ -16,6 +16,8 @@ export interface IAgentsWindowInvitationScenario extends IAgentsWindowInvitation
 	readonly id: 'continueInAgentsWindow' | 'parallelWorkSameWindow' | 'parallelWorkAllWindows';
 	readonly source: AgentsWindowOpenSource;
 	readonly delaySeconds: number;
+	/** Whether the scenario can show when no `enabled` treatment is assigned. */
+	readonly enabled: boolean;
 	readonly matches: (activity: { readonly sameWindow: number; readonly acrossWindows: boolean }) => boolean;
 }
 
@@ -24,22 +26,25 @@ export const agentsWindowInvitationScenarios: readonly IAgentsWindowInvitationSc
 	id: 'parallelWorkAllWindows',
 	source: AgentsWindowOpenSource.ParallelWorkAllWindows,
 	delaySeconds: 15,
+	enabled: true,
 	matches: activity => activity.acrossWindows,
-	title: localize('agentsWindowInvitation.allWindows.title', "View all your sessions in the Agents Window"),
+	title: localize('agentsWindowInvitation.allWindows.manageTitle', "Manage all your sessions in the Agents Window"),
 	description: localize('agentsWindowInvitation.allWindows.description', "Keep track of agent sessions from all your editor windows in one place."),
-	actionLabel: localize('agentsWindowInvitation.allWindows.action', "View All in Agents Window"),
+	actionLabel: localize('agentsWindowInvitation.allWindows.manageAction', "Manage All in Agents Window"),
 }, {
 	id: 'parallelWorkSameWindow',
 	source: AgentsWindowOpenSource.ParallelWorkSameWindow,
 	delaySeconds: 15,
+	enabled: true,
 	matches: activity => activity.sameWindow >= 2,
-	title: localize('agentsWindowInvitation.sameWindow.title', "View all your sessions in the Agents Window"),
+	title: localize('agentsWindowInvitation.sameWindow.manageTitle', "Manage all your sessions in the Agents Window"),
 	description: localize('agentsWindowInvitation.sameWindow.description', "Keep track of your parallel tasks and switch between agent sessions in one place."),
-	actionLabel: localize('agentsWindowInvitation.sameWindow.action', "View in Agents Window"),
+	actionLabel: localize('agentsWindowInvitation.sameWindow.manageAction', "Manage in Agents Window"),
 }, {
 	id: 'continueInAgentsWindow',
 	source: AgentsWindowOpenSource.ContinueInAgentsWindow,
 	delaySeconds: 30,
+	enabled: false,
 	matches: () => true,
 	title: localize('agentsWindowInvitation.continue.title', "Continue in the Agents Window"),
 	description: localize('agentsWindowInvitation.continue.description', "View this and other agent sessions across your projects in the Agents Window."),

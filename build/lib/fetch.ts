@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { mapStream } from './streams.ts';
 import VinylFile from 'vinyl';
 import log from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import crypto from 'crypto';
 import through2 from 'through2';
-import { Stream } from 'stream';
+import { Readable, Stream, type Duplex } from 'stream';
 
 export interface IFetchOptions {
 	base?: string;
@@ -25,7 +25,7 @@ export interface IFetchOptions {
 
 const defaultIdleTimeout = 30 * 1000;
 
-export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.ThroughStream {
+export function fetchUrls(urls: string[] | string, options: IFetchOptions): Duplex {
 	if (options === undefined) {
 		options = {};
 	}
@@ -38,7 +38,7 @@ export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.T
 		urls = [urls];
 	}
 
-	return es.readArray(urls).pipe(es.map<string, VinylFile | void>((data: string, cb) => {
+	return Readable.from(urls).pipe(mapStream<string, VinylFile | void>((data: string, cb) => {
 		const url = [options.base, data].join('');
 		fetchUrl(url, options).then(file => {
 			cb(undefined, file);

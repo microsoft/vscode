@@ -324,81 +324,6 @@
 	margin-top: auto;
 }
 
-/* ---- Phone Layout: Chat Welcome Page ----
- *
- * The mobile welcome page is laid out as a vertical stack:
- *
- *  - Hero (centered, flex: 1)
- *      hexagon logo
- *      "Start by picking a"  (muted label)
- *      [ <icon> workspace  v ]  (prominent pill picker)
- *
- *  - Chat input (pinned to bottom, edge-to-edge, 16px corners)
- *      "What problem are you solving?" + send button
- *
- *  - Bottom config chip row (horizontally scrollable, just below input)
- *      [ Mode v ]  [ Permissions v ]  [ Worktree v ]  ...
- *
- * Each pill picker uses the same chip style: rounded background, subtle
- * border, ~36-40px touch target, label always visible (the row scrolls
- * horizontally rather than collapsing to icon-only on narrow viewports).
- */
-
-/* Make the welcome page a flex column that fills the chat area */
-.agent-sessions-workbench.phone-layout .new-chat-widget-container {
-	display: flex !important;
-	flex-direction: column !important;
-	height: 100% !important;
-	padding: 8px 8px 0 8px !important;
-}
-
-.agent-sessions-workbench.phone-layout .new-chat-widget-content {
-	display: flex !important;
-	flex-direction: column !important;
-	flex: 1 !important;
-	min-height: 0 !important;
-	max-width: 100% !important;
-	/* Honor the iOS home indicator: at least 16px gutter, more when the
-	 * device exposes a safe-area inset. */
-	padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
-}
-
-/* Workspace picker centered vertically with icon above */
-.agent-sessions-workbench.phone-layout .new-session-workspace-picker-container {
-	flex: 1;
-	display: flex !important;
-	flex-direction: column !important;
-	align-items: center !important;
-	justify-content: center !important;
-	max-width: 100% !important;
-}
-
-.agent-sessions-workbench.phone-layout .new-chat-widget-content.welcome-phrases-visible .new-session-welcome-message {
-	top: clamp(208px, 28vh, 224px);
-}
-
-/* Show the sessions logo above the workspace picker — same asset as the auth page */
-.agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before,
-.agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer:not(.no-agent-host)::before {
-	content: '';
-	display: block;
-	width: 64px;
-	height: 64px;
-	margin-bottom: 16px;
-	background-image: url('../../media/sessions-logo-light.svg');
-	background-size: contain;
-	background-repeat: no-repeat;
-	background-position: center;
-	opacity: 0.85;
-}
-
-.vs .agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before,
-.hc-light .agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before,
-.vs .agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer:not(.no-agent-host)::before,
-.hc-light .agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer:not(.no-agent-host)::before {
-	background-image: url('../../media/sessions-logo-dark.svg');
-}
-
 .agent-sessions-workbench.phone-layout .sessions-workspace-category-picker {
 	flex-wrap: nowrap;
 	justify-content: flex-start;
@@ -406,50 +331,6 @@
 	overflow-x: auto;
 	padding: var(--vscode-spacing-size20);
 	scrollbar-width: none;
-}
-
-.agent-sessions-workbench.phone-layout .experimental-new-session-composer .new-session-workspace-picker-container {
-	align-items: stretch !important;
-}
-
-.agent-sessions-workbench.phone-layout .experimental-new-session-composer:not(.no-agent-host) .new-session-workspace-picker-container {
-	order: 1;
-	flex: 0 0 auto;
-	margin: 0;
-}
-
-.agent-sessions-workbench.phone-layout .experimental-new-session-composer:not(.no-agent-host) .new-session-workspace-picker-container::before {
-	display: none;
-}
-
-/* Keep the hero independent so notices precede the picker tray docked to the input. */
-.agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer:not(.no-agent-host)::before {
-	flex: 1;
-	width: 100%;
-	height: auto;
-	min-height: 64px;
-	background-size: 64px 64px;
-}
-
-.agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer.welcome-phrases-visible:not(.no-agent-host) .new-session-welcome-message {
-	top: auto;
-	flex-shrink: 0;
-	margin-bottom: var(--vscode-spacing-size160);
-}
-
-.agent-sessions-workbench.phone-layout .experimental-new-session-composer .new-session-below-input-surfaces {
-	order: 0;
-}
-
-.agent-sessions-workbench.phone-layout .new-chat-widget-container.revealed .experimental-new-session-composer .new-chat-bottom-container.empty {
-	display: none;
-}
-
-.agent-sessions-workbench.phone-layout .experimental-new-session-composer .sessions-workspace-category-picker.new-chat-session-options {
-	width: 100%;
-	min-width: 0;
-	box-sizing: border-box;
-	overflow-x: hidden;
 }
 
 /* Input slot pinned to the bottom. Flex `order` puts the chip row

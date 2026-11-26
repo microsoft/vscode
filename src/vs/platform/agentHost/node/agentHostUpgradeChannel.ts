@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from '../../product/common/product.js';
+import type { IAgentHostBuild } from '../common/meta/agentHostUpgradeMeta.js';
+
 /**
  * Environment variable populated by the VS Code CLI when it spawns the
  * agent host server. Its value is the path of a unix-domain socket
@@ -40,6 +43,17 @@ export interface IUpgradeRequestResponse {
 export function getAgentHostManagementSocketPath(): string | undefined {
 	const value = process.env[VSCODE_AGENT_HOST_MANAGEMENT_SOCKET_ENV];
 	return value && value.length > 0 ? value : undefined;
+}
+
+/**
+ * The build this process runs, advertised with the upgrade method so clients
+ * can tell whether an update would install a newer build. `undefined` for
+ * builds without build information, such as development builds.
+ */
+export function getAgentHostBuild(): IAgentHostBuild | undefined {
+	return product.commit && product.quality && product.date
+		? { commit: product.commit, quality: product.quality, date: product.date }
+		: undefined;
 }
 
 /**

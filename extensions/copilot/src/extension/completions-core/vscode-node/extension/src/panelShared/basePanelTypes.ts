@@ -36,9 +36,3 @@ export interface PanelConfig {
 	renderingMode: 'streaming' | 'batch';
 	shuffleSolutions: boolean;
 }
-
-// Configuration for webview panels, used to pass settings to the webview.
-export interface WebviewConfig {
-	renderingMode: 'batch' | 'streaming';
-	shuffleSolutions: boolean;
-}

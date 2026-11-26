@@ -704,7 +704,9 @@ export class PieceTreeBase {
 			offsetInBuffer = (offset: number) => offset + start;
 			searcher.reset(0);
 		} else {
-			searchText = buffer.buffer;
+			// Stop at `end`: the buffer can be much larger than this node (e.g. the change buffer of
+			// an append-only model) and can contain text of other pieces after it.
+			searchText = buffer.buffer.substring(0, end);
 			offsetInBuffer = (offset: number) => offset;
 			searcher.reset(start);
 		}

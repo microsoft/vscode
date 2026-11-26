@@ -8,7 +8,6 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
-// eslint-disable-next-line local/code-translation-remind -- Experimental entry is excluded from production translation resources.
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatEditPillElement } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPillElement.js';

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, GroupIdentifier } from '../../../common/editor.js';
@@ -15,7 +16,6 @@ import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { CancellationError } from '../../../../base/common/errors.js';
 
 const issueReporterIcon = registerIcon('issue-reporter', Codicon.report, localize('issueReporterIcon', "Icon for the issue reporter editor."));
 
@@ -31,18 +31,18 @@ export class IssueReporterEditorInput extends EditorInput {
 	readonly descriptionInput = $<HTMLTextAreaElement>('textarea.wizard-description-input');
 	private descriptionScrollTop = 0;
 	readonly diagnosticsState: IIssueReporterDiagnosticsState = { included: {}, expanded: new Set() };
-	private submissionController = new AbortController();
+	private submissionCancellation = new CancellationTokenSource();
 	private initialTitle: string;
 	private initialDescription: string;
 
-	get submissionSignal(): AbortSignal {
-		return this.submissionController.signal;
+	get submissionToken(): CancellationToken {
+		return this.submissionCancellation.token;
 	}
 
 	cancelPendingSubmissions(): void {
-		this.submissionController.abort(new CancellationError());
+		this.submissionCancellation.dispose(true);
 		if (!this.isDisposed()) {
-			this.submissionController = new AbortController();
+			this.submissionCancellation = new CancellationTokenSource();
 		}
 	}
 
@@ -129,7 +129,7 @@ export class IssueReporterEditorInput extends EditorInput {
 		this.initialTitle = data?.issueTitle ?? '';
 		this.initialDescription = data?.issueBody ?? '';
 		this.descriptionInput.value = this.initialDescription;
-		this._register(toDisposable(() => this.submissionController.abort(new CancellationError())));
+		this._register(toDisposable(() => this.submissionCancellation.dispose(true)));
 		this._register(addDisposableListener(this.descriptionInput, EventType.INPUT, () => {
 			if (this.data) {
 				this.data.issueBody = this.descriptionInput.value;

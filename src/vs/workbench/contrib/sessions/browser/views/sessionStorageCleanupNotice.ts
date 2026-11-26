@@ -15,6 +15,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ISessionWorktreeCleanupService, ISessionWorktreeCleanupSuggestion } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
 
 export class SessionStorageCleanupNotice extends Disposable {
@@ -29,6 +30,7 @@ export class SessionStorageCleanupNotice extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -77,7 +79,7 @@ export class SessionStorageCleanupNotice extends Disposable {
 
 		let previousDescription: string | undefined;
 		this._register(autorun(reader => {
-			this.suggestion = this.cleanupService.suggestion.read(reader);
+			this.suggestion = environmentService.isSessionsWindow ? this.cleanupService.suggestion.read(reader) : undefined;
 			const available = this.suggestion !== undefined;
 			this.domNode.classList.toggle('visible', available);
 			description.textContent = this.suggestion?.description ?? '';
@@ -94,6 +96,8 @@ export class SessionStorageCleanupNotice extends Disposable {
 			previousDescription = this.suggestion?.description;
 		}));
 
-		void this.cleanupService.activate().catch(error => this.logService.warn('[SessionStorageCleanupNotice] Failed to measure session storage', error));
+		if (environmentService.isSessionsWindow) {
+			void this.cleanupService.activate().catch(error => this.logService.warn('[SessionStorageCleanupNotice] Failed to measure session storage', error));
+		}
 	}
 }

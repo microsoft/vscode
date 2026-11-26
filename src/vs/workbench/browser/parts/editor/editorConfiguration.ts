@@ -9,14 +9,15 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { diffEditorsAssociationsAgentsWindowDefault, diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId, IEditorResolverService, markdownDefaultEditorAgentsWindowSettingId, RegisteredEditorInfo, RegisteredEditorPriority, toRegisteredEditorPriorityInfo } from '../../../services/editor/common/editorResolverService.js';
+import { diffEditorsAssociationsAgentsWindowDefault, diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId, IEditorResolverService, markdownDefaultEditorAgentsWindowSettingId, MarkdownDefaultEditorMode, RegisteredEditorInfo, RegisteredEditorPriority, toRegisteredEditorPriorityInfo } from '../../../services/editor/common/editorResolverService.js';
 import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Event } from '../../../../base/common/event.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ByteSize, getLargeFileConfirmationLimit } from '../../../../platform/files/common/files.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 export class DynamicEditorConfigurations extends Disposable implements IWorkbenchContribution {
 
@@ -78,7 +79,8 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -105,6 +107,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 				this.updateDynamicEditorConfigurations();
 			}
 		}));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.updateDynamicEditorConfigurations()));
 	}
 
 	private updateDynamicEditorConfigurations(): void {
@@ -159,7 +162,15 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 
 		// Registers setting for editorAssociations
 		const oldEditorAssociationsConfigurationNode = this.editorAssociationsConfigurationNode;
-		const markdownDefaultEditorEnabled = this.configurationService.getValue<boolean>(markdownDefaultEditorAgentsWindowSettingId) === true;
+		const markdownConfiguration = this.configurationService.inspect<MarkdownDefaultEditorMode | boolean>(markdownDefaultEditorAgentsWindowSettingId);
+		const markdownDefaultEditor = markdownConfiguration.value;
+		// Preserve stored boolean preferences before migration; only legacy defaults use automatic behavior.
+		const legacyEnabledMode = isConfigured(markdownConfiguration) || markdownConfiguration.policyValue !== undefined || markdownConfiguration.memoryValue !== undefined ? 'on' : 'auto';
+		const markdownDefaultEditorMode: MarkdownDefaultEditorMode | undefined = typeof markdownDefaultEditor === 'boolean' ? markdownDefaultEditor ? legacyEnabledMode : 'off' : markdownDefaultEditor;
+		const markdownEditorOptions = {
+			markdownDefaultEditor: markdownDefaultEditorMode,
+			screenReaderOptimized: this.accessibilityService.isScreenReaderOptimized()
+		};
 		this.editorAssociationsConfigurationNode = {
 			...workbenchConfigurationNodeBase,
 			properties: {
@@ -173,7 +184,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 						}
 					},
 					agentsWindow: {
-						default: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: markdownDefaultEditorEnabled })
+						default: editorsAssociationsAgentsWindowDefault(markdownEditorOptions)
 					}
 				}
 			}
@@ -194,7 +205,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 						}
 					},
 					agentsWindow: {
-						default: diffEditorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: markdownDefaultEditorEnabled })
+						default: diffEditorsAssociationsAgentsWindowDefault(markdownEditorOptions)
 					}
 				}
 			}

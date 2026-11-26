@@ -136,18 +136,6 @@ export function extractCodeBlocks(text: string): MarkdownCodeBlock[] {
 	return out;
 }
 
-export function extractInlineCode(text: string): string[] {
-	const out: string[] = [];
-	const md = new MarkdownIt();
-	const tokens = md.parse(text, {});
-	for (const token of flattenTokensLists(tokens)) {
-		if (token.type === 'code_inline') {
-			out.push(token.content.replace(/\n$/, ''));
-		}
-	}
-	return out;
-}
-
 function* flattenTokensLists(tokensList: readonly MarkdownIt.Token[]): Iterable<MarkdownIt.Token> {
 	for (const entry of tokensList) {
 		if (entry.children) {

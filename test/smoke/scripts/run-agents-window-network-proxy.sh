@@ -38,6 +38,7 @@ NODE_BIN="$(command -v node)"
 KDC_BIN="/System/Library/PrivateFrameworks/Heimdal.framework/Helpers/kdc"
 KDC_PORT="61088"
 KDC_LOG="$LOG_DIR/kdc.log"
+KDC_HEIMDAL_LOG="$LOG_DIR/kdc-heimdal.log"
 KERBEROS_AUTH_LOG="$LOG_DIR/kerberos-auth.log"
 KERBEROS_CONFIG="$TEMP_ROOT/krb5.conf"
 KERBEROS_CACHE="FILE:$TEMP_ROOT/krb5cc"
@@ -102,7 +103,7 @@ cleanup() {
 	fi
 
 	if [[ $exit_code -ne 0 ]]; then
-		tail -n 100 "$PAC_LOG" "$SQUID_LOG" "$SQUID_ACCESS_LOG" "$KDC_LOG" "$KERBEROS_AUTH_LOG" 2>/dev/null
+		tail -n 100 "$PAC_LOG" "$SQUID_LOG" "$SQUID_ACCESS_LOG" "$KDC_LOG" "$KDC_HEIMDAL_LOG" "$KERBEROS_AUTH_LOG" 2>/dev/null
 	fi
 	rm -rf "$TEMP_ROOT"
 	exit "$exit_code"
@@ -129,7 +130,7 @@ saved_pac_url="$(printf '%s\n' "$saved_pac_state" | sed -n 's/^URL: //p')"
 saved_pac_enabled="$(printf '%s\n' "$saved_pac_state" | sed -n 's/^Enabled: //p')"
 
 mkdir -p "$LOG_DIR" "$TEMP_ROOT"
-rm -f "$PAC_LOG" "$SQUID_ACCESS_LOG" "$SQUID_LOG" "$KDC_LOG" "$KERBEROS_AUTH_LOG"
+rm -f "$PAC_LOG" "$SQUID_ACCESS_LOG" "$SQUID_LOG" "$KDC_LOG" "$KDC_HEIMDAL_LOG" "$KERBEROS_AUTH_LOG"
 git clone --depth 1 https://github.com/microsoft/vscode-smoketest-express "$TEST_REPO"
 
 if [[ -z "$SQUID_PREFIX" || ! -x "$SQUID_BIN" ]]; then
@@ -188,6 +189,8 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 		exit 1
 	fi
 
+	# The readiness check below only proves the KDC's TCP listener, so make Kerberos clients use TCP instead of UDP.
+	# The KDC writes its own log to KDC_HEIMDAL_LOG, which shows whether a request arrived when a client gives up.
 	cat > "$KERBEROS_CONFIG" <<EOF
 [libdefaults]
 	default_realm = $KERBEROS_REALM
@@ -196,12 +199,15 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 
 [realms]
 	$KERBEROS_REALM = {
-		kdc = 127.0.0.1:$KDC_PORT
+		kdc = tcp/127.0.0.1:$KDC_PORT
 	}
 
 [domain_realm]
 	.localhost = $KERBEROS_REALM
 	localhost = $KERBEROS_REALM
+
+[logging]
+	kdc = FILE:$KDC_HEIMDAL_LOG
 
 [kdc]
 	database = {

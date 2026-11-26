@@ -24,11 +24,11 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueSource, IWorkbenchIssueService } from '../common/issue.js';
 import { isPublicVSCodeIssueUrl, issueReporterAdditionalRepositoriesSettingId, parseIssueReporterRepositories } from '../common/issueReporterTarget.js';
-import { getGitHubAuthorization } from '../common/issueReporterUtil.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
 import { IIntegrityService } from '../../../services/integrity/common/integrity.js';
 
 export class NativeIssueService implements IWorkbenchIssueService {
@@ -151,7 +151,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				? session.scopes.includes('repo')
 				: session.accessToken === dataOverrides.githubAccessToken);
 			githubAccessToken = session?.accessToken ?? '';
-			githubAuthorization = session && getGitHubAuthorization(session);
+			githubAuthorization = session && toGitHubAuthorizationContext('github', session);
 		} catch (e) {
 			// Ignore
 		}

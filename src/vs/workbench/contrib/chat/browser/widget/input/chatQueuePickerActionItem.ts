@@ -40,7 +40,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 
 	private readonly _primaryActionAction: Action | undefined;
 	private readonly _primaryAction: ActionViewItem;
-	private readonly _dropdown: ActionWidgetDropdownActionViewItem;
+	private readonly _dropdown: BaseActionViewItem;
 	private _altKeyPressed = false;
 	private readonly _secondaryExecuteMenu: IMenu;
 	private _executeContext: IChatExecuteActionContext | undefined;
@@ -78,21 +78,27 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			}));
 		}
 
-		// Dropdown - action widget with hover descriptions and chevron-down icon
-		const dropdownAction = this._register(new Action('chat.queuePickerDropdown', options.primaryAction
-			? localize('chat.sendOptions', "More Send Options")
-			: localize('chat.queuePicker.moreActions', "More Actions...")));
-		this._dropdown = this._register(new ChevronActionWidgetDropdown(
-			dropdownAction,
-			{
-				actionProvider: { getActions: () => this._getDropdownActions() },
-				showItemKeybindings: true,
-			},
-			actionWidgetService,
-			this.keybindingService,
-			this.contextKeyService,
-			telemetryService,
-		));
+		const secondaryActions = this._getDropdownActions();
+		if (options.primaryAction && secondaryActions.length === 1) {
+			const secondaryAction = secondaryActions[0];
+			const directAction = this._register(new Action(secondaryAction.id, secondaryAction.label, ThemeIcon.asClassName(Codicon.chevronDown), secondaryAction.enabled, () => secondaryAction.run()));
+			this._dropdown = this._register(new ActionViewItem(undefined, directAction, { icon: true, label: false }));
+		} else {
+			const dropdownAction = this._register(new Action('chat.queuePickerDropdown', options.primaryAction
+				? localize('chat.sendOptions', "More Send Options")
+				: localize('chat.queuePicker.moreActions', "More Actions...")));
+			this._dropdown = this._register(new ChevronActionWidgetDropdown(
+				dropdownAction,
+				{
+					actionProvider: { getActions: () => this._getDropdownActions() },
+					showItemKeybindings: true,
+				},
+				actionWidgetService,
+				this.keybindingService,
+				this.contextKeyService,
+				telemetryService,
+			));
+		}
 
 		// React to config changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -162,6 +168,8 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 				this._dropdown.setFocusable(false);
 				this._primaryAction.focus();
 				event.stopPropagation();
+			} else if (this._dropdown instanceof ActionViewItem && (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
+				this._dropdown.onClick(e);
 			}
 		}));
 	}

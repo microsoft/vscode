@@ -12,14 +12,6 @@ import { CacheScopeKind, EmitMode, Priorities, SpeculativeKind } from './protoco
 import tss, { type TokenInfo } from './typescripts';
 
 
-export type SymbolsInScope = {
-	functions: {
-		real: tt.Symbol[];
-		aliased: { alias: tt.Symbol; real: tt.Symbol }[];
-	};
-	modules: { alias: tt.Symbol; real: tt.Symbol }[];
-};
-
 export class GlobalsRunnable extends AbstractContextRunnable {
 
 	private readonly tokenInfo: TokenInfo;

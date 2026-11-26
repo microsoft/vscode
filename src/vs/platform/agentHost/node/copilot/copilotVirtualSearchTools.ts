@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { Tool, ToolResultObject } from '@microsoft/copilot-sdk';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { parse } from '../../../../base/common/glob.js';

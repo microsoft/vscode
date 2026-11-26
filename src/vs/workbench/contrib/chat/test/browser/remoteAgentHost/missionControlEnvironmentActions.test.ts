@@ -12,7 +12,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -106,6 +106,10 @@ suite('Mission Control environment picker', () => {
 			override readonly onDidChangeConnections = connectionChanges.event;
 			override readonly connections = connections;
 		}());
+		const sharedEnvironmentIds = observableValue<ReadonlySet<string>>('sharedEnvironmentIds', new Set());
+		instantiation.stub(IRemoteGitHubEnvironmentSharingService, new class extends mock<IRemoteGitHubEnvironmentSharingService>() {
+			override readonly environmentIds = sharedEnvironmentIds;
+		}());
 		instantiation.stub(INotificationService, new class extends TestNotificationService {
 			override error(message: Parameters<TestNotificationService['error']>[0]) {
 				calls.errors.push(String(message));
@@ -115,8 +119,23 @@ suite('Mission Control environment picker', () => {
 		instantiation.stub(IQuickInputService, { backButton: { tooltip: 'Back' }, focus: () => { } }, 'createQuickPick', () => quickPick);
 		const run = () => instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(ConnectMissionControlEnvironmentCommand)!.handler(accessor));
 		const signOut = () => { accountKey = undefined; hosts.set([], undefined); };
-		return { quickPick, inventory, calls, hosts, run, signOut, instantiation, connections, connectionChanges };
+		return { quickPick, inventory, calls, hosts, run, signOut, instantiation, connections, connectionChanges, sharedEnvironmentIds };
 	}
+
+	test('hides environments of remotes shared through their direct connections', async () => {
+		const { quickPick, inventory, run, sharedEnvironmentIds } = fixture([environment('shared', 'nov16'), environment('other')]);
+		sharedEnvironmentIds.set(new Set(['shared']), undefined);
+		const done = run();
+		await quickPick.shown.p;
+		const labels = () => quickPick.hostItems().map(item => item.label);
+		const shared = labels();
+		sharedEnvironmentIds.set(new Set(), undefined);
+		const unshared = labels();
+		quickPick.hide();
+		await done;
+		await inventory.complete([]);
+		assert.deepStrictEqual({ shared, unshared }, { shared: ['Host other'], unshared: ['Host other', 'nov16'] });
+	});
 
 	test('shows only availability and active connection status on a single line', async () => {
 		const { quickPick, inventory, run, connections, connectionChanges } = fixture([

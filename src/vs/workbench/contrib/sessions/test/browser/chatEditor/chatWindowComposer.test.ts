@@ -8,9 +8,11 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { extUri, extUriIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotification, INotificationHandle, INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
@@ -96,6 +98,8 @@ suite('Chat window composer', () => {
 		const storageService = store.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILogService, new NullLogService());
+		// Folders told apart by case, as a case-sensitive remote's are
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 			// The local agent host, whose drafts can run in a Dev Container
 			override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
@@ -471,6 +475,215 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('a composer of a window with folders creates sessions only in them and in the folder it aims at; one of a window without folders anywhere', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const windowFolders = observableValue<readonly URI[]>('windowFolders', [URI.file('/repo')]);
+		const allowed = (target: string | undefined) => {
+			const composer = store.add(composers.create(URI.parse(`vscode-agents-composer:/${target ?? 'none'}`), { target: target ? { folderUri: URI.file(target) } : undefined, allowedFolders: windowFolders }, async () => { }));
+			return composer.allowedFolders?.get().map(folder => folder.path);
+		};
+		const inWindow = { window: allowed('/repo'), sibling: allowed('/repo.worktrees/feature'), none: allowed(undefined) };
+		windowFolders.set([], undefined);
+
+		assert.deepStrictEqual({ ...inWindow, emptyWindow: allowed('/repo.worktrees/feature'), chatWindow: store.add(composers.create(URI.parse('vscode-agents-composer:/chat-window'), {}, async () => { })).allowedFolders }, {
+			window: ['/repo'],
+			sibling: ['/repo', '/repo.worktrees/feature'],
+			none: ['/repo'],
+			emptyWindow: [],
+			chatWindow: undefined,
+		});
+	});
+
+	test('an explicit New Worktree request is not taken for the remembered preference that otherwise matches it', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/preference'), { target: { folderUri: URI.file('/repo'), placement: 'worktree', placementIsPreference: true } }, async () => { }));
+		const retargets: (boolean | undefined)[] = [];
+		store.add(composer.onDidRetarget(target => retargets.push(target.placementIsPreference)));
+
+		const same = composer.requestTarget({ folderUri: URI.file('/repo'), placement: 'worktree', placementIsPreference: true });
+		const explicit = composer.requestTarget({ folderUri: URI.file('/repo'), placement: 'worktree' });
+
+		assert.deepStrictEqual({ same, explicit, retargets, now: composer.requestedTarget.get()?.placementIsPreference }, { same: true, explicit: true, retargets: [undefined], now: undefined });
+	});
+
+	test('a composer that aims at the folder its host aimed it at follows its host to another folder, such as where the window\'s folder moved; not once the user picked another folder, nor from a folder it does not aim at', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/retarget'), { target: { folderUri: URI.file('/repo'), providerId: 'provider' } }, async () => { }));
+		const retargets: string[] = [];
+		store.add(composer.onDidRetarget(target => retargets.push(`${target.folderUri?.path} ${target.providerId}`)));
+		const aimsAt = () => composer.requestedTarget.get()?.folderUri?.path;
+
+		const moved = { done: composer.retargetFolder(URI.file('/repo.worktrees/a'), URI.file('/repo')), aimsAt: aimsAt() };
+		const fromElsewhere = { done: composer.retargetFolder(URI.file('/repo.worktrees/b'), URI.file('/repo')), aimsAt: aimsAt() };
+		composer.setRequestedTarget({ folderUri: URI.file('/repo.worktrees/c') }, 'user');
+		const userPicked = { done: composer.retargetFolder(URI.file('/repo')), aimsAt: aimsAt() };
+
+		assert.deepStrictEqual({ moved, fromElsewhere, userPicked, retargets }, {
+			moved: { done: true, aimsAt: '/repo.worktrees/a' },
+			fromElsewhere: { done: false, aimsAt: '/repo.worktrees/a' },
+			userPicked: { done: false, aimsAt: '/repo.worktrees/c' },
+			retargets: ['/repo.worktrees/a provider'],
+		});
+	});
+
+	test('a composer announces the targets the user picked, not the ones its host or restoration set', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/picks'), { target: { folderUri: URI.file('/repo'), providerId: 'provider' } }, async () => { }));
+		const picked: string[] = [];
+		store.add(composer.onDidPickTarget(target => picked.push(`${target.folderUri?.path} ${target.modelId}`)));
+
+		composer.setRequestedTarget({ folderUri: URI.file('/host'), modelId: 'host' }, 'background');
+		composer.setRequestedTarget({ folderUri: URI.file('/user'), modelId: 'user' }, 'user');
+
+		assert.deepStrictEqual(picked, ['/user user']);
+	});
+
+	test('a requested target that differs only by the case of a remote folder retargets the composer: its folders are told apart as their provider does', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const upper = URI.parse('vscode-agent-host://host/home/Repo');
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/case'), { target: { folderUri: upper, providerId: 'provider', sessionTypeId: 'type' } }, async () => { }));
+		const retargets: string[] = [];
+		store.add(composer.onDidRetarget(target => retargets.push(target.folderUri!.path)));
+
+		const same = composer.requestTarget({ folderUri: upper, providerId: 'provider', sessionTypeId: 'type' });
+		const otherCase = composer.requestTarget({ folderUri: URI.parse('vscode-agent-host://host/home/repo'), providerId: 'provider', sessionTypeId: 'type' });
+
+		assert.deepStrictEqual({ same, otherCase, aimsAt: composer.requestedTarget.get()?.folderUri?.path, retargets }, { same: true, otherCase: true, aimsAt: '/home/repo', retargets: ['/home/repo'] });
+	});
+
+	test('on Windows, a requested target whose folder differs only by the case of its drive or path does not retarget the composer', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		// As a case-insensitive file system tells its folders apart
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase }));
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/windows'), { target: { folderUri: URI.from({ scheme: 'file', path: '/c:/Users/me/Repo' }), providerId: 'provider' } }, async () => { }));
+		const retargets: string[] = [];
+		store.add(composer.onDidRetarget(target => retargets.push(target.folderUri!.path)));
+
+		const reused = composer.requestTarget({ folderUri: URI.from({ scheme: 'file', path: '/C:/users/ME/repo' }), providerId: 'provider' });
+
+		assert.deepStrictEqual({ reused, aimsAt: composer.requestedTarget.get()?.folderUri?.path, retargets }, { reused: true, aimsAt: '/c:/Users/me/Repo', retargets: [] });
+	});
+
+	test('a background send that fails once its composer followed its host to another folder offers its prompt back, rather than restoring it silently there', () => {
+		const store = disposables.add(new DisposableStore());
+		const { events, onDidEnd, slots, createComposer } = createServices(store);
+		const composer = store.add(createComposer());
+		const { slot } = slots[0];
+		events.length = 0;
+		// Sent in the background: the composer records what was written, clears its input, and its request is accepted
+		const attempt = composer.input.beginSendAttempt({ inputText: 'fix it', attachments: [] });
+		composer.input.set({ inputText: '', attachments: [] });
+		const session = createSession('sent', { folder: '/repo' });
+		composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, requestedInBackground: true, isLatest: () => true });
+		composer.input.endSendAttempt(attempt);
+
+		const followed = composer.retargetFolder(URI.file('/repo.worktrees/a'), URI.file('/repo'));
+		onDidEnd.fire({ session, owner: slot, started: false, readopted: false, error: new Error('no agent') });
+
+		assert.deepStrictEqual({ followed, input: composer.input.get().input.inputText, events }, {
+			followed: true,
+			input: '',
+			events: ['notify: Couldn\'t start the session in repo with type: no agent [Restore Prompt, Copy Prompt]'],
+		});
+	});
+
+	test('a composer that follows its host to a folder outside the window\'s folders offers that folder, so its picker shows where its draft is', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/allowed'), { target: { folderUri: URI.file('/repo') }, allowedFolders: constObservable([URI.file('/repo')]) }, async () => { }));
+		const allowed = () => composer.allowedFolders?.get().map(folder => folder.path);
+
+		const before = allowed();
+		composer.retargetFolder(URI.file('/repo.worktrees/a'), URI.file('/repo'));
+
+		assert.deepStrictEqual({ before, after: allowed() }, { before: ['/repo'], after: ['/repo', '/repo.worktrees/a'] });
+	});
+
+	test('a composer retargeted between two folders outside the window\'s folders keeps the new folder: an observer of its allowed folders, as its picker, sees it only once the picker shows it', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/between'), { target: { folderUri: URI.file('/repo.worktrees/a') }, allowedFolders: constObservable([URI.file('/repo')]) }, async () => { }));
+		// The picker: shows what onDidRetarget aims it at, and falls back to an allowed folder when what it shows is no longer allowed
+		let shown = '/repo.worktrees/a';
+		store.add(composer.onDidRetarget(target => shown = target.folderUri!.path));
+		store.add(autorun(reader => {
+			const allowed = composer.allowedFolders!.read(reader).map(folder => folder.path);
+			if (!allowed.includes(shown)) {
+				shown = allowed[0];
+				composer.setRequestedTarget({ folderUri: URI.file(shown) });
+			}
+		}));
+
+		composer.retargetFolder(URI.file('/repo.worktrees/b'), URI.file('/repo.worktrees/a'));
+
+		assert.deepStrictEqual({ shown, aimsAt: composer.requestedTarget.get()?.folderUri?.path }, { shown: '/repo.worktrees/b', aimsAt: '/repo.worktrees/b' });
+	});
+
+	test('a composer does not follow its host to another folder while it sends: from the user\'s submit, before its request is accepted, until the request ends', () => {
+		const store = disposables.add(new DisposableStore());
+		const { onDidAccept, onDidEnd, slots, createComposer } = createServices(store);
+		const composer = store.add(createComposer());
+		const { slot } = slots[0];
+		const aimsAt = () => composer.requestedTarget.get()?.folderUri?.path;
+		const retarget = (folder: string, from: string) => ({ done: composer.retargetFolder(URI.file(folder), URI.file(from)), aimsAt: aimsAt() });
+
+		// Submitted: its checks, such as for its session to be ready or the host's confirmation, are under way before its send attempt
+		const submitting = composer.input.beginSubmit();
+		const whileChecking = retarget('/repo.worktrees/a', '/repo');
+		// Its send attempt: the draft's preparation is under way, its request not accepted yet
+		const attempt = composer.input.beginSendAttempt({ inputText: 'hello', attachments: [] });
+		const beforeAccepted = retarget('/repo.worktrees/a', '/repo');
+		// Accepted: its request is under way
+		const draft = createSession('draft', { folder: '/repo' });
+		onDidAccept.fire({ session: draft, owner: slot, background: false });
+		const accepted = retarget('/repo.worktrees/a', '/repo');
+		// It did not start its session: the composer shows its draft again and follows its host again
+		onDidEnd.fire({ session: draft, owner: slot, started: false, readopted: false });
+		composer.input.endSendAttempt(attempt);
+		submitting.dispose();
+		const afterEnded = retarget('/repo.worktrees/a', '/repo');
+
+		assert.deepStrictEqual({ whileChecking, beforeAccepted, accepted, afterEnded }, {
+			whileChecking: { done: false, aimsAt: '/repo' },
+			beforeAccepted: { done: false, aimsAt: '/repo' },
+			accepted: { done: false, aimsAt: '/repo' },
+			afterEnded: { done: true, aimsAt: '/repo.worktrees/a' },
+		});
+	});
+
+	test('a composer whose empty input submits is not idle, nor pristine, from the user\'s submit, before its send attempt, until the submit ends: what closes idle composers leaves it', () => {
+		const store = disposables.add(new DisposableStore());
+		const { createComposer } = createServices(store);
+		const composer = store.add(createComposer());
+		const state = () => ({ idle: composer.isIdle(), pristine: composer.isPristine() });
+
+		const before = state();
+		// Submitted from an empty input: its checks, such as for its session to be ready or the host's confirmation, are under way
+		const submitting = composer.input.beginSubmit();
+		const whileSubmitting = state();
+		submitting.dispose();
+
+		assert.deepStrictEqual({ before, whileSubmitting, after: state() }, {
+			before: { idle: true, pristine: true },
+			whileSubmitting: { idle: false, pristine: false },
+			after: { idle: true, pristine: true },
+		});
+	});
+
 	test('the composers of chat windows are stored as the state is saved, not as their input changes, with what they aim for, their group, their input and a send that did not end; they restore as a composer with that input or with what the send sent, or as the session a send started; a discarded composer and a malformed entry are not stored', async () => {
 		const store = disposables.add(new DisposableStore());
 		const started = createSession('started', { folder: '/repo', status: constObservable(SessionStatus.Completed) });
@@ -521,6 +734,31 @@ suite('Chat window composer', () => {
 			sending: { input: { inputText: 'in flight', attachments: [], references: undefined } },
 			sent: 'started',
 		});
+	});
+
+	test('a restored composer follows its host to another folder only while its host had aimed it, not once the user picked its folder, nor one stored before that was stored', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService, storageService } = createServices(store);
+		const resource = (name: string) => URI.parse(`vscode-agents-composer:/${name}`);
+		const open = async () => { };
+		const composers = instantiationService.createInstance(ChatWindowComposers, async () => undefined);
+		const hostAimed = composers.create(resource('host'), { target: { folderUri: URI.file('/repo') } }, open);
+		const userPicked = composers.create(resource('user'), { target: { folderUri: URI.file('/repo') } }, open);
+		userPicked.setRequestedTarget({ folderUri: URI.file('/repo.worktrees/c') }, 'user');
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		// A composer stored by a build that did not store its host's folder
+		storageService.store(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, stringify([...parse(storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE)!), { resource: resource('older'), target: { folderUri: URI.file('/repo') }, input: { inputText: '', attachments: [] } }]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		composers.dispose();
+		[hostAimed, userPicked].forEach(composer => composer.dispose());
+
+		const reloaded = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const follows = async (name: string, from: string) => {
+			const restored = await reloaded.restore(resource(name), open);
+			const composer = restored?.kind === 'composer' ? store.add(restored.composer) : undefined;
+			return composer?.retargetFolder(URI.file('/repo.worktrees/a'), URI.file(from));
+		};
+
+		assert.deepStrictEqual({ host: await follows('host', '/repo'), user: await follows('user', '/repo.worktrees/c'), older: await follows('older', '/repo') }, { host: true, user: false, older: false });
 	});
 
 	test('the stored composers the restoration of the chat windows did not claim are forgotten, while open ones and claimed ones are stored again', () => {

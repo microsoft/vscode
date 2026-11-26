@@ -17,6 +17,8 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { IChatTip, IChatTipProvider, IChatTipService } from '../../../chat/browser/chatTipService.js';
 import { findMatchingConnectorRecommendationIds } from '../../../chat/common/connectorRecommendations.js';
 import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../../common/chatConstants.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 interface IConnectorRecommendation {
 	readonly id: string;
@@ -52,6 +54,7 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 		@IProductService productService: IProductService,
 		@IChatTipService chatTipService: IChatTipService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		if (isConfigurationValueFromDefault(this.configurationService, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING)) {
@@ -65,6 +68,7 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 
 		this._register(chatTipService.registerTipProvider(this));
 		this._register(this.options.onDidChangeInputValue(() => this.update()));
+		this._register(this.layoutService.onDidLayoutMainContainer(() => this.update()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)
 				|| event.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled)
@@ -109,7 +113,8 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 	}
 
 	private update(): void {
-		const enabled = this._recommendations.size > 0
+		const enabled = !isPhoneLayout(this.layoutService)
+			&& this._recommendations.size > 0
 			&& this.configurationService.getValue<boolean>(NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING) === true
 			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
 			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true;

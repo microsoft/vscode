@@ -943,7 +943,7 @@ suite('workspace label decorator', () => {
 		register(locations, onDidChange);
 		const atOwnLocation = [labelService.getWorkspaceLabel(folder), labelService.getWorkspaceLabel(folder, { withLocation: true })];
 
-		locations.set(alternate.toString(), 'wt · feature');
+		locations.set(alternate.toString(), 'wt');
 
 		assert.deepStrictEqual(
 			{
@@ -958,9 +958,9 @@ suite('workspace label decorator', () => {
 				plain: 'repo',
 				atOwnLocation: ['repo', 'repo'],
 				optedOut: 'repo-alt',
-				optedIn: 'repo-alt (wt · feature)',
-				identifier: 'repo-alt (wt · feature)',
-				location: 'wt · feature'
+				optedIn: 'repo-alt (wt)',
+				identifier: 'repo-alt (wt)',
+				location: 'wt'
 			});
 	});
 

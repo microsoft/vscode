@@ -22,6 +22,10 @@
 	pointer-events: none;
 }
 
+.mobile-picker-sheet-overlay.mobile-dialog-sheet-overlay {
+	z-index: 2575; /* Same layer as workbench dialogs, above signing-in progress. */
+}
+
 .mobile-picker-sheet-overlay > * {
 	pointer-events: auto;
 }

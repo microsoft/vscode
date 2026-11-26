@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { findInsertionIndexInSortedArray } from '../../../util/common/arrays';
-import { BlockNameDetail, DetailBlock, GenericDetail, MatchGroup, PythonDetail, QueryMatchTree } from './chunkGroupTypes';
-import { Node, OverlayNode, TreeSitterChunkHeaderInfo, TreeSitterExpressionInfo, TreeSitterOffsetRange, TreeSitterPoint, TreeSitterPointRange } from './nodes';
+import { Node, OverlayNode, TreeSitterExpressionInfo, TreeSitterOffsetRange, TreeSitterPoint, TreeSitterPointRange } from './nodes';
 import { _parse } from './parserWithCaching';
 import { runQueries } from './querying';
 import { _getNodeMatchingSelection } from './selectionParsing';
 import { structureComputer } from './structure';
 import { WASMLanguage } from './treeSitterLanguages';
-import { _isFineScope, _isScope, _isStatement, callExpressionQuery, classDeclarationQuery, classReferenceQuery, coarseScopesQuery, functionQuery, semanticChunkingTargetQuery, symbolQueries, typeDeclarationQuery, typeReferenceQuery } from './treeSitterQueries';
+import { _isFineScope, _isScope, _isStatement, callExpressionQuery, classDeclarationQuery, classReferenceQuery, coarseScopesQuery, functionQuery, symbolQueries, typeDeclarationQuery, typeReferenceQuery } from './treeSitterQueries';
 import { extractIdentifier } from './util';
 import Parser = require('web-tree-sitter');
 
@@ -67,11 +66,6 @@ function queryClassReferences(language: WASMLanguage, root: Parser.SyntaxNode): 
 	if (!queries) {
 		return [];
 	}
-	return runQueries(queries, root);
-}
-
-function querySemanticTargets(language: WASMLanguage, root: Parser.SyntaxNode): Parser.QueryMatch[] {
-	const queries = semanticChunkingTargetQuery[language];
 	return runQueries(queries, root);
 }
 
@@ -241,26 +235,6 @@ export async function _getSymbols(language: WASMLanguage, source: string, select
 			return acc;
 		}, []);
 		return positions;
-	} finally {
-		treeRef.dispose();
-	}
-}
-
-export async function _getSemanticChunkTree(language: WASMLanguage, source: string): Promise<QueryMatchTree<DetailBlock>> {
-	const treeRef = await _parse(language, source);
-	try {
-		const results = querySemanticTargets(language, treeRef.tree.rootNode);
-		return getQueryMatchTree(language, results, treeRef.tree.rootNode);
-	} finally {
-		treeRef.dispose();
-	}
-}
-
-export async function _getSemanticChunkNames(language: WASMLanguage, source: string): Promise<QueryMatchTree<BlockNameDetail>> {
-	const treeRef = await _parse(language, source);
-	try {
-		const results = querySemanticTargets(language, treeRef.tree.rootNode);
-		return getBlockNameTree(language, results, treeRef.tree.rootNode);
 	} finally {
 		treeRef.dispose();
 	}
@@ -480,269 +454,6 @@ export async function _getNodeToExplain(
 
 function isExplainableNode(node: Parser.SyntaxNode, language: WASMLanguage) {
 	return node.type.match(/definition/);
-}
-
-export function getBlockNameTree(language: WASMLanguage, queryMatches: Parser.QueryMatch[], root: Parser.SyntaxNode): QueryMatchTree<BlockNameDetail> {
-	const matches: Map<number, MatchGroup<BlockNameDetail>> = new Map(); // map nodes to their starting position to ensure that we get rid of duplicates
-	queryMatches.forEach(n => {
-		const captures = n.captures;
-
-		let definitionNode = captures.find(v => v.name === 'definition')?.node;
-
-		let keyword;
-		if (language === WASMLanguage.Cpp && definitionNode?.type === 'function_definition') {
-			keyword = definitionNode?.childForFieldName('declarator')?.childForFieldName('declarator');
-		} else if (language === WASMLanguage.Rust && definitionNode?.type === 'impl_item') {
-			keyword = definitionNode?.childForFieldName('trait');
-		} else {
-			keyword = definitionNode?.childForFieldName('name');
-		}
-		const bodyNode = definitionNode?.childForFieldName('body');
-		if (definitionNode && bodyNode) {
-
-			switch (language) {
-				case WASMLanguage.TypeScript:
-				case WASMLanguage.JavaScript: {
-					const { definition } = getCommentsAndDefFromTSJSDefinition(definitionNode);
-					definitionNode = definition;
-					break;
-				}
-			}
-			const existingMatch = matches.get(definitionNode.id);
-			if (!existingMatch) {
-				matches.set(definitionNode.id, {
-					mainBlock: TreeSitterChunkHeaderInfo.ofSyntaxNode(definitionNode),
-					detailBlocks: {
-						body: TreeSitterChunkHeaderInfo.ofSyntaxNode(bodyNode),
-						name: keyword?.text,
-					},
-				});
-			}
-		}
-	});
-	const groups = Array.from(matches.values());
-
-	return new QueryMatchTree(groups, TreeSitterChunkHeaderInfo.ofSyntaxNode(root));
-}
-
-
-
-/**
- * helper workspace chunker functions
- */
-
-function getQueryMatchTree(language: WASMLanguage, queryMatches: Parser.QueryMatch[], root: Parser.SyntaxNode): QueryMatchTree<DetailBlock> {
-	let groups: MatchGroup<DetailBlock>[];
-
-	switch (language) {
-		case WASMLanguage.Python:
-			groups = queryCapturesToPythonSemanticGroup(queryMatches);
-			break;
-		case WASMLanguage.Ruby:
-			groups = queryCapturesToRubySemanticGroup(queryMatches);
-			break;
-		default: {
-			groups = queryCapturesToGenericSemanticGroup(queryMatches, language);
-			break;
-		}
-	}
-
-	const queryTree = new QueryMatchTree(groups, TreeSitterChunkHeaderInfo.ofSyntaxNode(root));
-
-	return queryTree;
-}
-
-function queryCapturesToGenericSemanticGroup(queryMatches: Parser.QueryMatch[], wasmLang: WASMLanguage): MatchGroup<GenericDetail>[] {
-	const matches: Map<number, MatchGroup<GenericDetail>> = new Map(); // map nodes to their starting position to ensure that we get rid of duplicates
-
-	queryMatches
-		.forEach(n => {
-			const captures = n.captures;
-
-			let definitionNode = captures.find(v => v.name === 'definition')?.node;
-
-			const bodyNode = definitionNode?.childForFieldName('body');
-			if (definitionNode && bodyNode) {
-
-				let commentNodes;
-				switch (wasmLang) {
-					case WASMLanguage.TypeScript:
-					case WASMLanguage.JavaScript: {
-						const { definition, comments } = getCommentsAndDefFromTSJSDefinition(definitionNode);
-						definitionNode = definition;
-						commentNodes = comments;
-						break;
-					}
-					case WASMLanguage.Java:
-					case WASMLanguage.Rust:
-						commentNodes = getCommentsFromJavaRustDefinition(definitionNode);
-						break;
-					default: {
-						commentNodes = getCommentsFromDefinition(definitionNode);
-						break;
-					}
-				}
-				const existingMatch = matches.get(definitionNode.id);
-				if (!existingMatch) {
-					matches.set(definitionNode.id, {
-						mainBlock: TreeSitterChunkHeaderInfo.ofSyntaxNode(definitionNode),
-						detailBlocks: {
-							comments: commentNodes.map(e => TreeSitterChunkHeaderInfo.ofSyntaxNode(e)),
-							body: TreeSitterChunkHeaderInfo.ofSyntaxNode(bodyNode)
-						},
-					});
-				}
-			}
-		});
-
-	return Array.from(matches.values());
-}
-
-function getFirstBodyParamForRuby(namedNodes: Parser.SyntaxNode[]) {
-	// the children must have at least 2 nodes. The second node is the first potential body node, since the first is the identifier.
-
-	if (namedNodes.length < 2) {
-		return undefined;
-	}
-	for (let i = 1; i < namedNodes.length; i++) {
-		const node = namedNodes[i];
-		if (!node.type.includes('parameters')) {
-			return node;
-		}
-	}
-
-	return undefined;
-}
-
-function queryCapturesToRubySemanticGroup(queryMatches: Parser.QueryMatch[]): MatchGroup<GenericDetail>[] {
-	const matches: Map<number, MatchGroup<GenericDetail>> = new Map(); // map nodes to their starting position to ensure that we get rid of duplicates
-	queryMatches
-		.forEach(n => {
-			const captures = n.captures;
-
-			const definitionNode = captures.find(v => v.name === 'definition')?.node;
-			if (definitionNode) {
-				const defChildren = definitionNode.namedChildren;
-				const startChild = getFirstBodyParamForRuby(defChildren);
-				if (startChild) {
-					const endChild = defChildren[defChildren.length - 1];
-					const childText = definitionNode.text.substring(startChild.startIndex - definitionNode.startIndex, endChild.endIndex - definitionNode.startIndex);
-
-					const commentNodes = getCommentsFromDefinition(definitionNode);
-					const existingMatch = matches.get(definitionNode.id);
-					if (!existingMatch) {
-						matches.set(definitionNode.id, {
-							mainBlock: TreeSitterChunkHeaderInfo.ofSyntaxNode(definitionNode),
-							detailBlocks: {
-								comments: commentNodes.map(e => TreeSitterChunkHeaderInfo.ofSyntaxNode(e)),
-								body: {
-									range: <TreeSitterPointRange>{
-										startPosition: { row: startChild.startPosition.row, column: startChild.startPosition.column },
-										endPosition: { row: endChild.endPosition.row, column: endChild.endPosition.column }
-									},
-									startIndex: startChild.startIndex,
-									text: childText,
-									endIndex: endChild.endIndex,
-								}
-							},
-						});
-					}
-				}
-			}
-		});
-
-	return Array.from(matches.values());
-}
-
-function queryCapturesToPythonSemanticGroup(queryMatches: Parser.QueryMatch[]): MatchGroup<PythonDetail>[] {
-	const matches: Map<number, MatchGroup<PythonDetail>> = new Map(); // map nodes to their starting position to ensure that we get rid of duplicates
-
-	queryMatches
-		.forEach(n => {
-			const captures = n.captures;
-			const definitionNode = captures.find(v => v.name === 'definition')?.node;
-			const bodyNode = definitionNode?.childForFieldName('body');
-
-			if (definitionNode && bodyNode) {
-				const docstringNode = getDocstringFromBody(bodyNode);
-				const decoratorNode = getDecoratorFromDefinition(definitionNode);
-				matches.set(definitionNode.id, {
-					mainBlock: TreeSitterChunkHeaderInfo.ofSyntaxNode(definitionNode),
-					detailBlocks: {
-						docstring: docstringNode ? TreeSitterChunkHeaderInfo.ofSyntaxNode(docstringNode) : undefined,
-						decorator: decoratorNode ? TreeSitterChunkHeaderInfo.ofSyntaxNode(decoratorNode) : undefined,
-						body: TreeSitterChunkHeaderInfo.ofSyntaxNode(bodyNode),
-					},
-				});
-				return;
-			}
-		});
-
-	return Array.from(matches.values());
-}
-
-/**
- * For Generic (Cpp/Cs/Go) workspace chunks
- */
-function getCommentsFromDefinition(definition: Parser.SyntaxNode, commentNodeNames = ['comment']): Parser.SyntaxNode[] {
-
-	// there is an issue where the query sometimes returns comments that are at the beginning of the file
-	// instead of one that actually close to the declaration.
-	// Therefore, we should programatically find comments for more reliability
-	const ret: Parser.SyntaxNode[] = [];
-	let prevSibling = definition.previousNamedSibling;
-	while (prevSibling && commentNodeNames.some(e => e === prevSibling?.type)) {
-		ret.push(prevSibling);
-		prevSibling = prevSibling.previousNamedSibling;
-	}
-	return ret.reverse();
-}
-
-/**
- * For TS/JS workspace chunks
- */
-function getCommentsAndDefFromTSJSDefinition(definition: Parser.SyntaxNode): {
-	definition: Parser.SyntaxNode;
-	comments: Parser.SyntaxNode[];
-} {
-	const parent = definition.parent;
-	if (parent?.type === 'export_statement') {
-		return {
-			definition: parent,
-			comments: getCommentsFromDefinition(parent)
-		};
-	}
-
-	return {
-		definition: definition,
-		comments: getCommentsFromDefinition(definition)
-	};
-}
-
-/**
- * For Java workspace chunks
- */
-function getCommentsFromJavaRustDefinition(definition: Parser.SyntaxNode): Parser.SyntaxNode[] {
-	return getCommentsFromDefinition(definition, ['block_comment', 'line_comment']);
-}
-
-
-/**
- * For Python workspace chunks
- */
-function getDecoratorFromDefinition(definition: Parser.SyntaxNode) {
-	const prevSibling = definition.previousNamedSibling;
-	return prevSibling?.type === 'decorator' ? prevSibling : undefined;
-}
-
-function getDocstringFromBody(body: Parser.SyntaxNode) {
-	const firstChild = body.firstChild;
-	if (!firstChild || firstChild.type !== 'expression_statement') {
-		return;
-	}
-
-	const potentialDocstring = firstChild.firstChild;
-	return potentialDocstring?.type === 'string' ? potentialDocstring : undefined;
 }
 
 export function _getStructure(lang: WASMLanguage, source: string): Promise<OverlayNode | undefined> {

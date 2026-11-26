@@ -9,5 +9,7 @@
 // `label`, an optional `icon`, and a `resource` URI template in which `${chatSessionId}` is replaced with the agent host's
 // identifier of the chat and `${agentSessionId}` with the agent host's identifier of the session, the `<id>` of
 // `ahp-session:/<id>`, which agents get from the `get_current_session` tool. While the resource exists, the chat lists it in its Artifacts pill, where it can be pinned and shown above
-// the chat input, rendered by its default editor (for example a custom editor). Whatever makes the resource exist, such as
+// the chat input, rendered by its default editor (for example a custom editor). An optional `mode` (`pinned` or
+// `aboveInput`) pins it or also shows it above the input once it exists, once per chat; users can change it afterwards.
+// Whatever makes the resource exist, such as
 // the extension's file system provider or a tool that writes a file, makes it appear.

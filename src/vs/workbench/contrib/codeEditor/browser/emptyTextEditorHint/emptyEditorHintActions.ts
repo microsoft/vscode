@@ -15,9 +15,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { localize } from '../../../../../nls.js';
@@ -28,13 +26,10 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from '../../../../browser/parts/editor/editorCommands.js';
 import { WatermarkActionViewItem } from '../../../../browser/parts/editor/editorGroupWatermark.js';
 import { ChangeLanguageAction } from '../../../../browser/parts/editor/editorStatus.js';
-import { DEFAULT_EDITOR_ASSOCIATION, IEditorCommandsContext } from '../../../../common/editor.js';
-import { IEditorResolverService, RegisteredEditorInfo } from '../../../../services/editor/common/editorResolverService.js';
+import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IUntitledDocumentTelemetryService } from '../../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -42,19 +37,15 @@ import { ACTION_ID_OPEN_CHAT } from '../../../chat/browser/actions/chatActions.j
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
-import { EmptyEditorHintAction, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
+import { EmptyEditorHintReopener, markdownEditorId } from './emptyEditorHintReopen.js';
+import { EmptyEditorHintAction, EmptyEditorHintVariant, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
 
 export const emptyEditorHintActionsSetting = 'workbench.editor.experimental.emptyEditorHintActions';
 
 /** Set in the editor while the list of actions is shown, so that Escape hides it. */
 export const EmptyEditorHintActionsVisible = new RawContextKey<boolean>('emptyEditorHintActionsVisible', false, localize('emptyEditorHintActionsVisible', "Whether the empty editor hint shows its list of actions"));
 
-const markdownEditorId = 'vscode.markdown.editor';
 const inlineChatStartCommandId = 'inlineChat.start';
-const reopenWithEditorCommandId = 'workbench.action.reopenWithEditor';
-
-/** The editor that an untitled file was last reopened in from the hint, offered first next time. */
-const lastUntitledEditorStorageKey = 'emptyEditorHint.lastUntitledEditor';
 
 interface IEmptyEditorHintActionEntry {
 	readonly action: EmptyEditorHintAction;
@@ -97,6 +88,9 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 	private _ariaLabel = '';
 	private _top = 0;
 	private _requiredSize: IEmptyEditorHintActionsSize | undefined;
+	private readonly _reopener: EmptyEditorHintReopener;
+
+	readonly variant: EmptyEditorHintVariant = 'actions';
 
 	private static readonly _preferredWidth = 336;
 	/** Narrower than this, the classic hint is shown instead. */
@@ -119,9 +113,10 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
+
+		this._reopener = this._instantiationService.createInstance(EmptyEditorHintReopener, this._editor);
 
 		const visible = EmptyEditorHintActionsVisible.bindTo(this._contextKeyService);
 		visible.set(true);
@@ -241,17 +236,14 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 	 * The visible entries, in groups that are separated by a divider.
 	 */
 	private _getEntryGroups(): IEmptyEditorHintActionEntry[][] {
-		const resource = this._editor.getModel()?.uri;
 		const hasInlineChat = this._chatAgentService.getActivatedAgents().some(agent => agent.locations.includes(ChatAgentLocation.EditorInline));
 		const chatEnabled = this._contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
-		const otherEditors = resource ? this._getOtherEditors(resource) : [];
-		const lastEditorId = this._storageService.get(lastUntitledEditorStorageKey, StorageScope.PROFILE);
-		const primaryEditor = otherEditors.find(editor => editor.id === lastEditorId) ?? otherEditors.find(editor => editor.id === markdownEditorId);
+		const primaryEditor = this._reopener.getPrimaryEditor();
 		const openWithAnotherEditor: IEmptyEditorHintActionEntry = {
 			action: 'openWith',
 			label: localize('emptyEditorHintActions.openWith', "Open With Another Editor..."),
 			icon: Codicon.files,
-			run: () => this._showEditorPicker(),
+			run: () => this._reopener.showEditorPicker(),
 		};
 
 		const groups: (IEmptyEditorHintActionEntry | undefined)[][] = [[
@@ -283,61 +275,11 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 				action: primaryEditor.id === markdownEditorId ? 'openMarkdownEditor' : 'openEditor',
 				label: localize('emptyEditorHintActions.openInEditor', "Open in {0}", primaryEditor.label),
 				icon: primaryEditor.id === markdownEditorId ? Codicon.markdown : Codicon.files,
-				run: () => this._reopenWith(primaryEditor.id),
+				run: () => this._reopener.reopenWith(primaryEditor.id),
 				hasEditorPicker: true,
 			} : openWithAnotherEditor,
 		]];
 		return groups.map(group => coalesce(group)).filter(group => group.length > 0);
-	}
-
-	/**
-	 * The editors other than the text editor that can open this file, e.g. the Markdown Editor for an untitled plain text file.
-	 */
-	private _getOtherEditors(resource: URI): RegisteredEditorInfo[] {
-		return this._editorResolverService.getEditors(resource).filter(editor => editor.id !== DEFAULT_EDITOR_ASSOCIATION.id);
-	}
-
-	/**
-	 * Shows the Reopen Editor With picker, which lists all editors for an untitled file.
-	 */
-	private _showEditorPicker(): Promise<void> {
-		return this._reopenAndRemember(context => this._commandService.executeCommand(reopenWithEditorCommandId, context));
-	}
-
-	private _reopenWith(editorId: string): Promise<void> {
-		return this._reopenAndRemember(context => this._commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editorId, context));
-	}
-
-	/**
-	 * The command context of only this editor. The reopen commands act on all tabs that are selected together
-	 * with this editor, so the tab selection is narrowed to this editor first.
-	 */
-	private async _getSingleEditorContext(): Promise<IEditorCommandsContext | undefined> {
-		const pane = this._editorService.visibleEditorPanes.find(pane => pane.getControl() === this._editor);
-		const input = pane?.input;
-		if (!pane || !input) {
-			return undefined;
-		}
-		if (pane.group.isSelected(input) && pane.group.selectedEditors.length > 1) {
-			await pane.group.setSelection(input, []);
-		}
-		return { groupId: pane.group.id, editorIndex: pane.group.getIndexOfEditor(input) };
-	}
-
-	/**
-	 * Reopens this file in another editor and remembers that editor, so the hint offers it first next time.
-	 */
-	private async _reopenAndRemember(reopen: (context: IEditorCommandsContext) => Promise<unknown>): Promise<void> {
-		const resource = this._editor.getModel()?.uri;
-		const context = await this._getSingleEditorContext();
-		if (!context) {
-			return;
-		}
-		await reopen(context);
-		const activeEditor = this._editorService.activeEditor;
-		if (activeEditor?.editorId && activeEditor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id && isEqual(activeEditor.resource, resource)) {
-			this._storageService.store(lastUntitledEditorStorageKey, activeEditor.editorId, StorageScope.PROFILE, StorageTarget.USER);
-		}
 	}
 
 	private _renderRows(): void {
@@ -359,7 +301,7 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 					return this._instantiationService.createInstance(EmptyEditorHintSplitActionViewItem, action, entry.icon, () => {
 						this._logEvent('action', 'openWith');
 						this._editor.focus();
-						void this._showEditorPicker();
+						void this._reopener.showEditorPicker();
 					});
 				}
 				const keybinding = entry.keybindingCommandId ? this._keybindingService.lookupKeybinding(entry.keybindingCommandId) : undefined;

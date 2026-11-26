@@ -14,6 +14,8 @@ import { IAgentHostSavedChat } from '../../../../../../platform/agentHost/common
 import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { PolicyUnavailableAgentHostContentProvider } from '../../../browser/agentSessions/agentHost/agentHostPolicyUnavailableSession.js';
 
@@ -44,6 +46,7 @@ suite('Policy unavailable Agent Host history', () => {
 			dispatch: () => assert.fail('Saved history must not dispatch to the source'),
 		});
 		services.stub(IAgentHostConnectionsService, { registerSessionResource: () => resource });
+		services.stub(IConfigurationService, new TestConfigurationService());
 		return services.createInstance(PolicyUnavailableAgentHostContentProvider);
 	}
 

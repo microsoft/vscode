@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createAttributedResult, type ElicitationHandlerResult, type ExitPlanModeResult, type SessionConfig } from '@github/copilot-sdk';
+import { createAttributedResult, type ElicitationHandlerResult, type ExitPlanModeResult, type CreateSessionOptions } from '@microsoft/copilot-sdk';
 import type { AgentChatInputResponseSource } from '../../common/meta/agentChatInputResponseMeta.js';
 
-type UserInputResponse = Awaited<ReturnType<NonNullable<SessionConfig['onUserInputRequest']>>>;
+type UserInputResponse = Awaited<ReturnType<NonNullable<NonNullable<CreateSessionOptions['interaction']>['onUserInputRequest']>>>;
 
 /**
  * Labels a user-input, plan-review, or elicitation answer that a person gave through the request's UI, refusals

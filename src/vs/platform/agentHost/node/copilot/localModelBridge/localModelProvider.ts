@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotRequestHandler, NamedProviderConfig, ProviderModelConfig } from '@github/copilot-sdk';
+import type { CopilotRequestHandler, NamedProviderConfig, ProviderModelConfig } from '@microsoft/copilot-sdk';
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import type { Event } from '../../../../../base/common/event.js';
 import type { IDisposable } from '../../../../../base/common/lifecycle.js';

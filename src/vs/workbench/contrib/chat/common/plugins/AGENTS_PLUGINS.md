@@ -141,7 +141,8 @@ Manages the catalog of available and installed plugins:
 - **Installed storage** — persists `{ pluginUri, relativePath?, enablementUri?, marketplace, name? }` entries in `agent-plugins/installed.json`. Managed plugins resolve `relativePath` against the current plugin home so moving a portable installation does not invalidate them; external plugins retain absolute URIs. Escaping relative paths fall back to `pluginUri` and are removed or replaced with a valid managed path during migration. Descendant paths preserve plugin-directory casing and use the same casing policy as containment, including on macOS. Legacy entries under the current home and relocated absolute URIs are migrated at startup and after external edits. The store serializes its own file operations and preserves pending local changes instead of publishing stale migration results. Migration uses the file service's existing modification-time and etag checks; detected conflicts are reloaded and rescheduled. This is best-effort protection, not a cross-process transaction: same-size edits, unchanged timestamps, and changes after validation can still be overwritten. A stable `enablementUri` preserves each profile's enablement decisions through `IAgentPluginEnablementService`, including in-window profile switches and after another profile rewrites the shared manifest. Updates that move an installation transfer this identity from its previous recorded URI; a stale update whose source was already removed retains the target's established identity.
 - **Trust** — marketplace canonical IDs must be explicitly trusted before install proceeds (`chat.plugins.trustedMarketplaces.v1`).
 - **Auto-update** — checks eligible installed marketplaces approximately every 24 hours and reports their canonical IDs through `marketplacesWithUpdates`. Managed `extraKnownMarketplaces.<name>.autoUpdate` values override `extensions.autoUpdate` for that marketplace; undefined entries inherit the global setting. Checks and updates are restricted to enabled marketplaces and still enforce `strictKnownMarketplaces`.
-- **GitHub caching** — caches raw GitHub API responses with an 8-hour TTL to avoid repeated fetches.
+- **GitHub discovery and caching** — uses the shared anonymous GitHub client, resolving the configured ref (or `main` when omitted) once per discovery and reading definition candidates at that immutable commit. Parsed catalogs retain their 8-hour persisted cache. On a cache miss, ref resolution can revalidate a shared ETag with GitHub; forced refresh bypasses both the catalog cache and ref ETag caching. Raw definition downloads are uncached. Private repositories retain clone-based discovery.
+- **GitHub request priority** — user-requested discovery uses the interactive lane. Metadata hydration, recommendation checks, and automatic updates use the background lane for both ref resolution and definition downloads, independently of whether the catalog cache is bypassed.
 
 ### Marketplace Definition Files
 
@@ -150,6 +151,8 @@ Checked in order per repository:
 2. `.plugin/marketplace.json` → `MarketplaceType.OpenPlugin`
 3. `.github/plugin/marketplace.json` → `MarketplaceType.Copilot`
 4. `.claude-plugin/marketplace.json` → `MarketplaceType.Claude`
+
+The first definition containing a plugins array wins; catalogs from different configured marketplaces are combined. GitHub raw definitions use the shared client's 1 MiB text limit. An oversized response reports a marketplace error rather than selecting a lower-priority definition or falling back to cloning.
 
 ### IPluginInstallService
 

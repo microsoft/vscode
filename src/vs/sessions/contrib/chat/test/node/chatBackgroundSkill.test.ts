@@ -50,12 +50,14 @@ suite('Sessions - Generate Chat Background skill', () => {
 			unavailableToolsExplained: content.includes('explain that rather than generating an image you cannot apply'),
 			paletteIsContext: content.includes('Call `getThemeColors` and use the palette as context'),
 			appliesThroughTool: content.includes('pass its path to `setChatBackground`'),
+			appliesAfterWrites: content.includes('never in the same parallel batch'),
 		}, {
 			userFirst: true,
 			existingImagesBypassGeneration: true,
 			unavailableToolsExplained: true,
 			paletteIsContext: true,
 			appliesThroughTool: true,
+			appliesAfterWrites: true,
 		});
 	});
 

@@ -25,7 +25,7 @@ import { isIOS } from '../../../../base/common/platform.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Keybinding, KeyCodeChord, ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
-import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
+import { createAgentFeedbackContext, getPRCommentPullRequests } from './agentFeedbackEditorUtils.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
@@ -42,13 +42,13 @@ import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR } from '../../../../workbenc
 import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from '../../../../workbench/browser/feedbackInputWidget.js';
 import { ICodeReviewService, IPRReviewCommentTarget } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { IGitHubPullRequestRef } from '../../../../workbench/services/sessions/common/session.js';
+import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 
 const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
 const hasAgentFeedbackSessionForEditor = new RawContextKey<boolean>('agentFeedbackEditor.hasSession', false);
 // Editors embedded in the Customizations editor inherit its context key; feedback is not offered there.
 const agentFeedbackEnabledForEditor = ContextKeyExpr.and(ChatContextKeys.enabled, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.negate());
-export const AGENTS_WINDOW_PR_COMMENTS_SETTING = 'chat.experimental.agentsWindowPRComments';
 
 /**
  * The inline "Add Feedback" input shown in the editor when the user selects a
@@ -283,6 +283,16 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				}
 			}
 		}));
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
+				return;
+			}
+			this._clearHoverGlyph();
+			this._sessionResource = this._getSessionForModel();
+			if (!this._sessionResource) {
+				this._hide();
+			}
+		}));
 		this._getSessionForModel();
 	}
 
@@ -497,16 +507,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	}
 
 	private _getPRCommentPullRequests(sessionResource: URI, resource: URI): readonly IGitHubPullRequestRef[] {
-		if (this._configurationService.getValue<boolean>(AGENTS_WINDOW_PR_COMMENTS_SETTING) !== true) {
-			return [];
-		}
-		return this._codeReviewService.getPRReviewCommentPullRequests(sessionResource, resource);
+		return getPRCommentPullRequests(this._configurationService, this._codeReviewService, sessionResource, resource);
 	}
 
 	private _setInputPRCommentActions(widget: AgentFeedbackInputWidget, pullRequests: readonly IGitHubPullRequestRef[]): void {
-		const actions = pullRequests.map(pullRequest => {
+		const actions = pullRequests.map((pullRequest, index) => {
 			return {
-				id: `agentFeedback.input.pullRequest.${pullRequest.owner}.${pullRequest.repo}.${pullRequest.number}`,
+				id: `agentFeedback.input.pullRequest.${index}`,
 				label: pullRequests.length === 1
 					? localize('agentFeedback.addPRCommentAction', "Add PR Comment")
 					: localize('agentFeedback.addPRCommentActionWithPR', "Add PR Comment ({0}/{1}#{2})", pullRequest.owner, pullRequest.repo, pullRequest.number),
@@ -600,8 +607,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 					label: localize('agentFeedback.commentTarget', "Agent Feedback"),
 					run: () => resolve(null),
 				}),
-				...pullRequests.map(pullRequest => toAction({
-					id: `agentFeedback.commentTarget.pullRequest.${pullRequest.owner}.${pullRequest.repo}.${pullRequest.number}`,
+				...pullRequests.map((pullRequest, index) => toAction({
+					id: `agentFeedback.commentTarget.pullRequest.${index}`,
 					label: pullRequests.length === 1
 						? localize('agentFeedback.prCommentTarget', "Pull Request Comment")
 						: localize('agentFeedback.prCommentTargetWithPR', "Pull Request ({0}/{1}#{2}) Comment", pullRequest.owner, pullRequest.repo, pullRequest.number),
@@ -645,11 +652,14 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _getSessionForModel(): URI | undefined {
 		const model = this._editor.getModel();
-		if (!model || !this._contextKeyService.contextMatchesRules(agentFeedbackEnabledForEditor)) {
+		if (!model
+			|| !this._contextKeyService.contextMatchesRules(agentFeedbackEnabledForEditor)
+			|| this._configurationService.getValue<boolean>(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
 			this._hasAgentFeedbackSessionContext.set(false);
 			this._sessionResource = undefined;
 			return undefined;
 		}
+
 		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(model.uri);
 		this._hasAgentFeedbackSessionContext.set(!!sessionResource);
 		this._sessionResource = sessionResource;

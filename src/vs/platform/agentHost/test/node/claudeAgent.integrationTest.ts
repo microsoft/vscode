@@ -132,7 +132,7 @@ function claudeFileEnvServices(disposables: Pick<DisposableStore, 'add'>): [type
 function createTestAuthenticationService(): IAgentHostAuthenticationService {
 	return new class extends mock<IAgentHostAuthenticationService>() {
 		override readonly onDidChangeAuthToken = Event.None;
-		override getAuthAccount() { return undefined; }
+		override getAuthAccountId() { return undefined; }
 		override getSessionCredentialSource() { return undefined; }
 		override getSessionCredentialPrincipal() { return undefined; }
 		override getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]) {

@@ -99,6 +99,10 @@
 	white-space: nowrap;
 }
 
+.host-drawer-header-subtitle:empty {
+	display: none;
+}
+
 .host-drawer-header-chevron {
 	display: flex;
 	align-items: center;

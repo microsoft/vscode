@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ChannelServer, IChannel, IPCServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
-import { parse, SchemaError } from '../client/schema.js';
+import { SchemaError, parse } from '../client/schema.js';
 import { withGitHubCredentialDeadline } from '../githubCredentialService.js';
 import { ApiRequestProviders, IGitHubRequestProviderScope, IGitHubService } from '../githubService.js';
 import { GitHubAuthorizationContext, GitHubRequestError } from '../githubTypes.js';
@@ -91,24 +91,28 @@ class GitHubChannel extends Disposable implements IServerChannel<string> {
 		this.checkAvailableClientId(request.clientId);
 		const lifetime = new DisposableStore();
 		this.pendingAcquisitions.set(request.clientId, lifetime);
-		const controller = new AbortController();
-		lifetime.add(toDisposable(() => controller.abort(new CancellationError())));
+		const controller = new CancellationTokenSource();
+		lifetime.add(toDisposable(() => controller.dispose(true)));
+		let cancellationError: GitHubRequestError | undefined;
+		const combinedToken = CancellationToken.any([controller.token, cancellationToken], lifetime);
 		try {
 			const credentials = this.credentials.value ??= new RemoteGitHubCredentialProvider(this.credentialsChannel);
 			const scope = this.credentialScope.value ??= this.service.createRequestProviderScope(credentials);
 			lifetime.add(credentials.onDidChange(change => {
 				if (change.providerId === request.authorization.providerId && (!change.sessionIds || change.sessionIds.includes(request.authorization.sessionId))) {
-					controller.abort(new GitHubRequestError('GitHub client grant changed during acquisition', 'authentication'));
+					if (!combinedToken.isCancellationRequested) {
+						cancellationError = new GitHubRequestError('GitHub client grant changed during acquisition', 'authentication');
+						controller.cancel();
+					}
 				}
 			}));
-			const signal = AbortSignal.any([controller.signal, CancellationToken.toAbortSignal(cancellationToken, lifetime)]);
-			const options = await withGitHubCredentialDeadline(signal, signal => credentials.resolveClient(request.authorization, signal));
-			signal.throwIfAborted();
+			const options = await withGitHubCredentialDeadline(combinedToken, cancellationToken => credentials.resolveClient(request.authorization, cancellationToken));
+			CancellationToken.throwIfCanceled(combinedToken);
 			const client = scope.acquireClient(options);
 			this.clients.set(request.clientId, client);
 			return [{ type: 'success', value: client.object.authorization }, undefined];
 		} catch (error) {
-			return serializeGitHubError(error);
+			return serializeGitHubError(isCancellationError(error) ? cancellationError ?? error : error);
 		} finally {
 			if (this.pendingAcquisitions.get(request.clientId) === lifetime) {
 				this.pendingAcquisitions.deleteAndDispose(request.clientId);
@@ -132,8 +136,7 @@ class GitHubChannel extends Disposable implements IServerChannel<string> {
 				}
 				throw new GitHubRequestError('The requested API endpoint is not configured for this client', 'validation');
 			}
-			const controller = new AbortController();
-			lifetime.add(toDisposable(() => controller.abort(new CancellationError())));
+			const requestToken = cancelOnDispose(lifetime);
 			if (metadata.requestId) {
 				pendingKey = `${metadata.clientId}\0${metadata.requestId}`;
 				if (this.pendingRequests.has(pendingKey)) {
@@ -142,8 +145,8 @@ class GitHubChannel extends Disposable implements IServerChannel<string> {
 				}
 				this.pendingRequests.set(pendingKey, lifetime);
 			}
-			const signal = AbortSignal.any([CancellationToken.toAbortSignal(cancellationToken, lifetime), controller.signal]);
-			const response = await provider.requestText(metadata.request, signal, bodyText);
+			const combinedToken = CancellationToken.any([cancellationToken, requestToken], lifetime);
+			const response = await provider.requestText(metadata.request, combinedToken, bodyText);
 			return [{ type: 'success', status: response.status, ...(response.metadata ? { metadata: response.metadata } : {}) }, response.data];
 		} catch (error) {
 			return serializeGitHubError(error);

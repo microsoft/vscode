@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { mergeArrayPages } from '../client/pagination.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
@@ -15,7 +16,7 @@ import { IOrganizationsClient, ListTeamMembersOptions, Organization, Organizatio
 export class OrganizationsClient implements IOrganizationsClient {
 	constructor(private readonly _client: CoreClient) { }
 
-	async get(org: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Organization> {
+	async get(org: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Organization> {
 		return this._client.request({
 			domain: 'organizations',
 			method: 'GET',
@@ -23,10 +24,10 @@ export class OrganizationsClient implements IOrganizationsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseOrganization);
+		}, cancellationToken, parseOrganization);
 	}
 
-	async listForAuthenticatedUser(signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly OrganizationSummary[]> {
+	async listForAuthenticatedUser(cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly OrganizationSummary[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'organizations',
@@ -35,10 +36,10 @@ export class OrganizationsClient implements IOrganizationsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseOrganizations, mergeArrayPages);
+		}, cancellationToken, parseOrganizations, mergeArrayPages);
 	}
 
-	async listForUser(username: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly OrganizationSummary[]> {
+	async listForUser(username: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly OrganizationSummary[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'organizations',
@@ -47,10 +48,10 @@ export class OrganizationsClient implements IOrganizationsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseOrganizations, mergeArrayPages);
+		}, cancellationToken, parseOrganizations, mergeArrayPages);
 	}
 
-	async getAuthenticatedMembership(org: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<OrganizationMembership> {
+	async getAuthenticatedMembership(org: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<OrganizationMembership> {
 		return this._client.request({
 			domain: 'organizations',
 			method: 'GET',
@@ -58,10 +59,10 @@ export class OrganizationsClient implements IOrganizationsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseMembership);
+		}, cancellationToken, parseMembership);
 	}
 
-	async getMembership(org: string, username: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<OrganizationMembership> {
+	async getMembership(org: string, username: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<OrganizationMembership> {
 		return this._client.request({
 			domain: 'organizations',
 			method: 'GET',
@@ -69,10 +70,10 @@ export class OrganizationsClient implements IOrganizationsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseMembership);
+		}, cancellationToken, parseMembership);
 	}
 
-	async listTeams(org: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly TeamDetails[]> {
+	async listTeams(org: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly TeamDetails[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'organizations',
@@ -81,10 +82,10 @@ export class OrganizationsClient implements IOrganizationsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseTeams, mergeArrayPages);
+		}, cancellationToken, parseTeams, mergeArrayPages);
 	}
 
-	async getTeam(org: string, teamSlug: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<TeamDetails> {
+	async getTeam(org: string, teamSlug: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<TeamDetails> {
 		return this._client.request({
 			domain: 'organizations',
 			method: 'GET',
@@ -92,10 +93,10 @@ export class OrganizationsClient implements IOrganizationsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseTeamDetails);
+		}, cancellationToken, parseTeamDetails);
 	}
 
-	async listTeamsForAuthenticatedUser(signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly UserTeam[]> {
+	async listTeamsForAuthenticatedUser(cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly UserTeam[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'organizations',
@@ -104,10 +105,10 @@ export class OrganizationsClient implements IOrganizationsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseUserTeams, mergeArrayPages);
+		}, cancellationToken, parseUserTeams, mergeArrayPages);
 	}
 
-	async listTeamMembers(org: string, teamSlug: string, signal: AbortSignal, options?: ListTeamMembersOptions): Promise<readonly Account[]> {
+	async listTeamMembers(org: string, teamSlug: string, cancellationToken: CancellationToken, options?: ListTeamMembersOptions): Promise<readonly Account[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'organizations',
@@ -116,7 +117,7 @@ export class OrganizationsClient implements IOrganizationsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseMembers, mergeArrayPages);
+		}, cancellationToken, parseMembers, mergeArrayPages);
 	}
 }
 

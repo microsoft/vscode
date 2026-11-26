@@ -544,30 +544,6 @@ abstract class BaseComponentsCompletionsPromptFactory implements IPromptFactory 
 	}
 }
 
-export class ComponentsCompletionsPromptFactory extends BaseComponentsCompletionsPromptFactory {
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICompletionsTelemetryService completionsTelemetryService: ICompletionsTelemetryService,
-		@IIgnoreService ignoreService: IIgnoreService,
-		@ICompletionsContextProviderBridgeService contextProviderBridge: ICompletionsContextProviderBridgeService,
-		@ICompletionsLogTargetService logTarget: ICompletionsLogTargetService,
-		@ICompletionsContextProviderService contextProviderStatistics: ICompletionsContextProviderService,
-		@ILanguageDiagnosticsService languageDiagnosticsService: ILanguageDiagnosticsService,
-	) {
-		super(
-			undefined,
-			undefined,
-			instantiationService,
-			completionsTelemetryService,
-			ignoreService,
-			contextProviderBridge,
-			logTarget,
-			contextProviderStatistics,
-			languageDiagnosticsService
-		);
-	}
-}
-
 export class TestComponentsCompletionsPromptFactory extends BaseComponentsCompletionsPromptFactory { }
 
 // Similar files is enabled if:

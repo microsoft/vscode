@@ -15,7 +15,8 @@ import { IFileDialogService, IOpenDialogOptions } from '../../../../../../platfo
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentContextValuePick, ClipboardImageContextValuePick, FileContextValuePick, GitHubContextValuePick, ScreenshotContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { AgentContextValuePick, ClipboardImageContextValuePick, FileContextValuePick, GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { DesktopScreenshotContextValuePick } from '../../../browser/actions/chatScreenshotContextPicker.js';
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { ChatContextPickService } from '../../../browser/attachments/chatContextPickService.js';
 import { IChatWidget } from '../../../browser/chat.js';
@@ -180,7 +181,7 @@ suite('ChatContext', () => {
 			}();
 			let focused = 0;
 			const widget = upcastPartial<IChatWidget>({ domNode: mainWindow.document.body, focusInput: () => { focused++; } });
-			return { pick: new ScreenshotContextValuePick(host, service), service, telemetry, widget, focusCount: () => focused };
+			return { pick: new DesktopScreenshotContextValuePick(host, service), service, telemetry, widget, focusCount: () => focused };
 		}
 
 		test('attaches what the host captures where the screenshot tool is not supported, as on the web', async () => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotRequestContext } from '@github/copilot-sdk';
+import type { CopilotRequestContext } from '@microsoft/copilot-sdk';
 import type { ICopilotApiService } from '../../../shared/copilotApiService.js';
 import { toChatTemplateKwargs, type LocalModelThinkingSupport } from '../localModelThinking.js';
 import { CHAT_TEMPLATE_RESERVE_TOKENS, DEFAULT_CAPI_ORIGIN, KNOWN_AUTO_LOCAL_IDS, LOCAL_CAPI_ID_SUFFIX, SENTINEL_ORIGIN } from './constants.js';

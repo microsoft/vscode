@@ -5,9 +5,6 @@
 
 import { TelemetryData } from '../telemetry';
 
-/** The prefix used for related plugin version headers. */
-const CopilotRelatedPluginVersionPrefix = 'X-Copilot-RelatedPluginVersion-';
-
 /** The filter headers that ExP knows about. */
 export enum Filter {
 	// Default VSCode filters
@@ -28,8 +25,6 @@ export enum Filter {
 	CopilotFileType = 'X-Copilot-FileType', // Wired to languageId
 	/** The organization the user belongs to. Not included in fallback filters */
 	CopilotUserKind = 'X-Copilot-UserKind',
-	/** Declare experiment dogfood program if any. Not included in fallback filters */
-	CopilotDogfood = 'X-Copilot-Dogfood',
 	/** For custom Model Alpha. Not included in fallback filters */
 	CopilotCustomModel = 'X-Copilot-CustomModel',
 	/** Organizations. */
@@ -41,19 +36,6 @@ export enum Filter {
 	/** The Copilot Client Version */
 	CopilotClientVersion = 'X-Copilot-ClientVersion',
 
-	CopilotRelatedPluginVersionCppTools = CopilotRelatedPluginVersionPrefix + 'msvscodecpptools',
-	CopilotRelatedPluginVersionCMakeTools = CopilotRelatedPluginVersionPrefix + 'msvscodecmaketools',
-	CopilotRelatedPluginVersionMakefileTools = CopilotRelatedPluginVersionPrefix + 'msvscodemakefiletools',
-	CopilotRelatedPluginVersionCSharpDevKit = CopilotRelatedPluginVersionPrefix + 'msdotnettoolscsdevkit',
-	CopilotRelatedPluginVersionPython = CopilotRelatedPluginVersionPrefix + 'mspythonpython',
-	CopilotRelatedPluginVersionPylance = CopilotRelatedPluginVersionPrefix + 'mspythonvscodepylance',
-	CopilotRelatedPluginVersionJavaPack = CopilotRelatedPluginVersionPrefix + 'vscjavavscodejavapack',
-	CopilotRelatedPluginVersionJavaManager = CopilotRelatedPluginVersionPrefix + 'vscjavavscodejavadependency',
-	CopilotRelatedPluginVersionTypescript = CopilotRelatedPluginVersionPrefix + 'vscodetypescriptlanguagefeatures',
-	CopilotRelatedPluginVersionTypescriptNext = CopilotRelatedPluginVersionPrefix + 'msvscodevscodetypescriptnext',
-	CopilotRelatedPluginVersionCSharp = CopilotRelatedPluginVersionPrefix + 'msdotnettoolscsharp',
-	CopilotRelatedPluginVersionGithubCopilotChat = CopilotRelatedPluginVersionPrefix + 'githubcopilotchat',
-	CopilotRelatedPluginVersionGithubCopilot = CopilotRelatedPluginVersionPrefix + 'githubcopilot',
 }
 
 export enum Release {

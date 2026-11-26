@@ -289,7 +289,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 
 				if (foldersToRemove.length > 0) {
-					await workspaceEditingService.removeFolders(foldersToRemove);
+					await workspaceEditingService.removeFolders(foldersToRemove, { force: true });
 				}
 			});
 		}
@@ -495,7 +495,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.withServices(async accessor => {
 				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
 
-				await workspaceEditingService.updateFolders(0, this.contextService.getWorkspace().folders.length, [{ uri: workspace.folderUri }]);
+				await workspaceEditingService.updateFolders(0, this.contextService.getWorkspace().folders.length, [{ uri: workspace.folderUri }], { force: true });
 			});
 
 			return;

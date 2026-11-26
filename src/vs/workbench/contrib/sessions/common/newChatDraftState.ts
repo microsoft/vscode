@@ -15,14 +15,23 @@ import { IDynamicVariable } from '../../chat/common/attachments/chatVariables.js
 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 
-export function readNewChatDraftState(storageService: IStorageService): IChatDraft | undefined {
+export interface INewChatDraftState extends IChatDraft {
+	readonly savedDraftId?: string;
+}
+
+export function readNewChatDraftState(storageService: IStorageService): INewChatDraftState | undefined {
 	const raw = storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
-	return raw ? fromStoredChatDraft(parse(raw)) : undefined;
+	if (!raw) {
+		return undefined;
+	}
+	const value: INewChatDraftState = parse(raw);
+	const draft = fromStoredChatDraft(value);
+	return typeof value.savedDraftId === 'string' ? { ...draft, savedDraftId: value.savedDraftId } : draft;
 }
 
 /** Saves the draft and returns a guard that stays true until another write replaces it. */
-export function writeNewChatDraftState(storageService: IStorageService, draft: IChatDraft): () => boolean {
-	const value = stringify({ revision: generateUuid(), ...toStoredChatDraft(draft) });
+export function writeNewChatDraftState(storageService: IStorageService, draft: IChatDraft, savedDraftId?: string): () => boolean {
+	const value = stringify({ revision: generateUuid(), ...toStoredChatDraft(draft), savedDraftId });
 	storageService.store(STORAGE_KEY_DRAFT_STATE, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	return () => storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE) === value;
 }
@@ -76,6 +85,14 @@ export interface IComposerInputSnapshot {
 	/** Ends the attempt of `id`: its send was rejected, failed, was cancelled or started. Never ends a newer attempt. */
 	endSendAttempt(id: string): void;
 	/**
+	 * Marks the input as submitting from the user's submit, before the checks and waits that precede its send attempt, such
+	 * as for the session to be ready or the host's confirmation, until the returned disposable is disposed: also as the
+	 * submit is cancelled or fails.
+	 */
+	beginSubmit(): IDisposable;
+	/** Whether a submit is under way (see {@link beginSubmit}). */
+	readonly isSubmitting: boolean;
+	/**
 	 * Registers the composer's input as the one that shows an input its host gives back ({@link ComposerInputSnapshot.restore}),
 	 * until the returned disposable is disposed. `restorer` returns whether it showed it: not while it cannot, such as while
 	 * it sends.
@@ -90,6 +107,7 @@ export class ComposerInputSnapshot implements IComposerInputSnapshot {
 	private _attempt: IComposerSendAttempt | undefined;
 
 	private _restorer: ((input: IChatDraft) => boolean) | undefined;
+	private _submits = 0;
 
 	constructor(state?: IComposerInputState) {
 		this._input = state?.input ?? { inputText: '', attachments: [] };
@@ -113,6 +131,15 @@ export class ComposerInputSnapshot implements IComposerInputSnapshot {
 		if (this._attempt?.id === id) {
 			this._attempt = undefined;
 		}
+	}
+
+	beginSubmit(): IDisposable {
+		this._submits++;
+		return toDisposable(() => this._submits--);
+	}
+
+	get isSubmitting(): boolean {
+		return this._submits > 0;
 	}
 
 	registerRestorer(restorer: (input: IChatDraft) => boolean): IDisposable {

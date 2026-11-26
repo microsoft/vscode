@@ -125,6 +125,46 @@ suite('VoiceInputModeService', () => {
 		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), true);
 		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), false);
 	});
+
+	test('standalone controls remain the inverse of the pill with unset settings and BYOK voice', () => {
+		const cases: { overrides: Record<string, ContextKeyValue>; pill: boolean }[] = [
+			{ overrides: {}, pill: true },
+			{ overrides: { [ChatContextKeys.enabled.key]: false }, pill: false },
+			{ overrides: { [AGENTS_VOICE_ENTITLED.key]: false }, pill: false },
+			{ overrides: { [AGENTS_VOICE_ENTITLED.key]: false, 'config.agents.voice.useBYOKVoiceModel': 'provider/model' }, pill: true },
+			{ overrides: { [AGENTS_VOICE_ENTITLED.key]: false, 'config.agents.voice.useBYOKVoiceModel': ' \t' }, pill: false },
+			{ overrides: { 'config.agents.voice.enabled': false }, pill: false },
+			{ overrides: { 'config.agents.voice.enabled': undefined }, pill: false },
+			{ overrides: { 'config.agents.voice.showButton': false }, pill: false },
+			{ overrides: { 'config.agents.voice.showButton': undefined }, pill: false },
+			{ overrides: { 'config.dictation.showButton': false }, pill: false },
+			{ overrides: { 'config.dictation.showButton': undefined }, pill: false },
+			{ overrides: { [ChatContextKeys.speechToTextConfigured.key]: false }, pill: false },
+			{ overrides: { [AGENTS_VOICE_CONNECTED.key]: true, [ChatContextKeys.speechToTextConfigured.key]: false }, pill: true },
+			{ overrides: { [AGENTS_VOICE_CONNECTED.key]: true, 'config.dictation.showButton': false }, pill: true },
+			{ overrides: { [AGENTS_VOICE_CONNECTED.key]: true, 'config.agents.voice.showButton': false }, pill: false },
+		];
+
+		assert.deepStrictEqual(cases.map(({ overrides }) => {
+			const values: Record<string, ContextKeyValue> = {
+				[ChatContextKeys.enabled.key]: true,
+				[AGENTS_VOICE_ENTITLED.key]: true,
+				[ChatContextKeys.speechToTextConfigured.key]: true,
+				'config.agents.voice.enabled': true,
+				'config.agents.voice.showButton': true,
+				'config.dictation.showButton': true,
+				'config.agents.voice.useBYOKVoiceModel': '',
+				...overrides,
+			};
+			const context = {
+				getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
+			};
+			return {
+				pill: SegmentedVoiceInputModePillActive.evaluate(context),
+				standalone: SegmentedVoiceInputModePillInactive.evaluate(context),
+			};
+		}), cases.map(({ pill }) => ({ pill, standalone: !pill })));
+	});
 });
 
 suite('VoiceInputModeActionViewItem', () => {

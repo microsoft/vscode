@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { mergeArrayPages } from '../client/pagination.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
-import { numberSegment, pathSegment, withQuery, repositoryPath } from '../client/routing.js';
+import { numberSegment, pathSegment, repositoryPath, withQuery } from '../client/routing.js';
 import { parse } from '../client/schema.js';
 import { PageOptions, RepositoryRef } from '../client/types.js';
 import { CheckAnnotation, CheckApp, CheckRun, CheckRunsPage, CheckSuite, CheckSuitesPage, CombinedStatus, CommitStatus, IChecksClient, ListCheckRunsOptions } from './checks.js';
@@ -14,7 +15,7 @@ import { CoreClient, parseCheckConclusion, parseCheckStatus } from './coreClient
 export class ChecksClient implements IChecksClient {
 	constructor(private readonly _client: CoreClient) { }
 
-	async listRuns(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ListCheckRunsOptions): Promise<CheckRunsPage> {
+	async listRuns(repository: RepositoryRef, commitRef: string, cancellationToken: CancellationToken, options?: ListCheckRunsOptions): Promise<CheckRunsPage> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -25,7 +26,7 @@ export class ChecksClient implements IChecksClient {
 				expectedStatus: 200,
 				options: requestOptions
 			},
-			signal,
+			cancellationToken,
 			parseRuns,
 			pages => ({
 				...pages[pages.length - 1],
@@ -34,7 +35,7 @@ export class ChecksClient implements IChecksClient {
 		);
 	}
 
-	async getRun(repository: RepositoryRef, checkRunId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<CheckRun> {
+	async getRun(repository: RepositoryRef, checkRunId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<CheckRun> {
 		return this._client.request({
 			domain: 'checks',
 			method: 'GET',
@@ -42,10 +43,10 @@ export class ChecksClient implements IChecksClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseRun);
+		}, cancellationToken, parseRun);
 	}
 
-	async listRunsForSuite(repository: RepositoryRef, suiteId: number, signal: AbortSignal, options?: ListCheckRunsOptions): Promise<CheckRunsPage> {
+	async listRunsForSuite(repository: RepositoryRef, suiteId: number, cancellationToken: CancellationToken, options?: ListCheckRunsOptions): Promise<CheckRunsPage> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -56,7 +57,7 @@ export class ChecksClient implements IChecksClient {
 				expectedStatus: 200,
 				options: requestOptions
 			},
-			signal,
+			cancellationToken,
 			parseRuns,
 			pages => ({
 				...pages[pages.length - 1],
@@ -65,7 +66,7 @@ export class ChecksClient implements IChecksClient {
 		);
 	}
 
-	async listSuites(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<CheckSuitesPage> {
+	async listSuites(repository: RepositoryRef, commitRef: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<CheckSuitesPage> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -76,7 +77,7 @@ export class ChecksClient implements IChecksClient {
 				expectedStatus: 200,
 				options: requestOptions
 			},
-			signal,
+			cancellationToken,
 			parseSuites,
 			pages => ({
 				...pages[pages.length - 1],
@@ -85,7 +86,7 @@ export class ChecksClient implements IChecksClient {
 		);
 	}
 
-	async getSuite(repository: RepositoryRef, suiteId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<CheckSuite> {
+	async getSuite(repository: RepositoryRef, suiteId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<CheckSuite> {
 		return this._client.request({
 			domain: 'checks',
 			method: 'GET',
@@ -93,10 +94,10 @@ export class ChecksClient implements IChecksClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseSuite);
+		}, cancellationToken, parseSuite);
 	}
 
-	async listAnnotations(repository: RepositoryRef, checkRunId: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly CheckAnnotation[]> {
+	async listAnnotations(repository: RepositoryRef, checkRunId: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly CheckAnnotation[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'checks',
@@ -105,10 +106,10 @@ export class ChecksClient implements IChecksClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseAnnotations, mergeArrayPages);
+		}, cancellationToken, parseAnnotations, mergeArrayPages);
 	}
 
-	async getCombinedStatus(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<CombinedStatus> {
+	async getCombinedStatus(repository: RepositoryRef, commitRef: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<CombinedStatus> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'checks',
@@ -117,10 +118,10 @@ export class ChecksClient implements IChecksClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseCombinedStatus, pages => ({ ...pages[pages.length - 1], statuses: pages.flatMap(page => page.statuses) }));
+		}, cancellationToken, parseCombinedStatus, pages => ({ ...pages[pages.length - 1], statuses: pages.flatMap(page => page.statuses) }));
 	}
 
-	async listStatuses(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly CommitStatus[]> {
+	async listStatuses(repository: RepositoryRef, commitRef: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly CommitStatus[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'checks',
@@ -129,7 +130,7 @@ export class ChecksClient implements IChecksClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseStatuses, mergeArrayPages);
+		}, cancellationToken, parseStatuses, mergeArrayPages);
 	}
 }
 

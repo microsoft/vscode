@@ -59,16 +59,12 @@ export type FakeFileSystemConfig = { [key: string]: string | FakeFileNode | Fake
  *   }
  * ```
  *
- * It is also possible to control the results of `stat` by using `.file` and
- * `.directory` to create fakes:
+ * It is also possible to control the results of `stat` by using `.file`
+ * to create fakes:
  *
  * ```js
  *   {
- *     "/bigFile.txt": FakeFileSystem.file({ctime: 0, mtime: 0, size: 1000000}),
- *     "/futureFolder": FakeFileSystem.directory({
- *       ctime: Date.now() + 3600000,
- *       mtime: Date.now() + 3600000,
- *       size: 64}),
+ *     "/bigFile.txt": FakeFileSystem.file("", {ctime: 0, mtime: 0, size: 1000000}),
  *   }
  * ```
  */
@@ -196,7 +192,4 @@ export class FakeFileSystem implements ICompletionsFileSystemService {
 		);
 	}
 
-	static directory(stats?: Partial<FileStat>) {
-		return new FakeDir(Object.assign({ ctime: 0, mtime: 0, size: 0, type: FileType.Directory }, stats));
-	}
 }

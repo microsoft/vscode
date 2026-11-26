@@ -5,8 +5,8 @@
 
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableMap, combinedDisposable } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -78,8 +78,9 @@ export class AgentMergeCIEvidenceStore extends Disposable {
 	}
 
 	/** Returns undefined when the log cannot fit without evicting evidence already advertised on this page. */
-	tryAdd(scope: string, runAttempt: number, job: WorkflowJob, log: GitHubWorkflowLog, signal: AbortSignal, retainedIds: ReadonlySet<string> = new Set()): AgentMergeCIEvidence | undefined {
-		signal.throwIfAborted();
+	tryAdd(scope: string, runAttempt: number, job: WorkflowJob, log: GitHubWorkflowLog, cancellationToken: CancellationToken, retentionToken: CancellationToken, retainedIds: ReadonlySet<string> = new Set()): AgentMergeCIEvidence | undefined {
+		CancellationToken.throwIfCanceled(cancellationToken);
+		CancellationToken.throwIfCanceled(retentionToken);
 		if (this._store.isDisposed || log.text.length > maximumEvidenceCharacters) {
 			throw new Error('CI evidence storage is unavailable or its memory limit was exceeded.');
 		}
@@ -99,7 +100,11 @@ export class AgentMergeCIEvidenceStore extends Disposable {
 		};
 		this._entries.set(entry.id, entry);
 		this._characters += log.text.length;
-		this._listeners.set(entry.id, Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => this._delete(entry.id)));
+		const remove = () => this._delete(entry.id);
+		this._listeners.set(entry.id, combinedDisposable(
+			cancellationToken.onCancellationRequested(remove),
+			retentionToken.onCancellationRequested(remove),
+		));
 		this._expiry.schedule();
 		return entry;
 	}

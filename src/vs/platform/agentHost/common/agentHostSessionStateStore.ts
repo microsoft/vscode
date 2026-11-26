@@ -361,6 +361,10 @@ export interface IAgentHostChatRowStore {
 	 * older builds never read them, so nothing is mirrored.
 	 */
 	setChatConfig(session: URI, chat: URI, values: Readonly<Record<string, unknown>>): Promise<void>;
+	/** `chat`'s modified time as of its last archive or restore, read from its own database. */
+	getChatModifiedTime(session: URI, chat: URI): Promise<number | undefined>;
+	/** Records `chat`'s modified time when it is archived or restored, like its config values in its own database only. */
+	setChatModifiedTime(session: URI, chat: URI, modifiedTime: number): Promise<void>;
 	/**
 	 * The database holding `chat`'s own rows (its checkpoint rows among them) and whether
 	 * `chat` is the session's recorded default chat; `undefined` for a chat the central state

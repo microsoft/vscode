@@ -113,14 +113,14 @@ export const enum ActivityBarPosition {
 /**
  * Whether the compact menu is owned by the title bar rather than the activity bar.
  * This is the case when the activity bar is at the top or bottom, because the activity
- * bar then lives in the side bar and disappears with the side bar. The title bar
- * only owns the menu while the custom title bar is shown in the main window; otherwise
- * the activity bar keeps it so that the menu remains reachable.
+ * bar then lives in the side bar and disappears with the side bar, and when the activity
+ * bar is hidden. The title bar only owns the menu while the custom title bar is shown in
+ * the main window; otherwise the activity bar keeps it so that the menu remains reachable.
  */
 export function isCompactMenuInTitlebar(configurationService: IConfigurationService): boolean {
 	const activityBarLocation = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 	return getMenuBarVisibility(configurationService) === 'compact'
-		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM)
+		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM || activityBarLocation === ActivityBarPosition.HIDDEN)
 		&& shouldShowCustomTitleBar(configurationService, mainWindow);
 }
 
@@ -154,6 +154,18 @@ export const enum PartOpensMaximizedOptions {
 }
 
 export type PanelAlignment = 'left' | 'center' | 'right' | 'justify';
+
+/**
+ * The arrangement of the primary side bar, the panel and the secondary side bar of the main window.
+ * The size of a part is its size when it shows and is not maximized: the width of a side bar, the
+ * height of a panel at the top or bottom and the width of a panel on the left or right. The view
+ * container of a part is the one that it shows, or that it showed last while it is hidden.
+ */
+export interface IPartsLayoutState {
+	readonly sideBar: { readonly visible: boolean; readonly size: number; readonly viewContainerId?: string };
+	readonly panel: { readonly visible: boolean; readonly size: number; readonly position: Position; readonly maximized: boolean; readonly viewContainerId?: string };
+	readonly auxiliaryBar: { readonly visible: boolean; readonly size: number; readonly maximized: boolean; readonly viewContainerId?: string };
+}
 
 export function positionToString(position: Position): string {
 	switch (position) {
@@ -211,27 +223,20 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 	// this order inward to the first *visible* card, so a hidden editor (e.g. a maximized side
 	// bar that spans the full content width) is skipped and the spanning card is detected on
 	// both edges.
-	// A chat part, where a window has one, sits immediately beside the editor on the primary side bar's side, inside a
+	// A chat part, where a window has one, sits immediately beside the editor on `getChatPartPosition()`, inside a
 	// vertical panel on that side.
+	const chatPartLeft = layoutService.getChatPartPosition() === Position.LEFT;
 	const sideBarGroup: Parts[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
 	const panelGroup: Parts[] = [Parts.PANEL_PART];
-	const fullOrder: Parts[] = sideBarLeft
-		? [
-			...sideBarGroup,
-			...(panelInLeftSequence ? panelGroup : []),
-			Parts.CHAT_PART,
-			Parts.EDITOR_PART,
-			...(panelInRightSequence ? panelGroup : []),
-			Parts.AUXILIARYBAR_PART
-		]
-		: [
-			Parts.AUXILIARYBAR_PART,
-			...(panelInLeftSequence ? panelGroup : []),
-			Parts.EDITOR_PART,
-			Parts.CHAT_PART,
-			...(panelInRightSequence ? panelGroup : []),
-			...[...sideBarGroup].reverse() // activity bar is outermost on the right edge
-		];
+	const fullOrder: Parts[] = [
+		...(sideBarLeft ? sideBarGroup : [Parts.AUXILIARYBAR_PART]),
+		...(panelInLeftSequence ? panelGroup : []),
+		...(chatPartLeft ? [Parts.CHAT_PART] : []),
+		Parts.EDITOR_PART,
+		...(chatPartLeft ? [] : [Parts.CHAT_PART]),
+		...(panelInRightSequence ? panelGroup : []),
+		...(sideBarLeft ? [Parts.AUXILIARYBAR_PART] : [...sideBarGroup].reverse()) // activity bar is outermost on the right edge
+	];
 
 	return {
 		left: resolveFloatingOuterOwner(layoutService, fullOrder),
@@ -378,14 +383,23 @@ export function getFloatingPaneCompositeVerticalOuterEdges(
 	const siblingStatus = getFloatingSidebarSiblingToEditorStatus(layoutService);
 	const isSiblingToEditor = partId === Parts.SIDEBAR_PART ? siblingStatus.sideBar : siblingStatus.auxBar;
 	const facesPanelAbove = panelVisible && panelPosition === Position.TOP && isSideBar && isSiblingToEditor;
-	const facesEditorAbove = partId === Parts.PANEL_PART && panelPosition === Position.BOTTOM && layoutService.isVisible(Parts.EDITOR_PART, targetWindow);
-	const facesEditorBelow = partId === Parts.PANEL_PART && panelPosition === Position.TOP && layoutService.isVisible(Parts.EDITOR_PART, targetWindow);
+	const editorAreaOccupied = isFloatingEditorAreaOccupied(layoutService, targetWindow);
+	const facesEditorAbove = partId === Parts.PANEL_PART && panelPosition === Position.BOTTOM && editorAreaOccupied;
+	const facesEditorBelow = partId === Parts.PANEL_PART && panelPosition === Position.TOP && editorAreaOccupied;
 	const facesPanelBelow = panelVisible && panelPosition === Position.BOTTOM && isSideBar && isSiblingToEditor;
 
 	return {
 		top: !facesPanelAbove && !facesEditorAbove,
 		bottom: !facesEditorBelow && !facesPanelBelow,
 	};
+}
+
+/**
+ * Whether a card occupies the editor area: the editor, or the chat part filling the editor area hidden for it.
+ */
+function isFloatingEditorAreaOccupied(layoutService: IWorkbenchLayoutService, targetWindow: Window): boolean {
+	return layoutService.isVisible(Parts.EDITOR_PART, targetWindow)
+		|| (targetWindow === mainWindow && layoutService.isEditorHiddenByChat() && layoutService.isVisible(Parts.CHAT_PART));
 }
 
 /**
@@ -541,6 +555,12 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeAuxiliaryBarMaximized: Event<void>;
 
 	/**
+	 * Emits when the auxiliary bar starts or stops hiding its Maximize action, as claimed by
+	 * {@link hideAuxiliaryBarMaximize}.
+	 */
+	readonly onDidChangeAuxiliaryBarMaximizeHidden: Event<boolean>;
+
+	/**
 	 * True if a default layout with default editors was applied at startup
 	 */
 	readonly openedDefaultEditors: boolean;
@@ -630,6 +650,29 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	isPanelMaximized(): boolean;
 
 	/**
+	 * Emitted with whether the chat part is visible, when that changes. Hiding it with the editor area for a
+	 * maximized panel counts, and nothing is emitted while it stays as it is.
+	 */
+	readonly onDidChangeChatPartVisibility: Event<boolean>;
+
+	/**
+	 * Whether the window has a chat part, shown or not.
+	 */
+	hasChatPart(): boolean;
+
+	/**
+	 * Whether the editor area is hidden so that the chat part takes its space.
+	 */
+	isEditorHiddenByChat(): boolean;
+
+	/**
+	 * Hides the editor area so that the chat part takes its space, or shows it again.
+	 * Hiding requires a visible chat part. Opening an editor, hiding the chat part and
+	 * maximizing the panel show the editor area again.
+	 */
+	setEditorHiddenByChat(hidden: boolean): void;
+
+	/**
 	 * Maximizes the auxiliary sidebar by hiding the editor and panel areas.
 	 * Restores the previous layout if the auxiliary sidebar is already maximized.
 	 */
@@ -648,6 +691,32 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	isAuxiliaryBarMaximized(): boolean;
 
 	/**
+	 * Claims that the auxiliary bar does not offer to maximize, for as long as the returned claim is not disposed.
+	 * Claims stack: the action stays hidden while any claim is held.
+	 */
+	hideAuxiliaryBarMaximize(): IDisposable;
+
+	/**
+	 * Returns true while any claim made with {@link hideAuxiliaryBarMaximize} is held.
+	 */
+	isAuxiliaryBarMaximizeHidden(): boolean;
+
+	/**
+	 * Returns the arrangement of the primary side bar, the panel and the secondary side bar of the main window,
+	 * or `undefined` where the layout of the window cannot apply one (see {@link applyPartsLayoutState}).
+	 * While the secondary side bar is maximized, the other parts are described as they show when it is restored.
+	 */
+	getPartsLayoutState(): IPartsLayoutState | undefined;
+
+	/**
+	 * Applies an arrangement of the primary side bar, the panel and the secondary side bar of the main window at once,
+	 * without passing through intermediate arrangements and without moving the focus to another part. A part that shows
+	 * opens the view container of the state, without focus, or the one that it showed last if the state has none or
+	 * its view container is not there. Does nothing where the layout of the window cannot apply an arrangement.
+	 */
+	applyPartsLayoutState(state: IPartsLayoutState): void;
+
+	/**
 	 * Returns true if the main window has a border.
 	 */
 	hasMainWindowBorder(): boolean;
@@ -661,6 +730,19 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
+
+	/**
+	 * Docks the chat part beside the view with the given id: it sits immediately beside the editor, on the side of the
+	 * editor where that view's container is, and follows as the view or its container moves or the side bar or panel
+	 * position changes. A view in a panel at the top or bottom, an unknown view, or no anchor keep the chat part on the
+	 * primary side bar's side.
+	 */
+	setChatPartAnchor(anchor: { readonly viewId: string } | undefined): void;
+
+	/**
+	 * Gets the side of the editor the chat part is on, whether the window has a chat part or not.
+	 */
+	getChatPartPosition(): Position.LEFT | Position.RIGHT;
 
 	/**
 	 * Toggles the menu bar visibility.
@@ -758,7 +840,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 		}
 	}
 
-	if (!isTitleBarEmpty(configurationService)) {
+	if (!isTitleBarEmpty(configurationService, window)) {
 		return true;
 	}
 
@@ -799,7 +881,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	}
 }
 
-function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
+function isTitleBarEmpty(configurationService: IConfigurationService, window: Window): boolean {
 
 	// with the command center enabled, we should always show
 	if (configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
@@ -809,6 +891,11 @@ function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
 	// with the activity bar on top, we should always show
 	const activityBarPosition = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 	if (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM) {
+		return false;
+	}
+
+	// with the activity bar hidden, the main window title bar hosts the compact menu, so we should always show
+	if (activityBarPosition === ActivityBarPosition.HIDDEN && !isAuxiliaryWindow(window) && getMenuBarVisibility(configurationService) === 'compact') {
 		return false;
 	}
 

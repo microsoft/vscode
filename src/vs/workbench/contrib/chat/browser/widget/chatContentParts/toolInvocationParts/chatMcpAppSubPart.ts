@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
+import { createInstantHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { Action } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -16,11 +19,12 @@ import { localize } from '../../../../../../../nls.js';
 import { McpServerStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
+import { defaultButtonStyles, getButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatErrorLevel, ChatMcpAppData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostMcpAppToolsService } from '../../../agentSessions/agentHost/agentHostMcpAppToolsService.js';
-import { renderMcpServerSignInButton } from '../../../aiCustomization/mcpServerSignInButton.js';
+import { registerMcpInlineButtonAction, renderMcpServerSignInButton } from '../../../aiCustomization/mcpServerSignInButton.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatErrorWidget } from '../chatErrorContentPart.js';
@@ -46,6 +50,9 @@ interface IMcpAppServerPresentation {
 	readonly status: McpServerStatus | undefined;
 	readonly label: string | undefined;
 	readonly authenticating: boolean;
+	readonly canStart: boolean;
+	/** Startup failure the host reported for the server. */
+	readonly error: string | undefined;
 }
 
 const maxWebviewHeightPct = 0.75;
@@ -68,7 +75,9 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 	/** Current loading or unavailable placeholder */
 	private _placeholderNode: HTMLElement | undefined;
 
-	private readonly _signInDisposables = this._register(new DisposableStore());
+	private readonly _loadStateDisposables = this._register(new DisposableStore());
+
+	private readonly _inlineAttachment = this._register(new MutableDisposable());
 
 	/** Current error node */
 	private _errorNode: HTMLElement | undefined;
@@ -88,6 +97,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostMcpAppToolsService appToolsService: IAgentHostMcpAppToolsService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super(toolInvocation);
 
@@ -109,30 +119,49 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		this._register(dom.addDisposableListener(targetWindow, 'resize', () => maxHeight.set(getMaxHeight(), undefined)));
 
 		const createModel = () => this._instantiationService.createInstance(ChatMcpAppModel, toolInvocation, this._renderData, undefined);
-		this._model = this._renderData.kind === 'agentHost'
-			? this._register(appToolsService.acquire(this._renderData, toolInvocation.toolCallId, createModel)).object
-			: this._register(createModel());
-		this._register(this._model.attach(this._webviewContainer, { targetWindow, maxHeight, currentWidth: context.currentWidth, clippingContainer: context.getOverlayClippingContainer?.() }));
+		this._model = this._register(appToolsService.acquire(this._renderData, toolInvocation.toolCallId, createModel)).object;
 
-		// Update container height from model
-		this._updateContainerHeight();
+		const toolbarContainer = dom.append(this.domNode, dom.$('.mcp-app-toolbar'));
+		const actionBar = this._register(new ActionBar(toolbarContainer, { hoverDelegate: this._register(createInstantHoverDelegate()) }));
+		const toggleEditor = this._register(new Action('chat.mcpApp.toggleEditor', '', undefined, true, () =>
+			this._model.setDisplayMode(this._model.displayMode.get() === 'fullscreen' ? 'inline' : 'fullscreen')));
+		actionBar.push(toggleEditor, { icon: true, label: false });
 
 		const serverPresentation = derivedOpts<IMcpAppServerPresentation>({
-			equalsFn: (a, b) => a.status === b.status && a.label === b.label && a.authenticating === b.authenticating,
+			equalsFn: (a, b) => a.status === b.status && a.label === b.label && a.authenticating === b.authenticating && a.canStart === b.canStart && a.error === b.error,
 		}, reader => {
 			const server = this._model.server.read(reader);
 			return {
 				status: server?.status,
 				label: server ? getMcpServerDisplayLabel(server) : this._renderData.kind === 'agentHost' ? this._renderData.serverName : undefined,
 				authenticating: !!server?.authenticating,
+				canStart: !!server?.enabled && (server.status === McpServerStatus.Stopped || server.status === McpServerStatus.Error),
+				error: server?.state.kind === McpServerStatus.Error ? server.state.error.message : undefined,
 			};
 		});
 
 		// Set up load state handling
 		this._register(autorun(reader => {
+			const fullscreen = this._model.displayMode.read(reader) === 'fullscreen';
 			const loadState = this._model.loadState.read(reader);
 			const presentation = loadState.status === 'unavailable' ? serverPresentation.read(reader) : undefined;
-			this._handleLoadStateChange(this._webviewContainer, loadState, presentation);
+			this._handleLoadStateChange(this._webviewContainer, loadState, presentation, fullscreen);
+		}));
+
+		this._register(autorun(reader => {
+			const fullscreen = this._model.displayMode.read(reader) === 'fullscreen';
+			toolbarContainer.style.display = fullscreen || (this._model.canFullscreen.read(reader) && this._model.loadState.read(reader).status === 'loaded') ? '' : 'none';
+			toggleEditor.label = fullscreen ? localize('showMcpAppInChat', "Show in Chat") : localize('openMcpAppInEditor', "Open in Editor");
+			toggleEditor.class = ThemeIcon.asClassName(fullscreen ? Codicon.screenNormal : Codicon.screenFull);
+		}));
+
+		this._register(autorun(reader => {
+			if (this._model.displayMode.read(reader) === 'inline') {
+				this._updateContainerHeight();
+				this._inlineAttachment.value ??= this._model.attach(this._webviewContainer, { targetWindow, maxHeight, currentWidth: context.currentWidth, clippingContainer: context.getOverlayClippingContainer?.() });
+			} else {
+				this._inlineAttachment.clear();
+			}
 		}));
 
 		// Subscribe to model height changes
@@ -166,8 +195,8 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		}));
 	}
 
-	private _handleLoadStateChange(container: HTMLElement, loadState: McpAppLoadState, server: IMcpAppServerPresentation | undefined): void {
-		this._signInDisposables.clear();
+	private _handleLoadStateChange(container: HTMLElement, loadState: McpAppLoadState, server: IMcpAppServerPresentation | undefined, fullscreen: boolean): void {
+		this._loadStateDisposables.clear();
 		// Remove any existing loading/error indicators
 		if (this._placeholderNode) {
 			this._placeholderNode.remove();
@@ -176,6 +205,11 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		if (this._errorNode) {
 			this._errorNode.remove();
 			this._errorNode = undefined;
+		}
+
+		if (fullscreen) {
+			container.style.display = 'none';
+			return;
 		}
 
 		switch (loadState.status) {
@@ -191,16 +225,26 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 					text.textContent = localize('loadingMcpApp', 'Loading MCP App...');
 				} else if (server?.status === McpServerStatus.AuthRequired && server.label) {
 					text.textContent = localize('mcpAppSignIn', "Sign in to {0} to load this app.", server.label);
-					renderMcpServerSignInButton(placeholder, this._signInDisposables, server.label, async () => {
+					renderMcpServerSignInButton(placeholder, this._loadStateDisposables, server.label, async () => {
 						const currentServer = this._model.server.get();
 						if (currentServer) {
 							await this._agentHostCustomizationService.authenticateMcpServer(this._renderData.sessionResource, currentServer.id);
 						}
 					}, server.authenticating);
+				} else if (server?.error !== undefined) {
+					text.textContent = server.label
+						? localize('mcpAppServerFailed', "MCP server {0} failed to start: {1}", server.label, server.error)
+						: localize('mcpAppUnknownServerFailed', "The MCP server for this app failed to start: {0}", server.error);
+					if (server.canStart) {
+						this._renderStartServerButton(placeholder, server.label);
+					}
 				} else {
 					text.textContent = server?.label
 						? localize('mcpAppWaitingForServer', "MCP server {0} isn't available yet. The app will load when it is.", server.label)
 						: localize('mcpAppWaitingForUnknownServer', "The MCP server for this app isn't available yet. The app will load when it is.");
+					if (server?.canStart) {
+						this._renderStartServerButton(placeholder, server.label);
+					}
 				}
 				this.domNode.appendChild(placeholder);
 				this._placeholderNode = placeholder;
@@ -220,6 +264,34 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		}
 	}
 
+	private _renderStartServerButton(parent: HTMLElement, serverLabel: string | undefined): void {
+		const label = localize('mcpAppStartServer', "Start Server");
+		const button = this._loadStateDisposables.add(new Button(parent, {
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			secondary: true,
+			small: true,
+			title: label,
+			supportIcons: true,
+		}));
+		button.label = label;
+		registerMcpInlineButtonAction(this._loadStateDisposables, button, async () => {
+			button.enabled = false;
+			button.label = `$(${Codicon.loading.id}) ${localize('mcpAppStartingServer', "Starting...")}`;
+			try {
+				// Startup failures arrive later as the server's Error state, which the placeholder shows.
+				await this._model.startServer();
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				this._notificationService.error(serverLabel
+					? localize('mcpAppStartServerError', "Failed to start MCP server '{0}': {1}", serverLabel, message)
+					: localize('mcpAppStartUnknownServerError', "Failed to start the MCP server for this app: {0}", message));
+			} finally {
+				button.label = label;
+				button.enabled = true;
+			}
+		});
+	}
+
 	private _updateContainerHeight(): void {
 		this._webviewContainer.style.height = `${this._model.height}px`;
 	}
@@ -235,14 +307,14 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		errorMessage.appendText(localize('mcpAppError', 'Error loading MCP App: {0}', error.message || String(error)));
 
 		// Use ChatErrorWidget for consistent error styling
-		const errorWidget = this._register(new ChatErrorWidget(ChatErrorLevel.Error, errorMessage, this._markdownRendererService));
+		const errorWidget = this._loadStateDisposables.add(new ChatErrorWidget(ChatErrorLevel.Error, errorMessage, this._markdownRendererService));
 		errorNode.appendChild(errorWidget.domNode);
 
 		// Add retry button
 		const buttonContainer = dom.append(errorNode, dom.$('.chat-buttons-container'));
-		const retryButton = this._register(new Button(buttonContainer, defaultButtonStyles));
+		const retryButton = this._loadStateDisposables.add(new Button(buttonContainer, defaultButtonStyles));
 		retryButton.label = localize('retry', 'Retry');
-		this._register(retryButton.onDidClick(() => {
+		this._loadStateDisposables.add(retryButton.onDidClick(() => {
 			this._model.retry();
 		}));
 

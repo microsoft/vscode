@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, constObservable, derived, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -361,6 +361,25 @@ suite('CodeReviewService', () => {
 		}
 	});
 
+	test('PR review state does not change when a refresh finds the same comments', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
+		gitHubService.reviewThreadsFetcher.nextThreads = [makePRThread('thread-100', 'src/a.ts', 8)];
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+		const changes: string[][] = [];
+		store.add(runOnChange(service.getPRReviewState(session), state => changes.push(state.kind === PRReviewStateKind.Loaded ? state.comments.map(comment => comment.id) : [state.kind])));
+		const reviewThreadsModel = gitHubService.getReviewThreadsModel('owner', 'repo', 1);
+
+		// Polling fetches the review threads again, as new objects.
+		gitHubService.reviewThreadsFetcher.nextThreads = [makePRThread('thread-100', 'src/a.ts', 8)];
+		await reviewThreadsModel.refresh(true);
+		gitHubService.reviewThreadsFetcher.nextThreads = [makePRThread('thread-100', 'src/a.ts', 8), makePRThread('thread-200', 'src/a.ts', 12)];
+		await reviewThreadsModel.refresh(true);
+
+		assert.deepStrictEqual(changes, [['thread-100', 'thread-200']]);
+	});
+
 	test('creates line-comment targets and posts a PR review comment', async () => {
 		const workspaceResource = URI.file('/workspace/src/a.ts');
 		const virtualResource = URI.parse('git:/workspace/src/a.ts?ref=head');
@@ -496,6 +515,25 @@ suite('CodeReviewService', () => {
 		const resource = toPRContentUri('src/a.ts', { owner: 'owner', repo: 'repo', prNumber: 1, commitSha: 'abc123', isBase: false, status: 'modified' });
 
 		assert.deepStrictEqual(service.getPRReviewCommentPullRequests(session, resource).map(pullRequest => `${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number}`), ['Owner/Repo#1']);
+	});
+
+	test('offers the pull request of pull request content resources that the session does not track', () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
+		const resource = toPRContentUri('src/a.ts', { owner: 'other', repo: 'repo', prNumber: 7, commitSha: 'abc123', isBase: false, status: 'modified' });
+
+		assert.deepStrictEqual(service.getPRReviewCommentPullRequests(session, resource).map(pullRequest => `${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number} ${pullRequest.uri.toString()}`), ['other/repo#7 https://github.com/other/repo/pull/7']);
+	});
+
+	test('offers no pull request for the base side of pull request content resources', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
+		const resource = toPRContentUri('src/a.ts', { owner: 'owner', repo: 'repo', prNumber: 1, commitSha: 'base123', isBase: true, status: 'modified' });
+
+		assert.deepStrictEqual({
+			pullRequests: service.getPRReviewCommentPullRequests(session, resource),
+			targets: await service.getPRReviewCommentTargets(session, resource, new Range(4, 1, 4, 1), 'context'),
+		}, { pullRequests: [], targets: [] });
 	});
 
 	test('parses right-side commentable lines from a unified patch', () => {

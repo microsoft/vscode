@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -122,6 +122,25 @@ suite('AgentService - chats with their own agent', () => {
 		const chat = URI.parse(buildChatUri(session, name));
 		await service.createChat(session, chat, { provider: 'second' });
 		return { session, chat };
+	}
+
+	/**
+	 * Resolves once the host has stored a spawned `chat`: its agent and then its row. The host stores them in the
+	 * background of the spawn event, through asynchronous database writes, so a test awaits this rather than a fixed
+	 * time. Call it before the event that spawns the chat.
+	 */
+	function whenSpawnedChatStored(service: AgentService, chat: URI): Promise<void> {
+		const database = getTestAgentHostDatabase(service);
+		const insert = database.insertPrivateChatV2.bind(database);
+		const stored = new DeferredPromise<void>();
+		database.insertPrivateChatV2 = async (...args) => {
+			const result = await insert(...args);
+			if (args[1].chat === chat.toString() && (result.status === 'applied' || result.status === 'replayed')) {
+				stored.complete();
+			}
+			return result;
+		};
+		return stored.p;
 	}
 
 	/** Completes a first turn in `chat`: a chat moves only once its first turn started. */
@@ -579,14 +598,15 @@ suite('AgentService - chats with their own agent', () => {
 		const { service, second } = createService(true);
 		const { session, chat } = await createSessionWithSecondChat(service);
 		const subagent = URI.parse(buildChatUri(session, 'subagent'));
+		const spawnStored = whenSpawnedChatStored(service, subagent);
 		second.spawnEmitter.fire({ session, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
-		await timeout(10);
-		const recorded = await getTestAgentHostDatabase(service).readChatAgentProviders?.();
+		await spawnStored;
+		const recorded = (await getTestAgentHostDatabase(service).readChatAgentProviders?.())?.get(subagent.toString());
 
 		assert.deepStrictEqual({
 			stateProvider: getTestAgentStateManager(service).getChatProvider(subagent.toString()),
 			agent: getTestAgentHostProviderService(service).getProviderForChat(session, subagent)?.id,
-			recorded: recorded?.get(subagent.toString()),
+			recorded,
 		}, { stateProvider: 'second', agent: 'second', recorded: 'second' });
 	});
 
@@ -644,8 +664,9 @@ suite('AgentService - chats with their own agent', () => {
 		const { service, second } = createService(true);
 		const { session, chat } = await createSessionWithSecondChat(service);
 		const subagent = URI.parse(buildChatUri(session, 'subagent'));
+		const spawnStored = whenSpawnedChatStored(service, subagent);
 		second.spawnEmitter.fire({ session, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
-		await timeout(10);
+		await spawnStored;
 		const database = getTestAgentHostDatabase(service);
 		const before = [...(await database.readChatAgentProviders?.())?.keys() ?? []].sort();
 

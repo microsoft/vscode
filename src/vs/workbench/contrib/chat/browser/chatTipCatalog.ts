@@ -15,8 +15,10 @@ import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
-import { SessionIsCreatedContext } from '../../sessions/common/contextkeys.js';
+import { ChatInputCanScheduleContext, SessionIsCreatedContext } from '../../sessions/common/contextkeys.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../sessions/common/sessionCommands.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../sessions/common/sessionConfig.js';
+import { ChatAutomationsEnabledContext } from '../common/automations/automationsEnabled.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
@@ -359,6 +361,38 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			ContextKeyExpr.has('sessionSupportsSideChat'),
 		),
 		excludeWhenCommandsExecuted: [TipTrackingCommands.BtwUsed],
+	},
+	{
+		id: 'tip.automate',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize('tip.automate', "Use `/automate` to have the agent walk you through turning a task into a recurring automation.")
+			);
+		},
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${ChatConfiguration.AutomateTipEnabled}`, true),
+			IsSessionsWindowContext,
+			ChatContextKeys.enabled,
+			ChatAutomationsEnabledContext,
+		),
+		excludeWhenToolsInvoked: ['vscode_configureAutomation'],
+	},
+	{
+		id: 'tip.sendLater',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize('tip.sendLater', "Ask the agent to send a request later using natural language, like \"check the build in 10 minutes\".")
+			);
+		},
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true),
+			IsSessionsWindowContext,
+			ChatContextKeys.enabled,
+			ChatAutomationsEnabledContext,
+			ChatInputCanScheduleContext,
+		),
 	},
 	{
 		id: 'tip.forkConversation',

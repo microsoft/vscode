@@ -109,10 +109,8 @@ export interface IAutoUpdater extends Event.NodeEventEmitter {
 
 export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
-/**
- * Restarts to apply a downloaded update while the screen is locked.
- */
 export const RESTART_WHEN_IDLE_SETTING = 'update.restartWhenIdle';
+export const ENABLE_EARLY_STAGING_SETTING = 'update.enableEarlyStaging';
 
 /**
  * Whether a downloaded update can be applied by restarting while the screen is locked. Windows
@@ -120,6 +118,10 @@ export const RESTART_WHEN_IDLE_SETTING = 'update.restartWhenIdle';
  * Linux reports no screen locks and does not install updates on restart.
  */
 export function isUnattendedRestartSupported(os: OperatingSystem): boolean {
+	return os === OperatingSystem.Macintosh;
+}
+
+export function isEarlyStagingSupported(os: OperatingSystem): boolean {
 	return os === OperatingSystem.Macintosh;
 }
 
@@ -162,4 +164,5 @@ export interface IUpdateService {
 	isLatestVersion(): Promise<boolean | undefined>;
 	_applySpecificUpdate(packagePath: string): Promise<void>;
 	setInternalOrg(internalOrg: string | undefined): Promise<void>;
+	setEarlyStagingDefault(enabled: boolean): Promise<void>;
 }

@@ -8,10 +8,12 @@ import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResou
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor } from '../../workbenchTestServices.js';
+import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, createEditorParts, registerTestSideBySideEditor } from '../../workbenchTestServices.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { whenEditorClosed } from '../../../../browser/editor.js';
@@ -23,7 +25,8 @@ import { EditorResolution, IResourceEditorInput, ITextEditorOptions, TextEditorS
 import { ICodeEditorViewState, IDiffEditorViewState } from '../../../../../editor/common/editorCommon.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { DEFAULT_EDITOR_PART_OPTIONS, fillActiveEditorSelection } from '../../../../browser/parts/editor/editor.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, fillActiveEditorSelection, IEditorGroupViewOptions } from '../../../../browser/parts/editor/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { TextEditorPaneSelection } from '../../../../browser/parts/editor/textEditor.js';
@@ -521,6 +524,80 @@ suite('Workbench editor utils', () => {
 		assert.deepStrictEqual(results, values.map(([top, bottom, height]) => ({
 			width: '500px', height: `${Math.max(0, height - titleHeight - top - bottom)}px`, margin: top ? `${top}px` : '', titleHeight,
 		})));
+	});
+
+	test('group header spans the content insets only for the editors the group opts in', async () => {
+		const parts = await createEditorParts(instantiationService, disposables);
+		const layoutWith = async (headerSpansContentInset: IEditorGroupViewOptions['headerSpansContentInset'], left: number, right: number) => {
+			const group = disposables.add(EditorGroupView.createNew(parts, parts.testMainPart, 'Group', 1, instantiationService, {
+				showHeader: true,
+				reserveHeaderSpace: () => true,
+				headerSpansContentInset,
+			}) as EditorGroupView);
+			group.layout(800, 400, 0, 0);
+			group.setContentHorizontalInsets(left, right);
+			await group.openEditor(disposables.add(new TestFileEditorInput(URI.file('/file.ts'), TEST_EDITOR_ID)), { pinned: true });
+			const title = group.element.querySelector<HTMLElement>('.title')!;
+			const header = group.element.querySelector<HTMLElement>('.editor-group-header')!;
+			const editor = group.element.querySelector<HTMLElement>('.editor-container')!;
+			return {
+				header: { left: header.style.marginLeft, width: header.style.width },
+				separator: { left: title.style.getPropertyValue('--title-border-bottom-left'), width: title.style.getPropertyValue('--title-border-bottom-width') },
+				editor: { left: editor.style.marginLeft, width: editor.style.width },
+				spansInset: title.classList.contains('header-spans-content-inset'),
+			};
+		};
+		const spansFileEditors = (editor: EditorInput | undefined) => editor instanceof TestFileEditorInput;
+
+		assert.deepStrictEqual({
+			spanningRightInset: await layoutWith(spansFileEditors, 0, 300),
+			spanningLeftInset: await layoutWith(spansFileEditors, 300, 0),
+			notForActiveEditor: await layoutWith(() => false, 0, 300),
+			notOptedIn: await layoutWith(undefined, 300, 0),
+			spanningWithoutInset: await layoutWith(spansFileEditors, 0, 0),
+		}, {
+			spanningRightInset: { header: { left: '', width: '800px' }, separator: { left: '0px', width: '800px' }, editor: { left: '', width: '500px' }, spansInset: true },
+			spanningLeftInset: { header: { left: '', width: '800px' }, separator: { left: '0px', width: '800px' }, editor: { left: '300px', width: '500px' }, spansInset: true },
+			notForActiveEditor: { header: { left: '', width: '500px' }, separator: { left: '0px', width: '500px' }, editor: { left: '', width: '500px' }, spansInset: false },
+			notOptedIn: { header: { left: '300px', width: '500px' }, separator: { left: '300px', width: '500px' }, editor: { left: '300px', width: '500px' }, spansInset: false },
+			spanningWithoutInset: { header: { left: '', width: '800px' }, separator: { left: '0px', width: '800px' }, editor: { left: '', width: '800px' }, spansInset: false },
+		});
+	});
+
+	test('group header follows the editor that the group shows, which changes once opening the editor completes', async () => {
+		const SLOW_TEST_EDITOR_ID = 'MySlowTestEditorForEditors';
+		class SlowTestFileEditorInput extends TestFileEditorInput {
+			readonly opening = new DeferredPromise<void>();
+			override async resolve(): Promise<IDisposable | null> {
+				await this.opening.p;
+				return null;
+			}
+		}
+		disposables.add(registerTestEditor(SLOW_TEST_EDITOR_ID, [new SyncDescriptor(SlowTestFileEditorInput)]));
+		const parts = await createEditorParts(instantiationService, disposables);
+		let group: EditorGroupView | undefined = undefined;
+		const showsSlowEditor = () => !!group && ActiveEditorContext.getValue(group.scopedContextKeyService) === SLOW_TEST_EDITOR_ID;
+		group = disposables.add(EditorGroupView.createNew(parts, parts.testMainPart, 'Group', 1, instantiationService, {
+			showHeader: true,
+			reserveHeaderSpace: showsSlowEditor,
+			headerSpansContentInset: showsSlowEditor,
+		}) as EditorGroupView);
+		group.layout(800, 400, 0, 0);
+		group.setContentRightInset(300);
+		await group.openEditor(disposables.add(new TestFileEditorInput(URI.file('/file.ts'), TEST_EDITOR_ID)), { pinned: true });
+		const title = group.element.querySelector<HTMLElement>('.title')!;
+		const spansInset = () => title.classList.contains('header-spans-content-inset');
+		const relayouts: boolean[] = [];
+		disposables.add(group.onDidRelayout(() => relayouts.push(spansInset())));
+
+		const slowEditor = disposables.add(new SlowTestFileEditorInput(URI.file('/slow.ts'), SLOW_TEST_EDITOR_ID));
+		const opened = group.openEditor(slowEditor, { pinned: true });
+		group.relayout();
+		const whileOpening = spansInset();
+		slowEditor.opening.complete();
+		await opened;
+
+		assert.deepStrictEqual({ whileOpening, lastRelayout: relayouts.at(-1) }, { whileOpening: false, lastRelayout: true });
 	});
 
 	test('editor tab mode class follows configured and enforced part options', async () => {

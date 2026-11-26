@@ -12,10 +12,14 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, mapObservableArrayCached, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { isCopilotReviewAuthor } from '../../../../platform/github/common/pullRequestFeedback.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatModelReference, IChatService, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../chat/common/chatSessionsService.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../common/sessionConfig.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatModel, IChatResponseModel } from '../../chat/common/model/chatModel.js';
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
@@ -76,9 +80,12 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		this._trackingEnabled = derived(this, reader => this._attentionConsumers.read(reader) > 0 && !chatEntitlementService.sentimentObs.read(reader).hidden);
+		const inboxEnabled = observableConfigValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, false, configurationService);
+		this._trackingEnabled = derived(this, reader => (inboxEnabled.read(reader) || this._attentionConsumers.read(reader) > 0)
+			&& !chatEntitlementService.sentimentObs.read(reader).hidden);
 		this._attentionStartTime = this.trackAttentionStartTime();
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
@@ -100,15 +107,6 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 				this._unregisteredChatProviders.delete(type);
 			}
 			this._chatProvidersChanged.trigger(undefined);
-		}));
-		this._register(autorun(reader => {
-			if (!this._trackingEnabled.read(reader)) {
-				return;
-			}
-			sessionsChanged.read(reader);
-			for (const session of this.sessionsManagementService.getSessions()) {
-				this.ensureGitHubModels(session, reader);
-			}
 		}));
 		this._register(toDisposable(() => {
 			for (const reference of this._needsInputChatModelRefs.values()) {
@@ -164,9 +162,11 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 			}
 			return assignments;
 		});
-		const entries = mapObservableArrayCached(this, sessions, session => {
+		const entries = mapObservableArrayCached(this, sessions, (session, store) => {
 			const assignedPullRequests = derivedOpts<readonly string[]>({ owner: this, equalsFn: arrayEquals }, reader =>
 				pullRequestsBySession.read(reader).get(session.resource) ?? []);
+			// Per session, so one pull request update only re-runs polling for the sessions that reference it.
+			store.add(autorun(reader => this.ensureGitHubModels(session, assignedPullRequests.read(reader), reader)));
 			const attention = derived(this, reader => this.getSessionAttention(
 				session, new Map(assignedPullRequests.read(reader).map(key => [key, session])), reader));
 			return { session, attention };
@@ -181,6 +181,10 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 			}
 			return result;
 		});
+		// Keep per-session pull request polling alive while tracking, even before anything reads attention.
+		this._register(autorun(reader => {
+			entries.read(reader);
+		}));
 	}
 
 	acquireSessionAttention(): IDisposable {
@@ -211,7 +215,6 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		if (status === SessionStatus.Untitled) {
 			return undefined;
 		}
-		this.chatService.chatModels.read(reader);
 		const notifications = this.collectSessionNotifications(session, owners, reader, includeArchived).sort((a, b) => a.priority - b.priority);
 		const pendingInput = notifications.find(item => item.kind === AttentionKind.NeedsInput);
 		const timestamp = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
@@ -275,6 +278,8 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		const status = session.status.read(reader);
 		const updatedAt = session.updatedAt.read(reader).getTime();
 		if (status === SessionStatus.NeedsInput) {
+			// Only input identities depend on which chat models are loaded.
+			this.chatService.chatModels.read(reader);
 			const key = this.getNeedsInputKey(session, reader) ?? `${updatedAt}`;
 			notifications.push({
 				id: `${session.sessionId}:needsInput:${key}`, kind: AttentionKind.NeedsInput, priority: InboxNotificationPriority.Now,
@@ -287,11 +292,21 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		return notifications;
 	}
 
-	private ensureGitHubModels(session: ISession, reader: IReaderWithStore): void {
-		if (session.isArchived.read(reader)) {
+	/**
+	 * Loads and polls only the pull request data {@link collectPullRequestNotifications} can use:
+	 * state for pull requests this session owns, and reviews and CI for those assigned to it.
+	 * In-progress sessions produce no pull request notifications, so they poll nothing.
+	 */
+	private ensureGitHubModels(session: ISession, assignedPullRequests: readonly string[], reader: IReaderWithStore): void {
+		if (session.isArchived.read(reader) || session.status.read(reader) === SessionStatus.InProgress) {
 			return;
 		}
+		const owned = new Set(getSessionAttentionPullRequestRefs(session, reader).map(ref => ref.uri.toString()));
 		for (const ref of getSessionAttentionPullRequestRefs(session, reader, true)) {
+			const isAssigned = assignedPullRequests.includes(getPullRequestKey(ref.owner, ref.repo, ref.number).toLowerCase());
+			if (!isAssigned && !owned.has(ref.uri.toString())) {
+				continue;
+			}
 			const model = reader.delayedStore.add(this.gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number)).object;
 			if (!this._refreshedGitHubModels.has(model)) {
 				this._refreshedGitHubModels.add(model);
@@ -302,6 +317,9 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 				continue;
 			}
 			reader.delayedStore.add(model.startPolling());
+			if (!isAssigned) {
+				continue;
+			}
 			const reviews = reader.delayedStore.add(this.gitHubService.createPullRequestReviewThreadsModelReference(ref.owner, ref.repo, ref.number)).object;
 			if (!this._refreshedGitHubModels.has(reviews)) {
 				this._refreshedGitHubModels.add(reviews);
@@ -329,6 +347,10 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		const updatedAt = session.updatedAt.read(reader).getTime();
 		for (const ref of getSessionAttentionPullRequestRefs(session, reader, true)) {
 			const isOwned = owned.has(ref.uri.toString());
+			const isAssigned = owners.get(getPullRequestKey(ref.owner, ref.repo, ref.number).toLowerCase()) === session;
+			if (!isOwned && !isAssigned) {
+				continue;
+			}
 			const model = reader.delayedStore.add(this.gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number)).object;
 			const pullRequest = model.pullRequest.read(reader);
 			const state = pullRequest?.state ?? ref.liveState ?? ref.state;
@@ -346,7 +368,7 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 				}
 				continue;
 			}
-			if (state !== GitHubPullRequestState.Open || owners.get(getPullRequestKey(ref.owner, ref.repo, ref.number).toLowerCase()) !== session) {
+			if (state !== GitHubPullRequestState.Open || !isAssigned) {
 				continue;
 			}
 			const threadsModel = reader.delayedStore.add(this.gitHubService.createPullRequestReviewThreadsModelReference(ref.owner, ref.repo, ref.number)).object;
@@ -523,3 +545,6 @@ function parseTimestamp(value: string | undefined): number | undefined {
 	const parsed = Date.parse(value);
 	return Number.isFinite(parsed) ? parsed : undefined;
 }
+
+// Registered here, once, for every window that loads this module
+registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);

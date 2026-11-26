@@ -549,7 +549,7 @@ export class PluginInstallService implements IPluginInstallService {
 			// 2. Re-fetch marketplace data *after* pulling so we see any
 			//    updated plugin descriptors (new versions, refs, etc.).
 			const marketplaceIds = new Set(installed.map(entry => entry.plugin.marketplaceReference.canonicalId));
-			const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(token, marketplaceIds, { refresh: true });
+			const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(token, marketplaceIds, { refresh: true, priority: options.automatic ? 'background' : undefined });
 			const marketplaceByKey = new Map<string, IMarketplacePlugin>();
 			for (const mp of marketplacePlugins) {
 				marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);

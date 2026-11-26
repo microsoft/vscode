@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IGitHubCredentials, withGitHubCredentialDeadline } from '../githubCredentialService.js';
 import { GITHUB_DOT_COM_API_BASE_URI, GITHUB_DOT_COM_COPILOT_API_BASE_URI, resolveReadApiUrl } from '../githubEndpoints.js';
 import { nextLink } from '../githubResponse.js';
 import { IGitHubTransport } from '../githubTransport.js';
 import { GitHubRequestError } from '../githubTypes.js';
-import { ApiEndpoint, ApiRequestError, MutationUncertainError, parseApiError, missionControlRequestPolicy } from '../missionControl/missionControlClient.js';
+import { ApiEndpoint, ApiRequestError, MutationUncertainError, missionControlRequestPolicy, parseApiError } from '../missionControl/missionControlClient.js';
 import { parseCreatedTaskId, parseMissionControlError } from '../missionControl/missionControlError.js';
 import { parseResponseJson } from '../responseReader.js';
 import { AccountHandle, RequestError } from '../types.js';
+import { parseGitHubRequestId } from './headers.js';
+import { getNextPagePath } from './pagination.js';
 import { ApiRequest, ApiResponse, BufferedApiRequestProvider, parseRequest } from './request.js';
 import { SchemaError } from './schema.js';
-import { getNextPagePath } from './pagination.js';
-import { parseGitHubRequestId } from './headers.js';
 
 const gitHubDotComOrigin = new URL(GITHUB_DOT_COM_API_BASE_URI).origin;
 const copilotApiOrigin = new URL(GITHUB_DOT_COM_COPILOT_API_BASE_URI).origin;
@@ -72,19 +75,20 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 		private readonly credentials: IGitHubCredentials,
 		private readonly transport: IGitHubTransport,
 		private readonly logService: ILogService,
-		clientSignal?: AbortSignal,
+		clientToken?: CancellationToken,
+		clientError?: () => Error | undefined,
 	) {
-		super(clientSignal);
+		super(clientToken, clientError);
 	}
 
-	protected override checkResponseCancellation(request: Omit<ApiRequest, 'body'>, signal: AbortSignal): void {
-		if (signal.aborted && missionControlRequestPolicy(request).mutation) {
+	protected override checkResponseCancellation(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken): void {
+		if (cancellationToken.isCancellationRequested && missionControlRequestPolicy(request).mutation) {
 			throw new MutationUncertainError('unknown');
 		}
-		signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
 	}
 
-	protected async execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal, bodyText?: string): Promise<ApiResponse<string | undefined>> {
+	protected async execute(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken, bodyText?: string): Promise<ApiResponse<string | undefined>> {
 		const metadata = parseRequest(request);
 		if (metadata.method === 'HEAD' || metadata.method === 'PUT' || metadata.redirect || metadata.responseBody === 'json'
 			|| metadata.method === 'GET' && bodyText !== undefined || /[\t]/.test(metadata.path)) {
@@ -108,12 +112,13 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 		const apiVersion = metadata.method === 'GET' && metadata.path === '/swe/models' ? '2026-06-01' : endpoint.apiVersion;
 		const { url } = resolveReadApiUrl(endpoint.apiBaseUri, metadata.path);
 		const { mutation, sensitive, retry } = missionControlRequestPolicy(metadata);
-		let credential = await withGitHubCredentialDeadline(signal, signal => this.credentials.getCredential(signal), undefined, metadata.options?.deadline);
-		let combinedSignal = AbortSignal.any([signal, credential.signal]);
-		combinedSignal.throwIfAborted();
+		let credential = await withGitHubCredentialDeadline(cancellationToken, cancellationToken => this.credentials.getCredential(cancellationToken), undefined, metadata.options?.deadline);
 		for (let attempt = 0; ; attempt++) {
+			const lifetime = new DisposableStore();
 			let dispatched = false;
 			try {
+				const combinedToken = CancellationToken.any([cancellationToken, credential.cancellationToken], lifetime);
+				CancellationToken.throwIfCanceled(combinedToken);
 				const response = await this.transport.restText(missionControlAccount(endpoint, credential.account), credential.token, {
 					domain: metadata.domain,
 					method: metadata.method, url: url.href, bodyText, accept: metadata.accept ?? 'application/json',
@@ -123,8 +128,8 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 					priority: metadata.options?.priority ?? (mutation ? 'mutation' : 'interactive'), retry, etag: !sensitive && !metadata.options?.noCache, coalesce: sensitive ? false : undefined,
 					followRedirects: false, responseBody: metadata.responseBody,
 					onDidDispatch: mutation ? () => { dispatched = true; } : undefined,
-				}, combinedSignal);
-				combinedSignal.throwIfAborted();
+				}, combinedToken);
+				CancellationToken.throwIfCanceled(combinedToken);
 				const status = response.revalidatedStatusCode ?? response.statusCode;
 				if (!asArray(metadata.expectedStatus).includes(status) || response.redirectUrl) {
 					throw new GitHubRequestError('API returned an unexpected success status', 'malformedResponse', status);
@@ -141,9 +146,15 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 					},
 				};
 			} catch (error) {
+				if (!cancellationToken.isCancellationRequested && isCancellationError(error)) {
+					error = credential.cancellationError ?? error;
+				}
 				this.credentials.handleRequestError(credential, error);
 				if (metadata.method === 'GET' && error instanceof GitHubRequestError && error.statusCode === 401 && attempt === 0) {
-					const replacement = await withGitHubCredentialDeadline(signal, signal => this.credentials.getCredential(signal), undefined, metadata.options?.deadline).catch(refreshError => {
+					const replacement = await withGitHubCredentialDeadline(cancellationToken, cancellationToken => this.credentials.getCredential(cancellationToken), undefined, metadata.options?.deadline).catch(refreshError => {
+						if (isCancellationError(refreshError)) {
+							refreshError = this.clientError?.() ?? refreshError;
+						}
 						if (!(refreshError instanceof RequestError) || refreshError.kind !== 'authentication') {
 							throw refreshError;
 						}
@@ -152,8 +163,6 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 					});
 					if (replacement && replacement.token !== credential.token && replacement.account.accountId === credential.account.accountId && replacement.account.host === credential.account.host) {
 						credential = replacement;
-						combinedSignal = AbortSignal.any([signal, credential.signal]);
-						combinedSignal.throwIfAborted();
 						continue;
 					}
 				}
@@ -186,6 +195,8 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 					throw new GitHubRequestError('API network request failed', 'network');
 				}
 				throw error;
+			} finally {
+				lifetime.dispose();
 			}
 		}
 	}

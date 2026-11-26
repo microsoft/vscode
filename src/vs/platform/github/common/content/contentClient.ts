@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiRequestOptions, IApiRequestProvider } from '../client/request.js';
 import { pathSegment, pathSegments, repositoryPath, withQuery } from '../client/routing.js';
 import { parse } from '../client/schema.js';
@@ -15,7 +16,7 @@ export class ContentClient implements IContentClient {
 		private readonly provider: IApiRequestProvider,
 		private readonly rawContent?: IApiRequestProvider) { }
 
-	async resolveRef(repository: RepositoryRef, ref: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string> {
+	async resolveRef(repository: RepositoryRef, ref: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<string> {
 		const response = await this.provider.request({
 			domain: 'content',
 			method: 'GET',
@@ -24,12 +25,12 @@ export class ContentClient implements IContentClient {
 			expectedStatus: 200,
 			responseBody: 'text',
 			options,
-		}, signal, parse.sha);
+		}, cancellationToken, parse.sha);
 		return response.data;
 	}
 
-	async getRawFile(repository: RepositoryRef, commitSha: string, path: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string> {
-		signal.throwIfAborted();
+	async getRawFile(repository: RepositoryRef, commitSha: string, path: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<string> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!this.rawContent) {
 			throw new GitHubRequestError('GitHub raw-content endpoint is not configured for this host.', 'validation');
 		}
@@ -41,11 +42,11 @@ export class ContentClient implements IContentClient {
 			responseBody: 'text',
 			expectedStatus: 200,
 			options,
-		}, signal, parse.string);
+		}, cancellationToken, parse.string);
 		return response.data;
 	}
 
-	async getContent(repository: RepositoryRef, path: string, signal: AbortSignal, options?: GetContentOptions): Promise<RepositoryContent> {
+	async getContent(repository: RepositoryRef, path: string, cancellationToken: CancellationToken, options?: GetContentOptions): Promise<RepositoryContent> {
 		const { query, ...requestOptions } = options ?? {};
 		const response = await this.provider.request({
 			domain: 'content',
@@ -54,11 +55,11 @@ export class ContentClient implements IContentClient {
 			accept: 'application/vnd.github.object+json',
 			expectedStatus: 200,
 			options: requestOptions,
-		}, signal, parseContent);
+		}, cancellationToken, parseContent);
 		return response.data;
 	}
 
-	async getTree(repository: RepositoryRef, treeRef: string, signal: AbortSignal, options?: GetTreeOptions): Promise<GitTree> {
+	async getTree(repository: RepositoryRef, treeRef: string, cancellationToken: CancellationToken, options?: GetTreeOptions): Promise<GitTree> {
 		const { query, ...requestOptions } = options ?? {};
 		const response = await this.provider.request({
 			domain: 'content',
@@ -67,11 +68,11 @@ export class ContentClient implements IContentClient {
 			accept: 'application/vnd.github+json',
 			expectedStatus: 200,
 			options: requestOptions,
-		}, signal, parseTree);
+		}, cancellationToken, parseTree);
 		return response.data;
 	}
 
-	async getBlob(repository: RepositoryRef, sha: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GitBlob> {
+	async getBlob(repository: RepositoryRef, sha: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<GitBlob> {
 		const response = await this.provider.request({
 			domain: 'content',
 			method: 'GET',
@@ -79,7 +80,7 @@ export class ContentClient implements IContentClient {
 			accept: 'application/vnd.github+json',
 			expectedStatus: 200,
 			options,
-		}, signal, parseBlob);
+		}, cancellationToken, parseBlob);
 		return response.data;
 	}
 }

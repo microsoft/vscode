@@ -48,10 +48,9 @@ export class ObservableSet<T> implements Set<T> {
 		}
 	}
 
-	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: unknown): void {
 		this._data.forEach((value, value2, _set) => {
-			// eslint-disable-next-line local/code-no-any-casts
-			callbackfn.call(thisArg, value, value2, this as any);
+			callbackfn.call(thisArg, value, value2, this);
 		});
 	}
 

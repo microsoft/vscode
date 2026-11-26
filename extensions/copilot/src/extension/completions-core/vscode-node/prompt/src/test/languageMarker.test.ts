@@ -6,10 +6,8 @@
 import {
 	comment,
 	commentBlockAsSingles,
-	getLanguage,
 	getLanguageMarker,
 	hasLanguageMarker,
-	mdCodeBlockLangToLanguageId,
 } from '../languageMarker';
 import { DocumentInfoWithOffset } from '../prompt';
 import * as assert from 'assert';
@@ -109,70 +107,4 @@ suite('LanguageMarker Test Suite', function () {
 		assert.strictEqual(commentBlockAsSingles('hello\nworld', 'nonexistent'), '// hello\n// world');
 	});
 
-	const markdownLanguageIdsTestCases = [
-		{ input: 'h', expected: 'c' },
-		{ input: 'py', expected: 'python' },
-		{ input: 'js', expected: 'javascript' },
-		{ input: 'ts', expected: 'typescript' },
-		{ input: 'cpp', expected: 'cpp' },
-		{ input: 'java', expected: 'java' },
-		{ input: 'cs', expected: 'csharp' },
-		{ input: 'rb', expected: 'ruby' },
-		{ input: 'php', expected: 'php' },
-		{ input: 'html', expected: 'html' },
-		{ input: 'css', expected: 'css' },
-		{ input: 'xml', expected: 'xml' },
-		{ input: 'sh', expected: 'shellscript' },
-		{ input: 'go', expected: 'go' },
-		{ input: 'rs', expected: 'rust' },
-		{ input: 'swift', expected: 'swift' },
-		{ input: 'kt', expected: 'kotlin' },
-		{ input: 'lua', expected: 'lua' },
-		{ input: 'sql', expected: 'sql' },
-		{ input: 'yaml', expected: 'yaml' },
-		{ input: 'md', expected: 'markdown' },
-		{ input: 'plaintext', expected: undefined },
-	];
-
-	markdownLanguageIdsTestCases.forEach(({ input, expected }) => {
-		test(`test markdownLanguageId ${input} to language id ${expected}`, function () {
-			const languageId = mdCodeBlockLangToLanguageId(input);
-			assert.strictEqual(languageId, expected);
-		});
-	});
-
-	const getLanguageTestCases = [
-		{ input: 'python', expected: 'python', expCommentStart: '#', expCommentEnd: '' },
-		{ input: 'javascript', expected: 'javascript', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'typescript', expected: 'typescript', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'cpp', expected: 'cpp', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'java', expected: 'java', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'csharp', expected: 'csharp', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'ruby', expected: 'ruby', expCommentStart: '#', expCommentEnd: '' },
-		{ input: 'php', expected: 'php', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'html', expected: 'html', expCommentStart: '<!--', expCommentEnd: '-->' },
-		{ input: 'css', expected: 'css', expCommentStart: '/*', expCommentEnd: '*/' },
-		{ input: 'xml', expected: 'xml', expCommentStart: '<!--', expCommentEnd: '-->' },
-		{ input: 'shellscript', expected: 'shellscript', expCommentStart: '#', expCommentEnd: '' },
-		{ input: 'go', expected: 'go', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'rust', expected: 'rust', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'swift', expected: 'swift', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'kotlin', expected: 'kotlin', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'lua', expected: 'lua', expCommentStart: '--', expCommentEnd: '' },
-		{ input: 'sql', expected: 'sql', expCommentStart: '--', expCommentEnd: '' },
-		{ input: 'yaml', expected: 'yaml', expCommentStart: '#', expCommentEnd: '' },
-		{ input: 'markdown', expected: 'markdown', expCommentStart: '[]: #', expCommentEnd: '' },
-		{ input: 'plaintext', expected: 'plaintext', expCommentStart: '//', expCommentEnd: '' },
-		{ input: 'not-existed', expected: 'not-existed', expCommentStart: '//', expCommentEnd: '' },
-		{ input: undefined, expected: 'plaintext', expCommentStart: '//', expCommentEnd: '' },
-	];
-
-	getLanguageTestCases.forEach(({ input, expected, expCommentStart, expCommentEnd }) => {
-		test(`test getLanguage for language id ${input} to language id ${expected}`, function () {
-			const language = getLanguage(input);
-			assert.strictEqual(language.languageId, expected);
-			assert.strictEqual(language.lineComment.start, expCommentStart);
-			assert.strictEqual(language.lineComment.end, expCommentEnd);
-		});
-	});
 });

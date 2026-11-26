@@ -309,6 +309,24 @@ suite('AgentHostSandboxForwarder', () => {
 		}]);
 	});
 
+	test('reconnecting never replaces the sandbox profile another client selected on the host', () => {
+		const { remote } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
+		const rootState = rootStateWithSandboxSchema();
+		const connection = remote.addConnection('remote.example:9000');
+		connection.setRootState({
+			...rootState,
+			config: {
+				...rootState.config!,
+				values: {
+					...rootState.config!.values,
+					[AgentHostSandboxConfigKey.SandboxProfile]: { id: 'strict', name: 'Strict', sandbox: { allowNetwork: false } },
+				},
+			},
+		});
+
+		assert.deepStrictEqual(connection.dispatched.map(action => action.type === ActionType.RootConfigChanged && { keys: Object.keys(action.config), replace: action.replace }), [{ keys: [AgentHostSandboxConfigKey.Sandbox], replace: undefined }]);
+	});
+
 	test('fans out workbench setting changes to all connected agent hosts', () => {
 		const { local, remote, configurationService } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
 		local.setRootState(rootStateWithSandboxSchema());

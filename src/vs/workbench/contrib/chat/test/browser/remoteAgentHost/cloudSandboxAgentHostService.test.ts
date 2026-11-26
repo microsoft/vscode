@@ -20,6 +20,8 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { WebPubSubRelayTransport, type IWebPubSubRelayTransportOptions } from '../../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { IActiveSubscriptionInfo } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import {
@@ -303,6 +305,9 @@ suite('CloudSandboxAgentHostService', () => {
 			override readonly onDidConnectionDiagnostic = Event.None;
 			override readonly onDidAction = Event.None;
 			override getConnectionDiagnosticState() { return {}; }
+			override getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+				return [{ resource: URI.parse('other-host:/session'), kind: StateComponents.Session, status: 'snapshot', refCount: 1, holders: [] }];
+			}
 		}());
 		const spy = sinon.spy(fixture.instantiationService, 'createInstance');
 		const created = await fixture.getFactory().createConnection(fixture.entries()[0], { userInitiated: true });
@@ -311,15 +316,24 @@ suite('CloudSandboxAgentHostService', () => {
 		const options = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)?.args[3] as IAgentHostProtocolClientOptions;
 		assert.ok(options.prepareReconnect);
 		await options.prepareReconnect();
+		const makeTransport = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)?.args[2] as () => IProtocolTransport;
+		store.add(makeTransport());
+		const transportOptions = spy.getCalls().find(call => call.args[0] === WebPubSubRelayTransport)?.args[1] as IWebPubSubRelayTransportOptions;
+		fixture.setState('reconnecting');
+		transportOptions.onHandshakeProgress?.('reconnect', 'waiting');
+		transportOptions.onHandshakeProgress?.('reconnect', 'responseReceived');
+		fixture.setState('connected');
 		created.transportDisposable.dispose();
 		fixture.service.dispose();
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(entry => [entry.method, entry.request.environmentId, entry.request.sessionId, entry.request.environmentKind]),
 			lifecycle: fixture.lifecycleEvents,
 			userLocalOutcome: fixture.events.filter(event => event.eventName === 'userLocalRelayConnectionOutcome').map(event => event.data?.outcome),
+			recoveryHandshake: fixture.events.find(event => event.data?.operation === 'recover')?.data?.lastHandshakeState,
+			sessionRecovery: fixture.events.find(event => event.data?.operation === 'recover')?.data?.sessionRecoveryOutcome,
 		}, {
 			requests: [['connect', environmentId, sessionId, 'user-local'], ['reconnect', environmentId, sessionId, 'user-local']],
-			lifecycle: [], userLocalOutcome: ['success'],
+			lifecycle: [], userLocalOutcome: ['success', 'success'], recoveryHandshake: 'responseReceived', sessionRecovery: 'restored',
 		});
 	}));
 

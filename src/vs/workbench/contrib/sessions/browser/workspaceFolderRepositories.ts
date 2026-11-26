@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -13,7 +14,7 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ISessionsListingScope } from '../common/sessionsProvider.js';
 import { parseGitHubRepositoryFromGitConfig } from './gitHubRepositoryResolver.js';
 
@@ -27,9 +28,10 @@ interface IFolderCheckout {
 }
 
 /**
- * The scope the sessions providers of an editor window list their sessions in: the folders of the window's workspace, the
- * git repositories of its local folders, read from their `.git`, and the GitHub repositories of those repositories'
- * `origin`, read from their `.git/config`, such as for Copilot Cloud sessions. Each folder's `.git` and its repository's
+ * The scope the sessions providers of an editor window list their sessions in: the folders of the window's workspace, also
+ * the folder's own location while it is at another, such as a worktree the window followed a session into, so that the
+ * sessions it lists stay as they were; and the GitHub repositories of the `origin` of its local folders' git repositories,
+ * read from their `.git` and `.git/config`, such as for Copilot Cloud sessions. Each folder's `.git` and its repository's
  * `.git/config` are read once, as the folder joins the workspace, and again only after a read that failed; there are no
  * watchers. A folder that leaves the workspace stops counting at once.
  */
@@ -37,6 +39,7 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 
 	readonly folders: IObservable<readonly URI[]>;
 
+	/** The git repositories its local folders are checkouts of, such as the main checkout of an open worktree, whose `origin` it reads. */
 	private readonly _repositories = observableValue<readonly URI[]>(this, []);
 	readonly repositories: IObservable<readonly URI[]> = this._repositories;
 
@@ -55,9 +58,18 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this.folders = observableFromEvent(this, _workspaceContextService.onDidChangeWorkspaceFolders, () => _workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
+		// Also as only the workbench state changes, such as the folder saved as a workspace, without a change of its folders
+		this.folders = observableFromEvent(this, Event.any<unknown>(_workspaceContextService.onDidChangeWorkspaceFolders, _workspaceContextService.onDidChangeWorkbenchState), () => this._getScopeFolders());
 		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => void this._update()));
 		void this._update();
+	}
+
+	/** The folders of the workspace where they are now, and the folder's own location while it is at another. */
+	private _getScopeFolders(): readonly URI[] {
+		const workspace = this._workspaceContextService.getWorkspace();
+		const folders = workspace.folders.map(folder => folder.uri);
+		const own = this._workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.uri : undefined;
+		return own && !folders.some(folder => isEqual(folder, own)) ? [...folders, own] : folders;
 	}
 
 	private async _update(): Promise<void> {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotRequestHandler, type CopilotRequestContext } from '@github/copilot-sdk';
+import { CopilotRequestHandler, type CopilotRequestContext } from '@microsoft/copilot-sdk';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import type { ILogService } from '../../../../../log/common/log.js';

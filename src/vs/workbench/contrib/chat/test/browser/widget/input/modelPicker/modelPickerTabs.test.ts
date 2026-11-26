@@ -12,7 +12,7 @@ import { upcastPartial } from '../../../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IModelConfigurationAccess, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { getModelBadge } from '../../../../../browser/widget/input/modelPicker/modelPickerBadges.js';
-import { latestOfEachLine, parseModelLine } from '../../../../../browser/widget/input/modelPicker/modelPickerLineage.js';
+import { compareModelNames, latestOfEachLine, parseModelLine } from '../../../../../browser/widget/input/modelPicker/modelPickerLineage.js';
 import { buildSpeedVariants, collapseSpeedVariants } from '../../../../../browser/widget/input/modelPicker/modelPickerVariants.js';
 import { buildModelPickerDestinations, buildModelPickerSections, hasPromotedModels, IModelPickerProviderPlaceholder } from '../../../../../browser/widget/input/modelPicker/modelPickerTabs.js';
 import { getProviderGroupKey } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
@@ -447,6 +447,62 @@ suite('Model picker destinations', () => {
 		);
 	});
 
+	test('model names stay alphabetical with numeric versions descending', () => {
+		const names = [
+			'GPT-5.6 Sol', 'Claude Sonnet 5', 'GPT-6 Sol', 'Claude Opus 4.9',
+			'GPT-6.1 Sol Mini', 'GPT-5.10 Sol', 'Auto', 'Claude Opus 4.10', 'GPT-6.1 Sol',
+			'GPT-6.1.2 Sol',
+		];
+		assert.deepStrictEqual(names.sort(compareModelNames), [
+			'Auto', 'Claude Opus 4.10', 'Claude Opus 4.9', 'Claude Sonnet 5',
+			'GPT-6.1.2 Sol', 'GPT-6.1 Sol', 'GPT-6.1 Sol Mini', 'GPT-6 Sol', 'GPT-5.10 Sol', 'GPT-5.6 Sol',
+		]);
+	});
+
+	test('every model section puts newer versions first', () => {
+		const models = [
+			createModel('gpt-5.6-sol', 'GPT-5.6 Sol'),
+			createModel('gpt-6-sol', 'GPT-6 Sol'),
+			createModel('gpt-6.1-sol', 'GPT-6.1 Sol'),
+		];
+		const sections = buildModelPickerSections({
+			models,
+			selectedModelId: models[1].identifier,
+			organizationDefaultModelId: models[0].identifier,
+			pinnedModelIds: [],
+			controlModels: {},
+			showSuggested: true,
+		});
+		const pinned = buildModelPickerSections({
+			models,
+			selectedModelId: undefined,
+			pinnedModelIds: models.map(model => model.identifier),
+			controlModels: {},
+			showSuggested: false,
+		});
+		const other = buildModelPickerSections({
+			models,
+			selectedModelId: undefined,
+			pinnedModelIds: [],
+			controlModels: {},
+			showSuggested: false,
+		});
+		const unavailable = buildModelPickerSections({
+			models: [],
+			selectedModelId: undefined,
+			pinnedModelIds: [],
+			controlModels: Object.fromEntries(models.map(model => [model.metadata.id, { label: model.metadata.name, featured: true, exists: false }])),
+			showSuggested: true,
+			showUnavailable: true,
+		});
+		assert.deepStrictEqual([
+			sections.suggested.map(model => model.metadata.name),
+			pinned.pinned.map(model => model.metadata.name),
+			other.other.map(model => model.metadata.name),
+			unavailable.unavailable.map(model => model.entry.label),
+		], Array.from({ length: 4 }, () => ['GPT-6.1 Sol', 'GPT-6 Sol', 'GPT-5.6 Sol']));
+	});
+
 	test('a retiring model sinks below the models that are staying', () => {
 		// Alphabetically "Alpha" leads, so only the retirement can move it last.
 		const base = createModel('alpha', 'Alpha');
@@ -613,7 +669,7 @@ suite('Model picker destinations', () => {
 			},
 			{
 				suggested: ['gpt-5-5'],
-				other: ['example-3-eap', 'example-4-experimental'],
+				other: ['example-4-experimental', 'example-3-eap'],
 			},
 		);
 	});

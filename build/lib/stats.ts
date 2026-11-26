@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { through, type ThroughStream } from './streams.ts';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import File from 'vinyl';
@@ -43,12 +43,12 @@ class Entry {
 
 const _entries = new Map<string, Entry>();
 
-export function createStatsStream(group: string, log?: boolean): es.ThroughStream {
+export function createStatsStream(group: string, log?: boolean): ThroughStream {
 
 	const entry = new Entry(group, 0, 0);
 	_entries.set(entry.name, entry);
 
-	return es.through(function (data) {
+	return through(function (data) {
 		const file = data as File;
 		if (typeof file.path === 'string') {
 			entry.totalCount += 1;

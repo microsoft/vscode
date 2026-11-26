@@ -26,7 +26,8 @@ import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIc
 import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { createCommandUri, escapeUntrustedMarkdown, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeMarkdownLinkText, escapeUntrustedMarkdown, isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -796,6 +797,11 @@ function toHoverText(text: string): string {
 	return escapeUntrustedMarkdown(text).replace(/ /g, '&nbsp;');
 }
 
+function getHoverWebUrl(link: URI | string | undefined): URL | undefined {
+	const url = link ? URL.parse(link.toString()) : undefined;
+	return url && matchesSomeScheme(url.href, Schemas.http, Schemas.https) ? url : undefined;
+}
+
 export type ExtensionHoverOptions = {
 	position: () => HoverPosition;
 	readonly target: HTMLElement;
@@ -804,6 +810,7 @@ export type ExtensionHoverOptions = {
 export class ExtensionHoverWidget extends ExtensionWidget {
 
 	private readonly hover = this._register(new MutableDisposable<IDisposable>());
+	private readonly hoverRenderDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly options: ExtensionHoverOptions,
@@ -815,18 +822,33 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 	}
 
 	render(): void {
 		this.hover.value = undefined;
+		this.hoverRenderDisposables.clear();
 		if (this.extension) {
 			this.hover.value = this.hoverService.setupManagedHover({
 				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
 				showHover: (options, focus) => {
+					this.hoverRenderDisposables.clear();
+					let content = options.content;
+					if (isMarkdownString(content) && this.extensionStatusAction.status.some(status => status.additionalMessage)) {
+						const container = $('.rendered-markdown');
+						append(container, this.hoverRenderDisposables.add(this.markdownRendererService.render(content)).element);
+						for (const status of this.extensionStatusAction.status) {
+							if (status.additionalMessage) {
+								append(container, this.hoverRenderDisposables.add(this.markdownRendererService.render(status.additionalMessage)).element);
+							}
+						}
+						content = container;
+					}
 					return this.hoverService.showInstantHover({
 						...options,
+						content,
 						additionalClasses: ['extension-hover'],
 						position: {
 							hoverPosition: this.options.position(),
@@ -896,11 +918,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				markdown.appendMarkdown(`$(${starFullIcon.id}) [${rating}](${this.extension.url}&ssr=false#review-details)`);
 				addSeparator = true;
 			}
-			if (this.extension.publisherSponsorLink) {
+			const sponsorUrl = getHoverWebUrl(this.extension.publisherSponsorLink);
+			if (sponsorUrl) {
 				if (addSeparator) {
 					markdown.appendText(`  |  `);
 				}
-				markdown.appendMarkdown(`$(${sponsorIcon.id}) [${localize('sponsor', "Sponsor")}](${this.extension.publisherSponsorLink})`);
+				markdown.appendMarkdown(`$(${sponsorIcon.id}) `).appendLink(sponsorUrl.href, localize('sponsor', "Sponsor"));
 				addSeparator = true;
 			}
 		}
@@ -923,9 +946,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			markdown.appendText(`\n`);
 		}
 
-		if (this.extension.publisherDomain?.verified) {
+		const publisherDomain = this.extension.publisherDomain;
+		const publisherUrl = publisherDomain?.verified ? getHoverWebUrl(publisherDomain.link) : undefined;
+		if (publisherUrl) {
 			const bgColor = this.themeService.getColorTheme().getColor(extensionVerifiedPublisherIconColor);
-			const publisherVerifiedTooltip = localize('publisher verified tooltip', "This publisher has verified ownership of {0}", `[${URI.parse(this.extension.publisherDomain.link).authority}](${this.extension.publisherDomain.link})`);
+			const publisherLink = new MarkdownString().appendLink(publisherUrl.href, escapeMarkdownLinkText(publisherUrl.host));
+			const publisherVerifiedTooltip = localize('publisher verified tooltip', "This publisher has verified ownership of {0}", publisherLink.value);
 			markdown.appendMarkdown(`<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${verifiedPublisherIcon.id})</span>&nbsp;${publisherVerifiedTooltip}`);
 			markdown.appendText(`\n`);
 		}
@@ -1083,6 +1109,11 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 			}
 			const rendered = disposables.add(this.markdownRendererService.render(markdown));
 			append(this.container, rendered.element);
+			for (const status of extensionStatus) {
+				if (status.additionalMessage) {
+					append(this.container, disposables.add(this.markdownRendererService.render(status.additionalMessage)).element);
+				}
+			}
 		}
 		this._onDidRender.fire();
 	}

@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IGitHubCredentials, withGitHubCredentialDeadline } from '../githubCredentialService.js';
 import { normalizeReadApiBaseUri, resolveReadApiUrl } from '../githubEndpoints.js';
 import { IGitHubTransport } from '../githubTransport.js';
@@ -23,12 +26,13 @@ export class LocalConnectorsRequestProvider extends BufferedApiRequestProvider {
 		private readonly apiBaseUri: string,
 		private readonly credentials: IGitHubCredentials,
 		private readonly transport: IGitHubTransport,
-		clientSignal?: AbortSignal,
+		clientToken?: CancellationToken,
+		clientError?: () => Error | undefined,
 	) {
-		super(clientSignal);
+		super(clientToken, clientError);
 	}
 
-	protected async execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal, bodyText?: string): Promise<ApiResponse<string | undefined>> {
+	protected async execute(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken, bodyText?: string): Promise<ApiResponse<string | undefined>> {
 		const metadata = parseRequest(request);
 		const catalog = metadata.method === 'GET' && metadata.path === '/plugins';
 		const disconnect = metadata.method === 'DELETE';
@@ -55,11 +59,11 @@ export class LocalConnectorsRequestProvider extends BufferedApiRequestProvider {
 		}
 
 		const { url } = resolveReadApiUrl(normalizeReadApiBaseUri(this.apiBaseUri), metadata.path);
-		const credential = await withGitHubCredentialDeadline(signal, signal => this.credentials.getCredential(signal), undefined, metadata.options?.deadline);
-		const combinedSignal = AbortSignal.any([signal, credential.signal]);
-		combinedSignal.throwIfAborted();
-
+		const credential = await withGitHubCredentialDeadline(cancellationToken, cancellationToken => this.credentials.getCredential(cancellationToken), undefined, metadata.options?.deadline);
+		const lifetime = new DisposableStore();
 		try {
+			const combinedToken = CancellationToken.any([cancellationToken, credential.cancellationToken], lifetime);
+			CancellationToken.throwIfCanceled(combinedToken);
 			const response = await this.transport.restText(connectorsAccount(url.host, credential.account), credential.token, {
 				domain: 'connectors',
 				method: metadata.method,
@@ -76,9 +80,9 @@ export class LocalConnectorsRequestProvider extends BufferedApiRequestProvider {
 				caller: metadata.options?.caller ?? 'copilotConnectors',
 				deadline: metadata.options?.deadline,
 				priority: metadata.options?.priority,
-			}, combinedSignal);
+			}, combinedToken);
 
-			combinedSignal.throwIfAborted();
+			CancellationToken.throwIfCanceled(combinedToken);
 
 			const status = response.revalidatedStatusCode ?? response.statusCode;
 			if (status !== (disconnect ? 204 : 200)) {
@@ -87,12 +91,17 @@ export class LocalConnectorsRequestProvider extends BufferedApiRequestProvider {
 
 			return { data: response.data, status };
 		} catch (error) {
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
+			if (isCancellationError(error)) {
+				error = credential.cancellationError ?? error;
+			}
 			this.credentials.handleRequestError(credential, error);
 			if (error instanceof RequestError) {
 				throw new GitHubRequestError('Copilot connectors request failed', error.kind, error.statusCode);
 			}
 			throw error;
+		} finally {
+			lifetime.dispose();
 		}
 	}
 }

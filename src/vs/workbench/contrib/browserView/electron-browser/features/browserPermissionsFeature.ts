@@ -26,7 +26,7 @@ import {
 	toOriginKey,
 } from '../../../../../platform/browserView/common/browserPermissions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IBrowserViewModel } from '../../common/browserView.js';
+import { displayOrigin, IBrowserViewModel } from '../../common/browserView.js';
 import {
 	BROWSER_EDITOR_ACTIVE,
 	CONTEXT_BROWSER_HAS_URL,
@@ -406,13 +406,6 @@ function showPermissionsPicker(quickInputService: IQuickInputService, model: IBr
 	}
 }
 
-function displayOrigin(origin: string): string {
-	try {
-		return new URL(origin).host || origin;
-	} catch {
-		return origin;
-	}
-}
 
 // -- Actions ----------------------------------------------------------
 

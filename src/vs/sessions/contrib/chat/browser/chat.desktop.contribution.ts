@@ -14,6 +14,7 @@ import { DefaultChatViewFactory } from '../../../../workbench/contrib/sessions/b
 import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import '../../../../workbench/contrib/chat/browser/chatDefaultPresentation.contribution.js';
 import './chatBackground.contribution.js';
+import '../../../browser/parts/mobile/defaultNewSessionPresentation.css';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
 import { RegisterDefaultSessionTaskRunnersContribution } from './registerDefaultSessionTaskRunners.js';
 import { RunScriptContribution } from './runScriptAction.js';

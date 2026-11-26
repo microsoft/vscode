@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -22,7 +22,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
-import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
+import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL, repeatsMessageBanner } from './modelPickerHover.js';
 import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, getRoutingModelBadge, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
@@ -90,6 +90,11 @@ export interface IModelCardOptions {
 	readonly description?: string;
 	/** Separate routing models offered among Auto's tiers, such as HydraFusion and HydraFusion Max. */
 	readonly routingAlternatives?: readonly IModelCardRoutingAlternative[];
+	/**
+	 * Renders what a kind of model shows after the sections every model has, such as a model
+	 * router's routes. Called on every render of the card, which disposes the previous result.
+	 */
+	readonly renderAdditionalSections?: (container: HTMLElement) => IDisposable;
 	/** Marks the start of a model-affecting interaction, before an asynchronous save. */
 	readonly onWillSelect?: () => void;
 	/** Selects the model for the latest saved configuration or speed choice. */
@@ -160,6 +165,22 @@ function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | u
 }
 
 /**
+ * Appends a section to a model card, under a title when it has one, and returns it for its
+ * content. A `value` is what the title names, such as a context size, shown beside it.
+ */
+export function renderModelCardSection(card: HTMLElement, title: string | undefined, value?: string): HTMLElement {
+	const section = dom.append(card, dom.$('.chat-model-card-section'));
+	if (title) {
+		const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
+		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, title));
+		if (value) {
+			dom.append(heading, dom.$('.chat-model-card-section-value', undefined, value));
+		}
+	}
+	return section;
+}
+
+/**
  * Model information and configuration, shared by the picker's details page and fixtures.
  * Configuration changes are written through and preserve keyboard focus.
  */
@@ -172,6 +193,10 @@ export class ModelCard extends DisposableStore {
 	private readonly _groupControls = new Map<string, Radio>();
 	private readonly _pricingDisclosureListener = this.add(new MutableDisposable());
 	private _configurationChangeVersion = 0;
+	/** Settles once the selection motion of the latest choice ends. */
+	private _selectionMotion: Promise<unknown> | undefined;
+	/** Whether a render was requested while that motion played. */
+	private _renderDeferred = false;
 	private _headerActions: ActionBar | undefined;
 	private _routingBadge: HTMLElement | undefined;
 	/** The effort level the routing badge describes: the one shown as selected, which a click changes before it saves. */
@@ -235,6 +260,7 @@ export class ModelCard extends DisposableStore {
 				}
 			}
 		}
+		const selectionMotion = this._whenSelectionMotionEnds(this._groupControls.values());
 		try {
 			await setModelConfigValues(options.model, options.configurationAccess, values, options.onDidChangeConfiguration, options.useModelConfigurationSchema);
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
@@ -243,7 +269,7 @@ export class ModelCard extends DisposableStore {
 				}
 				this._setSelectedRoutingAlternative(undefined);
 			}
-			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
+			await selectionMotion;
 		} finally {
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
 				this._renderPreservingFocus(focusedGroup);
@@ -254,7 +280,29 @@ export class ModelCard extends DisposableStore {
 		}
 	}
 
+	/**
+	 * Waits for the controls' selection motion. Renders requested meanwhile, such as the picker's
+	 * refresh when a saved change is reported, wait for it: a replaced control would make the selection jump.
+	 */
+	private _whenSelectionMotionEnds(controls: Iterable<Radio>): Promise<unknown> {
+		const motion = this._selectionMotion = Promise.all(Array.from(controls, control => control.whenSelectionAnimationSettles()));
+		const end = () => {
+			if (this._selectionMotion === motion) {
+				this._selectionMotion = undefined;
+				if (this._renderDeferred && !this.isDisposed) {
+					this._renderPreservingFocus();
+				}
+			}
+		};
+		motion.then(end, end);
+		return motion;
+	}
+
 	private _renderPreservingFocus(fallbackGroup?: string): void {
+		this._renderDeferred = !!this._selectionMotion;
+		if (this._renderDeferred) {
+			return;
+		}
 		const hadFocus = this.element.contains(dom.getActiveElement()) || this.headerElement.contains(dom.getActiveElement());
 		const focusedControl = [...this._groupControls].find(([, control]) => dom.isAncestorOfActiveElement(control.domNode));
 		const group = focusedControl?.[0] ?? fallbackGroup;
@@ -319,9 +367,14 @@ export class ModelCard extends DisposableStore {
 		if (this._options.organizationDefaultModel) {
 			dom.append(this.element, dom.$('.chat-model-card-description.chat-model-card-org-default', undefined, getOrganizationDefaultDescription(this._options.organizationDefaultModel.metadata.name)));
 		}
-		const description = this._options.description ?? metadata.tooltip;
-		if (description) {
-			this._renderDescription(description, isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined);
+		const tooltip = this._options.description ?? metadata.tooltip;
+		if (tooltip) {
+			// A description that repeats a banner is dropped, but HydraFusion keeps its Learn More link.
+			const description = repeatsMessageBanner(model, tooltip) ? '' : tooltip;
+			const learnMoreUrl = isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined;
+			if (description || learnMoreUrl) {
+				this._renderDescription(description, learnMoreUrl);
+			}
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
@@ -366,6 +419,9 @@ export class ModelCard extends DisposableStore {
 			this._renderCost(context);
 		} else if (!isAuto && metadata.pricing && isMultiplierPricing(model)) {
 			this._renderSection(localize('models.cost', "Cost: {0}", metadata.pricing));
+		}
+		if (this._options.renderAdditionalSections) {
+			this._contentDisposables.add(this._options.renderAdditionalSections(this.element));
 		}
 	}
 
@@ -465,12 +521,7 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private _renderSection(title: string | undefined): HTMLElement {
-		const section = dom.append(this.element, dom.$('.chat-model-card-section'));
-		if (title) {
-			const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
-			dom.append(heading, dom.$('.chat-model-card-section-title', undefined, title));
-		}
-		return section;
+		return renderModelCardSection(this.element, title);
 	}
 
 	private _renderEffortSection(effort: IModelConfigProperty, isAuto: boolean): void {
@@ -714,12 +765,13 @@ export class ModelCard extends DisposableStore {
 	private async _selectVariant(model: ILanguageModelChatMetadataAndIdentifier, control: Radio): Promise<void> {
 		const options = this._options;
 		const version = ++this._configurationChangeVersion;
+		const selectionMotion = this._whenSelectionMotionEnds([control]);
 		options.onWillSelect?.();
 		options.onSelect?.(model);
 		if (options.routingAlternatives?.some(alternative => alternative.model === model)) {
 			this._setSelectedRoutingAlternative(model);
 		}
-		await control.whenSelectionAnimationSettles();
+		await selectionMotion;
 		if (!this.isDisposed && version === this._configurationChangeVersion) {
 			options.onDidAccept?.();
 		}
@@ -774,10 +826,7 @@ export class ModelCard extends DisposableStore {
 		if (!total) {
 			return;
 		}
-		const section = dom.append(this.element, dom.$('.chat-model-card-section'));
-		const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
-		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, getMaxContextLabel()));
-		dom.append(heading, dom.$('.chat-model-card-section-value', undefined, formatTokenCount(total)));
+		renderModelCardSection(this.element, getMaxContextLabel(), formatTokenCount(total));
 	}
 
 	private _renderCost(context: IModelConfigProperty | undefined): void {

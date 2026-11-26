@@ -8,7 +8,7 @@ import { join } from '../../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IRawFileWorkspaceFolder, toWorkspaceIdentifier, Workspace, WorkspaceFolder } from '../../common/workspace.js';
+import { getWorkspaceScope, IRawFileWorkspaceFolder, toWorkspaceIdentifier, Workspace, WorkspaceFolder } from '../../common/workspace.js';
 import { toWorkspaceFolders } from '../../../workspaces/common/workspaces.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -276,5 +276,15 @@ suite('Workspace', () => {
 		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, '/abc/test1');
 		assert.strictEqual(actual[2].index, 2);
 		assert.strictEqual(actual[2].name, 'test1');
+	});
+
+	test('getWorkspaceScope is the workspace file, the single folder, or undefined for an empty window', () => {
+		const folder = URI.file('/src/folder');
+		const config = URI.file('/src/test.code-workspace');
+		assert.deepStrictEqual([
+			getWorkspaceScope(new Workspace('ws', [new WorkspaceFolder({ uri: folder, name: 'folder', index: 0 })], false, config, () => !isLinux))?.toString(),
+			getWorkspaceScope(new Workspace('folder', [new WorkspaceFolder({ uri: folder, name: 'folder', index: 0 })], false, null, () => !isLinux))?.toString(),
+			getWorkspaceScope(new Workspace('empty', [], false, null, () => false)),
+		], [config.toString(), folder.toString(), undefined]);
 	});
 });

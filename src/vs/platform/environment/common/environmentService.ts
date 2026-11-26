@@ -6,7 +6,8 @@
 import { toLocalISOString } from '../../../base/common/date.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
-import { dirname, join, normalize, resolve } from '../../../base/common/path.js';
+import { dirname, join, normalize, posix, resolve, win32 } from '../../../base/common/path.js';
+import { OS, OperatingSystem } from '../../../base/common/platform.js';
 import { env } from '../../../base/common/process.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -45,6 +46,11 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get appRoot(): string { return dirname(FileAccess.asFileUri('').fsPath); }
+
+	@memoize
+	get appBundleRoot(): string {
+		return this.isBuilt ? getAppBundleRoot(this.appRoot, OS, !!this.productService.win32VersionedUpdate) : this.appRoot;
+	}
 
 	@memoize
 	get userHome(): URI { return URI.file(this.paths.homeDir); }
@@ -306,6 +312,24 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		private readonly paths: INativeEnvironmentPaths,
 		protected readonly productService: IProductService
 	) { }
+}
+
+/** Resolves packaged application contents without widening non-packaged layouts to an ancestor. */
+export function getAppBundleRoot(appRoot: string, os: OperatingSystem, win32VersionedUpdate: boolean): string {
+	const paths = os === OperatingSystem.Windows ? win32 : posix;
+	const resources = paths.dirname(appRoot);
+	if (paths.basename(appRoot) !== 'app' || paths.basename(resources).toLowerCase() !== 'resources') {
+		return appRoot;
+	}
+
+	let bundleRoot = paths.dirname(resources);
+	if (os === OperatingSystem.Macintosh && paths.basename(bundleRoot) !== 'Contents') {
+		return appRoot;
+	}
+	if (os === OperatingSystem.Windows && win32VersionedUpdate) {
+		bundleRoot = paths.dirname(bundleRoot);
+	}
+	return bundleRoot === paths.parse(bundleRoot).root ? appRoot : bundleRoot;
 }
 
 export function parseExtensionHostDebugPort(args: NativeParsedArgs, isBuilt: boolean): IExtensionHostDebugParams {

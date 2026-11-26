@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-import { findLastIdxMonotonous } from '../../../../util/vs/base/common/arraysFind';
 import { assertReturnsDefined } from '../../../../util/vs/base/common/types';
 import { StringEdit } from '../../../../util/vs/editor/common/core/edits/stringEdit';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
@@ -37,7 +35,7 @@ export class DocumentRecording {
 		const prevStateId = this._currentState.stateId;
 		switch (e.kind) {
 			case 'setContent': {
-				const docOp = new SetValueEdit(opIdx, e.content);
+				const docOp = new SetValueEdit(e.content);
 				this._docOperationsByStateIdBefore.push(docOp);
 				this._currentState = docOp.applyTo(this._currentState);
 				const op = new DocumentSetContentOperation(opIdx, e.time, this.documentId, prevStateId, this._currentState.stateId, logEntryIdx, e.content);
@@ -61,7 +59,7 @@ export class DocumentRecording {
 
 				if (createSyntheticSelectionEvents) {
 					const selection = edit.replacements.map(e => e.replaceRange);
-					const op = new SetSelectionEdit(opIdx, selection);
+					const op = new SetSelectionEdit(selection);
 					this._docOperationsByStateIdBefore.push(op);
 					this._currentState = op.applyTo(this._currentState);
 
@@ -69,13 +67,13 @@ export class DocumentRecording {
 					opIdx++;
 				}
 
-				const op = new DocumentEdit(opIdx, edit);
+				const op = new DocumentEdit(edit);
 				this._docOperationsByStateIdBefore.push(op);
 				this._currentState = op.applyTo(this._currentState);
 
 				if (createSyntheticSelectionEvents) {
 					const selection = edit.getNewRanges();
-					const op = new SetSelectionEdit(opIdx, selection);
+					const op = new SetSelectionEdit(selection);
 					this._docOperationsByStateIdBefore.push(op);
 					this._currentState = op.applyTo(this._currentState);
 				}
@@ -114,7 +112,7 @@ export class DocumentRecording {
 
 			case 'selectionChanged': {
 				const selection = e.selection.map(s => new OffsetRange(s[0], s[1]));
-				const op = new SetSelectionEdit(opIdx, selection);
+				const op = new SetSelectionEdit(selection);
 				this._docOperationsByStateIdBefore.push(op);
 				this._currentState = op.applyTo(this._currentState);
 
@@ -123,7 +121,7 @@ export class DocumentRecording {
 			case 'restoreContent': {
 				const content = this._contentsByHash.get(e.contentId);
 				if (content === undefined) { throw new Error(`No content with hash ${e.contentId} found`); }
-				const op = new SetValueEdit(opIdx, content);
+				const op = new SetValueEdit(content);
 				this._docOperationsByStateIdBefore.push(op);
 				this._currentState = op.applyTo(this._currentState);
 
@@ -167,12 +165,6 @@ export class DocumentRecording {
 		return state;
 	}
 
-	getStateIdAfterOp(opIdx: number): DocumentStateId {
-		const idx = findLastIdxMonotonous(this._docOperationsByStateIdBefore, op => op.opIdx <= opIdx);
-		if (idx === -1) { return this._docOperationsByStateIdBefore.length; }
-		return idx + 1;
-	}
-
 	getEdit(initialState: DocumentStateId, lastState: DocumentStateId): StringEdit {
 		let edit: StringEdit = StringEdit.empty;
 		for (let i = initialState; i < lastState; i++) {
@@ -198,19 +190,14 @@ export class DocumentState {
 }
 
 abstract class DocumentChange {
-	constructor(
-		public readonly opIdx: number
-	) { }
-
 	abstract applyTo(state: DocumentState): DocumentState;
 }
 
 class DocumentEdit extends DocumentChange {
 	constructor(
-		opIdx: number,
 		public readonly edit: StringEdit,
 	) {
-		super(opIdx);
+		super();
 	}
 
 	override applyTo(state: DocumentState): DocumentState {
@@ -220,10 +207,9 @@ class DocumentEdit extends DocumentChange {
 
 class SetValueEdit extends DocumentChange {
 	constructor(
-		opIdx: number,
 		public readonly value: string,
 	) {
-		super(opIdx);
+		super();
 	}
 
 	override applyTo(state: DocumentState): DocumentState {
@@ -233,10 +219,9 @@ class SetValueEdit extends DocumentChange {
 
 class SetSelectionEdit extends DocumentChange {
 	constructor(
-		opIdx: number,
 		public readonly selection: OffsetRange[],
 	) {
-		super(opIdx);
+		super();
 	}
 
 	override applyTo(state: DocumentState): DocumentState {

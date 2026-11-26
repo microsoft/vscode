@@ -75,7 +75,7 @@
 
 .monaco-hover.chat-customizations-hover td a {
 	display: inline-block;
-	color: var(--vscode-foreground);
+	color: var(--vscode-editorHoverWidget-linkForeground, var(--vscode-foreground));
 }
 
 .chat-customizations-hover td a > .codicon,
@@ -84,7 +84,7 @@
 }
 
 .monaco-hover.chat-customizations-hover td a:hover {
-	color: var(--vscode-textLink-activeForeground);
+	color: var(--vscode-editorHoverWidget-linkForeground, var(--vscode-textLink-activeForeground));
 }
 
 .monaco-hover.chat-customizations-hover .hover-contents ul {
@@ -151,9 +151,9 @@
 	padding: var(--vscode-spacing-size40);
 	/* Align the glyph with the counts while preserving its padded hit target. */
 	margin-right: calc(-1 * var(--vscode-spacing-size40));
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-editorHoverWidget-linkForeground, var(--vscode-descriptionForeground));
 }
 
 .chat-customizations-hover .hover-contents hr + p > a:last-child:hover {
-	color: var(--vscode-textLink-activeForeground);
+	color: var(--vscode-editorHoverWidget-linkForeground, var(--vscode-textLink-activeForeground));
 }

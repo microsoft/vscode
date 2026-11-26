@@ -7,21 +7,27 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { ClipboardImageContextValuePick } from './actions/chatContext.js';
+import { ClipboardImageContextValuePick, FileContextValuePick } from './actions/chatContext.js';
 import { IChatContextPickService } from './attachments/chatContextPickService.js';
 import { IChatEditPresentationService } from './widget/chatContentParts/chatEditPresentation.js';
 import { DefaultChatEditPresentationService } from './widget/chatContentParts/defaultChatEditPresentation.js';
+import { IChatAttachmentWidgetRegistry } from './attachments/chatAttachmentWidgetRegistry.js';
+import { DefaultChatAttachmentWidgetRegistry } from './attachments/defaultChatAttachmentWidgetRegistry.js';
+import { ScreenshotContextContribution } from './actions/chatScreenshotContextPicker.js';
 
 registerSingleton(IChatEditPresentationService, DefaultChatEditPresentationService, InstantiationType.Delayed);
+registerSingleton(IChatAttachmentWidgetRegistry, DefaultChatAttachmentWidgetRegistry, InstantiationType.Delayed);
+registerWorkbenchContribution2('chat.screenshotContext', ScreenshotContextContribution, WorkbenchPhase.AfterRestored);
 
-class ClipboardImageContextContribution extends Disposable {
+class ChatAttachmentContextContribution extends Disposable {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatContextPickService contextPickService: IChatContextPickService,
 	) {
 		super();
 		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick, true)));
+		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(FileContextValuePick)));
 	}
 }
 
-registerWorkbenchContribution2('chat.clipboardImageContext', ClipboardImageContextContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2('chat.attachmentContext', ChatAttachmentContextContribution, WorkbenchPhase.AfterRestored);

@@ -17,6 +17,9 @@ on:
         type: string
         default: vscode-large-runners-ubuntu-8-core
 
+permissions:
+  contents: read
+
 env:
   RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
 

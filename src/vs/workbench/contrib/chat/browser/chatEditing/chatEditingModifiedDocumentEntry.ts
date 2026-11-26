@@ -38,7 +38,9 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
+import { ChatEditingCustomTextEditorIntegration } from './chatEditingCustomTextEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
+import { CustomEditorInput } from '../../../customEditor/browser/customEditorInput.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -323,10 +325,13 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	protected _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration {
 		const codeEditor = getCodeEditor(editor.getControl());
-		assertType(codeEditor);
-
 		const diffInfo = this.diffInfo;
 
+		if (!codeEditor && editor.input instanceof CustomEditorInput) {
+			return this._instantiationService.createInstance(ChatEditingCustomTextEditorIntegration, this, editor, diffInfo);
+		}
+
+		assertType(codeEditor);
 		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
 	}
 

@@ -16,8 +16,7 @@ import { GetNetworkCompletionsType } from './completionsFromNetwork';
 
 enum AsyncCompletionRequestState {
 	Completed,
-	Error,
-	Pending,
+	Pending = 2,
 }
 
 interface BaseAsyncCompletionRequest {

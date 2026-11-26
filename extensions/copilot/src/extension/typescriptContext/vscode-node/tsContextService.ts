@@ -647,6 +647,10 @@ export interface TSLanguageContextService extends Omit<ILanguageContextService, 
 	readonly onCachePopulated: vscode.Event<OnCachePopulatedEvent>;
 	readonly onContextComputed: vscode.Event<OnContextComputedEvent>;
 	readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
+	/**
+	 * Fires when {@link isActivated} may return a different result, for example because the language server started.
+	 */
+	readonly onDidChangeActivation: vscode.Event<void>;
 }
 
 export abstract class AbstractTSLanguageContextService implements TSLanguageContextService {
@@ -674,6 +678,9 @@ export abstract class AbstractTSLanguageContextService implements TSLanguageCont
 
 	protected _onContextComputedOnTimeout: vscode.EventEmitter<OnContextComputedOnTimeoutEvent>;
 	public readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
+
+	protected _onDidChangeActivation: vscode.EventEmitter<void>;
+	public readonly onDidChangeActivation: vscode.Event<void>;
 
 	constructor(
 		telemetryService: ITelemetryService,
@@ -713,6 +720,9 @@ export abstract class AbstractTSLanguageContextService implements TSLanguageCont
 
 		this._onContextComputedOnTimeout = this.disposables.add(new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>());
 		this.onContextComputedOnTimeout = this._onContextComputedOnTimeout.event;
+
+		this._onDidChangeActivation = this.disposables.add(new vscode.EventEmitter<void>());
+		this.onDidChangeActivation = this._onDidChangeActivation.event;
 	}
 
 	public dispose(): void {
@@ -765,12 +775,14 @@ export class NullTSLanguageContextService implements TSLanguageContextService {
 	public readonly onCachePopulated: vscode.Event<OnCachePopulatedEvent>;
 	public readonly onContextComputed: vscode.Event<OnContextComputedEvent>;
 	public readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
+	public readonly onDidChangeActivation: vscode.Event<void>;
 
 	constructor() {
 		this.disposables = new DisposableStore();
 		this.onCachePopulated = this.disposables.add(new vscode.EventEmitter<OnCachePopulatedEvent>()).event;
 		this.onContextComputed = this.disposables.add(new vscode.EventEmitter<OnContextComputedEvent>()).event;
 		this.onContextComputedOnTimeout = this.disposables.add(new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>()).event;
+		this.onDidChangeActivation = this.disposables.add(new vscode.EventEmitter<void>()).event;
 	}
 
 	public dispose(): void {

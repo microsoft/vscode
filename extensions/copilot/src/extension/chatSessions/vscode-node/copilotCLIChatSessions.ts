@@ -392,7 +392,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 	): Promise<vscode.MarkdownString | undefined> {
 		const repositories = this._gitService.repositories.filter(r => r.kind !== 'worktree');
 		const shouldShow = vscode.workspace.workspaceFolders === undefined ||
-			vscode.workspace.isAgentSessionsWorkspace ||
+			vscode.workspace.isAgentManaged ||
 			repositories.length > 1;
 		if (!shouldShow) {
 			return undefined;
@@ -768,7 +768,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			return { input, attachments: [] };
 		}
 
-		const { prompt, attachments } = await this.promptResolver.resolvePrompt(request, undefined, [], session.workspace, [], token);
+		const { prompt, attachments } = await this.promptResolver.resolvePrompt(request, undefined, [], session.workspace, token);
 		const input = (request.command && (copilotCLICommands as readonly string[]).includes(request.command))
 			? { command: request.command as CopilotCLICommand, prompt }
 			: { prompt };
@@ -950,7 +950,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			stream.markdown(l10n.t('Copilot CLI delegation cancelled.'));
 			return {};
 		}
-		const { prompt, attachments, references } = await this.promptResolver.resolvePrompt(request, await requestPromptPromise, (otherReferences || []).concat([]), workspaceInfo, [], token);
+		const { prompt, attachments, references } = await this.promptResolver.resolvePrompt(request, await requestPromptPromise, (otherReferences || []).concat([]), workspaceInfo, token);
 
 		const mcpServerMappings = buildMcpServerMappings(request.tools);
 		const session = await this.sessionInitializer.createDelegatedSession(request, workspaceInfo, { mcpServerMappings }, token);

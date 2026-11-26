@@ -8,7 +8,7 @@ import { hostname, userInfo } from 'os';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { untildify } from '../../../../base/common/labels.js';
 import { dirname, isAbsolute, join, parse, resolve } from '../../../../base/common/path.js';
-import type { TelemetryConfig } from '@github/copilot-sdk';
+import type { TelemetryConfig } from '@microsoft/copilot-sdk';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';

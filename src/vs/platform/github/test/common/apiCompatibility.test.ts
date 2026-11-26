@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SchemaError } from '../../common/client/schema.js';
 import { ActionsClient } from '../../common/core/actionsClient.js';
@@ -13,7 +14,8 @@ import { ReviewsClient } from '../../common/core/reviewsClient.js';
 import { SearchClient } from '../../common/core/searchClient.js';
 import { GistsClient } from '../../common/gists/gistsClient.js';
 import { parseActivationContext } from '../../common/missionControl/missionControlClient.js';
-import { createTestPullRequestResponse, FixtureApiRequestProvider } from './githubClientTestUtils.js';
+import { FixtureApiRequestProvider, createTestPullRequestResponse } from './githubClientTestUtils.js';
+
 
 suite('GitHub API compatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,7 +36,7 @@ suite('GitHub API compatibility', () => {
 
 		test('accepts only the fields needed for profile import and export', async () => {
 			const client = new GistsClient(new FixtureApiRequestProvider(gist));
-			assert.deepStrictEqual(await client.get(gist.id, new AbortController().signal), gist);
+			assert.deepStrictEqual(await client.get(gist.id, CancellationToken.None), gist);
 		});
 
 		test('strips unused gist and file metadata', async () => {
@@ -57,7 +59,7 @@ suite('GitHub API compatibility', () => {
 				},
 			};
 			const client = new GistsClient(new FixtureApiRequestProvider(response));
-			assert.deepStrictEqual(await client.get(gist.id, new AbortController().signal), gist);
+			assert.deepStrictEqual(await client.get(gist.id, CancellationToken.None), gist);
 		});
 
 	});
@@ -72,7 +74,7 @@ suite('GitHub API compatibility', () => {
 					auto_merge: { enabled_by: enabledBy, merge_method: 'squash', commit_title: title, commit_message: message },
 				}));
 				const client = new PullRequestsClient(new CoreClient(provider, provider));
-				const result = await client.get({ owner: 'owner', repo: 'repo' }, 1, new AbortController().signal);
+				const result = await client.get({ owner: 'owner', repo: 'repo' }, 1, CancellationToken.None);
 				assert.deepStrictEqual({
 					state: result.state, merged: result.merged, draft: result.draft,
 					title: result.auto_merge?.commit_title, message: result.auto_merge?.commit_message,
@@ -87,7 +89,7 @@ suite('GitHub API compatibility', () => {
 				auto_merge: { enabled_by: enabledBy, merge_method: 'squash', commit_title: '', commit_message: '', [field]: 42 },
 			}));
 			const client = new PullRequestsClient(new CoreClient(provider, provider));
-			await assert.rejects(client.get({ owner: 'owner', repo: 'repo' }, 1, new AbortController().signal), SchemaError);
+			await assert.rejects(client.get({ owner: 'owner', repo: 'repo' }, 1, CancellationToken.None), SchemaError);
 		});
 	}
 
@@ -95,7 +97,7 @@ suite('GitHub API compatibility', () => {
 		const autoMerge = { enabled_by: null, merge_method: 'squash', commit_title: null, commit_message: null };
 		const provider = new FixtureApiRequestProvider(createTestPullRequestResponse({ auto_merge: autoMerge }));
 		const client = new PullRequestsClient(new CoreClient(provider, provider));
-		assert.deepStrictEqual((await client.get(repository, 1, new AbortController().signal)).auto_merge, autoMerge);
+		assert.deepStrictEqual((await client.get(repository, 1, CancellationToken.None)).auto_merge, autoMerge);
 	});
 
 	test('accepts review comments whose diff side is unavailable', async () => {
@@ -107,7 +109,7 @@ suite('GitHub API compatibility', () => {
 		};
 		const provider = new FixtureApiRequestProvider([comment]);
 		const client = new ReviewsClient(new CoreClient(provider, provider));
-		assert.deepStrictEqual(await client.listComments(repository, 1, new AbortController().signal), [comment]);
+		assert.deepStrictEqual(await client.listComments(repository, 1, CancellationToken.None), [comment]);
 	});
 
 	test('accepts a repository search result without an owner object', async () => {
@@ -120,21 +122,21 @@ suite('GitHub API compatibility', () => {
 		const response = { items: [item], total_count: 1, incomplete_results: false };
 		const provider = new FixtureApiRequestProvider(response);
 		const client = new SearchClient(new CoreClient(provider, provider));
-		assert.deepStrictEqual(await client.repositories('repo', new AbortController().signal), response);
+		assert.deepStrictEqual(await client.repositories('repo', CancellationToken.None), response);
 	});
 
 	test('accepts jobs that have not started', async () => {
 		const response = { ...job, started_at: null };
 		const provider = new FixtureApiRequestProvider(response);
 		const client = new ActionsClient(new CoreClient(provider, provider));
-		assert.deepStrictEqual(await client.getJob(repository, 1, new AbortController().signal), response);
+		assert.deepStrictEqual(await client.getJob(repository, 1, CancellationToken.None), response);
 	});
 
 	test('accepts jobs without associated runner labels', async () => {
 		const { labels, ...response } = job;
 		const provider = new FixtureApiRequestProvider(response);
 		const client = new ActionsClient(new CoreClient(provider, provider));
-		assert.deepStrictEqual(await client.getJob(repository, 1, new AbortController().signal), response);
+		assert.deepStrictEqual(await client.getJob(repository, 1, CancellationToken.None), response);
 	});
 
 	test('accepts every backend check-step lifecycle status', async () => {
@@ -146,14 +148,14 @@ suite('GitHub API compatibility', () => {
 		};
 		const provider = new FixtureApiRequestProvider(response);
 		const client = new ActionsClient(new CoreClient(provider, provider));
-		assert.deepStrictEqual(await client.getJob(repository, 1, new AbortController().signal), response);
+		assert.deepStrictEqual(await client.getJob(repository, 1, CancellationToken.None), response);
 	});
 
 	for (const invalid of [{ started_at: 42 }, { labels: null }, { labels: [42] }, { status: 'unknown' }]) {
 		test(`still rejects malformed job metadata ${JSON.stringify(invalid)}`, async () => {
 			const provider = new FixtureApiRequestProvider({ ...job, ...invalid });
 			const client = new ActionsClient(new CoreClient(provider, provider));
-			await assert.rejects(client.getJob(repository, 1, new AbortController().signal), SchemaError);
+			await assert.rejects(client.getJob(repository, 1, CancellationToken.None), SchemaError);
 		});
 	}
 

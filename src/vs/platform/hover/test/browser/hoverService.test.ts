@@ -386,12 +386,14 @@ suite('HoverService', () => {
 			const hoverBounds = hoverWidget.domNode.getBoundingClientRect();
 			const statusBarBounds = statusBarDomNode.getBoundingClientRect();
 			const heightOutsideContents = hoverWidget.domNode.offsetHeight - contentsDomNode.offsetHeight;
+			// Bounds are floats, so a status bar ending exactly where the hover ends can differ from it by rounding noise at fractional positions
+			const epsilon = 0.001;
 
 			assert.deepStrictEqual({
 				hoverMaxHeight: hoverWidget.domNode.style.maxHeight,
 				contentsMaxHeight: contentsDomNode.style.maxHeight,
 				contentOverflows: contentsDomNode.scrollHeight > contentsDomNode.clientHeight,
-				statusBarIsVisible: statusBarBounds.top >= hoverBounds.top && statusBarBounds.bottom <= hoverBounds.bottom
+				statusBarIsVisible: statusBarBounds.top >= hoverBounds.top - epsilon && statusBarBounds.bottom <= hoverBounds.bottom + epsilon
 			}, {
 				hoverMaxHeight: expectedMaxHeight,
 				contentsMaxHeight: `${Math.max(0, mainWindow.innerHeight * 0.25 - heightOutsideContents)}px`,

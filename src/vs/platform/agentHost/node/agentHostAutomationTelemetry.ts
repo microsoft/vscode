@@ -5,9 +5,14 @@
 
 import { StringSHA1 } from '../../../base/common/hash.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { getAgentHostScheduledChat } from '../common/meta/agentHostAutomationsMeta.js';
+import type { AutomationDefinition } from '../common/state/protocol/channels-automation/state.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry, toTelemetryModel } from './agentHostTelemetryReporter.js';
 
 export type AutomationRunOutcome = 'success' | 'error' | 'cancelled' | 'interrupted';
+
+/** Whether a definition is manual-only, recurring, or a one-time scheduled chat. */
+export type AutomationScheduleKind = 'manual' | 'scheduled' | 'scheduledChat';
 
 /** The content-free, saved session configuration; omitted selections retain the provider default. */
 export interface IAutomationConfigurationTelemetry extends IAgentHostCopilotSkuTelemetry {
@@ -27,6 +32,7 @@ export interface IAutomationRunTelemetry extends IAgentHostCopilotSkuTelemetry {
 	readonly automationId: string;
 	readonly runId: string;
 	readonly trigger: 'manual' | 'schedule' | 'catch_up' | 'event';
+	readonly scheduleKind?: AutomationScheduleKind;
 	readonly runCreatedAt: string;
 	readonly provider: IAutomationConfigurationTelemetry['provider'];
 	readonly agentSessionId?: string;
@@ -49,6 +55,7 @@ type AutomationRunClassification = IAgentHostCopilotSkuClassification & {
 	automationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 of the complete automation resource URI, stable across ownership migration.' };
 	runId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Native Agent Host automation run identifier.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the run was manual, scheduled, catch-up or event-triggered.' };
+	scheduleKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the run\'s automation is manual-only, recurring (scheduled), or a one-time scheduled chat (scheduledChat); absent if the automation is not in the catalog.' };
 	runCreatedAt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'UTC timestamp of the durable run claim.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded Agent Host provider, matching the provider dimension in session and turn telemetry.' };
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Native Agent Host session identifier, matching agentHost session telemetry; absent without an Agent Host session.' };
@@ -58,20 +65,21 @@ type AutomationRunClassification = IAgentHostCopilotSkuClassification & {
 export type IAutomationDefinitionTelemetry = IAutomationConfigurationTelemetry & {
 	automationId: string;
 	enabled: boolean;
-	scheduleKind: 'manual' | 'scheduled';
+	scheduleKind: AutomationScheduleKind;
 };
 
 type AutomationCreatedClassification = AutomationConfigurationClassification & {
-	owner: 'ulugbekna';
+	owner: 'benvillalobos';
 	comment: 'Records newly persisted automation definitions, excluding migration and replay.';
 	automationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 of the complete automation resource URI, stable across ownership migration.' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic execution is enabled at creation.' };
-	scheduleKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the definition is manual-only or has automatic triggers.' };
+	scheduleKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the definition is manual-only, recurring (scheduled), or a one-time scheduled chat (scheduledChat).' };
 };
 
 type AutomationUpdatedEvent = IAutomationDefinitionTelemetry & {
 	enabledChanged: boolean;
 	scheduleChanged: boolean;
+	disableConditionsChanged: boolean;
 	sessionConfigurationChanged: boolean;
 	promptChanged: boolean;
 	titleChanged: boolean;
@@ -80,6 +88,7 @@ type AutomationUpdatedClassification = Omit<AutomationCreatedClassification, 'co
 	comment: 'Records persisted, user-editable changes to Agent Host automations, excluding replay and migration bookkeeping.';
 	enabledChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic execution was enabled or disabled.' };
 	scheduleChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic triggers changed, without recording expressions or time zones.' };
+	disableConditionsChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the scheduled end-date condition changed, without recording its date.' };
 	sessionConfigurationChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the saved session template changed, without recording arbitrary configuration.' };
 	promptChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the automation message changed, without recording its content.' };
 	titleChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the automation title changed, without recording its content.' };
@@ -90,13 +99,13 @@ type AutomationDeletedClassification = Omit<AutomationCreatedClassification, 'co
 
 type AutomationRunCreatedEvent = IAutomationRunTelemetry & IAutomationConfigurationTelemetry;
 type AutomationRunCreatedClassification = AutomationRunClassification & Omit<AutomationConfigurationClassification, 'provider'> & {
-	owner: 'ulugbekna';
+	owner: 'benvillalobos';
 	comment: 'Records a new durable Agent Host automation run claim, including runs that fail before a session exists. Replays, suppressed overlaps and restored claims do not emit.';
 };
 
 type AutomationRunStartedEvent = IAutomationRunTelemetry & IAutomationConfigurationTelemetry;
 type AutomationRunStartedClassification = AutomationRunClassification & Omit<AutomationConfigurationClassification, 'provider'> & {
-	owner: 'ulugbekna';
+	owner: 'benvillalobos';
 	comment: 'Records the first durable session linkage of a non-terminal automation run, with its saved configuration.';
 };
 
@@ -105,7 +114,7 @@ type AutomationRunCompletedEvent = IAutomationRunTelemetry & {
 	durationMs: number;
 };
 type AutomationRunCompletedClassification = AutomationRunClassification & {
-	owner: 'ulugbekna';
+	owner: 'benvillalobos';
 	comment: 'Records the first persisted terminal transition of an Agent Host automation run, including pre-session failures and restart interruptions.';
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Run outcome: success, error, cancelled or interrupted.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock milliseconds from durable run claim to terminal state.' };
@@ -158,6 +167,10 @@ export function logAutomationRunCompleted(telemetryService: ITelemetryService, e
 		automationId: hashAutomationTelemetryId(event.automationId),
 		durationMs: Math.max(0, Math.round(event.durationMs)),
 	});
+}
+
+export function getScheduleKind(definition: AutomationDefinition): AutomationScheduleKind {
+	return getAgentHostScheduledChat(definition) ? 'scheduledChat' : definition.triggers.length === 0 ? 'manual' : 'scheduled';
 }
 
 export function getAutomationTelemetryProvider(provider: string | undefined): IAutomationConfigurationTelemetry['provider'] {

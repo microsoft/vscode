@@ -12,14 +12,22 @@
 	color: var(--vscode-notificationsInfoIcon-foreground);
 }
 
-.automation-cloud-row {
+.automation-run-options-row {
+	display: flex;
+	flex-wrap: wrap;
+	column-gap: var(--vscode-spacing-size240);
+}
+
+.automation-cloud-row,
+.automation-continue-session-row {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
 	padding: var(--vscode-spacing-size120) 0;
 }
 
-.automation-cloud-row > .codicon {
+.automation-cloud-row > .codicon,
+.automation-continue-session-row > .codicon {
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize);
 }
@@ -29,8 +37,14 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.automation-cloud-row > .monaco-switch {
+.automation-cloud-row > .monaco-switch,
+.automation-continue-session-row > .monaco-switch {
 	flex-shrink: 0;
+}
+
+.automation-continue-session-reason {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
 }
 
 .automation-loading-spinner {
@@ -654,7 +668,8 @@
 	font-size: var(--vscode-fontSize-body2);
 }
 
-.automation-target-error {
+.automation-target-error,
+.automation-form-error {
 	color: var(--vscode-errorForeground);
 	font-size: var(--vscode-fontSize-body2);
 }
@@ -918,6 +933,22 @@
 	gap: 4px;
 }
 
+.automation-form-row.automation-form-duration-row {
+	flex-direction: row;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.automation-form-duration-row > .automation-form-label {
+	margin-bottom: 0;
+}
+
+.automation-form-duration-row > .monaco-button {
+	width: auto;
+	min-width: 0;
+}
+
 /*
  * Lay the Schedule / Time / Day controls along a single horizontal axis.
  * Each control lives in its own `.automation-form-schedule-group`
@@ -945,7 +976,8 @@
 	grid-column: span 2;
 }
 
-.automation-form-schedule-description {
+.automation-form-schedule-description,
+.automation-form-hint {
 	font-size: var(--vscode-fontSize-body2, 11px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;

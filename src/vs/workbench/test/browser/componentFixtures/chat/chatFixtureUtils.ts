@@ -118,6 +118,7 @@ import { IChatSlashCommandService } from '../../../../contrib/chat/common/partic
 import { IChatGoalSummaryService } from '../../../../contrib/chat/browser/chatGoalSummaryService.js';
 import { IChatDebugService } from '../../../../contrib/chat/common/chatDebugService.js';
 import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../../../contrib/chat/common/localChatAvailability.js';
 
 export function registerSubagentFixtureServices(reg: ServiceRegistration): void {
 	reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
@@ -227,7 +228,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IPathService, new TestPathService());
 	reg.defineInstance(IRemoteAgentService, new TestRemoteAgentService());
 	reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() { override async getCurrentExperiments() { return []; } override async getTreatment() { return undefined; } override onDidRefetchAssignments = Event.None; }());
-	reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
+	reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override onDidChangeWorkbenchScope = Event.None; override getWorkbenchScope() { return undefined; } override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 	// `getContainer` stands in for the workbench container that widgets use to host
 	// overflow nodes (suggest widget, post-paste selector); the fixture document body
 	// is the closest equivalent.
@@ -326,8 +327,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;
 		override readonly onDidAddWidget = Event.None;
+		override readonly onDidRemoveWidget = Event.None;
 		override readonly onDidBackgroundSession = Event.None;
 		override readonly onDidChangeFocusedWidget = Event.None;
+		override readonly onDidChangeWidgetVisibility = Event.None;
 		override readonly onDidChangeFocusedSession = Event.None;
 		override getAllWidgets(): readonly IChatWidget[] { return []; }
 		override getWidgetByInputUri() { return undefined; }
@@ -544,6 +547,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly managedSandboxEnforced = constObservable(false);
 		override readonly managedSandboxAllowsBypass = constObservable(true);
 	}());
+	reg.define(ILocalChatAvailabilityService, LocalChatAvailabilityService);
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);
 	reg.defineInstance(IChatArtifactsService, new class extends mock<IChatArtifactsService>() {

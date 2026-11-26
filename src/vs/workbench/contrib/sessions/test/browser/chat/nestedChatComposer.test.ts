@@ -19,6 +19,10 @@ import { IDisposable, toDisposable } from '../../../../../../base/common/lifecyc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -30,10 +34,13 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChat, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../common/sessionsProvider.js';
 import { NewChatInSessionWidget } from '../../../browser/chat/newChatInSessionWidget.js';
+import { defaultNewSessionPresentation, DefaultNewSessionPresentation } from '../../../browser/chat/defaultNewSessionPresentation.js';
 import { getNoWorkspaceChoicePresentation } from '../../../browser/chat/noWorkspaceChoice.js';
 import { INestedChatWorkspaceHost, NestedChatWorkspaceControls } from '../../../browser/chat/nestedChatWorkspacePicker.js';
 
@@ -555,6 +562,17 @@ suite('Sessions - New Nested Session composer', () => {
 		assert.deepStrictEqual({ sentBeforeLatest, workspace: await sent }, { sentBeforeLatest: false, workspace: { kind: 'scratch' } });
 	});
 
+	function createPresentationInstantiationService(storageService = store.add(new InMemoryStorageService())) {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		return instantiationService;
+	}
+
 	/** The input's shared harness picker, rendering its slot like the real one. */
 	function fakeHarnessPicker(isVisible: IObservable<boolean>) {
 		return {
@@ -574,9 +592,8 @@ suite('Sessions - New Nested Session composer', () => {
 		const parent = mainWindow.document.createElement('div');
 		const owner = {
 			_register: <T extends IDisposable>(disposable: T) => store.add(disposable),
-			_screenReaderOptimized: constObservable(false),
-			_collapsedSessionOptionsShowIcons: constObservable(true),
-			_sessionOptionsExpanded: constObservable(true),
+			options: { newSessionPresentation: defaultNewSessionPresentation },
+			instantiationService: createPresentationInstantiationService(),
 			_workspaceSupport: supported,
 			_workspaceControls: {
 				renderFolderPicker: (row: HTMLElement) => row.appendChild(mainWindow.document.createElement('div')).classList.add('nested-chat-folder-picker'),
@@ -636,27 +653,22 @@ suite('Sessions - New Nested Session composer', () => {
 		const storage = store.add(new InMemoryStorageService());
 		storage.store('agentSessions.newSession.sessionOptionsExpanded2', false, StorageScope.PROFILE, StorageTarget.USER);
 		const parent = mainWindow.document.createElement('div');
-		const owner = {
-			_register: <T extends IDisposable>(disposable: T) => store.add(disposable),
-			_screenReaderOptimized: constObservable(false),
-			_collapsedSessionOptionsShowIcons: constObservable(false),
-			_sessionOptionsExpanded: observableValue('expanded', Reflect.get(NewChatInSessionWidget.prototype, '_getInitialSessionOptionsExpanded').call({ storageService: storage })),
-			_workspaceSupport: constObservable(support(repo)),
-			_workspaceControls: { renderFolderPicker: () => { }, offersWorktree: constObservable(true) },
-			_newChatInput: { render: () => { }, placeRepositoryControls: () => { }, hostNoticeContainerElement: undefined, sessionTypePicker: fakeHarnessPicker(constObservable(false)) },
-			storageService: storage,
-			_renderSubSessionTip: () => { },
-		};
-		(Reflect.get(NewChatInSessionWidget.prototype, 'render') as (parent: HTMLElement) => void).call(owner, parent);
-		const initial = owner._sessionOptionsExpanded.get();
-		parent.querySelector<HTMLElement>('.new-chat-session-options-toggle')!.click();
+		const row = parent.appendChild(mainWindow.document.createElement('div'));
+		const presentation = store.add(createPresentationInstantiationService(storage).createInstance(DefaultNewSessionPresentation, true));
+		store.add(presentation.renderWorkspaceOptions(parent, row, {
+			hoverDelegate: { placement: 'element', delay: 500, showHover: () => undefined },
+			getRepositoryControlId: () => undefined,
+		}));
+		const toggle = parent.querySelector<HTMLElement>('.new-chat-session-options-toggle')!;
+		const initial = toggle.getAttribute('aria-expanded');
+		toggle.click();
 
 		assert.deepStrictEqual({
 			initial,
-			expanded: owner._sessionOptionsExpanded.get(),
+			expanded: toggle.getAttribute('aria-expanded'),
 			newSession: storage.getBoolean('agentSessions.newSession.sessionOptionsExpanded2', StorageScope.PROFILE),
 			nested: storage.getBoolean('sessions.nestedSession.sessionOptionsExpanded', StorageScope.PROFILE),
-		}, { initial: false, expanded: true, newSession: false, nested: true });
+		}, { initial: 'false', expanded: 'true', newSession: false, nested: true });
 	});
 
 	suite('send', () => {

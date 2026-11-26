@@ -181,6 +181,16 @@ suite('ObservableChatSession', function () {
 		assert.ok(session.requestHandler);
 	});
 
+	test('session history can omit a request row without dropping its answer', async function () {
+		const session = disposables.add(await createInitializedSession(createSessionContent({
+			history: [
+				{ type: 'request', prompt: '', participant: 'test', isRequestHidden: true },
+				{ type: 'response', participant: 'test', parts: [{ kind: 'markdownContent', content: { value: 'Result' } }] },
+			]
+		})));
+		assert.deepStrictEqual(session.history.map(turn => turn.type === 'request' ? turn.isRequestHidden : turn.parts.length), [true, 1]);
+	});
+
 	test('initialization revives modeInstructions in history', async function () {
 		const sessionContent = createSessionContent({
 			history: [

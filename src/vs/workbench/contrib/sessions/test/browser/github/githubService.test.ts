@@ -96,9 +96,9 @@ suite('GitHubService', () => {
 			commit: { sha: 'abc', message: 'Message', url: 'https://github.com/o/r/commit/abc', author: { login: 'Author' }, committedAt: '2026-10-14T00:00:00Z' },
 			content: 'hello', pullRequest: 42, repeated: 42,
 			domainCalls: [
-				{ operation: 'repositories.getCommit', args: [{ owner: 'o', repo: 'r' }, 'abc', { priority: 'enrichment' }] },
-				{ operation: 'content.getContent', args: [{ owner: 'o', repo: 'r' }, 'dir/file #.txt', { query: { ref: 'feature/branch' } }] },
-				{ operation: 'pullRequests.list', args: [{ owner: 'o', repo: 'r' }, { priority: 'background', query: { head: 'o:feature/branch', state: 'all', sort: 'updated', direction: 'desc', per_page: 1 } }] },
+				{ operation: 'repositories.getCommit', args: [{ owner: 'o', repo: 'r' }, 'abc', { caller: 'sessions.github', priority: 'enrichment' }] },
+				{ operation: 'content.getContent', args: [{ owner: 'o', repo: 'r' }, 'dir/file #.txt', { caller: 'sessions.github', query: { ref: 'feature/branch' } }] },
+				{ operation: 'pullRequests.list', args: [{ owner: 'o', repo: 'r' }, { caller: 'sessions.github', priority: 'background', query: { head: 'o:feature/branch', state: 'all', sort: 'updated', direction: 'desc', per_page: 1 } }] },
 			],
 		});
 	});

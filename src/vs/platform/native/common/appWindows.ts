@@ -19,8 +19,16 @@ export interface IScreenWindow {
 	readonly bounds: IRectangle;
 	/** Whether the screen shows the window, which it doesn't on another Space, nor when it is minimized or hidden. */
 	readonly onScreen: boolean;
-	/** The title of the window, which macOS only tells with the Screen Recording permission. Hidden windows have none. */
+	/**
+	 * Whether the window is on a Space, even one that the screen doesn't show, as minimized windows and those of hidden
+	 * applications are too. The windows that applications keep hidden, some with titles, are on none. `undefined` when
+	 * macOS doesn't tell, as only a private API of macOS does.
+	 */
+	readonly onSpace: boolean | undefined;
+	/** The title of the window, which macOS only tells with the Screen Recording permission. */
 	readonly title: string | undefined;
+	/** The path of the bundle of the window's application, which has its icon, or `undefined` when it has none. */
+	readonly appPath: string | undefined;
 }
 
 /** The windows of macOS, and the applications that the user used. */
@@ -41,39 +49,66 @@ function isCapturedWindow(window: IScreenWindow): boolean {
 	return window.layer === 0 && window.alpha > 0 && window.bounds.width >= MIN_CAPTURED_SIZE && window.bounds.height >= MIN_CAPTURED_SIZE;
 }
 
+/** A window of another application, in the order of {@link orderAppWindows}. */
+export type OrderedAppWindow<T> =
+	/** A desktop media source, with the window that it is when the screen shows it. */
+	| { readonly source: T; readonly window: IScreenWindow | undefined }
+	/** A window that the screen doesn't show, which desktop media sources leave out. */
+	| { readonly source: undefined; readonly window: IScreenWindow };
+
 /**
- * Orders the windows of other applications so that the first one is the window that a capture takes. Windows that the
- * screen shows come first, front to back: the windows of the frontmost application, unless it is VS Code, then the
- * others. A window only comes first when a capture can take it, see `eligible`; the toolbars and badges that some apps
- * float over their windows come after. The windows that the screen doesn't show keep their order, last. Also returns
- * where each window shows.
+ * Orders the windows of other applications so that the first one is the window that a capture takes, and adds the
+ * windows that the screen doesn't show, which desktop media sources leave out.
+ *
+ * Windows that the screen shows come first, front to back: the windows of the frontmost application, unless it is VS
+ * Code, then the others. Only windows that a capture can take come there.
+ *
+ * Then come the windows on other Spaces, minimized or of hidden applications: those of the applications that the user
+ * used last first, then front to back. So when the screen shows no window that a capture can take, as when VS Code is
+ * in full screen, in a Space of its own, a capture takes the front window of the application that the user used last.
+ *
+ * The toolbars and badges that some apps float over their windows come last, then the sources that the screen doesn't
+ * show.
  */
-export function orderAppWindowSources<T extends { readonly id: string }>(sources: readonly T[], screen: IScreenWindows, ownPid: number): { readonly source: T; readonly bounds: IRectangle | undefined; readonly eligible: boolean }[] {
+export function orderAppWindows<T extends { readonly id: string }>(sources: readonly T[], screen: IScreenWindows, ownPid: number): OrderedAppWindow<T>[] {
 	const onScreen = new Map(screen.windows.filter(window => window.onScreen).map((window, index) => [String(window.id), { window, index }]));
-	return sources
+	const sorted = sources
 		.map((source, position) => {
-			const shown = onScreen.get(getWindowHandle(source.id) ?? '');
-			const window = shown?.window;
+			const match = onScreen.get(getWindowHandle(source.id) ?? '');
+			const window = match?.window;
 			const group = !window ? 3 : !isCapturedWindow(window) ? 2 : window.pid === screen.frontmostPid && screen.frontmostPid !== ownPid ? 0 : 1;
-			return { source, bounds: window?.bounds, eligible: group < 2, group, index: shown?.index ?? 0, position };
+			return { source, window, group, index: match?.index ?? 0, position };
 		})
-		.sort((a, b) => a.group - b.group || a.index - b.index || a.position - b.position)
-		.map(({ source, bounds, eligible }) => ({ source, bounds, eligible }));
+		.sort((a, b) => a.group - b.group || a.index - b.index || a.position - b.position);
+	const captured = sorted.filter(({ group }) => group < 2);
+	const offScreen = getOffScreenWindows(screen, ownPid, !captured.length);
+	const offScreenHandles = new Set(offScreen.map(window => String(window.id)));
+	return [
+		...captured.map(({ source, window }) => ({ source, window })),
+		...offScreen.map(window => ({ source: undefined, window })),
+		...sorted.filter(({ source, group }) => group > 1 && !offScreenHandles.has(getWindowHandle(source.id) ?? '')).map(({ source, window }) => ({ source, window })),
+	];
 }
 
 /**
- * Returns the window that the user left for VS Code when the screen shows none that a capture could take, as when VS
- * Code is in full screen, in a Space of its own: the front window of the application that they used last, other than
- * VS Code, wherever it is. Only a window with a title qualifies, as applications keep hidden windows without one.
+ * Returns the titled windows of other applications that the screen doesn't show and that a capture can take: those of
+ * the applications that the user used last first, then front to back. Applications also keep hidden windows, which are
+ * on no Space. Without knowing which windows are on a Space, it can't tell those apart, so it only returns the front
+ * window of the application that the user used last, when the screen shows no window that a capture can take.
  */
-export function findRecentAppWindow(screen: IScreenWindows, ownPid: number): IScreenWindow | undefined {
-	for (const pid of screen.recentPids) {
-		const window = pid === ownPid ? undefined : screen.windows.find(window => window.pid === pid && !!window.title && isCapturedWindow(window));
-		if (window) {
-			return window;
-		}
+function getOffScreenWindows(screen: IScreenWindows, ownPid: number, noneOnScreen: boolean): IScreenWindow[] {
+	const recency = (pid: number) => {
+		const index = screen.recentPids.indexOf(pid);
+		return index < 0 ? screen.recentPids.length : index;
+	};
+	const windows = screen.windows
+		.filter(window => !window.onScreen && window.onSpace !== false && window.pid !== ownPid && !!window.title && isCapturedWindow(window))
+		.sort((a, b) => recency(a.pid) - recency(b.pid));
+	if (windows.some(window => window.onSpace === undefined)) {
+		const recent = windows[0];
+		return noneOnScreen && screen.recentPids.includes(recent.pid) ? [recent] : [];
 	}
-	return undefined;
+	return windows;
 }
 
 /** The desktop media source id of a window of macOS, which `getUserMedia` captures even when desktop media sources leave it out. */

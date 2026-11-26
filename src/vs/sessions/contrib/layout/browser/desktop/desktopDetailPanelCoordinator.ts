@@ -6,8 +6,9 @@
 import { Sequencer } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, IObservable } from '../../../../../base/common/observable.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -16,7 +17,9 @@ import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextK
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
-import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { getChangesViewChecksObs } from '../../../../../workbench/contrib/sessionChanges/browser/checksViewModel.js';
+import { SESSIONS_FILES_CONTAINER_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 
 export const enum DetailPanelTarget {
@@ -49,8 +52,10 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 		return this._changesViewService.activeSessionChangesObs.read(reader).length > 0;
 	});
 
+	private readonly _checks: IObservable<GitHubPullRequestCIModel | undefined>;
+
 	readonly hasChangesDetails = derived(this, reader => this._hasChanges.read(reader)
-		|| (this._gitHubService.activeSessionPullRequestCIObs.read(reader)?.checks.read(reader).length ?? 0) > 0);
+		|| (this._checks.read(reader)?.checks.read(reader).length ?? 0) > 0);
 
 	get hiddenTransiently(): boolean { return this._transientHide !== undefined; }
 	get hiddenByEditor(): boolean { return this._transientHide === 'editor'; }
@@ -67,9 +72,11 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 		@ISessionHostService sessionHostService: ISessionHostService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
-		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@IGitHubService gitHubService: IGitHubService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+		this._checks = getChangesViewChecksObs(gitHubService, configurationService);
 		this._hasDockedDetailsContext = HasDockedDetailsContext.bindTo(contextKeyService);
 		this._register(this._layoutService.onDidChangePartVisibility(event => {
 			if (event.partId === Parts.AUXILIARYBAR_PART && event.source !== 'resize') {

@@ -62,6 +62,10 @@
 	transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
 }
 
+.spotlight-overlay.no-backdrop .spotlight-hole {
+	box-shadow: 0 0 0 2px var(--vscode-focusBorder) inset;
+}
+
 .spotlight-callout-pointer {
 	position: fixed;
 	box-sizing: border-box;
@@ -116,10 +120,67 @@
 	outline: none;
 }
 
+/*
+ * With the title close button, the button sits at the end of the title's first line: its box
+ * is as tall as one title line, so the glyph stays centered on that line when the title wraps.
+ */
+.spotlight-callout-header {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
 .spotlight-callout-title {
-	margin: 0 0 var(--vscode-spacing-size80) 0;
+	flex: 1;
+	min-width: 0;
+	margin: 0;
 	font-size: var(--vscode-bodyFontSize);
 	font-weight: 600;
+}
+
+.spotlight-overlay.title-close-button .spotlight-callout-title {
+	line-height: var(--vscode-spacing-size200);
+}
+
+.spotlight-callout-header > .spotlight-callout-close {
+	display: none;
+}
+
+/* Pulled into the padding so the glyph, not its hover box, lines up with the footer buttons' edge. */
+.spotlight-overlay.title-close-button .spotlight-callout-header > .spotlight-callout-close {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	margin-right: calc(-1 * var(--vscode-spacing-size40));
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+}
+
+/* Out-ranks the workbench's codicon size and color without matching on a class substring. */
+.spotlight-overlay .spotlight-callout-header > .spotlight-callout-close.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-icon-foreground);
+}
+
+/*
+ * The close button's hover renders in the callout, above the spotlight. Positioned there, its width
+ * would shrink to the space left before the callout's edge; keep it as wide as its content instead.
+ */
+.spotlight-callout > .context-view {
+	min-width: max-content;
+}
+
+.spotlight-callout-header > .spotlight-callout-close:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.spotlight-callout-header > .spotlight-callout-close:hover:not(:focus-visible) {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .spotlight-callout-description {
@@ -135,6 +196,15 @@
 
 .spotlight-callout-description p:last-child {
 	margin-bottom: 0;
+}
+
+.spotlight-callout-description a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.spotlight-callout-description a:hover,
+.spotlight-callout-description a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .spotlight-callout-footer {

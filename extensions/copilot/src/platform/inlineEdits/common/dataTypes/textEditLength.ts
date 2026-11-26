@@ -56,10 +56,6 @@ export class TextLengthEdit {
 		if (this.edits.length === 0) { return undefined; }
 		return Range.fromPositions(this.edits[0].range.getStartPosition(), this.edits.at(-1)!.range.getEndPosition());
 	}
-
-	public toString() {
-		return `[${this.edits.join(', ')}]`;
-	}
 }
 
 export class SingleTextEditLength {

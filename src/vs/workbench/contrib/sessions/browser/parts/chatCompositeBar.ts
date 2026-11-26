@@ -40,7 +40,8 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -648,14 +649,14 @@ export class ChatCompositeBar extends Disposable {
 				await this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, ...sessionMenuArgs(session, chat, this._sessionHost));
 			}
 		}));
-		const markReadAction = this._tabDisposables.add(new Action(MARK_SESSION_READ_COMMAND_ID, localize('chatTab.markRead', "Mark as Read"), undefined, true, async () => {
+		const markReadAction = this._tabDisposables.add(new Action(SESSIONS_LIST_MARK_READ_COMMAND_ID, localize('chatTab.markRead', "Mark as Read"), undefined, true, async () => {
 			if (session) {
-				await this._commandService.executeCommand(MARK_SESSION_READ_COMMAND_ID, { session, chat });
+				await this._commandService.executeCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID, { session, chat });
 			}
 		}));
-		const markUnreadAction = this._tabDisposables.add(new Action(MARK_SESSION_UNREAD_COMMAND_ID, localize('chatTab.markUnread', "Mark as Unread"), undefined, true, async () => {
+		const markUnreadAction = this._tabDisposables.add(new Action(SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, localize('chatTab.markUnread', "Mark as Unread"), undefined, true, async () => {
 			if (session) {
-				await this._commandService.executeCommand(MARK_SESSION_UNREAD_COMMAND_ID, { session, chat });
+				await this._commandService.executeCommand(SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, { session, chat });
 			}
 		}));
 

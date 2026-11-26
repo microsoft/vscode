@@ -137,6 +137,8 @@ export interface ISyncableFile {
 	readonly source?: AICustomizationSource;
 	/** Identifier of the contributing extension, when {@link source} is `extension`. */
 	readonly extensionId?: string;
+	/** Display name of the contributing extension, when {@link source} is `extension`. */
+	readonly extensionLabel?: string;
 	/** Root URI of the contributing plugin, when {@link source} is `plugin`. */
 	readonly pluginUri?: URI;
 }
@@ -155,6 +157,8 @@ export interface ISyncedCustomizationOrigin {
 	readonly source: AICustomizationSource;
 	/** Identifier of the contributing extension, when {@link source} is `extension`. */
 	readonly extensionId?: string;
+	/** Display name of the contributing extension, when {@link source} is `extension`. */
+	readonly extensionLabel?: string;
 	/** Root URI of the contributing plugin, when {@link source} is `plugin`. */
 	readonly pluginUri?: URI;
 }
@@ -306,6 +310,7 @@ export class SyncedCustomizationBundler extends Disposable {
 					uri: file.content === undefined ? sourceUri : destUri,
 					source: file.source,
 					extensionId: file.extensionId,
+					extensionLabel: file.extensionLabel,
 					pluginUri: file.pluginUri,
 				});
 			}

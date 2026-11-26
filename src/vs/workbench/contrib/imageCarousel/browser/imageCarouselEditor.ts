@@ -19,7 +19,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ConfirmResult, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -29,6 +29,7 @@ import { ISharedWebContentExtractorService } from '../../../../platform/webConte
 import { downloadFile } from '../../../browser/download.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
+import { IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -77,6 +78,8 @@ function getDownloadName({ name, mimeType }: ICarouselImage): string {
 interface IActiveMarkUp {
 	readonly index: number;
 	readonly markUp: IImageCarouselMarkUp;
+	/** Whether closing the editor is ending the markup, which then must not close the editor again. */
+	closing: boolean;
 }
 
 const MARK_UP_ACTION_ID = 'imageCarousel.markUp';
@@ -651,16 +654,36 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			const disposeMarkUp = () => markUp.dispose();
 			void markUp.result.then(disposeMarkUp, disposeMarkUp);
 		}));
-		const active: IActiveMarkUp = { index, markUp };
+		const active: IActiveMarkUp = { index, markUp, closing: false };
 		this._markUp = active;
 		this._markingUpContext.set(true);
+		const input = this.input;
+		if (input instanceof ImageCarouselEditorInput) {
+			const closeHandler: IEditorCloseHandler = {
+				showConfirm: () => markUp.hasChanges,
+				confirm: () => this._cancelMarkUpBeforeClosing(active),
+			};
+			input.markUpCloseHandler = closeHandler;
+			store.add(toDisposable(() => {
+				if (input.markUpCloseHandler === closeHandler) {
+					input.markUpCloseHandler = undefined;
+				}
+			}));
+		}
 		active.markUp.focus();
 		void active.markUp.result.then(result => this._onDidEndMarkUp(active, result), () => this._onDidEndMarkUp(active, undefined));
 	}
 
-	/** Ends the markup of an image, which keeps its changes, and shows its preview again. */
-	finishMarkUp(): void {
-		this._markUp?.markUp.finish();
+	/** Ends the markup of an image without its changes, once the user confirms discarding any, and shows its preview again. */
+	cancelMarkUp(): void {
+		void this._markUp?.markUp.cancel();
+	}
+
+	/** Cancels a markup before the editor closes, which the user can still decline when it has changes. */
+	private async _cancelMarkUpBeforeClosing(markUp: IActiveMarkUp): Promise<ConfirmResult> {
+		markUp.closing = true;
+		markUp.closing = await markUp.markUp.cancel();
+		return markUp.closing ? ConfirmResult.DONT_SAVE : ConfirmResult.CANCEL;
 	}
 
 	private _onDidEndMarkUp(markUp: IActiveMarkUp, result: IImageCarouselMarkUpResult | undefined): void {
@@ -668,7 +691,10 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			return; // the preview went away, which already ended the markup
 		}
 		if (this.input instanceof ImageCarouselEditorInput && this.input.markUpOnly) {
-			void this.group.closeEditor(this.input);
+			// When closing the editor ended the markup, the editor is closing already.
+			if (!markUp.closing) {
+				void this.group.closeEditor(this.input);
+			}
 			return;
 		}
 		this._markUpDisposables.clear();
@@ -678,7 +704,10 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		this._elements?.root.focus();
 	}
 
-	/** Ends a markup without showing its result, for when the preview goes away. Its provider still applies the changes. */
+	/**
+	 * Ends a markup without showing its result, for when the preview goes away. Its provider still applies the changes,
+	 * unless the user discarded them when closing the editor.
+	 */
 	private _endMarkUp(): void {
 		this._markUp?.markUp.finish();
 		this._markUpDisposables.clear();

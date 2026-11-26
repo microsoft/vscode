@@ -69,8 +69,6 @@ import { AdoCodeSearchService, IAdoCodeSearchService } from '../../../platform/r
 import { GithubCodeSearchService, IGithubCodeSearchService } from '../../../platform/remoteCodeSearch/common/githubCodeSearchService';
 import { ICodeSearchAuthenticationService } from '../../../platform/remoteCodeSearch/node/codeSearchRepoAuth';
 import { VsCodeCodeSearchAuthenticationService } from '../../../platform/remoteCodeSearch/vscode-node/codeSearchRepoAuth';
-import { IDocsSearchClient } from '../../../platform/remoteSearch/common/codeOrDocsSearchClient';
-import { DocsSearchClient } from '../../../platform/remoteSearch/node/codeOrDocsSearchClientImpl';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { IScopeSelector } from '../../../platform/scopeSelection/common/scopeSelection';
 import { ScopeSelectorImpl } from '../../../platform/scopeSelection/vscode-node/scopeSelectionImpl';
@@ -94,8 +92,6 @@ import { IWorkspaceChunkSearchService, WorkspaceChunkSearchService } from '../..
 import { IWorkspaceFileIndex, WorkspaceFileIndex } from '../../../platform/workspaceChunkSearch/node/workspaceFileIndex';
 import { IInstantiationServiceBuilder } from '../../../util/common/services';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
-import { IToolResultContentRenderer } from '../../agentDebug/common/toolResultRenderer';
-import { ToolResultContentRenderer } from '../../agentDebug/vscode-node/toolResultContentRenderer';
 import { GitHubOrgChatResourcesService, IGitHubOrgChatResourcesService } from '../../agents/vscode-node/githubOrgChatResourcesService';
 import { ChatDebugFileLoggerService } from '../../chat/vscode-node/chatDebugFileLoggerService';
 import { ChatHookService } from '../../chat/vscode-node/chatHookService';
@@ -145,7 +141,9 @@ import { ToolsService } from '../../tools/vscode-node/toolsService';
 import { LanguageContextServiceImpl } from '../../typescriptContext/vscode-node/languageContextService';
 import { IWorkspaceListenerService } from '../../workspaceRecorder/common/workspaceListenerService';
 import { WorkspacListenerService } from '../../workspaceRecorder/vscode-node/workspaceListenerService';
+import { INextEditLanguageContextService } from '../../xtab/common/nextEditLanguageContextService';
 import { ISimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
+import { ContextProviderLanguageContextService } from '../../xtab/node/contextProviderLanguageContextService';
 import { registerServices as registerCommonServices } from '../vscode/services';
 import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode-node/promptsServiceImpl';
 import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
@@ -225,7 +223,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IWorkspaceFileIndex, new SyncDescriptor(WorkspaceFileIndex));
 	builder.define(IChunkingEndpointClient, new SyncDescriptor(ChunkingEndpointClientImpl));
 	builder.define(ICommandService, new SyncDescriptor(CommandServiceImpl));
-	builder.define(IDocsSearchClient, new SyncDescriptor(DocsSearchClient));
 	builder.define(ISearchService, new SyncDescriptor(SearchServiceImpl));
 	builder.define(ITestDepsResolver, new SyncDescriptor(TestDepsResolver));
 	builder.define(ISetupTestsDetector, new SyncDescriptor(SetupTestsDetector));
@@ -272,8 +269,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IUndesiredModelsManager, new SyncDescriptor(UndesiredModels.Manager));
 	builder.define(ICopilotInlineCompletionItemProviderService, new SyncDescriptor(CopilotInlineCompletionItemProviderService));
 	builder.define(ISimilarFilesContextService, new SyncDescriptor(SimilarFilesContextService));
+	builder.define(INextEditLanguageContextService, new SyncDescriptor(ContextProviderLanguageContextService));
 	builder.define(IGitHubOrgChatResourcesService, new SyncDescriptor(GitHubOrgChatResourcesService));
-	builder.define(IToolResultContentRenderer, new SyncDescriptor(ToolResultContentRenderer));
 
 	// Chronicle session store — tracks sessions, turns, files, and refs for /standup
 	const sessionStoreDbPath = extensionContext.globalStorageUri

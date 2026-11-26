@@ -1154,6 +1154,14 @@ export class ChatGroupsView extends Themable {
 		}
 	}
 
+	/**
+	 * Saves the layout of the groups of the session shown, with their current sizes, which another view restores when it
+	 * shows the session, such as the view the session moves to.
+	 */
+	saveLayout(): void {
+		this._persistLayout();
+	}
+
 	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void {
 		const source = this._activeGroup;
 		const sourceIndex = source ? this._groups.indexOf(source) : -1;
@@ -1209,6 +1217,10 @@ export class ChatGroupsView extends Themable {
 
 	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
 		return this._activeGroup?.view.selectNoWorkspace(options) ?? 'notReady';
+	}
+
+	selectEnvironment(providerId: string): WorkspaceSelectionResult {
+		return this._activeGroup?.view.selectEnvironment(providerId) ?? 'notReady';
 	}
 
 	prefillInput(text: string): void {

@@ -47,6 +47,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 	readonly isReadOnly = observableValue(this, true);
 	readonly isInputBlocked = observableValue(this, false);
 	readonly historyStatus = observableValue<IChatSessionHistoryStatus | undefined>(this, undefined);
+	readonly olderHistoryCursor = observableValue<string | undefined>(this, undefined);
+	readonly olderHistoryUnavailable = observableValue(this, false);
 	readonly backgroundShellCount = observableValue<number | undefined>(this, undefined);
 	readonly canvasContext = observableValue<ICanvasContext | undefined>(this, undefined);
 	readonly sessionResource: URI;
@@ -59,6 +61,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 	}
 
 	get history() { return this._source.history; }
+	get ownsHistoryRequestIds() { return this._source.ownsHistoryRequestIds; }
+	readonly loadOlderHistory = async () => { await this._source.loadOlderHistory?.(); };
 	get title() { return this._source.title; }
 	get options() { return this._source.options; }
 	get transferredState() { return this._source.transferredState; }
@@ -91,7 +95,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 	}
 
 	suspendLive(): void {
-		this._bindSource(new ReadOnlyChatSession(this.sessionResource, [...this.history], this.title, constObservable(true)), false, false);
+		const partial = this.olderHistoryUnavailable.get() || this.olderHistoryCursor.get() !== undefined;
+		this._bindSource(new ReadOnlyChatSession(this.sessionResource, [...this.history], this.title, constObservable(true), undefined, constObservable(partial)), false, false);
 	}
 
 	private _bindSource(source: IChatSession, promote: boolean, live: boolean): void {
@@ -140,6 +145,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 				const readOnly = source.isReadOnly?.read(reader) ?? false;
 				const blocked = !live || (source.isInputBlocked?.read(reader) ?? false);
 				const backgroundShellCount = source.backgroundShellCount?.read(reader);
+				const cursor = source.olderHistoryCursor?.read(reader);
+				const unavailable = !!source.olderHistoryUnavailable?.read(reader) || (cursor !== undefined && !source.loadOlderHistory);
 				const canvasContext = source.canvasContext?.read(reader);
 				if (live && (previousProgress !== progress || previousComplete !== complete)) {
 					this._invalidateHistory();
@@ -152,6 +159,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 					this.isReadOnly.set(readOnly, tx);
 					this.isInputBlocked.set(blocked, tx);
 					this.backgroundShellCount.set(backgroundShellCount, tx);
+					this.olderHistoryCursor.set(source.loadOlderHistory ? cursor : undefined, tx);
+					this.olderHistoryUnavailable.set(unavailable, tx);
 					this.canvasContext.set(canvasContext, tx);
 				});
 			}));
@@ -185,6 +194,10 @@ class CloudSandboxChatSessionReference extends Disposable implements IChatSessio
 
 	get sessionResource() { return this._session.sessionResource; }
 	get history() { return this._session.history; }
+	get ownsHistoryRequestIds() { return this._session.ownsHistoryRequestIds; }
+	get loadOlderHistory() { return this._session.loadOlderHistory; }
+	get olderHistoryCursor() { return this._session.olderHistoryCursor; }
+	get olderHistoryUnavailable() { return this._session.olderHistoryUnavailable; }
 	get preserveHistoryItemIdentity() { return this._session.preserveHistoryItemIdentity; }
 	get title() { return this._session.title; }
 	get options() { return this._session.options; }

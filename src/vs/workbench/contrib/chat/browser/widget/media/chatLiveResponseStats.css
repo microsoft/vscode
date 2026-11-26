@@ -1,0 +1,13 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Hosts place and size the stats; `display` stays unset so the `hidden` attribute hides them. */
+.chat-live-response-stats {
+	flex-shrink: 0;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+	/* Fixed-width digits so the running time does not jitter as it counts. */
+	font-variant-numeric: tabular-nums;
+}

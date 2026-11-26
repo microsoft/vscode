@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { derived, IObservable, observableValue, ISettableObservable } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableSignalFromEvent, observableValue, ISettableObservable } from '../../../../base/common/observable.js';
 import { relativePath, basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -94,6 +94,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			return labels ? { kind: 'composer', labels } : undefined;
 		});
 
+		const fileSystemProvidersChanged = observableSignalFromEvent(this, this.fileService.onDidChangeFileSystemProviderRegistrations);
 		this.activeProjectRoot = derived(this, reader => {
 			const override = this._overrideRoot.read(reader);
 			if (override) {
@@ -104,10 +105,12 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return undefined;
 			}
 			const root = target.kind === 'composer' ? target.labels.projectRoot : target.chat.workspace.read(reader)?.folders[0]?.workingDirectory;
-			if (root?.scheme === AGENT_HOST_SCHEME) {
+			if (!root || root.scheme === AGENT_HOST_SCHEME) {
 				return undefined;
 			}
-			return root;
+			// A root this window can't read, such as the web address of a session's repository, holds no customizations to discover.
+			fileSystemProvidersChanged.read(reader);
+			return this.fileService.hasProvider(root) ? root : undefined;
 		});
 
 		this.activeProjectLabel = derived(this, reader => {

@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CooldownState } from '../../common/cooldownState.js';
 import { BootstrapAccount } from '../../common/types.js';
 import { FakeScheduler } from './fakeScheduler.js';
+
 
 suite('Cooldown state', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -87,12 +90,11 @@ suite('Cooldown state', () => {
 	test('cancelling a waiter releases its timer without clearing the server wait', async () => {
 		const scheduler = store.add(new FakeScheduler());
 		const state = store.add(new CooldownState(scheduler));
-		const controller = new AbortController();
+		const controller = store.add(new CancellationTokenSource());
 		state.updateCooldown(account, 'core', 1000);
-		const waiting = state.wait(account, 'core', controller.signal);
-		const reason = new Error('Cancelled waiter');
-		controller.abort(reason);
-		await assert.rejects(waiting, error => error === reason);
+		const waiting = state.wait(account, 'core', controller.token);
+		controller.cancel();
+		await assert.rejects(waiting, isCancellationError);
 		assert.deepStrictEqual({ delay: state.getDelay(account, 'core'), timers: scheduler.pendingCount }, { delay: 1000, timers: 0 });
 	});
 

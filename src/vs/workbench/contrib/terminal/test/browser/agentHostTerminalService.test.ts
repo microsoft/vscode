@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -21,19 +21,26 @@ import { TerminalClaimKind } from '../../../../../platform/agentHost/common/stat
 import type { ClientAnnotationsAction, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IShellLaunchConfig, ITerminalChildProcess } from '../../../../../platform/terminal/common/terminal.js';
+import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalChildProcess } from '../../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from '../../browser/agentHostPty.js';
 import { AgentHostTerminalService } from '../../browser/agentHostTerminalService.js';
 import { ICreateTerminalOptions, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../browser/terminal.js';
 import { ITerminalProfileProvider, ITerminalProfileService } from '../../common/terminal.js';
 
+let nextTestInstanceId = 1;
+
 class TestTerminalInstance extends mock<ITerminalInstance>() {
+	override readonly instanceId = nextTestInstanceId++;
 	override readonly store = new DisposableStore();
 	private readonly _onDisposed = this.store.add(new Emitter<ITerminalInstance>());
 	override readonly onDisposed = this._onDisposed.event;
 	override readonly onWillData = Event.None;
 	private _isDisposed = false;
 	override get isDisposed(): boolean { return this._isDisposed; }
+
+	constructor(override readonly shellLaunchConfig: IShellLaunchConfig = {}) {
+		super();
+	}
 
 	override dispose(): void {
 		if (this._isDisposed) {
@@ -50,6 +57,7 @@ class TestTerminalService extends mock<ITerminalService>() {
 	readonly createdConfigs: IShellLaunchConfig[] = [];
 	failNextCreation = false;
 	disposeInstanceOnCreation = false;
+	onCreatingInstance: ((instance: ITerminalInstance) => void) | undefined;
 
 	constructor(private readonly _store: Pick<DisposableStore, 'add'>) {
 		super();
@@ -66,7 +74,8 @@ class TestTerminalService extends mock<ITerminalService>() {
 			this.failNextCreation = false;
 			throw new Error('terminal creation failed');
 		}
-		const instance = this._store.add(new TestTerminalInstance());
+		const instance = this._store.add(new TestTerminalInstance(config as IShellLaunchConfig));
+		this.onCreatingInstance?.(instance);
 		if (this.disposeInstanceOnCreation) {
 			instance.dispose();
 		}
@@ -121,6 +130,7 @@ suite('AgentHostTerminalService', () => {
 	let terminalService: TestTerminalService;
 	let connection: TestAgentConnection;
 	let profileProviders: Map<string, ITerminalProfileProvider>;
+	let contributedProfiles: IExtensionTerminalProfile[];
 	let remoteHosts: IRemoteAgentHostConnectionInfo[];
 	let service: AgentHostTerminalService;
 
@@ -128,6 +138,7 @@ suite('AgentHostTerminalService', () => {
 		terminalService = new TestTerminalService(store);
 		connection = new TestAgentConnection();
 		profileProviders = new Map();
+		contributedProfiles = [];
 		remoteHosts = [];
 		service = store.add(new AgentHostTerminalService(
 			terminalService,
@@ -135,12 +146,16 @@ suite('AgentHostTerminalService', () => {
 				override registerAhpCommandSource() { return Disposable.None; }
 				override registerTerminalInstanceWithToolSession() { }
 			},
+			// Like the real service, providers are keyed by id.
 			new class extends mock<ITerminalProfileService>() {
 				override registerTerminalProfileProvider(_extensionIdentifier: string, id: string, provider: ITerminalProfileProvider): IDisposable {
 					profileProviders.set(id, provider);
-					return Disposable.None;
+					return toDisposable(() => profileProviders.delete(id));
 				}
-				override registerInternalContributedProfile(): IDisposable { return Disposable.None; }
+				override registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable {
+					contributedProfiles.push(profile);
+					return toDisposable(() => contributedProfiles.splice(contributedProfiles.indexOf(profile), 1));
+				}
 			},
 			new class extends mock<IQuickInputService>() { },
 			new class extends NullLogService { readonly _logBrand = undefined; },
@@ -173,6 +188,23 @@ suite('AgentHostTerminalService', () => {
 			{ name: undefined, icon: undefined, hostLabel: isWeb ? undefined : 'devbox', isRemotePty: true },
 			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: isWeb ? undefined : 'buildbox', isRemotePty: true },
 		]);
+	});
+
+	test('a renamed host renames its profile, which still opens a terminal on it', async () => {
+		const registration = store.add(service.registerEntry({ name: 'quick-ocean-0ns5qbp', address: 'tunnel:quick-ocean-0ns5qbp', getConnection: () => connection }));
+
+		registration.setName('agents-3');
+		await profileProviders.get('tunnel:quick-ocean-0ns5qbp')?.createContributedTerminalProfile({});
+
+		assert.deepStrictEqual({
+			contributed: contributedProfiles.map(profile => profile.title),
+			profiles: service.profiles.get().map(profile => profile.title),
+			createdTerminals: terminalService.createdConfigs.length,
+		}, {
+			contributed: ['Agent Host (agents-3)'],
+			profiles: ['Agent Host (agents-3)'],
+			createdTerminals: 1,
+		});
 	});
 
 	test('instance disposal locally disposes a created PTY without deleting the host terminal', async () => {
@@ -268,6 +300,21 @@ suite('AgentHostTerminalService', () => {
 			hostDisposeCallCount: 0,
 			reconnectResult: { recovered: 0, total: 0 },
 		});
+	});
+
+	test('knows the host and the requested cwd of a terminal from the moment the terminal service creates its instance', async () => {
+		store.add(service.registerEntry({ name: 'devbox', address: 'ssh://devbox', getConnection: () => connection }));
+		const cwd = URI.file('/workspace');
+		const known: [string | undefined, string | undefined][] = [];
+		const read = (instance: ITerminalInstance) => known.push([service.getAgentHostAddress(instance), service.getRequestedCwd(instance)?.fsPath]);
+		terminalService.onCreatingInstance = read;
+
+		const instance = await service.createTerminal(connection, { cwd });
+		read(instance);
+		// Another terminal launched with the same settings is not that terminal.
+		read(store.add(new TestTerminalInstance({ ...instance.shellLaunchConfig })));
+
+		assert.deepStrictEqual(known, [['ssh://devbox', cwd.fsPath], ['ssh://devbox', cwd.fsPath], [undefined, undefined]]);
 	});
 
 	test('a failed terminal creation disposes the PTY registration', async () => {

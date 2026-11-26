@@ -43,7 +43,7 @@ suite('SessionChatPills', () => {
 			changes: getSessionChatPillMenu(kindsWithData, new Set(), SessionChatPillKind.Changes).hide,
 			noTarget: getSessionChatPillMenu(kindsWithData, new Set()).hide,
 		}, {
-			issues: { kind: SessionChatPillKind.Issues, label: 'Hide Issues' },
+			issues: { kind: SessionChatPillKind.Issues, label: 'Hide "Issues" Pill' },
 			changes: undefined,
 			noTarget: undefined,
 		});

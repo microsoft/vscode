@@ -436,50 +436,6 @@ export const functionQuery: LanguageQueryMap = q({
 	]
 });
 
-export const docCommentQueries: LanguageQueryMap = q({
-	[WASMLanguage.JavaScript]: [
-		treeSitterQuery.javascript`((comment) @comment
-			(#match? @comment "^\\\\/\\\\*\\\\*")) @docComment`
-	],
-	...forLanguages([WASMLanguage.TypeScript, WASMLanguage.TypeScriptTsx], [
-		treeSitterQuery.typescript`((comment) @comment
-			(#match? @comment "^\\\\/\\\\*\\\\*")) @docComment`
-	]),
-	[WASMLanguage.Java]: [
-		treeSitterQuery.java`((block_comment) @block_comment
-			(#match? @block_comment "^\\\\/\\\\*\\\\*")) @docComment`
-	],
-	[WASMLanguage.Cpp]: [
-		treeSitterQuery.cpp`((comment) @comment
-			(#match? @comment "^\\\\/\\\\*\\\\*")) @docComment`
-	],
-	[WASMLanguage.Csharp]: [
-		treeSitterQuery.csharp`(
-			((comment) @c
-				(#match? @c "^\\\\/\\\\/\\\\/"))+
-		) @docComment`
-	],
-	[WASMLanguage.Rust]: [
-		treeSitterQuery.rust`((line_comment) @comment
-			(#match? @comment "^\/\/\/|^\/\/!"))+ @docComment`
-	],
-	// note: golang & ruby have same prefix for a doc comment and line comment
-	[WASMLanguage.Go]: [
-		treeSitterQuery.go`((comment)+) @docComment`
-	],
-	[WASMLanguage.Ruby]: [
-		treeSitterQuery.ruby`((comment)+) @docComment`
-	],
-
-	// NOT yet supported:
-
-	// we don't support python with this yet because of its placement of a docstring (under signature)
-	[WASMLanguage.Python]: [
-		`(expression_statement
-			(string) @docComment)`
-	],
-});
-
 export const symbolQueries: LanguageQueryMap = q({
 	[WASMLanguage.JavaScript]: [
 		treeSitterQuery.javascript`[
@@ -919,7 +875,7 @@ export const syntacticallyValidAtoms: LanguageQueryMap = q({
 	]
 });
 
-export const coarseScopeTypes: { [wasmLanguage in WASMLanguage]: string[] } = {
+const coarseScopeTypes: { [wasmLanguage in WASMLanguage]: string[] } = {
 	...forLanguages([WASMLanguage.TypeScript, WASMLanguage.TypeScriptTsx], [
 		'program',
 		'interface_declaration',
@@ -1011,7 +967,7 @@ export const coarseScopesQuery: LanguageQueryMap = q({
 	],
 });
 
-export const fineScopeTypes: { [wasmLanguage in WASMLanguage]: string[] } = {
+const fineScopeTypes: { [wasmLanguage in WASMLanguage]: string[] } = {
 	...forLanguages([WASMLanguage.TypeScript, WASMLanguage.TypeScriptTsx, WASMLanguage.JavaScript], [
 		'for_in_statement',
 		'for_statement',
@@ -1074,7 +1030,7 @@ export const fineScopeTypes: { [wasmLanguage in WASMLanguage]: string[] } = {
 	],
 };
 
-export const statementTypes: { [wasmLanguage in WASMLanguage]: string[] } = {
+const statementTypes: { [wasmLanguage in WASMLanguage]: string[] } = {
 	...forLanguages([WASMLanguage.TypeScript, WASMLanguage.TypeScriptTsx], [
 		'lexical_declaration',
 		'expression_statement',
@@ -1121,114 +1077,8 @@ export const statementTypes: { [wasmLanguage in WASMLanguage]: string[] } = {
 	],
 };
 
-const semanticChunkTargetTypes: { [wasmLanguage in WASMLanguage]: string[] } = {
-	...forLanguages([WASMLanguage.TypeScript, WASMLanguage.TypeScriptTsx], [
-		'class_declaration',
-		'function_declaration',
-		'generator_function_declaration',
-		'interface_declaration',
-		'internal_module',
-		'method_definition',
-		'abstract_class_declaration',
-		'abstract_method_signature',
-		'enum_declaration'
-	]),
-	[WASMLanguage.JavaScript]: [
-		'class_declaration',
-		'function_declaration',
-		'generator_function_declaration',
-		'method_definition',
-	],
-	[WASMLanguage.Java]: [
-		'class_declaration',
-		'constructor_declaration',
-		'enum_declaration',
-		'interface_declaration',
-		'method_declaration',
-		'module_declaration',
-	],
-	[WASMLanguage.Cpp]: [
-		'class_specifier',
-		'function_definition',
-		'namespace_definition',
-		'struct_specifier'
-	],
-	[WASMLanguage.Csharp]: [
-		'class_declaration',
-		'constructor_declaration',
-		'destructor_declaration',
-		'enum_declaration',
-		'interface_declaration',
-		'method_declaration',
-		'namespace_declaration',
-		'struct_declaration',
-	],
-	[WASMLanguage.Python]: [
-		'function_definition',
-		'class_definition',
-	],
-	[WASMLanguage.Go]: [
-		'function_declaration',
-		'method_declaration'
-	],
-	[WASMLanguage.Ruby]: [
-		'class',
-		'method',
-		'module'
-	],
-	[WASMLanguage.Rust]: [
-		'function_item',
-		'impl_item',
-		'mod_item',
-		'struct_item',
-		'trait_item',
-		'union_item',
-	],
-};
-
-export const semanticChunkingTargetQuery: LanguageQueryMap = q({
-	[WASMLanguage.TypeScript]: [
-		semanticChunkingTargetQueryForLanguage(WASMLanguage.TypeScript)
-	],
-	[WASMLanguage.TypeScriptTsx]: [
-		semanticChunkingTargetQueryForLanguage(WASMLanguage.TypeScriptTsx)
-	],
-	[WASMLanguage.JavaScript]: [
-		semanticChunkingTargetQueryForLanguage(WASMLanguage.JavaScript)
-	],
-	[WASMLanguage.Java]: [
-		semanticChunkingTargetQueryForLanguage(WASMLanguage.Java)
-	],
-	[WASMLanguage.Cpp]: [
-		semanticChunkingTargetQueryForLanguage(WASMLanguage.Cpp)
-	],
-	[WASMLanguage.Csharp]: [
-		semanticChunkingTargetQueryForLanguage(WASMLanguage.Csharp)
-	],
-	[WASMLanguage.Python]: [
-		semanticChunkingTargetQueryForLanguage(WASMLanguage.Python)
-	],
-	[WASMLanguage.Go]: [
-		semanticChunkingTargetQueryForLanguage(WASMLanguage.Go)
-	],
-	[WASMLanguage.Rust]: [
-		semanticChunkingTargetQueryForLanguage(WASMLanguage.Rust)
-	],
-	[WASMLanguage.Ruby]: [
-		semanticChunkingTargetQueryForLanguage(WASMLanguage.Ruby)
-	]
-});
-
-
 function coarseScopesQueryForLanguage(language: WASMLanguage): string {
 	return coarseScopeTypes[language].map((scope) => `(${scope}) @scope`).join('\n');
-}
-
-function semanticChunkingTargetQueryForLanguage(language: WASMLanguage): string {
-	const blocks = semanticChunkTargetTypes[language].map((blockType) => `(${blockType})`).join('\n');
-	return `[
-		${blocks}
-	] @definition`;
 }
 
 export function _isScope(language: WASMLanguage, node: SyntaxNode): boolean {

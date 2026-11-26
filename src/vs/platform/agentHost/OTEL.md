@@ -10,6 +10,8 @@ Product telemetry event `agentHost.userMessageSent` includes `isOtelEnabled`, a 
 
 Host-wide diagnostic logs can be subscribed to over local Agent Host ingress, but are not advertised on Mission Control relay connections. Those logs must not contend with session operations on the bounded relay publisher. This is separate from provider-native OTel logs and their configured exporter destinations.
 
+Copilot MCP server output is a separate, optional per-server diagnostic channel advertised in customization metadata. Capture follows the most verbose active subscription or the host Debug/Trace level; each subscriber has an independent retained-history cursor. These records can contain protocol payloads and stderr: they are delivered only to the subscribing client, never to the host log service, host-wide OTLP log emitter, telemetry, or configured OTel exporters.
+
 <!-- (Written by Copilot) -->
 
 | Property | Agent Host OTel | Extension OTel |

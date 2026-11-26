@@ -121,8 +121,6 @@ export function jsonToTable(args: any): string[] {
 	return table;
 }
 
-export const searchIntentPromptSnippet = `Search for 'foo' in all files under my 'src' directory`;
-
 class SearchIntentInvocation extends RendererIntentInvocation implements IIntentInvocation {
 
 	constructor(

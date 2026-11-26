@@ -9,6 +9,6 @@ import { IAgentSessionsWorkspace } from '../common/agentSessionsWorkspace';
 export class AgentSessionsWorkspace implements IAgentSessionsWorkspace {
 	declare _serviceBrand: undefined;
 	get isAgentSessionsWorkspace(): boolean {
-		return workspace.isAgentSessionsWorkspace;
+		return workspace.isAgentManaged;
 	}
 }

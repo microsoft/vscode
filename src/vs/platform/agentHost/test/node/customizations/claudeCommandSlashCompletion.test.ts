@@ -63,7 +63,6 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 		const provider = disposables.add(new AgentHostSkillCompletionProvider(
 			() => agent,
 			async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) }),
-			undefined,
 			createSessionDataService(disposables.add(new TestSessionDatabase())),
 		));
 

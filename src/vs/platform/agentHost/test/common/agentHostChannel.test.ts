@@ -11,7 +11,7 @@ import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostChannelSubscription, agentHostStateChannelPolicy, type IAgentHostChannelPolicy } from '../../common/agentHostChannel.js';
+import { AgentHostChannelSubscription, agentHostStateChannelPolicy, negotiateChannelFlowControl, readAcceptedChannelFlowControl, type IAgentHostChannelPolicy } from '../../common/agentHostChannel.js';
 import { AgentHostChannelScheduler } from '../../common/agentHostChannelDelivery.js';
 import { AgentHostChannelError, AgentHostChannelErrorCode } from '../../common/agentHostChannelTelemetry.js';
 import { ActionType, type ActionEnvelope, type ChatDeltaAction, type StateAction } from '../../common/state/sessionActions.js';
@@ -22,7 +22,7 @@ import { parseProtocolMessage, type IProtocolTransport } from '../../common/stat
 suite('AgentHostChannelSubscription', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const channel = 'test:/subscription';
-	const limits = { windowBytes: 2048, maximumFrameBytes: 1024 };
+	const limits = { windowBytes: 2048, maxFrameBytes: 1024 };
 	let clock: ReturnType<typeof sinon.useFakeTimers>;
 
 	setup(() => {
@@ -108,6 +108,29 @@ suite('AgentHostChannelSubscription', () => {
 		clock.runMicrotasks();
 		return { whileFull, sent: h.sent, errors: h.errors };
 	}
+
+	test('negotiates legacy offers and emits both frame limits after clamping', () => {
+		const accepted = negotiateChannelFlowControl(channel, JSON.parse('{"windowBytes":8192,"maximumFrameBytes":8192}'), limits);
+		assert.deepStrictEqual(accepted, {
+			clientReceive: { windowBytes: 2048, maxFrameBytes: 1024, maximumFrameBytes: 1024 },
+			hostReceive: { windowBytes: 2048, maxFrameBytes: 1024, maximumFrameBytes: 1024 },
+		});
+	});
+
+	test('uses canonical limits in mixed offers and enforces legacy-only host acceptance bounds', () => {
+		const accepted = negotiateChannelFlowControl(channel, JSON.parse('{"windowBytes":1024,"maxFrameBytes":1024,"maximumFrameBytes":8192}'), limits);
+		const legacyResult = JSON.parse('{"clientReceive":{"windowBytes":1024,"maximumFrameBytes":1024},"hostReceive":{"windowBytes":2048,"maximumFrameBytes":1024}}');
+		assert.deepStrictEqual({ accepted, received: readAcceptedChannelFlowControl(legacyResult, limits) }, {
+			accepted: {
+				clientReceive: { windowBytes: 1024, maxFrameBytes: 1024, maximumFrameBytes: 1024 },
+				hostReceive: { windowBytes: 2048, maxFrameBytes: 1024, maximumFrameBytes: 1024 },
+			},
+			received: { clientReceive: { windowBytes: 1024, maxFrameBytes: 1024 }, hostReceive: limits },
+		});
+		legacyResult.clientReceive.maximumFrameBytes = 2048;
+		assert.throws(() => readAcceptedChannelFlowControl(legacyResult, limits), /Host increased the offered receive limits/);
+		assert.throws(() => negotiateChannelFlowControl(channel, JSON.parse('{"windowBytes":1024,"maxFrameBytes":0,"maximumFrameBytes":1024}'), limits), /Invalid channel receive limits/);
+	});
 
 	test('coalesces queued terminal data', () => {
 		const first = actionNotification({ type: ActionType.TerminalData, data: 'first' }, 1);
@@ -263,7 +286,7 @@ suite('AgentHostChannelSubscription', () => {
 
 	test('closes transports on receive-limit violations', () => {
 		const h = fixture();
-		h.receive(notification('x'.repeat(limits.maximumFrameBytes)));
+		h.receive(notification('x'.repeat(limits.maxFrameBytes)));
 		assert.deepStrictEqual({ received: h.received, errors: h.errors.map(error => error.message), transportDisposed: h.transportDisposed }, {
 			received: [], errors: ['Channel receive limit exceeded'], transportDisposed: true,
 		});
@@ -383,7 +406,7 @@ suite('AgentHostChannelSubscription', () => {
 				snapshot: receivedSnapshot,
 				methods: [...new Set(host.sent.map(message => message.method))],
 				fragmented: host.sent.length > 1,
-				bounded: host.sent.every(message => JSON.stringify(message).length * 2 <= limits.maximumFrameBytes),
+				bounded: host.sent.every(message => JSON.stringify(message).length * 2 <= limits.maxFrameBytes),
 				accepted: client.received,
 				errors: [...host.errors, ...client.errors],
 			}, {

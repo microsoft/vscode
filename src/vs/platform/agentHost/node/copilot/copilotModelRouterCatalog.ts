@@ -10,9 +10,10 @@ import { Disposable, DisposableStore, MutableDisposable, type IDisposable } from
 import { ResourceMap } from '../../../../base/common/map.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import type { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileService, toFileOperationResult, type FileChangesEvent } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { MODEL_ROUTER_MAX_FILE_BYTES, modelRouterNameFromFileName, modelRouterNameFromModelId, ModelRouterDiagnosticSeverity, parseModelRouter, type IModelRouter, type IModelRouterDiagnostic, type IModelRouterParseResult } from '../../common/modelRouter.js';
+import { MODEL_ROUTER_MAX_FILE_BYTES, modelRouterNameFromFileName, modelRouterNameFromModelId, ModelRouterDiagnosticSeverity, parseModelRouter, type IModelRouter, type IModelRouterDiagnostic, type IModelRouterParseResult, type ModelRouterSkippedRoute, type ModelRouterUnusableModel } from '../../common/modelRouter.js';
 
 export type ModelRouterScope = 'user' | 'workspace' | 'plugin';
 
@@ -241,4 +242,38 @@ export function findModelRouter(snapshot: IModelRouterSnapshot | undefined, _cha
 /** The first error in a router file, for notices. */
 export function firstModelRouterError(file: IModelRouterFile): string | undefined {
 	return file.diagnostics.find(diagnostic => diagnostic.severity === ModelRouterDiagnosticSeverity.Error)?.message;
+}
+
+/**
+ * What a router's row in the model picker warns about when routes are left out: each of them,
+ * after what is wrong with the models it names.
+ */
+export function describeSkippedModelRoutes(skipped: readonly ModelRouterSkippedRoute[]): string | undefined {
+	const sentences = skipped.flatMap(skip => {
+		const label = skip.route.name
+			? localize({ key: 'modelRouter.route.named', comment: ['{0} is the name a model router file gives one of its routes'] }, "Route `{0}`", skip.route.name)
+			: localize({ key: 'modelRouter.route.numbered', comment: ['{0} is the place of a route in a model router file, counted from 1'] }, "Route {0}", skip.index + 1);
+		if (skip.reason === 'sharedKey') {
+			return [localize('modelRouter.skipped.sharedKey', "{0} is skipped: `{1}` is the name of one route and the model of another.", label, skip.key)];
+		}
+		return [
+			...skip.unusable.map(model => describeUnusableModel(label, model)),
+			localize({ key: 'modelRouter.skipped.unavailable', comment: ['{0} names a route, such as "Route 2"', '{1} is the list of model ids the route names'] }, "{0} ({1}) is skipped: none of its models are available on this account.", label, skip.route.models.join(', ')),
+		];
+	});
+	return sentences.length ? sentences.join(' ') : undefined;
+}
+
+function describeUnusableModel(label: string, model: ModelRouterUnusableModel): string {
+	const candidates = (values: readonly string[]) => values.map(value => `\`${value}\``).join(', ');
+	switch (model.kind) {
+		case 'experimental':
+			return localize({ key: 'modelRouter.unusable.experimental', comment: ['{0} names a route, such as "Route 2"', '{1} is a model family', '{2} is a list of model ids'] }, "{0}: `{1}` matches only experimental models, which a family never picks; use the id of one, such as {2}.", label, model.reference, candidates(model.candidates));
+		case 'ambiguousFamily':
+			return localize({ key: 'modelRouter.unusable.ambiguousFamily', comment: ['{0} names a route, such as "Route 2"', '{1} is what the route names as its model', '{2} is a list of model families'] }, "{0}: `{1}` matches more than one model family; use one of {2}.", label, model.reference, candidates(model.candidates));
+		case 'ambiguousModel':
+			return localize({ key: 'modelRouter.unusable.ambiguousModel', comment: ['{0} names a route, such as "Route 2"', '{1} is what the route names as its model', '{2} is a list of model ids'] }, "{0}: `{1}` matches more than one model; use one of {2}.", label, model.reference, candidates(model.candidates));
+		case 'disabledByPolicy':
+			return localize({ key: 'modelRouter.unusable.disabledByPolicy', comment: ['{0} names a route, such as "Route 2"', '{1} is the name of a model'] }, "{0}: {1} is disabled by policy.", label, model.model);
+	}
 }

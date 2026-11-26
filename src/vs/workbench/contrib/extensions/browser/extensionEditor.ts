@@ -399,6 +399,7 @@ export class ExtensionEditor extends EditorPane {
 		otherExtensionContainers.push(extensionStatusAction, new class extends ExtensionWidget {
 			render() {
 				actionsAndStatusContainer.classList.toggle('list-layout', this.extension?.state === ExtensionState.Installed);
+				name.classList.toggle('deprecated', !!this.extension?.deprecationInfo);
 			}
 		}());
 
@@ -553,7 +554,6 @@ export class ExtensionEditor extends EditorPane {
 
 		template.name.textContent = extension.displayName;
 		template.name.classList.toggle('clickable', !!extension.url);
-		template.name.classList.toggle('deprecated', !!extension.deprecationInfo);
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 
@@ -678,7 +678,14 @@ export class ExtensionEditor extends EditorPane {
 		const contentContainer = append(details, $('.content-container'));
 		const additionalDetailsContainer = append(details, $('.additional-details-container'));
 
-		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
+		const layout = () => {
+			details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
+			// The Features tab shows a list of features next to the feature that it shows, which don't fit next to the additional
+			// details in narrower editors, such as the extension pages of the Agents window.
+			if (this.dimension && id === ExtensionEditorTab.Features && contentContainer.clientWidth < ExtensionFeaturesTab.PREFERRED_WIDTH) {
+				details.classList.add('narrow');
+			}
+		};
 		layout();
 		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
 

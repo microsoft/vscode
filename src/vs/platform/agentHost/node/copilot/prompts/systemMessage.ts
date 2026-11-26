@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
+import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@microsoft/copilot-sdk';
 
 /**
  * Identity section of the default agent-host system message. Per-model overrides

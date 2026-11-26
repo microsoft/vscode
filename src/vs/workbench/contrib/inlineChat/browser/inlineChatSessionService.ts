@@ -28,6 +28,7 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, getDefaultNewChatSessionTypeAndReasonFromServices } from '../../chat/common/constants.js';
 import { IChatSessionsService, localChatSessionType, ResolvedChatSessionsExtensionPoint } from '../../chat/common/chatSessionsService.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../chat/common/model/chatUri.js';
+import { ILocalChatAvailabilityService } from '../../chat/common/localChatAvailability.js';
 
 
 export const IInlineChatSessionService = createDecorator<IInlineChatSessionService>('IInlineChatSessionService');
@@ -66,6 +67,7 @@ async function askInPanelChat(accessor: ServicesAccessor, request: IChatRequestM
 	const storageService = accessor.get(IStorageService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
 	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
+	const localChatAvailabilityService = accessor.get(ILocalChatAvailabilityService);
 	const managedSettingsService = accessor.get(IManagedSettingsService);
 	const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
 
@@ -78,7 +80,7 @@ async function askInPanelChat(accessor: ServicesAccessor, request: IChatRequestM
 		throw new CancellationError();
 	}
 	const currentSessionType = getChatSessionType(request.session.sessionResource);
-	const resolved = getDefaultNewChatSessionTypeAndReasonFromServices(configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled.get(), { currentSessionType }, agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(managedSettingsService, configurationService));
+	const resolved = getDefaultNewChatSessionTypeAndReasonFromServices(configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled.get(), { currentSessionType, localChatHidden: localChatAvailabilityService.hidden.get() }, agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(managedSettingsService, configurationService));
 	const newModelRef = resolved.sessionType === localChatSessionType
 		? chatService.startNewLocalSession(ChatAgentLocation.Chat, { sessionTypeSelectionReason: resolved.selectionReason, debugOwner: 'InlineChat#askInPanelChat' })
 		: await chatService.acquireOrLoadSession(getNewChatSessionResource(resolved.sessionType), ChatAgentLocation.Chat, token, 'InlineChat#askInPanelChat', resolved.selectionReason);

@@ -64,7 +64,7 @@ explicit error rather than falling back to the update service, so runs must be s
 to the artifacts that were actually downloaded. The SHA-256 check is skipped in this mode because
 there is no update service metadata to compare against.
 
-Server-web previews also require the tested commit's webview bootstrap assets on the CDN; downloading the server archive alone is not sufficient. Pipeline artifact-sanity runs selecting server-web targets must use `VSCODE_BUILD_TYPE=Product` and explicitly set `VSCODE_BUILD_WEB=true`. Invalid configurations are rejected during template expansion, and artifact-sanity stages wait for Web to finish. ARM32-only runs, which do not run server-web, do not require Web. **The Web stage uploads to the shared CDN even with `VSCODE_PUBLISH=false`**; that flag controls product publishing, not webview asset preparation. Do not substitute assets from another commit to make a run green.
+Server-web previews also require the tested commit's webview bootstrap assets on the CDN, which only published builds upload; downloading the server archive alone is not sufficient. Do not substitute assets from another commit to make a run green.
 
 ### Timeouts
 
@@ -238,11 +238,9 @@ Some containers include web browser used for validating web server targets.
 
 Sanity tests run in Azure Pipelines via the `product-sanity-tests.yml` pipeline.
 
-Linux x64 and ARM64 builds receive a separate container only DEB/RPM desktop pass whether they are published or resolved from build artifacts. It checks the installed `chrome-sandbox` ownership and mode, then exercises the UI with `--disable-namespace-sandbox` to force Chromium's setuid sandbox. Published runs select both package formats; artifact backed runs select only the DEB/RPM formats included in the job's downloads and use the same `--artifacts-dir` as the normal sanity pass. Native host, Alpine, ARM32, and archive only artifact jobs do not run this additional pass. Both passes publish separate JUnit results.
+Linux x64 and ARM64 builds receive a separate container only DEB/RPM desktop pass. It checks the installed `chrome-sandbox` ownership and mode, then exercises the UI with `--disable-namespace-sandbox` to force Chromium's setuid sandbox. Native host, Alpine, and ARM32 jobs do not run this additional pass. Both passes publish separate JUnit results.
 
 The dedicated container pass grants `SYS_ADMIN` so the setuid helper can create its PID/network namespaces, and runs the test runner as a non-root `sanity` user. The images must include `sudo`, `useradd`, and `runuser`; missing prerequisites fail explicitly rather than installing packages at test startup. The entrypoint allows that user to invoke only `dpkg` and `rpm` as root for package installation/removal. These changes apply only to the disposable setuid test container; running as root would cause Playwright to inject `--no-sandbox` and bypass the check.
-
-Artifact sanity runs retain the native x64 job for Snap coverage and add a separate Ubuntu x64 DEB container job. The Ubuntu ARM64 job exercises its DEB, and Fedora x64/ARM64 container jobs exercise RPMs. These package container jobs run both the normal and setuid passes. The Ubuntu 24.04 ARM32 image has no desktop environment, so its artifact sanity job exercises only the CLI. Published sanity runs retain ARM32 desktop archive and DEB coverage on Debian 12 and Ubuntu 22.04, without the additional setuid sandbox pass.
 
 ### Pipeline Parameters
 
