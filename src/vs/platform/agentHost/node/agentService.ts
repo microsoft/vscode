@@ -2436,6 +2436,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The folder equivalence of the session's folders, so that a workspace file with another casing on a case-insensitive file system matches
 		const targets = new ResourceSet(workspaceFiles, uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
 		const detached: URI[] = [];
+		const failed: URI[] = [];
 		let storedDetached = false;
 		for (const session of await this._findSessionsOfWorkspaces(targets)) {
 			try {
@@ -2443,6 +2444,7 @@ export class AgentService extends Disposable implements IAgentService {
 				detached.push(session);
 			} catch (error) {
 				this._logService.warn(`[AgentService] Failed to detach ${session.toString()} from its workspace`, error);
+				failed.push(session);
 			}
 		}
 		if (storedDetached) {
@@ -2455,6 +2457,10 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (detached.length > 0) {
 			this._invalidateSessionList();
+		}
+		if (failed.length > 0) {
+			// The others stay detached; a failed session keeps its workspace, so detaching again retries it
+			throw new Error(`Failed to detach ${failed.length} of ${failed.length + detached.length} sessions from their workspace: ${failed.map(String).join(', ')}`);
 		}
 		return detached;
 	}

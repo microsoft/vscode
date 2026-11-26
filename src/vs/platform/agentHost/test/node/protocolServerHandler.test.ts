@@ -468,8 +468,12 @@ class MockAgentService extends Disposable implements IAgentService {
 		this.stopBackgroundWorkCalls.push({ chat: chat.toString(), id });
 		return true;
 	}
+	detachSessionsFromWorkspaceError: Error | undefined;
 	async detachSessionsFromWorkspace(workspaceFiles: readonly URI[]): Promise<readonly URI[]> {
 		this.detachSessionsFromWorkspaceCalls.push(workspaceFiles.map(file => file.toString()));
+		if (this.detachSessionsFromWorkspaceError) {
+			throw this.detachSessionsFromWorkspaceError;
+		}
 		return [URI.parse('copilotcli:/session-1')];
 	}
 	async answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
@@ -3203,6 +3207,16 @@ suite('ProtocolServerHandler', () => {
 			relayed: JsonRpcErrorCodes.InvalidRequest,
 			calls: [[workspaceFile]],
 		});
+	});
+
+	test('answers a detach that failed for some sessions with an error the client does not take for an absent method', async () => {
+		const transport = connectClient('client-detach-workspace-failed');
+		agentService.detachSessionsFromWorkspaceError = new Error('Failed to detach 1 of 2 sessions from their workspace');
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, DetachSessionsFromWorkspaceExtensionMethod, { workspaceFiles: [URI.file('/work/agents.code-workspace').toString()] }));
+		const message = await response;
+		const error = hasKey(message, { error: true }) ? message.error : undefined;
+		assert.deepStrictEqual({ code: error?.code === JsonRpcErrorCodes.MethodNotFound ? 'method-not-found' : typeof error?.code, failed: error?.message.includes('1 of 2') }, { code: 'number', failed: true });
 	});
 
 	test('rejects invalid background work stop params before routing', async () => {

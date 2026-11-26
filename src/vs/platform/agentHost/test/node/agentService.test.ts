@@ -4837,7 +4837,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	test('detachSessionsFromWorkspace keeps a loaded session\'s workspace, live and persisted, when its catalog cannot be written, so that detaching again works', async () => {
+	test('detachSessionsFromWorkspace rejects when a session\'s catalog cannot be written, after detaching the others, and keeps that session\'s workspace so that detaching again works', async () => {
 		const db = new TestSessionDatabase();
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = new MockAgent('copilot');
@@ -4845,31 +4845,26 @@ suite('AgentService (node dispatcher)', () => {
 		registerTestAgentProvider(localService, agent);
 		const multiRoot = { workspaceFile: 'file:///work/agents.code-workspace' };
 		const session = await localService.createSession({ legacyChatUris: true, provider: agent.id, _meta: { multiRoot } });
-		const persistedBefore = await db.getMetadata(SESSION_META_MULTI_ROOT_KEY);
-		// The session's own record is written before the catalog, whose write fails
-		const catalogSync = (localService as unknown as { _catalogSyncService: { synchronizeWithFactory(...args: unknown[]): Promise<unknown> } })._catalogSyncService;
+		const other = await localService.createSession({ legacyChatUris: true, provider: agent.id, _meta: { multiRoot } });
+		// The session's own record is written before the catalog, whose write fails for `session` only
+		const catalogSync = (localService as unknown as { _catalogSyncService: { synchronizeWithFactory(session: URI, ...args: unknown[]): Promise<unknown> } })._catalogSyncService;
 		const synchronize = catalogSync.synchronizeWithFactory;
-		catalogSync.synchronizeWithFactory = () => Promise.reject(new Error('catalog unavailable'));
-		const failed = await localService.detachSessionsFromWorkspace([URI.parse(multiRoot.workspaceFile)]);
-		const afterFailure = {
-			live: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta),
-			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
-		};
+		catalogSync.synchronizeWithFactory = (target, ...args) => target.toString() === session.toString() ? Promise.reject(new Error('catalog unavailable')) : synchronize.call(catalogSync, target, ...args);
+		const failure = await localService.detachSessionsFromWorkspace([URI.parse(multiRoot.workspaceFile)]).then(() => undefined, (error: Error) => error.message);
+		const live = (uri: URI) => readSessionMultiRootMetadata(getStateManager(localService).getSessionState(uri.toString())?._meta);
+		const afterFailure = { live: live(session), other: live(other) };
 		catalogSync.synchronizeWithFactory = synchronize;
 
 		const retried = await localService.detachSessionsFromWorkspace([URI.parse(multiRoot.workspaceFile)]);
 
 		assert.deepStrictEqual({
-			failed: failed.map(String),
+			failure,
 			afterFailure,
 			retried: retried.map(String),
-			after: {
-				live: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta),
-				persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
-			},
+			after: { live: live(session), persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY) },
 		}, {
-			failed: [],
-			afterFailure: { live: multiRoot, persisted: persistedBefore },
+			failure: `Failed to detach 1 of 2 sessions from their workspace: ${session.toString()}`,
+			afterFailure: { live: multiRoot, other: undefined },
 			retried: [session.toString()],
 			after: { live: undefined, persisted: '' },
 		});
