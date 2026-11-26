@@ -139,7 +139,7 @@ suite('Session isolation tool', () => {
 				invocationMessage: 'Requesting a worktree for protocol',
 				pastTenseMessage: 'Requested a worktree for protocol',
 				confirmationTitle: 'Move Folder to a Worktree?',
-				confirmationMessage: 'Move protocol to a new worktree for this chat? Other chats and the original folder stay as they are, and uncommitted edits are not copied. Skip to keep working in the shared folder.',
+				confirmationMessage: `Move ${folder} to a new worktree for this chat? Other chats and the original folder stay as they are. Uncommitted edits are not copied, except configured worktree include-files. Skip to keep working in the shared folder.`,
 				hideConfirmationInput: true,
 			},
 		});

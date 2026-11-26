@@ -3036,6 +3036,20 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('isolate_folder and move_session confirmations hide their raw input, as their display asks', () => {
+			const toolSpecificData = ['isolate_folder', 'copilot_session__move_session'].map(toolName => toolCallStateToInvocation({
+				toolCallId: `tc-${toolName}`,
+				toolName,
+				displayName: toolName,
+				invocationMessage: 'Move /work/lib to a new worktree for this chat?',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Move Folder to a Worktree?',
+				toolInput: '{"folder":"/work/lib"}',
+			}).toolSpecificData);
+
+			assert.deepStrictEqual(toolSpecificData, [undefined, undefined]);
+		});
+
 		test('renders ask-user tools as waiting progress that hides after completion', () => {
 			const toolNames = ['ask_user', 'AskUserQuestion', 'request_user_input'];
 			const live = toolNames.map(toolName => {

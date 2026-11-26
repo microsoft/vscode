@@ -102,9 +102,10 @@ function isolateFolderDisplay(args: unknown): IServerToolDisplay {
 			? localize('isolateFolder.completeNamed', "Requested a worktree for {0}", name)
 			: localize('isolateFolder.complete', "Requested a worktree for a folder"),
 		confirmationTitle: localize('isolateFolder.confirmTitle', "Move Folder to a Worktree?"),
-		confirmationMessage: name !== undefined
-			? localize('isolateFolder.confirmNamed', "Move {0} to a new worktree for this chat? Other chats and the original folder stay as they are, and uncommitted edits are not copied. Skip to keep working in the shared folder.", name)
-			: localize('isolateFolder.confirm', "Move this folder to a new worktree for this chat? Other chats and the original folder stay as they are, and uncommitted edits are not copied. Skip to keep working in the shared folder."),
+		// The full path, as the raw input is not shown: folders of several repositories can share a name
+		confirmationMessage: folder !== undefined
+			? localize('isolateFolder.confirmNamed', "Move {0} to a new worktree for this chat? Other chats and the original folder stay as they are. Uncommitted edits are not copied, except configured worktree include-files. Skip to keep working in the shared folder.", folder)
+			: localize('isolateFolder.confirm', "Move this folder to a new worktree for this chat? Other chats and the original folder stay as they are. Uncommitted edits are not copied, except configured worktree include-files. Skip to keep working in the shared folder."),
 		hideConfirmationInput: true,
 	};
 }
