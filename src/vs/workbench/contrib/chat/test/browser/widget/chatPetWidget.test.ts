@@ -2967,6 +2967,13 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
+	/** Creates an active subagent tool invocation for subagent pet tests. */
+	function createSubagentTool(id: string, displayName = id): ChatToolInvocation {
+		const tool = new ChatToolInvocation(undefined, { id, displayName, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		return tool;
+	}
+
 	function createSubagentTestModel(parts: IChatProgressResponseContent[], onDidChange: Event<ChatResponseModelChangeReason> = Event.None): IChatModel {
 		const response = new class extends mock<IChatResponseModel>() {
 			override readonly onDidChange = onDidChange;
@@ -2996,11 +3003,7 @@ suite('ChatPetWidget', () => {
 	test('subagent pets update only the changed response while tracking older subagents', () => {
 		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
 		const changes = [disposables.add(new Emitter<ChatResponseModelChangeReason>()), disposables.add(new Emitter<ChatResponseModelChangeReason>())];
-		const tools = ['older', 'current'].map(id => {
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
-			return tool;
-		});
+		const tools = ['older', 'current'].map(id => createSubagentTool(id));
 		const reads = [0, 0];
 		const requests = tools.map((tool, index) => {
 			const response = new class extends mock<IChatResponseModel>() {
@@ -3035,8 +3038,7 @@ suite('ChatPetWidget', () => {
 
 	test('subagent pets react to tool metadata notifications without a response event', () => {
 		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
-		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('subagent', 'Subagent');
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 1);
 		tool.toolSpecificData = { kind: 'subagent', isActive: false };
@@ -3049,12 +3051,7 @@ suite('ChatPetWidget', () => {
 		disposables.add(toDisposable(() => clock.restore()));
 		const { widget, firstHost, overlay } = createHostTransitionHarness(true, undefined, undefined, undefined, undefined, false, undefined, undefined, undefined, 120);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-		const tools = Array.from({ length: 12 }, (_, index) => {
-			const id = `subagent-${index}`;
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
-			return tool;
-		});
+		const tools = Array.from({ length: 12 }, (_, index) => createSubagentTool(`subagent-${index}`));
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 0);
 		tools[1].toolSpecificData = { kind: 'subagent', isActive: false };
@@ -3075,11 +3072,7 @@ suite('ChatPetWidget', () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 		disposables.add(toDisposable(() => clock.restore()));
 		const { widget, firstHost, overlay, service } = createHostTransitionHarness(true, undefined, undefined, undefined, undefined, false, undefined, undefined, undefined, 120);
-		const tools = ['first', 'second'].map(id => {
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
-			return tool;
-		});
+		const tools = ['first', 'second'].map(id => createSubagentTool(id));
 		const model = observableValue<IChatModel | undefined>('model', createSubagentTestModel(tools));
 		widget.setHost({ ...firstHost, model });
 		clock.tick(120);
@@ -3096,12 +3089,7 @@ suite('ChatPetWidget', () => {
 	test('subagent pets fill available slots without replacing active pets', async () => {
 		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-		const tools = Array.from({ length: 12 }, (_, index) => {
-			const id = `subagent-${index}`;
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
-			return tool;
-		});
+		const tools = Array.from({ length: 12 }, (_, index) => createSubagentTool(`subagent-${index}`));
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
 		const initial = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
 		assert.strictEqual(initial.length, 10);
@@ -3121,13 +3109,8 @@ suite('ChatPetWidget', () => {
 	test('subagent pets preserve waiting order when an earlier response changes', async () => {
 		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-		const makeTool = (id: string) => {
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
-			return tool;
-		};
-		const olderTools = Array.from({ length: 11 }, (_, index) => makeTool(`older-${index}`));
-		const newerTools = [makeTool('newer')];
+		const olderTools = Array.from({ length: 11 }, (_, index) => createSubagentTool(`older-${index}`));
+		const newerTools = [createSubagentTool('newer')];
 		const requests = [olderTools, newerTools].map((parts, index) => {
 			const response = new class extends mock<IChatResponseModel>() {
 				override readonly onDidChange = index === 0 ? changed.event : Event.None;
@@ -3143,7 +3126,7 @@ suite('ChatPetWidget', () => {
 			override getRequests(): IChatRequestModel[] { return requests; }
 		}();
 		widget.setHost({ ...firstHost, model: constObservable(model) });
-		olderTools.push(makeTool('later'));
+		olderTools.push(createSubagentTool('later'));
 		changed.fire({ reason: 'other' });
 		olderTools[0].toolSpecificData = { kind: 'subagent', isActive: false };
 		changed.fire({ reason: 'other' });
@@ -3162,8 +3145,7 @@ suite('ChatPetWidget', () => {
 		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.CowboyHat).id);
 		service.setAccessory(ChatPetAccessoryIds.CowboyHat);
 		const createSubagent = (id: string) => {
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			const tool = createSubagentTool(id);
 			parts.push(tool);
 			responseChanged.fire({ reason: 'other' });
 			return tool;
@@ -3225,8 +3207,7 @@ suite('ChatPetWidget', () => {
 		const third = createSubagent('third');
 		const thirdSubagentPet = overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')[1];
 		parts.splice(parts.indexOf(third), 1);
-		const replacement = new ChatToolInvocation(undefined, { id: 'replacement', displayName: 'Replacement', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'replacement', undefined, {});
-		replacement.toolSpecificData = { kind: 'subagent', isActive: true };
+		const replacement = createSubagentTool('replacement', 'Replacement');
 		parts.push(replacement);
 		responseChanged.fire({ reason: 'other' });
 		assert.ok(thirdSubagentPet.classList.contains('chat-subagent-pet-despawning'));
@@ -3240,8 +3221,7 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('subagent pets use restored geometry when the initial model already has a subagent', () => {
-		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('subagent', 'Subagent');
 		const model = createSubagentTestModel([tool]);
 		const { button, overlay } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, false, service => {
 			service.setScale(2);
@@ -3257,16 +3237,14 @@ suite('ChatPetWidget', () => {
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		const parts: IChatProgressResponseContent[] = [];
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(parts, changed.event)) });
-		const tool = new ChatToolInvocation(undefined, { id: 'first', displayName: 'First', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'first', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('first', 'First');
 		parts.push(tool);
 		changed.fire({ reason: 'other' });
 		const first = overlay.querySelector<HTMLElement>('.chat-subagent-pet')!;
 		await whenSpriteLoaded(first.querySelector<HTMLImageElement>('img')!);
 		service.toggle();
 		assert.strictEqual(first.isConnected, false);
-		const second = new ChatToolInvocation(undefined, { id: 'second', displayName: 'Second', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'second', undefined, {});
-		second.toolSpecificData = { kind: 'subagent', isActive: true };
+		const second = createSubagentTool('second', 'Second');
 		parts.push(second);
 		changed.fire({ reason: 'other' });
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 0);
@@ -3280,8 +3258,7 @@ suite('ChatPetWidget', () => {
 		const parts: IChatProgressResponseContent[] = [];
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(parts, changed.event)) });
 		const add = (id: string) => {
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			const tool = createSubagentTool(id);
 			parts.push(tool);
 			changed.fire({ reason: 'other' });
 		};
@@ -3303,8 +3280,7 @@ suite('ChatPetWidget', () => {
 		button.style.left = '300px';
 		const add = (id: string, position: number) => {
 			randomValue = position;
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			const tool = createSubagentTool(id);
 			parts.push(tool);
 			changed.fire({ reason: 'other' });
 		};
@@ -3330,11 +3306,7 @@ suite('ChatPetWidget', () => {
 
 	test('subagent pets remain stacked when their size changes', () => {
 		const { widget, firstHost, overlay, service } = createHostTransitionHarness(true);
-		const tools = ['bottom', 'middle', 'top'].map(id => {
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
-			return tool;
-		});
+		const tools = ['bottom', 'middle', 'top'].map(id => createSubagentTool(id));
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)) });
 		const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
 		pets.forEach((pet, index) => setSubagentPetPosition(widget, pet, 48, -(index + 1) * 24));
@@ -3351,11 +3323,7 @@ suite('ChatPetWidget', () => {
 			test(`subagent pets relocate only invalid placements when ${enlarge ? 'enlarged' : 'shrunk'} (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
 				const { widget, firstHost, overlay, service } = createHostTransitionHarness(reducedMotion);
 				service.setScale(enlarge ? 1 : 2);
-				const tools = ['first', 'second', 'unaffected'].map(id => {
-					const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-					tool.toolSpecificData = { kind: 'subagent', isActive: true };
-					return tool;
-				});
+				const tools = ['first', 'second', 'unaffected'].map(id => createSubagentTool(id));
 				widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)) });
 				const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
 				const positions = enlarge ? [[120, -24], [150, -24], [280, -24]] : [[48, -48], [80, -96], [280, -48]];
@@ -3374,11 +3342,7 @@ suite('ChatPetWidget', () => {
 
 		test(`subagent pets keep their size and only displaced pets respawn (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
 			const { widget, firstHost, overlay, firstParent, layout } = createHostTransitionHarness(reducedMotion);
-			const tools = ['stays', 'upper', 'support', 'outside'].map(id => {
-				const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-				tool.toolSpecificData = { kind: 'subagent', isActive: true };
-				return tool;
-			});
+			const tools = ['stays', 'upper', 'support', 'outside'].map(id => createSubagentTool(id));
 			widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)) });
 			const subagentPets = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
 			const scales = subagentPets.map(subagentPet => subagentPet.style.transform);
@@ -3411,8 +3375,7 @@ suite('ChatPetWidget', () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 		disposables.add(toDisposable(() => clock.restore()));
 		const { widget, firstHost, firstParent, overlay, layout } = createHostTransitionHarness(true);
-		const tool = new ChatToolInvocation(undefined, { id: 'edge', displayName: 'Edge', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'edge', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('edge', 'Edge');
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
 		const subagentPet = overlay.querySelector<HTMLElement>('.chat-subagent-pet')!;
 		setSubagentPetPosition(widget, subagentPet, 98, -24);
@@ -3434,8 +3397,7 @@ suite('ChatPetWidget', () => {
 		const tools: ChatToolInvocation[] = [];
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
 		button.style.left = '0px';
-		const tool = new ChatToolInvocation(undefined, { id: 'edge', displayName: 'Edge', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'edge', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('edge', 'Edge');
 		tools.push(tool);
 		changed.fire({ reason: 'other' });
 		const rect = overlay.querySelector<HTMLElement>('.chat-subagent-pet')!.getBoundingClientRect();
@@ -3462,8 +3424,7 @@ suite('ChatPetWidget', () => {
 				};
 				for (let index = 0; index < 10; index++) {
 					const id = `subagent-${index}`;
-					const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-					tool.toolSpecificData = { kind: 'subagent', isActive: true };
+					const tool = createSubagentTool(id);
 					tools.push(tool);
 					if (staggered) {
 						changed.fire({ reason: 'other' });
@@ -3482,12 +3443,7 @@ suite('ChatPetWidget', () => {
 	test('subagent pets keep their initial size when crowded and resized', async () => {
 		const { widget, firstHost, overlay, firstParent, root, layout } = createHostTransitionHarness(true);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-		const tools = Array.from({ length: 100 }, (_, index) => {
-			const id = `subagent-${index}`;
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
-			return tool;
-		});
+		const tools = Array.from({ length: 100 }, (_, index) => createSubagentTool(`subagent-${index}`));
 		widget.setHost({ ...firstHost, transition: undefined, model: constObservable(createSubagentTestModel(tools, changed.event)) });
 		const subagentPets = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
 		const initialSize = subagentPets[0].getBoundingClientRect().width;
@@ -3507,12 +3463,7 @@ suite('ChatPetWidget', () => {
 		test(`subagent pets stay in a bounded area with many subagents (main pet at ${petLeft})`, async () => {
 			const { widget, firstHost, button, overlay, firstParent, root, layout } = createHostTransitionHarness(true);
 			const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-			const tools = Array.from({ length: 100 }, (_, index) => {
-				const id = `subagent-${index}`;
-				const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-				tool.toolSpecificData = { kind: 'subagent', isActive: true };
-				return tool;
-			});
+			const tools = Array.from({ length: 100 }, (_, index) => createSubagentTool(`subagent-${index}`));
 			button.style.left = `${petLeft}px`;
 			widget.setHost({ ...firstHost, transition: undefined, model: constObservable(createSubagentTestModel(tools, changed.event)) });
 			const subagentPets = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
@@ -3566,11 +3517,7 @@ suite('ChatPetWidget', () => {
 			test(`subagent pets fall when their ${removedIndex === 0 ? 'bottom' : 'middle'} support finishes (${reducedMotion ? 'reduced motion' : 'animated'})`, () => {
 				const { widget, firstHost, overlay, setReducedMotion } = createHostTransitionHarness(reducedMotion);
 				const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-				const tools = ['bottom', 'middle', 'top', 'neighbor'].map(id => {
-					const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-					tool.toolSpecificData = { kind: 'subagent', isActive: true };
-					return tool;
-				});
+				const tools = ['bottom', 'middle', 'top', 'neighbor'].map(id => createSubagentTool(id));
 				widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
 				const subagentPets = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
 				// A three-high stack on the input platform and an independent neighbor on the ground.
@@ -3611,12 +3558,7 @@ suite('ChatPetWidget', () => {
 		const { widget, firstHost, overlay, firstParent, button } = createHostTransitionHarness(true);
 		firstParent.style.width = '240px';
 		button.style.left = '192px';
-		const tools = Array.from({ length: 20 }, (_, index) => {
-			const id = `subagent-${index}`;
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
-			return tool;
-		});
+		const tools = Array.from({ length: 20 }, (_, index) => createSubagentTool(`subagent-${index}`));
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)), getPlatforms: () => {
 			const bounds = firstParent.getBoundingClientRect();
 			return [{ left: bounds.left + 20, right: bounds.right - 20, top: bounds.top - 60, isDefault: true }];
@@ -3636,11 +3578,7 @@ suite('ChatPetWidget', () => {
 		test(`subagent pets fall and respawn when a prompt replaces their support (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
 			const { widget, firstHost, overlay, firstParent, root, platformChanged } = createHostTransitionHarness(reducedMotion);
 			let promptVisible = false;
-			const tools = ['first', 'second'].map(id => {
-				const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-				tool.toolSpecificData = { kind: 'subagent', isActive: true };
-				return tool;
-			});
+			const tools = ['first', 'second'].map(id => createSubagentTool(id));
 			widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)), getPlatforms: () => {
 				const bounds = firstParent.getBoundingClientRect();
 				return [{ left: bounds.left, right: bounds.right, top: bounds.top - (promptVisible ? 60 : 0), isDefault: true }];
@@ -3667,8 +3605,7 @@ suite('ChatPetWidget', () => {
 		const { widget, firstHost, overlay, firstParent, platformChanged } = createHostTransitionHarness(true);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		let promptVisible = false;
-		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('subagent', 'Subagent');
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool], changed.event)), getPlatforms: () => {
 			const bounds = firstParent.getBoundingClientRect();
 			return [{ left: bounds.left, right: bounds.right, top: bounds.top - (promptVisible ? 60 : 0), isDefault: true }];
@@ -3686,8 +3623,7 @@ suite('ChatPetWidget', () => {
 
 	test('subagent pets update appearance and motion settings while active', async () => {
 		const { widget, firstHost, button, overlay, service, setReducedMotion } = createHostTransitionHarness();
-		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('subagent', 'Subagent');
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
 		const subagentPet = overlay.querySelector<HTMLElement>('.chat-subagent-pet')!;
 		subagentPet.getAnimations().forEach(animation => animation.cancel());
@@ -3720,8 +3656,7 @@ suite('ChatPetWidget', () => {
 
 	test('subagent pets stop squishing when reduced motion is enabled during landing', async () => {
 		const { widget, firstHost, overlay, setReducedMotion } = createHostTransitionHarness();
-		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('subagent', 'Subagent');
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
 		const subagentPet = overlay.querySelector<HTMLElement>('.chat-subagent-pet')!;
 		const image = subagentPet.querySelector<HTMLImageElement>('img')!;
@@ -3741,11 +3676,7 @@ suite('ChatPetWidget', () => {
 		disposables.add(toDisposable(() => clock.restore()));
 		const { widget, firstHost, overlay } = createHostTransitionHarness();
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-		const tools = ['first', 'second'].map(id => {
-			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
-			return tool;
-		});
+		const tools = ['first', 'second'].map(id => createSubagentTool(id));
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
 		const [first, second] = overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet');
 		for (const subagentPet of [first, second]) {
@@ -3782,8 +3713,7 @@ suite('ChatPetWidget', () => {
 	test('subagent pets use the reduced-motion disappearance sprite', () => {
 		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('subagent', 'Subagent');
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool], changed.event)) });
 		assert.ok(overlay.querySelector('.chat-subagent-pet'));
 		const subagentPet = overlay.querySelector<HTMLElement>('.chat-subagent-pet')!;
@@ -3808,8 +3738,7 @@ suite('ChatPetWidget', () => {
 		}
 		const { widget, firstHost, overlay } = createHostTransitionHarness(false, 'teleport', 'stable', VisibilityObserver);
 		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('subagent', 'Subagent');
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool], responseChanged.event)) });
 		const pet = overlay.querySelector<HTMLElement>('.chat-subagent-pet')!;
 		pet.getAnimations().forEach(animation => animation.cancel());
@@ -3843,8 +3772,7 @@ suite('ChatPetWidget', () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
 		disposables.add(toDisposable(() => clock.restore()));
 		const { widget, firstHost, overlay, setReducedMotion } = createSubagentPetTestHarness(() => 0);
-		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
-		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const tool = createSubagentTool('subagent', 'Subagent');
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
 		const subagentPet = overlay.querySelector<HTMLElement>('.chat-subagent-pet')!;
 		// Exercise idle frames independently of the arrival and landing animation.
