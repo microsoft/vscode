@@ -1357,13 +1357,8 @@ export class GridView implements IDisposable {
 
 		sibling.dispose();
 
-		if (sizing?.type === 'distribute') {
-			// The merged row or column is the one the view left: it distributes too, rather than keeping its previous sizes.
-			grandParent.distributeViewSizes();
-		} else {
-			for (let i = 0; i < sizes.length; i++) {
-				grandParent.resizeChild(i, sizes[i]);
-			}
+		for (let i = 0; i < sizes.length; i++) {
+			grandParent.resizeChild(i, sizes[i]);
 		}
 
 		this.trySet2x2();
