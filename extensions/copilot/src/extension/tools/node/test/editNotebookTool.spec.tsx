@@ -751,4 +751,61 @@ describe('Edit Notebook Tool', () => {
 		expect(edit[0].toString()).to.equal(cell2.document.uri.toString());
 		expect(edit[1].newText).to.include('print("Foo Bar")');
 	});
+	test(`Invalid cell ID for edit returns valid cell IDs in error`, async () => {
+		const notebookEdits: (NotebookEdit | [Uri, TextEdit])[] = [];
+		const notebook = createNotebook();
+		const [editTool] = initialize(notebook.document);
+
+		const staleCellId = '#VSC-deadbeef';
+		await expect(invokeOneTool(notebook, editTool, {
+			filePath: notebook.uri.toString(),
+			editType: 'edit',
+			cellId: staleCellId,
+			newCode: 'print("test")',
+		}, notebookEdits)).rejects.toThrow(/Valid cell Ids in the current notebook are: .*/);
+	});
+	test(`Invalid cell ID error message contains every valid cell ID`, async () => {
+		const notebookEdits: (NotebookEdit | [Uri, TextEdit])[] = [];
+		const notebook = createNotebook();
+		const [editTool] = initialize(notebook.document);
+
+		const staleCellId = '#VSC-deadbeef';
+		const validIds = notebook.document.getCells().map(cell => getCellId(cell));
+		try {
+			await invokeOneTool(notebook, editTool, {
+				filePath: notebook.uri.toString(),
+				editType: 'edit',
+				cellId: staleCellId,
+				newCode: 'print("test")',
+			}, notebookEdits);
+			expect.fail('Expected error was not thrown');
+		} catch (err: unknown) {
+			if (!(err instanceof Error)) {
+				throw err;
+			}
+			expect(err.message).to.include('Valid cell Ids in the current notebook are:');
+			for (const id of validIds) {
+				expect(err.message).to.include(id);
+			}
+		}
+	});
+	test(`Invalid cell ID error for empty notebook`, async () => {
+		const notebookEdits: (NotebookEdit | [Uri, TextEdit])[] = [];
+		const notebook = ExtHostNotebookDocumentData.fromNotebookData(URI.file('empty.ipynb'), new NotebookData([]), 'jupyter-notebook');
+		const [editTool] = initialize(notebook.document);
+
+		const staleCellId = '#VSC-deadbeef';
+		try {
+			await invokeOneTool(notebook, editTool, {
+				filePath: notebook.uri.toString(),
+				editType: 'edit',
+				cellId: staleCellId,
+				newCode: 'print("test")',
+			}, notebookEdits);
+			expect.fail('Expected error was not thrown');
+		} catch (err: any) {
+			expect(err.message).to.include(staleCellId);
+			expect(err.message).to.include('is invalid');
+		}
+	});
 });
