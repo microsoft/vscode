@@ -1741,6 +1741,31 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('places the routing part of a Copilot Fusion pass where the workflow moved to its model', () => {
+			const selected = (fusionPassModel: string) => ({
+				kind: ResponsePartKind.SystemNotification as const,
+				content: 'Selected Cascade workflow',
+				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected', fusionPassModel }),
+			});
+			const answer = (id: string, content: string) => ({ kind: ResponsePartKind.Markdown as const, id, content });
+			// The workflow moves to a second model after the first one has answered.
+			const responseParts = [selected('model-a'), answer('a', 'Answer from A'), selected('model-b'), answer('b', 'Answer from B')];
+			const lookup = makeLookup('agent-host-copilot:', { 'model-a': 'Model A', 'model-b': 'Model B' });
+			const shown = (parts: readonly IChatProgress[]) => parts.flatMap(part =>
+				part.kind === 'autoModeResolution' ? [`${part.id}: ${autoModeRoutingTitle(part)}`]
+					: part.kind === 'markdownContent' ? [part.content.value] : []);
+			const restored = turnsToHistory(URI.file('/'), [createTurn({ responseParts })], 'p', lookup)[1];
+			const reconnected = (previousFusionPass?: string) => rawActiveTurnToProgress(URI.file('/'), { id: 'active', startedAt: '2025-01-01T00:00:00.000Z', message: message('Go'), responseParts, usage: undefined },
+				'local', undefined, undefined, lookup, undefined, undefined, undefined, undefined, previousFusionPass);
+			const rows = ['fusionPass:0: Copilot Fusion routed task to Model A', 'Answer from A', 'fusionPass:2: Copilot Fusion routed task to Model B', 'Answer from B'];
+			assert.deepStrictEqual({
+				restored: restored.type === 'response' ? shown(restored.parts) : undefined,
+				reconnected: shown(reconnected()),
+				// The turn before ended on the first model, so only the move away from it is new.
+				reconnectedOnSameModel: shown(reconnected('model-a')),
+			}, { restored: rows, reconnected: rows, reconnectedOnSameModel: rows.slice(1) });
+		});
+
 		test('a model router is settled after its first pick for a chat', () => {
 			const picked = createTurn({ id: 'turn-1', usage: { _meta: { modelRouted: { router: 'daily', chosenModel: 'opus' } } } });
 			const selecting = (model: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: model } } });

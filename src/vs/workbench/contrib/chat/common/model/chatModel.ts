@@ -1222,6 +1222,21 @@ export class Response extends AbstractResponse implements IDisposable {
 				}
 				this._contentChanged(quiet);
 			}
+		} else if (progress.kind === 'autoModeResolution' && progress.id !== undefined) {
+			// A row with an id is updated or taken back by that id, and stands in for no other row.
+			const idx = this._responseParts.findIndex(p => p.kind === 'autoModeResolution' && p.id === progress.id);
+			if (progress.remove) {
+				if (idx !== -1) {
+					this._responseParts.splice(idx, 1);
+					this._contentChanged(quiet);
+				}
+			} else if (idx === -1) {
+				this._responseParts.push(progress);
+				this._contentChanged(quiet);
+			} else if (!equals(this._responseParts[idx], progress)) {
+				this._responseParts[idx] = progress;
+				this._contentChanged(quiet);
+			}
 		} else if (progress.kind === 'autoModeResolution') {
 			// Auto can route more than once per turn: a resolved part replaces the
 			// row that is still routing, and any later route starts a new row.
@@ -1242,10 +1257,17 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	replaceAutoModeResolutions(parts: readonly IChatAutoModeResolutionPart[]): void {
-		if (equals(this._responseParts.filter(part => part.kind === 'autoModeResolution'), parts)) {
+		const existing = this._responseParts.filter(part => part.kind === 'autoModeResolution');
+		if (equals(existing, parts)) {
 			return;
 		}
-		this._responseParts = [...parts, ...this._responseParts.filter(part => part.kind !== 'autoModeResolution')];
+		if (existing.length === parts.length) {
+			// The same rows with new contents stay where they are: a row can sit part way through the response.
+			let next = 0;
+			this._responseParts = this._responseParts.map(part => part.kind === 'autoModeResolution' ? parts[next++] : part);
+		} else {
+			this._responseParts = [...parts, ...this._responseParts.filter(part => part.kind !== 'autoModeResolution')];
+		}
 		this._contentChanged();
 	}
 

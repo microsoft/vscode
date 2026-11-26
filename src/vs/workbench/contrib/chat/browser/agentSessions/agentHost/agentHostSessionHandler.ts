@@ -19,7 +19,7 @@ import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, Dispos
 import { LRUCache, ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, runOnChange, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
@@ -178,7 +178,7 @@ import { ICopilotHomeService } from '../../../../../services/environment/common/
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createShellAuthenticationCarousel, getShellAuthenticationAnswer, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, fusionPassModels, fusionPassResolutions, isModelRouterPickSettled, previousFusionPassModel, previousModelRouted, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, toolCallToResponseMarkdown, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createShellAuthenticationCarousel, getShellAuthenticationAnswer, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, fusionPassModels, fusionPassResolutionId, fusionPassResolutions, isModelRouterPickSettled, previousFusionPassModel, previousModelRouted, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, toolCallToResponseMarkdown, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionAutoModeTierLabel } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
@@ -1565,6 +1565,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _hideAutoExplainability = observableValue<boolean | undefined>('hideAutoExplainability', undefined);
 	/** Settles once {@link _hideAutoExplainability} is known. */
 	private readonly _hideAutoExplainabilityReady: Promise<void>;
+	/** Whether chat shows model logos, which for now also decides whether a Copilot Fusion pass gets a routing row. */
+	private readonly _modelLogosEnabled: IObservable<boolean>;
 	/** On-device models: the pre-send guard, turn attribution and the fallback notice. */
 	private readonly _localModels: AgentHostLocalModelSupport;
 
@@ -1614,6 +1616,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	) {
 		super();
 		this._config = config;
+		this._modelLogosEnabled = observableConfigValue(ChatConfiguration.ModelLogos, false, this._configurationService);
 		const workingSetEnabled = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
 		const reviewEnabled = derived(reader => workingSetEnabled.read(reader) && reviewPreferences.keepUndoEnabled.read(reader));
 		this._register(autorun(reader => {
@@ -2041,8 +2044,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								new Set(sessionState.chats.flatMap(chat => chat.origin?.kind === ChatOriginKind.Tool && chat.origin.chat === chatURI ? [chat.origin.toolCallId] : [])),
 								this._managedPluginRetryTarget(resolvedSession, chatURI),
 								this._showHookFailures,
+								previousFusionPassModel(sessionState.turns, sessionState.activeTurn.id),
 							);
-							initialProgress.unshift(...fusionPassResolutions(sessionState.activeTurn.responseParts, previousFusionPassModel(sessionState.turns, sessionState.activeTurn.id), lookup));
 							initialResponsePartCount = sessionState.activeTurn.responseParts.length;
 							// Enrich usage entries with the actual model so the
 							// context-usage widget resolves the right context window
@@ -3122,6 +3125,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				reconcileHistory('metadata');
 			}
 		}));
+		// The routing rows of a Copilot Fusion pass follow this setting, in the responses that are already there too.
+		disposables.add(runOnChange(this._modelLogosEnabled, () => reconcileHistory('metadata')));
 		// A snapshot can introduce both completed turns and an active turn. Publish history before the start below.
 		disposables.add(chatSub.onDidChange(() => reconcileHistory(applyingPage ? 'page' : 'window')));
 		disposables.add(chatSub.onDidApplyAction(() => applyingPage = false));
@@ -4556,22 +4561,33 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// A Copilot Fusion workflow names the model of its own pass in its milestones rather than
 			// in the turn's usage. Each change of that model gets a routing row, as Auto's pick does.
-			const fusionPassModels$ = derivedOpts({ equalsFn: equals }, reader => fusionPassModels(responseParts$.read(reader), previousFusionPass$.read(reader)).rows);
+			const fusionPassRows$ = derivedOpts({ equalsFn: equals }, reader => fusionPassModels(responseParts$.read(reader), previousFusionPass$.read(reader)).rows);
 			const selectedModelId$ = derived(reader => turn$.read(reader)?.message.model?.id);
 			// A turn that was joined part way already shows the rows of the parts it started with.
-			let shownFusionPassModels = opts.initialResponsePartCount
-				? fusionPassModels(responseParts$.get().slice(0, opts.initialResponsePartCount), previousFusionPass$.get()).rows.length
-				: 0;
+			const initialResponsePartCount = opts.initialResponsePartCount ?? 0;
+			const shownFusionPassRows = new Set(initialResponsePartCount
+				? fusionPassResolutions(fusionPassRows$.get().filter(row => row.index < initialResponsePartCount), this._createTurnModelLookup(opts.sessionResource, selectedModelId$.get())).keys()
+				: []);
 			store.add(autorun(reader => {
-				// As for Auto's row, hold off while the treatment is unknown: a row cannot be taken back.
+				// As for Auto's row, hold off while the treatment is unknown.
 				const hideAutoExplainability = this._hideAutoExplainability.read(reader);
 				if (hideAutoExplainability === undefined) {
 					return;
 				}
-				const models = fusionPassModels$.read(reader);
+				// The lookup shows a row only while the setting is on, so the rows follow it both ways.
+				this._modelLogosEnabled.read(reader);
 				const lookup = this._createTurnModelLookup(opts.sessionResource, selectedModelId$.read(reader), hideAutoExplainability);
-				const rows = models.slice(shownFusionPassModels).flatMap(model => lookup.toFusionPassResolution?.(model) ?? []);
-				shownFusionPassModels = Math.max(shownFusionPassModels, models.length);
+				const wanted = fusionPassResolutions(fusionPassRows$.read(reader), lookup);
+				const removed = [...shownFusionPassRows].filter(index => !wanted.has(index));
+				// A row that was held back is added now. Its milestone has passed, so it follows what the turn has shown since.
+				const rows = [...wanted].flatMap(([index, row]) => shownFusionPassRows.has(index) ? [] : [row]);
+				shownFusionPassRows.clear();
+				for (const index of wanted.keys()) {
+					shownFusionPassRows.add(index);
+				}
+				if (removed.length > 0) {
+					opts.sink(removed.map(index => ({ kind: 'autoModeResolution', id: fusionPassResolutionId(index), remove: true })));
+				}
 				if (rows.length === 0) {
 					return;
 				}
@@ -8211,7 +8227,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 			toFusionPassResolution: rawModelId => {
 				// Named where Auto's pick is, and for now only while chat shows model logos. Also suppressed while the treatment is unknown.
-				if (hideAutoExplainability !== false || this._configurationService.getValue<boolean>(ChatConfiguration.ModelLogos) !== true) {
+				if (hideAutoExplainability !== false || !this._modelLogosEnabled.get()) {
 					return undefined;
 				}
 				const resolved = lookupRawModel(rawModelId);

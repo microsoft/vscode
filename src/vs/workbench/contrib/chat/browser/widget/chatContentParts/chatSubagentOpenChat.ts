@@ -41,7 +41,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { formatCopilotCreditsLabel } from '../../../common/chatService/chatService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
-import { AUTO_RAW_MODEL_ID, ILanguageModelsService } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatWidgetService } from '../../chat.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import { getModelConfigDisplayValues, getModelConfigProperty, getModelConfigValueLabel, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from '../input/modelPicker/modelPickerModelConfig.js';
@@ -531,6 +531,13 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		return this.pillContext?.modelName;
 	}
 
+	/** The registered model the pill names, when its model is registered. */
+	protected get model(): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const identifier = this.pillContext?.modelId;
+		const metadata = identifier ? this.languageModelsService.lookupLanguageModel(identifier) : undefined;
+		return identifier && metadata ? { identifier, metadata } : undefined;
+	}
+
 	protected get showModel(): boolean {
 		const context = this.pillContext;
 		const parentModel = context?.parentModelId ? this.languageModelsService.lookupLanguageModel(context.parentModelId) : undefined;
@@ -624,9 +631,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		const modelName = this._reportedModelName;
-		const modelId = this.pillContext?.modelId;
+		const model = this.model;
 		const logo = modelName && this._modelLogosEnabled.get()
-			? getModelProviderLogo(modelName, modelId, modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined)
+			? getModelProviderLogo(modelName, model?.identifier ?? this.pillContext?.modelId, model?.metadata)
 			: undefined;
 		if (logo?.id === this._renderedModelLogo?.id) {
 			return;

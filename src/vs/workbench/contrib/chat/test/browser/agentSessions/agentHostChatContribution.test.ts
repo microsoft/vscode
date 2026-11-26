@@ -60,7 +60,7 @@ import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
-import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, type IConfigurationChangeEvent, type IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKeyService, type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -967,7 +967,7 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>, workspaceFolders: readonly URI[] = []) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>, workspaceFolders: readonly URI[] = [], onDidChangeConfiguration: Event<IConfigurationChangeEvent> = Event.None) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 	instantiationService.stub(IContextKeyService, contextKeyService);
@@ -1083,7 +1083,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		override prompt() { return new NoOpNotification(); }
 	});
 	instantiationService.stub(IConfigurationService, {
-		onDidChangeConfiguration: Event.None,
+		onDidChangeConfiguration,
 		inspect: () => ({ policyValue: undefined }),
 		updateValue: async () => { },
 		getValue: (...args: any[]) => {
@@ -1407,8 +1407,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local', useSessionTitleForDefaultChat));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean; supportsComputerUseSetup?: boolean; canvasPresentationAvailable?: IObservable<boolean>; computerUseSetupService?: IComputerUseSetupService; useSessionTitleForDefaultChat?: boolean; mirrorsPermissionGrants?: boolean }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls, editingSessionProviders, textFileRetention } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
+function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean; supportsComputerUseSetup?: boolean; canvasPresentationAvailable?: IObservable<boolean>; computerUseSetupService?: IComputerUseSetupService; useSessionTitleForDefaultChat?: boolean; mirrorsPermissionGrants?: boolean; onDidChangeConfiguration?: Event<IConfigurationChangeEvent> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls, editingSessionProviders, textFileRetention } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders, opts?.onDidChangeConfiguration);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
 		const pending = opts?.pendingTreatment;
@@ -1456,6 +1456,19 @@ function createContribution(disposables: DisposableStore, opts?: { backendSessio
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls, editingSessionProviders, textFileRetention };
+}
+
+/** Settings for {@link createContribution} that a test can change while the handler runs. */
+function createChangeableConfiguration(disposables: DisposableStore, configOverrides: Record<string, unknown>) {
+	const changes = disposables.add(new Emitter<IConfigurationChangeEvent>());
+	return {
+		configOverrides,
+		onDidChangeConfiguration: changes.event,
+		set: (key: string, value: unknown) => {
+			configOverrides[key] = value;
+			changes.fire({ source: ConfigurationTarget.USER, affectedKeys: new Set([key]), change: { keys: [key], overrides: [] }, affectsConfiguration: setting => setting === key });
+		},
+	};
 }
 
 function createByokLanguageModelTestData(groupName?: string): { languageModels: ReadonlyMap<string, ILanguageModelChatMetadata>; languageModelsServiceOverride: Partial<ILanguageModelsService> } {
@@ -10956,6 +10969,52 @@ suite('AgentHostChatContribution', () => {
 				withoutModelLogos: ['activity: Choosing a workflow', 'activity: Main pass running', 'notice: Routing failed', 'activity: Main pass running'],
 				withoutAutoExplainability: ['activity: Choosing a workflow', 'activity: Main pass running', 'notice: Routing failed', 'activity: Main pass running'],
 			});
+		}));
+
+		test('the routing rows of a Copilot Fusion pass follow the model logos setting while the turn runs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+				['agent-host-copilot:gpt-5.5', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.5' })],
+			]);
+			const configuration = createChangeableConfiguration(disposables, { [ChatConfiguration.ModelLogos]: false });
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels, configOverrides: configuration.configOverrides, onDidChangeConfiguration: configuration.onDidChangeConfiguration });
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const selected = (fusionPassModel: string) => fire({
+				type: 'chat/responsePart', session, turnId,
+				part: {
+					kind: ResponsePartKind.SystemNotification, content: 'Selected Cascade workflow',
+					_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected', fusionPassModel }),
+				},
+			} as ChatAction);
+			const steps: string[][] = [];
+			let reported = 0;
+			const step = () => {
+				const rows = collected.flat().flatMap(part => part.kind === 'autoModeResolution' ? [part.remove ? `removed ${part.id}` : `${part.id}: ${autoModeRoutingTitle(part)}`] : []);
+				steps.push(rows.slice(reported));
+				reported = rows.length;
+			};
+
+			selected('gpt-5.4-mini');
+			step();
+			// The model the workflow already moved to gets its row now.
+			configuration.set(ChatConfiguration.ModelLogos, true);
+			step();
+			selected('gpt-5.5');
+			step();
+			configuration.set(ChatConfiguration.ModelLogos, false);
+			step();
+			configuration.set(ChatConfiguration.ModelLogos, true);
+			step();
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(steps, [
+				[],
+				['fusionPass:0: Copilot Fusion routed task to GPT-5.4 mini'],
+				['fusionPass:1: Copilot Fusion routed task to GPT-5.5'],
+				['removed fusionPass:0', 'removed fusionPass:1'],
+				['fusionPass:0: Copilot Fusion routed task to GPT-5.4 mini', 'fusionPass:1: Copilot Fusion routed task to GPT-5.5'],
+			]);
 		}));
 
 		test('Auto routing does not show an unresolved part for a host-handled slash command', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -21325,6 +21384,58 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual({ joined, moved: rows() }, {
 				joined: ['Copilot Fusion routed task to GPT-5.4 mini'],
 				moved: ['Copilot Fusion routed task to GPT-5.4 mini', 'Copilot Fusion routed task to GPT-5.5'],
+			});
+		}));
+
+		test('the routing rows of a Copilot Fusion pass sit where the workflow moved, and follow the model logos setting in a joined turn and the responses before it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+				['agent-host-copilot:gpt-5.5', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.5' })],
+			]);
+			const configuration = createChangeableConfiguration(disposables, { [ChatConfiguration.ModelLogos]: true });
+			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, configOverrides: configuration.configOverrides, onDidChangeConfiguration: configuration.onDidChangeConfiguration });
+			const sessionUri = AgentSession.uri('copilot', 'fusion-pass-setting');
+			const selected = (fusionPassModel: string) => ({
+				kind: ResponsePartKind.SystemNotification as const, content: 'Selected Cascade workflow',
+				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected', fusionPassModel }),
+			});
+			const answer = (id: string, content: string) => ({ kind: ResponsePartKind.Markdown as const, id, content });
+			const state = makeSessionStateWithActiveTurn(sessionUri.toString());
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...state,
+				turns: [
+					// Auto names its pick in a row of its own, which does not depend on the setting.
+					{ ...state.turns![0], id: 'auto', usage: { model: 'gpt-5.4-mini', _meta: { autoModeResolved: { chosenModel: 'gpt-5.4-mini' } } } as Turn['usage'] },
+					// The workflow moves to a second model after the first one has answered.
+					{ ...state.turns![0], id: 'fusion', responseParts: [selected('gpt-5.4-mini'), answer('a', 'Answer from mini'), selected('gpt-5.5'), answer('b', 'Answer from 5.5')] },
+				],
+				activeTurn: { ...state.activeTurn!, responseParts: [selected('gpt-5.4-mini'), ...state.activeTurn!.responseParts] },
+			});
+
+			const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/fusion-pass-setting' }), CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			let history = session.history;
+			disposables.add(session.onDidChangeHistory!(updated => history = updated));
+			const shown = (parts: readonly IChatProgress[]) => parts.flatMap(part =>
+				part.kind === 'autoModeResolution' ? [part.remove ? `removed ${part.id}` : autoModeRoutingTitle(part)]
+					: part.kind === 'markdownContent' ? [part.content.value] : []);
+			let reported = 0;
+			const step = () => {
+				const joined = shown(session.progressObs?.get() ?? []);
+				const result = { responses: history.flatMap(item => item.type === 'response' && item.parts.length ? [shown(item.parts)] : []), joined: joined.slice(reported) };
+				reported = joined.length;
+				return result;
+			};
+			const shownAtFirst = step();
+			configuration.set(ChatConfiguration.ModelLogos, false);
+			const turnedOff = step();
+			configuration.set(ChatConfiguration.ModelLogos, true);
+
+			const withRows = [['Auto routed task to GPT-5.4 mini', 'First response'], ['Copilot Fusion routed task to GPT-5.4 mini', 'Answer from mini', 'Copilot Fusion routed task to GPT-5.5', 'Answer from 5.5']];
+			assert.deepStrictEqual({ shownAtFirst, turnedOff, turnedOnAgain: step() }, {
+				shownAtFirst: { responses: withRows, joined: ['Copilot Fusion routed task to GPT-5.4 mini', 'Partial response so far'] },
+				turnedOff: { responses: [withRows[0], ['Answer from mini', 'Answer from 5.5']], joined: ['removed fusionPass:0'] },
+				turnedOnAgain: { responses: withRows, joined: ['Copilot Fusion routed task to GPT-5.4 mini'] },
 			});
 		}));
 

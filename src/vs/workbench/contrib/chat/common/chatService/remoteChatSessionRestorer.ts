@@ -20,7 +20,7 @@ import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
 import { ChatModel, ChatRequestModel, getRestoredChatRequestSource, IChatRequestModeInfo, IChatRequestVariableData } from '../model/chatModel.js';
 import { IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { IChatModelReference } from './chatService.js';
+import { IChatModelReference, IChatProgress } from './chatService.js';
 
 const maxSliceMs = 25;
 /** A restore that replayed in less time than this publishes in the same task, keeping replay, publish and attach within one frame budget. */
@@ -527,7 +527,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			if (equals(turn.items, previous?.items)) {
 				continue;
 			}
-			if (this._session.preserveHistoryItemIdentity && previous && equals(getChatSessionHistoryContent(turn.items), getChatSessionHistoryContent(previous.items))) {
+			if (this._session.preserveHistoryItemIdentity && previous && equals(getChatSessionHistoryContent(turn.items), getChatSessionHistoryContent(previous.items)) && canReplaceRoutingRows(turn.items, previous.items)) {
 				if (existing) {
 					if (existing.modelId !== turn.request.modelId) {
 						yield;
@@ -835,6 +835,19 @@ class CooperativeMutationBudget {
 		}
 		return value;
 	}
+}
+
+/**
+ * Whether a kept response can take the routing rows of its turn's new history. Its rows are replaced
+ * as a group: as many rows as before stay where they are, and any other number is put first. That
+ * loses the place of a row that belongs part way through the response, so such a turn is restored again.
+ */
+function canReplaceRoutingRows(items: readonly IChatSessionHistoryItem[], previous: readonly IChatSessionHistoryItem[]): boolean {
+	const routingAndContent = (history: readonly IChatSessionHistoryItem[]) => history.flatMap(item => item.type === 'response' ? item.parts : []).filter(part => part.kind !== 'usage');
+	const isRoutingRow = (part: IChatProgress) => part.kind === 'autoModeResolution';
+	const parts = routingAndContent(items);
+	const rowCount = parts.filter(isRoutingRow).length;
+	return parts.slice(0, rowCount).every(isRoutingRow) || rowCount === routingAndContent(previous).filter(isRoutingRow).length;
 }
 
 function groupHistoryTurns(history: readonly IChatSessionHistoryItem[]): IHistoryTurn[] {

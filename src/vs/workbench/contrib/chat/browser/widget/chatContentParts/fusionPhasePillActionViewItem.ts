@@ -11,7 +11,7 @@ import { localize } from '../../../../../../nls.js';
 import { AgentFusionPhaseStatus } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getSubagentIsActive } from '../../../common/chatService/chatService.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
-import { getLanguageModelDisplayNameWithProvider } from '../../../common/languageModels.js';
+import { getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { OpenSubagentChatActionViewItem, SubagentPillContext, type IOpenSubagentChatContext, type SubagentChatStatus } from './chatSubagentOpenChat.js';
 
@@ -34,7 +34,7 @@ function isSubagentPhaseContext(context: unknown): context is ISubagentPhaseCont
 
 /** A phase summary using the subagent pill's visual presentation; it opens the phase chat when there is one. */
 export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewItem {
-	private _modelNameCache: { modelId: string; parentSessionResource: string; name: string | undefined } | undefined;
+	private _modelCache: { modelId: string; parentSessionResource: string; model: ILanguageModelChatMetadataAndIdentifier | undefined; name: string | undefined } | undefined;
 	/** The action bar's last request, applied once a chat makes the pill navigable. */
 	private _focusable: boolean | undefined;
 
@@ -50,7 +50,7 @@ export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewIte
 	override render(container: HTMLElement): void {
 		super.render(container);
 		const refreshModel = () => {
-			this._modelNameCache = undefined;
+			this._modelCache = undefined;
 			this._update();
 		};
 		this._register(this.languageModelsService.onDidChangeLanguageModels(refreshModel));
@@ -95,27 +95,42 @@ export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewIte
 		this.element.draggable = false;
 	}
 
-	protected override get modelName(): string | undefined {
+	/**
+	 * A phase reports its model by the id the host uses, which is not the id the model is registered
+	 * under. The registered model is the one with that id among the models of the session's type.
+	 */
+	private get _registeredModel(): { readonly model: ILanguageModelChatMetadataAndIdentifier | undefined; readonly name: string | undefined } | undefined {
 		const context = this.pillContext;
 		const rawModelId = context?.modelId;
 		const parentSessionResource = context?.parentSessionResource;
-		if (rawModelId && parentSessionResource) {
-			if (this._modelNameCache?.modelId !== rawModelId || this._modelNameCache.parentSessionResource !== parentSessionResource) {
-				const sessionType = getChatSessionType(URI.parse(parentSessionResource));
-				let name: string | undefined;
-				for (const identifier of this.languageModelsService.getLanguageModelIds()) {
-					const metadata = this.languageModelsService.lookupLanguageModel(identifier);
-					if (metadata?.targetChatSessionType === sessionType && (metadata.id === rawModelId || identifier === rawModelId)) {
-						const model = { identifier, metadata };
-						name = getLanguageModelDisplayNameWithSubscriptionSource(model, getLanguageModelDisplayNameWithProvider(model, this.languageModelsService));
-						break;
-					}
-				}
-				this._modelNameCache = { modelId: rawModelId, parentSessionResource, name };
-			}
-			return this._modelNameCache.name ?? context?.modelName ?? rawModelId;
+		if (!rawModelId || !parentSessionResource) {
+			return undefined;
 		}
-		return context?.modelName ?? rawModelId;
+		if (this._modelCache?.modelId !== rawModelId || this._modelCache.parentSessionResource !== parentSessionResource) {
+			const sessionType = getChatSessionType(URI.parse(parentSessionResource));
+			let model: ILanguageModelChatMetadataAndIdentifier | undefined;
+			for (const identifier of this.languageModelsService.getLanguageModelIds()) {
+				const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+				if (metadata?.targetChatSessionType === sessionType && (metadata.id === rawModelId || identifier === rawModelId)) {
+					model = { identifier, metadata };
+					break;
+				}
+			}
+			this._modelCache = {
+				modelId: rawModelId, parentSessionResource, model,
+				name: model && getLanguageModelDisplayNameWithSubscriptionSource(model, getLanguageModelDisplayNameWithProvider(model, this.languageModelsService)),
+			};
+		}
+		return this._modelCache;
+	}
+
+	protected override get model(): ILanguageModelChatMetadataAndIdentifier | undefined {
+		return this._registeredModel?.model;
+	}
+
+	protected override get modelName(): string | undefined {
+		const context = this.pillContext;
+		return this._registeredModel?.name ?? context?.modelName ?? context?.modelId;
 	}
 
 	protected override get showModel(): boolean {

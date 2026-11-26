@@ -1580,6 +1580,33 @@ suite('Response', () => {
 		]);
 	});
 
+	test('a routing row with an id is updated and taken back by that id, leaving the other rows in place', () => {
+		const response = store.add(new Response([]));
+		const pass = (id: string, name: string) => ({ kind: 'autoModeResolution' as const, id, resolved: { id: name, name } });
+		const shown = () => response.value.map(part => part.kind === 'autoModeResolution' ? part.resolved?.name : part.kind);
+		response.updateContent({ kind: 'autoModeResolution', resolved: { id: 'auto', name: 'Auto pick' } });
+		response.updateContent(pass('pass:0', 'Model A'));
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('From A.') });
+		response.updateContent(pass('pass:2', 'Model B'));
+		// The same id names the row that is there rather than adding one.
+		response.updateContent(pass('pass:0', 'Model A, renamed'));
+		const updated = shown();
+		// As many rows as there are replace them where they are; any other number goes first.
+		response.replaceAutoModeResolutions([{ kind: 'autoModeResolution', resolved: { id: 'auto', name: 'Auto pick, again' } }, pass('pass:0', 'Model A'), pass('pass:2', 'Model B')]);
+		const replaced = shown();
+		response.updateContent({ kind: 'autoModeResolution', id: 'pass:0', remove: true });
+		response.updateContent({ kind: 'autoModeResolution', id: 'pass:2', remove: true });
+		const removed = shown();
+		response.replaceAutoModeResolutions([{ kind: 'autoModeResolution', resolved: { id: 'auto', name: 'Auto pick' } }, pass('pass:0', 'Model A')]);
+
+		assert.deepStrictEqual({ updated, replaced, removed, added: shown() }, {
+			updated: ['Auto pick', 'Model A, renamed', 'markdownContent', 'Model B'],
+			replaced: ['Auto pick, again', 'Model A', 'markdownContent', 'Model B'],
+			removed: ['Auto pick, again', 'markdownContent'],
+			added: ['Auto pick', 'Model A', 'markdownContent'],
+		});
+	});
+
 	test('system notification remains distinct from later response content', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ kind: 'systemNotification', content: new MarkdownString('Background command completed') });

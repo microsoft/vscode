@@ -663,6 +663,42 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		test('a phase pill shows the logo of a model whose provider only its registration names', () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.ModelLogos, true);
+			const sessionType = 'agent-host-copilotcli';
+			const models = new Map<string, ILanguageModelChatMetadata>();
+			const changed = store.add(new Emitter<string>());
+			instantiationService.stub(ILanguageModelsService, {
+				getLanguageModelIds: () => [...models.keys()],
+				lookupLanguageModel: (identifier: string) => models.get(identifier),
+				getVendors: () => [],
+				getLanguageModelGroups: () => [],
+				onDidChangeLanguageModels: changed.event,
+				onDidChangeLanguageModelVendors: Event.None,
+			});
+			// A phase reports the id the host uses, which is not the id the model is registered under.
+			const context: ISubagentPhaseContext = {
+				presentation: 'phase', phaseStatus: 'running', title: 'Main pass',
+				modelId: 'preview-1', modelName: 'preview-1', parentSessionResource: `${sessionType}:/session`,
+			};
+			const action = store.add(new Action('phase', 'Phase'));
+			const item = store.add(instantiationService.createInstance(TestFusionPhasePillActionViewItem, context, action, {}, false));
+			const container = $('div');
+			item.render(container);
+			const snapshot = () => ({
+				logo: container.querySelector('.chat-subagent-pill-model > .chat-model-provider-logo')?.className,
+				label: container.querySelector('.chat-subagent-pill-model')?.textContent,
+			});
+			const unregistered = snapshot();
+			models.set(`${sessionType}:preview-1`, upcastPartial<ILanguageModelChatMetadata>({ id: 'preview-1', name: 'Preview 1', vendor: sessionType, family: 'claude', targetChatSessionType: sessionType }));
+			changed.fire(`${sessionType}:preview-1`);
+
+			assert.deepStrictEqual({ unregistered, registered: snapshot() }, {
+				unregistered: { logo: 'chat-model-provider-logo hidden', label: 'preview-1' },
+				registered: { logo: 'chat-model-provider-logo codicon codicon-chat-model-provider-claude', label: 'Preview 1' },
+			});
+		});
+
 		test('caches phase model lookups across context updates, hover and duration ticks', () => runWithFakedTimers({ startTime: 10000 }, async () => {
 			const sessionType = 'agent-host-copilotcli';
 			const otherSessionType = 'agent-host-codex';

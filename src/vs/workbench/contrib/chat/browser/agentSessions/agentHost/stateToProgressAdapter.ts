@@ -1058,17 +1058,24 @@ export function previousModelRouted(turns: readonly Turn[], turnId: string): IMo
 	return undefined;
 }
 
+/** A model that a routing row has to name, and the response part whose milestone named it. */
+export interface IFusionPassRow {
+	/** The index of the milestone among the turn's response parts. The row belongs just before it. */
+	readonly index: number;
+	readonly model: string;
+}
+
 /**
  * The models that a turn's Copilot Fusion milestones name for the workflow's own pass, the one that
  * writes into the chat. `rows` are the models a routing row has to name: each model once per change,
  * counted from `previousModel`, the model the turn before ended on. A model that a notice of its own
  * names, such as the fallback of a failed routing, needs no row. `last` is the model the turn ended on.
  */
-export function fusionPassModels(parts: readonly ResponsePart[], previousModel?: string): { readonly rows: readonly string[]; readonly last: string | undefined } {
-	const rows: string[] = [];
+export function fusionPassModels(parts: readonly ResponsePart[], previousModel?: string): { readonly rows: readonly IFusionPassRow[]; readonly last: string | undefined } {
+	const rows: IFusionPassRow[] = [];
 	let current = previousModel;
 	let last: string | undefined;
-	for (const part of parts) {
+	for (const [index, part] of parts.entries()) {
 		if (part.kind !== ResponsePartKind.SystemNotification) {
 			continue;
 		}
@@ -1081,7 +1088,7 @@ export function fusionPassModels(parts: readonly ResponsePart[], previousModel?:
 		if (model !== current) {
 			current = model;
 			if (meta.fusionStatus === 'selected') {
-				rows.push(model);
+				rows.push({ index, model });
 			}
 		}
 	}
@@ -1095,9 +1102,25 @@ export function previousFusionPassModel(turns: readonly Turn[], turnId: string):
 	return index === 0 ? undefined : previous && fusionPassModels(previous.responseParts).last;
 }
 
-/** The routing parts for the models a turn's Copilot Fusion workflow ran its own passes on. */
-export function fusionPassResolutions(parts: readonly ResponsePart[], previousModel: string | undefined, lookup: TurnModelLookup | undefined): IChatAutoModeResolutionPart[] {
-	return fusionPassModels(parts, previousModel).rows.flatMap(model => lookup?.toFusionPassResolution?.(model) ?? []);
+/** The id of the routing part for the Copilot Fusion milestone at `index` of a turn's response parts. */
+export function fusionPassResolutionId(index: number): string {
+	return `fusionPass:${index}`;
+}
+
+/**
+ * The routing parts for the models a turn's Copilot Fusion workflow ran its own passes on, keyed by
+ * the index of the response part each one belongs before. A part carries an id that is the same
+ * however the turn reaches the chat, so a row that is already shown can be found again.
+ */
+export function fusionPassResolutions(rows: readonly IFusionPassRow[], lookup: TurnModelLookup | undefined): Map<number, IChatAutoModeResolutionPart> {
+	const resolutions = new Map<number, IChatAutoModeResolutionPart>();
+	for (const row of rows) {
+		const resolution = lookup?.toFusionPassResolution?.(row.model);
+		if (resolution) {
+			resolutions.set(row.index, { ...resolution, id: fusionPassResolutionId(row.index) });
+		}
+	}
+	return resolutions;
 }
 
 /**
@@ -1522,8 +1545,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			parts.push(autoModeResolution);
 		}
 		previousRouted = readUsageInfoMeta(turn.usage).modelRouted ?? previousRouted;
-		parts.push(...fusionPassResolutions(turn.responseParts, previousFusionPass, turnLookup));
-		previousFusionPass = fusionPassModels(turn.responseParts).last;
+		// A turn can move to another model after the first one has answered, so each row sits where its milestone is.
+		const fusionPass = fusionPassModels(turn.responseParts, previousFusionPass);
+		const fusionPassRows = fusionPassResolutions(fusionPass.rows, turnLookup);
+		previousFusionPass = fusionPass.last;
 
 		const usage = usageInfoToChatUsage(turn.usage, turnLookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
 		if (usage) {
@@ -1534,7 +1559,11 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			parts.push(usage);
 		}
 
-		for (const rp of turn.responseParts) {
+		for (const [index, rp] of turn.responseParts.entries()) {
+			const fusionPassRow = fusionPassRows.get(index);
+			if (fusionPassRow) {
+				parts.push(fusionPassRow);
+			}
 			switch (rp.kind) {
 				case ResponsePartKind.Markdown:
 					if (rp.content) {
@@ -1994,15 +2023,22 @@ export function reasoningPartToThinking(part: ReasoningResponsePart, value = par
  * Returns serialized progress items for content already received (text,
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
+ *
+ * @param previousFusionPass The model the turn before ended its Copilot Fusion workflow on, which needs no routing row again.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget, showHookFailures = false): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget, showHookFailures = false, previousFusionPass?: string): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage, (lookup?.forTurn?.(activeTurn.message.model?.id) ?? lookup)?.toModelDisplayName);
 	if (usage) {
 		parts.push(usage);
 	}
+	const fusionPassRows = fusionPassResolutions(fusionPassModels(activeTurn.responseParts, previousFusionPass).rows, lookup);
 
-	for (const rp of activeTurn.responseParts) {
+	for (const [index, rp] of activeTurn.responseParts.entries()) {
+		const fusionPassRow = fusionPassRows.get(index);
+		if (fusionPassRow) {
+			parts.push(fusionPassRow);
+		}
 		switch (rp.kind) {
 			case ResponsePartKind.Markdown:
 				if (rp.content) {

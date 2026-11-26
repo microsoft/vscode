@@ -699,6 +699,13 @@ export interface IChatThinkingPart {
 export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
 	/**
+	 * Identifies a row that can be updated or taken back. A part with an id only ever replaces the
+	 * row with that id, so it never settles a row that is still routing.
+	 */
+	id?: string;
+	/** Takes back the row with this {@link id}. */
+	remove?: boolean;
+	/**
 	 * The model the router picked, or `undefined` while routing is in flight.
 	 * `reason` is the routing service's display-only, unlocalized explanation
 	 * of the pick; it already names the model.

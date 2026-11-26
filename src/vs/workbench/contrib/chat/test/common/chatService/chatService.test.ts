@@ -5876,6 +5876,40 @@ suite('ChatService', () => {
 			});
 		}
 
+		test('history metadata updates keep a routing row where it sits in the response', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			// The second row belongs between the two answers, which a kept response cannot place.
+			const turn = (rows?: string): IChatSessionHistoryItem[] => [
+				{ type: 'request', id: 'one', prompt: 'Hello', participant: remoteScheme },
+				{
+					type: 'response', participant: remoteScheme, parts: [
+						...(rows ? [{ kind: 'autoModeResolution' as const, id: 'pass:0', resolved: { id: 'a', name: `Model A ${rows}` } }] : []),
+						{ kind: 'markdownContent', content: new MarkdownString('From A. ') },
+						...(rows ? [{ kind: 'autoModeResolution' as const, id: 'pass:2', resolved: { id: 'b', name: `Model B ${rows}` } }] : []),
+						{ kind: 'markdownContent', content: new MarkdownString('From B.') },
+					]
+				},
+			];
+			const { resource } = setupRemoteProvider({ history: turn(), onDidChangeHistory: changes.event, preserveHistoryItemIdentity: true });
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
+			const model = ref.object;
+			const refresh = (history: IChatSessionHistoryItem[]) => {
+				const response = model.getRequests()[0].response;
+				changes.fire(history);
+				const refreshed = model.getRequests()[0].response;
+				return {
+					keptResponse: refreshed === response,
+					parts: refreshed?.response.value.map(part => part.kind === 'autoModeResolution' ? part.resolved?.name : part.kind === 'markdownContent' ? part.content.value : part.kind),
+				};
+			};
+			assert.deepStrictEqual({ added: refresh(turn('first')), renamed: refresh(turn('second')), removed: refresh(turn()) }, {
+				added: { keptResponse: false, parts: ['Model A first', 'From A. ', 'Model B first', 'From B.'] },
+				renamed: { keptResponse: true, parts: ['Model A second', 'From A. ', 'Model B second', 'From B.'] },
+				removed: { keptResponse: true, parts: ['From A. ', 'From B.'] },
+			});
+		});
+
 		test('metadata-only promotion preserves local removals while reconciling changed content and new turns', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const turn = (id: string, text: string, modelId = 'recorded'): IChatSessionHistoryItem[] => [
