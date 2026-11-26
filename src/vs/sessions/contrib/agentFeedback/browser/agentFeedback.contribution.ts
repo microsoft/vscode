@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AGENTS_WINDOW_PR_COMMENTS_SETTING } from './agentFeedbackEditorUtils.js';
+import './agentFeedbackEditorInputContribution.js';
 import { AgentFeedbackEditorWidgetContribution } from './agentFeedbackEditorWidgetContribution.js';
 import './agentFeedbackOverviewRulerContribution.js';
 import { Event } from '../../../../base/common/event.js';

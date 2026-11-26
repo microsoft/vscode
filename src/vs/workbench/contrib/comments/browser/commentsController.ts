@@ -482,6 +482,8 @@ export class CommentController extends Disposable implements IEditorContribution
 	 * comments that are no longer shown.
 	 */
 	private _commentWidgetsGeneration = 0;
+	/** The threads whose widgets are being displayed, and whether they changed meanwhile, which their widgets miss. */
+	private readonly _displayingThreads = new Map<languages.CommentThread, boolean>();
 	private _commentInfos: ICommentInfo[];
 	private _commentingRangeDecorator!: CommentingRangeDecorator;
 	private _commentThreadRangeDecorator!: CommentThreadRangeDecorator;
@@ -1086,6 +1088,9 @@ export class CommentController extends Disposable implements IEditorContribution
 
 			for (const thread of changed) {
 				const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.uniqueOwner === e.uniqueOwner && zoneWidget.commentThread.threadId === thread.threadId);
+				if (!matchedZones.length && this._displayingThreads.has(thread)) {
+					this._displayingThreads.set(thread, true);
+				}
 				if (matchedZones.length) {
 					const matchedZone = matchedZones[0];
 					matchedZone.update(thread);
@@ -1196,15 +1201,28 @@ export class CommentController extends Disposable implements IEditorContribution
 		const commentWidget: ICommentThreadEditorWidget = threadStyle === 'floating'
 			? this.instantiationService.createInstance(ReviewFloatingWidget, this.editor, uniqueOwner, thread, pending, pendingEdits, this._floatingWidgetHost)
 			: this.instantiationService.createInstance(ReviewZoneWidget, this.editor, uniqueOwner, thread, pending, pendingEdits);
+		this._displayingThreads.set(thread, false);
 		await commentWidget.display(thread.range, shouldReveal);
+		const isChangedWhileDisplaying = this._displayingThreads.get(thread);
+		this._displayingThreads.delete(thread);
 		const isReplaced = generation !== undefined && generation !== this._commentWidgetsGeneration;
 		// A full and an incremental update can display the same thread at the same time.
-		const isDuplicate = this._commentWidgets.some(widget => widget.uniqueOwner === uniqueOwner && (widget.commentThread === thread || widget.commentThread.threadId === thread.threadId));
-		if (isReplaced || isDuplicate) {
+		const replacement = this._commentWidgets.find(widget => widget.uniqueOwner === uniqueOwner && (widget.commentThread === thread || widget.commentThread.threadId === thread.threadId));
+		if (isReplaced || replacement) {
+			// The reply being written, such as one restored from another window, goes to the widget that shows the thread instead.
+			const newComment = commentWidget.getPendingComments().newComment;
+			if (newComment && replacement && !replacement.getPendingComments().newComment) {
+				replacement.setPendingComment(newComment);
+			} else if (newComment && !replacement) {
+				(this._pendingNewCommentCache[uniqueOwner] ??= {})[thread.threadId] = newComment;
+			}
 			commentWidget.dispose();
 			return;
 		}
 		this._commentWidgets.push(commentWidget);
+		if (isChangedWhileDisplaying) {
+			await commentWidget.update(thread);
+		}
 		this.localToDispose.add(commentWidget.onDidChangeExpandedState(() => this._updateCommentWidgetVisibleContext()));
 		this.localToDispose.add(commentWidget.onDidClose(() => this._updateCommentWidgetVisibleContext()));
 		this.openCommentsView(thread);

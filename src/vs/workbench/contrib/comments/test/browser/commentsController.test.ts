@@ -52,7 +52,7 @@ suite('CommentController', () => {
 	 * updated and disposed, and runs the test with a way to compute the comments again.
 	 * @param display Lets the test decide when displaying a thread's widget finishes.
 	 */
-	async function withCommentWidgets(getThreads: () => readonly CommentThread<IRange>[], display: () => Promise<void>, run: (recompute: () => Promise<void>, events: readonly string[], add: (thread: CommentThread<IRange>) => void) => Promise<void>): Promise<void> {
+	async function withCommentWidgets(getThreads: () => readonly CommentThread<IRange>[], display: () => Promise<void>, run: (recompute: () => Promise<void>, events: readonly string[], add: (thread: CommentThread<IRange>) => void, change: (thread: CommentThread<IRange>) => void) => Promise<void>): Promise<void> {
 		const onDidUpdateCommentingRanges = store.add(new Emitter<{ uniqueOwner: string }>());
 		const onDidUpdateCommentThreads = store.add(new Emitter<ICommentThreadChangedEvent>());
 		const commentService = new class extends mock<ICommentService>() {
@@ -129,6 +129,9 @@ suite('CommentController', () => {
 				}, events, thread => {
 					thread.resource = editor.getModel().uri.toString();
 					onDidUpdateCommentThreads.fire({ uniqueOwner: 'test', owner: 'test', ownerLabel: 'Test', added: [thread], removed: [], changed: [], pending: [] });
+				}, thread => {
+					thread.resource = editor.getModel().uri.toString();
+					onDidUpdateCommentThreads.fire({ uniqueOwner: 'test', owner: 'test', ownerLabel: 'Test', added: [], removed: [], changed: [thread], pending: [] });
 				});
 			} finally {
 				controller.dispose();
@@ -176,6 +179,23 @@ suite('CommentController', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(events, ['display:thread-1', 'display:thread-1', 'dispose:thread-1']);
+		});
+	});
+
+	test('updates a thread that changes while its widget is being displayed', async () => {
+		let display = Promise.resolve();
+		const thread = createThread(1);
+		await withCommentWidgets(() => [], () => display, async (_recompute, events, add, change) => {
+			const gate = new DeferredPromise<void>();
+			display = gate.p;
+			add(thread);
+			await timeout(0);
+			change(thread);
+			await timeout(0);
+			gate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual(events, ['display:thread-1', 'update:thread-1']);
 		});
 	});
 

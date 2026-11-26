@@ -39,7 +39,7 @@ import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/br
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { IGitHubPullRequestRef } from '../../../../workbench/services/sessions/common/session.js';
-import { createAgentFeedbackContext, getPRCommentPullRequests } from './agentFeedbackEditorUtils.js';
+import { AGENTS_WINDOW_PR_COMMENTS_SETTING, createAgentFeedbackContext, getPRCommentPullRequests } from './agentFeedbackEditorUtils.js';
 import { acceptIcon, deleteIcon, editIcon, hideIcon } from './agentFeedbackEditorWidget.js';
 import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
 import { getSessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
@@ -295,6 +295,11 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 		super();
 
 		const enabled = observableConfigValue(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING, false, _configurationService);
+		this._register(runOnChange(observableConfigValue(AGENTS_WINDOW_PR_COMMENTS_SETTING, false, _configurationService), () => {
+			for (const template of this._templates.values()) {
+				void this._updatePullRequests(template);
+			}
+		}));
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
 				this._registerController();
@@ -456,7 +461,7 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 	async addPRComment(thread: CommentThread, body: string, pullRequest: IGitHubPullRequestRef): Promise<boolean> {
 		const text = body.trim();
 		const newComment = this._getNewComment(thread);
-		if (!text || !newComment?.model) {
+		if (!text || !newComment?.model || this._configurationService.getValue<boolean>(AGENTS_WINDOW_PR_COMMENTS_SETTING) !== true) {
 			return false;
 		}
 		const { template, sessionResource, range, model } = newComment;
