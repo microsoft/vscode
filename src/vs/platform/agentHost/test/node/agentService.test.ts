@@ -5255,6 +5255,121 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	/** A New Worktree for All Folders session of `folders` whose first send creates the primary worktree when `primaryCreated` opens. */
+	function createAllFoldersSession(checkouts: readonly URI[], primaryCreated?: Barrier) {
+		const worktreeOf = (checkout: URI) => URI.file(`${checkout.fsPath}.worktrees/task`);
+		let primaryWorktree: URI | undefined;
+		const created: string[] = [];
+		const creatingPrimary = new DeferredPromise<void>();
+		const gitService: IAgentHostGitService = {
+			...createNoopGitService(),
+			getRepositoryRoot: async directory => checkouts.find(checkout => isEqualOrParent(directory, checkout)),
+			getCurrentBranch: async () => 'feature',
+		};
+		const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, gitService));
+		setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+			isWorkingDirectoryPending: () => !primaryWorktree,
+			resolveOnFirstSend: async () => {
+				creatingPrimary.complete();
+				await primaryCreated?.wait();
+				primaryWorktree = worktreeOf(checkouts[0]);
+				return primaryWorktree;
+			},
+			getResolvedWorktree: () => primaryWorktree,
+			createDetachedWorktree: async request => {
+				created.push(request.workingDirectory!.toString());
+				return { handle: generateUuid(), worktree: worktreeOf(request.workingDirectory!) };
+			},
+			claimDetachedWorktree: async () => { },
+		}));
+		const sends: (string[] | undefined)[] = [];
+		const sent = new DeferredPromise<void>();
+		class ProvisionalAgent extends MockAgent {
+			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+				createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
+				sendMessage: async (chat, prompt, workingDirectories, attachments, turnId, ...rest) => {
+					sends.push(Array.isArray(workingDirectories) ? workingDirectories.map(uri => uri.toString()) : undefined);
+					await base.sendMessage(chat, prompt, workingDirectories, attachments, turnId, ...rest);
+					sent.complete();
+				},
+			}));
+		}
+		const agent = new ProvisionalAgent('copilot', { multipleWorkingDirectories: { immutablePrimary: true } });
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(service, agent);
+		const createSession = async (folders: readonly URI[]) => {
+			const session = await service.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [...folders] });
+			getStateManager(service).setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeFolders]: 'all' } });
+			return { session, chat: buildDefaultChatUri(session.toString()) };
+		};
+		const send = (chat: string) => service.dispatchAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'first', origin: { kind: MessageKind.User } } }, 'client-1', 1);
+		return { service, worktreeOf, created, sends, sent: sent.p, creatingPrimary: creatingPrimary.p, createSession, send };
+	}
+
+	test('a worktree session for all folders isolates the folders its chat works in once the session worktree exists, not those it had when it was sent', async () => {
+		const app = URI.file('/work/app');
+		const protocol = URI.file('/work/protocol');
+		const docs = URI.file('/work/docs');
+		const primaryCreated = new Barrier();
+		const { service, worktreeOf, created, sends, sent, creatingPrimary, createSession, send } = createAllFoldersSession([app, protocol, docs], primaryCreated);
+		const { session, chat } = await createSession([app, protocol, docs]);
+
+		send(chat);
+		await creatingPrimary;
+		// A folder removed while the session's own worktree is created
+		getStateManager(service).dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectoryRemoved, directory: protocol.toString() });
+		primaryCreated.open();
+		await sent;
+
+		assert.deepStrictEqual({ created, sends, sessionFolders: getStateManager(service).getSessionSummary(session.toString())?.workingDirectories }, {
+			created: [docs.toString()],
+			sends: [[worktreeOf(app), worktreeOf(docs)].map(folder => folder.toString())],
+			sessionFolders: [app.toString(), worktreeOf(docs).toString()],
+		});
+	});
+
+	test('a worktree session for all folders replaces the folders of a chat that has folders of its own, so its next turns stay in the worktrees', async () => {
+		const app = URI.file('/work/app');
+		const protocol = URI.file('/work/protocol');
+		const docs = URI.file('/work/docs');
+		const { service, worktreeOf, created, sends, sent, createSession, send } = createAllFoldersSession([app, protocol, docs]);
+		const { session, chat } = await createSession([app, protocol, docs]);
+		const stateManager = getStateManager(service);
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionChatUpdated, chat, changes: { workingDirectories: [app.toString(), protocol.toString()] } });
+
+		send(chat);
+		await sent;
+
+		assert.deepStrictEqual({
+			created,
+			sends,
+			chatFolders: stateManager.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat)?.workingDirectories,
+			sessionFolders: stateManager.getSessionSummary(session.toString())?.workingDirectories,
+		}, {
+			created: [protocol.toString()],
+			sends: [[worktreeOf(app), worktreeOf(protocol)].map(folder => folder.toString())],
+			// The session's own worktree replaces its first folder through the worktree isolation, which this test fakes
+			chatFolders: [app.toString(), worktreeOf(protocol).toString()],
+			sessionFolders: [app.toString(), worktreeOf(protocol).toString(), docs.toString()],
+		});
+	});
+
+	test('a worktree session for all folders creates worktrees for at most 8 other checkouts on its first send', async () => {
+		const app = URI.file('/work/app');
+		const others = Array.from({ length: 9 }, (_, index) => URI.file(`/work/repo${index + 1}`));
+		const { worktreeOf, created, sends, sent, createSession, send } = createAllFoldersSession([app, ...others]);
+		const { chat } = await createSession([app, ...others]);
+
+		send(chat);
+		await sent;
+
+		assert.deepStrictEqual({ created, sends }, {
+			created: others.slice(0, 8).map(folder => folder.toString()),
+			// The ninth stays a shared checkout
+			sends: [[worktreeOf(app), ...others.slice(0, 8).map(worktreeOf), others[8]].map(folder => folder.toString())],
+		});
+	});
+
 	test('announces a provisional worktree session whose first turn is cancelled during worktree creation, and sends the next turn in that worktree', async () => {
 		const repository = URI.file('/work/repo');
 		const worktree = URI.file('/work/repo.worktrees/feature');

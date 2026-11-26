@@ -131,7 +131,7 @@ import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate, type IAgentHostSessionsV2MigrationReport } from './agentHostSessionsV2MigrationService.js';
 
-import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, type IRecordedWorktree, type IWorktreeHandOver, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, MAX_FIRST_SEND_FOLDER_WORKTREES, type IRecordedWorktree, type IWorktreeHandOver, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { findMcpServerName } from './shared/mcpCustomizationController.js';
 import type { IAgentHostSessionLifecycleCandidate } from './agentHostSessionLifecycle.js';
@@ -209,8 +209,6 @@ class RestoredPeerChatUnavailableError extends Error {
 	}
 }
 const SESSION_GC_GRACE_MS = 30_000;
-/** How many checkouts the first send of a New Worktree for All Folders session creates worktrees for; the others stay shared checkouts. */
-const MAX_FIRST_SEND_FOLDER_WORKTREES = 8;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
@@ -2048,7 +2046,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const config = this._configurationService.getSessionConfigValues(params.session);
 		const isolatedTail = config?.[SessionConfigKey.Isolation] === 'worktree' && config[SessionConfigKey.WorktreeFolders] === 'all'
-			? await this._isolateSessionFolders(URI.parse(params.session), params.chat, tail, params.credentials, params.prompt)
+			? await this._isolateSessionFolders(URI.parse(params.session), params.chat, params.credentials, params.prompt)
 			: tail;
 		return [resolved, ...isolatedTail];
 	}
@@ -2059,14 +2057,18 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the session folders. Folders in the same checkout share one worktree. A folder that is not in a Git repository, or
 	 * whose worktree could not be created, stays in place: the working directories then list the latter as a shared
 	 * checkout, which the agent asks about before changing. So do the checkouts after the first
-	 * {@link MAX_FIRST_SEND_FOLDER_WORKTREES}, which bounds the time the first send waits. `chat` shows the progress.
-	 * Returns `folders` with each isolated one replaced.
+	 * {@link MAX_FIRST_SEND_FOLDER_WORKTREES}, which bounds the time the first send waits. Isolates the folders after the
+	 * first that `chat`, which shows the progress, works in once the change holds the folder locks, and returns them, with
+	 * each isolated one replaced, for the turn to launch in.
 	 */
-	private async _isolateSessionFolders(session: URI, chat: string, folders: readonly URI[], credentials: IAgentHostCredentialSource | undefined, prompt: string): Promise<readonly URI[]> {
-		if (!folders.length) {
-			return folders;
-		}
+	private async _isolateSessionFolders(session: URI, chat: string, credentials: IAgentHostCredentialSource | undefined, prompt: string): Promise<readonly URI[]> {
+		const isCurrentChat = this._stateManager.captureChatValidity(chat);
 		return this._runSessionFolderChange(session, async () => {
+			// Read now: the chat's folders may have changed while the session's own worktree was created.
+			const folders = (this._configurationService.getEffectiveWorkingDirectories(chat) ?? []).slice(1).map(folder => URI.parse(folder));
+			if (!folders.length) {
+				return folders;
+			}
 			// Read-only lookups run side by side; worktrees are created one at a time, as they write the session's records.
 			const probes = new Limiter<URI | undefined>(5);
 			const checkoutRoots = await Promise.all(folders.map(folder => probes.queue(async () => {
@@ -2122,9 +2124,62 @@ export class AgentService extends Disposable implements IAgentService {
 				const worktreeRoot = checkoutRoot && created.get(extUriBiasedIgnorePathCase.getComparisonKey(checkoutRoot));
 				return checkoutRoot && worktreeRoot ? toIsolatedFolder(worktreeRoot, checkoutRoot, folder) : folder;
 			});
-			await this._replaceSessionFolders(session, folders, result);
+			await this._replaceLaunchFolders(session, chat, folders, result, isCurrentChat);
 			return result;
 		});
+	}
+
+	/**
+	 * Replaces each of `originals` by the folder at the same index of `replacements` where `chat` takes its folders from,
+	 * on its first send: in the session folders, which every chat without folders of its own follows, or, when `chat` has
+	 * folders of its own or another chat keeps working in an original, in the folders of `chat`, as
+	 * {@link _replaceChatFolder} does once the session is ready.
+	 */
+	private async _replaceLaunchFolders(session: URI, chat: string, originals: readonly URI[], replacements: readonly URI[], isCurrentChat: () => boolean): Promise<void> {
+		const sessionKey = session.toString();
+		const state = this._stateManager.getSessionState(sessionKey);
+		const summary = state?.chats.find(candidate => candidate.resource === chat);
+		if (!state || !summary) {
+			return;
+		}
+		const pairs = originals.map((original, index) => ({ original, replacement: replacements[index] })).filter(({ original, replacement }) => !isEqual(original, replacement));
+		const keptElsewhere = (original: URI) => state.chats.some(candidate => candidate.resource !== chat && candidate.workingDirectories?.some(folder => isEqual(URI.parse(folder), original)))
+			|| this._isChatWorkingDirectoryReserved(session, original);
+		if (summary.workingDirectories === undefined && !pairs.some(({ original }) => keptElsewhere(original))) {
+			await this._replaceSessionFolders(session, originals, replacements);
+			return;
+		}
+		if (!pairs.length) {
+			return;
+		}
+		const current = summary.workingDirectories ?? this._configurationService.getEffectiveWorkingDirectories(chat) ?? [];
+		const next = current.map(folder => pairs.find(({ original }) => isEqual(URI.parse(folder), original))?.replacement.toString() ?? folder);
+		await this._persistChatWorkingDirectories(session, URI.parse(chat), next, current, () => {
+			if (!isCurrentChat() || this._chatOwnership.getChatOwner(chat) !== sessionKey) {
+				throw new Error(`Chat ${chat} was removed while isolating its folders.`);
+			}
+		});
+		// Before the first send completes the session is still being created, so read the capability directly
+		const declared = this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories;
+		const capability = { immutablePrimary: declared?.immutablePrimary === true, primaryReplacement: declared?.primaryReplacement === true };
+		for (const { original, replacement } of pairs) {
+			const latest = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [];
+			const isOriginal = (candidate: string) => isEqual(URI.parse(candidate), original);
+			const originalInUse = keptElsewhere(original)
+				|| this._getWorkingDirectoriesInUse(state.chats, chat, this._sessionFoldersOfChatWithoutOwn(sessionKey)).some(scope => scope === undefined || scope.some(isOriginal));
+			const hasReplacement = latest.some(candidate => isEqual(URI.parse(candidate), replacement));
+			if (!hasReplacement || !originalInUse) {
+				this._stateManager.dispatchServerAction(sessionKey, resolveSessionWorkingDirectoryAction(
+					hasReplacement ? { type: ActionType.SessionWorkingDirectoryRemoved, directory: original.toString() }
+						: originalInUse ? { type: ActionType.SessionWorkingDirectorySet, directory: replacement.toString() }
+							: { type: ActionType.SessionWorkingDirectoryReplaced, directory: original.toString(), replacement: replacement.toString() },
+					latest, capability));
+			}
+		}
+		this._applyChatWorkingDirectories(session, URI.parse(chat), next, current);
+		this._publishWorkingDirectoryIdentities(sessionKey);
+		await this._persistSessionWorkingDirectories(session);
+		void this._gitStateService.refreshSessionGitState(sessionKey, undefined, { force: true });
 	}
 
 	/** Replaces each of `originals` by the folder at the same index of `replacements` in the session folders, in place. */
