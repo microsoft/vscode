@@ -84,8 +84,6 @@ export enum SessionsGrouping {
 	Environment = 'environment',
 	Date = 'date',
 	Inbox = 'inbox',
-	/** By the folder each session works in: a repository's main checkout and each of its worktrees. Offered by hosts that ask for it. */
-	Worktree = 'worktree',
 }
 
 export enum SessionsSorting {
@@ -102,8 +100,6 @@ export interface ISessionSection {
 	/** The repository of a repository section. */
 	readonly repository?: ISessionRepository;
 	readonly environment?: ISessionEnvironment;
-	/** Shown on hover of the section's label and spoken with it, such as the full path of a worktree section's folder. */
-	readonly hover?: string;
 	/** The pinned canvas a navigation row opens. */
 	readonly pinnedCanvas?: IPinnedCanvas;
 }
