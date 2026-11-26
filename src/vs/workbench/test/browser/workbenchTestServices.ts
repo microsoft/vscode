@@ -1022,6 +1022,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	readonly onWillDispose: Event<void> = Event.None;
 	readonly onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
+	readonly onDidRelayout: Event<void> = Event.None;
 	readonly onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	readonly onDidOpenEditorFail: Event<EditorInput> = Event.None;
