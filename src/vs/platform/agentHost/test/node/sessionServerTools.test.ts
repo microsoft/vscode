@@ -22,7 +22,7 @@ import { getCopilotContextTier, getCopilotReasoningEffort } from '../../node/cop
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
-import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, getAgentHostChatId, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, getAgentHostChatId, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
@@ -131,6 +131,7 @@ suite('SessionServerTools', () => {
 			scheduleChatMove: overrides?.scheduleChatMove ?? (() => { }),
 			getChatOwner: overrides?.getChatOwner ?? mintedTestChatOwner,
 			getDefaultChat: overrides?.getDefaultChat ?? recordedDefaultChat,
+			canAskUser: overrides?.canAskUser ?? (() => false),
 		};
 	}
 
@@ -1880,6 +1881,97 @@ suite('SessionServerTools', () => {
 			whileExhausted: ['refused', 'refused', 'refused'],
 			afterWindow: ['allowed', 'allowed', 'allowed'],
 		});
+		store.dispose();
+	});
+
+	test('a reached orchestration limit asks the user whether to allow more', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		let canAskUser = true;
+		const answers: (string | 'cancel' | 'endTurn')[] = [];
+		const questions: string[] = [];
+		store.add(stateManager.onDidEmitEnvelope(({ channel, action }) => {
+			if (action.type !== ActionType.ChatInputRequested) {
+				return;
+			}
+			questions.push(action.request.questions?.[0].title ?? '');
+			const answer = answers.shift();
+			if (answer === 'endTurn') {
+				stateManager.dispatchServerAction(channel, chatTurnComplete('turn-1', 0));
+			} else if (answer === 'cancel') {
+				stateManager.dispatchServerAction(channel, { type: ActionType.ChatInputCompleted, requestId: action.request.id, response: ChatInputResponseKind.Cancel });
+			} else {
+				stateManager.dispatchServerAction(channel, {
+					type: ActionType.ChatInputCompleted, requestId: action.request.id, response: ChatInputResponseKind.Accept,
+					answers: { [action.request.questions![0].id]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: answer! } } },
+				});
+			}
+		}));
+		const group = createSessionServerToolGroup(createAccessor({ canAskUser: () => canAskUser }), () => true, () => 0);
+		const messageArgs = { session: 'copilot:/s1', message: 'status' };
+		const send = (count: number) => sendMany(count, () => group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.SendMessage, messageArgs));
+		const sendMany = async (count: number, run: () => unknown) => {
+			const results: string[] = [];
+			for (let i = 0; i < count; i++) {
+				results.push(await Promise.resolve(run()).then(() => 'allowed', (error: Error) => error.message.startsWith('The user did not allow more.') ? 'declined' : 'refused'));
+			}
+			return [...new Set(results)].join(',') + ` x${count}`;
+		};
+
+		const results: Record<string, string> = { initial: await send(100) };
+		answers.push('deny', 'cancel', 'endTurn', 'allowMore');
+		results.denied = await send(1);
+		results.cancelled = await send(1);
+		results.turnEnded = await send(1);
+		results.allowedMore = await send(100);
+		canAskUser = false;
+		results.unattended = await send(1);
+		canAskUser = true;
+		answers.push('allowUnlimited');
+		results.allowedForSession = await send(150);
+		const otherSession = await Promise.resolve(group.execute(stateManager, executionContext('copilot:/other'), SessionServerToolName.SendMessage, messageArgs)).then(() => 'allowed');
+
+		assert.deepStrictEqual({ results, questions, otherSession }, {
+			results: {
+				initial: 'allowed x100',
+				denied: 'declined x1',
+				cancelled: 'declined x1',
+				turnEnded: 'declined x1',
+				allowedMore: 'allowed x100',
+				unattended: 'refused x1',
+				allowedForSession: 'allowed x150',
+			},
+			questions: ['Message Limit Reached', 'Message Limit Reached', 'Message Limit Reached', 'Message Limit Reached', 'Message Limit Reached'],
+			otherSession: 'allowed',
+		});
+		store.dispose();
+	});
+
+	test('concurrent calls at a reached limit share one question', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const requests: string[] = [];
+		const asked = new DeferredPromise<void>();
+		store.add(stateManager.onDidEmitEnvelope(({ action }) => {
+			if (action.type === ActionType.ChatInputRequested) {
+				requests.push(action.request.id);
+				asked.complete();
+			}
+		}));
+		let created = 0;
+		const group = createSessionServerToolGroup(createAccessor({ canAskUser: () => true, createSession: async () => URI.parse(`copilot:/created-${created++}`) }), () => true, () => 0);
+		const sessionArgs = { relationship: 'independent', workspace: workspace.toString(), prompt: 'go', title: 'Spawned Task' };
+		const run = async () => group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, sessionArgs);
+		for (let i = 0; i < 50; i++) {
+			await run();
+		}
+		const waiting = Promise.all([run(), run(), run()].map(result => result.then(() => 'allowed', () => 'refused')));
+		await asked.p;
+		stateManager.dispatchServerAction(executionContext('copilot:/caller').chatUri, {
+			type: ActionType.ChatInputCompleted, requestId: requests[0], response: ChatInputResponseKind.Accept,
+			answers: { orchestrationLimit: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'allowMore' } } },
+		});
+		assert.deepStrictEqual({ results: await waiting, requests: requests.length }, { results: ['allowed', 'allowed', 'allowed'], requests: 1 });
 		store.dispose();
 	});
 

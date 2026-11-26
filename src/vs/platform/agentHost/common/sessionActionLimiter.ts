@@ -8,7 +8,7 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 export const maxSentMessages = 100;
 export const orchestrationLimitWindowMs = 60 * 60 * 1000;
 
-interface ISessionActionLimit {
+export interface ISessionActionLimit {
 	readonly used: number;
 	readonly pending: number;
 	readonly max: number;
@@ -20,6 +20,7 @@ interface ISessionActionLimit {
 export class SessionActionLimiter {
 	private readonly timestamps = new Map<string, number[]>();
 	private readonly pending = new Map<string, number>();
+	private readonly unlimited = new Set<string>();
 	private lastSweep: number;
 
 	constructor(private readonly maxActions: number, private readonly windowMs: number, private readonly now: () => number) {
@@ -45,6 +46,17 @@ export class SessionActionLimiter {
 		});
 	}
 
+	/** Allows the session another full limit of actions, counted from now. */
+	allowMore(session: string): void {
+		this.timestamps.delete(session);
+	}
+
+	/** Stops limiting the session for the lifetime of this limiter. */
+	allowUnlimited(session: string): void {
+		this.unlimited.add(session);
+		this.timestamps.delete(session);
+	}
+
 	private sweepIdleSessions(): void {
 		if (this.now() - this.lastSweep < this.windowMs) {
 			return;
@@ -66,6 +78,9 @@ export class SessionActionLimiter {
 	}
 
 	getLimit(session: string): ISessionActionLimit | undefined {
+		if (this.unlimited.has(session)) {
+			return undefined;
+		}
 		const recent = this.getRecentActions(session);
 		const pending = this.pending.get(session) ?? 0;
 		if (recent.length + pending < this.maxActions) {

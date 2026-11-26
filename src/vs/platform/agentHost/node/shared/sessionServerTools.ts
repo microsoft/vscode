@@ -33,6 +33,7 @@ import { chatUriFormatOf, mintPeerChatUri } from '../../common/agentHostChatMint
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../agentHostSessionTitleController.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
+import { OrchestrationLimitGate, OrchestrationLimitKind } from './orchestrationLimitGate.js';
 
 /**
  * Maximum `create_session` recursion depth. A user/top-level session is depth 0;
@@ -551,6 +552,8 @@ export interface ISessionServerToolAccessor extends IAgentServiceSessionServerTo
 	readonly getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined;
 	/** The recorded default chat of a session, if any. */
 	readonly getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined;
+	/** Whether someone may answer a question in the chat now: not in Autopilot or with auto-reply on. */
+	readonly canAskUser: (chat: ProtocolURI) => boolean;
 }
 
 /** Resolves the chat a link's chat id addresses against the session's recorded chats. */
@@ -2479,6 +2482,10 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 	const createdSessions = new SessionActionLimiter(maxCreatedSessions, orchestrationLimitWindowMs, now);
 	const createdChats = new SessionActionLimiter(maxCreatedChats, orchestrationLimitWindowMs, now);
 	const sentMessages = new SessionActionLimiter(maxSentMessages, orchestrationLimitWindowMs, now);
+	const sessionsLimit = { kind: OrchestrationLimitKind.Sessions, limiter: createdSessions, action: 'create more sessions' };
+	const chatsLimit = { kind: OrchestrationLimitKind.Chats, limiter: createdChats, action: 'create more chats' };
+	const messagesLimit = { kind: OrchestrationLimitKind.Messages, limiter: sentMessages, action: 'send more messages' };
+	const limitGate = new OrchestrationLimitGate(context => accessor?.canAskUser(context.chatUri) === true);
 	const group: IServerToolGroup = {
 		definitions: sessionServerToolDefinitions,
 		// Remove after 2026-10-26; self-mapped because its arguments differ from create_session.
@@ -2586,20 +2593,18 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					const sourceSessionUri = currentSessionUri(accessor, currentChannel);
 					const sourceSession = sourceSessionUri.toString();
 					const relationship = getCreateSessionRelationship(rawArgs, accessor.supportsChatWorkingDirectories(sourceSessionUri));
-					const limiter = relationship === 'currentSession' ? createdChats : createdSessions;
-					const limitMessage = enforceAgentOrchestrationLimits ? limiter.describeLimit(relationship === 'currentSession' ? 'create more chats' : 'create more sessions', sourceSession) : undefined;
-					if (limitMessage) {
-						throw new Error(limitMessage);
+					const limit = relationship === 'currentSession' ? chatsLimit : sessionsLimit;
+					if (enforceAgentOrchestrationLimits) {
+						await limitGate.check(stateManager, context, limit, sourceSession);
 					}
 					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, enforceAgentOrchestrationLimits);
-					limiter.record(sourceSession);
+					limit.limiter.record(sourceSession);
 					return formatCreateSessionResult(result);
 				}
 				case SessionServerToolName.CreateChat: {
 					const sourceSession = currentSessionUri(accessor, currentChannel).toString();
-					const limitMessage = enforceAgentOrchestrationLimits ? createdChats.describeLimit('create more chats', sourceSession) : undefined;
-					if (limitMessage) {
-						throw new Error(limitMessage);
+					if (enforceAgentOrchestrationLimits) {
+						await limitGate.check(stateManager, context, chatsLimit, sourceSession);
 					}
 					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
 					createdChats.record(sourceSession);
@@ -2612,9 +2617,8 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				case SessionServerToolName.SendMessage: {
 					const operation = (rawArgs as ISendMessageArgs | undefined)?.operation ?? 'send';
 					const sendingSession = currentSessionUri(accessor, currentChannel).toString();
-					const limitMessage = operation === 'send' && enforceAgentOrchestrationLimits ? sentMessages.describeLimit('send more messages', sendingSession) : undefined;
-					if (limitMessage) {
-						throw new Error(limitMessage);
+					if (operation === 'send' && enforceAgentOrchestrationLimits) {
+						await limitGate.check(stateManager, context, messagesLimit, sendingSession);
 					}
 					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
 					if (operation === 'send') {
