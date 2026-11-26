@@ -79,7 +79,7 @@ export class SideChatContribution extends Disposable implements IAgentHostChatCo
 		if (turns.slice(boundary).some(turn => turn.state === TurnState.Complete)) {
 			this._context.memento(sideChatSeededMemento, context.chat).set(true, undefined);
 		}
-		return boundary === turns.length
+		return boundary === turns.length && !turns.some(turn => turn.id === inheritedTurnId)
 			? turns
 			: sliceSideChatTurns(turns, sideChatBoundary);
 	}
