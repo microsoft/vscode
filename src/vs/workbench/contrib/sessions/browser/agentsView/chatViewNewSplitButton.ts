@@ -216,17 +216,20 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 	}
 
 	/**
-	 * The widths that the fit depends on and that do not change with the button's size: the row's, the label's and the
-	 * keybinding's, and the contents of the other actions, which are zero when they are hidden.
+	 * What the fit depends on and what does not change with the button's size: the widths of the row, the label and the
+	 * keybinding, and for the other actions, the widths of their contents, which are zero when they are hidden, and the
+	 * margins, minimum widths and display of their items, which the toolbar lays out around them.
 	 */
 	private getFitInputs(row: HTMLElement): string {
-		const widths = [row.getBoundingClientRect().width, ...this.measuredElements.map(element => element.getBoundingClientRect().width)];
+		const targetWindow = DOM.getWindow(row);
+		const inputs: (number | string)[] = [row.getBoundingClientRect().width, ...this.measuredElements.map(element => element.getBoundingClientRect().width)];
 		for (const child of row.children) {
 			if (child !== this.element) {
-				widths.push((child.firstElementChild ?? child).getBoundingClientRect().width);
+				const style = targetWindow.getComputedStyle(child);
+				inputs.push((child.firstElementChild ?? child).getBoundingClientRect().width, style.display, style.marginLeft, style.marginRight, style.minWidth);
 			}
 		}
-		return widths.join(',');
+		return inputs.join(',');
 	}
 
 	/**
@@ -305,6 +308,8 @@ export class ChatViewNewSplitButtonActionViewItem extends BaseActionViewItem {
 		// the row, so their first notifications come in the same frame.
 		store.add(DOM.sharedMutationObserver.observe(row, store, { childList: true })(() => {
 			observeActions();
+			// New actions can take other room around contents of the same widths
+			this.lastFit = undefined;
 			this.fit();
 		}));
 	}

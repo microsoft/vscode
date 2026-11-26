@@ -370,6 +370,47 @@ suite('Sessions - ChatViewNewSplitButtonActionViewItem', () => {
 		assert.deepStrictEqual({ size: state(), writes }, { size: 'icon', writes: [] });
 	});
 
+	test('fits again before the paint when the toolbar replaces an action with one of the same width that takes more room', async () => {
+		const { title, actionsContainer, clearance, state } = createTitle(300, 2);
+		// The narrowest width with the full button
+		let width = 200;
+		do {
+			title.style.width = `${width -= 1}px`;
+			await layout();
+		} while (state() === 'full');
+		title.style.width = `${width + 1}px`;
+		await layout();
+		const states = [state()];
+
+		const item = actionsContainer.querySelector<HTMLElement>('.chat-view-new-split-button')!;
+		// The last icon, whose larger margin moves the icons before it towards the button
+		const icon = [...actionsContainer.children].filter(child => child !== item && mainWindow.getComputedStyle(child).display !== 'none').at(-1) as HTMLElement;
+		const replacement = icon.cloneNode(true) as HTMLElement;
+		replacement.style.marginRight = '16px';
+		/** What the button shows, and whether it touches the next action or leaves the row over the title's label. */
+		const shown = () => ({
+			size: item.classList.contains('compact') ? 'compact' : item.classList.contains('icon-only') ? 'icon' : 'full',
+			overlaps: clearance(item) < 1 || item.getBoundingClientRect().left < actionsContainer.getBoundingClientRect().left,
+		});
+		// Reports what the button shows once the replacement is notified, before the paint
+		const atPaint = await new Promise<{ size: string; overlaps: boolean }>(resolve => {
+			const observer = new MutationObserver(() => {
+				observer.disconnect();
+				resolve(shown());
+			});
+			store.add({ dispose: () => observer.disconnect() });
+			observer.observe(actionsContainer, { childList: true });
+			icon.replaceWith(replacement);
+		});
+		await layout();
+
+		assert.deepStrictEqual({ states, atPaint, afterPaint: shown() }, {
+			states: ['full'],
+			atPaint: { size: 'compact', overlaps: false },
+			afterPaint: { size: 'compact', overlaps: false },
+		});
+	});
+
 	test('updates the size when the other actions or the title change and the title does not', async () => {
 		const { label, actionsContainer, state } = createTitle(300, 3);
 		await layout();
