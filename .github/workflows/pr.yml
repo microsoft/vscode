@@ -17,8 +17,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
+permissions: {}
 
 env:
   VSCODE_QUALITY: 'oss'
@@ -685,6 +684,8 @@ jobs:
     name: Linux
     needs: changes
     if: ${{ !cancelled() }}
+    permissions:
+      contents: read
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
       rustup_toolchain: '1.97.0'
@@ -735,6 +736,8 @@ jobs:
   #   name: macOS
   #   needs: changes
   #   if: ${{ !cancelled() }}
+  #   permissions:
+  #     contents: read
   #   uses: ./.github/workflows/pr-darwin-test.yml
   #   with:
   #     electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}

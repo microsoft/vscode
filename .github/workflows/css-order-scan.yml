@@ -6,8 +6,7 @@ on:
     - cron: '17 5 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: css-order-scan-${{ github.ref }}
