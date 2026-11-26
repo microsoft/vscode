@@ -16,6 +16,7 @@ import { ISandboxHelperService, type ISandboxDependencyStatus } from '../../../s
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
+import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import { AgentHostSandboxConfigKey, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
@@ -57,6 +58,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 				event.changedKeys.has(AgentHostSandboxConfigKey.Sandbox)
 				|| event.changedKeys.has(AgentHostSandboxConfigKey.SandboxProfile)
 				|| event.changedKeys.has(SessionConfigKey.SandboxEnabled)
+				|| event.changedKeys.has(ChatProvidersConfigKey.Enabled)
 			), () => undefined),
 			Event.map(Event.filter(this._agentConfigurationService.onDidChatConfigChange, event => event.chat === this._target.chat), () => undefined),
 		);

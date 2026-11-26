@@ -91,6 +91,7 @@ import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isHostNoticeTurn, isSubagentSession, lastAttributableTurnId, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
+import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import { hasChangedRootConfigKey, IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type CopilotProvisionalFusionStreamEvent, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
@@ -9918,6 +9919,7 @@ export class CopilotAgentSession extends Disposable {
 		AgentHostTerminalAutoApproveEnabledConfigKey,
 		AgentHostEditAutoApprovePatternsConfigKey,
 		AgentHostWorkspaceTrustConfigKey,
+		ChatProvidersConfigKey.Enabled,
 	]);
 
 	private static readonly _sandboxRootConfigKeys: ReadonlySet<string> = new Set([
@@ -9925,6 +9927,7 @@ export class CopilotAgentSession extends Disposable {
 		AgentHostSandboxConfigKey.SandboxProfile,
 		SessionConfigKey.SandboxEnabled,
 		CopilotCliConfigKey.EnableCustomTerminalTool,
+		ChatProvidersConfigKey.Enabled,
 	]);
 
 	private static readonly _shellInitRootConfigKeys: ReadonlySet<string> = new Set([

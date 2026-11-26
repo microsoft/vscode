@@ -135,6 +135,7 @@ import { AgentHostStorageService, IAgentHostStorageService } from '../../node/ag
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
+import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import { IAgentConfigurationService, type IAgentRootConfigurationChangeEvent } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
@@ -42249,6 +42250,36 @@ Use the attached image as context.
 			fireRootConfigChange([CopilotCliConfigKey.EnableShellInitScript]);
 			await timeout(20);
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [[]]);
+		});
+
+		test('disabling multipleChatProviders re-syncs both permission mode and sandbox config', async () => {
+			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				rootValues: {
+					[ChatProvidersConfigKey.Enabled]: true,
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off },
+				},
+				configValues: {
+					[SessionConfigKey.AutoApprove]: 'default',
+					[SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off,
+				},
+			});
+			await session.send('hello', undefined, 'turn-1', 'interactive');
+
+			mockSession.permissionModeSetCalls.length = 0;
+			mockSession.sandboxConfigUpdates.length = 0;
+
+			// Simulate a completed non-default chat falling back to inheriting its session's
+			// approval and sandbox settings when `multipleChatProviders.enabled` turns off
+			// without emitting an effective chat-config change.
+			setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
+			setConfigValue(SessionConfigKey.SandboxEnabled, AgentSandboxEnabledValue.On);
+			setRootValue(ChatProvidersConfigKey.Enabled, false);
+			fireRootConfigChange([ChatProvidersConfigKey.Enabled]);
+			await timeout(20);
+
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all']);
+			assert.strictEqual(mockSession.sandboxConfigUpdates.length, 1);
+			assert.strictEqual((mockSession.sandboxConfigUpdates[0] as { enabled?: boolean }).enabled, true);
 		});
 	});
 });
