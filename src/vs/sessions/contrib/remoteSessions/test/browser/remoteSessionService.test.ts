@@ -134,6 +134,8 @@ suite('RemoteSessionService', () => {
 			/** The model of the source chat's turn in progress, which called the tool. */
 			sourceChatModel: undefined as ModelSelection | undefined,
 			sourceChatUsage: undefined as UsageInfo | undefined,
+			/** The model of the source chat's draft, which the user picked for its next message. */
+			sourceChatDraftModel: undefined as ModelSelection | undefined,
 		};
 		const models = new Map<string, ILanguageModelChatMetadata>(hosts.flatMap(host => host.root.agents.flatMap(agent => {
 			const vendor = remoteAgentHostSessionTypeId(agentHostAuthority(host.remoteAddress), agent.provider);
@@ -211,6 +213,7 @@ suite('RemoteSessionService', () => {
 					value: upcastPartial<ChatState>({
 						turns: [],
 						activeTurn: upcastPartial<ActiveTurn>({ message: { text: 'Delegate', origin: { kind: MessageKind.User }, model: state.sourceChatModel }, usage: state.sourceChatUsage }),
+						draft: state.sourceChatDraftModel && { text: '', origin: { kind: MessageKind.User }, model: state.sourceChatDraftModel },
 					}),
 				}),
 			};
@@ -444,6 +447,14 @@ suite('RemoteSessionService', () => {
 			modelConfiguration: { [ReasoningEffortConfigKey]: 'high' },
 			reported: { provider: 'copilot', id: 'test-model' },
 		});
+	});
+
+	test('a source turn on the host default does not hand on the model of the chat\'s draft', async () => {
+		const host = new RemoteProvider('host');
+		const { create, calls, state } = setup([host]);
+		state.sourceChatDraftModel = { id: 'test-model' };
+		await create();
+		assert.strictEqual(calls[0].options?.modelId, undefined);
 	});
 
 	test('a named model that is the source chat\'s model keeps its options only while agents can choose model options', async () => {

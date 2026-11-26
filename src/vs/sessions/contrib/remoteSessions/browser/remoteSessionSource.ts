@@ -166,8 +166,10 @@ export async function resolveRemoteSessionSource(
 			}
 			checkSource();
 			// The turn in progress is the one delegating; otherwise the chat continues on its draft's or latest turn's model.
-			// A router isn't a model: like create_session, the session continues on the model the router chose.
-			const selection = withRoutedModel(chat, chat.activeTurn?.message.model ?? chat.draft?.model ?? chat.turns.at(-1)?.message.model);
+			// A message without a model runs on the host default. A router isn't a model: like create_session, the
+			// session continues on the model the router chose.
+			const requested = chat.activeTurn ? chat.activeTurn.message.model : chat.draft ? chat.draft.model : chat.turns.at(-1)?.message.model;
+			const selection = withRoutedModel(chat, requested);
 			model = selection && { provider: chat.provider ?? state.provider, selection };
 		}
 		return { ...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state), sourceChat: chatResource, ...(model ? { model } : {}) };
