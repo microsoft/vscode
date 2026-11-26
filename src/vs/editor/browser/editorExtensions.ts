@@ -724,3 +724,26 @@ export const SelectAllCommand = registerCommand(new MultiCommand({
 		order: 1
 	}]
 }));
+
+export const DeleteLeftCommand = registerCommand(new MultiCommand({
+	id: 'deleteLeft',
+	precondition: undefined,
+	kbOpts: {
+		weight: KeybindingWeight.EditorCore,
+		kbExpr: null,
+		primary: KeyCode.Backspace,
+		secondary: [KeyMod.Shift | KeyCode.Backspace],
+		mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KeyH, KeyMod.WinCtrl | KeyCode.Backspace] }
+	}
+}));
+
+export const DeleteRightCommand = registerCommand(new MultiCommand({
+	id: 'deleteRight',
+	precondition: undefined,
+	kbOpts: {
+		weight: KeybindingWeight.EditorCore,
+		kbExpr: null,
+		primary: KeyCode.Delete,
+		mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KeyD, KeyMod.WinCtrl | KeyCode.Delete] }
+	}
+}));
